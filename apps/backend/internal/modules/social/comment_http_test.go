@@ -80,6 +80,13 @@ func TestPostFeedComment_returnsTheCommentWithItsAuthor(t *testing.T) {
 	}
 }
 
+func wantRoot(t *testing.T, q *api.CommentQuote, comment, root uuid.UUID) {
+	t.Helper()
+	if q == nil || q.CommentId != comment || q.RootCommentId != root {
+		t.Errorf("quote = %+v, want a quote of %s under %s", q, comment, root)
+	}
+}
+
 func TestPostFeedComment_aReplyToAReplyNamesWhoItAnswers(t *testing.T) {
 	t.Parallel()
 	f := newCommentRoutes(t)
@@ -105,10 +112,10 @@ func TestPostFeedComment_aReplyToAReplyNamesWhoItAnswers(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if toKai.ParentCommentId == nil || *toKai.ParentCommentId != top.Id ||
-		toKai.ReplyToHandle == nil || *toKai.ReplyToHandle != "kai" {
-		t.Errorf("reply to a reply = %+v, want parent %s and reply_to_handle kai", toKai, top.Id)
+	if toKai.ParentCommentId != nil || toKai.ReplyToHandle == nil || *toKai.ReplyToHandle != "kai" {
+		t.Errorf("reply to a reply = %+v, want top-level and reply_to_handle kai", toKai)
 	}
+	wantRoot(t, toKai.ReplyTo, byKai.Id, top.Id)
 	if toGone.ReplyToHandle != nil {
 		t.Errorf("reply to a deleted account = %+v, want no reply_to_handle", toGone)
 	}
@@ -214,20 +221,20 @@ func TestGetFeedComments_rendersADeletedCommentInPlaceAndMarksOwnComments(t *tes
 	f := newCommentRoutes(t)
 	item := f.item(t, feed.KindTrade)
 	kai := f.cabal.Members[0].ID
-	top := f.say(t, item, kai, "top", nil)
-	reply := f.say(t, item, f.outsider, "reply", &top.Id)
-	if _, err := f.routes.DeleteFeedComment(asUser(t.Context(), kai), api.DeleteFeedCommentRequestObject{
+	top := f.say(t, item, f.outsider, "top", nil)
+	reply := f.say(t, item, kai, "reply", &top.Id)
+	if _, err := f.routes.DeleteFeedComment(asUser(t.Context(), f.outsider), api.DeleteFeedCommentRequestObject{
 		CommentId: top.Id,
 	}); err != nil {
 		t.Fatal(err)
 	}
-	page := f.read(t, f.outsider, item, api.GetFeedCommentsParams{})
+	page := f.read(t, kai, item, api.GetFeedCommentsParams{})
 	if len(page.Items) != 1 || len(page.Items[0].Replies) != 1 {
 		t.Fatalf("page = %+v, want one thread with a reply", page)
 	}
 	gotTop, gotReply := page.Items[0].Comment, page.Items[0].Replies[0]
 	if gotTop.Body != nil || gotTop.BodyDisplay != "Comment deleted" || gotTop.IsMine ||
-		gotTop.Author.Id != kai.UUID() {
+		gotTop.Author.Id != f.outsider.UUID() {
 		t.Errorf("deleted top-level comment = %+v", gotTop)
 	}
 	if gotReply.Id != reply.Id || gotReply.Body == nil || *gotReply.Body != "reply" || !gotReply.IsMine {

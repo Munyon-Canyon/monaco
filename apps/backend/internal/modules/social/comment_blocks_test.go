@@ -87,7 +87,8 @@ func TestComments_HidesBlockedAuthor(t *testing.T) {
 	got = bodiesOf(f.page(t, f.third, 50, nil))
 	want = [][]string{
 		{"top by the blocked", "reply under the blocked", "third under the blocked"},
-		{"top by the third", "blocked reply under the third", "blocker reply under the third"},
+		{"top by the third", "blocker reply under the third"},
+		{"blocked reply under the third"},
 		{"top by the blocker"},
 	}
 	if !reflect.DeepEqual(got, want) {

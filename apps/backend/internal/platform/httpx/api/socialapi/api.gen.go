@@ -686,15 +686,23 @@ type Comment struct {
 	// Examples: true
 	IsMine bool `json:"is_mine"`
 
-	// ParentCommentId The top-level comment this sits under. Null on a top-level comment.
+	// ParentCommentId The top-level comment this sits under. Set only on an answer by the item's author, folded under the comment it answers. Null on every other comment, including a reply by anyone else.
 	//
 	// Examples: null
 	ParentCommentId *openapi_types.UUID `json:"parent_comment_id"`
 
-	// ReplyToHandle The handle of the person a reply answers, when it answers a reply. Otherwise null.
+	// ReplyTo The comment a reply answers, as the quote above the reply.
+	ReplyTo *CommentQuote `json:"reply_to,omitempty"`
+
+	// ReplyToHandle Deprecated, use `reply_to`. The handle of the person a reply answers. Null on a comment that answers none.
 	//
 	// Examples: null
 	ReplyToHandle *string `json:"reply_to_handle"`
+
+	// RootCommentId On a folded answer, the top-level comment it sits under, equal to `parent_comment_id`. Null on a top-level comment.
+	//
+	// Examples: null
+	RootCommentId *openapi_types.UUID `json:"root_comment_id,omitempty"`
 }
 
 // CommentAuthor The author of a comment. A deleted account has a null handle and an empty name.
@@ -741,6 +749,39 @@ type CommentPage struct {
 	//
 	// Examples: null
 	NextCursor *string `json:"next_cursor"`
+}
+
+// CommentQuote The comment a reply answers, as the quote above the reply.
+type CommentQuote struct {
+	// AuthorDisplayName The answered comment's author, `Someone` once that account is deleted.
+	//
+	// Examples: Andres
+	AuthorDisplayName string `json:"author_display_name"`
+
+	// CommentId The answered comment.
+	//
+	// Examples: 01920000-0000-7000-8000-000000000006
+	CommentId openapi_types.UUID `json:"comment_id"`
+
+	// Excerpt The first 120 characters of the answered comment. Null once it is deleted or removed, and when the caller blocked its author.
+	//
+	// Examples: Good timing on this one.
+	Excerpt *string `json:"excerpt"`
+
+	// IsDeleted True when the answered comment is deleted or removed.
+	//
+	// Examples: false
+	IsDeleted bool `json:"is_deleted"`
+
+	// IsFolded True when the answered comment is a folded answer, so the app expands its root before it jumps.
+	//
+	// Examples: false
+	IsFolded bool `json:"is_folded"`
+
+	// RootCommentId The answered comment's top-level comment: its parent, or itself when it is top-level. The app expands this comment before it jumps.
+	//
+	// Examples: 01920000-0000-7000-8000-000000000006
+	RootCommentId openapi_types.UUID `json:"root_comment_id"`
 }
 
 // CommentThread A top-level comment and all its replies.

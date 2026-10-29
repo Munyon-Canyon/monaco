@@ -30,6 +30,30 @@ type Comment struct {
 	CreatedAt      time.Time
 	Deleted        bool
 	RemovedByAdmin bool
+	ReplyTo        *CommentQuote
+}
+
+type CommentQuote struct {
+	CommentID uuid.UUID
+	RootID    uuid.UUID
+	AuthorID  ids.UserID
+	Excerpt   *string
+	Deleted   bool
+	Folded    bool
+}
+
+func quoteOf(id, author, parent uuid.UUID, body string, deleted, blocked bool) *CommentQuote {
+	quote := &CommentQuote{
+		CommentID: id, RootID: id, AuthorID: ids.UserIDFrom(author), Deleted: deleted, Folded: parent != uuid.Nil,
+	}
+	if parent != uuid.Nil {
+		quote.RootID = parent
+	}
+	if !blocked {
+		text := domain.CommentBody(body)
+		quote.Excerpt = domain.QuoteExcerpt(&text, deleted)
+	}
+	return quote
 }
 
 type CreateComment struct {
@@ -112,14 +136,14 @@ func (h *CreateCommentHandler) store(
 ) (Comment, error) {
 	const op = "social.CreateComment"
 	q := sqlc.New(tx.Queries())
-	target, place, err := loadParent(ctx, q, cmd)
+	target, place, err := loadParent(ctx, q, cmd, at.thread.ActorID.Bytes)
 	if err != nil {
 		return Comment{}, err
 	}
 	row, err := q.InsertComment(ctx, sqlc.InsertCommentParams{
 		ID: h.d.IDs.NewV7(), FeedObjectID: cmd.FeedObjectID, AuthorID: cmd.Author.UUID(),
-		ParentCommentID: place.ParentID, ReplyToUserID: place.ReplyToID, Body: cmd.Body.String(),
-		CreatedAt: h.d.Clock.Now().UTC(),
+		ParentCommentID: place.ParentID, ReplyToUserID: place.ReplyToUserID, ReplyToCommentID: place.ReplyToCommentID,
+		Body: cmd.Body.String(), CreatedAt: h.d.Clock.Now().UTC(),
 	})
 	if err != nil {
 		return Comment{}, errs.Wrap(err, errs.CodeInternal, op)
@@ -131,7 +155,13 @@ func (h *CreateCommentHandler) store(
 		return Comment{}, errs.Wrap(err, errs.CodeInternal, op)
 	}
 	tx.AfterCommit(func(ctx context.Context) { h.d.Hints.PublishHint(ctx, FeedHint, nil) })
-	return commentOf(row), tx.Events.Append(ctx, createdEvent(at, row, target, cmd.Body))
+	created := commentOf(row)
+	if target.ID != uuid.Nil {
+		created.ReplyTo = quoteOf(
+			target.ID, target.AuthorID, target.ParentCommentID.Bytes, target.Body, target.Deleted, target.Blocked,
+		)
+	}
+	return created, tx.Events.Append(ctx, createdEvent(at, row, target, cmd.Body))
 }
 
 type replyDraft struct {
@@ -197,6 +227,12 @@ func createdEvent(
 		ItemLabel: feed.RenderLabel(itemKind, itemPayload), ItemNoun: feed.RenderNoun(itemKind, itemPayload),
 		ReplyRule: string(at.rule),
 	}
+	if target.ID != uuid.Nil {
+		answered := domain.CommentBody(target.Body)
+		root := domain.CommentTarget{ID: target.ID, ParentID: target.ParentCommentID.Bytes}.RootID()
+		e.ReplyToCommentID, e.ReplyToAuthorID, e.ReplyToRootID = &target.ID, &target.AuthorID, &root
+		e.ReplyToDeleted, e.ReplyToExcerpt = target.Deleted, domain.QuoteExcerpt(&answered, target.Deleted)
+	}
 	if threadPayload.CabalName != "" {
 		e.CabalName = &threadPayload.CabalName
 	}
@@ -216,7 +252,7 @@ func commentOf(row sqlc.FeedComment) Comment {
 }
 
 func loadParent(
-	ctx context.Context, q *sqlc.Queries, cmd CreateComment,
+	ctx context.Context, q *sqlc.Queries, cmd CreateComment, threadAuthor uuid.UUID,
 ) (sqlc.GetCommentTargetRow, domain.CommentPlacement, error) {
 	const op = "social.CreateComment"
 	if cmd.ParentID == uuid.Nil {
@@ -224,7 +260,7 @@ func loadParent(
 	}
 	target, err := q.GetCommentTarget(
 		ctx,
-		sqlc.GetCommentTargetParams{ID: cmd.ParentID, FeedObjectID: cmd.FeedObjectID},
+		sqlc.GetCommentTargetParams{ID: cmd.ParentID, FeedObjectID: cmd.FeedObjectID, Viewer: cmd.Author.UUID()},
 	)
 	switch {
 	case errors.Is(err, sql.ErrNoRows):
@@ -235,5 +271,5 @@ func loadParent(
 	}
 	return target, domain.PlaceReply(domain.CommentTarget{
 		ID: target.ID, AuthorID: target.AuthorID, ParentID: target.ParentCommentID.Bytes,
-	}), nil
+	}, cmd.Author.UUID(), threadAuthor), nil
 }

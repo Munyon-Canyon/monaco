@@ -17,6 +17,7 @@ import (
 const (
 	commentDeletedDisplay = "Comment deleted"
 	commentRemovedDisplay = "Removed by Monaco"
+	quoteAuthorDeleted    = "Someone"
 )
 
 func (h HTTP) PostFeedComment(
@@ -65,13 +66,32 @@ func wireComments(
 func commentPeople(comments []app.Comment) []ids.UserID {
 	var people []ids.UserID
 	for _, c := range comments {
-		for _, id := range []ids.UserID{c.AuthorID, c.ReplyToUserID} {
+		for _, id := range commentPerson(c) {
 			if id.UUID() != uuid.Nil && !slices.Contains(people, id) {
 				people = append(people, id)
 			}
 		}
 	}
 	return people
+}
+
+func commentPerson(c app.Comment) []ids.UserID {
+	people := []ids.UserID{c.AuthorID, c.ReplyToUserID}
+	if c.ReplyTo != nil {
+		people = append(people, c.ReplyTo.AuthorID)
+	}
+	return people
+}
+
+func wireQuote(q *app.CommentQuote, who people) *api.CommentQuote {
+	name := quoteAuthorDeleted
+	if card, ok := who.cards[q.AuthorID]; ok && !card.Deleted {
+		name = card.DisplayName
+	}
+	return &api.CommentQuote{
+		CommentId: q.CommentID, RootCommentId: q.RootID, AuthorDisplayName: name, Excerpt: q.Excerpt,
+		IsDeleted: q.Deleted, IsFolded: q.Folded,
+	}
 }
 
 func wireComment(c app.Comment, viewer ids.UserID, who people) api.Comment {
@@ -82,11 +102,19 @@ func wireComment(c app.Comment, viewer ids.UserID, who people) api.Comment {
 	}
 	author.Return1mBps, author.ReturnPrivate = who.authorReturn(c.AuthorID)
 	out := api.Comment{
-		Id: c.ID, ParentCommentId: optionalWireID(c.ParentID), Author: author, IsMine: c.AuthorID == viewer,
-		CreatedAt: c.CreatedAt, BodyDisplay: c.Body,
+		Id:              c.ID,
+		ParentCommentId: optionalWireID(c.ParentID),
+		RootCommentId:   optionalWireID(c.ParentID),
+		Author:          author,
+		IsMine:          c.AuthorID == viewer,
+		CreatedAt:       c.CreatedAt,
+		BodyDisplay:     c.Body,
 	}
 	if card, ok := who.cards[c.ReplyToUserID]; ok && !card.Deleted {
 		out.ReplyToHandle = optionalWireText(card.Handle)
+	}
+	if c.ReplyTo != nil {
+		out.ReplyTo = wireQuote(c.ReplyTo, who)
 	}
 	switch {
 	case c.Deleted && c.RemovedByAdmin:

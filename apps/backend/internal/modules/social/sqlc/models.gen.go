@@ -26,16 +26,17 @@ type CabalMessage struct {
 }
 
 type FeedComment struct {
-	ID              uuid.UUID
-	FeedObjectID    uuid.UUID
-	AuthorID        uuid.UUID
-	ParentCommentID pgtype.UUID
-	ReplyToUserID   pgtype.UUID
-	Body            string
-	CreatedAt       time.Time
-	DeletedAt       pgtype.Timestamptz
-	DeletedBy       pgtype.UUID
-	DeletedByKind   string
+	ID               uuid.UUID
+	FeedObjectID     uuid.UUID
+	AuthorID         uuid.UUID
+	ParentCommentID  pgtype.UUID
+	ReplyToUserID    pgtype.UUID
+	Body             string
+	CreatedAt        time.Time
+	DeletedAt        pgtype.Timestamptz
+	DeletedBy        pgtype.UUID
+	DeletedByKind    string
+	ReplyToCommentID pgtype.UUID
 }
 
 type Report struct {

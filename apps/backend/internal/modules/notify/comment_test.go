@@ -25,6 +25,7 @@ func (r *pushRig) reply(t *testing.T, parent, replier ids.UserID) events.Comment
 	e := goldenEvent(t, events.TypeCommentCreated).(events.CommentCreated)
 	author := parent.UUID()
 	e.CommentID, e.AuthorID, e.ParentAuthorID, e.ReplyToUserID = r.ids.NewV7(), replier.UUID(), &author, nil
+	e.ReplyToAuthorID = &author
 	return e
 }
 
@@ -40,7 +41,7 @@ func (r *pushRig) handleReply(t *testing.T, d bus.Delivery, e events.CommentCrea
 
 func replyPush(to ids.UserID, e events.CommentCreated, title string) apns.Push {
 	return apns.Push{
-		UserID: to, Token: token('a'), Environment: apns.Sandbox, CollapseID: "comment-" + e.ParentCommentID.String(),
+		UserID: to, Token: token('a'), Environment: apns.Sandbox, CollapseID: "comment-" + e.ReplyToRootID.String(),
 		Title: title, Body: e.Excerpt, Data: map[string]string{
 			"kind": "comment_reply", "feed_item_id": e.FeedObjectID.String(),
 			"proposal_id": e.ProposalID.String(), "cabal_id": e.CabalID.String(),
@@ -75,11 +76,16 @@ func TestNotify_CommentReply_Silent(t *testing.T) {
 	r.device(t, parent, token('a'))
 	r.device(t, replier, token('b'))
 	for name, edit := range map[string]func(*events.CommentCreated){
-		"a top-level comment": func(e *events.CommentCreated) {
+		"a comment that answers none": func(e *events.CommentCreated) {
 			e.ParentCommentID, e.ParentAuthorID = nil, nil
+			e.ReplyToCommentID, e.ReplyToAuthorID, e.ReplyToRootID, e.ReplyToExcerpt = nil, nil, nil, nil
 		},
-		"a self-reply":                 func(e *events.CommentCreated) { e.AuthorID = *e.ParentAuthorID },
-		"a reply to a deleted comment": func(e *events.CommentCreated) { e.ParentDeleted = true },
+		"a self-reply":                 func(e *events.CommentCreated) { e.AuthorID = *e.ReplyToAuthorID },
+		"a reply to a deleted comment": func(e *events.CommentCreated) { e.ReplyToDeleted = true },
+		"a reply to a deleted comment in an old event": func(e *events.CommentCreated) {
+			e.ReplyToCommentID, e.ReplyToAuthorID, e.ReplyToRootID = nil, nil, nil
+			e.ParentDeleted = true
+		},
 	} {
 		t.Logf("case: %s", name)
 		e := r.reply(t, parent, replier)
@@ -100,16 +106,34 @@ func TestNotify_CommentReply_Recipients(t *testing.T) {
 	t.Parallel()
 	golden := goldenEvent(t, events.TypeCommentCreated).(events.CommentCreated)
 	parent := ids.UserIDFrom(*golden.ParentAuthorID)
+	answered := ids.UserIDFrom(*golden.ReplyToAuthorID)
+	other := ids.Real{}.NewV7()
 	for name, tc := range map[string]struct {
 		edit func(*events.CommentCreated)
 		want []ids.UserID
 	}{
 		"the author of the comment replied to": {
-			func(e *events.CommentCreated) { e.ReplyToUserID = nil }, []ids.UserID{parent},
+			func(e *events.CommentCreated) { e.ReplyToUserID = nil }, []ids.UserID{answered},
 		},
-		"a top-level comment":     {func(e *events.CommentCreated) { e.ParentCommentID = nil }, nil},
-		"a deleted comment":       {func(e *events.CommentCreated) { e.ParentDeleted = true }, nil},
-		"a parent with no author": {func(e *events.CommentCreated) { e.ParentAuthorID = nil }, nil},
+		"a top-level reply that quotes a comment": {
+			func(e *events.CommentCreated) {
+				e.ParentCommentID, e.ParentAuthorID, e.ReplyToAuthorID = nil, nil, &other
+			},
+			[]ids.UserID{ids.UserIDFrom(other)},
+		},
+		"a deleted comment": {func(e *events.CommentCreated) { e.ReplyToDeleted = true }, nil},
+		"an event from before the answered comment was stored": {
+			func(e *events.CommentCreated) {
+				e.ReplyToCommentID, e.ReplyToAuthorID, e.ReplyToRootID, e.ReplyToExcerpt = nil, nil, nil, nil
+			},
+			[]ids.UserID{parent},
+		},
+		"no answered comment": {
+			func(e *events.CommentCreated) {
+				e.ReplyToCommentID, e.ReplyToAuthorID, e.ReplyToRootID, e.ParentAuthorID = nil, nil, nil, nil
+			},
+			nil,
+		},
 	} {
 		e := golden
 		tc.edit(&e)
@@ -180,7 +204,7 @@ func commentRenders(golden events.CommentCreated) map[string]commentRender {
 func TestNotify_CommentReply_Render(t *testing.T) {
 	t.Parallel()
 	golden := goldenEvent(t, events.TypeCommentCreated).(events.CommentCreated)
-	collapse := "comment-" + golden.ParentCommentID.String()
+	collapse := "comment-" + golden.ReplyToRootID.String()
 	for name, tc := range commentRenders(golden) {
 		e := golden
 		tc.edit(&e)
@@ -215,4 +239,29 @@ func TestNotify_CommentReply_ReachesTheParentAuthorThroughTheModule(t *testing.T
 	}
 	r.wantStates(t, d, map[ids.UserID]string{parent: "delivered"})
 	r.wantRecorded(t, d, 1)
+}
+
+func TestNotify_CommentReply_CollapsesOnTheAnsweredRoot(t *testing.T) {
+	t.Parallel()
+	golden := goldenEvent(t, events.TypeCommentCreated).(events.CommentCreated)
+	old := golden
+	old.ReplyToRootID = nil
+	topLevel := golden
+	topLevel.ParentCommentID = nil
+	for name, tc := range map[string]struct {
+		e    events.CommentCreated
+		want string
+	}{
+		"the answered comment's root": {golden, "comment-" + golden.ReplyToRootID.String()},
+		"an old event's parent":       {old, "comment-" + golden.ParentCommentID.String()},
+		"a top-level reply":           {topLevel, "comment-" + golden.ReplyToRootID.String()},
+	} {
+		kind := app.CommentReply{Users: users{}}
+
+		msg, err := kind.Render(t.Context(), tc.e, ids.UserID{})
+
+		if err != nil || msg.CollapseID != tc.want {
+			t.Errorf("%s: collapse id = %q, %v, want %q", name, msg.CollapseID, err, tc.want)
+		}
+	}
 }

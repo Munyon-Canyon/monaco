@@ -415,6 +415,11 @@ Subject `events.comment.created`, version 1.
 | `parent_author_id` | `*uuid.UUID` |
 | `parent_deleted` | `bool` |
 | `reply_to_user_id` | `*uuid.UUID` |
+| `reply_to_comment_id` | `*uuid.UUID` |
+| `reply_to_author_id` | `*uuid.UUID` |
+| `reply_to_deleted` | `bool` |
+| `reply_to_root_id` | `*uuid.UUID` |
+| `reply_to_excerpt` | `*string` |
 | `item_actor_id` | `*uuid.UUID` |
 | `proposal_id` | `*uuid.UUID` |
 | `excerpt` | `string` |

@@ -15,10 +15,24 @@ type CommentReply struct{ Users Users }
 func (CommentReply) Name() string { return "comment_reply" }
 
 func (CommentReply) Recipients(_ context.Context, e events.CommentCreated) ([]ids.UserID, error) {
-	if e.ParentCommentID == nil || e.ParentAuthorID == nil || e.ParentDeleted {
-		return nil, nil
+	switch {
+	case e.ReplyToAuthorID != nil:
+		if e.ReplyToDeleted {
+			return nil, nil
+		}
+		return []ids.UserID{ids.UserIDFrom(*e.ReplyToAuthorID)}, nil
+	case e.ParentAuthorID != nil && !e.ParentDeleted:
+		return []ids.UserID{ids.UserIDFrom(*e.ParentAuthorID)}, nil
 	}
-	return []ids.UserID{ids.UserIDFrom(*e.ParentAuthorID)}, nil
+	return nil, nil
+}
+
+func collapseID(e events.CommentCreated) string {
+	root := e.ParentCommentID
+	if e.ReplyToRootID != nil {
+		root = e.ReplyToRootID
+	}
+	return "comment-" + root.String()
 }
 
 func (k CommentReply) Render(ctx context.Context, e events.CommentCreated, _ ids.UserID) (Message, error) {
@@ -38,6 +52,6 @@ func (k CommentReply) Render(ctx context.Context, e events.CommentCreated, _ ids
 		Title:      replier + " replied to your comment",
 		Body:       body,
 		Data:       data,
-		CollapseID: "comment-" + e.ParentCommentID.String(),
+		CollapseID: collapseID(e),
 	}, nil
 }
