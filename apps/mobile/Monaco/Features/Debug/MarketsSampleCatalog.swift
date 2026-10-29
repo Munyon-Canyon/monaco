@@ -52,6 +52,7 @@ enum MarketsSampleCatalog {
         _ symbol: String, _ name: String, _ estimateMicros: Int64, eligible: Bool
     ) -> Components.Schemas.AssetSummary {
         Components.Schemas.AssetSummary(
+            id: "01890a5d-ac96-774b-bcce-b302099a8070",
             symbol: symbol, displayName: name, issuer: .tessera, kind: .preIpo, logoUrl: nil,
             priceMicros: estimateMicros / 4, priceAsOf: Date(), changeBps: 125,
             sparklineMicros: [estimateMicros / 4 - 1_000_000, estimateMicros / 4], quotable: true,
@@ -67,6 +68,7 @@ enum MarketsSampleCatalog {
         let wobble: [Int64] = [0, 3, 1, 4, 2, 5, 4, 7, 6, 9, 8, 11]
         let series = wobble.map { priceMicros - slope * (11 - $0) * step }
         return Components.Schemas.AssetSummary(
+            id: "01890a5d-ac96-774b-bcce-b302099a8070",
             symbol: symbol, displayName: name, issuer: .xstocks, kind: .equity, logoUrl: nil,
             priceMicros: priceMicros, priceAsOf: Date(), changeBps: changeBps, sparklineMicros: series,
             quotable: true, session: .open, tradable: true)
@@ -76,6 +78,7 @@ enum MarketsSampleCatalog {
         _ symbol: String, _ name: String, _ priceMicros: Int64, _ changeBps: Int32
     ) -> Components.Schemas.AssetSummary {
         Components.Schemas.AssetSummary(
+            id: "01890a5d-ac96-774b-bcce-b302099a8070",
             symbol: symbol, displayName: name, issuer: .xstocks, kind: .equity, logoUrl: nil,
             priceMicros: priceMicros, priceAsOf: Date(), changeBps: changeBps,
             sparklineMicros: [priceMicros - 1_000_000, priceMicros], quotable: true, session: .open, tradable: true)
@@ -85,7 +88,8 @@ enum MarketsSampleCatalog {
 nonisolated extension Components.Schemas.AssetDetail {
     init(listing: Components.Schemas.AssetSummary) {
         self.init(
-            symbol: listing.symbol, displayName: listing.displayName, issuer: listing.issuer, kind: listing.kind,
+            id: listing.id, symbol: listing.symbol,
+            displayName: listing.displayName, issuer: listing.issuer, kind: listing.kind,
             logoUrl: listing.logoUrl, priceMicros: listing.priceMicros, priceAsOf: listing.priceAsOf,
             changeBps: listing.changeBps, sparklineMicros: listing.sparklineMicros, quotable: listing.quotable,
             session: listing.session, decimals: 8, uiMultiplier: .init(num: 1, den: 1),

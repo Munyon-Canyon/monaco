@@ -26,7 +26,7 @@ final class UnknownKeyDecodingTests: XCTestCase {
 
     func testAnAssetSummaryWithAnUnknownKeyDecodes() throws {
         let raw =
-            ##"{"symbol":"AAPLx","display_name":"Apple","issuer":"xstocks","kind":"equity","##
+            ##"{"id":"01890a5d-ac96-774b-bcce-b302099a8070","symbol":"AAPLx","display_name":"Apple","issuer":"xstocks","kind":"equity","##
             + ##""logo_url":"https://cdn.example.com/AAPLx.png","price_micros":110000000,"##
             + ##""price_as_of":"2026-03-04T14:30:00Z","change_bps":1000,"sparkline_micros":[100000000,110000000],"##
             + ##""session":{"state":"open","continuous":false,"holiday":"","early_close":false,"##

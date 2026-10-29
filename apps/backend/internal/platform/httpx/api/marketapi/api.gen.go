@@ -466,7 +466,7 @@ type AssetChartRange string
 
 // AssetDetail One asset, the list fields plus the chain facts and the other listings.
 //
-// Examples: {"attribution":"Data provided by CoinGecko","change_bps":1000,"decimals":8,"display_name":"Apple","issuer":"xstocks","kind":"equity","logo_url":"https://cdn.example.com/AAPLx.png","other_listings":[],"price_as_of":"2026-03-04T14:30:00Z","price_micros":110000000,"price_poll_interval_seconds":120,"price_source":"jupiter","quotable":true,"session":{"continuous":false,"early_close":false,"holiday":"","next_state":"after_hours","next_transition":"2026-03-04T21:00:00Z","state":"open"},"sparkline_micros":[100000000,110000000],"stats":{"held_by_cabals":3,"market_cap_micros":"2970000000000000000","open_micros":108000000,"year_high_micros":224900000,"year_low_micros":86620000},"symbol":"AAPLx","tradable":true,"ui_multiplier":{"den":1,"num":1},"volume_24h_as_of":"2026-03-04T05:00:00Z","volume_24h_micros":2500000000000}
+// Examples: {"attribution":"Data provided by CoinGecko","change_bps":1000,"decimals":8,"display_name":"Apple","id":"01890a5d-ac96-774b-bcce-b302099a8070","issuer":"xstocks","kind":"equity","logo_url":"https://cdn.example.com/AAPLx.png","other_listings":[],"price_as_of":"2026-03-04T14:30:00Z","price_micros":110000000,"price_poll_interval_seconds":120,"price_source":"jupiter","quotable":true,"session":{"continuous":false,"early_close":false,"holiday":"","next_state":"after_hours","next_transition":"2026-03-04T21:00:00Z","state":"open"},"sparkline_micros":[100000000,110000000],"stats":{"held_by_cabals":3,"market_cap_micros":"2970000000000000000","open_micros":108000000,"year_high_micros":224900000,"year_low_micros":86620000},"symbol":"AAPLx","tradable":true,"ui_multiplier":{"den":1,"num":1},"volume_24h_as_of":"2026-03-04T05:00:00Z","volume_24h_micros":2500000000000}
 type AssetDetail struct {
 	// Attribution The data source line the asset screen shows.
 	//
@@ -487,6 +487,11 @@ type AssetDetail struct {
 	//
 	// Examples: Apple
 	DisplayName string `json:"display_name"`
+
+	// Id The asset's id, as `StockAttachmentInput.asset_id` takes it.
+	//
+	// Examples: 01890a5d-ac96-774b-bcce-b302099a8070
+	Id openapi_types.UUID `json:"id"`
 
 	// Issuer The firm that issues the token.
 	//
@@ -671,7 +676,7 @@ type AssetKind string
 
 // AssetList One page of the tradable catalog.
 //
-// Examples: {"assets":[{"change_bps":1000,"display_name":"Apple","issuer":"xstocks","kind":"equity","logo_url":"https://cdn.example.com/AAPLx.png","price_as_of":"2026-03-04T14:30:00Z","price_micros":110000000,"quotable":true,"session":{"continuous":false,"early_close":false,"holiday":"","next_state":"after_hours","next_transition":"2026-03-04T21:00:00Z","state":"open"},"sparkline_micros":[100000000,110000000],"symbol":"AAPLx","volume_24h_as_of":"2026-03-04T05:00:00Z","volume_24h_micros":2500000000000}],"next_cursor":null}
+// Examples: {"assets":[{"change_bps":1000,"display_name":"Apple","id":"01890a5d-ac96-774b-bcce-b302099a8070","issuer":"xstocks","kind":"equity","logo_url":"https://cdn.example.com/AAPLx.png","price_as_of":"2026-03-04T14:30:00Z","price_micros":110000000,"quotable":true,"session":{"continuous":false,"early_close":false,"holiday":"","next_state":"after_hours","next_transition":"2026-03-04T21:00:00Z","state":"open"},"sparkline_micros":[100000000,110000000],"symbol":"AAPLx","volume_24h_as_of":"2026-03-04T05:00:00Z","volume_24h_micros":2500000000000}],"next_cursor":null}
 type AssetList struct {
 	// Assets The page, in the filter's order.
 	//
@@ -721,7 +726,7 @@ type AssetListing struct {
 
 // AssetSummary One tradable asset as the list draws it, with the price already chosen.
 //
-// Examples: {"change_bps":1000,"display_name":"Apple","issuer":"xstocks","kind":"equity","logo_url":"https://cdn.example.com/AAPLx.png","price_as_of":"2026-03-04T14:30:00Z","price_micros":110000000,"quotable":true,"session":{"continuous":false,"early_close":false,"holiday":"","next_state":"after_hours","next_transition":"2026-03-04T21:00:00Z","state":"open"},"sparkline_micros":[100000000,110000000],"symbol":"AAPLx","tradable":true,"volume_24h_as_of":"2026-03-04T05:00:00Z","volume_24h_micros":2500000000000}
+// Examples: {"change_bps":1000,"display_name":"Apple","id":"01890a5d-ac96-774b-bcce-b302099a8070","issuer":"xstocks","kind":"equity","logo_url":"https://cdn.example.com/AAPLx.png","price_as_of":"2026-03-04T14:30:00Z","price_micros":110000000,"quotable":true,"session":{"continuous":false,"early_close":false,"holiday":"","next_state":"after_hours","next_transition":"2026-03-04T21:00:00Z","state":"open"},"sparkline_micros":[100000000,110000000],"symbol":"AAPLx","tradable":true,"volume_24h_as_of":"2026-03-04T05:00:00Z","volume_24h_micros":2500000000000}
 type AssetSummary struct {
 	// CabalCount How many active cabals hold this asset. Set only on rows of the `in_cabals` filter that ranked by it, never below three, and absent everywhere else.
 	//
@@ -742,6 +747,11 @@ type AssetSummary struct {
 	//
 	// Examples: {"as_of":"2026-10-20","price_micros":185000000}
 	Estimate *PreIpoEstimate `json:"estimate,omitempty"`
+
+	// Id The asset's id, as `StockAttachmentInput.asset_id` takes it.
+	//
+	// Examples: 01890a5d-ac96-774b-bcce-b302099a8070
+	Id openapi_types.UUID `json:"id"`
 
 	// Issuer The firm that issues the token.
 	//

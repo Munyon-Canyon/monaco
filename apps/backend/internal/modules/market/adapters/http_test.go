@@ -242,3 +242,21 @@ func TestAssetDetail_staleSampleKeepsItsTime(t *testing.T) {
 }
 
 func ptr[T any](v T) *T { return &v }
+
+func TestAsset_wiresTheAssetID(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, 10, 28, 14, 0, 0, 0, time.UTC)
+	id := domain.NewAssetID(testkit.NewIDs(1))
+	view := pricedView(now, domain.SourceJupiter)
+	view.Summary.Asset.ID = id
+	if got := detailBody(t, view, now, 120*time.Second).Id; got != id.UUID() {
+		t.Fatalf("detail id = %s, want %s", got, id.UUID())
+	}
+	summary, err := wireSummary(view.Summary, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if summary.Id != id.UUID() {
+		t.Fatalf("summary id = %s, want %s", summary.Id, id.UUID())
+	}
+}

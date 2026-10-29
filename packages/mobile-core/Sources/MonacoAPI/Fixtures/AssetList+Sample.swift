@@ -39,9 +39,10 @@ extension Components.Schemas.AssetList {
 
 extension Components.Schemas.AssetSummary {
     private static func mover(
-        symbol: String, displayName: String, changeBps: Int32, sparklineMicros: [Int64]
+        id: String, symbol: String, displayName: String, changeBps: Int32, sparklineMicros: [Int64]
     ) -> Self {
         Self(
+            id: id,
             symbol: symbol,
             displayName: displayName,
             issuer: .xstocks,
@@ -58,31 +59,37 @@ extension Components.Schemas.AssetSummary {
     }
 
     public static let amd = mover(
+        id: "01890a5d-ac96-774b-bcce-b302099a8105",
         symbol: "AMDx", displayName: "Advanced Micro Devices xStock", changeBps: 790,
         sparklineMicros: [150_000_000, 153_000_000, 158_000_000, 161_850_000]
     )
     public static let nflx = mover(
+        id: "01890a5d-ac96-774b-bcce-b302099a8106",
         symbol: "NFLXx", displayName: "Netflix xStock", changeBps: 520,
         sparklineMicros: [900_000_000, 915_000_000, 930_000_000, 946_800_000]
     )
     public static let tsla = mover(
+        id: "01890a5d-ac96-774b-bcce-b302099a8107",
         symbol: "TSLAx", displayName: "Tesla xStock", changeBps: -240,
         sparklineMicros: [250_000_000, 247_000_000, 246_000_000, 244_000_000]
     )
     public static let amzn = mover(
+        id: "01890a5d-ac96-774b-bcce-b302099a8108",
         symbol: "AMZNx", displayName: "Amazon xStock", changeBps: -210,
         sparklineMicros: [200_000_000, 198_500_000, 197_000_000, 195_800_000]
     )
     public static let msft = mover(
+        id: "01890a5d-ac96-774b-bcce-b302099a8109",
         symbol: "MSFTx", displayName: "Microsoft xStock", changeBps: 60,
         sparklineMicros: [420_000_000, 421_000_000, 422_000_000, 422_520_000]
     )
 
     private static func starter(
-        symbol: String, displayName: String, issuer: Components.Schemas.AssetIssuer,
+        id: String, symbol: String, displayName: String, issuer: Components.Schemas.AssetIssuer,
         kind: Components.Schemas.AssetKind, priceMicros: Int64, changeBps: Int32?, cabalCount: Int
     ) -> Self {
         Self(
+            id: id,
             symbol: symbol,
             displayName: displayName,
             issuer: issuer,
@@ -100,23 +107,28 @@ extension Components.Schemas.AssetSummary {
     }
 
     public static let starterNvda = starter(
+        id: "01890a5d-ac96-774b-bcce-b302099a8110",
         symbol: "NVDAx", displayName: "NVIDIA xStock", issuer: .xstocks, kind: .equity,
         priceMicros: 220_000_000, changeBps: 418, cabalCount: 41
     )
     public static let starterSpaceX = starter(
+        id: "01890a5d-ac96-774b-bcce-b302099a8111",
         symbol: "tSpaceX", displayName: "SpaceX", issuer: .tessera, kind: .preIpo,
         priceMicros: 185_000_000, changeBps: nil, cabalCount: 29
     )
     public static let starterApple = starter(
+        id: "01890a5d-ac96-774b-bcce-b302099a8112",
         symbol: "AAPLx", displayName: "Apple xStock", issuer: .xstocks, kind: .equity,
         priceMicros: 180_000_000, changeBps: -80, cabalCount: 29
     )
     public static let starterMsft = starter(
+        id: "01890a5d-ac96-774b-bcce-b302099a8113",
         symbol: "MSFTx", displayName: "Microsoft xStock", issuer: .xstocks, kind: .equity,
         priceMicros: 512_300_000, changeBps: 60, cabalCount: 17
     )
 
     public static let googl = Self(
+        id: "01890a5d-ac96-774b-bcce-b302099a8101",
         symbol: "GOOGLx",
         displayName: "Alphabet xStock",
         issuer: .xstocks,
@@ -132,6 +144,7 @@ extension Components.Schemas.AssetSummary {
     )
 
     public static let paused = Self(
+        id: "01890a5d-ac96-774b-bcce-b302099a8102",
         symbol: "SBUXx",
         displayName: "Starbucks xStock",
         issuer: .xstocks,
@@ -147,6 +160,7 @@ extension Components.Schemas.AssetSummary {
     )
 
     public static let unpriced = Self(
+        id: "01890a5d-ac96-774b-bcce-b302099a8103",
         symbol: "NEWCO",
         displayName: "Newco",
         issuer: .xstocks,
@@ -161,6 +175,7 @@ extension Components.Schemas.AssetSummary {
     )
 
     public static let spaceX = Self(
+        id: "01890a5d-ac96-774b-bcce-b302099a8104",
         symbol: "tSpaceX",
         displayName: "T-SpaceX",
         issuer: .tessera,

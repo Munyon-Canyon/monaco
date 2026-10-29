@@ -156,7 +156,7 @@ func wirePage(page app.Page, now time.Time) (api.AssetList, error) {
 func wireSummary(item app.Summary, now time.Time) (api.AssetSummary, error) {
 	tradable := item.Asset.Tradable()
 	out := api.AssetSummary{
-		Symbol: item.Asset.Symbol, DisplayName: item.Asset.DisplayName,
+		Id: item.Asset.ID.UUID(), Symbol: item.Asset.Symbol, DisplayName: item.Asset.DisplayName,
 		Issuer: api.AssetIssuer(item.Asset.Issuer), Kind: api.AssetKind(item.Asset.Kind),
 		LogoUrl: present(item.Asset.LogoURL), Session: wireSession(item.Session), Tradable: &tradable,
 		Quotable: item.Asset.Quotable(now),
@@ -217,6 +217,7 @@ func wireDetail(view app.AssetView, now time.Time, pollInterval time.Duration) (
 		stats = &wired
 	}
 	return api.AssetDetail{
+		Id:              summary.Id,
 		Symbol:          summary.Symbol,
 		DisplayName:     summary.DisplayName,
 		Issuer:          summary.Issuer,

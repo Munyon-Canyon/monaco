@@ -197,6 +197,7 @@ extension MarketMappingTests {
     func testPreIPOWithSiblingListingsMapsTheDetailWithoutLosingItsCatalogFields() {
         let detail = MarketMapping.detail(
             .init(
+                id: "01890a5d-ac96-774b-bcce-b302099a8070",
                 symbol: "tSpaceX",
                 displayName: "T-SpaceX",
                 issuer: .tessera,
@@ -329,6 +330,7 @@ extension MarketMappingTests {
         volume24hAsOf: Date? = nil
     ) -> Components.Schemas.AssetSummary {
         Components.Schemas.AssetSummary(
+            id: "01890a5d-ac96-774b-bcce-b302099a8070",
             symbol: symbol,
             displayName: displayName,
             issuer: issuer,
