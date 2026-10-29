@@ -42,6 +42,7 @@ type Module struct {
 	member    app.MemberCabals
 	ownership app.Ownership
 	roles     app.MemberRoles
+	blocks    app.Blocks
 	balances  app.DisplayBalances
 	votes     app.OpenVoteCounts
 }
@@ -92,6 +93,9 @@ func (m *Module) Wire(set module.Set) {
 			m.ports.Ballots = provider.Ballots()
 		case interface{ FollowGraph() app.Follows }:
 			m.ports.Follows = provider.FollowGraph()
+			if counts, ok := mod.(interface{ FollowCounts() app.FollowCounts }); ok {
+				m.blocks = counts.FollowCounts()
+			}
 		case *market.Module:
 			m.ports.Market = marketPort{
 				catalog:  provider.Catalog(),
@@ -115,12 +119,16 @@ func (m *Module) Mount(r api.Mount) {
 	if follows == nil {
 		follows = app.UnwiredFollows{}
 	}
+	blocks := m.blocks
+	if blocks == nil {
+		blocks = app.UnwiredBlocks{}
+	}
 	boards := adapters.Boards{DB: m.deps.Pool}
 	rankingapi.Mount(adapters.HTTP{
 		Boards: boards, Cabals: app.CheckCabal(m.cabals), Pages: m.pages, Follows: follows,
 		Snapshots: boards, Ledger: m.ledger, Histories: m.curves, Stakes: m.stakes, Cards: m.cards,
 		Users: m.users, Members: m.member, Ownership: m.ownership, Roles: m.roles,
-		Balances: m.balances, Votes: m.votes,
+		Blocks: blocks, Balances: m.balances, Votes: m.votes,
 	}, r)
 }
 

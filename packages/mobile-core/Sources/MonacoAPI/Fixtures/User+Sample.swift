@@ -83,4 +83,28 @@ extension Components.Schemas.FollowsPage {
 
     public static let sampleEmpty = Self(items: [], nextCursor: nil)
 }
+
+extension Components.Schemas.CabalRef {
+    public static let sampleBigBallers = Self(
+        id: "01890a5d-ac96-774b-bcce-b302099a805e", name: "Big Ballers", pictureUrl: nil)
+}
+
+extension Components.Schemas.UserCabals {
+    public static let sample = Self(cabals: [
+        Components.Schemas.UserCabal(
+            cabal: .sampleACCapital, memberCount: 8, role: .admin, canVote: true, shared: true, ownershipBps: 2000),
+        Components.Schemas.UserCabal(
+            cabal: .sampleDegens, memberCount: 6, role: .member, canVote: true, shared: true, ownershipBps: 1500),
+        Components.Schemas.UserCabal(
+            cabal: .sampleBigBallers, memberCount: 12, role: .member, canVote: true, shared: false,
+            ownershipBps: 800),
+    ])
+
+    public static let sampleHiddenPerformance = Self(
+        cabals: sample.cabals.map { row in
+            Components.Schemas.UserCabal(
+                cabal: row.cabal, memberCount: row.memberCount, role: row.role, canVote: row.canVote,
+                shared: row.shared, ownershipBps: nil)
+        })
+}
 #endif

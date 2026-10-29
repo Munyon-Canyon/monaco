@@ -141,6 +141,10 @@ return        = gain / (start_equity + time-weighted net_flows)      -- modified
 
 `GET /v1/users/{id}` serves `standing`, `crown` and `cabals_in_common` beside the 1M return. `identity` reads the standing through ranking's `CallStanding` for the People board over the current UTC month ([right-calls.md](right-calls.md)). `standing` carries the rate, the record, the rank, the ranked count and `more_to_rank`, which is the minimum of five resolved calls less the member's resolved calls, floored at 0. It is null when the member has no calls this month, when the stored row's `period_start` is before the first day of the current UTC month (the board has not run since the month rolled over), and when either person blocked the other. `crown` is true at rank 1. `cabals_in_common` counts the cabals both people belong to today, and is 0 on your own profile. Sharing settings hide money, not right calls: `share_performance=false` hides the 1M return and P&L from others and never hides the standing. You always see your own return and P&L.
 
+## Another member's cabals
+
+`GET /v1/users/{id}/cabals` (`getUserCabals`) lists every cabal a user is in, for the Cabals tab of their profile. Each row carries the cabal card, its member count, the user's role and whether they vote, whether the caller is in the cabal too (shared cabals come first), and `ownership_bps`, the user's share of the pot, the same figure as `getCabalPot`'s `me.slice_bps` for that member. The list comes from memberships, so a cabal with no snapshot or no stake stays, with 0. A user who turned off `share_performance` shows `ownership_bps: null` on every row, valued or not, unless the caller reads their own cabals. A block in either direction returns an empty list. `getSharedCabals` is unchanged and still returns only the cabal's own figures.
+
 ## Validity rules
 
 A leaderboard that is fast and wrong is worse than slow. Rules the job enforces:
