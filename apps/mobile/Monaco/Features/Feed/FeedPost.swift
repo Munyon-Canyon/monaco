@@ -2,9 +2,15 @@ import MonacoAPI
 import MonacoCore
 import SwiftUI
 
+enum FeedPostStyle {
+    case standard
+    case outside
+}
+
 struct FeedPost<Foot: View>: View {
     let item: Components.Schemas.FeedItem
     let now: Date
+    var style: FeedPostStyle = .standard
     @ViewBuilder let foot: Foot
 
     @Environment(AppEnvironment.self) private var environment
@@ -15,7 +21,7 @@ struct FeedPost<Foot: View>: View {
             NavigationLink(value: FeedDestination.destination(for: item).route) {
                 HStack(alignment: .top, spacing: FeedPostMetrics.gap) {
                     FeedPostLead(lead: facts.lead)
-                    FeedPostBody(facts: facts, itemID: item.id)
+                    FeedPostBody(facts: facts, itemID: item.id, style: style)
                 }
                 .contentShape(Rectangle())
             }
@@ -75,6 +81,7 @@ private struct FeedPostLead: View {
 private struct FeedPostBody: View {
     let facts: FeedPostFacts
     let itemID: String
+    let style: FeedPostStyle
 
     var body: some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
@@ -90,8 +97,13 @@ private struct FeedPostBody: View {
     @ViewBuilder private var attachment: some View {
         switch facts.attachment {
         case .tally(let tally):
-            FeedAccentRule(cabalID: facts.accentCabalID) {
-                FeedProposalAttachment(tally: tally, identifier: itemID)
+            switch style {
+            case .standard:
+                FeedAccentRule(cabalID: facts.accentCabalID) {
+                    FeedProposalAttachment(tally: tally, identifier: itemID)
+                }
+            case .outside:
+                FeedOutsideTally(tally: tally, identifier: itemID)
             }
         case .quote(let text):
             FeedPostQuote(text: text)

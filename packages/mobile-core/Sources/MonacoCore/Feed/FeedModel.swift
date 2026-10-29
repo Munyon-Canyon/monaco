@@ -22,6 +22,8 @@ public final class FeedModel {
     public private(set) var failureTick = 0
     public private(set) var lastError: APIError?
     public private(set) var loadMoreFailed = false
+    public private(set) var fromEveryone: [Components.Schemas.FeedItem] = []
+    private var fromEveryoneLoaded = false
     private var likesInFlight: Set<String> = []
     private var viewerFollowsNobody = false
     private var checkingFollows = false
@@ -32,15 +34,20 @@ public final class FeedModel {
     private let viewerID: String?
     private let hints: any HintSource
     private let clock: any Clock<Duration>
+    private let now: @Sendable () -> Date
     @ObservationIgnored private lazy var refresher = HintRefresher { [weak self] in await self?.refresh() }
 
-    public init(api: APIClient, viewerID: String?, hints: any HintSource, clock: any Clock<Duration>) {
+    public init(
+        api: APIClient, viewerID: String?, hints: any HintSource, clock: any Clock<Duration>,
+        now: @escaping @Sendable () -> Date = Date.init
+    ) {
         self.api = api
         mutes = FeedMuteService(api: api)
         likes = FeedLikeService(api: api)
         self.viewerID = viewerID
         self.hints = hints
         self.clock = clock
+        self.now = now
         pager = Self.pager(api: api, query: FeedQuery())
     }
 
@@ -58,6 +65,15 @@ public final class FeedModel {
             return .empty
         case .idle, .loadingFirst, .loadingMore: return .loading
         }
+    }
+
+    public static let quietAfter: TimeInterval = 7 * 24 * 60 * 60
+    public static let othersLimit = 4
+
+    public var isQuietWeek: Bool {
+        guard query.scope == .network else { return false }
+        guard let newest = pager.items.map(\.createdAt).max() else { return pager.phase == .exhausted }
+        return now().timeIntervalSince(newest) > Self.quietAfter
     }
 
     public func select(_ scope: FeedScope) async {
@@ -78,6 +94,7 @@ public final class FeedModel {
         loadMoreFailed = false
         noteFailure(of: pager)
         await checkFollows(after: pager)
+        await syncFromEveryone(refreshing: false)
     }
 
     public func refresh() async {
@@ -86,6 +103,7 @@ public final class FeedModel {
         if !pager.phase.isFailed { loadMoreFailed = false }
         noteFailure(of: pager)
         await checkFollows(after: pager)
+        await syncFromEveryone(refreshing: true)
     }
 
     public func loadMore() async {
@@ -173,6 +191,23 @@ public final class FeedModel {
         pager = candidate
         noteFailure(of: candidate)
         await checkFollows(after: candidate)
+        await syncFromEveryone(refreshing: false)
+    }
+
+    private func syncFromEveryone(refreshing: Bool) async {
+        guard isQuietWeek else {
+            fromEveryone = []
+            fromEveryoneLoaded = false
+            return
+        }
+        guard refreshing || !fromEveryoneLoaded else { return }
+        fromEveryoneLoaded = true
+        let others = FeedQuery(scope: .others)
+        let page = try? await api.read { client in
+            try await client.getFeed(query: others.parameters(cursor: nil, limit: Self.othersLimit)).ok.body.json
+        }
+        guard isQuietWeek else { return }
+        fromEveryone = page?.items ?? []
     }
 
     private func checkFollows(after pager: CursorPager<Components.Schemas.FeedItem>) async {

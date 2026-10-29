@@ -9,6 +9,7 @@ extension FeedModel {
     public enum PreviewMode: String, Sendable {
         case items
         case empty
+        case quietWithEarlier
         case failed
         case followsNobody
         case loadMoreFailed
@@ -98,6 +99,22 @@ enum FeedPreviewFixtures {
                 action: "buy", usdcMicros: 600_000_000, assetName: "Alphabet", tokenAmount: 300_000_000,
                 tokenDecimals: 8, priceMicros: 200_000_000))
     ]
+
+    static let outsideItems: [Components.Schemas.FeedItem] = {
+        var ivan = Components.Schemas.FeedItem.results[3]
+        ivan.actorName = "Ivan"
+        ivan.title = "Ivan’s sale of $900 of TSLA in Tech Titans failed 2–2"
+        return Components.Schemas.FeedItem.publicProposals + [Components.Schemas.FeedItem.results[2], ivan]
+    }()
+
+    static func earlierItems() -> [Components.Schemas.FeedItem] {
+        [items[7], olderItems[0]].enumerated().map { index, item in
+            var item = item
+            item.createdAt = Date(timeIntervalSinceNow: -Double(8 + index) * 24 * 60 * 60)
+            item.updatedAt = item.createdAt
+            return item
+        }
+    }
 
     static func hidingReturns(_ items: [Components.Schemas.FeedItem]) -> [Components.Schemas.FeedItem] {
         items.map { item in
@@ -224,6 +241,13 @@ private struct FeedPreviewTransport: ClientTransport {
         let shown =
             mode == .pnlPrivate
             ? FeedPreviewFixtures.hidingReturns(FeedPreviewFixtures.items) : FeedPreviewFixtures.items
+        if value("scope") == "others" {
+            return try Self.reply(Components.Schemas.FeedPage(items: FeedPreviewFixtures.outsideItems, nextCursor: nil))
+        }
+        if mode == .quietWithEarlier {
+            let earlier = FeedPreviewFixtures.earlierItems()
+            return try Self.reply(Components.Schemas.FeedPage(items: earlier, nextCursor: nil))
+        }
         let items =
             mode == .empty || mode == .followsNobody
             ? []

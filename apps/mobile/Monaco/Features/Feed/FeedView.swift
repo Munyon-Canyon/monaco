@@ -155,6 +155,14 @@ private struct FeedScreen: View {
     }
 
     @ViewBuilder private var content: some View {
+        if model.isQuietWeek {
+            quietWeek
+        } else {
+            phased
+        }
+    }
+
+    @ViewBuilder private var phased: some View {
         switch model.phase {
         case .loading:
             FeedSkeleton()
@@ -183,19 +191,37 @@ private struct FeedScreen: View {
         }
     }
 
-    @ViewBuilder private var emptyState: some View {
-        if isFiltered {
-            EmptyState(
-                title: "Nothing here yet", message: "Change the filter to see more.",
-                systemImage: MonacoIcon.filter.symbol
-            )
-            .accessibilityIdentifier("feed-empty")
-        } else {
-            EmptyState(
-                title: "No updates yet", message: "Proposals, trades and conversations will appear here.",
-                systemImage: MonacoIcon.feed.symbol
-            )
-            .accessibilityIdentifier("feed-empty")
+    private var emptyState: some View {
+        EmptyState(
+            title: "Nothing here yet", message: "Change the filter to see more.",
+            systemImage: MonacoIcon.filter.symbol
+        )
+        .accessibilityIdentifier("feed-empty")
+    }
+
+    private var quietWeek: some View {
+        VStack(spacing: 0) {
+            FeedQuietWeek { scope.wrappedValue = .everyone }
+            LazyVStack(spacing: 0) {
+                ForEach(model.fromEveryone) { item in
+                    row(item, now: Date(), style: .outside)
+                }
+            }
+            if !model.items.isEmpty {
+                MonacoSectionHeader("Earlier")
+                    .padding(.horizontal, MonacoTheme.Space.gutter)
+                    .accessibilityIdentifier("feed-earlier")
+                timeline
+            }
+        }
+    }
+
+    private func row(_ item: Components.Schemas.FeedItem, now: Date, style: FeedPostStyle) -> some View {
+        VStack(spacing: 0) {
+            FeedPost(item: item, now: now, style: style) {}
+                .padding(.horizontal, MonacoTheme.Space.gutter)
+            MonacoRule(color: MonacoTheme.hairline)
+                .padding(.leading, FeedPostMetrics.textColumn)
         }
     }
 
@@ -205,21 +231,16 @@ private struct FeedScreen: View {
         return VStack(spacing: 0) {
             LazyVStack(spacing: 0) {
                 ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
-                    VStack(spacing: 0) {
-                        FeedPost(item: item, now: now) {}
-                            .padding(.horizontal, MonacoTheme.Space.gutter)
-                        MonacoRule(color: MonacoTheme.hairline)
-                            .padding(.leading, FeedPostMetrics.textColumn)
-                    }
-                    .contextMenu {
-                        ForEach(model.muteOptions(for: item)) { option in
-                            Button(option.menuTitle) { mute(option) }
+                    row(item, now: now, style: .standard)
+                        .contextMenu {
+                            ForEach(model.muteOptions(for: item)) { option in
+                                Button(option.menuTitle) { mute(option) }
+                            }
                         }
-                    }
-                    .onAppear {
-                        guard index >= items.count - 5, !model.loadMoreFailed else { return }
-                        Task { await model.loadMore() }
-                    }
+                        .onAppear {
+                            guard index >= items.count - 5, !model.loadMoreFailed else { return }
+                            Task { await model.loadMore() }
+                        }
                 }
             }
             .scrollTargetLayout()
