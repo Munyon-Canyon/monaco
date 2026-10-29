@@ -135,6 +135,7 @@ struct ShareScreenContent: View {
     private struct RenderKey: Equatable {
         let spec: ShareCardSpec
         let format: ShareFormat
+        let eyes: ShareEyes
         let epoch: Int
     }
 
@@ -168,7 +169,7 @@ struct ShareScreenContent: View {
     }
 
     private func loaded(_ spec: ShareCardSpec) -> some View {
-        let key = RenderKey(spec: spec, format: format, epoch: epoch)
+        let key = RenderKey(spec: spec, format: format, eyes: eyes, epoch: epoch)
         return TimelineView(.animation(paused: replayStart == nil)) { timeline in
             let progress = frozenProgress ?? replayStart.map { ShareReplay.progress(from: $0, at: timeline.date) }
             GeometryReader { proxy in
@@ -193,7 +194,7 @@ struct ShareScreenContent: View {
             epoch += 1
         }
         .task(id: key) {
-            rendered = Rendered(key: key, image: ShareImageExporter.render(spec, format: format))
+            rendered = Rendered(key: key, image: ShareImageExporter.render(spec, format: format, eyes: eyes))
         }
         .task(id: replayStart) {
             guard replayStart != nil else { return }
@@ -203,20 +204,26 @@ struct ShareScreenContent: View {
     }
 
     private func current(_ spec: ShareCardSpec) -> UIImage {
-        if let rendered, rendered.key.spec == spec, rendered.key.format == format { return rendered.image }
-        return ShareImageExporter.render(spec, format: format)
+        if let rendered, rendered.key.spec == spec, rendered.key.format == format, rendered.key.eyes == eyes {
+            return rendered.image
+        }
+        return ShareImageExporter.render(spec, format: format, eyes: eyes)
     }
 
     @ViewBuilder
     private func stage(_ spec: ShareCardSpec, fitted: CGSize, progress: Double?) -> some View {
         if let progress {
             ShareExportView(
-                spec: ShareReplay.spec(spec, at: progress), format: format, size: fitted, progress: progress)
+                spec: ShareReplay.spec(spec, at: progress), format: format, eyes: eyes, size: fitted,
+                progress: progress
+            )
+            .background { if format == .sticker { ShareCheckerboard() } }
         } else if let rendered {
             Image(uiImage: rendered.image)
                 .resizable()
                 .scaledToFit()
                 .frame(width: fitted.width, height: fitted.height)
+                .background { if format == .sticker { ShareCheckerboard() } }
                 .accessibilityLabel(spec.spoken)
                 .accessibilityAddTraits(.isImage)
                 .accessibilityIdentifier("share-card")
@@ -262,6 +269,26 @@ struct ShareScreenContent: View {
         let ratio = pixels.height / pixels.width
         let width = max(min(box.width, box.height / ratio), 0)
         return CGSize(width: width, height: width * ratio)
+    }
+}
+
+struct ShareCheckerboard: View {
+    static let tile: CGFloat = 12
+
+    var body: some View {
+        Canvas { context, size in
+            let columns = Int((size.width / Self.tile).rounded(.up))
+            let rows = Int((size.height / Self.tile).rounded(.up))
+            context.fill(Path(CGRect(origin: .zero, size: size)), with: .color(MonacoTheme.canvas))
+            for row in 0..<rows {
+                for column in 0..<columns where (row + column).isMultiple(of: 2) {
+                    let origin = CGPoint(x: CGFloat(column) * Self.tile, y: CGFloat(row) * Self.tile)
+                    let tile = CGRect(origin: origin, size: CGSize(width: Self.tile, height: Self.tile))
+                    context.fill(Path(tile), with: .color(MonacoTheme.surfaceSunken))
+                }
+            }
+        }
+        .accessibilityHidden(true)
     }
 }
 

@@ -38,6 +38,26 @@ struct ShareScreenTests {
         #expect(ids.contains("share-send"), "\(ids)")
     }
 
+    @Test func theStickerFormatTitlesTheScreenSticker() {
+        #expect(ShareSampleCase.screenSticker.screenTitle == "Sticker")
+        #expect(ShareSampleCase.screenPost.screenTitle == "Share")
+        #expect(ShareScreenModel.stickerTitle == "Sticker")
+    }
+
+    @Test(arguments: [ShareSampleCase.screenStake, .screenPortfolio, .stickerOff, .stickerOn, .stickerPassed])
+    func theStakePortfolioAndStickerCasesRender(sample: ShareSampleCase) async throws {
+        let ids = try await Self.shown(sample, expecting: sample.isScreen ? "share-card" : "share-sticker")
+
+        #expect(ids.contains(sample.isScreen ? "share-card" : "share-sticker"), "\(ids)")
+    }
+
+    @Test func theCheckerboardAndStickerFitTheirBox() {
+        let fitted = ShareScreenContent.fit(.sticker, in: CGSize(width: 360, height: 700))
+
+        #expect(fitted.width == 360)
+        #expect(abs(fitted.height - 204) < 0.0001)
+    }
+
     @Test func theVoteScreenIsTitledShareVoteAndMarksTheUnusedEyes() async throws {
         let ids = try await Self.shown(.screenVote, expecting: "share-card")
 

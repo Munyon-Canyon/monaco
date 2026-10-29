@@ -5,6 +5,7 @@ import UIKit
 struct ShareExportView: View {
     let spec: ShareCardSpec
     let format: ShareFormat
+    var eyes = ShareEyes()
     let size: CGSize
     var progress: Double = 1
 
@@ -14,8 +15,10 @@ struct ShareExportView: View {
 
     var body: some View {
         switch format {
-        case .post, .square, .sticker:
+        case .post, .square:
             FShareCard(spec: spec, size: size, progress: progress)
+        case .sticker:
+            FShareSticker(spec: ShareStickerSpec(from: spec, eyes: eyes), size: size)
         case .story:
             story
         }
@@ -43,22 +46,25 @@ enum ShareImageExporter {
 
     static func pixelSize(_ format: ShareFormat) -> CGSize {
         switch format {
-        case .post, .sticker: CGSize(width: exportWidth, height: 1350)
+        case .post: CGSize(width: exportWidth, height: 1350)
+        case .sticker:
+            CGSize(width: exportWidth, height: FShareSticker.designHeight * exportWidth / FShareSticker.designWidth)
         case .square: CGSize(width: exportWidth, height: exportWidth)
         case .story: CGSize(width: exportWidth, height: 1920)
         }
     }
 
-    static func render(_ spec: ShareCardSpec, format: ShareFormat) -> UIImage {
+    static func render(_ spec: ShareCardSpec, format: ShareFormat, eyes: ShareEyes = ShareEyes()) -> UIImage {
         let size = pixelSize(format)
-        let view = ShareExportView(spec: spec, format: format, size: size)
+        let opaque = format != .sticker
+        let view = ShareExportView(spec: spec, format: format, eyes: eyes, size: size)
             .environment(\.colorScheme, .dark)
             .dynamicTypeSize(.large)
         let renderer = ImageRenderer(content: view)
         renderer.proposedSize = ProposedViewSize(size)
         renderer.scale = 1
-        renderer.isOpaque = true
-        return renderer.uiImage ?? blank(size)
+        renderer.isOpaque = opaque
+        return renderer.uiImage ?? blank(size, opaque: opaque)
     }
 
     static func warmCache(for spec: ShareCardSpec) async {
@@ -81,11 +87,12 @@ enum ShareImageExporter {
         }
     }
 
-    private static func blank(_ size: CGSize) -> UIImage {
+    private static func blank(_ size: CGSize, opaque: Bool) -> UIImage {
         let format = UIGraphicsImageRendererFormat()
         format.scale = 1
-        format.opaque = true
+        format.opaque = opaque
         return UIGraphicsImageRenderer(size: size, format: format).image { context in
+            guard opaque else { return }
             UIColor.black.setFill()
             context.fill(CGRect(origin: .zero, size: size))
         }

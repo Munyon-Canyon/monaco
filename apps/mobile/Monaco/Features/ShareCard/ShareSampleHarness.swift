@@ -30,6 +30,13 @@ enum ShareSampleCase: String, CaseIterable {
     case vote
     case screenPassed
     case screenVote
+    case stake
+    case portfolio
+    case stickerOff
+    case stickerOn
+    case stickerPassed
+    case screenStake
+    case screenPortfolio
 
     static let launchArgument = "-MonacoShareSample"
 
@@ -52,13 +59,16 @@ enum ShareSampleCase: String, CaseIterable {
 
     var spec: ShareCardSpec? {
         switch self {
-        case .passed, .screenPassed: ShareSampleData.passed()
+        case .passed, .screenPassed, .stickerPassed: ShareSampleData.passed()
         case .passedPnlOn: ShareSampleData.passed(eyes: ShareEyes(pnlDollars: true))
         case .passedNoPassedPrice: ShareSampleData.passed(passedPrice: nil)
         case .passedPending: ShareSampleData.passed(outcome: .pending)
         case .passedFailed: ShareSampleData.passed(outcome: .failed)
         case .passedNoLivePrice: ShareSampleData.passed(outcome: .noLivePrice)
         case .vote, .screenVote: ShareSampleData.vote()
+        case .stake, .screenStake: ShareSampleData.stake()
+        case .portfolio, .screenPortfolio: ShareSampleData.portfolio()
+        case .stickerOff, .stickerOn: ShareSampleData.spec(eyes: stickerEyes)
         case .post, .square: ShareSampleData.spec()
         case .pnlOff: ShareSampleData.spec(eyes: ShareEyes(pnlDollars: false))
         case .buySellOff: ShareSampleData.spec(eyes: ShareEyes(buySell: false))
@@ -67,6 +77,10 @@ enum ShareSampleCase: String, CaseIterable {
         default: ShareSampleData.spec(eyes: screenEyes)
         }
     }
+
+    var isSticker: Bool { [.stickerOff, .stickerOn, .stickerPassed].contains(self) }
+
+    var stickerEyes: ShareEyes { self == .stickerOn ? ShareEyes() : ShareScreenModel.stickerEyes }
 
     var isScreen: Bool { rawValue.hasPrefix("screen") }
 
@@ -87,13 +101,21 @@ enum ShareSampleCase: String, CaseIterable {
         case .screenPnlOff: ShareEyes(pnlDollars: false)
         case .screenBuySellOff: ShareEyes(buySell: false)
         case .screenCodeOff: ShareEyes(code: false)
+        case .screenStake: ShareEyes(pnlDollars: true, buySell: false, code: false)
+        case .screenPortfolio: ShareEyes(pnlDollars: true, buySell: false)
         default: ShareEyes()
         }
     }
 
     var replayProgress: Double? { self == .screenReplay ? 0.5 : nil }
 
-    var screenTitle: String { self == .screenVote ? ShareScreenModel.voteTitle : ShareScreenModel.positionTitle }
+    var screenTitle: String {
+        switch self {
+        case .screenVote: ShareScreenModel.voteTitle
+        case .screenSticker: ShareScreenModel.stickerTitle
+        default: ShareScreenModel.positionTitle
+        }
+    }
 
     var unusedEyes: Set<ShareEye> { self == .screenVote ? [.pnl, .trades] : [] }
 }
@@ -153,6 +175,36 @@ enum ShareSampleData {
         return ShareVoteBuilder.build(
             proposal: detail, crest: ShareCrest(cabalID: "ac-capital", name: "AC Capital", pictureURL: nil),
             chart: nvdaDay, code: "andres", eyes: eyes, now: now, timeZone: utc)
+    }
+
+    static func stake(eyes: ShareEyes = ShareEyes(pnlDollars: true, buySell: false, code: false)) -> ShareCardSpec {
+        let stake = ShareStake(
+            crest: ShareCrest(cabalID: "ac-capital", name: "AC Capital", pictureURL: nil), name: "Andres",
+            photoURL: nil, ownershipBps: 3_500, valueMicros: 7_000_000_000, netContributedMicros: 6_687_600_000,
+            pnlMicros: 312_400_000, firstFundedAt: date(2026, 8, 4))
+        let start = date(2026, 8, 4)
+        let values: [Int64] = [3_000, 3_080, 3_020, 3_150, 6_700, 6_620, 6_850, 6_790, 7_000]
+        let points = values.enumerated().map {
+            ShareChartPoint(
+                time: start.addingTimeInterval(TimeInterval($0.offset) * 8 * 86_400),
+                priceMicros: $0.element * 1_000_000)
+        }
+        return ShareStakeBuilder.build(stake: stake, chart: points, code: "andres", eyes: eyes, timeZone: utc)
+    }
+
+    static func portfolio(eyes: ShareEyes = ShareEyes(pnlDollars: true, buySell: false)) -> ShareCardSpec {
+        let portfolio = SharePortfolio(
+            name: "Andres", photoURL: nil, cabalCount: 3, totalValueMicros: 12_082_000_000, pnl1mMicros: 41_250_000,
+            return1mBps: 820, rightCalls: 7, resolvedCalls: 9)
+        let start = now.addingTimeInterval(-30 * 86_400)
+        let values: [Int64] = [900, 905, 898, 920, 915, 930, 925, 941]
+        let points = values.enumerated().map {
+            ShareChartPoint(
+                time: start.addingTimeInterval(TimeInterval($0.offset) * 4 * 86_400),
+                priceMicros: $0.element * 1_000_000)
+        }
+        return SharePortfolioBuilder.build(
+            portfolio: portfolio, history: points, code: "andres", eyes: eyes, now: now, timeZone: utc)
     }
 
     private static let metaChart: [ShareChartPoint] = {
@@ -231,7 +283,12 @@ struct ShareSampleHarness: View {
                 .foregroundStyle(MonacoTheme.secondaryText)
                 .accessibilityIdentifier("share-failed")
         default:
-            if let spec = sample.spec {
+            if let spec = sample.spec, sample.isSticker {
+                let size = CGSize(width: 360, height: FShareSticker.designHeight)
+                FShareSticker(spec: ShareStickerSpec(from: spec, eyes: sample.stickerEyes), size: size)
+                    .padding(8)
+                    .background(ShareCheckerboard())
+            } else if let spec = sample.spec {
                 FShareCard(spec: spec, size: sample.cardSize)
             }
         }
@@ -255,6 +312,8 @@ private struct ShareScreenSample: View {
         case .screenFailed: .failed(.decoding("no card"))
         case .screenPassed: .loaded(ShareSampleData.passed(eyes: eyes))
         case .screenVote: .loaded(ShareSampleData.vote(eyes: eyes))
+        case .screenStake: .loaded(ShareSampleData.stake(eyes: eyes))
+        case .screenPortfolio: .loaded(ShareSampleData.portfolio(eyes: eyes))
         default: .loaded(ShareSampleData.spec(eyes: eyes))
         }
     }
@@ -267,7 +326,7 @@ private struct ShareScreenSample: View {
                 share: { _, _ in }, copyImage: { _ in }, retry: {}
             )
             .monacoCanvas()
-            .navigationTitle(sample.screenTitle)
+            .navigationTitle(format == .sticker ? ShareScreenModel.stickerTitle : sample.screenTitle)
             .navigationBarTitleDisplayMode(.inline)
         }
         .environment(\.colorScheme, .dark)
