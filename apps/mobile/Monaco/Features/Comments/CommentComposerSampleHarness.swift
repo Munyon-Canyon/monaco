@@ -5,12 +5,12 @@ import SwiftUI
 
 final class CommentComposerSampleHarnessEntry: SampleHarnessEntry {
     @MainActor
-    override class func root(arguments: [String], auth _: PrivyAuthService) -> AnyView? {
+    override class func root(arguments: [String], auth: PrivyAuthService) -> AnyView? {
         guard let flag = arguments.firstIndex(of: "-composerHarness") else { return nil }
         let raw = arguments.indices.contains(flag + 1) ? arguments[flag + 1] : "docked"
         let acts = arguments.contains(SampleHarnessRegistry.actArgument)
         let scenario = CommentComposerScenario(rawValue: raw) ?? .docked
-        return AnyView(CommentComposerHarnessScreen(scenario: scenario, acts: acts))
+        return AnyView(CommentComposerHarnessScreen(scenario: scenario, acts: acts, auth: auth))
     }
 }
 
@@ -29,6 +29,13 @@ enum CommentComposerScenario: String {
     case stockBubble
     case poll
 
+    var drawsProposal: Bool {
+        switch self {
+        case .sheetComment, .menu, .draft, .menuSale: true
+        default: false
+        }
+    }
+
     var previewMode: FeedItemDetailModel.PreviewMode {
         switch self {
         case .sending: .sending
@@ -44,13 +51,16 @@ enum CommentComposerScenario: String {
 private struct CommentComposerHarnessScreen: View {
     let scenario: CommentComposerScenario
     let acts: Bool
+    let auth: PrivyAuthService
 
     @State private var detail: FeedItemDetailModel
     @State private var toasts = ToastCenter()
 
-    init(scenario: CommentComposerScenario, acts: Bool) {
+    init(scenario: CommentComposerScenario, acts: Bool, auth: PrivyAuthService) {
         self.scenario = scenario
         self.acts = acts
+        self.auth = auth
+        if scenario.drawsProposal { SampleAPIProtocol.install(ProposalSampleScenario.nvdaOpen.script) }
         _detail = State(initialValue: .preview(scenario.previewMode, clock: ContinuousClock()))
     }
 
@@ -134,6 +144,8 @@ private struct CommentComposerHarnessScreen: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(MonacoTheme.Space.gutter)
             }
+        } else if scenario.drawsProposal {
+            SampleAppFrame(auth: auth, tab: .cabals, routes: [ProposalSampleScenario.nvdaOpen.route])
         } else {
             Color.clear
         }
@@ -148,7 +160,10 @@ private struct CommentComposerHarnessScreen: View {
         case .draft:
             _ = model.pick(.thesis(start: 0, end: 5))
         case .sheetComment:
-            if let row = model.rows.first { model.presentReplySheet(.comment(row)) }
+            if let row = model.rows.first {
+                model.edit("Fine by me if we cap it at 45%")
+                model.presentReplySheet(.comment(row))
+            }
         case .sheetPost:
             model.edit("Nice call, that one paid off.")
             model.presentReplySheet(.post(Self.post))
