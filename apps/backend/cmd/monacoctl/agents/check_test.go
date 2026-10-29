@@ -2975,7 +2975,7 @@ func TestCheck_aScopedSelectionJudgesCoverageOnTheChangedLinesOnly(t *testing.T)
 	want := "apps/backend: coverage --profile " + h.profile(t) +
 		" --only internal/a/a.go --only internal/a/c.go --changed " + h.changedFile(t)
 	if !slices.Contains(h.calls, want) ||
-		!strings.Contains(stdout, "coverage        coverage judges changed lines only (scoped selection)\n") {
+		!strings.Contains(stdout, "coverage        coverage judges the changed functions only (scoped selection)\n") {
 		t.Fatalf("calls: %s\nstdout %s\nwant %s", strings.Join(h.calls, "\n"), stdout, want)
 	}
 	got, err := os.ReadFile(h.changedFile(t))
