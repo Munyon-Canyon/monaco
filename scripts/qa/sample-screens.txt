@@ -1056,6 +1056,7 @@ f__05-emoji-picker                  -reactionsHarness picker
 f__05-post                          -feedPostHarness logan
 f__05-post-scrolled                 -feedPostHarness end
 f__05-post-reply                    -composerHarness sheetPost
+f__05-comment-actions               -commentThreadHarness actions
 f__05-post-public                   -MonacoProposalSample nonMember
 f__05-feed-empty                    -feedHarness quietWithEarlier
 f__06-markets-A                     -MonacoStocksTabSample ready

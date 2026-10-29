@@ -96,6 +96,10 @@ private struct CommentComposerHarnessScreen: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         } else if scenario == .thesisSheet {
             ThesisQuoteSheet(thesis: Self.thesis) { detail.comments.pick($0, toasts: toasts) }
+        } else if scenario == .sheetPost {
+            NavigationStack {
+                FeedView(makeModel: { _ in .preview(.items, clock: ContinuousClock()) })
+            }
         } else {
             thread.frame(maxWidth: .infinity, maxHeight: .infinity)
         }
@@ -146,6 +150,7 @@ private struct CommentComposerHarnessScreen: View {
         case .sheetComment:
             if let row = model.rows.first { model.presentReplySheet(.comment(row)) }
         case .sheetPost:
+            model.edit("Nice call, that one paid off.")
             model.presentReplySheet(.post(Self.post))
         case .sending, .failed:
             guard acts else { break }
@@ -154,16 +159,6 @@ private struct CommentComposerHarnessScreen: View {
         }
     }
 
-    private static var post: Components.Schemas.FeedItem {
-        var item = Components.Schemas.FeedItem.samples[0]
-        item.kind = "proposal"
-        item.actorName = "Logan"
-        item.cabalName = "Tech Titans"
-        item.symbol = "AAPLx"
-        item.action = nil
-        item.usdcMicros = 480_000_000
-        item.changeBps = 670
-        return item
-    }
+    private static var post: Components.Schemas.FeedItem { .results[1] }
 }
 #endif

@@ -34,7 +34,8 @@ private struct ReactionsSampleScreen: View {
         let defaults = UserDefaults(suiteName: "reactions-harness") ?? .standard
         defaults.removePersistentDomain(forName: "reactions-harness")
         frequent = FrequentEmojiStore(defaults: defaults)
-        let items = [0, 1, 3].map { Components.Schemas.FeedItem.samples[$0] }
+        for emoji in ["🤝", "🙌", "💪", "👀", "🎉", "😂", "❤️", "👍"] { frequent.record(emoji) }
+        let items = [Components.Schemas.FeedItem.threads[0], .samples[1], .samples[3]]
         _model = State(
             initialValue: ReactionsModel.sample(
                 reactions: Dictionary(uniqueKeysWithValues: items.map { ($0.id, $0.reactions) }),
@@ -44,23 +45,25 @@ private struct ReactionsSampleScreen: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
-            ForEach(items, id: \.id) { item in
-                VStack(alignment: .leading, spacing: 0) {
-                    Text(item.title).font(MonacoTheme.Typo.subheadStrong).foregroundStyle(MonacoTheme.primaryText)
-                    ReactionRow(
-                        target: .feedItem(item.id),
-                        reactions: model.reactions(for: .feedItem(item.id), fallback: item.reactions),
-                        startsOpen: scenario == .trayOpen && item.id == items.first?.id,
-                        onToggle: { toggle($0, on: item) }
-                    ) {
-                        MonacoReactionChip.reply(count: Int(item.commentCount)) {}
+        ScrollView {
+            VStack(spacing: 0) {
+                ForEach(items, id: \.id) { item in
+                    FeedPost(item: item, now: Date(), opensPost: false) {
+                        ReactionRow(
+                            target: .feedItem(item.id),
+                            reactions: model.reactions(for: .feedItem(item.id), fallback: item.reactions),
+                            startsOpen: scenario == .trayOpen && item.id == items.first?.id,
+                            onToggle: { toggle($0, on: item) }
+                        ) {
+                            MonacoReactionChip.reply(count: Int(item.commentCount)) {}
+                        }
                     }
+                    .padding(.horizontal, MonacoTheme.Space.gutter)
+                    MonacoRule(color: MonacoTheme.hairline)
+                        .padding(.leading, FeedPostMetrics.textColumn)
                 }
             }
-            Spacer()
         }
-        .padding(MonacoTheme.Space.gutter)
         .background(MonacoTheme.background)
         .sheet(isPresented: $isPickerOpen) {
             if let item = items.first {

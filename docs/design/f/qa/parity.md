@@ -13,7 +13,7 @@ Build: `just build mobile` on `6583-f-parity-review` at `0c9caa91c` (`staging` a
     xcrun simctl ui "$udid" appearance light
     MONACO_QA_SCREEN_ONLY="$(scripts/qa/parity.py frames --appearance light --regex)" scripts/qa/screens.sh "$udid" <Debug Monaco.app> "$out/light"
     xcrun simctl ui "$udid" appearance dark
-    scripts/qa/parity.py sheet --shots "$out" --out "$out/sheet" --png --allow-missing 04-vote-picked 04-vote-holding 05-comment-actions
+    scripts/qa/parity.py sheet --shots "$out" --out "$out/sheet" --png --allow-missing 04-vote-picked 04-vote-holding
 
 The dark run shot 91 lines and the light run the 5 twins, with no failed draw and no crash. `screens.sh` warned that three pairs are the same picture: `04-vote-committed` and `04-vote-idle` (`voteSettles` settles only after a tap), `04-proposal-sides` and `04-proposal-passed` (`closedSidesOn` and `nvdaPassed` load the same proposal), and `16-catch-up-empty-scrolled` and `16-catch-up-empty` (the caught-up page does not scroll). Those rows are `no harness` or record the shot they drew.
 

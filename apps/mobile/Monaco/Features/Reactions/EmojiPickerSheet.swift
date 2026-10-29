@@ -46,7 +46,7 @@ struct EmojiPickerSheet: View {
     @State private var standardStore = FrequentEmojiStore(defaults: .standard)
 
     @State private var query: String
-    @State private var current = EmojiCategory.recent
+    @State private var current = EmojiCategory.smileys
     @State private var recent: [String] = []
 
     init(initialQuery: String = "", catalog: EmojiCatalog = .bundled, onPick: @escaping (String) -> Void) {
@@ -89,6 +89,7 @@ struct EmojiPickerSheet: View {
         .padding(.top, MonacoTheme.Space.l)
         .presentationDetents([.height(PickerMetrics.sheetHeight)])
         .presentationDragIndicator(.visible)
+        .presentationBackground(MonacoTheme.canvas)
         .presentationContentInteraction(.scrolls)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("emoji-picker")
@@ -150,9 +151,10 @@ struct EmojiPickerSheet: View {
 
     private func section(at offset: CGFloat) -> String {
         var top: CGFloat = 0
-        var found = EmojiCategory.recent
+        var found = EmojiCategory.smileys
         for section in sections {
-            if top <= offset + 1, EmojiCategory.all.contains(where: { $0.id == section.id }) { found = section.id }
+            let isTab = section.id != EmojiCategory.recent && EmojiCategory.all.contains(where: { $0.id == section.id })
+            if top <= offset + 1, isTab { found = section.id }
             top += PickerMetrics.height(of: section)
         }
         return found
