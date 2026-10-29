@@ -41,9 +41,9 @@ Every `difference` and `no harness` row links one follow-up issue per group; the
 | match | 11 |
 | match (15 pt floor) | 21 |
 | no backend at launch | 0 |
-| difference | 59 |
+| difference | 60 |
 | not built | 0 |
-| no harness | 7 |
+| no harness | 6 |
 | system | 5 |
 
 No launch screen shows a season row, a streak or a "Season" word. `10-profile-other` and `10-profile-other-cabals` show a Follow control, and so do their frames; #7030 sends it to the founder on #6410 as a phase 2 element.
@@ -218,8 +218,8 @@ founder:
 
 | Frame | Appearance | Verdict | Difference | Follow-up |
 | --- | --- | --- | --- | --- |
-| [`10-profile-own`](../screens/10-profile-own.png) | dark | no harness | Harness line draws the loading skeleton, not the ready profile. | #7030 (#6488) |
-| [`10-profile-own-scrolled`](../screens/10-profile-own-scrolled.png) | dark | no harness | Harness line draws the loading skeleton, not the scrolled ready profile. | #7030 (#6505) |
+| [`10-profile-own`](../screens/10-profile-own.png) | dark | difference | Harness now settles on the ready profile and draws the bio; the app adds a "$50.00 pending" line under Cash, which the frame doesn't have (sample deposit in flight). | #7030 (#6488) |
+| [`10-profile-own-scrolled`](../screens/10-profile-own-scrolled.png) | dark | no harness | The ready line now settles on the ready profile (10-profile-own); the scrolled shot was not re-taken because the machine was over its simulator cap. | #7030 (#6505) |
 | [`10-profile-other`](../screens/10-profile-other.png) | dark | difference | App has no back / share / more buttons, shows a Follow control, and the followers line has no "·" separators; frame has the three nav buttons. | #7030 (#6530) |
 | [`10-profile-other-cabals`](../screens/10-profile-other-cabals.png) | dark | difference | Same: nav buttons missing, Follow control present, "·" separators missing; cabal emblems are initial tiles (allowed). | #7030 (#6530) |
 
