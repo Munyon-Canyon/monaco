@@ -209,6 +209,7 @@ func TestAccessorsReadTheRow(t *testing.T) {
 		{CodeLeaveHoldsShares, KindBlocked, false, false},
 		{CodeLeaveLastMemberPotNotEmpty, KindBlocked, false, false},
 		{CodeLeaveCreatorWithMembers, KindBlocked, false, false},
+		{CodeRulesChangeByProposal, KindConflict, false, false},
 	}
 	for _, tt := range tests {
 		t.Run(string(tt.code), func(t *testing.T) {

@@ -111,6 +111,11 @@ type CabalChanges struct {
 	Threshold             *string     `json:"threshold,omitempty"`
 	ProposalExpirySeconds *int32      `json:"proposal_expiry_seconds,omitempty"`
 	SlippageBps           *int32      `json:"slippage_bps,omitempty"`
+	ShowSides             *bool       `json:"show_sides,omitempty"`
+	MaxTradeBps           *int32      `json:"max_trade_bps,omitempty"`
+	MaxTradeBpsCleared    bool        `json:"max_trade_bps_cleared,omitempty"`
+	AdminIDs              []uuid.UUID `json:"admin_ids,omitempty"               pii:"true"`
+	ProposalID            *uuid.UUID  `json:"proposal_id,omitempty"`
 }
 
 type CabalUpdated struct {

@@ -90,12 +90,12 @@ paths:
       operationId: patchCabal
       tags: [cabal]
       x-idempotent: true
-      summary: Rename a cabal or change its rules.
+      summary: Rename a cabal or change its slippage.
       description: >-
-        Creator only. Every field is optional, and an omitted field keeps its value. voter_ids names every voter,
-        is allowed only when the resulting voter_mode is list, must include the creator and may name only members.
-        Switching voter_mode to all lets every member vote. A rules change applies to proposals created afterwards.
-        A body that changes nothing returns the cabal unchanged. A replay returns the first response.
+        Creator only. Every field is optional, and an omitted field keeps its value. Only name and slippage_bps
+        change here. join_mode, voter_mode, voter_ids, threshold or proposal_expiry_seconds in the body returns 409
+        RulesChangeByProposal, because those rules change by a passed rule proposal. A body that changes nothing
+        returns the cabal unchanged. A replay returns the first response.
       parameters:
         - name: id
           in: path
@@ -591,15 +591,15 @@ components:
       additionalProperties: false
       properties:
         name: {type: string, description: "Cabal name, 3 to 40 characters.", examples: [Work pot]}
-        join_mode: {type: string, description: "`open` (anyone joins at once) or `request` (the creator approves each request).", examples: [request]}
-        voter_mode: {type: string, description: "`all` or `list`.", examples: [list]}
+        join_mode: {type: string, description: "Refused with 409 RulesChangeByProposal. Rules change by proposal.", examples: [request]}
+        voter_mode: {type: string, description: "Refused with 409 RulesChangeByProposal. Rules change by proposal.", examples: [list]}
         voter_ids:
           type: array
-          description: Every voter, the creator included. Only with voter_mode list.
+          description: Refused with 409 RulesChangeByProposal. Rules change by proposal.
           items: {type: string, format: uuid}
           examples: [["01890a5d-ac96-774b-bcce-b302099a8058"]]
-        threshold: {type: string, description: "`majority` or `unanimous`.", examples: [unanimous]}
-        proposal_expiry_seconds: {type: integer, format: int32, description: "One of 3600, 86400 or 604800.", examples: [3600]}
+        threshold: {type: string, description: "Refused with 409 RulesChangeByProposal. Rules change by proposal.", examples: [unanimous]}
+        proposal_expiry_seconds: {type: integer, format: int32, description: "Refused with 409 RulesChangeByProposal. Rules change by proposal.", examples: [3600]}
         slippage_bps: {type: integer, format: int32, description: "Basis points from 1 to 300.", examples: [50]}
     Cabal:
       type: object

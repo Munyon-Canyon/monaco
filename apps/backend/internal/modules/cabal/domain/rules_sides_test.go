@@ -79,3 +79,19 @@ func TestRules_PatchKeepsTheSidesAndCapRules(t *testing.T) {
 		t.Fatalf("patched = %+v, want slippage 50 with sides on since %v and cap 2000", patched, at)
 	}
 }
+
+func TestRulesPatch_setsVoterModeAndKeepsSides(t *testing.T) {
+	t.Parallel()
+	at := time.Date(2026, 10, 20, 13, 41, 0, 0, time.UTC)
+	mode := "list"
+	rules, err := baseRules(t).WithShowSides(true, &at).Patch(domain.RulesPatch{VoterMode: &mode})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rules.VoterMode() != domain.VotersList || !rules.ShowSides() {
+		t.Fatalf("got mode %q sides %v", rules.VoterMode(), rules.ShowSides())
+	}
+	if !(domain.RulesPatch{VoterMode: &mode}).ChangesRules() || (domain.RulesPatch{}).ChangesRules() {
+		t.Fatal("ChangesRules")
+	}
+}

@@ -556,3 +556,41 @@ func (q *Queries) UpdateCabal(ctx context.Context, arg UpdateCabalParams) (int64
 	}
 	return result.RowsAffected(), nil
 }
+
+const updateCabalRules = `-- name: UpdateCabalRules :execrows
+UPDATE cabals SET join_mode = $1, voter_mode = $2,
+  threshold = $3, proposal_expiry_seconds = $4,
+  show_sides = $5, show_sides_changed_at = $6,
+  max_trade_bps = $7, updated_at = $8
+WHERE id = $9
+`
+
+type UpdateCabalRulesParams struct {
+	JoinMode              string
+	VoterMode             string
+	Threshold             string
+	ProposalExpirySeconds int32
+	ShowSides             bool
+	ShowSidesChangedAt    pgtype.Timestamptz
+	MaxTradeBps           pgtype.Int4
+	Now                   time.Time
+	ID                    uuid.UUID
+}
+
+func (q *Queries) UpdateCabalRules(ctx context.Context, arg UpdateCabalRulesParams) (int64, error) {
+	result, err := q.db.Exec(ctx, updateCabalRules,
+		arg.JoinMode,
+		arg.VoterMode,
+		arg.Threshold,
+		arg.ProposalExpirySeconds,
+		arg.ShowSides,
+		arg.ShowSidesChangedAt,
+		arg.MaxTradeBps,
+		arg.Now,
+		arg.ID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}

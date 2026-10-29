@@ -141,3 +141,8 @@ func (r Rules) WithMaxTradeBps(v *int32) (Rules, error) {
 	r.maxTradeBps = v
 	return r, nil
 }
+
+func (r Rules) WithVoterList() Rules {
+	r.voterMode = VotersList
+	return r
+}

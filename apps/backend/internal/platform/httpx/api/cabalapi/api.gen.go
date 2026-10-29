@@ -647,7 +647,7 @@ type PutMyCabalOrderRequest struct {
 
 // UpdateCabalRequest The cabal fields to change. An omitted field keeps its value.
 type UpdateCabalRequest struct {
-	// JoinMode `open` (anyone joins at once) or `request` (the creator approves each request).
+	// JoinMode Refused with 409 RulesChangeByProposal. Rules change by proposal.
 	//
 	// Examples: request
 	JoinMode *string `json:"join_mode,omitempty"`
@@ -657,7 +657,7 @@ type UpdateCabalRequest struct {
 	// Examples: Work pot
 	Name *string `json:"name,omitempty"`
 
-	// ProposalExpirySeconds One of 3600, 86400 or 604800.
+	// ProposalExpirySeconds Refused with 409 RulesChangeByProposal. Rules change by proposal.
 	//
 	// Examples: 3600
 	ProposalExpirySeconds *int32 `json:"proposal_expiry_seconds,omitempty"`
@@ -667,17 +667,17 @@ type UpdateCabalRequest struct {
 	// Examples: 50
 	SlippageBps *int32 `json:"slippage_bps,omitempty"`
 
-	// Threshold `majority` or `unanimous`.
+	// Threshold Refused with 409 RulesChangeByProposal. Rules change by proposal.
 	//
 	// Examples: unanimous
 	Threshold *string `json:"threshold,omitempty"`
 
-	// VoterIds Every voter, the creator included. Only with voter_mode list.
+	// VoterIds Refused with 409 RulesChangeByProposal. Rules change by proposal.
 	//
 	// Examples: ["01890a5d-ac96-774b-bcce-b302099a8058"]
 	VoterIds *[]openapi_types.UUID `json:"voter_ids,omitempty"`
 
-	// VoterMode `all` or `list`.
+	// VoterMode Refused with 409 RulesChangeByProposal. Rules change by proposal.
 	//
 	// Examples: list
 	VoterMode *string `json:"voter_mode,omitempty"`
@@ -832,7 +832,7 @@ type ServerInterface interface {
 	// GetCabal Read one cabal.
 	// (GET /v1/cabals/{id})
 	GetCabal(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
-	// PatchCabal Rename a cabal or change its rules.
+	// PatchCabal Rename a cabal or change its slippage.
 	// (PATCH /v1/cabals/{id})
 	PatchCabal(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params PatchCabalParams)
 	// GetCabalAccessRequests List the pending requests to join a cabal.
@@ -2678,7 +2678,7 @@ type StrictServerInterface interface {
 	// GetCabal Read one cabal.
 	// (GET /v1/cabals/{id})
 	GetCabal(ctx context.Context, request GetCabalRequestObject) (GetCabalResponseObject, error)
-	// PatchCabal Rename a cabal or change its rules.
+	// PatchCabal Rename a cabal or change its slippage.
 	// (PATCH /v1/cabals/{id})
 	PatchCabal(ctx context.Context, request PatchCabalRequestObject) (PatchCabalResponseObject, error)
 	// GetCabalAccessRequests List the pending requests to join a cabal.

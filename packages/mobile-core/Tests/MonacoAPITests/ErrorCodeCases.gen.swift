@@ -146,6 +146,7 @@ extension Components.Schemas.ErrorCode {
         case .rpcUnavailable: true
         case .ruleChangeOpen: true
         case .ruleUnchanged: true
+        case .rulesChangeByProposal: true
         case .saleShort: true
         case .sameApprover: true
         case .sessionRequired: true

@@ -49,6 +49,9 @@ func (h *UpdateCabalHandler) update(ctx context.Context, tx db.Tx, cmd UpdateCab
 	if err != nil {
 		return err
 	}
+	if cmd.Rules.ChangesRules() || cmd.VoterIDs != nil {
+		return errs.New(errs.CodeRulesChangeByProposal, updateCabalOp)
+	}
 	name := current.Name
 	if cmd.Name != nil {
 		name = cmd.Name.String()
@@ -57,18 +60,10 @@ func (h *UpdateCabalHandler) update(ctx context.Context, tx db.Tx, cmd UpdateCab
 		return err
 	}
 	changes := ruleChanges(current, name, cabal.Rules)
-	if cmd.VoterIDs != nil {
-		if changes.VoterIDs, err = voterChanges(ctx, q, cabal, current.ID, *cmd.VoterIDs); err != nil {
-			return err
-		}
-	}
 	if !changed(changes) {
 		return nil
 	}
 	if err := writeEdit(ctx, q, current.ID, name, cabal.Rules, h.clock); err != nil {
-		return err
-	}
-	if err := writeVoters(ctx, q, current, cabal.Rules, changes.VoterIDs); err != nil {
 		return err
 	}
 	return tx.Events.Append(ctx, events.CabalUpdated{
@@ -92,6 +87,14 @@ func lockForEdit(
 func editable(
 	ctx context.Context, q *sqlc.Queries, cabalID ids.CabalID, actor ids.UserID,
 ) (sqlc.FindCabalRow, domain.Cabal, error) {
+	row, cabal, err := loadCabal(ctx, q, cabalID)
+	if err != nil {
+		return sqlc.FindCabalRow{}, domain.Cabal{}, err
+	}
+	return row, cabal, domain.CanEdit(actor, cabal)
+}
+
+func loadCabal(ctx context.Context, q *sqlc.Queries, cabalID ids.CabalID) (sqlc.FindCabalRow, domain.Cabal, error) {
 	row, err := q.FindCabal(ctx, cabalID.UUID())
 	if errors.Is(err, sql.ErrNoRows) {
 		return sqlc.FindCabalRow{}, domain.Cabal{}, errs.New(errs.CodeCabalNotFound, updateCabalOp)
@@ -115,7 +118,7 @@ func editable(
 	cabal := domain.Cabal{
 		CreatorID: ids.UserIDFrom(row.CreatorID), Rules: rules, Banned: row.Status == string(port.StatusBanned),
 	}
-	return row, cabal, domain.CanEdit(actor, cabal)
+	return row, cabal, nil
 }
 
 func storedRules(rules domain.Rules, row sqlc.FindCabalRow) (domain.Rules, error) {
@@ -146,17 +149,9 @@ func changed(c events.CabalChanges) bool {
 		c.Threshold != nil || c.ProposalExpirySeconds != nil || c.SlippageBps != nil
 }
 
-func voterChanges(
-	ctx context.Context, q *sqlc.Queries, cabal domain.Cabal, cabalID uuid.UUID, requested []ids.UserID,
-) ([]uuid.UUID, error) {
-	rows, err := q.ListMembers(ctx, cabalID)
-	if err != nil {
-		return nil, errs.Wrap(err, errs.CodeInternal, updateCabalOp)
-	}
-	members := make([]ids.UserID, 0, len(rows))
+func voterChanges(cabal domain.Cabal, rows []sqlc.ListMembersRow, requested []ids.UserID) []uuid.UUID {
 	var voters []uuid.UUID
 	for _, row := range rows {
-		members = append(members, ids.UserIDFrom(row.UserID))
 		if row.CanVote {
 			voters = append(voters, row.UserID)
 		}
@@ -165,9 +160,6 @@ func voterChanges(
 		}
 	}
 	requested = cabal.VotersWithAdmins(requested)
-	if err := domain.CheckVoters(cabal, members, requested); err != nil {
-		return nil, err
-	}
 	next := make([]uuid.UUID, 0, len(requested))
 	for _, voter := range requested {
 		next = append(next, voter.UUID())
@@ -176,9 +168,9 @@ func voterChanges(
 	next = slices.Compact(next)
 	slices.SortFunc(voters, compareUUID)
 	if slices.Equal(voters, next) {
-		return nil, nil
+		return nil
 	}
-	return next, nil
+	return next
 }
 
 func compareUUID(a, b uuid.UUID) int { return slices.Compare(a[:], b[:]) }
@@ -197,17 +189,8 @@ func writeEdit(
 	return nil
 }
 
-func writeVoters(
-	ctx context.Context, q *sqlc.Queries, current sqlc.FindCabalRow, rules domain.Rules, voters []uuid.UUID,
-) error {
-	var err error
-	switch {
-	case rules.VoterMode() == domain.VotersAll && current.VoterMode != string(domain.VotersAll):
-		err = q.SetAllMembersVote(ctx, current.ID)
-	case voters != nil:
-		err = q.SetMemberVoters(ctx, sqlc.SetMemberVotersParams{VoterIds: voters, CabalID: current.ID})
-	}
-	if err != nil {
+func writeVoters(ctx context.Context, q *sqlc.Queries, cabalID uuid.UUID, voters []uuid.UUID) error {
+	if err := q.SetMemberVoters(ctx, sqlc.SetMemberVotersParams{VoterIds: voters, CabalID: cabalID}); err != nil {
 		return errs.Wrap(err, errs.CodeInternal, updateCabalOp)
 	}
 	return nil

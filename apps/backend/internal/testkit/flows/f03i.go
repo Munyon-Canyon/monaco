@@ -98,9 +98,6 @@ func F03InviteMemberNotCabalAdmin(s *scenario.Scenario) {
 		scenario.SignIn(outsiderOf("inv-member")),
 		scenario.Post(membersPath, ""),
 		scenario.ExpectStatus(http.StatusOK),
-		scenario.SignIn(creatorOf("inv-member")),
-		scenario.Patch(cabalsPath+"/{cabal}", `{"join_mode":"request"}`),
-		scenario.ExpectStatus(http.StatusOK),
 	)...).
 		When(scenario.SignIn(outsiderOf("inv-member")), scenario.Post(invitesPath, inviteBody("inv-member"))).
 		Then(refused(errs.CodeNotCabalAdmin, events.TypeCabalAccessRequested, 0)...)

@@ -24,7 +24,9 @@ The `cabal` module owns cabals, members, access requests and treasury wallets ([
 
 ### Rules
 
-The creator sets these at `CreateCabal`. `UpdateCabal` can change them later ([Edit](#edit)).
+The creator sets these at `CreateCabal`. After that they change only by a passed rule proposal. `UpdateCabal` refuses `join_mode`, `voter_mode`, `voter_ids`, `threshold` and `proposal_expiry_seconds` with `RulesChangeByProposal`, and keeps only `name` and `slippage_bps`.
+
+`ApplyRuleChange` applies a passed proposal. The cabal module consumes `proposal.rule_passed` as `cabal.rule_passed`, and `ApplyRuleChange` writes in the same transaction as the `event_deliveries` row, so a redelivery writes nothing. It locks the cabal and its members, then re-checks against the current state: the cabal is active, the target is still a member and not the creator, a voter change does not remove an admin, and the value still differs. A change that fails a check is acked without a write and logged as `cabal.rule_change.skipped`. A change that applies appends `cabal.updated` with the proposer as `actor_id` and the proposal in `changes.proposal_id`. `show_sides_changed_at` is the passed time, which is the date the Rules tab shows.
 
 | Rule | Values | Default |
 | --- | --- | --- |
@@ -88,7 +90,7 @@ There is exactly one creator per cabal, and the role never moves. The creator is
 
 ### Edit
 
-- `UpdateCabal` is creator only, and a voter-list edit keeps every admin voting. It changes the name, the picture and any rule in [Rules](#rules), the voter list included.
+- `UpdateCabal` is creator only. It changes the name and `slippage_bps`; the picture has its own endpoints, and every other rule changes by proposal ([Rules](#rules)).
 - A rules change applies to proposals created afterwards. Open proposals keep the voter set frozen at their creation ([proposals.md](proposals.md#data-model)) and their `expires_at`.
 - `threshold` is frozen on the proposal at creation ([proposals.md](proposals.md#data-model)), so a change never reaches an open vote. The trade engine still reads `slippage_bps` ([trade-execution.md](trade-execution.md#stage-2-trade-engine)) through this module's query port when it runs, so a change to it reaches open proposals ([Open questions](#open-questions)).
 - Switching `join_mode` from `request` to `open` leaves pending requests as they are. An admin can still decide them, and the requester can now join directly; that `JoinCabal` sets their pending request to `approved` in the same Unit of Work.
@@ -132,7 +134,7 @@ Every payload carries `v` ([event-bus.md](event-bus.md)). Timestamps live on the
 | `cabal.access_requested` | `RequestAccess`, `InviteMember` | `request_id`, `cabal_id`, `user_id` (the requester or invitee), `direction` (`request` \| `invite`), `actor_id` (the requester or inviter), `expires_at` for an invite |
 | `cabal.access_decided` | `DecideAccess`, the expiry poller | `request_id`, `cabal_id`, `user_id`, `direction`, `decision` (`approved` \| `denied` \| `revoked` \| `expired`), `actor_id` (absent for `expired`) |
 | `cabal.member_left` | `LeaveCabal` | `cabal_id`, `user_id`, `was_voter` |
-| `cabal.updated` | `UpdateCabal` | `cabal_id`, `actor_id`, `changes`: each changed field with its new value, from `name`, `picture_url`, `join_mode`, `voter_mode`, `voter_ids`, `threshold`, `proposal_expiry_seconds`, `slippage_bps` |
+| `cabal.updated` | `UpdateCabal`, `ApplyRuleChange` | `cabal_id`, `actor_id`, `changes`: each changed field with its new value, from `name`, `picture_url`, `join_mode`, `voter_mode`, `voter_ids`, `threshold`, `proposal_expiry_seconds`, `slippage_bps`, `show_sides`, `max_trade_bps`, `max_trade_bps_cleared`, `admin_ids`, `proposal_id` |
 
 `cabal.member_joined` fires for the creator at create too, so every consumer that tracks membership sees one join per member. The feed skips `via = create`, since `cabal.created` already makes its item.
 

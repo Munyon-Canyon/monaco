@@ -91,6 +91,13 @@ UPDATE cabals SET name = sqlc.arg(name), join_mode = sqlc.arg(join_mode), voter_
   slippage_bps = sqlc.arg(slippage_bps), updated_at = sqlc.arg(now)
 WHERE id = sqlc.arg(id);
 
+-- name: UpdateCabalRules :execrows
+UPDATE cabals SET join_mode = sqlc.arg(join_mode), voter_mode = sqlc.arg(voter_mode),
+  threshold = sqlc.arg(threshold), proposal_expiry_seconds = sqlc.arg(proposal_expiry_seconds),
+  show_sides = sqlc.arg(show_sides), show_sides_changed_at = sqlc.narg(show_sides_changed_at),
+  max_trade_bps = sqlc.narg(max_trade_bps), updated_at = sqlc.arg(now)
+WHERE id = sqlc.arg(id);
+
 -- name: SetCabalPicture :execrows
 UPDATE cabals SET picture_url = NULLIF(sqlc.arg(picture_url)::text, ''), updated_at = sqlc.arg(now)
 WHERE id = sqlc.arg(id);
