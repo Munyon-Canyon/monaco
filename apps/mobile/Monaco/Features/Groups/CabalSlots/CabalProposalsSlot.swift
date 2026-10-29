@@ -29,7 +29,7 @@ struct CabalProposals: View {
     }
 
     var body: some View {
-        content
+        VStack(spacing: 0) { content }
             .padding(.top, -(SectionStackMetrics.spacing - MonacoTheme.Space.l))
             .task {
                 let model = preparedModel()
