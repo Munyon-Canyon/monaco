@@ -245,6 +245,7 @@ nonisolated final class SampleAPIProtocol: URLProtocol {
         if parts.count >= 3, parts[1] == "cabals", UUID(uuidString: parts[2]) != nil || parts[2].count > 8 {
             let tail = Array(parts.dropFirst(3))
             return proposeReply(id: parts[2], tail: tail, method: method, query: query, script: script)
+                ?? membersReply(id: parts[2], tail: tail, method: method, script: script)
                 ?? cabalReply(id: parts[2], tail: tail, range: range, script: script)
         }
         if parts.count >= 3, parts[1] == "proposals" {
@@ -392,6 +393,8 @@ nonisolated extension SampleAPIProtocol {
         switch (method, tail.first) {
         case ("GET", nil):
             return json(castApplied(proposal, script))
+        case ("GET", "votes"):
+            return votesReply(proposal)
         case ("POST", "votes"):
             if case .refused(let status, let code, let message) = script.vote {
                 castChoice.withLock { $0 = nil }
@@ -610,6 +613,24 @@ nonisolated extension SampleAPIProtocol {
         if id == CabalsTabSampleData.createdCabalID, let name = createdName.withLock({ $0 }) { cabal.name = name }
         script.cabalEdit?(&cabal)
         return cabal
+    }
+
+    private static func membersReply(id: String, tail: [String], method: String, script: SampleAPIScript) -> Reply? {
+        guard method == "GET", tail == ["members"] else { return nil }
+        let members = cabalRead(id: id, script: script).members
+        return json(Components.Schemas.CabalMemberPage(items: members, nextCursor: nil))
+    }
+
+    private static func votesReply(_ proposal: Components.Schemas.ProposalDetail) -> Reply {
+        let members = Components.Schemas.Cabal.sampleWithMembers(role: "member").members
+        let items = proposal.voters.map { voter in
+            let member = members.first { $0.userId == voter.userId }
+            return Components.Schemas.ProposalVoteItem(
+                userId: voter.userId, voted: voter.choice != nil, handle: member?.handle,
+                displayName: member?.displayName ?? "Member", photoUrl: member?.photoUrl,
+                choice: voter.choice.flatMap { .init(rawValue: $0.rawValue) }, castAt: voter.castAt)
+        }
+        return json(Components.Schemas.ProposalVotePage(items: items, nextCursor: nil))
     }
 
     private static func cabalReply(id: String, tail: [String], range: String?, script: SampleAPIScript) -> Reply {

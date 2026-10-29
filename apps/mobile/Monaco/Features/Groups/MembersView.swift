@@ -33,6 +33,7 @@ struct MembersView: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(ToastCenter.self) private var toasts
     @State private var models = CabalScreenModels()
+    @State private var members: CabalMembersPager?
     @State private var tab: MembersTab
     @State private var requests: CabalAccessModel?
     @State private var showsVoters = false
@@ -54,8 +55,16 @@ struct MembersView: View {
             .navigationBarTitleDisplayMode(.inline)
             .monacoCanvas()
             .task(id: retryTick) {
+                let pager = members ?? CabalMembersPager(cabalID: cabalID, api: environment.api)
+                members = pager
+                async let firstPage: Void = pager.loadFirst()
                 await cabal.load()
+                await firstPage
                 await cabal.observe()
+            }
+            .onChange(of: cabal.cabal?.memberCount) { previous, _ in
+                guard previous != nil else { return }
+                Task { await members?.loadFirst() }
             }
             .task(id: cabal.cabal) {
                 guard let loaded = cabal.cabal, loaded.me?.role == "creator" else { return }
@@ -72,7 +81,10 @@ struct MembersView: View {
             }
             .onChange(of: requests?.membershipChanges) { previous, _ in
                 guard previous != nil else { return }
-                Task { await cabal.load() }
+                Task {
+                    await cabal.load()
+                    await members?.loadFirst()
+                }
             }
     }
 
@@ -108,9 +120,15 @@ struct MembersView: View {
             }
             .padding(.bottom, MonacoTheme.Space.l)
         }
-        .refreshable { await model.load() }
+        .refreshable {
+            await model.load()
+            await members?.loadFirst()
+        }
         .sheet(isPresented: $showsVoters) {
-            ChooseVotersSheet(cabal: cabal) { await model.load() }
+            ChooseVotersSheet(cabal: cabal) {
+                await model.load()
+                await members?.loadFirst()
+            }
         }
         .confirmationDialog(
             reviewing?.name ?? "", isPresented: reviewingBinding, titleVisibility: .visible, presenting: reviewing
@@ -141,28 +159,26 @@ struct MembersView: View {
     private func membersList(_ cabal: Components.Schemas.Cabal) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             helper(cabal)
-            MonacoGroupedList {
-                ForEach(cabal.members, id: \.userId) { member in
-                    NavigationLink(
-                        value: AnyAppRoute(
-                            UserProfileRoute(
-                                userID: member.userId,
-                                preview: UserPreview(
-                                    displayName: member.shownName, handle: member.handle, photoURL: member.photoUrl)
-                            ))
+            PagedMemberRows(members: members) { member, isLast in
+                NavigationLink(
+                    value: AnyAppRoute(
+                        UserProfileRoute(
+                            userID: member.userId,
+                            preview: UserPreview(
+                                displayName: member.shownName, handle: member.handle, photoURL: member.photoUrl)
+                        ))
+                ) {
+                    MonacoRow(
+                        title: member.shownName, subtitle: role(member), chevron: true, isLast: isLast,
+                        isPrivate: true
                     ) {
-                        MonacoRow(
-                            title: member.shownName, subtitle: role(member), chevron: true,
-                            isLast: member.userId == cabal.members.last?.userId, isPrivate: true
-                        ) {
-                            MonacoAvatar(
-                                photoURL: member.photoUrl, displayName: member.shownName, size: .row,
-                                seed: member.userId)
-                        }
+                        MonacoAvatar(
+                            photoURL: member.photoUrl, displayName: member.shownName, size: .row,
+                            seed: member.userId)
                     }
-                    .buttonStyle(.monacoRow)
-                    .accessibilityIdentifier("cabal-member-\(member.userId)")
                 }
+                .buttonStyle(.monacoRow)
+                .accessibilityIdentifier("cabal-member-\(member.userId)")
             }
         }
         .accessibilityIdentifier("members-list")
@@ -171,20 +187,15 @@ struct MembersView: View {
     private func votersList(_ cabal: Components.Schemas.Cabal, model: CabalModel) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             helper(cabal)
-            MonacoGroupedList {
-                ForEach(cabal.members, id: \.userId) { member in
-                    MonacoRow(
-                        title: member.shownName, subtitle: role(member),
-                        isLast: member.userId == cabal.members.last?.userId, isPrivate: true
-                    ) {
-                        MonacoAvatar(
-                            photoURL: member.photoUrl, displayName: member.shownName, size: .row, seed: member.userId)
-                    } trailing: {
-                        StatusBadge(
-                            member.canVote ? "Voter" : "Not voting", tone: member.canVote ? .positive : .neutral)
-                    }
-                    .accessibilityIdentifier("voters-member-\(member.userId)")
+            PagedMemberRows(members: members) { member, isLast in
+                MonacoRow(title: member.shownName, subtitle: role(member), isLast: isLast, isPrivate: true) {
+                    MonacoAvatar(
+                        photoURL: member.photoUrl, displayName: member.shownName, size: .row, seed: member.userId)
+                } trailing: {
+                    StatusBadge(
+                        member.canVote ? "Voter" : "Not voting", tone: member.canVote ? .positive : .neutral)
                 }
+                .accessibilityIdentifier("voters-member-\(member.userId)")
             }
             if cabal.me?.role == "creator", cabal.rules.voterMode == CabalVoterMode.picked.rawValue {
                 Button("Choose voters") { showsVoters = true }
@@ -252,6 +263,44 @@ struct MembersView: View {
         }
         .accessibilityIdentifier("cabal-join-deny")
         Button("Cancel", role: .cancel) {}
+    }
+}
+
+private struct PagedMemberRows<Row: View>: View {
+    let members: CabalMembersPager?
+    @ViewBuilder let row: (Components.Schemas.CabalMember, Bool) -> Row
+
+    var body: some View {
+        if let members, !members.rows.isEmpty {
+            let rows = members.rows
+            LazyVStack(spacing: 0) {
+                ForEach(rows) { item in
+                    row(item.member, item.id == rows.last?.id && !members.hasMore)
+                        .onAppear { Task { await members.loadMore(after: item) } }
+                }
+                footer(members)
+            }
+            .frame(maxWidth: .infinity)
+        } else if let members, case .failed = members.phase {
+            MonacoErrorRow(thing: "members", identifier: "members-list-failed") {
+                Task { await members.loadFirst() }
+            }
+        } else {
+            MonacoRowSkeleton(rows: 4, markShape: .circle, hasTrailing: false)
+        }
+    }
+
+    @ViewBuilder private func footer(_ members: CabalMembersPager) -> some View {
+        switch members.phase {
+        case .loadingMore:
+            MonacoRowSkeleton(rows: 1, markShape: .circle, hasTrailing: false)
+        case .failed:
+            MonacoErrorRow(thing: "more members", identifier: "members-more-failed") {
+                Task { await members.loadMore() }
+            }
+        default:
+            EmptyView()
+        }
     }
 }
 
