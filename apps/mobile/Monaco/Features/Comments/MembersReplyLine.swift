@@ -6,15 +6,10 @@ struct MembersReplyLine: View {
     let pictureURL: String?
 
     private static let crest: CGFloat = 24
-    private static let crestRadius: CGFloat = 6
 
     var body: some View {
         HStack(spacing: MonacoTheme.Space.s) {
-            CabalCover(
-                cabalId: cabalName, tint: .forGroupId(cabalName), pictureURL: CabalMark.resolvedURL(pictureURL),
-                style: .thumb(Self.crest)
-            )
-            .clipShape(RoundedRectangle(cornerRadius: Self.crestRadius, style: .continuous))
+            CabalMark(groupId: cabalName, name: cabalName, size: Self.crest, pictureUrl: pictureURL)
             Text(CommentsCopy.membersReplyHere(cabalName))
                 .font(MonacoTheme.Typo.subhead)
                 .foregroundStyle(MonacoTheme.secondaryText)

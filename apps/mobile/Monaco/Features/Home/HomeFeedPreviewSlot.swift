@@ -136,9 +136,8 @@ private struct HomeFeedPreviewRow: View {
         case .person(let name, let photoURL, let userID):
             MonacoAvatar(photoURL: photoURL, displayName: name, size: MonacoRowLayout.baseMarkSize, seed: userID)
         case .cabal(let name, let pictureURL, let cabalID):
-            CabalCover(
-                cabalId: cabalID ?? name, tint: .forGroupId(cabalID ?? name),
-                pictureURL: CabalMark.resolvedURL(pictureURL), style: .thumb(MonacoRowLayout.baseMarkSize))
+            CabalMark(
+                groupId: cabalID ?? name, name: name, size: MonacoRowLayout.baseMarkSize, pictureUrl: pictureURL)
         case .asset(let symbol, let name, let logoURL, let isPreIPO):
             StockMark(
                 symbol: symbol, displayName: name, assetKind: isPreIPO ? .preIpo : .stock,
