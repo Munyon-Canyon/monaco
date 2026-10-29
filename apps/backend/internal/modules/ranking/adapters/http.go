@@ -30,6 +30,7 @@ type HTTP struct {
 	Blocks    app.Blocks
 	Balances  app.DisplayBalances
 	Votes     app.OpenVoteCounts
+	Ledgers   app.ReadLedger
 }
 
 var _ api.StrictServerInterface = HTTP{}

@@ -10,19 +10,12 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/domain"
+	"github.com/monaco/monaco/apps/backend/internal/modules/social/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 )
 
-type TopReply struct {
-	CommentID     uuid.UUID
-	ProposalID    uuid.UUID
-	AuthorID      ids.UserID
-	Excerpt       string
-	ReactionCount int
-	TopEmoji      string
-	TopEmojiCount int
-}
+type TopReply = port.TopReply
 
 func FindTopReply(
 	ctx context.Context, db sqlc.DBTX, proposalIDs []ids.ProposalID, start, end time.Time,

@@ -14,6 +14,8 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market"
 	"github.com/monaco/monaco/apps/backend/internal/modules/ranking/sqlc"
+	socialport "github.com/monaco/monaco/apps/backend/internal/modules/social/port"
+	"github.com/monaco/monaco/apps/backend/internal/modules/trading"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
@@ -116,4 +118,14 @@ var _ Blocks = UnwiredBlocks{}
 
 func (UnwiredBlocks) BlockedByMe(context.Context, ids.UserID, ids.UserID) (bool, error) {
 	return false, errs.New(errs.CodeUpstreamUnavailable, "ranking.UnwiredBlocks.BlockedByMe")
+}
+
+type Trades interface {
+	FilledBuysBetween(ctx context.Context, cabals []ids.CabalID, start, end time.Time) ([]trading.FilledBuy, error)
+}
+
+type Replies interface {
+	TopReply(
+		ctx context.Context, proposalIDs []ids.ProposalID, start, end time.Time,
+	) (*socialport.TopReply, error)
 }

@@ -109,6 +109,132 @@ func (e LeaderboardSubjectKind) Valid() bool {
 	}
 }
 
+// Defines values for LedgerBestCallKind.
+const (
+	LedgerBestCallKindBuy  LedgerBestCallKind = "buy"
+	LedgerBestCallKindSell LedgerBestCallKind = "sell"
+)
+
+// Valid indicates whether the value is a known member of the LedgerBestCallKind enum.
+func (e LedgerBestCallKind) Valid() bool {
+	switch e {
+	case LedgerBestCallKindBuy:
+		return true
+	case LedgerBestCallKindSell:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for LedgerBestCallYourChoice.
+const (
+	LedgerBestCallYourChoiceNo  LedgerBestCallYourChoice = "no"
+	LedgerBestCallYourChoiceYes LedgerBestCallYourChoice = "yes"
+)
+
+// Valid indicates whether the value is a known member of the LedgerBestCallYourChoice enum.
+func (e LedgerBestCallYourChoice) Valid() bool {
+	switch e {
+	case LedgerBestCallYourChoiceNo:
+		return true
+	case LedgerBestCallYourChoiceYes:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for LedgerMissKind.
+const (
+	LedgerMissKindBuy  LedgerMissKind = "buy"
+	LedgerMissKindSell LedgerMissKind = "sell"
+)
+
+// Valid indicates whether the value is a known member of the LedgerMissKind enum.
+func (e LedgerMissKind) Valid() bool {
+	switch e {
+	case LedgerMissKindBuy:
+		return true
+	case LedgerMissKindSell:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for LedgerMissYourChoice.
+const (
+	LedgerMissYourChoiceNo  LedgerMissYourChoice = "no"
+	LedgerMissYourChoiceYes LedgerMissYourChoice = "yes"
+)
+
+// Valid indicates whether the value is a known member of the LedgerMissYourChoice enum.
+func (e LedgerMissYourChoice) Valid() bool {
+	switch e {
+	case LedgerMissYourChoiceNo:
+		return true
+	case LedgerMissYourChoiceYes:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for LedgerCallKind.
+const (
+	LedgerCallKindBuy  LedgerCallKind = "buy"
+	LedgerCallKindSell LedgerCallKind = "sell"
+)
+
+// Valid indicates whether the value is a known member of the LedgerCallKind enum.
+func (e LedgerCallKind) Valid() bool {
+	switch e {
+	case LedgerCallKindBuy:
+		return true
+	case LedgerCallKindSell:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for LedgerCallYourChoice.
+const (
+	LedgerCallYourChoiceNo  LedgerCallYourChoice = "no"
+	LedgerCallYourChoiceYes LedgerCallYourChoice = "yes"
+)
+
+// Valid indicates whether the value is a known member of the LedgerCallYourChoice enum.
+func (e LedgerCallYourChoice) Valid() bool {
+	switch e {
+	case LedgerCallYourChoiceNo:
+		return true
+	case LedgerCallYourChoiceYes:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for LedgerMarkerKind.
+const (
+	LedgerMarkerKindBuy  LedgerMarkerKind = "buy"
+	LedgerMarkerKindCall LedgerMarkerKind = "call"
+)
+
+// Valid indicates whether the value is a known member of the LedgerMarkerKind enum.
+func (e LedgerMarkerKind) Valid() bool {
+	switch e {
+	case LedgerMarkerKindBuy:
+		return true
+	case LedgerMarkerKindCall:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for MyPnlHistoryRange.
 const (
 	MyPnlHistoryRangeALL MyPnlHistoryRange = "ALL"
@@ -692,6 +818,310 @@ type LeaderboardSubject struct {
 // Examples: cabal
 type LeaderboardSubjectKind string
 
+// Ledger One member's week, built once and stored.
+type Ledger struct {
+	// BestCall The caller's right call with the largest move their way.
+	BestCall *LedgerBestCall `json:"best_call"`
+
+	// Cabals The cabals the caller held a stake in during the window.
+	//
+	// Examples: []
+	Cabals []LedgerCabal `json:"cabals"`
+
+	// Calls Every call of the caller resolved in the window, newest first.
+	//
+	// Examples: []
+	Calls []LedgerCall `json:"calls"`
+
+	// Eligible Proposals the caller could vote on.
+	//
+	// Examples: 3
+	Eligible int32 `json:"eligible"`
+
+	// LabelEnd The Sunday of the week.
+	//
+	// Examples: 2026-10-18
+	LabelEnd openapi_types.Date `json:"label_end"`
+
+	// LabelStart The Monday of the week.
+	//
+	// Examples: 2026-10-12
+	LabelStart openapi_types.Date `json:"label_start"`
+
+	// Markers The best call and each buy that filled in the caller's cabals.
+	//
+	// Examples: []
+	Markers []LedgerMarker `json:"markers"`
+
+	// Miss The caller's wrong call with the largest move against them.
+	Miss *LedgerMissCall `json:"miss"`
+
+	// Resolved The caller's calls resolved in the window.
+	//
+	// Examples: 3
+	Resolved int32 `json:"resolved"`
+
+	// Right The caller's right calls resolved in the window.
+	//
+	// Examples: 2
+	Right int32 `json:"right"`
+
+	// Series The caller's return since the window start, every 4 hours. Empty until the follow-up lands.
+	//
+	// Examples: []
+	Series []LedgerPoint `json:"series"`
+
+	// Sharpest The best right-call rate among the caller's cabalmates. Null when nobody has two resolved calls.
+	Sharpest *LedgerSharpestEntry `json:"sharpest"`
+
+	// StakeReturnBps The return on the caller's stakes over the window in basis points. Null when it cannot be measured.
+	//
+	// Examples: 140
+	StakeReturnBps *int64 `json:"stake_return_bps"`
+
+	// TopReply The most-reacted reply on the window's calls.
+	TopReply *LedgerTopReply `json:"top_reply"`
+
+	// Voted Proposals the caller voted on.
+	//
+	// Examples: 3
+	Voted int32 `json:"voted"`
+
+	// Week The ISO week.
+	//
+	// Examples: 2026-W42
+	Week string `json:"week"`
+
+	// WindowEnd The end of the window, exclusive.
+	//
+	// Examples: 2026-10-18T17:00:00Z
+	WindowEnd time.Time `json:"window_end"`
+
+	// WindowStart The start of the window, inclusive.
+	//
+	// Examples: 2026-10-11T17:00:00Z
+	WindowStart time.Time `json:"window_start"`
+}
+
+// LedgerBestCallKind Examples: sell
+type LedgerBestCallKind string
+
+// LedgerBestCallYourChoice Examples: yes
+type LedgerBestCallYourChoice string
+
+// LedgerBestCall The caller's right call with the largest move their way.
+type LedgerBestCall struct {
+	// AssetLogoUrl Examples: null
+	AssetLogoUrl *string `json:"asset_logo_url"`
+	Cabal        struct {
+		// Id Examples: 01890a5d-ac96-774b-bcce-b302099a8058
+		Id openapi_types.UUID `json:"id"`
+
+		// Name Examples: Degens
+		Name string `json:"name"`
+	} `json:"cabal"`
+
+	// DecidedAt Examples: 2026-10-17T15:00:00Z
+	DecidedAt time.Time `json:"decided_at"`
+
+	// Kind Examples: sell
+	Kind LedgerBestCallKind `json:"kind"`
+
+	// MoveBps The price move toward the caller's side in basis points, negative when it went against them.
+	//
+	// Examples: 420
+	MoveBps int32 `json:"move_bps"`
+
+	// ProposalId Examples: 01890a5d-ac96-774b-bcce-b302099a8058
+	ProposalId openapi_types.UUID `json:"proposal_id"`
+
+	// Right Examples: true
+	Right bool `json:"right"`
+
+	// Symbol Examples: AMZN
+	Symbol string `json:"symbol"`
+
+	// YourChoice Examples: yes
+	YourChoice LedgerBestCallYourChoice `json:"your_choice"`
+}
+
+// LedgerMissKind Examples: sell
+type LedgerMissKind string
+
+// LedgerMissYourChoice Examples: yes
+type LedgerMissYourChoice string
+
+// LedgerMissCall The caller's wrong call with the largest move against them.
+type LedgerMissCall struct {
+	// AssetLogoUrl Examples: null
+	AssetLogoUrl *string `json:"asset_logo_url"`
+	Cabal        struct {
+		// Id Examples: 01890a5d-ac96-774b-bcce-b302099a8058
+		Id openapi_types.UUID `json:"id"`
+
+		// Name Examples: Degens
+		Name string `json:"name"`
+	} `json:"cabal"`
+
+	// DecidedAt Examples: 2026-10-17T15:00:00Z
+	DecidedAt time.Time `json:"decided_at"`
+
+	// Kind Examples: sell
+	Kind LedgerMissKind `json:"kind"`
+
+	// MoveBps The price move toward the caller's side in basis points, negative when it went against them.
+	//
+	// Examples: 420
+	MoveBps int32 `json:"move_bps"`
+
+	// ProposalId Examples: 01890a5d-ac96-774b-bcce-b302099a8058
+	ProposalId openapi_types.UUID `json:"proposal_id"`
+
+	// Right Examples: true
+	Right bool `json:"right"`
+
+	// Symbol Examples: AMZN
+	Symbol string `json:"symbol"`
+
+	// YourChoice Examples: yes
+	YourChoice LedgerMissYourChoice `json:"your_choice"`
+}
+
+// LedgerSharpestEntry The best right-call rate among the caller's cabalmates. Null when nobody has two resolved calls.
+type LedgerSharpestEntry struct {
+	// RateBps Examples: 10000
+	RateBps int32 `json:"rate_bps"`
+
+	// Resolved Examples: 2
+	Resolved int32 `json:"resolved"`
+
+	// Right Examples: 2
+	Right int32 `json:"right"`
+
+	// User A person on the Ledger.
+	User LedgerUser `json:"user"`
+}
+
+// LedgerTopReply The most-reacted reply on the window's calls.
+type LedgerTopReply struct {
+	// Author A person on the Ledger.
+	Author LedgerUser `json:"author"`
+
+	// CommentId Examples: 01890a5d-ac96-774b-bcce-b302099a8058
+	CommentId openapi_types.UUID `json:"comment_id"`
+
+	// Excerpt Examples: Earnings are the catalyst.
+	Excerpt string `json:"excerpt"`
+
+	// ProposalId Examples: 01890a5d-ac96-774b-bcce-b302099a8058
+	ProposalId openapi_types.UUID `json:"proposal_id"`
+
+	// ProposalLabel Examples: Buy NVDA
+	ProposalLabel string `json:"proposal_label"`
+
+	// ReactionCount Examples: 5
+	ReactionCount int32 `json:"reaction_count"`
+
+	// TopEmoji Examples: fire
+	TopEmoji string `json:"top_emoji"`
+
+	// TopEmojiCount Examples: 3
+	TopEmojiCount int32 `json:"top_emoji_count"`
+}
+
+// LedgerCabal A cabal on the Ledger.
+type LedgerCabal struct {
+	// Id Examples: 01890a5d-ac96-774b-bcce-b302099a8058
+	Id openapi_types.UUID `json:"id"`
+
+	// Name Examples: Degens
+	Name string `json:"name"`
+
+	// PictureUrl Examples: null
+	PictureUrl *string `json:"picture_url"`
+}
+
+// LedgerCall One resolved call of the caller.
+type LedgerCall struct {
+	// AssetLogoUrl Examples: null
+	AssetLogoUrl *string `json:"asset_logo_url"`
+	Cabal        struct {
+		// Id Examples: 01890a5d-ac96-774b-bcce-b302099a8058
+		Id openapi_types.UUID `json:"id"`
+
+		// Name Examples: Degens
+		Name string `json:"name"`
+	} `json:"cabal"`
+
+	// DecidedAt Examples: 2026-10-17T15:00:00Z
+	DecidedAt time.Time `json:"decided_at"`
+
+	// Kind Examples: sell
+	Kind LedgerCallKind `json:"kind"`
+
+	// MoveBps The price move toward the caller's side in basis points, negative when it went against them.
+	//
+	// Examples: 420
+	MoveBps int32 `json:"move_bps"`
+
+	// ProposalId Examples: 01890a5d-ac96-774b-bcce-b302099a8058
+	ProposalId openapi_types.UUID `json:"proposal_id"`
+
+	// Right Examples: true
+	Right bool `json:"right"`
+
+	// Symbol Examples: AMZN
+	Symbol string `json:"symbol"`
+
+	// YourChoice Examples: yes
+	YourChoice LedgerCallYourChoice `json:"your_choice"`
+}
+
+// LedgerCallKind Examples: sell
+type LedgerCallKind string
+
+// LedgerCallYourChoice Examples: yes
+type LedgerCallYourChoice string
+
+// LedgerMarker A mark on the week's line.
+type LedgerMarker struct {
+	// At Examples: 2026-10-17T15:00:00Z
+	At time.Time `json:"at"`
+
+	// Kind Examples: call
+	Kind LedgerMarkerKind `json:"kind"`
+
+	// Label Examples: Called AMZN · Sat
+	Label string `json:"label"`
+
+	// Symbol Examples: AMZN
+	Symbol string `json:"symbol"`
+}
+
+// LedgerMarkerKind Examples: call
+type LedgerMarkerKind string
+
+// LedgerPoint The caller's return at one instant.
+type LedgerPoint struct {
+	// At Examples: 2026-10-12T01:00:00Z
+	At time.Time `json:"at"`
+
+	// ReturnBps Examples: 140
+	ReturnBps int64 `json:"return_bps"`
+}
+
+// LedgerUser A person on the Ledger.
+type LedgerUser struct {
+	// Id Examples: 01890a5d-ac96-774b-bcce-b302099a8058
+	Id openapi_types.UUID `json:"id"`
+
+	// Name Examples: Christelle
+	Name string `json:"name"`
+
+	// PictureUrl Examples: null
+	PictureUrl *string `json:"picture_url"`
+}
+
 // MyPnlHistory The caller's equity and P&L curve.
 type MyPnlHistory struct {
 	// Points One point per bucket, oldest first.
@@ -1046,6 +1476,12 @@ type ServerInterface interface {
 	// GetPeopleLeaderboard Read the people leaderboard.
 	// (GET /v1/leaderboards/people)
 	GetPeopleLeaderboard(w http.ResponseWriter, r *http.Request, params GetPeopleLeaderboardParams)
+	// GetMyLatestLedger Read the caller's latest weekly Ledger.
+	// (GET /v1/me/ledgers/latest)
+	GetMyLatestLedger(w http.ResponseWriter, r *http.Request)
+	// GetMyLedger Read the caller's weekly Ledger for one week.
+	// (GET /v1/me/ledgers/{week})
+	GetMyLedger(w http.ResponseWriter, r *http.Request, week string)
 	// GetMyPnlHistory Read the caller's P&L history.
 	// (GET /v1/me/pnl-history)
 	GetMyPnlHistory(w http.ResponseWriter, r *http.Request, params GetMyPnlHistoryParams)
@@ -1362,6 +1798,46 @@ func (siw *ServerInterfaceWrapper) GetPeopleLeaderboard(w http.ResponseWriter, r
 	handler.ServeHTTP(w, r)
 }
 
+// GetMyLatestLedger operation middleware
+func (siw *ServerInterfaceWrapper) GetMyLatestLedger(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetMyLatestLedger(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetMyLedger operation middleware
+func (siw *ServerInterfaceWrapper) GetMyLedger(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "week" -------------
+	var week string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "week", r.PathValue("week"), &week, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "week", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetMyLedger(w, r, week)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetMyPnlHistory operation middleware
 func (siw *ServerInterfaceWrapper) GetMyPnlHistory(w http.ResponseWriter, r *http.Request) {
 
@@ -1598,6 +2074,8 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/cabals/{id}/value-history", wrapper.GetCabalValueHistory)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/leaderboards/cabals", wrapper.GetCabalsLeaderboard)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/leaderboards/people", wrapper.GetPeopleLeaderboard)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/ledgers/latest", wrapper.GetMyLatestLedger)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/ledgers/{week}", wrapper.GetMyLedger)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/pnl-history", wrapper.GetMyPnlHistory)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/portfolio", wrapper.GetMyPortfolio)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/users/{id}/cabals", wrapper.GetUserCabals)
@@ -1753,6 +2231,83 @@ type GetPeopleLeaderboarddefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response GetPeopleLeaderboarddefaultApplicationProblemPlusJSONResponse) VisitGetPeopleLeaderboardResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetMyLatestLedgerRequestObject struct {
+}
+
+type GetMyLatestLedgerResponseObject interface {
+	VisitGetMyLatestLedgerResponse(w http.ResponseWriter) error
+}
+
+type GetMyLatestLedger200JSONResponse Ledger
+
+func (response GetMyLatestLedger200JSONResponse) VisitGetMyLatestLedgerResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetMyLatestLedgerdefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response GetMyLatestLedgerdefaultApplicationProblemPlusJSONResponse) VisitGetMyLatestLedgerResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetMyLedgerRequestObject struct {
+	Week string `json:"week"`
+}
+
+type GetMyLedgerResponseObject interface {
+	VisitGetMyLedgerResponse(w http.ResponseWriter) error
+}
+
+type GetMyLedger200JSONResponse Ledger
+
+func (response GetMyLedger200JSONResponse) VisitGetMyLedgerResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetMyLedgerdefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response GetMyLedgerdefaultApplicationProblemPlusJSONResponse) VisitGetMyLedgerResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -1933,6 +2488,12 @@ type StrictServerInterface interface {
 	// GetPeopleLeaderboard Read the people leaderboard.
 	// (GET /v1/leaderboards/people)
 	GetPeopleLeaderboard(ctx context.Context, request GetPeopleLeaderboardRequestObject) (GetPeopleLeaderboardResponseObject, error)
+	// GetMyLatestLedger Read the caller's latest weekly Ledger.
+	// (GET /v1/me/ledgers/latest)
+	GetMyLatestLedger(ctx context.Context, request GetMyLatestLedgerRequestObject) (GetMyLatestLedgerResponseObject, error)
+	// GetMyLedger Read the caller's weekly Ledger for one week.
+	// (GET /v1/me/ledgers/{week})
+	GetMyLedger(ctx context.Context, request GetMyLedgerRequestObject) (GetMyLedgerResponseObject, error)
 	// GetMyPnlHistory Read the caller's P&L history.
 	// (GET /v1/me/pnl-history)
 	GetMyPnlHistory(ctx context.Context, request GetMyPnlHistoryRequestObject) (GetMyPnlHistoryResponseObject, error)
@@ -2085,6 +2646,56 @@ func (sh *strictHandler) GetPeopleLeaderboard(w http.ResponseWriter, r *http.Req
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetPeopleLeaderboardResponseObject); ok {
 		if err := validResponse.VisitGetPeopleLeaderboardResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetMyLatestLedger operation middleware
+func (sh *strictHandler) GetMyLatestLedger(w http.ResponseWriter, r *http.Request) {
+	var request GetMyLatestLedgerRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetMyLatestLedger(ctx, request.(GetMyLatestLedgerRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetMyLatestLedger")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetMyLatestLedgerResponseObject); ok {
+		if err := validResponse.VisitGetMyLatestLedgerResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetMyLedger operation middleware
+func (sh *strictHandler) GetMyLedger(w http.ResponseWriter, r *http.Request, week string) {
+	var request GetMyLedgerRequestObject
+
+	request.Week = week
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetMyLedger(ctx, request.(GetMyLedgerRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetMyLedger")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetMyLedgerResponseObject); ok {
+		if err := validResponse.VisitGetMyLedgerResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

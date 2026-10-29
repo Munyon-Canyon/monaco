@@ -14,12 +14,15 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/ranking/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/ranking/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/ranking/sqlc"
+	socialport "github.com/monaco/monaco/apps/backend/internal/modules/social/port"
+	"github.com/monaco/monaco/apps/backend/internal/modules/trading"
 	treasuryport "github.com/monaco/monaco/apps/backend/internal/modules/treasury/port"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	dbsqlc "github.com/monaco/monaco/apps/backend/internal/platform/db/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/rankingapi"
+	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/platform/poller"
 )
@@ -45,6 +48,8 @@ type Module struct {
 	blocks    app.Blocks
 	balances  app.DisplayBalances
 	votes     app.OpenVoteCounts
+	trades    app.Trades
+	replies   app.Replies
 }
 
 type Option func(*Module)
@@ -69,6 +74,7 @@ func (m *Module) Wire(set module.Set) {
 		if provider, ok := mod.(interface{ Queries() governanceport.Queries }); ok {
 			m.votes, _ = provider.Queries().(app.OpenVoteCounts)
 		}
+		m.wireLedger(mod)
 		if provider, ok := mod.(interface{ Balances() fundingport.Balances }); ok {
 			m.balances, _ = provider.Balances().(app.DisplayBalances)
 		}
@@ -106,7 +112,25 @@ func (m *Module) Wire(set module.Set) {
 	}
 }
 
+func (m *Module) wireLedger(mod module.Module) {
+	switch provider := mod.(type) {
+	case *trading.Module:
+		m.trades = provider.Queries()
+	case interface {
+		TopReply(context.Context, []ids.ProposalID, time.Time, time.Time) (*socialport.TopReply, error)
+	}:
+		m.replies = provider
+	}
+}
+
 func (m *Module) Ports() app.Ports { return m.ports }
+
+func (m *Module) LedgerInputs() app.LedgerInputs {
+	return app.LedgerInputs{
+		Store: sqlc.New(m.deps.Pool), Market: m.ports.Market, Users: m.ports.Users, Members: m.member,
+		Cards: m.cards, Trades: m.trades, Replies: m.replies,
+	}
+}
 
 func (m *Module) RunValuation() app.RunValuation {
 	return app.NewRunValuation(m.ports, chain.SolanaAddress(m.deps.Config.Solana.USDCMint))
@@ -129,6 +153,7 @@ func (m *Module) Mount(r api.Mount) {
 		Snapshots: boards, Ledger: m.ledger, Histories: m.curves, Stakes: m.stakes, Cards: m.cards,
 		Users: m.users, Members: m.member, Ownership: m.ownership, Roles: m.roles,
 		Blocks: blocks, Balances: m.balances, Votes: m.votes,
+		Ledgers: app.ReadLedger{Reads: sqlc.New(m.deps.Pool)},
 	}, r)
 }
 
