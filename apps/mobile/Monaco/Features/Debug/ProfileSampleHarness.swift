@@ -159,7 +159,7 @@ struct ProfileTabsSampleScreen: View {
         .onAppear { if scenario == .tabsActivity { selection = .activity } }
     }
 
-    private static func cabal(_ ref: Components.Schemas.CabalRef, role: String = "member")
+    static func cabal(_ ref: Components.Schemas.CabalRef, role: String = "member")
         -> Components.Schemas.MyCabal
     {
         Components.Schemas.MyCabal(
@@ -167,7 +167,7 @@ struct ProfileTabsSampleScreen: View {
             joinedAt: Date(timeIntervalSince1970: 0), pendingRequestCount: 0, unreadCount: 0)
     }
 
-    private static let quantKidsInvite = Components.Schemas.CabalInvite(
+    static let quantKidsInvite = Components.Schemas.CabalInvite(
         requestId: "sample-invite",
         cabal: .init(
             id: Components.Schemas.CabalRef.sampleQuantKids.id, name: "Quant Kids", pictureUrl: nil, memberCount: 5),
@@ -247,6 +247,13 @@ private func apiScript(for scenario: ProfileSampleScenario) -> SampleAPIScript {
     if scenario == .ready {
         script.balance.inFlightMicros = "0"
         script.balance.onChainMicros = script.balance.availableMicros
+        script.homeCabals = [
+            ProfileTabsSampleScreen.cabal(.sampleACCapital, role: "creator"),
+            ProfileTabsSampleScreen.cabal(.sampleTechTitans),
+            ProfileTabsSampleScreen.cabal(.sampleDegens),
+        ]
+        script.portfolio = .sampleOwnProfile
+        script.invites = [ProfileTabsSampleScreen.quantKidsInvite]
     }
     return script
 }
