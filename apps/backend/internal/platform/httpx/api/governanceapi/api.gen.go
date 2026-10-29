@@ -88,6 +88,27 @@ func (e BallotChoice) Valid() bool {
 	}
 }
 
+// Defines values for MarketFactKind.
+const (
+	Called   MarketFactKind = "called"
+	Held     MarketFactKind = "held"
+	VoteOpen MarketFactKind = "vote_open"
+)
+
+// Valid indicates whether the value is a known member of the MarketFactKind enum.
+func (e MarketFactKind) Valid() bool {
+	switch e {
+	case Called:
+		return true
+	case Held:
+		return true
+	case VoteOpen:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ProposalDetailSwapStatus.
 const (
 	ProposalDetailSwapStatusConfirmed ProposalDetailSwapStatus = "confirmed"
@@ -456,6 +477,65 @@ type CastVoteRequest struct {
 	//
 	// Examples: yes
 	Choice BallotChoice `json:"choice"`
+}
+
+// MarketFactKind Which fact this is.
+//
+// Examples: vote_open
+type MarketFactKind string
+
+// MarketFactRow A requested symbol and the first fact that matches it.
+type MarketFactRow struct {
+	// Fact What Monaco knows about the stock for the caller, or null when it has nothing to say. `vote_open` carries `cabal_name` and `count`, `held` carries `units` and `cabal_count`, and `called` carries `proposer_name`.
+	//
+	// Examples: {"cabal_count":1,"kind":"held","units":"24.0000"}
+	Fact *MarketFact `json:"fact"`
+
+	// Symbol The requested symbol.
+	//
+	// Examples: NVDAx
+	Symbol string `json:"symbol"`
+}
+
+// MarketFact What Monaco knows about the stock for the caller, or null when it has nothing to say. `vote_open` carries `cabal_name` and `count`, `held` carries `units` and `cabal_count`, and `called` carries `proposer_name`.
+//
+// Examples: {"cabal_count":1,"kind":"held","units":"24.0000"}
+type MarketFact struct {
+	// CabalCount For held, how many of the caller's cabals hold it.
+	//
+	// Examples: 1
+	CabalCount *int `json:"cabal_count,omitempty"`
+
+	// CabalName For vote_open, the cabal of the soonest-closing proposal.
+	//
+	// Examples: AC Capital
+	CabalName *string `json:"cabal_name,omitempty"`
+
+	// Count For vote_open, how many open proposals wait on the caller.
+	//
+	// Examples: 1
+	Count *int `json:"count,omitempty"`
+
+	// Kind Which fact this is.
+	//
+	// Examples: vote_open
+	Kind MarketFactKind `json:"kind"`
+
+	// ProposerName For called, the proposer of the newest proposal that passed.
+	//
+	// Examples: Christelle
+	ProposerName *string `json:"proposer_name,omitempty"`
+
+	// Units For held, the units held across the caller's cabals.
+	//
+	// Examples: 24.0000
+	Units *string `json:"units,omitempty"`
+}
+
+// MarketFacts One Monaco fact per requested symbol, in request order.
+type MarketFacts struct {
+	// Facts Examples: [{"fact":{"cabal_count":1,"kind":"held","units":"24.0000"},"symbol":"AAPLx"},{"fact":null,"symbol":"MSFTx"}]
+	Facts []MarketFactRow `json:"facts"`
 }
 
 // MyVote Where the caller's ballot falls among the cabal's votes.
@@ -1271,6 +1351,12 @@ type GetCabalProposalPreviewParams struct {
 	Network *externalRef0.Network `form:"network,omitempty" json:"network,omitempty"`
 }
 
+// GetMyMarketFactsParams defines parameters for GetMyMarketFacts.
+type GetMyMarketFactsParams struct {
+	// Symbols Comma-separated symbols, 1 to 50, each at most 64 characters. More than 50 is `invalid_input`.
+	Symbols string `form:"symbols" json:"symbols"`
+}
+
 // GetMyProposalsParams defines parameters for GetMyProposals.
 type GetMyProposalsParams struct {
 	// Filter Which proposals to return.
@@ -1336,6 +1422,9 @@ type ServerInterface interface {
 	// GetCabalProposalPriceComparison Compare venues for an open buy proposal now.
 	// (GET /v1/cabals/{id}/proposals/{proposal_id}/price-comparison)
 	GetCabalProposalPriceComparison(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, proposalId openapi_types.UUID)
+	// GetMyMarketFacts Say what Monaco knows about each of the caller's watched stocks.
+	// (GET /v1/me/market-facts)
+	GetMyMarketFacts(w http.ResponseWriter, r *http.Request, params GetMyMarketFactsParams)
 	// GetMyPendingVotes List the open proposals waiting on the caller's ballot.
 	// (GET /v1/me/pending-votes)
 	GetMyPendingVotes(w http.ResponseWriter, r *http.Request)
@@ -1764,6 +1853,39 @@ func (siw *ServerInterfaceWrapper) GetCabalProposalPriceComparison(w http.Respon
 	handler.ServeHTTP(w, r)
 }
 
+// GetMyMarketFacts operation middleware
+func (siw *ServerInterfaceWrapper) GetMyMarketFacts(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetMyMarketFactsParams
+
+	// ------------- Required query parameter "symbols" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "symbols", r.URL.Query(), &params.Symbols, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "symbols"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "symbols", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetMyMarketFacts(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetMyPendingVotes operation middleware
 func (siw *ServerInterfaceWrapper) GetMyPendingVotes(w http.ResponseWriter, r *http.Request) {
 
@@ -2152,6 +2274,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/cabals/{id}/proposals", wrapper.PostCabalProposal)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/cabals/{id}/proposals/preview", wrapper.GetCabalProposalPreview)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/cabals/{id}/proposals/{proposal_id}/price-comparison", wrapper.GetCabalProposalPriceComparison)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/market-facts", wrapper.GetMyMarketFacts)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/pending-votes", wrapper.GetMyPendingVotes)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/proposals", wrapper.GetMyProposals)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/proposals/{id}", wrapper.DeleteProposal)
@@ -2443,6 +2566,45 @@ func (response GetCabalProposalPriceComparisondefaultApplicationProblemPlusJSONR
 	return err
 }
 
+type GetMyMarketFactsRequestObject struct {
+	Params GetMyMarketFactsParams
+}
+
+type GetMyMarketFactsResponseObject interface {
+	VisitGetMyMarketFactsResponse(w http.ResponseWriter) error
+}
+
+type GetMyMarketFacts200JSONResponse MarketFacts
+
+func (response GetMyMarketFacts200JSONResponse) VisitGetMyMarketFactsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetMyMarketFactsdefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response GetMyMarketFactsdefaultApplicationProblemPlusJSONResponse) VisitGetMyMarketFactsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetMyPendingVotesRequestObject struct {
 }
 
@@ -2703,6 +2865,9 @@ type StrictServerInterface interface {
 	// GetCabalProposalPriceComparison Compare venues for an open buy proposal now.
 	// (GET /v1/cabals/{id}/proposals/{proposal_id}/price-comparison)
 	GetCabalProposalPriceComparison(ctx context.Context, request GetCabalProposalPriceComparisonRequestObject) (GetCabalProposalPriceComparisonResponseObject, error)
+	// GetMyMarketFacts Say what Monaco knows about each of the caller's watched stocks.
+	// (GET /v1/me/market-facts)
+	GetMyMarketFacts(ctx context.Context, request GetMyMarketFactsRequestObject) (GetMyMarketFactsResponseObject, error)
 	// GetMyPendingVotes List the open proposals waiting on the caller's ballot.
 	// (GET /v1/me/pending-votes)
 	GetMyPendingVotes(ctx context.Context, request GetMyPendingVotesRequestObject) (GetMyPendingVotesResponseObject, error)
@@ -2957,6 +3122,32 @@ func (sh *strictHandler) GetCabalProposalPriceComparison(w http.ResponseWriter, 
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetCabalProposalPriceComparisonResponseObject); ok {
 		if err := validResponse.VisitGetCabalProposalPriceComparisonResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetMyMarketFacts operation middleware
+func (sh *strictHandler) GetMyMarketFacts(w http.ResponseWriter, r *http.Request, params GetMyMarketFactsParams) {
+	var request GetMyMarketFactsRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetMyMarketFacts(ctx, request.(GetMyMarketFactsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetMyMarketFacts")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetMyMarketFactsResponseObject); ok {
+		if err := validResponse.VisitGetMyMarketFactsResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

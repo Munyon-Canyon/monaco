@@ -1767,6 +1767,32 @@ paths:
               example: {quote_out_amount: 40000000, quoted_at: "2026-10-10T12:00:00Z", price_comparison: {winner_listing_id: 01928a6e-0000-7000-8000-000000000001, quotes: [{listing_id: 01928a6e-0000-7000-8000-000000000001, issuer: xstocks, network: solana, venue: jupiter, net_share_nanos: "40000000", net_micros: "10000000", costs: [], quoted_at: "2026-10-10T12:00:00Z", expires_at: "2026-10-10T12:00:30Z"}], unavailable: []}}
         default:
           $ref: "#/components/responses/Problem"
+  /v1/me/market-facts:
+    get:
+      operationId: getMyMarketFacts
+      tags: [governance]
+      summary: Say what Monaco knows about each of the caller's watched stocks.
+      description: >-
+        Returns one entry per requested symbol, in request order. The fact is the first that matches: `vote_open`
+        when an open proposal for the symbol sits in one of the caller's current cabals and the caller is in its
+        frozen voter set, then `held` when the caller's cabals hold the stock, then `called` when a proposal for
+        it passed (or was then executed) in the last 7 days in one of the caller's current cabals. A stock with
+        none of these, or an unknown symbol, has a null fact.
+      parameters:
+        - name: symbols
+          in: query
+          required: true
+          description: Comma-separated symbols, 1 to 50, each at most 64 characters. More than 50 is `invalid_input`.
+          schema: {type: string, minLength: 1, examples: ["NVDAx,AAPLx,METAx,MSFTx"]}
+      responses:
+        "200":
+          description: One fact per requested symbol.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/MarketFacts"}
+              example: {facts: [{symbol: NVDAx, fact: {kind: vote_open, cabal_name: AC Capital, count: 1}}, {symbol: AAPLx, fact: {kind: held, units: "24.0000", cabal_count: 1}}, {symbol: METAx, fact: {kind: called, proposer_name: Christelle}}, {symbol: MSFTx, fact: null}]}
+        default:
+          $ref: "#/components/responses/Problem"
   /v1/me/pending-votes:
     get:
       operationId: getMyPendingVotes
@@ -6792,6 +6818,43 @@ components:
       properties:
         choice:
           $ref: "#/components/schemas/BallotChoice"
+    MarketFactKind:
+      type: string
+      enum: [vote_open, held, called]
+      description: Which fact this is.
+      examples: [vote_open]
+    MarketFactRow:
+      type: object
+      description: A requested symbol and the first fact that matches it.
+      required: [symbol, fact]
+      properties:
+        symbol: {type: string, description: The requested symbol., examples: [NVDAx]}
+        fact:
+          type: [object, "null"]
+          x-go-type-name: MarketFact
+          examples: [{kind: held, units: "24.0000", cabal_count: 1}]
+          description: >-
+            What Monaco knows about the stock for the caller, or null when it has nothing to say. `vote_open`
+            carries `cabal_name` and `count`, `held` carries `units` and `cabal_count`, and `called` carries
+            `proposer_name`.
+          required: [kind]
+          properties:
+            kind: {$ref: "#/components/schemas/MarketFactKind"}
+            cabal_name: {type: string, description: "For vote_open, the cabal of the soonest-closing proposal.", examples: [AC Capital]}
+            count: {type: integer, minimum: 1, description: "For vote_open, how many open proposals wait on the caller.", examples: [1]}
+            units: {type: string, description: "For held, the units held across the caller's cabals.", examples: ["24.0000"]}
+            cabal_count: {type: integer, minimum: 1, description: "For held, how many of the caller's cabals hold it.", examples: [1]}
+            proposer_name: {type: string, description: "For called, the proposer of the newest proposal that passed.", examples: [Christelle]}
+    MarketFacts:
+      type: object
+      description: One Monaco fact per requested symbol, in request order.
+      required: [facts]
+      properties:
+        facts:
+          type: array
+          maxItems: 50
+          items: {$ref: "#/components/schemas/MarketFactRow"}
+          examples: [[{symbol: AAPLx, fact: {kind: held, units: "24.0000", cabal_count: 1}}, {symbol: MSFTx, fact: null}]]
     MyVote:
       type: object
       description: Where the caller's ballot falls among the cabal's votes.

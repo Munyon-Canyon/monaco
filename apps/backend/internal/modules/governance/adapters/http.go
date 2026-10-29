@@ -28,6 +28,7 @@ type HTTP struct {
 	Reads       *app.ProposalReads
 	Pending     *app.PendingVoteReads
 	Comparisons *app.ProposalComparisons
+	Facts       *app.MarketFacts
 }
 
 var _ api.StrictServerInterface = HTTP{}
