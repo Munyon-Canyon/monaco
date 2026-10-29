@@ -367,3 +367,40 @@ extension UserProfileModel {
 
     public var performance: PublicPerformance? { profile.map(PublicPerformance.init) }
 }
+
+extension UserProfileModel {
+    public var crown: Bool { profile?.crown ?? false }
+
+    public var inCommon: Int { profile?.cabalsInCommon ?? 0 }
+
+    public var handleLine: String {
+        guard let profile else { return "" }
+        guard let rank = profile.standing?.rank else {
+            return ProfileCopy.identityLine(handle: profile.handle, joinedAt: profile.createdAt)
+        }
+        return "@\(profile.handle) \u{00B7} #\(rank) this month"
+    }
+
+    public var pnlFigure: String {
+        switch performance {
+        case .figure(_, let returnBps): PercentFormatter.format(basisPoints: returnBps, signed: true, fractionDigits: 1)
+        case .hidden: "Private"
+        case .unavailable, nil: "\u{2014}"
+        }
+    }
+
+    public var rightCallsFigure: String {
+        guard let standing = profile?.standing else { return "\u{2014}" }
+        return "\(standing.right) of \(standing.resolved)"
+    }
+
+    public var countsLine: String {
+        var parts = [
+            FollowCountFormatter.followers(followerCount),
+            FollowCountFormatter.following(followingCount),
+        ]
+        if let cabals = cabalCount { parts.append("\(cabals) \(cabals == 1 ? "cabal" : "cabals")") }
+        if inCommon > 0 { parts.append("\(inCommon) in common") }
+        return parts.joined(separator: " \u{00B7} ")
+    }
+}

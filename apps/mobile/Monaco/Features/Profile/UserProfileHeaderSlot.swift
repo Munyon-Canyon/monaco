@@ -1,4 +1,3 @@
-import MonacoAPI
 import MonacoCore
 import SwiftUI
 
@@ -17,8 +16,6 @@ enum UserProfileCopy {
     static let privateMessage = "Following does not reveal private balances or conversations."
     static let notFoundTitle = "Profile not found"
     static let notFoundMessage = "This profile isn't available."
-    static let activityTitle = "Public activity"
-    static let noActivity = "No public activity yet."
 }
 
 struct UserProfileNotFound: View {
@@ -60,11 +57,6 @@ private struct UserProfileHeader: View {
             content
         }
         .frame(maxWidth: .infinity)
-        .toolbar {
-            if model?.phase == .loaded, !isViewer {
-                ToolbarItem(placement: .topBarTrailing) { UserProfileMoreMenu() }
-            }
-        }
         .onChange(of: model?.toastTick) {
             if let error = model?.lastError { toasts.show(error) }
         }
@@ -87,23 +79,19 @@ private struct UserProfileHeader: View {
 
     @ViewBuilder private var loading: some View {
         if let preview = context.preview {
-            IdentityCard(
-                model: IdentityCardModel(
-                    displayName: preview.displayName, handle: preview.handle, performance: .loading,
-                    periodText: ""),
-                identifierPrefix: "user-profile"
-            ) {
-                MonacoAvatar(
-                    photoURL: preview.photoURL, displayName: preview.displayName, size: 64, seed: userID,
-                    ring: .identity)
-            } share: {
-                EmptyView()
-            }
+            UserProfileCard(
+                data: UserProfileContentData(
+                    userID: userID, title: preview.displayName, photoURL: preview.photoURL,
+                    handleLine: preview.handle.map { "@\($0)" } ?? "", followers: 0, following: 0)
+            )
             .padding(.horizontal, MonacoTheme.Space.gutter)
             .accessibilityIdentifier("user-profile-loading")
         } else {
-            IdentityCardSkeleton(identifier: "user-profile-loading", label: "Loading profile")
+            SkeletonBlock(height: SkeletonMetrics.cardHeight, radius: MonacoTheme.Radius.card)
                 .padding(.horizontal, MonacoTheme.Space.gutter)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Loading profile")
+                .accessibilityIdentifier("user-profile-loading")
         }
     }
 }
@@ -111,20 +99,21 @@ private struct UserProfileHeader: View {
 struct UserProfileContentData: Equatable {
     var userID: String
     var title: String
-    var handle: String?
     var photoURL: String?
+    var crown = false
+    var handleLine = ""
+    var bio: String?
+    var pnl = "\u{2014}"
+    var rightCalls = "\u{2014}"
     var followers: Int
     var following: Int
+    var cabals: Int?
+    var inCommon = 0
     var isViewer = false
     var followedByMe = false
     var blockedByMe = false
     var isBusy = false
-    var bio: String?
-    var joinedText: String?
-    var cabals: Int?
-    var performance = IdentityPerformance.loading
-    var activity: [Components.Schemas.FeedItem] = []
-    var activityLoaded = false
+    var performanceHidden = false
 }
 
 struct UserProfileActions {
@@ -140,23 +129,9 @@ private struct UserProfileLoaded: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(ToastCenter.self) private var toasts
     @Environment(UserProfileModel.self) private var model: UserProfileModel?
-    @Environment(ScreenRefresh.self) private var refresh: ScreenRefresh?
-    @State private var activity: PublicActivityModel?
 
     var body: some View {
         UserProfileContent(data: data, actions: actions)
-            .task(id: userID) {
-                let activity = prepared()
-                refresh?.register("user-profile-activity") { await activity.load() }
-                await activity.load()
-            }
-    }
-
-    private func prepared() -> PublicActivityModel {
-        if let activity, activity.userID == userID { return activity }
-        let created = PublicActivityModel(userID: userID, api: environment.api)
-        activity = created
-        return created
     }
 
     private var data: UserProfileContentData {
@@ -164,13 +139,12 @@ private struct UserProfileLoaded: View {
         let handle = model?.handle ?? ""
         return UserProfileContentData(
             userID: userID, title: name.isEmpty ? (handle.isEmpty ? "Member" : handle) : name,
-            handle: handle.isEmpty ? nil : handle, photoURL: model?.photoURL,
-            followers: model?.followerCount ?? 0, following: model?.followingCount ?? 0, isViewer: isViewer,
+            photoURL: model?.photoURL, crown: model?.crown ?? false, handleLine: model?.handleLine ?? "",
+            bio: model?.bio, pnl: model?.pnlFigure ?? "\u{2014}", rightCalls: model?.rightCallsFigure ?? "\u{2014}",
+            followers: model?.followerCount ?? 0, following: model?.followingCount ?? 0,
+            cabals: model?.cabalCount, inCommon: model?.inCommon ?? 0, isViewer: isViewer,
             followedByMe: model?.followedByMe ?? false, blockedByMe: model?.blockedByMe ?? false,
-            isBusy: model?.isToggling(userID) ?? false, bio: model?.bio,
-            joinedText: model?.joinedAt.map { MemberSinceFormatter.joined($0) }, cabals: model?.cabalCount,
-            performance: model?.performance.map(IdentityPerformance.init) ?? .loading,
-            activity: activity?.items ?? [], activityLoaded: activity?.phase == .loaded)
+            isBusy: model?.isToggling(userID) ?? false, performanceHidden: model?.performance == .hidden)
     }
 
     private var actions: UserProfileActions {
@@ -193,28 +167,12 @@ struct UserProfileContent: View {
 
     var body: some View {
         VStack(spacing: MonacoTheme.Space.m) {
-            IdentityCard(model: cardModel, identifierPrefix: "user-profile") {
-                MonacoAvatar(
-                    photoURL: data.photoURL, displayName: data.title, size: 64, seed: data.userID, ring: .identity)
-            } share: {
-                EmptyView()
-            }
-            .padding(.horizontal, MonacoTheme.Space.gutter)
-            SocialCounts(
-                model: SocialCountsModel(
-                    userID: data.userID, followers: data.followers, following: data.following, cabals: data.cabals),
-                identifierPrefix: "user-profile"
-            )
+            UserProfileCard(data: data)
+                .padding(.horizontal, MonacoTheme.Space.gutter)
+            UserProfileCounts(data: data)
             action
             extras
         }
-    }
-
-    private var cardModel: IdentityCardModel {
-        IdentityCardModel(
-            displayName: data.title, handle: data.handle == data.title ? nil : data.handle,
-            joinedText: data.joinedText, bio: data.bio, positionsValue: nil, performance: data.performance,
-            periodText: PublicPerformance.periodLabel)
     }
 
     @ViewBuilder private var action: some View {
@@ -237,55 +195,169 @@ struct UserProfileContent: View {
                 .padding(.horizontal, MonacoTheme.Space.gutter)
                 .accessibilityIdentifier("user-profile-follow")
         } else {
-            Button("Follow", action: actions.follow)
-                .buttonStyle(.monacoPrimary)
-                .disabled(data.isBusy)
-                .padding(.horizontal, MonacoTheme.Space.gutter)
-                .accessibilityIdentifier("user-profile-follow")
+            Button(action: actions.follow) {
+                Label("Follow", systemImage: "person.badge.plus")
+            }
+            .buttonStyle(.monacoPrimary)
+            .disabled(data.isBusy)
+            .padding(.horizontal, MonacoTheme.Space.gutter)
+            .accessibilityIdentifier("user-profile-follow")
         }
     }
 
     @ViewBuilder private var extras: some View {
-        if !data.blockedByMe {
-            if data.performance == .hidden {
-                EmptyState(
-                    title: UserProfileCopy.privateTitle, message: UserProfileCopy.privateMessage,
-                    systemImage: MonacoIcon.lock.symbol
-                )
-                .accessibilityIdentifier("user-profile-private")
-            }
-            publicActivity
+        if !data.blockedByMe, data.performanceHidden {
+            EmptyState(
+                title: UserProfileCopy.privateTitle, message: UserProfileCopy.privateMessage,
+                systemImage: MonacoIcon.lock.symbol
+            )
+            .accessibilityIdentifier("user-profile-private")
         }
     }
+}
 
-    @ViewBuilder private var publicActivity: some View {
-        if !data.activity.isEmpty {
-            VStack(spacing: 0) {
-                MonacoSectionHeader(UserProfileCopy.activityTitle)
-                    .padding(.horizontal, MonacoTheme.Space.gutter)
-                ForEach(data.activity) { item in
-                    NavigationLink(value: item.opensRoute) {
-                        MonacoRow(
-                            title: item.title, subtitle: Self.subtitle(item), chevron: true,
-                            isLast: item.id == data.activity.last?.id,
-                            leading: { SunkenGlyphMark(icon: .news) })
-                    }
-                    .buttonStyle(.monacoRow)
-                    .accessibilityIdentifier("user-profile-activity-\(item.id)")
+private struct UserProfileCard: View {
+    let data: UserProfileContentData
+
+    var body: some View {
+        MonacoCard {
+            VStack(alignment: .leading, spacing: MonacoTheme.Space.sm) {
+                HStack(alignment: .center, spacing: MonacoTheme.Space.sm) {
+                    photo
+                    names
+                }
+                if let bio = data.bio {
+                    Text(bio)
+                        .font(MonacoTheme.Typo.body)
+                        .foregroundStyle(MonacoTheme.primaryText)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier("user-profile-bio")
+                }
+                MonacoRule()
+                HStack(alignment: .top, spacing: MonacoTheme.Space.sm) {
+                    figure("P&L \u{00B7} 1M", data.pnl, tint: Self.tint(data.pnl), id: "user-profile-pnl")
+                    figure(
+                        "Right calls \u{00B7} 1M", data.rightCalls, tint: MonacoTheme.primaryText,
+                        id: "user-profile-right-calls")
                 }
             }
-            .accessibilityIdentifier("user-profile-public-activity")
-        } else if data.activityLoaded {
-            Text(UserProfileCopy.noActivity)
-                .font(MonacoTheme.Typo.caption)
-                .foregroundStyle(MonacoTheme.muted)
-                .accessibilityIdentifier("user-profile-no-activity")
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("user-profile-card")
+    }
+
+    private var photo: some View {
+        MonacoAvatar(
+            photoURL: data.photoURL, displayName: data.title, size: ProfileCardMetrics.photo, seed: data.userID,
+            ring: .identity
+        )
+        .overlay(alignment: .top) {
+            if data.crown {
+                Image(systemName: "crown.fill")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(MonacoTheme.goldGlyph)
+                    .offset(y: -10)
+                    .accessibilityLabel("Month leader")
+                    .accessibilityIdentifier("user-profile-crown")
+            }
         }
     }
 
-    static func subtitle(_ item: Components.Schemas.FeedItem) -> String {
-        let age = RelativeTimeFormatter.label(date: item.createdAt, now: Date())
-        guard let detail = item.detail, !detail.isEmpty else { return age }
-        return "\(detail) · \(age)"
+    private var names: some View {
+        VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
+            Text(data.title)
+                .font(MonacoTheme.Typo.title2)
+                .foregroundStyle(MonacoTheme.primaryText)
+                .lineLimit(2)
+                .minimumScaleFactor(0.7)
+                .accessibilityIdentifier("user-profile-name")
+                .monacoPrivate()
+            if !data.handleLine.isEmpty {
+                Text(data.handleLine)
+                    .font(MonacoTheme.Typo.subhead)
+                    .foregroundStyle(MonacoTheme.secondaryText)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                    .accessibilityIdentifier("user-profile-handle")
+                    .monacoPrivate()
+            }
+        }
+        .frame(maxWidth: .infinity, minHeight: ProfileCardMetrics.nameMinHeight, alignment: .leading)
+    }
+
+    private func figure(_ label: String, _ value: String, tint: Color, id: String) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(label)
+                .font(MonacoTheme.Typo.subhead)
+                .foregroundStyle(MonacoTheme.secondaryText)
+                .fixedSize(horizontal: false, vertical: true)
+            Text(value)
+                .moneyFigure(.card)
+                .foregroundStyle(tint)
+                .lineLimit(1)
+                .minimumScaleFactor(MoneyStyle.card.minimumScaleFactor)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(label)
+        .accessibilityValue(value)
+        .accessibilityIdentifier(id)
+    }
+
+    private static func tint(_ pnl: String) -> Color {
+        if pnl.hasPrefix("+") { return MonacoTheme.profit }
+        if pnl.hasPrefix("\u{2212}") { return MonacoTheme.loss }
+        return MonacoTheme.primaryText
+    }
+}
+
+private struct UserProfileCounts: View {
+    let data: UserProfileContentData
+
+    var body: some View {
+        HStack(spacing: MonacoTheme.Space.s) {
+            link(
+                FollowCountFormatter.count(data.followers), FollowCountFormatter.followersNoun(data.followers),
+                .followers, id: "user-profile-followers")
+            link(FollowCountFormatter.count(data.following), "following", .following, id: "user-profile-following")
+            if let cabals = data.cabals {
+                item(FollowCountFormatter.count(cabals), cabals == 1 ? "cabal" : "cabals")
+                    .accessibilityIdentifier("user-profile-stat-cabals")
+            }
+            if data.inCommon > 0 {
+                Text("\(data.inCommon) in common")
+                    .font(MonacoTheme.Typo.caption)
+                    .foregroundStyle(MonacoTheme.muted)
+                    .accessibilityIdentifier("user-profile-in-common")
+            }
+        }
+        .lineLimit(1)
+        .minimumScaleFactor(0.8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, MonacoTheme.Space.gutter)
+    }
+
+    private func link(_ count: String, _ noun: String, _ kind: FollowListKind, id: String) -> some View {
+        NavigationLink(value: AnyAppRoute(FollowListRoute(userID: data.userID, kind: kind))) {
+            item(count, noun)
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier(id)
+    }
+
+    private func item(_ count: String, _ noun: String) -> some View {
+        HStack(spacing: MonacoTheme.Space.xs) {
+            Text(count)
+                .font(MonacoTheme.Typo.captionStrong)
+                .foregroundStyle(MonacoTheme.primaryText)
+            Text(noun)
+                .font(MonacoTheme.Typo.caption)
+                .foregroundStyle(MonacoTheme.muted)
+        }
+        .fixedSize(horizontal: false, vertical: true)
+        .frame(minHeight: MonacoButtonMetrics.hitTarget)
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
     }
 }

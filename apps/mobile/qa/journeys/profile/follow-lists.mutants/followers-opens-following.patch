@@ -4,15 +4,15 @@ expect-fail: S1
 "Followers" opens the following list. S1.2 waits for the "Followers" screen, so it must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
-diff --git a/apps/mobile/Monaco/Features/Profile/SocialCounts.swift b/apps/mobile/Monaco/Features/Profile/SocialCounts.swift
---- a/apps/mobile/Monaco/Features/Profile/SocialCounts.swift
-+++ b/apps/mobile/Monaco/Features/Profile/SocialCounts.swift
-@@ -36,7 +36,7 @@
-     private var followersItem: some View {
+diff --git a/apps/mobile/Monaco/Features/Profile/ProfileStandingSlot.swift b/apps/mobile/Monaco/Features/Profile/ProfileStandingSlot.swift
+--- a/apps/mobile/Monaco/Features/Profile/ProfileStandingSlot.swift
++++ b/apps/mobile/Monaco/Features/Profile/ProfileStandingSlot.swift
+@@ -51,7 +51,7 @@
+     @ViewBuilder private func items(separated: Bool) -> some View {
          link(
-             FollowCountFormatter.count(model.followers), FollowCountFormatter.followersNoun(model.followers),
--            .followers, id: "\(identifierPrefix)-followers")
-+            .following, id: "\(identifierPrefix)-followers")
-     }
- 
-     private var followingItem: some View {
+             FollowCountFormatter.count(counts.followers), FollowCountFormatter.followersNoun(counts.followers),
+-            .followers, id: "profile-followers")
++            .following, id: "profile-followers")
+         if separated { dot }
+         link(FollowCountFormatter.count(counts.following), "following", .following, id: "profile-following")
+         if separated { dot }

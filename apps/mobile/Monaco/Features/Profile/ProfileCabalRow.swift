@@ -26,6 +26,16 @@ struct ProfileCabalRowView: View {
         self.isLast = isLast
     }
 
+    init(userCabal row: UserCabalRow, isLast: Bool) {
+        cabalID = row.id
+        name = row.name
+        pictureURL = row.pictureURL
+        subtitle = row.subtitle
+        trailing = row.ownership.map { .text($0) } ?? .none
+        identifier = "user-profile-cabal-row-\(row.id)"
+        self.isLast = isLast
+    }
+
     init(invite: ProfileCabalRow.Invited, isLast: Bool) {
         cabalID = invite.cabalID
         name = invite.name

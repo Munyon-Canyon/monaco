@@ -7,9 +7,9 @@ scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 diff --git a/apps/mobile/Monaco/Features/Profile/UserProfileMoreMenu.swift b/apps/mobile/Monaco/Features/Profile/UserProfileMoreMenu.swift
 --- a/apps/mobile/Monaco/Features/Profile/UserProfileMoreMenu.swift
 +++ b/apps/mobile/Monaco/Features/Profile/UserProfileMoreMenu.swift
-@@ -84,7 +84,7 @@
-                 .monacoToolbarIcon()
-                 .frame(minWidth: 44, minHeight: 44)
+@@ -87,7 +87,7 @@
+                 .background(Circle().fill(MonacoTheme.surfaceSunken))
+                 .contentShape(Circle())
          }
 -        .accessibilityLabel("More")
 +        .accessibilityLabel("Options")

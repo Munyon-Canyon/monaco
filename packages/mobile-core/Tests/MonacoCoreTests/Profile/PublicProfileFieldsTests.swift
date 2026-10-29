@@ -46,38 +46,6 @@ final class PublicProfileFieldsTests: XCTestCase {
         XCTAssertEqual(model.performance, .figure(pnlMicros: 41_250_000, returnBps: 820))
     }
 
-    func testAPublicActivityReadAsksForTheActorsProposalsAndReplies() async throws {
-        let items = Array(Components.Schemas.FeedItem.samples.prefix(2))
-        let page = Components.Schemas.FeedPage(items: items, nextCursor: nil)
-        let transport = StubTransport(.json(.ok, try Self.json(page)))
-        let model = PublicActivityModel(
-            userID: Self.userID,
-            api: APIClient(serverURL: testServerURL, tokens: StubTokenProvider(token: "token-1"), transport: transport))
-
-        await model.load()
-
-        XCTAssertEqual(model.phase, .loaded)
-        XCTAssertEqual(model.items.map(\.id), items.map(\.id))
-        let sent = await transport.sent
-        let query = URLComponents(string: sent.first?.path ?? "")?.queryItems ?? []
-        let values = Dictionary(query.map { ($0.name, $0.value ?? "") }, uniquingKeysWith: { _, last in last })
-        XCTAssertEqual(values["actor_id"], Self.userID)
-        XCTAssertEqual(values["kind"], "proposal,reply")
-        XCTAssertEqual(values["limit"], "5")
-    }
-
-    func testAFailedPublicActivityReadLeavesNoRows() async throws {
-        let transport = StubTransport(.json(.internalServerError, "{}"))
-        let model = PublicActivityModel(
-            userID: Self.userID,
-            api: APIClient(serverURL: testServerURL, tokens: StubTokenProvider(token: "token-1"), transport: transport))
-
-        await model.load()
-
-        XCTAssertEqual(model.phase, .failed)
-        XCTAssertTrue(model.items.isEmpty)
-    }
-
     private static func json<T: Encodable>(_ value: T) throws -> String {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601

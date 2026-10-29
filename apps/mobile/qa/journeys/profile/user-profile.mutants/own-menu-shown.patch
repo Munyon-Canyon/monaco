@@ -4,15 +4,15 @@ expect-fail: S5
 Your own profile shows the "…" menu. S5.1 needs it hidden, so it must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
-diff --git a/apps/mobile/Monaco/Features/Profile/UserProfileHeaderSlot.swift b/apps/mobile/Monaco/Features/Profile/UserProfileHeaderSlot.swift
---- a/apps/mobile/Monaco/Features/Profile/UserProfileHeaderSlot.swift
-+++ b/apps/mobile/Monaco/Features/Profile/UserProfileHeaderSlot.swift
-@@ -70,7 +70,7 @@
-         }
-         .frame(maxWidth: .infinity)
-         .toolbar {
--            if model?.phase == .loaded, !isViewer {
-+            if model?.phase == .loaded, true {
-                 ToolbarItem(placement: .topBarTrailing) { UserProfileMoreMenu() }
+diff --git a/apps/mobile/Monaco/Features/Profile/UserProfileScreen.swift b/apps/mobile/Monaco/Features/Profile/UserProfileScreen.swift
+--- a/apps/mobile/Monaco/Features/Profile/UserProfileScreen.swift
++++ b/apps/mobile/Monaco/Features/Profile/UserProfileScreen.swift
+@@ -43,7 +43,7 @@
+                     }
+                     .accessibilityIdentifier("user-profile-share")
+                 }
+-                if context.userID != environment.viewer?.userID {
++                if true {
+                     ToolbarItem(placement: .topBarTrailing) { UserProfileMoreMenu().environment(model) }
+                 }
              }
-         }

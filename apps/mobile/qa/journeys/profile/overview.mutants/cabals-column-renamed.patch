@@ -4,15 +4,15 @@ expect-fail: S1
 The stats band calls its count column "Groups". S1.2 reads "Cabal" or "Cabals", so it must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
-diff --git a/apps/mobile/Monaco/Features/Profile/SocialCounts.swift b/apps/mobile/Monaco/Features/Profile/SocialCounts.swift
---- a/apps/mobile/Monaco/Features/Profile/SocialCounts.swift
-+++ b/apps/mobile/Monaco/Features/Profile/SocialCounts.swift
-@@ -45,7 +45,7 @@
- 
-     @ViewBuilder private var cabalsItem: some View {
-         if let cabals = model.cabals {
--            item(FollowCountFormatter.count(cabals), cabals == 1 ? "cabal" : "cabals")
-+            item(FollowCountFormatter.count(cabals), cabals == 1 ? "group" : "groups")
-                 .accessibilityIdentifier("\(identifierPrefix)-stat-cabals")
-         }
+diff --git a/apps/mobile/Monaco/Features/Profile/ProfileStandingSlot.swift b/apps/mobile/Monaco/Features/Profile/ProfileStandingSlot.swift
+--- a/apps/mobile/Monaco/Features/Profile/ProfileStandingSlot.swift
++++ b/apps/mobile/Monaco/Features/Profile/ProfileStandingSlot.swift
+@@ -55,7 +55,7 @@
+         if separated { dot }
+         link(FollowCountFormatter.count(counts.following), "following", .following, id: "profile-following")
+         if separated { dot }
+-        item(FollowCountFormatter.count(counts.cabals), counts.cabals == 1 ? "cabal" : "cabals")
++        item(FollowCountFormatter.count(counts.cabals), counts.cabals == 1 ? "group" : "groups")
+             .accessibilityIdentifier("profile-stat-cabals")
      }
+ 

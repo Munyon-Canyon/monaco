@@ -1,15 +1,17 @@
+import MonacoAPI
 import MonacoCore
 import SwiftUI
 
 struct UserProfileScreen: View {
     static let sections: [any UserProfileSection.Type] = [
         UserProfileHeaderSlot.self,
-        UserProfileSharedCabalsSlot.self,
+        UserProfileTabsSlot.self,
     ]
 
     let context: UserProfileContext
     let sections: [any UserProfileSection.Type]
     @Environment(AppEnvironment.self) private var environment
+    @Environment(ToastCenter.self) private var toasts
     @State private var refresh = ScreenRefresh()
     @State private var model: UserProfileModel?
 
@@ -27,10 +29,25 @@ struct UserProfileScreen: View {
                 SectionStack(context: context, sections: sections)
             }
         }
-        .navigationTitle(model?.displayName ?? "")
+        .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .environment(refresh)
         .environment(model)
+        .toolbar {
+            if model?.phase == .loaded {
+                ToolbarItem(placement: .topBarTrailing) {
+                    MonacoGlassButton(
+                        icon: .share, accessibilityLabel: "Share profile", style: .quiet, placement: .toolbar
+                    ) {
+                        share()
+                    }
+                    .accessibilityIdentifier("user-profile-share")
+                }
+                if context.userID != environment.viewer?.userID {
+                    ToolbarItem(placement: .topBarTrailing) { UserProfileMoreMenu().environment(model) }
+                }
+            }
+        }
         .task(id: context.userID) {
             let model = prepared()
             refresh.register("user-profile-header") { await model.refresh() }
@@ -41,6 +58,21 @@ struct UserProfileScreen: View {
             }
         }
         .refreshable { await refresh.run() }
+    }
+
+    private func share() {
+        guard let model else { return }
+        Task { @MainActor in
+            do {
+                let code = try await environment.api.read { try await $0.getMyReferralCode().ok.body.json }
+                guard let links = InviteLinks(code) else { return }
+                SystemShare.present(
+                    SharePayload(
+                        title: "\(model.displayName) (@\(model.handle)) on Monaco", url: links.shareURL))
+            } catch {
+                toasts.show(APIError(error))
+            }
+        }
     }
 
     private func prepared() -> UserProfileModel {

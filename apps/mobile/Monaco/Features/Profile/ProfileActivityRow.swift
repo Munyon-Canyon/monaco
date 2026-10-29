@@ -5,6 +5,7 @@ struct ProfileActivityRowView: View {
     let row: MemberActivityRow
     let index: Int
     let isLast: Bool
+    var identifierPrefix = "profile"
 
     private var route: AnyAppRoute {
         switch row.destination {
@@ -50,6 +51,6 @@ struct ProfileActivityRowView: View {
         }
         .buttonStyle(.monacoRow)
         .accessibilityElement(children: .combine)
-        .accessibilityIdentifier("profile-activity-row-\(index)")
+        .accessibilityIdentifier("\(identifierPrefix)-activity-row-\(index)")
     }
 }
