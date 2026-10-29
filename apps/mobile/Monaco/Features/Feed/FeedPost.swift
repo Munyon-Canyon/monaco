@@ -79,9 +79,8 @@ private struct FeedPostLead: View {
         case .person(let name, let photoURL, let userID):
             MonacoAvatar(photoURL: photoURL, displayName: name, size: .feed, seed: userID)
         case .cabal(let name, let pictureURL, let cabalID):
-            CabalCover(
-                cabalId: cabalID ?? name, tint: .forGroupId(cabalID ?? name),
-                pictureURL: CabalMark.resolvedURL(pictureURL), style: .thumb(FeedPostMetrics.lead))
+            CabalMark(
+                groupId: cabalID ?? name, name: name, size: FeedPostMetrics.lead, pictureUrl: pictureURL)
         }
     }
 }

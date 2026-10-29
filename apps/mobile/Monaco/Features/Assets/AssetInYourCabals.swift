@@ -37,7 +37,7 @@ struct AssetInYourCabals: View {
 
     private func heldRow(_ row: AssetHeldRowFacts, isLast: Bool) -> some View {
         MonacoRow(title: row.title, subtitle: row.subtitle, isLast: isLast) {
-            cover(id: row.cabalID, pictureURL: row.pictureURL)
+            cover(id: row.cabalID, name: row.cabalName, pictureURL: row.pictureURL)
         } trailing: {
             Text(row.valueText).moneyFigure(.row).foregroundStyle(MonacoTheme.ink)
             if let note = row.valueNote {
@@ -56,7 +56,7 @@ struct AssetInYourCabals: View {
 
     private func proposalRow(_ row: AssetOpenProposalRowFacts, isLast: Bool) -> some View {
         MonacoRow(title: row.title, subtitle: row.subtitle, isLast: isLast) {
-            cover(id: row.cabalID, pictureURL: row.pictureURL)
+            cover(id: row.cabalID, name: row.cabalName, pictureURL: row.pictureURL)
         } trailing: {
             Text(row.trailing).moneyFigure(.caption).foregroundStyle(MonacoTheme.secondaryText)
         }
@@ -64,10 +64,7 @@ struct AssetInYourCabals: View {
         .accessibilityLabel([row.title, row.subtitle, row.trailing].joined(separator: ", "))
     }
 
-    private func cover(id: String, pictureURL: String?) -> some View {
-        CabalCover(
-            cabalId: id, tint: .forGroupId(id), pictureURL: CabalMark.resolvedURL(pictureURL), style: .thumb(40)
-        )
-        .frame(width: 40, height: 40)
+    private func cover(id: String, name: String, pictureURL: String?) -> some View {
+        CabalMark(groupId: id, name: name, size: 40, pictureUrl: pictureURL)
     }
 }
