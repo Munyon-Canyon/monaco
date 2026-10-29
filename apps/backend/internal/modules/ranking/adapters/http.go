@@ -135,7 +135,12 @@ func (h HTTP) GetMyPnlHistory(
 			return nil, err
 		}
 	}
-	points, err := app.ReadPnLHistory{User: user, Range: rng}.Run(ctx, h.Boards, h.Snapshots, h.Stakes)
+	read := app.ReadPnLHistory{User: user, Range: rng}
+	if req.Params.CabalId != nil {
+		cabal := ids.CabalIDFrom(*req.Params.CabalId)
+		read.Cabal = &cabal
+	}
+	points, err := read.Run(ctx, h.Boards, h.Snapshots, h.Stakes)
 	if err != nil {
 		return nil, err
 	}

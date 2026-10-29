@@ -1024,6 +1024,9 @@ type GetPeopleLeaderboardParamsSort string
 type GetMyPnlHistoryParams struct {
 	// Range The window the curve covers. Defaults to `ALL`.
 	Range *GetMyPnlHistoryParamsRange `form:"range,omitempty" json:"range,omitempty"`
+
+	// CabalId Only this cabal: the caller's stake value and P&L in it.
+	CabalId *openapi_types.UUID `form:"cabal_id,omitempty" json:"cabal_id,omitempty"`
 }
 
 // GetMyPnlHistoryParamsRange defines parameters for GetMyPnlHistory.
@@ -1377,6 +1380,19 @@ func (siw *ServerInterfaceWrapper) GetMyPnlHistory(w http.ResponseWriter, r *htt
 			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "range"})
 		} else {
 			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "range", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "cabal_id" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "cabal_id", r.URL.Query(), &params.CabalId, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "cabal_id"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "cabal_id", Err: err})
 		}
 		return
 	}

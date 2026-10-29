@@ -103,6 +103,48 @@ func TestPnLHistory_TwoCabalsSumAndAnEmptyCallerHasNoPoints(t *testing.T) {
 	}
 }
 
+func TestPnLHistory_CabalIDKeepsOneCabalAndNoParameterKeepsTheSum(t *testing.T) {
+	t.Parallel()
+	s := newServer(t)
+	first, second := testkit.NewCabal(t, s.pool), testkit.NewCabal(t, s.pool)
+	user := first.Creator.ID
+	now := s.clock.Now().UTC()
+	ledger := testkit.NewLedger(t, s.pool)
+	ledger.WithFundedMember(user, first.ID, money.MicrosFromUint64(100_000_000))
+	ledger.WithFundedMember(user, second.ID, money.MicrosFromUint64(50_000_000))
+	for cabal, value := range map[ids.CabalID]int64{first.ID: 120_000_000, second.ID: 40_000_000} {
+		exec(t, s.pool, flatSeries, cabal.UUID(), now, now.Add(-time.Hour), value, value,
+			sharesOf(t, s, cabal), sharesOf(t, s, cabal), 3)
+	}
+	exec(t, s.pool, `UPDATE user_txns SET created_at = $1 WHERE user_id = $2 AND kind = 'fund'`,
+		now.Add(-3*time.Hour), user.UUID())
+	seedRun(t, s)
+	unfiltered := s.get(t, "/v1/me/pnl-history?range=1D", user).Body.String()
+	for cabal, want := range map[ids.CabalID][2]int64{
+		first.ID: {120_000_000, 20_000_000}, second.ID: {40_000_000, -10_000_000},
+	} {
+		got := pnlHistory(t, s, user, "?range=1D&cabal_id="+cabal.String())
+		if len(got.Points) == 0 {
+			t.Fatalf("cabal %v has no points", cabal)
+		}
+		last := got.Points[len(got.Points)-1]
+		if last.EquityMicros != want[0] || last.PnlMicros != want[1] {
+			t.Fatalf("cabal %v last = %+v, want equity %d and P&L %d", cabal, last, want[0], want[1])
+		}
+	}
+	if again := s.get(t, "/v1/me/pnl-history?range=1D", user).Body.String(); again != unfiltered {
+		t.Fatalf("without cabal_id = %s, want %s", again, unfiltered)
+	}
+	never := ids.CabalIDFrom(ids.Real{}.NewV7())
+	empty := pnlHistory(t, s, user, "?range=1D&cabal_id="+never.String())
+	if empty.Points == nil || len(empty.Points) != 0 {
+		t.Fatalf("a cabal never held = %+v, want empty points", empty)
+	}
+	if rec := s.get(t, "/v1/me/pnl-history?cabal_id=nope", user); rec.Code != http.StatusBadRequest {
+		t.Fatalf("bad cabal_id = %d %s, want 400", rec.Code, rec.Body)
+	}
+}
+
 func TestPnLHistory_EmptyBeforeTheFirstRunAndRejections(t *testing.T) {
 	t.Parallel()
 	s := newServer(t)

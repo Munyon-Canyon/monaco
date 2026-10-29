@@ -2968,6 +2968,11 @@ paths:
         `points` is empty. An unknown range is invalid_input.
       parameters:
         - $ref: "#/components/parameters/ValueHistoryRange"
+        - name: cabal_id
+          in: query
+          required: false
+          description: "Only this cabal: the caller's stake value and P&L in it."
+          schema: {type: string, format: uuid, examples: ["01890a5d-ac96-774b-bcce-b302099a8058"]}
       responses:
         "200":
           description: The caller's P&L history.
