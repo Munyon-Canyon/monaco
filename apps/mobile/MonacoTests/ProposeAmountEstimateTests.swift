@@ -17,7 +17,11 @@ extension ProposeAmountKeypadTests {
         await store.refreshIfNeeded(symbol: "GOOGLx")
         let (window, _) = try Self.window(service: service, bestChains: store)
         defer { TestWindow.close(window) }
-        func note() -> String? { Self.element("amount-keypad-line", in: window)?.accessibilityLabel }
+        func note() -> String? {
+            AccessibilityTree.nodes(in: window).lazy
+                .filter { Self.identifier(of: $0) == "amount-keypad-line" }
+                .compactMap(\.accessibilityLabel).first
+        }
         try await ProposeAmountKeypadTests.typeOne(in: window)
 
         #expect(await Self.eventually(within: 10) { note() == "Estimate: about 0.004 shares on Base" })
