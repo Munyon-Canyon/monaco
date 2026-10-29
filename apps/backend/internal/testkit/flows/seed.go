@@ -3,7 +3,10 @@ package flows
 import (
 	"context"
 	"crypto/rand"
+	"errors"
+	"fmt"
 	"maps"
+	"net/url"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -22,7 +25,10 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
 )
 
-type SeedEnv struct{ DatabaseURL, NatsURL, FakesURL, TokenKey string }
+type SeedEnv struct {
+	DatabaseURL, NatsURL, FakesURL, TokenKey string
+	Environ                                  []string
+}
 
 type SeedResult struct {
 	Token  string            `json:"token"`
@@ -38,9 +44,16 @@ func Seeds() map[string]Seeder {
 	return seeds
 }
 
+var errNoPrivyURL = errors.New(
+	"no MONACO_FAKES_URL and PRIVY_BASE_URL is not an absolute URL: " +
+		"set MONACO_FAKES_URL to a fakes server or PRIVY_BASE_URL to the real Privy API")
+
 const seedTokenTTL = time.Hour
 
 func seedConfig(env SeedEnv) (config.Config, error) {
+	if env.FakesURL == "" {
+		return localSeedConfig(env.Environ)
+	}
 	return config.Load([]string{
 		"MONACO_ENV=test",
 		"DATABASE_URL=" + env.DatabaseURL,
@@ -53,6 +66,17 @@ func seedConfig(env SeedEnv) (config.Config, error) {
 		"PRIVY_AUTHORIZATION_KEY_ID=" + fakes.PrivyAuthorizationKeyID,
 		"PRIVY_AUTHORIZATION_PRIVATE_KEY=" + fakes.PrivyAuthorizationKeyConfig(),
 	})
+}
+
+func localSeedConfig(environ []string) (config.Config, error) {
+	cfg, err := config.Load(environ)
+	if err != nil {
+		return config.Config{}, err
+	}
+	if u, err := url.Parse(cfg.Privy.BaseURL); err != nil || !u.IsAbs() || u.Host == "" {
+		return config.Config{}, fmt.Errorf("%w (PRIVY_BASE_URL=%q)", errNoPrivyURL, cfg.Privy.BaseURL)
+	}
+	return cfg, nil
 }
 
 func seedSignedIn(ctx context.Context, env SeedEnv) (SeedResult, error) {
