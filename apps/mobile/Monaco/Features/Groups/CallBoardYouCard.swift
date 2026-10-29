@@ -9,20 +9,27 @@ enum CallBoardCardMetrics {
 struct CallBoardYouCard: View {
     let card: CallBoardCard
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     var body: some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.sm) {
-            HStack(alignment: .top) {
-                side(card.me, label: card.meLabel)
-                VStack(spacing: MonacoTheme.Space.xs) {
-                    Text(card.rankText).font(MonacoTheme.Typo.title).foregroundStyle(MonacoTheme.primaryText)
-                    Text(card.ofLine).font(MonacoTheme.Typo.subhead).foregroundStyle(MonacoTheme.secondaryText)
-                    if let line = card.neighbourLine {
-                        Text(line).font(MonacoTheme.Typo.caption).foregroundStyle(MonacoTheme.secondaryText)
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(spacing: MonacoTheme.Space.sm) {
+                    side(card.me, label: card.meLabel)
+                    middle
+                    if let neighbour = card.neighbour {
+                        side(neighbour, label: nil)
                     }
                 }
                 .frame(maxWidth: .infinity)
-                if let neighbour = card.neighbour {
-                    side(neighbour, label: nil)
+            } else {
+                HStack(alignment: .top) {
+                    side(card.me, label: card.meLabel)
+                    middle
+                        .frame(maxWidth: .infinity)
+                    if let neighbour = card.neighbour {
+                        side(neighbour, label: nil)
+                    }
                 }
             }
             CallBoardClimbBar(fraction: card.climb)
@@ -44,6 +51,16 @@ struct CallBoardYouCard: View {
         .accessibilityIdentifier("leaderboard-you-card")
     }
 
+    private var middle: some View {
+        VStack(spacing: MonacoTheme.Space.xs) {
+            Text(card.rankText).font(MonacoTheme.Typo.title).foregroundStyle(MonacoTheme.primaryText)
+            Text(card.ofLine).font(MonacoTheme.Typo.subhead).foregroundStyle(MonacoTheme.secondaryText)
+            if let line = card.neighbourLine {
+                Text(line).font(MonacoTheme.Typo.caption).foregroundStyle(MonacoTheme.secondaryText)
+            }
+        }
+    }
+
     private var cabalNames: [String?] {
         [card.me, card.neighbour].compactMap { $0 }.filter(\.isCabal).map(\.name)
     }
@@ -52,7 +69,7 @@ struct CallBoardYouCard: View {
         VStack(spacing: MonacoTheme.Space.xs) {
             CallBoardAvatar(row: row, size: CallBoardCardMetrics.avatar)
             if row.isCabal {
-                Text(row.name).font(MonacoTheme.Typo.headline).foregroundStyle(MonacoTheme.primaryText).lineLimit(1)
+                Text(row.name).font(MonacoTheme.Typo.headline).foregroundStyle(MonacoTheme.primaryText)
             }
             Text([label, row.rate].compactMap { $0 }.joined(separator: " · "))
                 .font(MonacoTheme.Typo.headline).foregroundStyle(MonacoTheme.primaryText)
