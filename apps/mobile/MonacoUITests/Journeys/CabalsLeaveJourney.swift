@@ -2,7 +2,7 @@ import XCTest
 
 enum CabalsLeaveJourney {
     static let id = "cabals/leave"
-    static let version = 5
+    static let version = 6
 
     static let screenTimeout: TimeInterval = 15
 
@@ -13,24 +13,30 @@ enum CabalsLeaveJourney {
     static func leaveCabal(run: String) -> String { "QA leave \(run)" }
     static func stayCabal(run: String) -> String { "QA stay \(run)" }
 
-    static func openDetails(_ app: XCUIApplication, reaching identifier: String, step: String) -> XCUIElement {
-        app.buttons["cabal-details-button"].tap()
+    static func openLeaveSheet(_ app: XCUIApplication, reaching identifier: String, step: String) -> XCUIElement {
+        let more = app.buttons["cabal-more-button"]
+        XCTAssertTrue(more.waitForExistence(timeout: 10), "\(step): no cabal-more-button within 10 s")
+        more.tap()
+        let leave = app.buttons["cabal-more-leave"]
+        XCTAssertTrue(leave.waitForExistence(timeout: 5), "\(step): the \u{2026} menu has no Leave cabal")
+        leave.tap()
         let target = app.element(identifier)
         XCTAssertTrue(
-            app.element("cabal-members-row").waitForExistence(timeout: 10),
-            "\(step): the Cabal information screen did not show within 10 s"
-        )
-        app.scrollIntoReach(target)
-        XCTAssertTrue(
-            target.waitForExistence(timeout: 10), "\(step): no \(identifier) in the information screen within 10 s")
+            target.waitForExistence(timeout: 10), "\(step): no \(identifier) in the Leave cabal sheet within 10 s")
         return target
+    }
+
+    static func tile(_ app: XCUIApplication, named name: String) -> XCUIElement {
+        app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH 'cabals-tile-' AND label CONTAINS %@", name)
+        ).firstMatch
     }
 
     static func memberLeaves(_ app: XCUIApplication, run: String, recorder: JourneyRecorder) {
         let name = leaveCabal(run: run)
 
         recorder.step("S1.1", "open the cabal as a member") {
-            JoinJourney.openBySearch(app, name, step: "S1.1")
+            app.openCabal(named: name)
             XCTAssertTrue(
                 JoinJourney.waitForLabel(
                     app.element("cabal-member-count"), containing: "2 members", timeout: screenTimeout),
@@ -38,8 +44,8 @@ enum CabalsLeaveJourney {
             )
         }
 
-        recorder.step("S1.2", "open details and reach Leave cabal") {
-            let leave = openDetails(app, reaching: "cabalLeaveButton", step: "S1.2")
+        recorder.step("S1.2", "open the \u{2026} menu and reach Leave cabal") {
+            let leave = openLeaveSheet(app, reaching: "cabalLeaveButton", step: "S1.2")
             XCTAssertEqual(leave.label, "Leave cabal", "S1.2: the leave button's label")
         }
 
@@ -57,25 +63,21 @@ enum CabalsLeaveJourney {
             app.buttons["cabalLeaveConfirmButton"].firstMatch.tap()
             JoinJourney.waitForToast(app, "You left \(name).", step: "S1.4")
             XCTAssertTrue(
-                JoinJourney.searchField(app).waitForExistence(timeout: 10),
-                "S1.4: the leave did not close back to Discover cabals within 10 s"
-            )
-            XCTAssertFalse(app.element("cabal-header-name").exists, "S1.4: the cabal screen is still open")
+                app.element("cabal-header-name").waitForNonExistence(timeout: 10),
+                "S1.4: the cabal screen is still open")
         }
 
-        recorder.step("S1.5", "search shows the cabal as one to join") {
-            JoinJourney.search(app, for: name, step: "S1.5")
-            let request = "Request to join \(name)"
-            let join = app.buttons.matching(
-                NSPredicate(format: "identifier BEGINSWITH 'cabals-search-enter-' AND label == %@", request)
-            ).firstMatch
-            XCTAssertTrue(join.waitForExistence(timeout: 10), "S1.5: no \(request) in the results within 10 s")
+        recorder.step("S1.5", "the Cabals tab no longer has the tile") {
+            app.tab("Cabals").tap()
+            XCTAssertTrue(
+                tile(app, named: name).waitForNonExistence(timeout: 10),
+                "S1.5: the Cabals tab still has a tile for \(name)")
         }
     }
 
     static func creatorStays(_ app: XCUIApplication, run: String, recorder: JourneyRecorder) {
         recorder.step("S2.1", "open the cabal as its creator") {
-            JoinJourney.openBySearch(app, stayCabal(run: run), step: "S2.1")
+            app.openCabal(named: stayCabal(run: run))
             XCTAssertTrue(
                 JoinJourney.waitForLabel(
                     app.element("cabal-member-count"), containing: "2 members", timeout: screenTimeout),
@@ -83,8 +85,8 @@ enum CabalsLeaveJourney {
             )
         }
 
-        recorder.step("S2.2", "details explain why the creator cannot leave") {
-            let note = openDetails(app, reaching: "cabalLeaveCreatorNote", step: "S2.2")
+        recorder.step("S2.2", "the \u{2026} menu explains why the creator cannot leave") {
+            let note = openLeaveSheet(app, reaching: "cabalLeaveCreatorNote", step: "S2.2")
             XCTAssertEqual(note.label, "You can leave once everyone else has left.", "S2.2: the creator note")
             XCTAssertFalse(app.buttons["cabalLeaveButton"].exists, "S2.2: the creator is offered Leave cabal")
         }

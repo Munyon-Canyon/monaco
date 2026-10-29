@@ -1,19 +1,18 @@
 journey: cabals/leave
 expect-fail: S1
 
-Cabal information has no leave section. S1.2 waits for cabalLeaveButton, so it must fail.
+The … menu has no Leave cabal. S1.2 waits for it, so S1 must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
-diff --git a/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalLeaveSlot.swift b/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalLeaveSlot.swift
-index 512450b4..5bb45f88 100644
---- a/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalLeaveSlot.swift
-+++ b/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalLeaveSlot.swift
-@@ -3,7 +3,7 @@ import MonacoCore
- import SwiftUI
- 
- enum CabalLeaveSlot: CabalSection {
--    static let isLive = true
-+    static let isLive = false
- 
-     static func body(for context: CabalContext) -> some View {
-         CabalLeaveSection(cabalID: context.cabalID)
+diff --git a/apps/mobile/Monaco/Features/Groups/CabalMoreMenu.swift b/apps/mobile/Monaco/Features/Groups/CabalMoreMenu.swift
+index 9c150ebd9..5dfd88a15 100644
+--- a/apps/mobile/Monaco/Features/Groups/CabalMoreMenu.swift
++++ b/apps/mobile/Monaco/Features/Groups/CabalMoreMenu.swift
+@@ -41,7 +41,6 @@ enum CabalMoreItem: CaseIterable {
+         if status != CabalClosedModel.closedStatus { items.append(.chat) }
+         if role == "creator" { items.append(.edit) }
+         items.append(.treasury)
+-        items.append(.leave)
+         return items
+     }
+ }

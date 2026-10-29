@@ -1,0 +1,19 @@
+journey: cabals/edit-rules
+expect-fail: S1
+
+Votes to pass reads one short. S1.2 expects "2 of 2", so S1 must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/packages/mobile-core/Sources/MonacoCore/Cabals/CabalRulesRows.swift b/packages/mobile-core/Sources/MonacoCore/Cabals/CabalRulesRows.swift
+index 3876751d5..8894ea8b6 100644
+--- a/packages/mobile-core/Sources/MonacoCore/Cabals/CabalRulesRows.swift
++++ b/packages/mobile-core/Sources/MonacoCore/Cabals/CabalRulesRows.swift
+@@ -40,7 +40,7 @@ public struct CabalRulesRows: Equatable, Sendable {
+ 
+     static func votesToPass(_ cabal: Components.Schemas.Cabal) -> String {
+         let voters = Int(cabal.voterCount)
+-        let needed = CabalThreshold(rawValue: cabal.rules.threshold) == .unanimous ? voters : voters / 2 + 1
++        let needed = CabalThreshold(rawValue: cabal.rules.threshold) == .unanimous ? voters : voters / 2
+         return "\(needed) of \(voters)"
+     }
+ 

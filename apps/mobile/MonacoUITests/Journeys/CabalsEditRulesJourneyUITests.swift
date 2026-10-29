@@ -14,10 +14,19 @@ nonisolated final class CabalsEditRulesJourneyUITests: XCTestCase {
 
         try session.scenario("S1") {
             try session.act(as: "A")
-            let member = try session.account("B")
-            CabalsEditRulesJourney.creatorEdits(app, run: run, recorder: recorder)
-            try CabalsEditRulesJourney.creatorPicksVoters(app, run: run, member: member.name, recorder: recorder)
-            attachScreenshot(of: app, named: "S1-A-edited")
+            CabalsEditRulesJourney.creatorReadsRules(app, run: run, recorder: recorder)
+            CabalsEditRulesJourney.creatorRenames(app, run: run, recorder: recorder)
+            attachScreenshot(of: app, named: "S1-A-renamed")
+        }
+
+        try session.scenario("S2") {
+            try session.act(as: "A")
+            CabalsEditRulesJourney.creatorProposesSides(app, run: run, recorder: recorder)
+            try session.act(as: "B")
+            CabalsEditRulesJourney.memberVotes(app, run: run, recorder: recorder)
+            try session.act(as: "A")
+            CabalsEditRulesJourney.creatorSeesSides(app, run: run, recorder: recorder)
+            attachScreenshot(of: app, named: "S2-A-sides-on")
         }
     }
 }

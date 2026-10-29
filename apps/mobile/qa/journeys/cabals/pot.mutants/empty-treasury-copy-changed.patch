@@ -1,0 +1,19 @@
+journey: cabals/pot
+expect-fail: S3
+
+An empty treasury says "Nothing in the pot yet." to a member who can propose. S3.2 waits for "Fund, then propose the first buy.", so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Groups/CabalTreasuryTab.swift b/apps/mobile/Monaco/Features/Groups/CabalTreasuryTab.swift
+index a431b1705..0c236b374 100644
+--- a/apps/mobile/Monaco/Features/Groups/CabalTreasuryTab.swift
++++ b/apps/mobile/Monaco/Features/Groups/CabalTreasuryTab.swift
+@@ -17,7 +17,7 @@ enum CabalTreasuryCopy {
+     static let botDetail = "Opens the propose chooser"
+ 
+     static func zeroPotNote(canPropose: Bool) -> String {
+-        canPropose ? "Fund, then propose the first buy." : "Nothing in the pot yet."
++        canPropose ? "Nothing in the pot yet." : "Nothing in the pot yet."
+     }
+ 
+     static func cashOnlyNote(canPropose: Bool) -> String {

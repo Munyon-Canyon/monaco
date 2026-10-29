@@ -2,7 +2,7 @@ import XCTest
 
 enum CabalsPotJourney {
     static let id = "cabals/pot"
-    static let version = 7
+    static let version = 8
 
     static let screenTimeout: TimeInterval = 15
 
@@ -14,50 +14,49 @@ enum CabalsPotJourney {
 
     static func potAndSlice(_ app: XCUIApplication, run: String, recorder: JourneyRecorder) {
         recorder.step("S1.1", "open the cabal and find the pot") {
-            JoinJourney.openBySearch(app, cabal(run: run), step: "S1.1")
+            app.openCabal(named: cabal(run: run))
             XCTAssertTrue(
                 app.element("cabal-pot-value").waitForExistence(timeout: screenTimeout),
-                "S1.1: the cabal shows no pot value within 15 s"
+                "S1.1: the cabal shows no treasury value within 15 s"
             )
         }
 
-        recorder.step("S1.2", "the pot value reads $0.00") {
+        recorder.step("S1.2", "the treasury value reads $0.00") {
             let value = app.element("cabal-pot-value")
             XCTAssertTrue(
                 JoinJourney.waitForLabel(value, containing: "$0.00", timeout: 10),
-                "S1.2: no pot value of $0.00 within 10 s"
+                "S1.2: no treasury value of $0.00 within 10 s"
             )
         }
 
-        recorder.step("S1.3", "your slice reads $0.00 with the no-stake caption") {
-            let value = app.element("cabal-slice-value")
-            XCTAssertTrue(
-                JoinJourney.waitForLabel(value, containing: "$0.00", timeout: 10),
-                "S1.3: no slice value of $0.00 within 10 s"
-            )
-            XCTAssertTrue(app.staticTexts["Your share"].exists, "S1.3: no Your share label")
-            XCTAssertTrue(app.element("cabal-slice-none").exists, "S1.3: the share is not the no-stake cell")
+        recorder.step("S1.3", "the stat block reads Your share $0, Of treasury 0%, Open votes 0, Bot Off") {
+            let block = app.element("cabal-stat-block")
+            XCTAssertTrue(block.waitForExistence(timeout: 10), "S1.3: no stat block within 10 s")
+            let texts = block.descendants(matching: .staticText)
+            for expected in ["Your share", "$0", "Of treasury", "0%", "Open votes", "0", "Bot", "Off"] {
+                XCTAssertTrue(
+                    texts[expected].waitForExistence(timeout: 10), "S1.3: no \(expected) in the stat block")
+            }
         }
     }
 
     static func shareGain(_ app: XCUIApplication, run: String, recorder: JourneyRecorder) {
         recorder.step("S2.1", "open the cabal") {
-            JoinJourney.openBySearch(app, cabal(run: run), step: "S2.1")
+            app.openCabal(named: cabal(run: run))
         }
 
-        recorder.step("S2.2", "the share button opens the system share sheet") {
+        recorder.step("S2.2", "the share button opens the share screen") {
             let button = app.buttons["cabal-share-button"]
             XCTAssertTrue(button.waitForExistence(timeout: screenTimeout), "S2.2: no share button within 15 s")
             button.tap()
             XCTAssertTrue(
-                app.otherElements["ActivityListView"].waitForExistence(timeout: screenTimeout),
-                "S2.2: the system share sheet did not open within 15 s"
+                app.element("share-screen").waitForExistence(timeout: screenTimeout),
+                "S2.2: the share screen did not open within 15 s"
             )
         }
 
-        recorder.step("S2.3", "close the system share sheet") {
-            let close = app.buttons["Close"]
-            if close.waitForExistence(timeout: 3) { close.tap() } else { app.swipeDown() }
+        recorder.step("S2.3", "back returns to the cabal") {
+            app.tapBack()
             XCTAssertTrue(
                 app.element("cabal-header-name").waitForExistence(timeout: 5),
                 "S2.3: the cabal screen did not come back within 5 s"
@@ -67,21 +66,16 @@ enum CabalsPotJourney {
 
     static func holdings(_ app: XCUIApplication, run: String, recorder: JourneyRecorder) {
         recorder.step("S3.1", "open the cabal") {
-            JoinJourney.openBySearch(app, cabal(run: run), step: "S3.1")
+            app.openCabal(named: cabal(run: run))
+            app.openCabalTab("Treasury")
         }
 
-        recorder.step("S3.2", "scroll to Holdings") {
-            let header = app.staticTexts["Holdings"]
-            app.scrollIntoReach(header)
-            XCTAssertTrue(header.waitForExistence(timeout: 10), "S3.2: no Holdings section within 10 s")
-        }
-
-        recorder.step("S3.3", "a zero pot says how to start") {
+        recorder.step("S3.2", "an empty treasury says how to start") {
             let empty = app.element("cabal-holdings-empty")
             app.scrollIntoReach(empty)
             XCTAssertTrue(
                 JoinJourney.waitForLabel(empty, containing: "Fund, then propose the first buy.", timeout: 10),
-                "S3.3: no zero-pot holdings copy within 10 s"
+                "S3.2: no empty-treasury copy within 10 s"
             )
         }
     }

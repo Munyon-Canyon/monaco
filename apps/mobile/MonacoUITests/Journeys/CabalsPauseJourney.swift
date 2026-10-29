@@ -2,7 +2,7 @@ import XCTest
 
 enum CabalsPauseJourney {
     static let id = "cabals/pause"
-    static let version = 2
+    static let version = 3
 
     static func recorder() -> JourneyRecorder {
         JourneyRecorder(journey: id, version: version)
@@ -13,7 +13,7 @@ enum CabalsPauseJourney {
 
     static func pausedShowsWhy(_ app: XCUIApplication, run: String, recorder: JourneyRecorder) {
         recorder.step("S1.1", "open the paused cabal") {
-            JoinJourney.openBySearch(app, pausedCabal(run: run), step: "S1.1")
+            app.openCabal(named: pausedCabal(run: run))
         }
 
         recorder.step("S1.2", "the pause warning says when it resumes") {
@@ -28,7 +28,7 @@ enum CabalsPauseJourney {
 
     static func runningShowsNothing(_ app: XCUIApplication, run: String, recorder: JourneyRecorder) {
         recorder.step("S2.1", "open the running cabal") {
-            JoinJourney.openBySearch(app, runningCabal(run: run), step: "S2.1")
+            app.openCabal(named: runningCabal(run: run))
         }
 
         recorder.step("S2.2", "there is no pause warning") {

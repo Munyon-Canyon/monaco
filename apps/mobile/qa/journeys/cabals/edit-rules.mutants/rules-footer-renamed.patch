@@ -1,0 +1,19 @@
+journey: cabals/edit-rules
+expect-fail: S1
+
+The Rules footer drops "by proposal". S1.2 checks the footer, so S1 must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/packages/mobile-core/Sources/MonacoCore/Cabals/CabalRulesRows.swift b/packages/mobile-core/Sources/MonacoCore/Cabals/CabalRulesRows.swift
+index 3876751d5..5b856304f 100644
+--- a/packages/mobile-core/Sources/MonacoCore/Cabals/CabalRulesRows.swift
++++ b/packages/mobile-core/Sources/MonacoCore/Cabals/CabalRulesRows.swift
+@@ -14,7 +14,7 @@ public struct CabalRulesRows: Equatable, Sendable {
+     }
+ 
+     public static let footerPrefix =
+-        "Counts are live for every member. With this on, names by side show after a vote closes. Rules change by proposal; "
++        "Counts are live for every member. With this on, names by side show after a vote closes. Rules change by edit; "
+ 
+     public let rows: [Row]
+     public let footer: String

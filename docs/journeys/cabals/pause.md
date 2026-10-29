@@ -1,7 +1,7 @@
 ---
 id: cabals/pause
 title: A paused cabal
-version: 2
+version: 3
 milestone: M12
 requires: [auth/sign-in]
 actors: [A]
@@ -31,14 +31,14 @@ The format of this doc is in [App journeys](../README.md).
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S1.1 | A | tap, type, then tap | the Cabals tab, `cabals-search-field`, then the `cabals-search-result-<id>` | `QA paused {QA.run}` | `cabal-header-name` reads `QA paused {QA.run}` within 15 s |
+| S1.1 | A | call | `openCabal(named:)` | `QA paused {QA.run}` | `cabal-header-name` reads `QA paused {QA.run}` within 15 s |
 | S1.2 | A | wait | `cabal-pause-banner` | | The warning row shows the reason and "Funding, cash outs and trades resume" within 10 s (screens.md `CabalPauseSlot`: "A warning row when the cabal is paused, with the reason and "Funding, cash outs and trades resume once it's back." (external deposit) or "…when the pause is lifted." (Monaco pause)"; old app: `GroupDetailView` pause warning) |
 
 ### S2 A running cabal shows no warning
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S2.1 | A | tap, type, then tap | the Cabals tab, `cabals-search-field`, then the `cabals-search-result-<id>` | `QA running {QA.run}` | `cabal-header-name` reads `QA running {QA.run}` within 15 s |
+| S2.1 | A | call | `openCabal(named:)` | `QA running {QA.run}` | `cabal-header-name` reads `QA running {QA.run}` within 15 s |
 | S2.2 | A | wait | `cabal-pause-banner` | | There is no `cabal-pause-banner` after 5 s (screens.md `CabalPauseSlot`: "Hidden otherwise") |
 
 ## Ground truth

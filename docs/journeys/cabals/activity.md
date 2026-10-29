@@ -1,7 +1,7 @@
 ---
 id: cabals/activity
 title: Cabal activity
-version: 8
+version: 9
 milestone: M14
 requires: [auth/sign-in]
 actors: [A]
@@ -11,13 +11,13 @@ xcuitest: [apps/mobile/MonacoUITests/Journeys/CabalsActivityJourney.swift, apps/
 
 # Cabal activity
 
-A member reads a cabal's Activity section, opens "See all", opens the receipt of a confirmed trade, and retries a failed one.
+A member opens "Treasury history" from the cabal's Treasury tab, reads its rows, opens the receipt of a confirmed trade, and retries a failed one.
 
 Old app (`c838bd24`): the cabal screen's `GroupActivitySection.swift` -> "See all" -> `GroupActivityListView.swift` -> a row -> `TransactionDetailView.swift` with "Retry" on a failed trade. Spec: `CabalActivitySlot` in [screens.md](../../screens.md#cabal-screen-cabalroute), slot 12, and its rows open `TransactionRoute`.
 
 The format of this doc is in [App journeys](../README.md).
 
-Discover cabals is where `cabals-search-field` lives. A step that says "Discover cabals" reaches it from the Cabals tab by typing a name the actor has no cabal called, such as `zzqq`, in `cabals-filter-field` ("Find or search cabals"), then tapping `cabals-search-public` ("Search public cabals for …") or pressing the keyboard Search key, which pushes Discover cabals with that text in `cabals-search-field`; an actor with no cabals taps "Explore cabals" instead. The step then replaces the text in `cabals-search-field`.
+On the F cabal page the activity list moved: the Treasury tab ends in a "Treasury history" row (`cabal-treasury-history`) that opens the screen with `cabal-activity` and the rows (#6511). There is no "See all" on the cabal page.
 
 ## Preconditions
 
@@ -35,23 +35,23 @@ The rows come from SQL because no route writes `cabal_activity` without a real s
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S1.1 | A | tap, type, then tap | the Cabals tab and Discover cabals, `cabals-search-field`, then the `cabals-search-result-<id>` | `QA activity {QA.run}` | `cabal-header-name` reads `QA activity {QA.run}` within 15 s |
-| S1.2 | A | scroll to | `cabal-activity` | | The section header reads "Group activity" with "See all" (`cabal-activity-see-all`), and the newest row `cabal-activity-row-{failed_trade}` reads "Bought Apple" with the red status "Failed" within 15 s |
-| S1.3 | A | tap | `cabal-activity-see-all` | | The "Group activity" screen lists all six rows (`cabal-activity-row-<id>`), "Money added" among them, within 10 s |
+| S1.1 | A | call | `openCabal(named:)` | `QA activity {QA.run}` | `cabal-header-name` reads `QA activity {QA.run}` within 15 s |
+| S1.2 | A | call, scroll to, then tap | `openCabalTab("Treasury")`, then `cabal-treasury-history` | | The "Treasury history" screen shows `cabal-activity`, and the newest row `cabal-activity-row-{failed_trade}` reads "Bought Apple" with the red status "Failed" within 15 s |
+| S1.3 | A | wait | the rows on "Treasury history" | | All six rows (`cabal-activity-row-<id>`) show, "Money added" among them, within 10 s |
 | S1.4 | A | tap | `cabal-activity-row-{confirmed_trade}` | | The "Transaction" receipt shows within 10 s: `cabal-txn-amount` "$25.00", `cabal-txn-status` "Done", and `cabal-txn-solscan` "View on Solscan" |
-| S1.5 | A | tap the back button of the "Transaction" bar, then of the "Group activity" bar | | | The "Group activity" list shows, then `cabal-header-name` within 10 s each |
-| S1.6 | A | scroll to, then tap | a "Money added" row in `cabal-activity` | | The "Transaction" receipt shows within 10 s |
-| S1.7 | A | tap | the back button of the "Transaction" bar | | `cabal-header-name` shows within 10 s, the receipt is gone, and no sheet, alert, popover or menu is up |
-| S1.8 | A | tap | a "Money added" row in `cabal-activity` again | | The "Transaction" receipt shows within 10 s |
-| S1.9 | A | tap | the back button of the "Transaction" bar | | The same as S1.7: the cabal, no prompt |
-| S1.10 | A | tap | the back button of the cabal screen | | `cabals-search-field` shows within 10 s on Discover cabals and no `cabal-header-name` is left, so there was one cabal screen on the path |
+| S1.5 | A | tap | the back button of the "Transaction" bar | | The "Treasury history" screen shows within 10 s |
+| S1.6 | A | scroll to, then tap | a "Money added" row on "Treasury history" | | The "Transaction" receipt shows within 10 s |
+| S1.7 | A | tap | the back button of the "Transaction" bar | | "Treasury history" shows within 10 s, the receipt is gone, and no sheet, alert, popover or menu is up |
+| S1.8 | A | tap | a "Money added" row on "Treasury history" again | | The "Transaction" receipt shows within 10 s |
+| S1.9 | A | tap | the back button of the "Transaction" bar | | The same as S1.7: the history, no prompt |
+| S1.10 | A | tap, then tap | the back button of the "Treasury history" bar, then of the cabal screen | | `cabal-header-name` shows, then the Cabals tab shows within 10 s and no `cabal-header-name` is left, so there was one cabal screen on the path |
 
 ### S2 Retry a failed trade
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S2.1 | A | tap, type, then tap | the Cabals tab and Discover cabals, `cabals-search-field`, then the `cabals-search-result-<id>` | `QA activity {QA.run}` | `cabal-header-name` reads `QA activity {QA.run}` within 15 s |
-| S2.2 | A | scroll to, then tap | `cabal-activity-row-{failed_trade}` | | The "Transaction" receipt shows `cabal-txn-status` "Failed" within 10 s |
+| S2.1 | A | call | `openCabal(named:)` | `QA activity {QA.run}` | `cabal-header-name` reads `QA activity {QA.run}` within 15 s |
+| S2.2 | A | call, then tap | `openCabalTab("Treasury")`, `cabal-treasury-history`, then `cabal-activity-row-{failed_trade}` | | The "Transaction" receipt shows `cabal-txn-status` "Failed" within 10 s |
 | S2.3 | A | wait | `cabal-txn-retry` | | The receipt offers "Retry" on the failed trade within 5 s (screens.md: "Failed · Retry") |
 
 ## Ground truth
@@ -65,5 +65,5 @@ The rows come from SQL because no route writes `cabal_activity` without a real s
 ## Not covered
 
 - The amber "Pending" status. A pending row turns confirmed or failed on its own, so a seeded one is not a stable state to read.
-- Paging past the first page of `GET /v1/cabals/{id}/activity` in the "See all" list. Six rows fit on one page.
+- Paging past the first page of `GET /v1/cabals/{id}/activity` on "Treasury history". Six rows fit on one page.
 - The empty state "Nothing yet" / "Money added and trades show up here.". `ActivityModelTests` in `packages/mobile-core` covers it.

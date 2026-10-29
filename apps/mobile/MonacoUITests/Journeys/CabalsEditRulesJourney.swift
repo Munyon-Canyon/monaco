@@ -2,7 +2,7 @@ import XCTest
 
 enum CabalsEditRulesJourney {
     static let id = "cabals/edit-rules"
-    static let version = 7
+    static let version = 8
 
     static let memberKey = "member-id"
     static let screenTimeout: TimeInterval = 15
@@ -27,110 +27,101 @@ enum CabalsEditRulesJourney {
         )
     }
 
-    static func creatorEdits(_ app: XCUIApplication, run: String, recorder: JourneyRecorder) {
+    static func openProposal(_ app: XCUIApplication, step: String) {
+        let row = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'cabal-open-proposal-'")).firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 15), "\(step): no open proposal row on the cabal page")
+        row.tap()
+    }
+
+    static func creatorReadsRules(_ app: XCUIApplication, run: String, recorder: JourneyRecorder) {
+        recorder.step("S1.1", "open the cabal as its creator") {
+            app.openCabal(named: seededName(run: run))
+        }
+
+        recorder.step("S1.2", "read the Rules tab") {
+            app.openCabalTab("Rules")
+            XCTAssertTrue(app.element("cabal-rules").waitForExistence(timeout: 10), "S1.2: no Rules within 10 s")
+            assertRule(app, "votesToPass", reads: "2 of 2", step: "S1.2")
+            assertRule(app, "voteWindow", reads: "24 h", step: "S1.2")
+            assertRule(app, "maxPerTrade", reads: "No limit", step: "S1.2")
+            assertRule(app, "whoCanPropose", reads: "Voters", step: "S1.2")
+            assertRule(app, "cashOut", reads: "Anytime, your share", step: "S1.2")
+            assertRule(app, "showSides", reads: "After a vote closes \u{00B7} off", step: "S1.2")
+            let footer = app.element("cabal-rules-footer")
+            app.scrollIntoReach(footer)
+            XCTAssertTrue(
+                footer.label.hasPrefix("Counts are live for every member."), "S1.2: the footer reads '\(footer.label)'")
+            XCTAssertTrue(
+                footer.label.contains("Rules change by proposal;"), "S1.2: the footer reads '\(footer.label)'")
+            JoinJourney.snap(app, "S1-A-rules-before")
+        }
+    }
+
+    static func creatorRenames(_ app: XCUIApplication, run: String, recorder: JourneyRecorder) {
         let name = newName(run: run)
         let field = app.textFields["edit-cabal-name"]
 
-        recorder.step("S1.1", "open the cabal as its creator") {
-            JoinJourney.openBySearch(app, seededName(run: run), step: "S1.1")
-        }
-
-        recorder.step("S1.2", "open the information screen and read the rules") {
-            app.buttons["cabal-details-button"].tap()
-            app.scrollIntoReach(app.element("cabal-rules"))
-            XCTAssertTrue(app.element("cabal-rules").waitForExistence(timeout: 10), "S1.2: no Rules within 10 s")
-            assertRule(app, "voters", reads: "Everyone", step: "S1.2")
-            assertRule(app, "threshold", reads: "2 of 2 eligible voters", step: "S1.2")
-            assertRule(app, "expiry", reads: "1 day", step: "S1.2")
-            JoinJourney.snap(app, "S1-A-rules-before")
-        }
-
-        recorder.step("S1.3", "open the editor from the Edit rules row") {
-            let edit = app.element("cabal-rules-edit")
-            app.scrollIntoReach(edit)
+        recorder.step("S1.3", "open Edit name and picture from the \u{2026} menu") {
+            app.buttons["cabal-more-button"].tap()
+            let edit = app.buttons["cabal-more-edit"]
+            XCTAssertTrue(edit.waitForExistence(timeout: 5), "S1.3: the \u{2026} menu has no Edit name and picture")
             edit.tap()
-            XCTAssertTrue(field.waitForExistence(timeout: 10), "S1.3: Cabal settings did not show within 10 s")
-            XCTAssertTrue(app.navigationBars["Cabal settings"].exists, "S1.3: the editor is not titled Cabal settings")
-            XCTAssertEqual(
-                app.element("edit-cabal-rules-footer").label,
-                "Vote rules apply to new proposals. Who can join applies right away.",
-                "S1.3: the rules footer"
-            )
+            XCTAssertTrue(field.waitForExistence(timeout: 10), "S1.3: the editor did not show within 10 s")
         }
 
         recorder.step("S1.4", "rename the cabal") {
             field.tap()
             field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: seededName(run: run).count))
             field.typeText(name)
-            XCTAssertTrue(app.buttons["edit-cabal-save"].isEnabled, "S1.4: Save is not enabled after a rename")
-        }
-
-        recorder.step("S1.5", "pick Everyone agrees and 1 week") {
-            let threshold = app.element("edit-rule-threshold")
-            app.scrollIntoReach(threshold)
-            threshold.buttons["Everyone agrees"].tap()
-            let expiry = app.element("edit-rule-expiry")
-            app.scrollIntoReach(expiry)
-            expiry.buttons["1 week"].tap()
-            XCTAssertTrue(
-                threshold.staticTexts["Passes only if every voter says yes."].waitForExistence(timeout: 2),
-                "S1.5: the To pass caption did not change"
-            )
-            XCTAssertTrue(
-                expiry.staticTexts["A vote that hasn't passed closes after 1 week."].waitForExistence(timeout: 2),
-                "S1.5: the Votes stay open caption did not change"
-            )
-        }
-
-    }
-
-    static func creatorPicksVoters(
-        _ app: XCUIApplication, run: String, member: String, recorder: JourneyRecorder
-    ) throws {
-        let memberID = try JourneyHandoff.read(memberKey)
-        let name = newName(run: run)
-
-        recorder.step("S1.6", "pick People I pick") {
-            let voters = app.element("edit-rule-voters")
-            app.scrollIntoReach(voters)
-            XCTAssertTrue(voters.buttons["Everyone"].isSelected, "S1.6: Everyone is not selected")
-            voters.buttons["People I pick"].tap()
-            XCTAssertTrue(
-                app.element("edit-cabal-voters").waitForExistence(timeout: 10), "S1.6: the voter list did not show")
-        }
-
-        recorder.step("S1.7", "pick B as a voter") {
-            let row = app.buttons["voters-member-\(memberID)"]
-            app.scrollIntoReach(row)
-            XCTAssertTrue(row.waitForExistence(timeout: 10), "S1.7: no row for \(member) within 10 s")
-            XCTAssertTrue(row.label.contains(member), "S1.7: the voter row does not name \(member)")
-            row.tap()
-            XCTAssertTrue(row.isSelected, "S1.7: \(member) is not selected")
-        }
-
-        recorder.step("S1.8", "save the rules and the voters once") {
-            app.buttons["edit-cabal-save"].tap()
-            JoinJourney.waitForToast(app, "Cabal updated.", step: "S1.8")
-        }
-
-        recorder.step("S1.9", "see the rules after Cabal settings closes") {
-            XCTAssertTrue(
-                app.element("cabal-rules").waitForExistence(timeout: 10),
-                "S1.9: Cabal settings did not close back to the information screen within 10 s"
-            )
-            XCTAssertFalse(app.textFields["edit-cabal-name"].exists, "S1.9: Cabal settings is still open")
-            assertRule(app, "threshold", reads: "2 of 2 eligible voters", step: "S1.9")
-            assertRule(app, "expiry", reads: "1 week", step: "S1.9")
-            assertRule(app, "voters", reads: "People I pick", step: "S1.9")
-            JoinJourney.snap(app, "S1-A-rules-after")
-        }
-
-        recorder.step("S1.10", "close the information screen and see the new name") {
-            app.navigationBars.buttons.firstMatch.tap()
+            let save = app.buttons["edit-cabal-save"]
+            XCTAssertTrue(save.isEnabled, "S1.4: Save is not enabled after a rename")
+            save.tap()
+            JoinJourney.waitForToast(app, "Cabal updated.", step: "S1.4")
             XCTAssertTrue(
                 JoinJourney.waitForLabel(app.element("cabal-header-name"), containing: name, timeout: 10),
-                "S1.10: the hero does not read \(name): \(app.element("cabal-header-name").label)"
+                "S1.4: the header does not read \(name): \(app.element("cabal-header-name").label)"
             )
+        }
+    }
+
+    static func creatorProposesSides(_ app: XCUIApplication, run: String, recorder: JourneyRecorder) {
+        recorder.step("S2.1", "turn on Show who voted what") {
+            app.openCabalTab("Rules")
+            let toggle = app.switches["cabal-rules-show-sides-toggle"]
+            app.scrollIntoReach(toggle)
+            XCTAssertTrue(toggle.waitForExistence(timeout: 10), "S2.1: no Show who voted what switch")
+            toggle.tap()
+            let words = app.element("cabal-rule-proposal-words")
+            XCTAssertTrue(words.waitForExistence(timeout: 10), "S2.1: the proposal sheet did not open")
+            XCTAssertTrue(words.label.contains("on"), "S2.1: the sheet reads '\(words.label)'")
+        }
+
+        recorder.step("S2.2", "send the proposal") {
+            app.buttons["cabal-rule-proposal-propose"].tap()
+            JoinJourney.waitForToast(app, "Proposed. Your cabal votes on it.", step: "S2.2")
+        }
+
+        recorder.step("S2.3", "A holds Yes") {
+            openProposal(app, step: "S2.3")
+            app.pickAndHold("yes")
+        }
+    }
+
+    static func memberVotes(_ app: XCUIApplication, run: String, recorder: JourneyRecorder) {
+        recorder.step("S2.4", "B holds Yes") {
+            app.openCabal(named: newName(run: run))
+            openProposal(app, step: "S2.4")
+            app.pickAndHold("yes")
+        }
+    }
+
+    static func creatorSeesSides(_ app: XCUIApplication, run: String, recorder: JourneyRecorder) {
+        recorder.step("S2.5", "the Rules tab reads on since") {
+            app.openCabal(named: newName(run: run))
+            app.openCabalTab("Rules")
+            XCTAssertTrue(app.element("cabal-rules").waitForExistence(timeout: 10), "S2.5: no Rules within 10 s")
+            assertRule(app, "showSides", reads: "on since", step: "S2.5", timeout: 20)
+            JoinJourney.snap(app, "S2-A-rules-sides-on")
         }
     }
 }

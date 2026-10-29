@@ -1,0 +1,19 @@
+journey: cabals/pot
+expect-fail: S1
+
+The stat block reads "On" for the bot. S1.3 waits for "Off", so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/packages/mobile-core/Sources/MonacoCore/Cabals/CabalHeaderCopy.swift b/packages/mobile-core/Sources/MonacoCore/Cabals/CabalHeaderCopy.swift
+index 56bc8ded9..b7af19970 100644
+--- a/packages/mobile-core/Sources/MonacoCore/Cabals/CabalHeaderCopy.swift
++++ b/packages/mobile-core/Sources/MonacoCore/Cabals/CabalHeaderCopy.swift
+@@ -1,7 +1,7 @@
+ import Foundation
+ 
+ public enum CabalHeaderCopy {
+-    public static let botValue = "Off"
++    public static let botValue = "On"
+     public static let moveRange = "1M"
+ 
+     public struct Stat: Equatable, Sendable {
