@@ -181,41 +181,58 @@ func TestCreateComment_cutsTheExcerptAt120Scalars(t *testing.T) {
 	}
 }
 
-func TestCreateComment_aReplyToAReplyLandsUnderTheTopLevelComment(t *testing.T) {
+func TestCreateComment_onlyTheItemsAuthorFoldsAReplyUnderTheRoot(t *testing.T) {
 	t.Parallel()
 	f := newCommentFixture(t)
 	item := f.item(t, feed.KindTrade)
-	a, b := f.cabal.Members[0].ID, f.cabal.Members[1].ID
-	top := f.mustComment(t, item, a, "top", uuid.Nil)
-	reply := f.mustComment(t, item, b, "reply", top.ID)
-	nested := f.mustComment(t, item, a, "nested", reply.ID)
-	if reply.ParentID != top.ID || reply.ReplyToUserID != (ids.UserID{}) {
-		t.Fatalf("reply to a top-level comment = %+v", reply)
+	author, b := f.cabal.Members[0].ID, f.cabal.Members[1].ID
+	top := f.mustComment(t, item, b, "top", uuid.Nil)
+	answer := f.mustComment(t, item, author, "answer", top.ID)
+	other := f.mustComment(t, item, f.outsider, "other", answer.ID)
+	again := f.mustComment(t, item, author, "again", answer.ID)
+	if answer.ParentID != top.ID || answer.ReplyToUserID != b {
+		t.Fatalf("the author's answer = %+v, want parent %s and reply-to %s", answer, top.ID, b)
 	}
-	if nested.ParentID != top.ID || nested.ReplyToUserID != b {
-		t.Fatalf("reply to a reply = %+v, want parent %s and reply-to %s", nested, top.ID, b)
+	wantQuote := app.CommentQuote{
+		CommentID: answer.ID, RootID: top.ID, AuthorID: author, Excerpt: ptr("answer"), Folded: true,
 	}
-	if stored, counted := f.count(t, item); stored != 3 || counted != 3 {
-		t.Fatalf("stored %d, comment_count %d, want 3 and 3", stored, counted)
+	if other.ParentID != uuid.Nil || other.ReplyToUserID != author || !reflect.DeepEqual(other.ReplyTo, &wantQuote) {
+		t.Fatalf("another member's reply to the answer = %+v, want top-level quoting it", other)
+	}
+	if again.ParentID != top.ID || !reflect.DeepEqual(again.ReplyTo, &wantQuote) {
+		t.Fatalf("the author's reply to the answer = %+v, want parent %s", again, top.ID)
+	}
+	if stored, counted := f.count(t, item); stored != 4 || counted != 4 {
+		t.Fatalf("stored %d, comment_count %d, want 4 and 4", stored, counted)
 	}
 }
 
-func TestCreateComment_theEventNamesWhoTheReplyAnswers(t *testing.T) {
+func TestCreateComment_theEventNamesTheCommentTheReplyAnswers(t *testing.T) {
 	t.Parallel()
 	f := newCommentFixture(t)
 	item := f.item(t, feed.KindTrade)
-	a, b := f.cabal.Members[0].ID.UUID(), f.cabal.Members[1].ID.UUID()
-	top := f.mustComment(t, item, f.cabal.Members[0].ID, "top", uuid.Nil)
-	reply := f.mustComment(t, item, f.cabal.Members[1].ID, "reply", top.ID)
-	f.mustComment(t, item, f.cabal.Members[0].ID, "nested", reply.ID)
+	author, b := f.cabal.Members[0].ID, f.cabal.Members[1].ID
+	top := f.mustComment(t, item, b, "top comment", uuid.Nil)
+	answer := f.mustComment(t, item, author, "answer", top.ID)
+	f.mustComment(t, item, f.outsider, "quoting", answer.ID)
 	evs := f.created(t)
-	type answers struct{ parent, parentAuthor, replyTo *uuid.UUID }
-	got := []answers{
-		{evs[0].ParentCommentID, evs[0].ParentAuthorID, evs[0].ReplyToUserID},
-		{evs[1].ParentCommentID, evs[1].ParentAuthorID, evs[1].ReplyToUserID},
-		{evs[2].ParentCommentID, evs[2].ParentAuthorID, evs[2].ReplyToUserID},
+	bID, authorID := b.UUID(), author.UUID()
+	type answers struct {
+		parent, parentAuthor, replyTo, answered, answeredAuthor, answeredRoot *uuid.UUID
+		excerpt                                                               *string
 	}
-	want := []answers{{}, {&top.ID, &a, nil}, {&top.ID, &b, &b}}
+	got := make([]answers, 0, len(evs))
+	for _, e := range evs {
+		got = append(got, answers{
+			e.ParentCommentID, e.ParentAuthorID, e.ReplyToUserID,
+			e.ReplyToCommentID, e.ReplyToAuthorID, e.ReplyToRootID, e.ReplyToExcerpt,
+		})
+	}
+	want := []answers{
+		{},
+		{&top.ID, &bID, &bID, &top.ID, &bID, &top.ID, ptr("top comment")},
+		{nil, &authorID, &authorID, &answer.ID, &authorID, &top.ID, ptr("answer")},
+	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("answers = %+v, want %+v", got, want)
 	}
@@ -231,8 +248,8 @@ func TestCreateComment_aReplyToADeletedCommentSaysSoInTheEvent(t *testing.T) {
 		t.Fatal(err)
 	}
 	f.mustComment(t, item, f.outsider, "still here", top.ID)
-	if got := f.created(t)[1]; !got.ParentDeleted {
-		t.Fatalf("event = %+v, want parent_deleted", got)
+	if got := f.created(t)[1]; !got.ParentDeleted || !got.ReplyToDeleted || got.ReplyToExcerpt != nil {
+		t.Fatalf("event = %+v, want parent_deleted, reply_to_deleted and no excerpt", got)
 	}
 }
 

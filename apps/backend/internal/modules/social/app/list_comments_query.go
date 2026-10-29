@@ -59,7 +59,7 @@ func ListComments(ctx context.Context, db sqlc.DBTX, q CommentsQuery) (CommentsP
 	return threadsOf(rows, q.Limit), nil
 }
 
-func threadsOf(rows []sqlc.FeedComment, limit int) CommentsPage {
+func threadsOf(rows []sqlc.ListCommentThreadsRow, limit int) CommentsPage {
 	var page CommentsPage
 	index := map[uuid.UUID]int{}
 	more := false
@@ -67,13 +67,13 @@ func threadsOf(rows []sqlc.FeedComment, limit int) CommentsPage {
 		switch {
 		case row.ParentCommentID.Valid:
 			if i, ok := index[row.ParentCommentID.Bytes]; ok {
-				page.Threads[i].Replies = append(page.Threads[i].Replies, commentOf(row))
+				page.Threads[i].Replies = append(page.Threads[i].Replies, listedComment(row))
 			}
 		case len(page.Threads) == limit:
 			more = true
 		default:
 			index[row.ID] = len(page.Threads)
-			page.Threads = append(page.Threads, CommentThread{Comment: commentOf(row)})
+			page.Threads = append(page.Threads, CommentThread{Comment: listedComment(row)})
 		}
 	}
 	if more {
@@ -93,4 +93,19 @@ func ProposalFeedItem(ctx context.Context, db sqlc.DBTX, proposal uuid.UUID) (uu
 		return uuid.Nil, errs.Wrap(err, errs.CodeInternal, op)
 	}
 	return id, nil
+}
+
+func listedComment(row sqlc.ListCommentThreadsRow) Comment {
+	c := commentOf(sqlc.FeedComment{
+		ID: row.ID, FeedObjectID: row.FeedObjectID, AuthorID: row.AuthorID, ParentCommentID: row.ParentCommentID,
+		ReplyToUserID: row.ReplyToUserID, ReplyToCommentID: row.ReplyToCommentID, Body: row.Body,
+		CreatedAt: row.CreatedAt, DeletedAt: row.DeletedAt, DeletedBy: row.DeletedBy, DeletedByKind: row.DeletedByKind,
+	})
+	if row.QuoteID.Valid {
+		c.ReplyTo = quoteOf(
+			row.QuoteID.Bytes, row.QuoteAuthorID.Bytes, row.QuoteParentID.Bytes, row.QuoteBody.String,
+			row.QuoteDeleted, row.QuoteBlocked,
+		)
+	}
+	return c
 }

@@ -50,9 +50,9 @@ func TestListComments_returnsThreadsOldestFirstWithTheirRepliesOldestFirst(t *te
 	f := newCommentFixture(t)
 	item := f.item(t, feed.KindTrade)
 	a, b := f.cabal.Members[0].ID, f.cabal.Members[1].ID
-	first := f.say(t, item, a, "first", uuid.Nil)
+	first := f.say(t, item, b, "first", uuid.Nil)
 	second := f.say(t, item, b, "second", uuid.Nil)
-	r1 := f.say(t, item, b, "first-r1", first)
+	r1 := f.say(t, item, a, "first-r1", first)
 	f.say(t, item, a, "second-r1", second)
 	f.say(t, item, a, "first-r2", r1)
 	f.say(t, item, f.outsider, "third", uuid.Nil)
@@ -91,9 +91,9 @@ func TestListComments_keepsDeletedCommentsInPlace(t *testing.T) {
 	f := newCommentFixture(t)
 	item := f.item(t, feed.KindTrade)
 	a := f.cabal.Members[0].ID
-	top := f.say(t, item, a, "top", uuid.Nil)
-	f.say(t, item, f.outsider, "reply", top)
-	if err := f.delete(t, top, a); err != nil {
+	top := f.say(t, item, f.outsider, "top", uuid.Nil)
+	f.say(t, item, a, "reply", top)
+	if err := f.delete(t, top, f.outsider); err != nil {
 		t.Fatal(err)
 	}
 	page := f.list(t, item, 50, nil)

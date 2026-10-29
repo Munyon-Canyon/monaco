@@ -36,6 +36,14 @@ func (b CommentBody) Excerpt() string {
 	return string(runes[:CommentExcerptMax])
 }
 
+func QuoteExcerpt(body *CommentBody, deleted bool) *string {
+	if deleted || body == nil {
+		return nil
+	}
+	excerpt := body.Excerpt()
+	return &excerpt
+}
+
 type CommentTarget struct {
 	ID       uuid.UUID
 	AuthorID uuid.UUID
@@ -43,14 +51,23 @@ type CommentTarget struct {
 	Deleted  bool
 }
 
-type CommentPlacement struct {
-	ParentID  uuid.UUID
-	ReplyToID uuid.UUID
+func (t CommentTarget) RootID() uuid.UUID {
+	if t.ParentID == uuid.Nil {
+		return t.ID
+	}
+	return t.ParentID
 }
 
-func PlaceReply(target CommentTarget) CommentPlacement {
-	if target.ParentID == uuid.Nil {
-		return CommentPlacement{ParentID: target.ID}
+type CommentPlacement struct {
+	ParentID         uuid.UUID
+	ReplyToCommentID uuid.UUID
+	ReplyToUserID    uuid.UUID
+}
+
+func PlaceReply(target CommentTarget, replier, threadAuthor uuid.UUID) CommentPlacement {
+	placement := CommentPlacement{ReplyToCommentID: target.ID, ReplyToUserID: target.AuthorID}
+	if threadAuthor != uuid.Nil && replier == threadAuthor {
+		placement.ParentID = target.RootID()
 	}
-	return CommentPlacement{ParentID: target.ParentID, ReplyToID: target.AuthorID}
+	return placement
 }

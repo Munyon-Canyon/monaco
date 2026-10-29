@@ -63,13 +63,65 @@ func TestCommentBody_Excerpt(t *testing.T) {
 func TestPlaceReply(t *testing.T) {
 	t.Parallel()
 	g := testkit.NewIDs(622)
-	top, reply, author := g.NewV7(), g.NewV7(), g.NewV7()
-	got := domain.PlaceReply(domain.CommentTarget{ID: top, AuthorID: author})
-	if got.ParentID != top || got.ReplyToID != uuid.Nil {
-		t.Fatalf("reply to a top-level comment = %+v, want parent %s and no reply-to", got, top)
+	root, folded, nora, logan, sam := g.NewV7(), g.NewV7(), g.NewV7(), g.NewV7(), g.NewV7()
+	tests := []struct {
+		name         string
+		target       domain.CommentTarget
+		replier      uuid.UUID
+		threadAuthor uuid.UUID
+		want         domain.CommentPlacement
+	}{
+		{
+			"the author answers a top-level comment",
+			domain.CommentTarget{ID: root, AuthorID: nora},
+			logan, logan,
+			domain.CommentPlacement{ParentID: root, ReplyToCommentID: root, ReplyToUserID: nora},
+		},
+		{
+			"the author answers a folded answer",
+			domain.CommentTarget{ID: folded, AuthorID: logan, ParentID: root},
+			logan, logan,
+			domain.CommentPlacement{ParentID: root, ReplyToCommentID: folded, ReplyToUserID: logan},
+		},
+		{
+			"someone else answers a top-level comment",
+			domain.CommentTarget{ID: root, AuthorID: nora},
+			sam, logan,
+			domain.CommentPlacement{ReplyToCommentID: root, ReplyToUserID: nora},
+		},
+		{
+			"someone else answers a folded answer",
+			domain.CommentTarget{ID: folded, AuthorID: logan, ParentID: root},
+			sam, logan,
+			domain.CommentPlacement{ReplyToCommentID: folded, ReplyToUserID: logan},
+		},
+		{
+			"a system item has no author to fold for",
+			domain.CommentTarget{ID: root, AuthorID: nora},
+			sam, uuid.Nil,
+			domain.CommentPlacement{ReplyToCommentID: root, ReplyToUserID: nora},
+		},
 	}
-	got = domain.PlaceReply(domain.CommentTarget{ID: reply, AuthorID: author, ParentID: top})
-	if got.ParentID != top || got.ReplyToID != author {
-		t.Fatalf("reply to a reply = %+v, want parent %s and reply-to %s", got, top, author)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := domain.PlaceReply(tt.target, tt.replier, tt.threadAuthor); got != tt.want {
+				t.Fatalf("PlaceReply = %+v, want %+v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestQuoteExcerpt(t *testing.T) {
+	t.Parallel()
+	body := domain.CommentBody(strings.Repeat("é", domain.CommentExcerptMax+5))
+	if got := domain.QuoteExcerpt(&body, false); got == nil || *got != strings.Repeat("é", domain.CommentExcerptMax) {
+		t.Fatalf("live excerpt = %v", got)
+	}
+	if got := domain.QuoteExcerpt(&body, true); got != nil {
+		t.Fatalf("deleted excerpt = %q, want nil", *got)
+	}
+	if got := domain.QuoteExcerpt(nil, false); got != nil {
+		t.Fatalf("missing excerpt = %q, want nil", *got)
 	}
 }

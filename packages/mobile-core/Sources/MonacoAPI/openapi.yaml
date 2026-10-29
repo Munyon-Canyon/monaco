@@ -3715,10 +3715,11 @@ paths:
         `reply` share their proposal's thread, so the comment is stored there and counted on the proposal
         item (feed_item_pending, retryable, while that item is missing). Only a member of the cabal can
         comment in a proposal's thread, otherwise comment_members_only; anyone who can see any other post
-        can comment on it. A reply names its `parent_comment_id`, which must be a comment on the same
-        thread, otherwise comment_parent_mismatch. A reply to a reply is stored under the top-level comment
-        and names the person it answers in `reply_to_handle`, so a thread stays one level deep. A replay
-        returns the first response.
+        can comment on it. A reply names its `parent_comment_id`, the comment it answers, which must be a
+        comment on the same thread, otherwise comment_parent_mismatch. When the item's author replies, the
+        answer folds under the top-level comment it answers (`parent_comment_id` and `root_comment_id`
+        name that comment); a reply by anyone else is top-level. Either way the response carries
+        `reply_to`, a quote of the comment it answers. A replay returns the first response.
       parameters:
         - $ref: "#/components/parameters/IdempotencyKey"
         - name: id
@@ -3748,8 +3749,10 @@ paths:
       tags: [social]
       summary: Read the comments on a feed item.
       description: >-
-        Returns the top-level comments oldest first, one page at a time, each with all its replies
-        oldest first. A deleted comment keeps its place with a null `body` and the `body_display`
+        Returns the top-level comments oldest first, one page at a time, each with all its folded
+        answers oldest first. A reply by anyone but the item's author is top-level and carries `reply_to`,
+        a quote of the comment it answers; the quoted comment's `root_comment_id` is on the same or an
+        earlier page. A deleted comment keeps its place with a null `body` and the `body_display`
         `Comment deleted`, or `Removed by Monaco` once a moderator removes it. On a `result` that a cabal heads, a
         `threshold` or a `reply` item it returns the page of the proposal's thread. An unknown item is feed_item_not_found.
       parameters:
@@ -9307,14 +9310,21 @@ components:
         parent_comment_id:
           type: [string, "null"]
           format: uuid
-          description: The top-level comment this sits under. Null on a top-level comment.
+          description: The top-level comment this sits under. Set only on an answer by the item's author, folded under the comment it answers. Null on every other comment, including a reply by anyone else.
+          examples: [null]
+        root_comment_id:
+          type: [string, "null"]
+          format: uuid
+          description: On a folded answer, the top-level comment it sits under, equal to `parent_comment_id`. Null on a top-level comment.
           examples: [null]
         author:
           $ref: "#/components/schemas/CommentAuthor"
         reply_to_handle:
           type: [string, "null"]
-          description: The handle of the person a reply answers, when it answers a reply. Otherwise null.
+          description: Deprecated, use `reply_to`. The handle of the person a reply answers. Null on a comment that answers none.
           examples: [null]
+        reply_to:
+          $ref: "#/components/schemas/CommentQuote"
         body: {type: [string, "null"], description: Null on a deleted comment., examples: [nice]}
         body_display: {type: string, description: "The body, `Comment deleted` once the author deletes it, or `Removed by Monaco` once a moderator removes it.", examples: [nice]}
         is_mine: {type: boolean, description: True when the caller wrote it., examples: [true]}
@@ -9345,6 +9355,17 @@ components:
           type: [string, "null"]
           description: The cursor for the next page. Null on the last page.
           examples: [null]
+    CommentQuote:
+      type: object
+      description: The comment a reply answers, as the quote above the reply.
+      required: [comment_id, root_comment_id, author_display_name, excerpt, is_deleted, is_folded]
+      properties:
+        comment_id: {type: string, format: uuid, description: "The answered comment.", examples: ["01920000-0000-7000-8000-000000000006"]}
+        root_comment_id: {type: string, format: uuid, description: "The answered comment's top-level comment: its parent, or itself when it is top-level. The app expands this comment before it jumps.", examples: ["01920000-0000-7000-8000-000000000006"]}
+        author_display_name: {type: string, description: "The answered comment's author, `Someone` once that account is deleted.", examples: [Andres]}
+        excerpt: {type: [string, "null"], description: "The first 120 characters of the answered comment. Null once it is deleted or removed, and when the caller blocked its author.", examples: [Good timing on this one.]}
+        is_deleted: {type: boolean, description: True when the answered comment is deleted or removed., examples: [false]}
+        is_folded: {type: boolean, description: "True when the answered comment is a folded answer, so the app expands its root before it jumps.", examples: [false]}
     CommentThread:
       type: object
       description: A top-level comment and all its replies.
