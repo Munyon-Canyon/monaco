@@ -1,7 +1,7 @@
 ---
 id: onboarding/first-run
 title: First run
-version: 4
+version: 5
 milestone: M9
 requires: [auth/sign-in]
 actors: [C, B]
@@ -11,7 +11,7 @@ xcuitest: [apps/mobile/MonacoUITests/Journeys/FirstRunJourney.swift, apps/mobile
 
 # First run
 
-A new member signs in, picks a handle, and skips the phone and X steps to reach Home. Home then nudges them to add a number. They try a number that belongs to someone else, relaunch and stay past the gate, then link a number of their own. A new dev user links a fake X account and the nudge goes away. The design is [Navigation](../../screens.md#navigation), and the states come from [`auth_state`](../../architecture/auth.md#auth_state).
+A new member signs in, picks a handle, and skips the phone and X steps to reach Home. The nudge now lives on Profile, not Home (founder decision Q49, #6496, #6564); Profile then nudges them to add a number. They try a number that belongs to someone else, relaunch and stay past the gate, then link a number of their own. A new dev user links a fake X account and the nudge goes away. The design is [Navigation](../../screens.md#navigation), and the states come from [`auth_state`](../../architecture/auth.md#auth_state).
 
 The format of this doc is in [App journeys](../README.md). The Old app column names the old app's tap or element at `c838bd24` for each step, or says the step is new in the spec. The old first run was one screen, `Onboarding/OnboardingNameView.swift`.
 
@@ -89,7 +89,13 @@ After a run, C's `users` row has `handle = 'qa_cayman'`, `phone_e164 = {L.phone}
 
 ## Known failures on staging
 
-None.
+The onboarding nudge left Home for Profile (Q49), and Profile does not render it yet, so these steps fail until #6496 lands. They name Home's `onboarding-nudge` and `onboarding-nudge-open`, which are gone from Home. Once Profile draws the nudge, point each at it and remove this entry:
+
+- S1.6, which expects `onboarding-nudge` on Home after the skip.
+- S2.1 to S2.4, which open the phone step from the nudge and expect it to stay.
+- S3.1, which expects the nudge after a relaunch.
+- S4.1 to S4.3, which open the phone step from the nudge.
+- S5.2 to S5.4, which open the socials step from the nudge and expect it to go.
 
 ## Not covered
 

@@ -2,10 +2,10 @@ import XCTest
 
 enum SettingsNotificationsJourney {
     static let id = "settings/notifications"
-    static let version = 5
+    static let version = 6
 
-    static let title = "Know when your cabal votes and trades"
-    static let body = "We'll tell you when a vote opens or passes, when a trade fills, and when a cabal lets you in."
+    static let title = "Hear how votes end?"
+    static let body = "Get each result when a vote closes. No more vote reminders after you vote."
 
     static func recorder() -> JourneyRecorder {
         JourneyRecorder(journey: id, version: version)
@@ -19,7 +19,7 @@ enum SettingsNotificationsJourney {
         app.tab("Profile").tap()
         if app.navigationBars["Settings"].waitForExistence(timeout: 3) { return }
         let settings = app.element("profile-settings-row")
-        _ = app.element("profile-header").waitForExistence(timeout: 10)
+        _ = app.element("profile-card").waitForExistence(timeout: 10)
         app.scrollIntoReach(settings, maxSwipes: 30)
         XCTAssertTrue(settings.waitForExistence(timeout: 15), "\(step): no Settings row on Profile")
         settings.tap()
@@ -44,23 +44,21 @@ enum SettingsNotificationsJourney {
         }
     }
 
-    static func prePrompt(_ app: XCUIApplication, cabalName: String, recorder: JourneyRecorder) {
+    static func prePrompt(_ app: XCUIApplication, proposalID: String, recorder: JourneyRecorder) {
         let sheet = app.element("push-pre-prompt")
 
-        recorder.step("S2.1", "find the invite on the Cabals tab") {
-            app.tab("Cabals").tap()
-            XCTAssertTrue(
-                app.staticTexts[cabalName].firstMatch.waitForExistence(timeout: 15),
-                "S2.1: no invite to '\(cabalName)' on the Cabals tab")
+        recorder.step("S2.1", "vote Yes on the open proposal from Home") {
+            app.tab("Home").tap()
+            app.homeVoteCardPickAndHold(proposalID: proposalID, choice: "yes", timeout: 20)
         }
 
-        recorder.step("S2.2", "accept and see the pre-prompt") {
-            let accept = app.buttons.matching(identifier: "cabal-invite-accept").firstMatch
-            XCTAssertTrue(accept.exists, "S2.2: no Accept button on the invite")
-            accept.tap()
-            XCTAssertTrue(
-                app.staticTexts["You're in."].firstMatch.waitForExistence(timeout: 10), "S2.2: no 'You're in.' toast")
-            XCTAssertTrue(sheet.waitForExistence(timeout: 15), "S2.2: the pre-prompt did not show after the join")
+        recorder.step("S2.2", "the sheet waits for the toast, then shows") {
+            let toast = app.element("monaco-toast-banner")
+            if toast.waitForExistence(timeout: 10) {
+                XCTAssertFalse(sheet.exists, "S2.2: the pre-prompt showed while the vote's toast was still up")
+            }
+            app.waitForToastGone(timeout: 10)
+            XCTAssertTrue(sheet.waitForExistence(timeout: 15), "S2.2: the pre-prompt did not show after the first vote")
             XCTAssertTrue(app.staticTexts[title].exists, "S2.2: the pre-prompt title is not '\(title)'")
             XCTAssertTrue(app.staticTexts[body].exists, "S2.2: the pre-prompt does not read '\(body)'")
             XCTAssertEqual(

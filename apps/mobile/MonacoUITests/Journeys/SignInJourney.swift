@@ -172,7 +172,7 @@ enum SignInJourney {
             app.popToRoot()
             app.dismissKeyboard()
             app.tab("Profile").tap()
-            if !app.element("profile-header").waitForExistence(timeout: 5) {
+            if !app.element("profile-card").waitForExistence(timeout: 5) {
                 app.tab("Profile").tap()
             }
             let settings = app.element("profile-settings-row")

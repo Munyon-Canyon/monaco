@@ -1,0 +1,18 @@
+journey: settings/notifications
+expect-fail: S2, S3
+
+A first vote never raises the push pre-prompt. S2.2 waits for it, and S3 then finds notifications off, so both must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Home/HomeVoteCard.swift b/apps/mobile/Monaco/Features/Home/HomeVoteCard.swift
+index 2a444c5bd..dda699625 100644
+--- a/apps/mobile/Monaco/Features/Home/HomeVoteCard.swift
++++ b/apps/mobile/Monaco/Features/Home/HomeVoteCard.swift
+@@ -146,7 +146,6 @@ struct HomeVoteCard: View {
+         let sample = PushSample.afterVote(
+             symbol: symbol, status: outcome.status, tally: outcome.tally, isSell: row.isSell,
+             usdcMicros: row.usdcMicros, closesAt: row.expiresAt, swap: nil, pendingUnits: nil)
+-        Task { await environment.pushPrePrompt.noteFirstVote(sample: sample, after: toasts) }
+     }
+ 
+     private func refused(_ message: String) {

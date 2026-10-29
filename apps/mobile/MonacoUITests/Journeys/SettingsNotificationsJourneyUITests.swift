@@ -18,9 +18,9 @@ nonisolated final class SettingsNotificationsJourneyUITests: XCTestCase {
         }
 
         try session.scenario("S2") {
-            let cabalName = try JourneyHandoff.read("cabalName")
+            let proposalID = try JourneyHandoff.read("proposalID")
             try session.act(as: "B")
-            SettingsNotificationsJourney.prePrompt(app, cabalName: cabalName, recorder: recorder)
+            SettingsNotificationsJourney.prePrompt(app, proposalID: proposalID, recorder: recorder)
             attachScreenshot(of: app, named: "S2 after Allow")
         }
 
