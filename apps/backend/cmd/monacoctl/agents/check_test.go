@@ -424,7 +424,7 @@ func TestCheck_runsTheCheapRowForEachChangedPathAndRecordsTheTree(t *testing.T) 
 	goTest := h.goTest(
 		t,
 		strconv.Itoa(testParallelism(runtime.NumCPU(), 1)),
-		"./internal/x,./cmd/api",
+		"./internal/x",
 		"./internal/x",
 		"./internal/t",
 		"./cmd/api",
@@ -1567,10 +1567,11 @@ func TestCheck_theCoverageRowGatesThePackageSourcesWhenATestOrAllowFileIsRemoved
 				"apps/backend/internal/a/a.go":      "package a\n",
 				"apps/backend/internal/a/a_test.go": "package a\n",
 				"apps/backend/internal/a/a.allow":   "# path reason\n",
+				"apps/backend/internal/b/b.go":      "package b\n",
 				"apps/backend/internal/c/c.go":      "package c\n",
 			})
 			git(t, h.dir, "rm", "-q", gone)
-			h.commit(t, nil)
+			h.commit(t, map[string]string{"apps/backend/internal/b/b.go": "package b // changed\n"})
 			h.affected = "./internal/a\n"
 			listing := "m m/internal/a\nm m/internal/b m/internal/a\nm m/internal/c\n"
 			h.replies = []reply{{prefix: "go list", out: listing}}
@@ -1578,7 +1579,8 @@ func TestCheck_theCoverageRowGatesThePackageSourcesWhenATestOrAllowFileIsRemoved
 			if code, stdout, stderr := h.check(t); code != 0 {
 				t.Fatalf("check: %d %q %q", code, stdout, stderr)
 			}
-			want := "apps/backend: coverage --profile " + h.profile(t) + " --only internal/a/a.go"
+			want := "apps/backend: coverage --profile " + h.profile(t) +
+				" --only internal/a/a.go --only internal/b/b.go"
 			if !slices.Contains(h.calls, want) {
 				t.Fatalf("calls: %s\nwant %s", strings.Join(h.calls, "\n"), want)
 			}
@@ -2293,27 +2295,61 @@ func TestCheck_theFlowsRowReportsWhatItCannotRead(t *testing.T) {
 	}
 }
 
-func TestCheck_coverpkgInstrumentsEveryTestedPackage(t *testing.T) {
+func TestCheck_coverpkgInstrumentsOnlyChangedPackages(t *testing.T) {
 	t.Parallel()
 	h := newCheckHarness(t)
 	h.base(t, map[string]string{
 		"apps/backend/internal/a/a.go":      "package a\n",
 		"apps/backend/internal/b/b.go":      "package b\n",
 		"apps/backend/internal/c/c_test.go": "package c\n",
+		"apps/backend/internal/d/d.go":      "package d\n",
 	})
 	h.commit(t, map[string]string{
 		"apps/backend/internal/a/a.go":      "package a // changed\n",
 		"apps/backend/internal/c/c_test.go": "package c // changed\n",
 	})
-	h.affected = "./internal/a\n./internal/b\n./internal/c\n"
+	h.affected = "./internal/a\n./internal/b\n./internal/c\n./internal/d\n"
 	h.calls = nil
 	if code, stdout, stderr := h.check(t); code != 0 {
 		t.Fatalf("check: %d %q %q", code, stdout, stderr)
 	}
-	want := h.goTest(t, strconv.Itoa(testParallelism(runtime.NumCPU(), 1)), "./internal/a,./internal/b",
-		"./internal/a", "./internal/b", "./internal/c")[0]
+	want := h.goTest(t, strconv.Itoa(testParallelism(runtime.NumCPU(), 1)), "./internal/a",
+		"./internal/a", "./internal/b", "./internal/c", "./internal/d")[0]
 	if !slices.Contains(h.calls, want) {
 		t.Fatalf("calls: %s\nwant %s", strings.Join(h.calls, "\n"), want)
+	}
+}
+
+func TestCoverFlags_nothingToInstrumentWhenNoChangedPackageIsTested(t *testing.T) {
+	t.Parallel()
+	backend := t.TempDir()
+	writeFile(t, filepath.Join(backend, "internal/a/a.go"), "package a\n")
+	covered := map[string]bool{"internal/z/z.go": true}
+	if got := coverFlags(backend, []string{"./internal/a"}, covered, "p.out"); got != nil {
+		t.Fatalf("flags %v, want none", got)
+	}
+	covered["internal/a/a.go"] = true
+	got := coverFlags(backend, []string{"./internal/a"}, covered, "p.out")
+	if want := []string{"-coverpkg=./internal/a", "-coverprofile=p.out"}; !slices.Equal(got, want) {
+		t.Fatalf("flags %v, want %v", got, want)
+	}
+}
+
+func TestCheck_coverpkgNoDependencyNoticesAreNotWarnings(t *testing.T) {
+	t.Parallel()
+	h := newCheckHarness(t)
+	h.base(t, map[string]string{"apps/backend/internal/a/a.go": "package a\n"})
+	h.commit(t, map[string]string{"apps/backend/internal/a/a.go": "package a // changed\n"})
+	h.affected = "./internal/a\n"
+	h.replies = []reply{
+		{
+			prefix: "go test -tags faultpoints",
+			out:    "warning: no packages being tested depend on matches for pattern ./internal/a\n",
+		},
+	}
+	code, stdout, stderr := h.check(t)
+	if code != 0 || strings.Contains(stdout, "warnings in the log") {
+		t.Fatalf("check: %d %q %q", code, stdout, stderr)
 	}
 }
 
