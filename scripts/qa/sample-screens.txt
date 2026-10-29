@@ -137,15 +137,6 @@ share-screen-code-off         -MonacoShareSample screenCodeOff
 share-screen-replay           -MonacoShareSample screenReplay
 share-screen-loading          -MonacoShareSample screenLoading
 share-screen-failed           -MonacoShareSample screenFailed
-share-sample-passed           -MonacoShareSample passed
-share-sample-passed-pnl-on    -MonacoShareSample passedPnlOn
-share-sample-passed-no-price  -MonacoShareSample passedNoPassedPrice
-share-sample-passed-pending   -MonacoShareSample passedPending
-share-sample-passed-failed    -MonacoShareSample passedFailed
-share-sample-passed-no-live   -MonacoShareSample passedNoLivePrice
-share-sample-vote             -MonacoShareSample vote
-share-screen-passed           -MonacoShareSample screenPassed
-share-screen-vote             -MonacoShareSample screenVote
 
 home-populated                -MonacoHomeSample populated
 home-empty                    -MonacoHomeSample empty

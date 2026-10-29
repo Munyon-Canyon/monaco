@@ -9,8 +9,8 @@ public final class ShareScreenModel {
     public static let maxPages = 20
 
     public let subject: ShareSubject
-    public var format: ShareFormat
-    public var eyes: ShareEyes {
+    public var format: ShareFormat = .post
+    public var eyes = ShareEyes() {
         didSet { if eyes != oldValue { rebuild() } }
     }
     public private(set) var state: LoadState<ShareCardSpec> = .idle
@@ -21,7 +21,6 @@ public final class ShareScreenModel {
     private let timeZone: TimeZone
     private let maxPages: Int
     private var loaded: Loaded?
-    private var loadedKind: CardKind?
     private var generation = 0
 
     public init(
@@ -29,9 +28,6 @@ public final class ShareScreenModel {
         timeZone: TimeZone = .current, maxPages: Int = ShareScreenModel.maxPages
     ) {
         self.subject = subject
-        let defaults = Self.defaults(for: subject)
-        eyes = defaults.eyes
-        format = defaults.format
         self.api = api
         self.now = now
         self.timeZone = timeZone
@@ -43,113 +39,38 @@ public final class ShareScreenModel {
         return nil
     }
 
-    public var title: String {
-        switch loadedKind {
-        case .vote: Self.voteTitle
-        case .passed, .position: Self.positionTitle
-        case nil:
-            if case .openVote = subject { Self.voteTitle } else { Self.positionTitle }
-        }
-    }
-
-    public var isVote: Bool { title == Self.voteTitle }
-
-    public static let positionTitle = "Share"
-    public static let voteTitle = "Share vote"
-
-    public static func defaults(for subject: ShareSubject) -> (eyes: ShareEyes, format: ShareFormat) {
-        switch subject {
-        case .passedProposal: (ShareEyes(pnlDollars: false), .square)
-        case .openVote: (voteDefaults, .square)
-        default: (ShareEyes(), .post)
-        }
-    }
-
-    private static let voteDefaults = ShareEyes(pnlDollars: false, buySell: false)
-
     public func load() async {
-        switch subject {
-        case .position(let cabalID, let symbol):
-            await run { try await self.loadPosition(cabalID: cabalID, symbol: symbol) }
-        case .passedProposal(let id), .openVote(let id):
-            await run { try await self.loadProposal(id: id) }
-        case .stake, .portfolio:
-            return
-        }
-    }
-
-    private func run(_ work: () async throws -> Loaded) async {
+        guard case .position(let cabalID, let symbol) = subject else { return }
         generation += 1
         let issued = generation
         state = .loading
         do {
-            let loaded = try await work()
+            let loaded = try await loadPosition(cabalID: cabalID, symbol: symbol)
             guard issued == generation, !Task.isCancelled else { return }
-            apply(loaded)
+            self.loaded = loaded
+            shareURL = loaded.shareURL
+            rebuild()
         } catch {
             guard issued == generation, !Task.isCancelled else { return }
             state = .failed(APIError(error))
         }
     }
 
-    private func apply(_ loaded: Loaded) {
-        self.loaded = loaded
-        loadedKind = loaded.kind
-        shareURL = loaded.shareURL
-        if loaded.kind != .position {
-            self.eyes = loaded.kind == .vote ? Self.voteDefaults : Self.defaults(for: .passedProposal(id: "")).eyes
-            format = .square
-        }
-        rebuild()
-    }
-
     private func rebuild() {
         guard let loaded else { return }
-        switch loaded.content {
-        case .position(let position, let trades, let truncated):
-            state = .loaded(
-                SharePositionBuilder.build(
-                    position: position, trades: trades, chart: loaded.chart, code: loaded.code, eyes: eyes,
-                    truncated: truncated, now: now(), timeZone: timeZone))
-        case .passed(let proposal, let photo):
-            state = .loaded(
-                SharePassedBuilder.build(
-                    proposal: proposal, crest: loaded.crest, proposerPhoto: photo, chart: loaded.chart,
-                    code: loaded.code, eyes: eyes, timeZone: timeZone))
-        case .vote(let proposal):
-            state = .loaded(
-                ShareVoteBuilder.build(
-                    proposal: proposal, crest: loaded.crest, chart: loaded.chart, code: loaded.code, eyes: eyes,
-                    now: now(), timeZone: timeZone))
-        }
-    }
-
-    private enum CardKind {
-        case position
-        case passed
-        case vote
-    }
-
-    private enum Content: Sendable {
-        case position(SharePosition, trades: [ShareTrade], truncated: Bool)
-        case passed(Components.Schemas.ProposalDetail, photo: URL?)
-        case vote(Components.Schemas.ProposalDetail)
+        state = .loaded(
+            SharePositionBuilder.build(
+                position: loaded.position, trades: loaded.trades, chart: loaded.chart, code: loaded.code, eyes: eyes,
+                truncated: loaded.truncated, now: now(), timeZone: timeZone))
     }
 
     private struct Loaded: Sendable {
-        let content: Content
-        let crest: ShareCrest
+        let position: SharePosition
+        let trades: [ShareTrade]
         let chart: [ShareChartPoint]
         let code: String?
         let shareURL: URL?
-
-        var kind: CardKind {
-            switch content {
-            case .position: .position
-            case .passed: .passed
-            case .vote: .vote
-            }
-        }
+        let truncated: Bool
     }
 
     private struct Trades: Sendable {
@@ -180,36 +101,8 @@ public final class ShareScreenModel {
             avgEntryMicros: holding.avgEntryMicros.flatMap { Int64($0) }, priceMicros: holding.priceMicros,
             firstBoughtAt: holding.firstBoughtAt)
         return Loaded(
-            content: .position(position, trades: tradeValue.items, truncated: tradeValue.truncated),
-            crest: position.crest, chart: chart, code: link?.value.uppercased(),
-            shareURL: link.map { ReferralLink.url(for: $0, cabalID: cabalID) })
-    }
-
-    private func loadProposal(id: String) async throws -> Loaded {
-        let api = api
-        let proposal = try await api.read { try await $0.getProposal(path: .init(id: id)).ok.body.json }
-        let isOpen = proposal.status == .open
-        guard isOpen || SharePassedBuilder.isPassed(proposal.status) else {
-            throw APIError.decoding("nothing to share for a \(proposal.status.rawValue) proposal")
-        }
-        let (cabalID, symbol, now) = (proposal.cabalId, proposal.symbol, now())
-        async let cabal = api.read { try await $0.getCabal(path: .init(id: cabalID)).ok.body.json }
-        async let referral = try? api.read { try await $0.getMyReferralCode().ok.body.json }
-        let chart = try await Self.fetchChart(
-            api: api, symbol: symbol, since: isOpen ? now : proposal.createdAt, now: now)
-        let cabalValue = try await cabal
-        let link = await referral.flatMap(Self.link)
-        let crest = ShareCrest(
-            cabalID: cabalID, name: cabalValue.name, pictureURL: cabalValue.pictureUrl.flatMap(URL.init(string:)))
-        if isOpen {
-            return Loaded(
-                content: .vote(proposal), crest: crest, chart: chart, code: link?.value.uppercased(),
-                shareURL: link.map { ReferralLink.url(for: $0, cabalID: cabalID, proposalID: id) })
-        }
-        return Loaded(
-            content: .passed(proposal, photo: proposal.proposer.photoUrl.flatMap(URL.init(string:))), crest: crest,
-            chart: chart, code: link?.value.uppercased(),
-            shareURL: link.map { ReferralLink.url(for: $0, cabalID: cabalID) })
+            position: position, trades: tradeValue.items, chart: chart, code: link?.value.uppercased(),
+            shareURL: link.map { ReferralLink.url(for: $0, cabalID: cabalID) }, truncated: tradeValue.truncated)
     }
 
     private nonisolated static func link(_ code: Components.Schemas.MyReferralCode) -> ReferralCode? {
