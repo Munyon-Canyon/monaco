@@ -174,7 +174,10 @@ func (m *Module) Consumers() []bus.Consumer {
 func (m *Module) Pollers() []poller.Poller {
 	hints := adapters.Hints{Publish: m.deps.Bus}
 	app.ObserveOpenProposals(otel.GetMeterProvider().Meter(meterName), app.NewDashboard(m.deps.Pool))
-	return []poller.Poller{app.NewExpiryPoller(m.deps.UoW, m.deps.Pool, m.deps.Clock, hints)}
+	return []poller.Poller{
+		app.NewExpiryPoller(m.deps.UoW, m.deps.Pool, m.deps.Clock, hints),
+		app.NewCloseReminderPoller(m.deps.UoW, m.deps.Pool, m.deps.Clock),
+	}
 }
 
 func (m *Module) CatchUp() adapters.CatchUp {

@@ -1,0 +1,2 @@
+id	flow	module	trigger	command	events	consumers	outcomes	status	doc
+10b	Remind before close	governance	PUT /v1/proposals/{id}/reminder;DELETE /v1/proposals/{id}/reminder;poller:governance.close_reminders	SetReminder;ClearReminder;CloseReminderPoller	proposal.close_reminder_due	notify	ok;Unauthorized;ProposalNotFound;NotAVoter;ProposalClosed	built	docs/architecture/proposals.md#remind-before-close

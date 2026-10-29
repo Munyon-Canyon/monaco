@@ -11,6 +11,7 @@ func governanceRegistrations() []Registration {
 		Register[ProposalExecuted](TypeProposalExecuted, 1),
 		Register[ProposalExecutionBlocked](TypeProposalExecutionBlocked, 1),
 		Register[ProposalReopened](TypeProposalReopened, 1),
+		Register[ProposalCloseReminderDue](TypeProposalCloseReminderDue, 1),
 		Register[VoteCast](TypeVoteCast, 1),
 		Register[VoteRetracted](TypeVoteRetracted, 1),
 	}

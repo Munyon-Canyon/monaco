@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const deleteReminder = `-- name: DeleteReminder :execrows
@@ -23,6 +24,101 @@ type DeleteReminderParams struct {
 
 func (q *Queries) DeleteReminder(ctx context.Context, arg DeleteReminderParams) (int64, error) {
 	result, err := q.db.Exec(ctx, deleteReminder, arg.ProposalID, arg.UserID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const dueReminders = `-- name: DueReminders :many
+SELECT proposal_id, user_id FROM proposal_close_reminders
+WHERE due_at <= $1 AND sent_at IS NULL
+ORDER BY due_at
+LIMIT $2
+`
+
+type DueRemindersParams struct {
+	Now   time.Time
+	Batch int32
+}
+
+type DueRemindersRow struct {
+	ProposalID uuid.UUID
+	UserID     uuid.UUID
+}
+
+func (q *Queries) DueReminders(ctx context.Context, arg DueRemindersParams) ([]DueRemindersRow, error) {
+	rows, err := q.db.Query(ctx, dueReminders, arg.Now, arg.Batch)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []DueRemindersRow
+	for rows.Next() {
+		var i DueRemindersRow
+		if err := rows.Scan(&i.ProposalID, &i.UserID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const hasBallot = `-- name: HasBallot :one
+SELECT EXISTS (SELECT 1 FROM votes WHERE proposal_id = $1 AND voter_id = $2)
+`
+
+type HasBallotParams struct {
+	ProposalID uuid.UUID
+	VoterID    uuid.UUID
+}
+
+func (q *Queries) HasBallot(ctx context.Context, arg HasBallotParams) (bool, error) {
+	row := q.db.QueryRow(ctx, hasBallot, arg.ProposalID, arg.VoterID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
+const lockReminder = `-- name: LockReminder :one
+SELECT due_at, sent_at FROM proposal_close_reminders
+WHERE proposal_id = $1 AND user_id = $2
+FOR UPDATE
+`
+
+type LockReminderParams struct {
+	ProposalID uuid.UUID
+	UserID     uuid.UUID
+}
+
+type LockReminderRow struct {
+	DueAt  time.Time
+	SentAt pgtype.Timestamptz
+}
+
+func (q *Queries) LockReminder(ctx context.Context, arg LockReminderParams) (LockReminderRow, error) {
+	row := q.db.QueryRow(ctx, lockReminder, arg.ProposalID, arg.UserID)
+	var i LockReminderRow
+	err := row.Scan(&i.DueAt, &i.SentAt)
+	return i, err
+}
+
+const markReminderSent = `-- name: MarkReminderSent :execrows
+UPDATE proposal_close_reminders SET sent_at = $1::timestamptz
+WHERE proposal_id = $2 AND user_id = $3 AND sent_at IS NULL
+`
+
+type MarkReminderSentParams struct {
+	Now        time.Time
+	ProposalID uuid.UUID
+	UserID     uuid.UUID
+}
+
+func (q *Queries) MarkReminderSent(ctx context.Context, arg MarkReminderSentParams) (int64, error) {
+	result, err := q.db.Exec(ctx, markReminderSent, arg.Now, arg.ProposalID, arg.UserID)
 	if err != nil {
 		return 0, err
 	}
