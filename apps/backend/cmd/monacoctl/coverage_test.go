@@ -55,6 +55,7 @@ func TestCheckCoverageNamesEachUncoveredBlockAndMergesProfiles(t *testing.T) {
 		dir,
 		[]string{filepath.Join(dir, "unit.out"), filepath.Join(dir, "e2e.out")},
 		nil,
+		nil,
 		&out,
 	)
 	want := "cmd/api/main.go:5-6: 2 statements not covered\n" +
@@ -73,6 +74,7 @@ func TestCheckCoverageKeepsABlockCoveredWhicheverProfileHitIt(t *testing.T) {
 		dir,
 		[]string{filepath.Join(dir, "e2e.out"), filepath.Join(dir, "unit.out")},
 		nil,
+		nil,
 		&out,
 	); err != nil {
 		t.Fatal(err)
@@ -86,7 +88,7 @@ func TestCheckCoverageIsCleanAtFullCoverage(t *testing.T) {
 	t.Parallel()
 	dir := coverDir(t, map[string]string{"c.out": "mode: set\n\n" + coverModule + "/internal/a/a.go:1.1,2.2 3 1\n"})
 	var out bytes.Buffer
-	missed, err := checkCoverage(dir, []string{filepath.Join(dir, "c.out")}, nil, &out)
+	missed, err := checkCoverage(dir, []string{filepath.Join(dir, "c.out")}, nil, nil, &out)
 	if err != nil || missed != 0 || out.String() != "coverage: 100.00% of 3 statements\n" {
 		t.Fatalf("missed=%d err=%v out=%q", missed, err, out.String())
 	}
@@ -95,6 +97,7 @@ func TestCheckCoverageIsCleanAtFullCoverage(t *testing.T) {
 	if missed, err := checkCoverage(
 		empty,
 		[]string{filepath.Join(empty, "c.out")},
+		nil,
 		nil,
 		&out,
 	); err != nil ||
@@ -136,7 +139,7 @@ func TestCheckCoverageRejectsBrokenInputs(t *testing.T) {
 		if err := tc.setup(dir); err != nil {
 			t.Fatal(err)
 		}
-		_, err := checkCoverage(dir, []string{filepath.Join(dir, "c.out")}, nil, &bytes.Buffer{})
+		_, err := checkCoverage(dir, []string{filepath.Join(dir, "c.out")}, nil, nil, &bytes.Buffer{})
 		if err == nil || errs.CodeOf(err) != tc.code {
 			t.Fatalf("%s: err = %v, want code %s", tc.name, err, tc.code)
 		}
@@ -146,6 +149,13 @@ func TestCheckCoverageRejectsBrokenInputs(t *testing.T) {
 func writeProfile(line string) func(dir string) error {
 	return func(dir string) error {
 		return os.WriteFile(filepath.Join(dir, "c.out"), []byte("mode: set\n"+line+"\n"), 0o600)
+	}
+}
+
+func TestCoverageUsageNamesTheChangedFlag(t *testing.T) {
+	t.Parallel()
+	if !strings.Contains(coverageUsage, "--changed") {
+		t.Fatal(coverageUsage)
 	}
 }
 
@@ -170,8 +180,13 @@ func TestCoverageCommand(t *testing.T) {
 	dir := coverDir(
 		t,
 		map[string]string{
-			"unit.out": unitProfile,
-			"full.out": "mode: set\n" + coverModule + "/a.go:1.1,2.2 1 1\n",
+			"unit.out":        unitProfile,
+			"inside.changed":  "\ninternal/a/a.go:11-11\n\n",
+			"outside.changed": "internal/a/a.go:1-5\n",
+			"other.changed":   "internal/b/b.go:1-9\n",
+			"nocolon.changed": "garbage\n",
+			"nonnum.changed":  "a.go:x-y\n",
+			"full.out":        "mode: set\n" + coverModule + "/a.go:1.1,2.2 1 1\n",
 			"mixed.out": "mode: set\n" + coverModule + "/internal/b/b.go:1.1,2.2 2 1\n" +
 				coverModule + "/cmd/api/main.go:5.2,6.3 2 0\n",
 		},
@@ -214,6 +229,49 @@ func TestCoverageCommand(t *testing.T) {
 			0, "coverage: 100.00% of 0 statements\n", "",
 		},
 		{
+			"changed range holding an uncovered block fails",
+			[]string{"--profile", filepath.Join(dir, "unit.out"), "--changed", filepath.Join(dir, "inside.changed")},
+			1,
+			"internal/a/a.go:10-12: 2 statements not covered\ncoverage: 0.00% of 2 statements\n",
+			"monacoctl coverage: 2 statements uncovered, the gate is 100%\n",
+		},
+		{
+			"changed range beside the uncovered blocks of the same file passes",
+			[]string{"--profile", filepath.Join(dir, "unit.out"), "--changed", filepath.Join(dir, "outside.changed")},
+			0, "coverage: 100.00% of 1 statements\n", "",
+		},
+		{
+			"files without a range are skipped",
+			[]string{"--profile", filepath.Join(dir, "unit.out"), "--changed", filepath.Join(dir, "other.changed")},
+			0, "coverage: 100.00% of 0 statements\n", "",
+		},
+		{
+			"changed combines with only",
+			[]string{
+				"--profile", filepath.Join(dir, "unit.out"), "--only", "cmd/api/main.go",
+				"--changed", filepath.Join(dir, "inside.changed"),
+			},
+			0, "coverage: 100.00% of 0 statements\n", "",
+		},
+		{
+			"missing changed file",
+			[]string{"--profile", filepath.Join(dir, "unit.out"), "--changed", filepath.Join(dir, "gone.changed")},
+			1, "",
+			"monacoctl coverage: monacoctl.readChangedRanges: internal: open " + filepath.Join(dir, "gone.changed") +
+				": no such file or directory\n",
+		},
+		{
+			"changed line without a colon",
+			[]string{"--profile", filepath.Join(dir, "unit.out"), "--changed", filepath.Join(dir, "nocolon.changed")},
+			1, "",
+			"monacoctl coverage: monacoctl.readChangedRanges: decode_failed",
+		},
+		{
+			"changed line with a non-numeric range",
+			[]string{"--profile", filepath.Join(dir, "unit.out"), "--changed", filepath.Join(dir, "nonnum.changed")},
+			1, "", "monacoctl coverage: monacoctl.readChangedRanges: decode_failed",
+		},
+		{
 			"missing profile",
 			[]string{"--profile", filepath.Join(dir, "gone.out")},
 			1, "",
@@ -235,7 +293,8 @@ func TestCoverageCommand(t *testing.T) {
 	} {
 		var stdout, stderr bytes.Buffer
 		code := fakeGoEnv(t, dir).run(tc.args, &stdout, &stderr)
-		if code != tc.code || !strings.HasSuffix(stdout.String(), tc.stdout) || stderr.String() != tc.stderr {
+		if code != tc.code || !strings.HasSuffix(stdout.String(), tc.stdout) ||
+			!strings.HasPrefix(stderr.String(), tc.stderr) {
 			t.Fatalf("%s: code=%d stdout=%q stderr=%q", tc.name, code, stdout.String(), stderr.String())
 		}
 	}

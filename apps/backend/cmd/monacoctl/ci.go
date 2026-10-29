@@ -21,7 +21,7 @@ import (
 )
 
 const (
-	ciUsage      = "usage: monacoctl ci affected --base <ref> [--excluded]"
+	ciUsage      = "usage: monacoctl ci affected --base <ref> [--excluded | --scoped]"
 	allPackages  = "./..."
 	scanSentinel = "scansModuleSource"
 )
@@ -72,14 +72,19 @@ func ciTool(env ciEnv) tool {
 		fs.SetOutput(io.Discard)
 		base := fs.String("base", "", "")
 		excluded := fs.Bool("excluded", false, "")
-		if fs.Parse(args[1:]) != nil || fs.NArg() != 0 || *base == "" {
+		scopedOnly := fs.Bool("scoped", false, "")
+		if fs.Parse(args[1:]) != nil || fs.NArg() != 0 || *base == "" || *excluded && *scopedOnly {
 			_, _ = fmt.Fprintln(stderr, ciUsage)
 			return 2
 		}
-		pkgs, skipped, err := env.affected(context.Background(), *base)
+		pkgs, skipped, scoped, err := env.affected(context.Background(), *base)
 		if err != nil {
 			_, _ = fmt.Fprintf(stderr, "monacoctl ci affected: %v\n", err)
 			return 1
+		}
+		if *scopedOnly {
+			_, _ = fmt.Fprintln(stdout, scoped)
+			return 0
 		}
 		if *excluded {
 			pkgs = skipped
@@ -91,37 +96,39 @@ func ciTool(env ciEnv) tool {
 	}
 }
 
-func (env ciEnv) affected(ctx context.Context, base string) (selected, excluded []string, err error) {
+func (env ciEnv) affected(ctx context.Context, base string) (selected, excluded []string, scoped bool, err error) {
 	const op = "monacoctl.ciAffected"
 	diff, err := env.exec(ctx, env.moduleDir, nil, env.gitBin,
 		"diff", "--name-only", "--relative", base+"...HEAD", "--", ".")
 	if err != nil {
-		return nil, nil, errs.Wrap(err, errs.CodeInternal, op)
+		return nil, nil, false, errs.Wrap(err, errs.CodeInternal, op)
 	}
 	rows, err := env.exec(ctx, env.moduleDir, nil, env.gitBin,
 		"diff", "--name-only", base+"...HEAD", "--", ":(top)"+flows.Dir)
 	if err != nil {
-		return nil, nil, errs.Wrap(err, errs.CodeInternal, op)
+		return nil, nil, false, errs.Wrap(err, errs.CodeInternal, op)
 	}
 	changed := slices.Concat(strings.Fields(string(diff)), strings.Fields(string(rows)))
 	if len(changed) == 0 {
-		return nil, nil, nil
+		return nil, nil, false, nil
 	}
 	listed, err := env.exec(ctx, env.moduleDir, nil, env.goBin,
 		"list", "-deps", "-json=ImportPath,Imports,TestImports,XTestImports,Module", allPackages)
 	if err != nil {
-		return nil, nil, errs.Wrap(err, errs.CodeInternal, op)
+		return nil, nil, false, errs.Wrap(err, errs.CodeInternal, op)
 	}
 	pkgs, err := decodePackages(listed)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, false, err
 	}
 	scanners, err := env.scanners(ctx, base, changed)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, false, err
 	}
-	selected, excluded = reverseDeps(pkgs, changed, env.changedFlows(ctx, changed), scanners...)
-	return selected, excluded, nil
+	parsed := env.changedFlows(ctx, changed)
+	_, _, _, scoped, _ = seedPackages(pkgs, changed, parsed)
+	selected, excluded = reverseDeps(pkgs, changed, parsed, scanners...)
+	return selected, excluded, scoped, nil
 }
 
 func (env ciEnv) changedFlows(ctx context.Context, changed []string) []flows.Flow {

@@ -54,6 +54,8 @@ type checkHarness struct {
 	affected    string
 	excluded    string
 	excludedErr error
+	scoped      string
+	scopedErr   error
 	affectedErr error
 	replies     []reply
 	goos        string
@@ -126,6 +128,9 @@ func (h *checkHarness) run(ctx context.Context, dir, stdin, name string, args ..
 		h.onCall(line)
 	}
 	if strings.HasPrefix(line, "ci affected") {
+		if strings.HasSuffix(line, "--scoped") {
+			return []byte(h.scoped), h.scopedErr
+		}
 		if strings.HasSuffix(line, "--excluded") {
 			return []byte(h.excluded), errors.Join(h.affectedErr, h.excludedErr)
 		}
@@ -437,6 +442,7 @@ func TestCheck_runsTheCheapRowForEachChangedPathAndRecordsTheTree(t *testing.T) 
 		"apps/backend: go list -f " + importListFormat + " ./...",
 		"apps/backend: go env GOPATH",
 		"apps/backend: golangci-lint version --short",
+		"apps/backend: ci affected --base origin/fb --scoped",
 		pr + "check-gate-changes.py",
 		pr + "check-legacy-growth.py",
 		"apps/backend: go build -o /dev/null -tags faultpoints ./internal/x ./cmd/api",
@@ -2939,5 +2945,93 @@ func TestCheck_webRowWithoutNpmFailsNamingJustInstall(t *testing.T) {
 	h.check(t)
 	if !strings.Contains(strings.Join(h.calls, "\n"), "just install") {
 		t.Fatalf("failing row does not name just install\n%s", strings.Join(h.calls, "\n"))
+	}
+}
+
+func (h *checkHarness) changedFile(t *testing.T) string {
+	t.Helper()
+	return filepath.Join(h.stateDir(t, "coverage"), h.head(t)[:12]+".changed")
+}
+
+func TestCheck_aScopedSelectionJudgesCoverageOnTheChangedLinesOnly(t *testing.T) {
+	t.Parallel()
+	h := newCheckHarness(t)
+	h.base(t, map[string]string{
+		"apps/backend/internal/a/a.go":      "package a\n\nfunc A() {}\n\nfunc B() {}\n",
+		"apps/backend/internal/a/a_test.go": "package a\n",
+	})
+	h.commit(t, map[string]string{
+		"apps/backend/internal/a/a.go":      "package a\n\nfunc A() int { return 1 }\n\nfunc B() {}\n\nfunc C() {}\n",
+		"apps/backend/internal/a/a_test.go": "package a\n\nfunc T() {}\n",
+		"apps/backend/internal/a/c.go":      "package a\n",
+	})
+	h.affected = "./internal/a\n"
+	h.scoped = "true\n"
+	code, stdout, stderr := h.check(t)
+	if code != 0 {
+		t.Fatalf("check: %d %q %q", code, stdout, stderr)
+	}
+	want := "apps/backend: coverage --profile " + h.profile(t) +
+		" --only internal/a/a.go --only internal/a/c.go --changed " + h.changedFile(t)
+	if !slices.Contains(h.calls, want) ||
+		!strings.Contains(stdout, "coverage        coverage judges changed lines only (scoped selection)\n") {
+		t.Fatalf("calls: %s\nstdout %s\nwant %s", strings.Join(h.calls, "\n"), stdout, want)
+	}
+	got, err := os.ReadFile(h.changedFile(t))
+	if err != nil || string(got) != "internal/a/a.go:3-3\ninternal/a/a.go:6-7\ninternal/a/c.go:1-1\n" {
+		t.Fatalf("changed file %q: %v", got, err)
+	}
+}
+
+func TestCheck_anUnscopedSelectionJudgesCoverageAsBefore(t *testing.T) {
+	t.Parallel()
+	h := newCheckHarness(t)
+	h.commit(t, map[string]string{"apps/backend/internal/a/a.go": "package a\n"})
+	h.affected = "./internal/a\n"
+	h.scoped = "false\n"
+	code, stdout, stderr := h.check(t)
+	want := "apps/backend: coverage --profile " + h.profile(t) + " --only internal/a/a.go"
+	if code != 0 || !slices.Contains(h.calls, want) || strings.Contains(stdout, "changed lines only") {
+		t.Fatalf("check: %d %q %q\n%s", code, stdout, stderr, strings.Join(h.calls, "\n"))
+	}
+	if _, err := os.Stat(h.changedFile(t)); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("a changed file was written: %v", err)
+	}
+}
+
+func TestCheck_theChangedLinesStepFailsTheCheckWithItsError(t *testing.T) {
+	t.Parallel()
+	h := newCheckHarness(t)
+	h.commit(t, map[string]string{"apps/backend/internal/a/a.go": "package a\n"})
+	h.affected = "./internal/a\n"
+	h.scoped = "true\n"
+	h.scopedErr = errors.New("scoped broke")
+	if code, _, stderr := h.check(t); code != 1 || !strings.Contains(stderr, "find whether the selection is scoped") {
+		t.Fatalf("scoped fails: %d %q", code, stderr)
+	}
+	h.scopedErr = nil
+	h.replies = []reply{{prefix: "git diff -U0", err: errors.New("diff broke")}}
+	if code, _, stderr := h.check(t); code != 1 || !strings.Contains(stderr, "diff the changed lines") {
+		t.Fatalf("diff fails: %d %q", code, stderr)
+	}
+	h.replies = nil
+	if err := os.MkdirAll(h.changedFile(t), 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if code, _, stderr := h.check(t); code != 1 || !strings.Contains(stderr, "write "+h.changedFile(t)) {
+		t.Fatalf("unwritable changed file: %d %q", code, stderr)
+	}
+}
+
+func TestChangedRanges_readsAddedAndChangedHunksOfNonTestFiles(t *testing.T) {
+	t.Parallel()
+	diff := "diff --git a/x.go b/x.go\n--- a/x.go\n+++ b/x.go\n" +
+		"@@ -3 +3 @@ func A()\n-old\n+new\n" +
+		"@@ -8,2 +8,0 @@\n-gone\n-gone\n" +
+		"@@ -20,0 +21,3 @@\n+a\n+b\n+c\n" +
+		"diff --git a/x_test.go b/x_test.go\n--- a/x_test.go\n+++ b/x_test.go\n@@ -1 +1 @@\n-a\n+b\n" +
+		"diff --git a/old.go b/old.go\n--- a/old.go\n+++ /dev/null\n@@ -1,2 +0,0 @@\n-a\n-b\n"
+	if got := changedRanges(diff); got != "x.go:3-3\nx.go:21-23\n" {
+		t.Fatalf("got %q", got)
 	}
 }

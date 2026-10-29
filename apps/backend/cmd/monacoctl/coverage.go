@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	coverageUsage   = "usage: monacoctl coverage --profile cover.out [--covdir dir]... [--only file]..."
+	coverageUsage   = "usage: monacoctl coverage --profile cover.out [--covdir dir]... [--only file]... [--changed ranges]"
 	coverageExclude = "coverage.exclude"
 )
 
@@ -54,6 +54,7 @@ func (env coverageEnv) run(args []string, stdout, stderr io.Writer) int {
 	fs.Var(&covdirs, "covdir", "")
 	var only dirList
 	fs.Var(&only, "only", "")
+	changed := fs.String("changed", "", "")
 	if fs.Parse(args) != nil || *profile == "" || fs.NArg() != 0 {
 		_, _ = fmt.Fprintln(stderr, coverageUsage)
 		return 2
@@ -68,7 +69,15 @@ func (env coverageEnv) run(args []string, stdout, stderr io.Writer) int {
 		}
 		profiles = append(profiles, text)
 	}
-	missed, err := checkCoverage(env.moduleDir, profiles, only, stdout)
+	var ranges map[string][]lineSpan
+	if *changed != "" {
+		var err error
+		if ranges, err = readChangedRanges(*changed); err != nil {
+			_, _ = fmt.Fprintf(stderr, "monacoctl coverage: %v\n", err)
+			return 1
+		}
+	}
+	missed, err := checkCoverage(env.moduleDir, profiles, only, ranges, stdout)
 	if err != nil {
 		_, _ = fmt.Fprintf(stderr, "monacoctl coverage: %v\n", err)
 		return 1
@@ -102,7 +111,12 @@ func (env coverageEnv) covdataText(ctx context.Context, dirs []string) (string, 
 	return file.Name(), nil
 }
 
-func checkCoverage(moduleDir string, profiles, only []string, stdout io.Writer) (int, error) {
+func checkCoverage(
+	moduleDir string,
+	profiles, only []string,
+	changed map[string][]lineSpan,
+	stdout io.Writer,
+) (int, error) {
 	const op = "monacoctl.checkCoverage"
 	module, err := modulePath(filepath.Join(moduleDir, "go.mod"))
 	if err != nil {
@@ -118,7 +132,7 @@ func checkCoverage(moduleDir string, profiles, only []string, stdout io.Writer) 
 			return 0, err
 		}
 	}
-	return cov.report(module, strings.Fields(string(exclude)), only, stdout), nil
+	return cov.report(module, strings.Fields(string(exclude)), only, changed, stdout), nil
 }
 
 func modulePath(goMod string) (string, error) {
@@ -208,12 +222,45 @@ func excluded(rel string, patterns []string) bool {
 	return false
 }
 
-func (c coverage) report(module string, exclude, only []string, w io.Writer) int {
+type lineSpan struct{ start, end int }
+
+func readChangedRanges(name string) (map[string][]lineSpan, error) {
+	const op = "monacoctl.readChangedRanges"
+	data, err := os.ReadFile(name)
+	if err != nil {
+		return nil, errs.Wrap(err, errs.CodeInternal, op)
+	}
+	ranges := map[string][]lineSpan{}
+	for line := range strings.Lines(string(data)) {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		file, span, ok := strings.Cut(line, ":")
+		start, end, ok2 := strings.Cut(span, "-")
+		from, err := strconv.Atoi(start)
+		to, err2 := strconv.Atoi(end)
+		if !ok || !ok2 || err != nil || err2 != nil {
+			return nil, errs.New(errs.CodeDecodeFailed, op, slog.String("line", line))
+		}
+		ranges[file] = append(ranges[file], lineSpan{from, to})
+	}
+	return ranges, nil
+}
+
+func touches(b coverBlock, spans []lineSpan) bool {
+	return slices.ContainsFunc(spans, func(s lineSpan) bool { return b.startLine <= s.end && s.start <= b.endLine })
+}
+
+func (c coverage) report(module string, exclude, only []string, changed map[string][]lineSpan, w io.Writer) int {
 	var missed []coverBlock
 	total, uncovered := 0, 0
 	for _, b := range c {
 		b.file = strings.TrimPrefix(b.file, module+"/")
 		if excluded(b.file, exclude) || len(only) > 0 && !slices.Contains(only, b.file) {
+			continue
+		}
+		if changed != nil && !touches(b, changed[b.file]) {
 			continue
 		}
 		total += b.stmts
