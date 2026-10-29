@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io/fs"
 	"os"
 	"path"
@@ -264,7 +265,7 @@ func TestReverseDepsSeedsNonGoFilesFromTheirPackage(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			if got, _ := reverseDeps(byDir, tc.changed); !slices.Equal(got, tc.want) {
+			if got, _ := reverseDeps(byDir, tc.changed, nil); !slices.Equal(got, tc.want) {
 				t.Fatalf("reverseDeps(%v) = %v, want %v", tc.changed, got, tc.want)
 			}
 		})
@@ -423,7 +424,7 @@ func TestAffectedLeavesTheAgentToolingOutUnlessItsOwnInputsChanged(t *testing.T)
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			selected, excluded := reverseDeps(byDir, tc.changed)
+			selected, excluded := reverseDeps(byDir, tc.changed, nil)
 			if !slices.Equal(selected, tc.selected) || !slices.Equal(excluded, tc.excluded) {
 				t.Fatalf("reverseDeps(%v) = %v excluding %v, want %v excluding %v",
 					tc.changed, selected, excluded, tc.selected, tc.excluded)
@@ -538,7 +539,7 @@ func TestReverseDepsSeedsPerModuleSharedFilesFromTheirModule(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			if got, _ := reverseDeps(byDir, tc.changed); !slices.Equal(got, tc.want) {
+			if got, _ := reverseDeps(byDir, tc.changed, nil); !slices.Equal(got, tc.want) {
 				t.Fatalf("reverseDeps(%v) = %v, want %v", tc.changed, got, tc.want)
 			}
 		})
@@ -644,7 +645,7 @@ func TestReverseDepsSelectsASpecChangeFromItsModule(t *testing.T) {
 	selected, excluded := reverseDeps(specGraph(), []string{
 		"api/spec/ranking.yaml", "api/openapi.yaml",
 		"internal/platform/httpx/api/rankingapi/api.gen.go",
-	})
+	}, nil)
 	want := []string{
 		"./api", "./internal/modules/ranking", "./internal/modules/social",
 		"./internal/platform/httpx/api/apiall", "./internal/platform/httpx/api/rankingapi",
@@ -662,19 +663,19 @@ func TestReverseDepsSelectsASpecChangeFromItsModule(t *testing.T) {
 func TestReverseDepsSpecChangeWithoutAModulePackageKeepsTheBundleSeed(t *testing.T) {
 	t.Parallel()
 	byDir := specGraph()
-	selected, _ := reverseDeps(byDir, []string{"api/spec/ghost.yaml"})
+	selected, _ := reverseDeps(byDir, []string{"api/spec/ghost.yaml"}, nil)
 	if !slices.Contains(selected, "./internal/modules/funding") || !slices.Contains(selected, "./api") {
 		t.Fatalf("selected %v", selected)
 	}
 	delete(byDir, "api")
-	if got, _ := reverseDeps(byDir, []string{"api/spec/ranking.yaml"}); !slices.Equal(got, []string{allPackages}) {
+	if got, _ := reverseDeps(byDir, []string{"api/spec/ranking.yaml"}, nil); !slices.Equal(got, []string{allPackages}) {
 		t.Fatalf("selected %v", got)
 	}
 }
 
 func TestReverseDepsSelectsEveryImporterOfAHandEditedBundle(t *testing.T) {
 	t.Parallel()
-	selected, _ := reverseDeps(specGraph(), []string{"api/openapi.yaml"})
+	selected, _ := reverseDeps(specGraph(), []string{"api/openapi.yaml"}, nil)
 	for _, dir := range []string{"./internal/modules/funding", "./internal/modules/treasury", "./cmd/monacoctl"} {
 		if !slices.Contains(selected, dir) {
 			t.Fatalf("selected %v without %s", selected, dir)
@@ -684,7 +685,7 @@ func TestReverseDepsSelectsEveryImporterOfAHandEditedBundle(t *testing.T) {
 
 func TestReverseDepsSelectsEveryModuleForTheBaseSpec(t *testing.T) {
 	t.Parallel()
-	selected, _ := reverseDeps(specGraph(), []string{"api/spec/base.yaml"})
+	selected, _ := reverseDeps(specGraph(), []string{"api/spec/base.yaml"}, nil)
 	for _, dir := range []string{"./internal/modules/funding", "./internal/modules/treasury", "./internal/modules/ranking"} {
 		if !slices.Contains(selected, dir) {
 			t.Fatalf("selected %v without %s", selected, dir)
@@ -695,11 +696,160 @@ func TestReverseDepsSelectsEveryModuleForTheBaseSpec(t *testing.T) {
 func TestReverseDepsSelectsEveryModuleForAHarnessOrSharedChange(t *testing.T) {
 	t.Parallel()
 	for _, changed := range []string{"internal/testkit/scenario/app.go", "internal/platform/httpx/problem.go"} {
-		selected, _ := reverseDeps(specGraph(), []string{changed})
+		selected, _ := reverseDeps(specGraph(), []string{changed}, nil)
 		for _, dir := range []string{"./internal/modules/funding", "./internal/modules/treasury", "./internal/modules/ranking"} {
 			if !slices.Contains(selected, dir) {
 				t.Fatalf("%s selected %v without %s", changed, selected, dir)
 			}
 		}
+	}
+}
+
+func flowSeedGraph() map[string]listedPackage {
+	const mod = "example.com/m/"
+	pkg := func(dir string, imports ...string) listedPackage {
+		p := listedPackage{ImportPath: mod + dir}
+		for _, i := range imports {
+			p.Imports = append(p.Imports, mod+i)
+		}
+		return p
+	}
+	byDir := map[string]listedPackage{
+		"internal/testkit/fakes":    pkg("internal/testkit/fakes"),
+		"internal/testkit/scenario": pkg("internal/testkit/scenario"),
+		"internal/testkit":          pkg("internal/testkit", "internal/testkit/fakes", "internal/testkit/scenario"),
+		"internal/testkit/flows":    pkg("internal/testkit/flows", "internal/testkit"),
+		"internal/tools/flows":      pkg("internal/tools/flows"),
+		"cmd/gen":                   pkg("cmd/gen", "internal/tools/flows"),
+		"cmd/monacoctl":             pkg("cmd/monacoctl", "internal/tools/flows", "internal/testkit/flows"),
+		"cmd/monacoctl/agents":      pkg("cmd/monacoctl/agents", "internal/tools/flows"),
+		"cmd/monacoctl/verify":      pkg("cmd/monacoctl/verify", "internal/tools/flows"),
+		"internal/tools/gen":        pkg("internal/tools/gen", "internal/tools/flows"),
+	}
+	for _, m := range []string{"cabal", "notify", "funding"} {
+		byDir["internal/modules/"+m] = pkg("internal/modules/"+m, "internal/testkit/flows")
+		byDir["internal/modules/"+m+"/app"] = pkg("internal/modules/"+m+"/app", "internal/testkit/flows")
+	}
+	return byDir
+}
+
+func TestReverseDepsScopesAFlowsFilesToItsModules(t *testing.T) {
+	t.Parallel()
+	byDir := flowSeedGraph()
+	parsed := []flows.Flow{{ID: "34", Module: "cabal", Consumers: []string{"notify.dispatch", "notify.other", "bare"}}}
+	cabalNotify := []string{
+		"./internal/modules/cabal", "./internal/modules/cabal/app",
+		"./internal/modules/notify", "./internal/modules/notify/app",
+	}
+	everyModule := slices.Concat(cabalNotify, []string{"./internal/modules/funding", "./internal/modules/funding/app"})
+	sorted := func(groups ...[]string) []string {
+		out := slices.Concat(groups...)
+		slices.Sort(out)
+		return out
+	}
+	tooling := []string{"./cmd/monacoctl"}
+	cases := []struct {
+		name         string
+		changed      []string
+		parsed       []flows.Flow
+		want, wantEx []string
+	}{
+		{
+			"a script, its generated file and its tsv row",
+			[]string{
+				"internal/testkit/flows/f34.go", "internal/testkit/flows/f34.gen.go", flows.Dir + "/34.tsv",
+			},
+			parsed,
+			sorted(cabalNotify, []string{
+				"./cmd/gen", "./internal/testkit/flows", "./internal/tools/flows", "./internal/tools/gen",
+			}),
+			[]string{"./cmd/monacoctl", "./cmd/monacoctl/agents", "./cmd/monacoctl/verify"},
+		},
+		{
+			"a named fixture",
+			[]string{"internal/testkit/fakes/testdata/fakes/privy/v1/users/qa-f34-ok.json"},
+			parsed, sorted(cabalNotify, []string{"./internal/testkit/fakes"}), nil,
+		},
+		{
+			"the scenario harness",
+			[]string{"internal/testkit/scenario/app.go"},
+			parsed,
+			sorted(everyModule, []string{
+				"./internal/testkit", "./internal/testkit/flows", "./internal/testkit/scenario",
+			}),
+			tooling,
+		},
+		{
+			"a fixture with no flow id",
+			[]string{"internal/testkit/fakes/testdata/fakes/privy/v1/users/other.json"},
+			parsed,
+			sorted(everyModule, []string{"./internal/testkit", "./internal/testkit/fakes", "./internal/testkit/flows"}),
+			tooling,
+		},
+		{
+			"a fixture whose flow id is only a prefix of another",
+			[]string{"internal/testkit/fakes/testdata/fakes/privy/v1/users/qa-f340-ok.json"},
+			parsed,
+			sorted(everyModule, []string{"./internal/testkit", "./internal/testkit/fakes", "./internal/testkit/flows"}),
+			tooling,
+		},
+		{
+			"a script of an unknown flow",
+			[]string{"internal/testkit/flows/f99.go"},
+			parsed,
+			sorted(everyModule, []string{"./cmd/monacoctl", "./internal/testkit/flows"}),
+			nil,
+		},
+		{
+			"a script without parsed flows",
+			[]string{"internal/testkit/flows/f34.go"},
+			nil,
+			sorted(everyModule, []string{"./cmd/monacoctl", "./internal/testkit/flows"}),
+			nil,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got, excluded := reverseDeps(byDir, tc.changed, tc.parsed)
+			if !slices.Equal(got, tc.want) || !slices.Equal(excluded, tc.wantEx) {
+				t.Fatalf("reverseDeps(%v) = %v excluding %v, want %v excluding %v",
+					tc.changed, got, excluded, tc.want, tc.wantEx)
+			}
+		})
+	}
+}
+
+func TestCIChangedFlowsReadsTheFlowsOfTheRepo(t *testing.T) {
+	t.Parallel()
+	repo := t.TempDir()
+	writeCIFile(t, repo, flows.Dir+"/01a.tsv", flows.Header+"\n"+
+		"01a\tSet handle\tidentity\tPUT /v1/me/handle\tSetHandle\tuser.profile_updated\t"+
+		"social.feed.profile_updated\tok;HandleInvalid\tverified\tdocs/architecture/auth.md#handle\n")
+	empty := t.TempDir()
+	top := func(dir string) execFunc {
+		return func(context.Context, string, []string, string, ...string) ([]byte, error) {
+			return []byte(dir + "\n"), nil
+		}
+	}
+	failing := func(context.Context, string, []string, string, ...string) ([]byte, error) {
+		return nil, errors.New("no git")
+	}
+	changed := []string{flows.Dir + "/01a.tsv"}
+	if got := (ciEnv{exec: top(repo)}).changedFlows(
+		context.Background(),
+		changed,
+	); len(got) != 1 ||
+		got[0].Module != "identity" {
+		t.Fatalf("changedFlows = %v, want the identity flow", got)
+	}
+	if got := (ciEnv{exec: top(empty)}).changedFlows(context.Background(), changed); got != nil {
+		t.Fatalf("changedFlows with no flow files = %v, want nil", got)
+	}
+	if got := (ciEnv{exec: failing}).changedFlows(context.Background(), changed); got != nil {
+		t.Fatalf("changedFlows with a failing git = %v, want nil", got)
+	}
+	if got := (ciEnv{exec: failing}).changedFlows(context.Background(), []string{"leaf/leaf.go"}); got != nil {
+		t.Fatalf("changedFlows with no flow file changed = %v, want nil", got)
 	}
 }
