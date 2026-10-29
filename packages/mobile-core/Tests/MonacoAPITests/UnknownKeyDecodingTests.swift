@@ -15,7 +15,7 @@ final class UnknownKeyDecodingTests: XCTestCase {
             + ##""ref_id":"01920000-0000-7000-8000-000000000008","cabal_id":null,"cabal_name":null,"cabal_picture_url":null,"##
             + ##""actor_id":null,"actor_name":null,"actor_photo_url":null,"asset_id":null,"asset_logo_url":null,"symbol":"AAPLx","##
             + ##""title":"Alpha Cabal bought $500 of AAPLx","detail":null,"body":null,"status":null,"##
-            + ##""tone":"neutral","action":null,"usdc_micros":null,"asset_name":null,"token_amount":null,"token_decimals":null,"price_micros":null,"share_of_pot_bps":null,"change_bps":null,"mark_micros":null,"prev_close_micros":null,"proposal_id":null,"comment_count":0,"thread_item_id":"01920000-0000-7000-8000-000000000007","reply_count":0,"can_reply":true,"can_react":true,"reply_rule":"anyone","reply_rule_cabal_name":null,"like_count":0,"liked_by_me":false,"reactions":[],"reaction_count":0,"return_1m_bps":null,"return_private":false,"created_at":"2026-10-03T08:00:00Z","##
+            + ##""tone":"neutral","action":null,"usdc_micros":null,"asset_name":null,"token_amount":null,"token_decimals":null,"price_micros":null,"share_of_pot_bps":null,"change_bps":null,"mark_micros":null,"prev_close_micros":null,"proposal_id":null,"comment_count":0,"thread_item_id":"01920000-0000-7000-8000-000000000007","reply_count":0,"can_reply":true,"can_react":true,"reply_rule":"anyone","reply_rule_cabal_name":null,"like_count":0,"liked_by_me":false,"reactions":[],"reaction_count":0,"trade_failed":false,"return_1m_bps":null,"return_private":false,"created_at":"2026-10-03T08:00:00Z","##
             + ##""updated_at":"2026-10-03T08:00:00Z","added_next_release":{"nested":[1,2]}}"##
 
         let item = try decode(Components.Schemas.FeedItem.self, raw)

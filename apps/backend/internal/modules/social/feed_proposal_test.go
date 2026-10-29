@@ -445,12 +445,21 @@ func TestSeed_feedTwoCabalsHoldsAnOpenAndAnExecutedProposal(t *testing.T) {
 	f := newFixture(t)
 	alice, _ := ids.ParseUserID("01890a5d-ac96-774b-bcce-b302099a8101")
 	bob, _ := ids.ParseUserID("01890a5d-ac96-774b-bcce-b302099a8103")
+	seedProposal, _ := uuid.Parse("01890a5d-ac96-774b-bcce-b302099a8121")
 	users := fakes.NewIdentity([]identity.UserCard{
 		{ID: alice, Handle: "alice"}, {ID: bob, Handle: "bob"},
 	}, nil)
 	m := social.New(
 		module.Deps{Pool: f.pool, Bus: testkit.NATS(t).Conn, Clock: f.clock, IDs: f.gen},
 		social.WithUsers(users), social.WithAssets(marketfake.NewCatalog(marketfake.AAPLx())),
+		social.WithTallies(&fakeTallies{votes: map[ids.ProposalID]app.Tally{
+			ids.ProposalIDFrom(seedProposal): {
+				Yes:    2,
+				Voters: 2,
+				Needed: 2,
+				Kind:   "buy",
+			},
+		}}),
 	)
 	testkit.Seed(t, f.pool, "feed-two-cabals", m.Consumers()...)
 	rows, err := f.pool.Query(t.Context(), `SELECT cabal_name, status, title FROM feed_objects WHERE kind = 'proposal'
@@ -475,9 +484,9 @@ func TestSeed_feedTwoCabalsHoldsAnOpenAndAnExecutedProposal(t *testing.T) {
 		t.Fatalf("proposal items = %v, %v, want %v", got, err, want)
 	}
 	var title string
-	err = f.pool.QueryRow(t.Context(), `SELECT title FROM feed_objects WHERE kind = 'trade'`).Scan(&title)
-	if err != nil || title != "Beta bought $7.50 of Apple" {
-		t.Fatalf("trade item = %q, %v", title, err)
+	err = f.pool.QueryRow(t.Context(), `SELECT title FROM feed_objects WHERE kind = 'result'`).Scan(&title)
+	if err != nil || title != "Beta passed Buy Apple $7.50 2–0 · filled" {
+		t.Fatalf("result item = %q, %v", title, err)
 	}
 	err = f.pool.QueryRow(t.Context(), `SELECT title FROM feed_objects WHERE kind = 'price_move'`).Scan(&title)
 	if err != nil || title != "Apple is up 10% today" {

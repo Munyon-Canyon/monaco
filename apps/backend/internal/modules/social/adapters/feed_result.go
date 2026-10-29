@@ -134,20 +134,65 @@ func (h Feed) writeResult(
 	ctx context.Context, tx db.Tx, source sqlc.GetProposalFeedSourceRow, proposalID uuid.UUID,
 	merge func(*feed.Payload), at time.Time,
 ) error {
-	q := sqlc.New(tx.Queries())
-	var payload feed.Payload
-	raw, err := q.LockFeedResult(ctx, proposalID)
-	switch {
-	case errors.Is(err, pgx.ErrNoRows):
-	case err != nil:
+	payload, _, err := lockResult(ctx, tx, proposalID)
+	if err != nil {
 		return err
-	default:
-		if payload, err = feed.ParsePayload(raw); err != nil {
-			return err
-		}
 	}
 	merge(&payload)
-	return q.UpsertFeedResult(ctx, sqlc.UpsertFeedResultParams{
+	return storeResult(ctx, tx, source, proposalID, payload, at)
+}
+
+func (h Feed) recordSwap(
+	ctx context.Context, tx db.Tx, proposalID uuid.UUID, record func(*feed.Payload) error, at time.Time,
+) error {
+	const op = "social.Feed.recordSwap"
+	source, err := sqlc.New(tx.Queries()).GetProposalFeedSource(ctx, proposalID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return errs.New(errs.CodeFeedItemPending, op)
+	}
+	if err != nil {
+		return err
+	}
+	payload, found, err := lockResult(ctx, tx, proposalID)
+	if err != nil {
+		return err
+	}
+	if !found {
+		return errs.New(errs.CodeFeedItemPending, op)
+	}
+	if err := record(&payload); err != nil {
+		return err
+	}
+	if err := storeResult(ctx, tx, source, proposalID, payload, at); err != nil {
+		return err
+	}
+	faultpoint.Hit(ctx, faultpoint.BeforeCommit)
+	tx.AfterCommit(func(ctx context.Context) { h.Bus.PublishHint(ctx, "global.feed", nil) })
+	return nil
+}
+
+func lockResult(ctx context.Context, tx db.Tx, proposalID uuid.UUID) (feed.Payload, bool, error) {
+	raw, err := sqlc.New(tx.Queries()).LockFeedResult(ctx, proposalID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return feed.Payload{}, false, nil
+	}
+	if err != nil {
+		return feed.Payload{}, false, err
+	}
+	payload, err := feed.ParsePayload(raw)
+	return payload, err == nil, err
+}
+
+func storeResult(
+	ctx context.Context, tx db.Tx, source sqlc.GetProposalFeedSourceRow, proposalID uuid.UUID,
+	payload feed.Payload, at time.Time,
+) error {
+	state, _, _, _, err := feed.DeriveFill(payload)
+	if err != nil {
+		return err
+	}
+	payload.FillState = state
+	return sqlc.New(tx.Queries()).UpsertFeedResult(ctx, sqlc.UpsertFeedResultParams{
 		ID: eventID(ctx), ProposalID: proposalID, CabalID: source.CabalID, CabalName: source.CabalName,
 		ActorID: source.ActorID, AssetID: source.AssetID, Symbol: source.Symbol,
 		Title: feed.RenderTitle(feed.KindResult, payload), Body: pgtype.Text{

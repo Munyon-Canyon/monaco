@@ -67,6 +67,7 @@ const (
 	DisplayNameInvalid ErrorCode = "display_name_invalid"
 	Dust ErrorCode = "dust"
 	Faultpoint ErrorCode = "faultpoint"
+	FeedFillBatchMismatch ErrorCode = "feed_fill_batch_mismatch"
 	FeedItemNotFound ErrorCode = "feed_item_not_found"
 	FeedItemPending ErrorCode = "feed_item_pending"
 	FollowBlocked ErrorCode = "follow_blocked"
@@ -295,6 +296,8 @@ func (e ErrorCode) Valid() bool {
 	case Dust:
 		return true
 	case Faultpoint:
+		return true
+	case FeedFillBatchMismatch:
 		return true
 	case FeedItemNotFound:
 		return true

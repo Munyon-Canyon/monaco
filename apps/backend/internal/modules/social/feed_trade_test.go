@@ -3,7 +3,6 @@ package social_test
 import (
 	"context"
 	"encoding/json"
-	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -11,7 +10,6 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/app"
-	"github.com/monaco/monaco/apps/backend/internal/modules/social/domain/feed"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
@@ -74,98 +72,18 @@ func (r proposalRig) tradeRows(t *testing.T) []tradeRow {
 	return out
 }
 
-func TestFeedTrade_Confirmed_InsertsOnce(t *testing.T) {
+func TestFeedTrade_aProposalTradeWritesNoTradeRow(t *testing.T) {
 	t.Parallel()
 	r := newProposalRig(t)
-	sub := testkit.SubscribeCore(t, r.conn, hintSubject)
-	e := r.confirmed("buy", "proposal")
-	for range 2 {
-		if err := r.deliverTrade(t, e); err != nil {
-			t.Fatal(err)
-		}
-	}
-	rows := r.tradeRows(t)
-	if len(rows) != 1 {
-		t.Fatalf("trade items after a redelivery = %d, want 1", len(rows))
-	}
-	row := rows[0]
-	if row.Title != "Alpha bought $500 of Apple" || row.Symbol != "AAPLx" || row.Actor != "" ||
-		row.Asset != marketfake.AAPLx().ID.UUID() {
-		t.Fatalf("row = %+v", row)
-	}
-	var ref uuid.UUID
-	err := r.pool.QueryRow(t.Context(), `SELECT ref_id FROM feed_objects WHERE kind = 'trade'`).Scan(&ref)
-	if err != nil || ref != e.SwapID {
-		t.Fatalf("ref_id = %s, %v, want swap %s", ref, err, e.SwapID)
-	}
-	wantHints(t, r.conn.Conn, sub, 2)
-}
-
-func TestFeedTrade_PayloadHoldsIntegersAndNoMint(t *testing.T) {
-	t.Parallel()
-	r := newProposalRig(t)
-	e := r.confirmed("buy", "proposal")
-	if err := r.deliverTrade(t, e); err != nil {
+	r.mustCreate(t, func(*events.ProposalCreated) {})
+	if err := r.passed(t); err != nil {
 		t.Fatal(err)
 	}
-	row := r.tradeRows(t)[0]
-	want := map[string]string{
-		"cabal_name": `"Alpha"`, "symbol": `"AAPLx"`, "asset_name": `"Apple"`, "action": `"buy"`,
-		"usdc_micros": `"500000000"`, "price_micros": `"200000000"`, "token_amount": `"250000000"`,
-		"token_decimals": `8`, "proposal_id": `"` + r.proposal.String() + `"`,
-	}
-	var got map[string]json.RawMessage
-	if err := json.Unmarshal(row.Payload, &got); err != nil {
+	if err := r.deliverTrade(t, r.confirmed("buy", "proposal")); err != nil {
 		t.Fatal(err)
 	}
-	if len(got) != len(want) {
-		t.Fatalf("payload = %s, want %v", row.Payload, want)
-	}
-	for key, w := range want {
-		if string(got[key]) != w {
-			t.Errorf("payload[%s] = %s, want %s", key, got[key], w)
-		}
-	}
-	payload, err := feed.ParsePayload(row.Payload)
-	if err != nil {
-		t.Fatal(err)
-	}
-	text := row.Title + "|" + feed.RenderDetail(feed.KindTrade, payload)
-	if strings.Contains(text, string(e.OutMint)) || strings.Contains(text, string(e.InMint)) {
-		t.Fatalf("title and detail %q hold a mint", text)
-	}
-	if got := feed.RenderDetail(feed.KindTrade, payload); got != "Filled at $200.00" {
-		t.Fatalf("detail = %q", got)
-	}
-}
-
-func TestFeedTrade_SellReadsTheStockLegAndSaysSold(t *testing.T) {
-	t.Parallel()
-	r := newProposalRig(t)
-	if err := r.deliverTrade(t, r.confirmed("sell", "proposal")); err != nil {
-		t.Fatal(err)
-	}
-	row := r.tradeRows(t)[0]
-	payload, err := feed.ParsePayload(row.Payload)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if row.Title != "Alpha sold $500 of Apple" || payload.TokenAmount != 250_000_000 ||
-		payload.PriceMicros.Uint64() != 200_000_000 {
-		t.Fatalf("row = %+v payload = %+v", row, payload)
-	}
-}
-
-func TestFeedTrade_TheCatalogNamesASymbolTheEventLacks(t *testing.T) {
-	t.Parallel()
-	r := newProposalRig(t)
-	e := r.confirmed("buy", "proposal")
-	e.Symbol = ""
-	if err := r.deliverTrade(t, e); err != nil {
-		t.Fatal(err)
-	}
-	if row := r.tradeRows(t)[0]; row.Symbol != "AAPLx" || row.Title != "Alpha bought $500 of Apple" {
-		t.Fatalf("row = %+v", row)
+	if rows := r.tradeRows(t); len(rows) != 0 {
+		t.Fatalf("trade rows = %+v, want none", rows)
 	}
 }
 
@@ -184,15 +102,6 @@ func TestFeedTrade_Cashout_NoItem(t *testing.T) {
 	wantHints(t, r.conn.Conn, sub, 0)
 }
 
-func TestFeedTrade_aTradeBeforeItsCabalNaks(t *testing.T) {
-	t.Parallel()
-	r := newProposalRig(t)
-	r.cabal = r.gen.NewV7()
-	if got := errs.CodeOf(r.deliverTrade(t, r.confirmed("buy", "proposal"))); got != errs.CodeFeedItemPending {
-		t.Fatalf("trade before cabal = %s, want %s", got, errs.CodeFeedItemPending)
-	}
-}
-
 func TestFeedTrade_returnsWhatItCannotRead(t *testing.T) {
 	t.Parallel()
 	r := newProposalRig(t)
@@ -202,8 +111,7 @@ func TestFeedTrade_returnsWhatItCannotRead(t *testing.T) {
 		t.Fatal("FetchTrade of an uncatalogued mint = nil, want an error")
 	}
 	for name, ddl := range map[string]string{
-		"cabal lookup": "ALTER TABLE feed_cabals RENAME TO feed_cabals_gone",
-		"insert":       "ALTER TABLE feed_objects RENAME TO feed_objects_gone",
+		"lookup": "ALTER TABLE feed_objects RENAME TO feed_objects_gone",
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()

@@ -66,11 +66,9 @@ func TestCabalBanned_HidesAnItemThatArrivesAfterTheBan(t *testing.T) {
 	if err := r.deliver(t, ban); err != nil {
 		t.Fatal(err)
 	}
-	if err := r.deliverTrade(t, r.confirmed("buy", "proposal")); err != nil {
-		t.Fatal(err)
-	}
-	if got := len(r.tradeRows(t)); got != 1 {
-		t.Fatalf("trade items = %d, want the late one stored", got)
+	r.mustCreate(t, func(*events.ProposalCreated) {})
+	if got := r.count(t, "proposal"); got != 1 {
+		t.Fatalf("proposal items = %d, want the late one stored", got)
 	}
 	f := feedFixture{pool: r.pool, gen: r.gen, clock: r.clock}
 	viewer := ids.NewUserID(r.gen)
@@ -80,7 +78,8 @@ func TestCabalBanned_HidesAnItemThatArrivesAfterTheBan(t *testing.T) {
 		}
 	}
 	var item uuid.UUID
-	if err := r.pool.QueryRow(t.Context(), `SELECT id FROM feed_objects WHERE kind = 'trade'`).Scan(&item); err != nil {
+	if err := r.pool.QueryRow(t.Context(), `SELECT id FROM feed_objects WHERE kind = 'proposal'`).
+		Scan(&item); err != nil {
 		t.Fatal(err)
 	}
 	f.wantVisibleExactly(t, viewer, app.FeedFilter{}, []uuid.UUID{item}, nil)

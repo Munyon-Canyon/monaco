@@ -121,6 +121,36 @@ func renderCases() []renderCase {
 			USDCMicros: usd(200_000_000), Outcome: feed.OutcomePassed, Yes: 3, No: 0, Voters: 5, Needed: 3,
 			Shape: feed.ShapeMember, AssetKind: feed.AssetKindPreIPO, Status: "passed",
 		}},
+		{"result_pending_fill_buy", feed.KindResult, feed.Payload{
+			CabalName: "Degens", ActorName: "Christelle", Symbol: "METAx", AssetName: "META", Action: feed.ActionBuy,
+			USDCMicros: usd(300_000_000), Outcome: feed.OutcomePassed, Yes: 4, No: 1, Voters: 6, Needed: 4,
+			Shape: feed.ShapeCabal, AssetKind: feed.AssetKindEquity, Status: "passed", FillState: feed.FillPending,
+		}},
+		{"result_filled_buy", feed.KindResult, feed.Payload{
+			CabalName: "Degens", ActorName: "Christelle", Symbol: "METAx", AssetName: "META", Action: feed.ActionBuy,
+			USDCMicros: usd(300_000_000), Outcome: feed.OutcomePassed, Yes: 4, No: 1, Voters: 6, Needed: 4,
+			Shape: feed.ShapeCabal, AssetKind: feed.AssetKindEquity, Status: "passed", FillState: feed.FillFilled,
+		}},
+		{"result_filled_sale", feed.KindResult, feed.Payload{
+			CabalName: "Tech Titans", ActorName: "Logan", Symbol: "AAPLx", AssetName: "AAPL", Action: feed.ActionSell,
+			USDCMicros: usd(480_000_000), Outcome: feed.OutcomePassed, Yes: 3, No: 1, Voters: 4, Needed: 3,
+			Shape: feed.ShapeMember, AssetKind: feed.AssetKindEquity, Status: "passed", FillState: feed.FillFilled,
+		}},
+		{"result_filled_pre_ipo_buy", feed.KindResult, feed.Payload{
+			CabalName: "Quant Kids", ActorName: "Sam", Symbol: "OPENAI", AssetName: "OpenAI", Action: feed.ActionBuy,
+			USDCMicros: usd(200_000_000), Outcome: feed.OutcomePassed, Yes: 3, No: 0, Voters: 5, Needed: 3,
+			Shape: feed.ShapeMember, AssetKind: feed.AssetKindPreIPO, Status: "passed", FillState: feed.FillFilled,
+		}},
+		{"result_partial_buy", feed.KindResult, feed.Payload{
+			CabalName: "Degens", ActorName: "Christelle", Symbol: "METAx", AssetName: "META", Action: feed.ActionBuy,
+			USDCMicros: usd(300_000_000), Outcome: feed.OutcomePassed, Yes: 4, No: 1, Voters: 6, Needed: 4,
+			Shape: feed.ShapeCabal, AssetKind: feed.AssetKindEquity, Status: "passed", FillState: feed.FillPartial,
+		}},
+		{"result_failed_trade_sale", feed.KindResult, feed.Payload{
+			CabalName: "Tech Titans", ActorName: "Logan", Symbol: "AAPLx", AssetName: "AAPL", Action: feed.ActionSell,
+			USDCMicros: usd(480_000_000), Outcome: feed.OutcomePassed, Yes: 3, No: 1, Voters: 4, Needed: 3,
+			Shape: feed.ShapeMember, AssetKind: feed.AssetKindEquity, Status: "passed", FillState: feed.FillFailed,
+		}},
 		{"result_failed_sell", feed.KindResult, feed.Payload{
 			CabalName: "Tech Titans", ActorName: "Logan", Symbol: "TSLAx", AssetName: "TSLA", Action: feed.ActionSell,
 			USDCMicros: usd(900_000_000), Outcome: feed.OutcomeFailed, Yes: 2, No: 2, Voters: 5, Needed: 3,

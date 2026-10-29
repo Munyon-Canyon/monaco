@@ -59,6 +59,7 @@ extension Components.Schemas.ErrorCode {
         case .displayNameInvalid: true
         case .dust: true
         case .faultpoint: true
+        case .feedFillBatchMismatch: true
         case .feedItemNotFound: true
         case .feedItemPending: true
         case .followBlocked: true

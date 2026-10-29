@@ -171,7 +171,7 @@ enum FeedPreviewFixtures {
             likeCount: likes, likedByMe: false, reactions: [], reactionCount: 0,
             tally: figures.vote.map { .init(yes: $0.yes, no: $0.no, voters: $0.voters, needed: $0.needed) },
             expiresAt: figures.vote.map { Date(timeIntervalSinceNow: $0.endsInHours * 3600) },
-            return1mBps: returnBps, returnPrivate: false,
+            tradeFailed: false, return1mBps: returnBps, returnPrivate: false,
             createdAt: created, updatedAt: created)
     }
 }

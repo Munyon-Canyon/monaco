@@ -27,6 +27,12 @@ threshold_sell_no_actor	A member's proposal to sell NVDAx was approved	Execution
 result_passed_buy	Degens passed Buy META $300 4–1	buying	neutral
 result_passed_sale	Logan's sale of $480 of AAPL in Tech Titans passed 3–1	selling	neutral
 result_passed_pre_ipo_buy	Sam's buy of $200 of OpenAI in Quant Kids passed	buying	neutral
+result_pending_fill_buy	Degens passed Buy META $300 4–1	buying	neutral
+result_filled_buy	Degens passed Buy META $300 4–1 · filled	filled	neutral
+result_filled_sale	Logan sold $480 of AAPL in Tech Titans	filled	neutral
+result_filled_pre_ipo_buy	Sam bought $200 of OpenAI in Quant Kids	filled	neutral
+result_partial_buy	Degens passed Buy META $300 4–1 · trade failed	partly filled · trade failed	neutral
+result_failed_trade_sale	Logan's sale of $480 of AAPL in Tech Titans passed 3–1 · trade failed	trade failed	neutral
 result_failed_sell	Tech Titans failed Sell TSLA $900 2–2	no trade	neutral
 result_expired_no_amount	Tech Titans failed Buy TSLAx	no trade	neutral
 unknown_kind			neutral
