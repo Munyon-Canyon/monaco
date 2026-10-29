@@ -2,7 +2,7 @@ import XCTest
 
 enum CabalsBrowseJourney {
     static let id = "cabals/browse"
-    static let version = 8
+    static let version = 9
 
     static let screenTimeout: TimeInterval = 15
 
@@ -77,6 +77,7 @@ enum CabalsBrowseJourney {
 
     static func holdsATile(_ app: XCUIApplication, run: String, recorder: JourneyRecorder) {
         recorder.step("S2.1", "press and hold a tile") {
+            if JoinJourney.searchField(app).exists { app.tapBack() }
             app.tab("Cabals").tap()
             let held = tile(app, named: mine(run: run))
             XCTAssertTrue(held.waitForExistence(timeout: screenTimeout), "S2.1: no tile for \(mine(run: run))")

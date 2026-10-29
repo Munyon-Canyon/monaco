@@ -1,7 +1,7 @@
 ---
 id: home/activity
 title: Catch up from the Home bell
-version: 2
+version: 3
 milestone: F launch
 requires: [auth/sign-in]
 actors: [A]
@@ -32,7 +32,7 @@ Starts signed in (auth/sign-in) as A, with the setup above.
 | --- | --- | --- | --- | --- | --- |
 | S1.1 | A | tap | the Home tab, then `home-notifications-button` | | Within 15 s the bell's label reads "Catch up, 3 new" (the badge is hidden from accessibility, so the label carries its count). After the tap, within 15 s the navigation bar reads "Catch up" and `catch-up-subline` begins "3 to catch up". screens.md: the bell opens Catch up and its badge is the count |
 | S1.2 | A | read | `catch-up-section-waiting`, `catch-up-section-replies`, `catch-up-section-results` | | The sections read "Waiting on you", "Replies and mentions" and "Results". `catch-up-row-proposal:<proposalID>` and `catch-up-vote-proposal:<proposalID>` exist (the Vote button), the reply row exists under Replies and mentions, and `catch-up-row-proposal:<resultProposalID>` exists under Results. screens.md: each section lists its items |
-| S1.3 | A | swipe | `catch-up-row-proposal:<resultProposalID>`, left to right, then tap Clear | | "Clear" shows, and after the tap the row is gone from Results within 10 s and `catch-up-subline` begins "2 to catch up". screens.md: swipe to Clear removes the row and the count drops by one |
+| S1.3 | A | swipe | `catch-up-row-proposal:<resultProposalID>`, left to right, then tap Clear | | "Clear" shows, and after the tap within 10 s `catch-up-section-results` is gone, `catch-up-section-cleared` reads "Cleared today" with `catch-up-row-proposal:<resultProposalID>` under it, and `catch-up-subline` begins "2 to catch up". screens.md: swipe to Clear moves the row to Cleared today and the count drops by one |
 | S1.4 | A | tap | `catch-up-vote-proposal:<proposalID>` | | Within 15 s `vote-hold-sheet` shows. After closing it with `vote-hold-close`, Catch up shows again with `catch-up-subline`. screens.md: Vote opens the hold sheet; back returns to Catch up |
 | S1.5 | A | tap | the navigation bar's back button | | Within 10 s `home-notifications-button` shows on Home and its label reads "Catch up, 2 new". screens.md: the bell's badge reads the new count |
 

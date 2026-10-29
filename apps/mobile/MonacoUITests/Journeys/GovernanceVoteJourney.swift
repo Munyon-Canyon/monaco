@@ -2,7 +2,7 @@ import XCTest
 
 enum GovernanceVoteJourney {
     static let id = "governance/vote"
-    static let version = 5
+    static let version = 6
 
     static let screenTimeout: TimeInterval = 15
     static let checkTimeout: TimeInterval = 10
@@ -114,7 +114,7 @@ enum GovernanceVoteJourney {
                     waitForText(app.element("proposal-stat-row"), cell, timeout: checkTimeout),
                     "S1.2: the stat row shows no \(cell)")
             }
-            expectTally(app, yes: "Yes 0", no: "No 0", step: "S1.2")
+            expectTally(app, yes: "Yes, 0 votes", no: "No, 0 votes", step: "S1.2")
             XCTAssertTrue(
                 JourneyDiagnostics.wait(for: app.buttons["proposal-remind"], in: app, timeout: checkTimeout),
                 "S1.2: no \"Remind me at close\"")
@@ -125,12 +125,12 @@ enum GovernanceVoteJourney {
             XCTAssertFalse(
                 app.element("monaco-toast-banner").waitForExistence(timeout: 2),
                 "S1.3: a short tap toasted a vote")
-            expectTally(app, yes: "Yes 0", no: "No 0", step: "S1.3")
+            expectTally(app, yes: "Yes, 0 votes", no: "No, 0 votes", step: "S1.3")
         }
 
         recorder.step("S1.4", "pick and hold casts the first vote, then the permission sheet shows") {
             app.pickAndHold("yes")
-            expectLabel(app, "proposal-vote-yes", "Voted Yes 1", step: "S1.4")
+            expectLabel(app, "proposal-vote-yes", "Voted Yes, 1 vote", step: "S1.4")
             expectLabel(app, "proposal-vote-status", "1 of 3 voted", step: "S1.4")
             expectToast(app, "Voted Yes. 1st of 3.", undo: true, step: "S1.4")
             XCTAssertFalse(app.buttons["proposal-remind"].exists, "S1.4: \"Remind me at close\" still shows")
@@ -150,14 +150,14 @@ enum GovernanceVoteJourney {
                 JourneyDiagnostics.wait(for: app.buttons["proposal-change-vote"], in: app, timeout: checkTimeout),
                 "S1.5: no \"Change\" on the open ballot")
             app.changeVote(to: "no")
-            expectTally(app, yes: "Yes 0", no: "No 1", step: "S1.5")
+            expectTally(app, yes: "Yes, 0 votes", no: "No, 1 vote", step: "S1.5")
             expectToast(app, "Changed to No.", undo: false, step: "S1.5")
             XCTAssertTrue(
                 JourneyDiagnostics.wait(for: app.buttons["proposal-change-vote"], in: app, timeout: checkTimeout),
                 "S1.5: no \"Change\" after the change")
             app.waitForToastGone()
             app.changeVote(to: "yes")
-            expectTally(app, yes: "Yes 1", no: "No 0", step: "S1.5")
+            expectTally(app, yes: "Yes, 1 vote", no: "No, 0 votes", step: "S1.5")
             expectToast(app, "Changed to Yes.", undo: false, step: "S1.5")
             XCTAssertFalse(app.element("push-pre-prompt").exists, "S1.5: the permission sheet showed again")
         }
@@ -167,7 +167,7 @@ enum GovernanceVoteJourney {
         recorder.step("S1.6", "B opens the proposal and sees A's ballot only as a count") {
             openHomeVote(app, proposalID, step: "S1.6")
             openProposalFromHome(app, proposalID, step: "S1.6")
-            expectTally(app, yes: "Yes 1", no: "No 0", step: "S1.6")
+            expectTally(app, yes: "Yes, 1 vote", no: "No, 0 votes", step: "S1.6")
             XCTAssertTrue(
                 waitForText(app, "1 of 3 voted", timeout: screenTimeout), "S1.6: the status line shows no 1 of 3 voted")
             XCTAssertFalse(app.element("proposal-votes-see-all").exists, "S1.6: a votes list shows on an open proposal")
@@ -175,12 +175,12 @@ enum GovernanceVoteJourney {
 
         recorder.step("S1.7", "B votes No, then Undo takes the ballot back") {
             app.pickAndHold("no")
-            expectLabel(app, "proposal-vote-no", "Voted No 1", step: "S1.7")
+            expectLabel(app, "proposal-vote-no", "Voted No, 1 vote", step: "S1.7")
             XCTAssertEqual(
                 app.toastText(timeout: checkTimeout)?.contains("Voted No. 2nd of 3."), true,
                 "S1.7: wrong toast")
             XCTAssertTrue(app.tapToastAction(timeout: checkTimeout), "S1.7: the toast has no Undo")
-            expectTally(app, yes: "Yes 1", no: "No 0", step: "S1.7")
+            expectTally(app, yes: "Yes, 1 vote", no: "No, 0 votes", step: "S1.7")
             XCTAssertTrue(
                 waitForLabel(app.element("monaco-toast-banner"), "Vote undone.", timeout: checkTimeout),
                 "S1.7: the toast does not read \"Vote undone.\"")
@@ -195,7 +195,7 @@ enum GovernanceVoteJourney {
             app.waitForToastGone()
             app.pickAndHold("yes")
             expectToast(app, "Voted Yes. Passed 2–0.", undo: false, step: "S1.8")
-            expectLabel(app, "proposal-vote-yes", "Voted Yes 2", step: "S1.8")
+            expectLabel(app, "proposal-vote-yes", "Voted Yes, 2 votes", step: "S1.8")
             XCTAssertTrue(
                 waitForText(app.element("proposal-vote-status"), "Passed 2–0", timeout: checkTimeout),
                 "S1.8: the status line does not start with Passed 2–0")

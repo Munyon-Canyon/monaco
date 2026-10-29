@@ -113,7 +113,7 @@ case "$scenario" in
     if [[ -n "${request:-}" ]]; then
       host_call POST "/v1/cabals/$cabal/access-requests/$request/decision" '{"decision":"approve"}' >/dev/null
     fi
-    item="$(qa_sql -v cabal="$cabal" -v host="$host" -v name="$cabal_name" <<SQL
+    item="$(qa_sql -q -v cabal="$cabal" -v host="$host" -v name="$cabal_name" <<SQL
 INSERT INTO feed_objects (id, kind, ref_type, ref_id, cabal_id, cabal_name, actor_id, symbol, title, payload,
   status, comment_count, created_at, updated_at)
 VALUES ($(uuid7), 'trade', 'swaps', $(uuid7), :'cabal', :'name', :'host', 'TSLAx', 'sold TSLAx',

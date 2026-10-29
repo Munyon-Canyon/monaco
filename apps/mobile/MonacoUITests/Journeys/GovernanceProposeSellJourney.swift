@@ -47,7 +47,9 @@ enum GovernanceProposeSellJourney {
             let amount = app.element("amount-keypad-amount")
             tapID(app, "amount-keypad-preset-25%", step: "S1.5")
             XCTAssertTrue(amount.waitForExistence(timeout: 10), "S1.5: no keypad amount")
-            XCTAssertNotEqual(amount.label, "$0", "S1.5: the 25% chip left the amount at \(amount.label)")
+            XCTAssertNotEqual(
+                amount.value as? String, "$0",
+                "S1.5: the 25% chip left the amount at \(String(describing: amount.value))")
             tapID(app, "amount-keypad-action", step: "S1.5")
             buy.expectTitle(sheet: app, step: "S1.5")
             XCTAssertTrue(app.element("propose-review-stats").waitForExistence(timeout: 10), "S1.5: no stat row")

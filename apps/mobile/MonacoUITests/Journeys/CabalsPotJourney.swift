@@ -32,10 +32,11 @@ enum CabalsPotJourney {
         recorder.step("S1.3", "the stat block reads Your share $0, Of treasury 0%, Open votes 0, Bot Off") {
             let block = app.element("cabal-stat-block")
             XCTAssertTrue(block.waitForExistence(timeout: 10), "S1.3: no stat block within 10 s")
-            let texts = block.descendants(matching: .staticText)
-            for expected in ["Your share", "$0", "Of treasury", "0%", "Open votes", "0", "Bot", "Off"] {
+            for (label, value) in [("Your share", "$0"), ("Of treasury", "0%"), ("Open votes", "0"), ("Bot", "Off")] {
+                let cell = block.descendants(matching: .any)
+                    .matching(NSPredicate(format: "label == %@", "\(label), \(value)")).firstMatch
                 XCTAssertTrue(
-                    texts[expected].waitForExistence(timeout: 10), "S1.3: no \(expected) in the stat block")
+                    cell.waitForExistence(timeout: 10), "S1.3: no \(label) \(value) in the stat block")
             }
         }
     }

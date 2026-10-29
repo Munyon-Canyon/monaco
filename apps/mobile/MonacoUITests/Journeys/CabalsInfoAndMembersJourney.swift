@@ -2,7 +2,7 @@ import XCTest
 
 enum CabalsInfoAndMembersJourney {
     static let id = "cabals/info-and-members"
-    static let version = 2
+    static let version = 3
 
     static let screenTimeout: TimeInterval = 15
 
@@ -82,9 +82,11 @@ enum CabalsInfoAndMembersJourney {
             XCTAssertTrue(
                 app.element("cabal-member-\(seed.creatorID)").waitForExistence(timeout: 10),
                 "S2.1: the creator is not under Voters")
-            XCTAssertFalse(
-                app.element("cabal-member-\(seed.memberID)").exists,
-                "S2.1: \(seed.memberName) is under Voters before the proposal")
+            let before = app.element("cabal-member-\(seed.memberID)")
+            XCTAssertTrue(before.waitForExistence(timeout: 10), "S2.1: no row for \(seed.memberName)")
+            XCTAssertTrue(
+                before.label.contains("Holds a share"),
+                "S2.1: \(seed.memberName) is under Vote before the proposal: '\(before.label)'")
         }
 
         recorder.step("S2.2", "open Make a voter from the member's row") {
@@ -116,9 +118,13 @@ enum CabalsInfoAndMembersJourney {
 
         recorder.step("S2.5", "the member shows under Voters") {
             app.openCabalTab("Voters")
-            XCTAssertTrue(
-                app.element("cabal-member-\(seed.memberID)").waitForExistence(timeout: 20),
-                "S2.5: \(seed.memberName) is not under Voters after the proposal passed")
+            let after = app.element("cabal-member-\(seed.memberID)")
+            XCTAssertTrue(after.waitForExistence(timeout: 20), "S2.5: no row for \(seed.memberName)")
+            let moved = NSPredicate(format: "NOT (label CONTAINS 'Holds a share')")
+            let settled = XCTNSPredicateExpectation(predicate: moved, object: after)
+            XCTAssertEqual(
+                XCTWaiter().wait(for: [settled], timeout: 20), .completed,
+                "S2.5: \(seed.memberName) is not under Vote after the proposal passed: '\(after.label)'")
         }
     }
 }

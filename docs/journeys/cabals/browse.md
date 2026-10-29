@@ -1,7 +1,7 @@
 ---
 id: cabals/browse
 title: Browse and search cabals
-version: 8
+version: 9
 milestone: M10
 requires: [auth/sign-in]
 actors: [A]
@@ -40,7 +40,7 @@ The format of this doc is in [App journeys](../README.md).
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S2.1 | A | tap, then press and hold | the Cabals tab, then the `cabals-tile-<id>` for `QA mine {QA.run}` | | The menu shows "Fund" (`cabals-menu-fund`), "Propose buy", "Invite" and "Share" within 10 s, and no "Vote on …" item, since the cabal has no open vote |
+| S2.1 | A | go back from Find a cabal, tap, then press and hold | `BackButton`, the Cabals tab, then the `cabals-tile-<id>` for `QA mine {QA.run}` | | The menu shows "Fund" (`cabals-menu-fund`), "Propose buy", "Invite" and "Share" within 10 s, and no "Vote on …" item, since the cabal has no open vote |
 | S2.2 | A | tap, then tap | "Fund", then `amount-keypad-close` | | `amount-keypad-screen` shows within 10 s; after closing it the Cabals tab shows again with `cabals-grid` |
 
 ## Ground truth

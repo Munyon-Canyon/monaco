@@ -1,7 +1,7 @@
 ---
 id: cabals/create-cabal
 title: Create a cabal
-version: 12
+version: 13
 milestone: M10
 requires: [auth/sign-in]
 actors: [A, B]
@@ -32,7 +32,7 @@ The format of this doc is in [App journeys](../README.md).
 | Step | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- |
 | S1.1 | tap | the Cabals tab | | The "+" round (`cabals-new-button`) shows, with the "New cabal" tile (`cabals-new-tile`) beside the cabal tiles; both open the form, and the journey uses the "+" within 15 s. Old app: the Cabals tab "+" in `CabalsTabView` |
-| S1.2 | tap | `cabals-new-button` | | "Start a cabal" shows `create-group-name` within 10 s, with no sheet in between. Old app: the "New cabal" sheet's two rows in `CabalsTabView` came first |
+| S1.2 | tap, then tap | `cabals-new-button`, then "Start a cabal" in the menu | | The menu shows "Start a cabal" within 10 s, and after the tap the form shows `create-group-name` within 10 s, with no sheet in between. Old app: the "New cabal" sheet's two rows in `CabalsTabView` came first |
 | S1.3 | wait | the form | | The form shows "Cabal name", the "Cover image" picker (`create-cover-picker`) and three rule blocks: `create-rule-join` ("Who can join"), `create-rule-voters` ("Who votes") and `create-rule-expiry` ("Votes stay open"), with no "To pass" block and an info notice with the passing rule. `create-rule-expiry` starts on "1 week". Old app: `CreateGroupView` |
 
 ### S2 Create a cabal
@@ -63,7 +63,7 @@ A creates a cabal, B opens it by name and asks to join, A approves from the Memb
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S4.1 | A | tap | the Cabals tab, then `cabals-new-button` | | "Start a cabal" shows `create-group-name` within 10 s. Old app: Cabals "+", then "Start a cabal" pushed `CreateGroupView` |
+| S4.1 | A | tap | the Cabals tab, `cabals-new-button`, then "Start a cabal" in the menu | | "Start a cabal" shows `create-group-name` within 10 s. Old app: Cabals "+", then "Start a cabal" pushed `CreateGroupView` |
 | S4.2 | A | type, tap "Approval required" in `create-rule-join`, then tap | `create-group-name`, then `create-group-submit` | `QA duo {QA.run}` | `cabal-header-name` reads `QA duo {QA.run}` within 20 s, and the toast "Cabal created." shows within 20 s of the tap, read first because it stays up 2.5 s. Old app: Create in `CreateGroupView` pushed `GroupDetailView` |
 | S4.3 | B | tap | `app.openCabal(named:)` for `QA duo {QA.run}` (the Cabals tab, then the "+" menu's "Find a cabal" search) | `QA duo {QA.run}` | `cabal-header-name` reads `QA duo {QA.run}` and `cabal-join-button` shows within 15 s. screens.md: `CabalJoinSlot`, "Request to join" |
 | S4.4 | B | tap | `cabal-join-button` | | The toast "Request sent. You'll be in once the creator says yes." shows within 10 s, and `cabal-join-requested` reads "Request pending" within 15 s. B is not a member yet. |

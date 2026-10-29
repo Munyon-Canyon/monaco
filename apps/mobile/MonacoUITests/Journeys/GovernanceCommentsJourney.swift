@@ -2,7 +2,7 @@ import XCTest
 
 enum GovernanceCommentsJourney {
     static let id = "governance/comments"
-    static let version = 8
+    static let version = 9
 
     static func recorder() -> JourneyRecorder {
         JourneyRecorder(journey: id, version: version)
@@ -27,8 +27,8 @@ enum GovernanceCommentsJourney {
         XCTAssertTrue(cell.waitForExistence(timeout: 15), "\(step): no proposal cell within 15 s")
         cell.tap()
         XCTAssertTrue(
-            app.element("proposal-votes").waitForExistence(timeout: 15),
-            "\(step): the proposal did not open within 15 s"
+            app.element("feed-item-detail").waitForExistence(timeout: 15),
+            "\(step): the proposal post did not open within 15 s"
         )
     }
 

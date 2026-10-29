@@ -43,6 +43,7 @@ enum TalkItOverJourney {
 
     static func leaveScreens(_ app: XCUIApplication) {
         guard app.state == .runningForeground else { return }
+        _ = app.element("monaco-toast-banner").waitForNonExistence(timeout: 10)
         app.popToRoot()
         guard app.keyboards.firstMatch.exists else { return }
         for key in ["Return", "return", "Search", "Done"] {

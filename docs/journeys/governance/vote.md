@@ -1,7 +1,7 @@
 ---
 id: governance/vote
 title: Vote on a proposal
-version: 5
+version: 6
 milestone: M13
 requires: [auth/sign-in]
 actors: [A, B]
@@ -35,13 +35,13 @@ The setup seeds the proposal, so this journey does not depend on the propose scr
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
 | S1.1 | A | tap | the Home tab | | "Your vote" shows the proposal with `home-vote-yes-<proposalID>` and `home-vote-no-<proposalID>` within 15 s. Both show the live count "0" and neither is highlighted |
-| S1.2 | A | tap | the card's row (`home-vote-open-<proposalID>`) | | The Proposal screen shows `proposal-stat-row` with "Price", "Shares", "Of treasury" and "Closes", the thesis "QA vote {QA.run}", `proposal-vote-yes` reading "Yes 0", `proposal-vote-no` reading "No 0" and `proposal-remind` "Remind me at close" within 15 s |
-| S1.3 | A | tap | `proposal-vote-yes`, and let go before 0.6 s | | Nothing is cast: the counts still read "Yes 0" and "No 0" after 2 s, and no toast shows |
-| S1.4 | A | tap, then hold | `proposal-vote-yes` | | Within 10 s `proposal-vote-yes` reads "Voted Yes 1", the status line reads "1 of 3 voted", the toast reads "Voted Yes. 1st of 3." with "Undo", and `proposal-remind` is gone. While the toast shows, `push-pre-prompt` does not. A leaves the toast alone. Within 10 s of the toast closing `push-pre-prompt` shows "Hear how votes end?", and "Not now" dismisses it. This step never taps Undo |
-| S1.5 | A | tap, then pick and hold | `proposal-change-vote` "Change", then `proposal-vote-no`, then Change and `proposal-vote-yes` | | The card reads "You voted Yes" with `proposal-change-vote`. After the first change the tally reads "Yes 0" / "No 1" within 10 s, the toast reads "Changed to No." with no `monaco-toast-action`, and "Change" shows again. After the second it reads "Yes 1" / "No 0" and "Changed to Yes." with no Undo. The permission sheet does not show again |
-| S1.6 | B | tap, then tap | the Home tab, then `home-vote-open-<proposalID>` | | The tally reads "Yes 1" / "No 0" and the status line "1 of 3 voted" within 15 s. There is no votes list with names: `proposal-votes-see-all` does not exist |
-| S1.7 | B | pick and hold, then tap | `proposal-vote-no`, then the toast's "Undo" while it shows | | Within 10 s `proposal-vote-no` reads "Voted No 1" and the toast reads "Voted No. 2nd of 3." with "Undo". After Undo, within 10 s the tally reads "Yes 1" / "No 0", the toast reads "Vote undone.", both buttons can be picked and `proposal-change-vote` does not exist. No permission sheet shows |
-| S1.8 | B | pick and hold | `proposal-vote-yes` | | Within 10 s the toast reads "Voted Yes. Passed 2–0." with no `monaco-toast-action`, `proposal-vote-yes` reads "Voted Yes 2", the status line starts "Passed 2–0", `proposal-change-vote` does not exist, and the stat row's last cell reads "Passed" |
+| S1.2 | A | tap | the card's row (`home-vote-open-<proposalID>`) | | The Proposal screen shows `proposal-stat-row` with "Price", "Shares", "Of treasury" and "Closes", the thesis "QA vote {QA.run}", `proposal-vote-yes` reading "Yes, 0 votes", `proposal-vote-no` reading "No, 0 votes" and `proposal-remind` "Remind me at close" within 15 s |
+| S1.3 | A | tap | `proposal-vote-yes`, and let go before 0.6 s | | Nothing is cast: the counts still read "Yes, 0 votes" and "No, 0 votes" after 2 s, and no toast shows |
+| S1.4 | A | tap, then hold | `proposal-vote-yes` | | Within 10 s `proposal-vote-yes` reads "Voted Yes, 1 vote", the status line reads "1 of 3 voted", the toast reads "Voted Yes. 1st of 3." with "Undo", and `proposal-remind` is gone. While the toast shows, `push-pre-prompt` does not. A leaves the toast alone. Within 10 s of the toast closing `push-pre-prompt` shows "Hear how votes end?", and "Not now" dismisses it. This step never taps Undo |
+| S1.5 | A | tap, then pick and hold | `proposal-change-vote` "Change", then `proposal-vote-no`, then Change and `proposal-vote-yes` | | The card reads "You voted Yes" with `proposal-change-vote`. After the first change the tally reads "Yes, 0 votes" / "No, 1 vote" within 10 s, the toast reads "Changed to No." with no `monaco-toast-action`, and "Change" shows again. After the second it reads "Yes, 1 vote" / "No, 0 votes" and "Changed to Yes." with no Undo. The permission sheet does not show again |
+| S1.6 | B | tap, then tap | the Home tab, then `home-vote-open-<proposalID>` | | The tally reads "Yes, 1 vote" / "No, 0 votes" and the status line "1 of 3 voted" within 15 s. There is no votes list with names: `proposal-votes-see-all` does not exist |
+| S1.7 | B | pick and hold, then tap | `proposal-vote-no`, then the toast's "Undo" while it shows | | Within 10 s `proposal-vote-no` reads "Voted No, 1 vote" and the toast reads "Voted No. 2nd of 3." with "Undo". After Undo, within 10 s the tally reads "Yes, 1 vote" / "No, 0 votes", the toast reads "Vote undone.", both buttons can be picked and `proposal-change-vote` does not exist. No permission sheet shows |
+| S1.8 | B | pick and hold | `proposal-vote-yes` | | Within 10 s the toast reads "Voted Yes. Passed 2–0." with no `monaco-toast-action`, `proposal-vote-yes` reads "Voted Yes, 2 votes", the status line starts "Passed 2–0", `proposal-change-vote` does not exist, and the stat row's last cell reads "Passed" |
 | S1.9 | A | relaunch, then tap | the Home tab | | Within 15 s "Your vote" no longer offers the proposal for a vote (`home-vote-yes-<proposalID>` does not exist). If Home still shows it, opening it shows no `proposal-change-vote` |
 
 ### S2 Vote from the cabal page

@@ -3,7 +3,7 @@ import XCTest
 
 enum CreateCabalJourney {
     static let id = "cabals/create-cabal"
-    static let version = 12
+    static let version = 13
 
     private static let listTimeout: TimeInterval = 15
     private static let formTimeout: TimeInterval = 10
@@ -31,6 +31,10 @@ enum CreateCabalJourney {
 
         recorder.step("S1.2", "open the create form from the +") {
             plus.tap()
+            let start = app.buttons["Start a cabal"].firstMatch
+            XCTAssertTrue(
+                start.waitForExistence(timeout: formTimeout), "S1.2: the + menu has no Start a cabal")
+            start.tap()
             XCTAssertTrue(
                 app.textFields["create-group-name"].waitForExistence(timeout: formTimeout),
                 "S1.2: the + did not open Start a cabal within \(Int(formTimeout)) s"
@@ -151,6 +155,10 @@ enum CreateCabalJourney {
             if !plus.exists, app.buttons["BackButton"].exists { app.buttons["BackButton"].tap() }
             XCTAssertTrue(plus.waitForExistence(timeout: listTimeout), "S4.1: no + on the Cabals tab")
             plus.tap()
+            let start = app.buttons["Start a cabal"].firstMatch
+            XCTAssertTrue(
+                start.waitForExistence(timeout: formTimeout), "S4.1: the + menu has no Start a cabal")
+            start.tap()
             XCTAssertTrue(
                 app.textFields["create-group-name"].waitForExistence(timeout: formTimeout),
                 "S4.1: the name field did not show within \(Int(formTimeout)) s"
