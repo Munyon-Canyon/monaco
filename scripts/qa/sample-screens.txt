@@ -676,6 +676,7 @@ flow-20a-report-target-not-found -MonacoFlow 20a reportTargetNotFound
 flow-20a-rate-limited         -MonacoFlow 20a rateLimited
 flow-20a-unauthorized         -MonacoFlow 20a unauthorized
 flow-20a-interrupted          -MonacoFlow 20a interrupted
+flow-34-unauthorized          -MonacoFlow 34 unauthorized
 # END generated flow scenarios
 account-activity-ready        -accountActivityHarness ready
 account-activity-pending      -accountActivityHarness pending
@@ -966,5 +967,10 @@ f__01-tokens-controls   -MonacoDesignGallery -MonacoDesignGalleryTab controls -M
 f__01-chart-variants    -MonacoDesignGallery -MonacoDesignGalleryTab charts -MonacoDesignGalleryAppearance dark
 catch-up-six                  -MonacoCatchUpSample six
 catch-up-six-dark             -MonacoCatchUpSample six -AppleInterfaceStyle Dark
+catch-up-caught-up            -MonacoCatchUpSample caughtUp
+catch-up-caught-up-dark       -MonacoCatchUpSample caughtUp -AppleInterfaceStyle Dark
+catch-up-first-use            -MonacoCatchUpSample firstUse
+catch-up-first-use-dark       -MonacoCatchUpSample firstUse -AppleInterfaceStyle Dark
+catch-up-activity-alias       -activityFeedHarness unread
 catch-up-loading              -MonacoCatchUpSample loading
 catch-up-error                -MonacoCatchUpSample error

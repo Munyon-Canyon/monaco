@@ -1,4 +1,5 @@
 import MonacoAPI
+import MonacoAnalytics
 import MonacoCore
 import SwiftUI
 
@@ -9,6 +10,7 @@ struct CatchUpView: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(ToastCenter.self) private var toasts
     @Environment(ScreenRefresh.self) private var refresh: ScreenRefresh?
+    @Environment(\.analytics) private var analytics
 
     init(model: CatchUpModel? = nil, now: @escaping @Sendable () -> Date = { Date() }) {
         _model = State(initialValue: model)
@@ -36,30 +38,74 @@ struct CatchUpView: View {
         case .failed:
             ScreenLoadError(identifier: "catch-up-error") { Task { await model?.load() } }
         case .loaded(let screen):
-            ScrollView { sections(screen) }
+            sections(screen)
         }
     }
 
     private func sections(_ screen: CatchUpScreen) -> some View {
-        let actions = CatchUpRowActions(
-            vote: { environment.navigator.presentVoteHold(proposalID: $0, pick: nil) },
-            open: open,
-            join: join)
-        return LazyVStack(alignment: .leading, spacing: 0) {
-            Text(CatchUpCopy.subLine(count: screen.count))
-                .font(MonacoTheme.Typo.subhead)
-                .foregroundStyle(MonacoTheme.muted)
-                .padding(.horizontal, MonacoTheme.Space.gutter)
-                .padding(.bottom, MonacoTheme.Space.s)
-                .accessibilityIdentifier("catch-up-subline")
-            CatchUpSection(title: CatchUpCopy.waitingHeader, items: screen.waiting, now: now(), actions: actions)
-            CatchUpSection(title: CatchUpCopy.repliesHeader, items: screen.replies, now: now(), actions: actions)
-            CatchUpSection(title: CatchUpCopy.invitesHeader, items: screen.invites, now: now(), actions: actions)
-            CatchUpSection(title: CatchUpCopy.resultsHeader, items: screen.results, now: now(), actions: actions)
+        let actions = CatchUpRowActions(vote: vote, open: open, join: join, clear: clear)
+        let now = now()
+        return List {
+            if screen.isCaughtUp {
+                CatchUpCaughtUp(cabals: screen.cabals, openFeed: openFeed)
+                    .catchUpListRow()
+                CatchUpSection(
+                    slot: .cleared, title: CatchUpCopy.clearedHeader, items: screen.cleared, now: now, actions: actions)
+            } else {
+                Text(CatchUpCopy.subLine(count: screen.count))
+                    .font(MonacoTheme.Typo.subhead)
+                    .foregroundStyle(MonacoTheme.muted)
+                    .padding(.horizontal, MonacoTheme.Space.gutter)
+                    .padding(.bottom, MonacoTheme.Space.s)
+                    .catchUpListRow()
+                    .accessibilityIdentifier("catch-up-subline")
+                CatchUpSection(
+                    slot: .waiting, title: CatchUpCopy.waitingHeader, items: screen.waiting, now: now, actions: actions)
+                CatchUpSection(
+                    slot: .replies, title: CatchUpCopy.repliesHeader, items: screen.replies, now: now,
+                    actions: actions)
+                CatchUpSection(
+                    slot: .invites, title: CatchUpCopy.invitesHeader, items: screen.invites, now: now,
+                    actions: actions)
+                CatchUpSection(
+                    slot: .results, title: CatchUpCopy.resultsHeader, items: screen.results, now: now,
+                    actions: actions)
+            }
+        }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+        .accessibilityIdentifier("catch-up-page")
+    }
+
+    private func opened(_ item: Components.Schemas.CatchUpItem) {
+        analytics.step(.catchUp(.openedItem), properties: ["kind": .string(item.kind.rawValue)])
+        guard let model else { return }
+        Task { await model.read(item.key) }
+    }
+
+    private func vote(_ item: Components.Schemas.CatchUpItem) {
+        opened(item)
+        if let id = item.proposal?.id { environment.navigator.presentVoteHold(proposalID: id, pick: nil) }
+    }
+
+    private func clear(_ item: Components.Schemas.CatchUpItem) {
+        guard let model else { return }
+        Task {
+            if await model.clear(item.key) {
+                analytics.step(.catchUp(.cleared), properties: ["kind": .string(item.kind.rawValue)])
+            } else {
+                toasts.current = MonacoToast(message: CatchUpCopy.clearFailedToast)
+            }
         }
     }
 
+    private func openFeed() {
+        analytics.step(.catchUp(.openFeed))
+        environment.navigator.selectedTab = .feed
+    }
+
     private func open(_ item: Components.Schemas.CatchUpItem) {
+        opened(item)
         switch item.kind {
         case .waitingVote, .result:
             if let id = item.proposal?.id { environment.navigator.open(ProposalRoute(proposalID: id), in: .home) }
@@ -76,6 +122,7 @@ struct CatchUpView: View {
 
     private func join(_ item: Components.Schemas.CatchUpItem) {
         guard let invite = item.invite, let cabal = item.cabal else { return }
+        opened(item)
         let invites = CabalInvitesModel(api: environment.api, hints: environment.hints)
         Task {
             let received = ReceivedCabalInvite(requestID: invite.id, cabalID: cabal.id, cabalName: cabal.name)

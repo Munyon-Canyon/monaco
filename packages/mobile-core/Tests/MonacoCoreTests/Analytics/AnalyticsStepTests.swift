@@ -15,6 +15,7 @@ final class AnalyticsStepTests: XCTestCase {
         "Feed": .feed,
         "Social": .social,
         "Chat": .chat,
+        "Catch up": .catchUp,
         "Referral": .referral,
     ]
 

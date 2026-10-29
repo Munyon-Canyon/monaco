@@ -5,7 +5,7 @@ import MonacoCore
 import SwiftUI
 
 enum CatchUpSampleScenario: String {
-    case six, loading, error
+    case six, caughtUp, firstUse, loading, error
 
     static let launchArgument = "-MonacoCatchUpSample"
     static let legacyArgument = "-activityFeedHarness"
@@ -26,6 +26,8 @@ enum CatchUpSampleScenario: String {
     var state: LoadState<CatchUpScreen> {
         switch self {
         case .six: .loaded(CatchUpScreen(.six))
+        case .caughtUp: .loaded(CatchUpScreen(.caughtUp))
+        case .firstUse: .loaded(CatchUpScreen(.firstUse))
         case .loading: .loading
         case .error: .failed(.transport(URLError(.notConnectedToInternet)))
         }
@@ -33,11 +35,21 @@ enum CatchUpSampleScenario: String {
 }
 
 nonisolated struct CatchUpSampleRoute: AppRoute {
-    let scenario: CatchUpSampleScenario
+    enum Outcome: Hashable {
+        case scenario(CatchUpSampleScenario)
+        case unauthorized
+    }
+
+    let outcome: Outcome
 
     @MainActor func destination() -> some View {
         let now = Components.Schemas.CatchUp.sampleNow
-        return CatchUpView(model: .preview(state: scenario.state, now: now), now: { now })
+        let state: LoadState<CatchUpScreen>
+        switch outcome {
+        case .scenario(let scenario): state = scenario.state
+        case .unauthorized: state = .failed(.signedOut)
+        }
+        return CatchUpView(model: .preview(state: state, now: now), now: { now })
     }
 }
 
@@ -45,7 +57,20 @@ final class CatchUpSampleHarnessEntry: SampleHarnessEntry {
     @MainActor
     override class func root(arguments: [String], auth: PrivyAuthService) -> AnyView? {
         guard let scenario = CatchUpSampleScenario.matching(arguments) else { return nil }
-        return AnyView(SampleAppFrame(auth: auth, tab: .home, routes: [CatchUpSampleRoute(scenario: scenario)]))
+        return AnyView(
+            SampleAppFrame(auth: auth, tab: .home, routes: [CatchUpSampleRoute(outcome: .scenario(scenario))]))
+    }
+}
+
+final class CatchUpFlowHarnessEntry: SampleHarnessEntry {
+    @MainActor
+    override class func root(arguments: [String], auth: PrivyAuthService) -> AnyView? {
+        guard let scenario = Flow34Scenario.matching(arguments) else { return nil }
+        switch scenario {
+        case .unauthorized:
+            return AnyView(
+                SampleAppFrame(auth: auth, tab: .home, routes: [CatchUpSampleRoute(outcome: .unauthorized)]))
+        }
     }
 }
 #endif

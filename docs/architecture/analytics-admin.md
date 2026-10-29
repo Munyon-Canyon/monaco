@@ -125,6 +125,7 @@ The PostHog call is an outbound HTTP call, so it sits behind a port with an anti
 | Feed | feed_opened → item_opened → comment_opened → comment_posted |
 | Social | profile_viewed → follow_tapped; suggestion_shown → suggestion_followed / suggestion_dismissed |
 | Chat | chat_opened → message_sent |
+| Catch up | cleared; opened_item; open_feed |
 | Referral | invite_paste_shown → invite_pasted / invite_skipped |
 
 `vote_push_action` carries `action` (`vote_yes`, `vote_no`, `read_thesis`, `default`) and `kind` (the push kind).

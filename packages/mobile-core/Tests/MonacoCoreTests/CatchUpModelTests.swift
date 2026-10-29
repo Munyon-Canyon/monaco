@@ -1,4 +1,5 @@
 import Foundation
+import HTTPTypes
 import MonacoAPI
 import MonacoNotify
 import MonacoTestSupport
@@ -73,5 +74,114 @@ final class CatchUpModelTests: XCTestCase {
         let empty = Components.Schemas.CatchUp(
             count: 0, cabals: [], waiting: [], replies: [], invites: [], results: [], cleared: [])
         XCTAssertTrue(CatchUpScreen(empty).isCaughtUp)
+    }
+
+    private static let tslaKey = "proposal:00000000-0000-7000-8000-00000000b005"
+    private static let nvdaKey = "proposal:00000000-0000-7000-8000-00000000b001"
+
+    private static func encoded(_ key: String) -> String {
+        key.replacingOccurrences(of: ":", with: "%3A")
+    }
+
+    private func header(_ request: HTTPRequest?) -> String? {
+        guard let name = HTTPField.Name("Idempotency-Key") else { return nil }
+        return request?.headerFields[name]
+    }
+
+    func testClearMovesTheRowAtOnceAndSendsOneKeyedPost() async throws {
+        let (model, transport, _) = make([.json(.ok, try Self.body()), .gate])
+        await model.load()
+
+        let clearing = Task { await model.clear(Self.tslaKey) }
+        await transport.waitForRequests(2)
+
+        guard case .loaded(let during) = model.state else { return XCTFail("not loaded") }
+        XCTAssertNil(during.item(key: Self.tslaKey))
+        XCTAssertEqual(during.cleared.first?.key, Self.tslaKey)
+        XCTAssertEqual(during.cleared.first?.clearedReason, .cleared)
+        XCTAssertEqual(during.count, 5)
+        await transport.releaseGate(.json(.noContent, ""))
+        let cleared = await clearing.value
+
+        XCTAssertTrue(cleared)
+        let sent = await transport.sent
+        XCTAssertEqual(sent.count, 2)
+        XCTAssertEqual(sent.last?.method, .post)
+        XCTAssertEqual(sent.last?.path, "/v1/me/catch-up/items/\(Self.encoded(Self.tslaKey))/clear")
+        XCTAssertFalse(header(sent.last)?.isEmpty ?? true)
+    }
+
+    func testAFailedClearPutsTheRowBack() async throws {
+        let (model, _, _) = make([.json(.ok, try Self.body()), .failure(URLError(.notConnectedToInternet))])
+        await model.load()
+        guard case .loaded(let before) = model.state else { return XCTFail("not loaded") }
+
+        let cleared = await model.clear(Self.tslaKey)
+
+        XCTAssertFalse(cleared)
+        XCTAssertEqual(model.state, .loaded(before))
+    }
+
+    func testReadPutsOutTheDotAndAReadRowSendsNothing() async throws {
+        let (model, transport, _) = make([.json(.ok, try Self.body()), .json(.noContent, "")])
+        await model.load()
+
+        await model.read(Self.nvdaKey)
+        await model.read(Self.nvdaKey)
+
+        guard case .loaded(let screen) = model.state else { return XCTFail("not loaded") }
+        XCTAssertEqual(screen.item(key: Self.nvdaKey)?.unread, false)
+        let sent = await transport.sent
+        XCTAssertEqual(sent.count, 2)
+        XCTAssertEqual(sent.last?.path, "/v1/me/catch-up/items/\(Self.encoded(Self.nvdaKey))/read")
+    }
+
+    func testAFailedReadBringsTheDotBack() async throws {
+        let (model, _, _) = make([.json(.ok, try Self.body()), .failure(URLError(.notConnectedToInternet))])
+        await model.load()
+
+        await model.read(Self.nvdaKey)
+
+        guard case .loaded(let screen) = model.state else { return XCTFail("not loaded") }
+        XCTAssertEqual(screen.item(key: Self.nvdaKey)?.unread, true)
+    }
+
+    func testKeepPutsOutTheDotAndKeepsTheRow() async throws {
+        let (model, transport, _) = make([.json(.ok, try Self.body()), .json(.noContent, "")])
+        await model.load()
+
+        await model.keep(Self.nvdaKey)
+
+        guard case .loaded(let screen) = model.state else { return XCTFail("not loaded") }
+        XCTAssertEqual(screen.item(key: Self.nvdaKey)?.unread, false)
+        let sent = await transport.sent
+        XCTAssertEqual(sent.last?.path, "/v1/me/catch-up/items/\(Self.encoded(Self.nvdaKey))/keep")
+    }
+
+    func testAHintDuringAWriteReloadsOnceAfterItSettles() async throws {
+        let (model, transport, _) = make([
+            .json(.ok, try Self.body()), .gate, .json(.ok, try Self.body()),
+        ])
+        await model.load()
+
+        let clearing = Task { await model.clear(Self.tslaKey) }
+        await transport.waitForRequests(2)
+        await model.load()
+        var sent = await transport.sent
+        XCTAssertEqual(sent.count, 2, "no reload while the write is out")
+        await transport.releaseGate(.json(.noContent, ""))
+        _ = await clearing.value
+
+        sent = await transport.sent
+        XCTAssertEqual(sent.count, 3)
+        XCTAssertTrue(sent.last?.path?.hasPrefix("/v1/me/catch-up?since=") ?? false)
+    }
+
+    func testTheCaughtUpSampleListsSixClearedRows() {
+        let screen = CatchUpScreen(.caughtUp)
+        XCTAssertTrue(screen.isCaughtUp)
+        XCTAssertEqual(screen.cleared.count, 6)
+        XCTAssertEqual(screen.cabals.count, 3)
+        XCTAssertTrue(CatchUpScreen(.firstUse).cabals.isEmpty)
     }
 }

@@ -22,3 +22,4 @@ Dated record of changes to [analytics-admin.md](../analytics-admin.md). Add one 
 - 2026-10-10: Added the moderator actions to ban and unban a user, remove a comment, and revoke or reassign a handle. A removed comment carries `deleted_by_kind = admin` on `feed_comments` and renders as "Removed by Monaco". No action copies a comment body into `admin.action` (#683).
 - 2026-10-20: Session replay is on in staging builds, masked by default with explicit masks on money and identity views, and off in production until the founder enables it (#5800).
 - 2026-10-28: Vote flow: added the app step `vote_undone`, tracked when a member taps Undo on the vote toast. The server's `vote_retracted` stays the authoritative event (#6506).
+- 2026-10-29: Catch up flow: added the app steps `catch_up_cleared`, `catch_up_opened_item` (with the item's `kind`) and `catch_up_open_feed`, tracked on a swipe Clear, a row, Vote or Join press, and the caught-up Open Feed button (#6566).

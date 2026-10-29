@@ -120,6 +120,49 @@ final class CatchUpCopyTests: XCTestCase {
         let old = Date(timeIntervalSince1970: 1_760_227_200)
         XCTAssertEqual(Copy.relativeTime(old, now: now, calendar: calendar), "Oct 12")
     }
+
+    private func cabals(_ count: Int) -> [Components.Schemas.CatchUpCabal] {
+        let names = ["AC Capital", "Tech Titans", "Degens", "Quant Kids", "Mooners"]
+        return (0..<count).map { .init(id: "c\($0)", name: names[$0], pictureUrl: nil) }
+    }
+
+    func testCaughtUpLineNamesTheCabalsFromTheScreen() {
+        XCTAssertEqual(Copy.caughtUpLine(cabals: cabals(0)), "When a cabal you're in votes, it lands here first.")
+        XCTAssertEqual(
+            Copy.caughtUpLine(cabals: cabals(1)), "Nothing in AC Capital waits on you. The next vote lands here first.")
+        XCTAssertEqual(
+            Copy.caughtUpLine(cabals: cabals(3)),
+            "Nothing in AC Capital, Tech Titans or Degens waits on you. The next vote lands here first.")
+        XCTAssertEqual(
+            Copy.caughtUpLine(cabals: cabals(4)),
+            "Nothing in your cabals waits on you. The next vote lands here first.")
+    }
+
+    func testARowReadsToVoiceOverWithItsCabalTimeAndUnreadState() {
+        let mention = six.replies[0]
+        XCTAssertEqual(
+            Copy.accessibilityLabel(mention, now: now, calendar: calendar),
+            "Christelle mentioned you in AC Capital, Buy NVDA: Still out, at Andres, Jordan? 20 minutes ago, unread.")
+        XCTAssertEqual(
+            Copy.accessibilityLabel(Components.Schemas.CatchUp.caughtUp.cleared[0], now: now, calendar: calendar),
+            "Buy NVDA passed 5–1, AC Capital · you voted Yes · filled just now.")
+    }
+
+    func testClearedReasons() {
+        let cleared = Components.Schemas.CatchUp.caughtUp.cleared
+        XCTAssertEqual(Copy.clearedSubtitle(cleared[0], now: now), "AC Capital · you voted Yes · filled")
+        XCTAssertEqual(Copy.clearedSubtitle(cleared[1], now: now), "AC Capital · you replied")
+        XCTAssertEqual(Copy.clearedSubtitle(cleared[2], now: now), "Tech Titans · Sell TSLA")
+        XCTAssertEqual(Copy.clearedSubtitle(cleared[3], now: now), "5 members · later")
+        XCTAssertEqual(Copy.clearedSubtitle(cleared[5], now: now), "Tech Titans · you voted No")
+        var joined = cleared[3]
+        joined.clearedReason = .joined
+        XCTAssertEqual(Copy.clearedSubtitle(joined, now: now), "Quant Kids · you joined")
+        var open = cleared[0]
+        open.clearedReason = .voted
+        open.kind = .waitingVote
+        XCTAssertEqual(Copy.clearedSubtitle(open, now: now), "AC Capital · you voted Yes")
+    }
 }
 
 extension Components.Schemas.CatchUpItem {

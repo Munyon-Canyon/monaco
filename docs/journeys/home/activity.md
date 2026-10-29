@@ -11,7 +11,7 @@ xcuitest: [apps/mobile/MonacoUITests/Journeys/HomeActivityJourney.swift, apps/mo
 
 # Open Activity from the Home bell
 
-A signed-in member taps the bell on Home and lands on Activity, then goes back. The backend serves no notifications yet, so Activity shows its "opens soon" caption and nothing else: no fixture people, no amounts, no Mark all read. The journey asserts that caption. When `GET /v1/me/notifications` ships, this doc gains the list and Mark all read steps. The spec is [Activity](../../screens.md#activity-activityfeedroute) and the bell in [Home](../../screens.md#home).
+A signed-in member taps the bell on Home and lands on Activity, then goes back. The backend serves no notifications yet, so Activity shows its "opens soon" caption and nothing else: no fixture people, no amounts, no Mark all read. The journey asserts that caption. When `GET /v1/me/notifications` ships, this doc gains the list and Mark all read steps. The spec is [Activity](../../screens.md#catch-up-activityfeedroute) and the bell in [Home](../../screens.md#home).
 
 The format of this doc is in [App journeys](../README.md).
 

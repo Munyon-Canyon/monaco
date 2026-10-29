@@ -23,7 +23,8 @@ extension Components.Schemas.CatchUp {
         choice: Components.Schemas.CatchUpProposal.YourChoicePayload? = nil, filled: Bool? = nil
     ) -> Components.Schemas.CatchUpProposal {
         .init(
-            id: "00000000-0000-7000-8000-00000000b00\(n)", kind: kind, symbol: symbol, assetName: name,
+            id: "00000000-0000-7000-8000-00000000b0\(n < 10 ? "0" : "")\(n)", kind: kind, symbol: symbol,
+            assetName: name,
             assetLogoUrl: nil, usdcMicros: usdc, tokenAmount: nil, proposer: person(9, "Andres"),
             createdAt: sampleNow.addingTimeInterval(-86_400), expiresAt: sampleNow.addingTimeInterval(expiresIn),
             status: outcome == nil ? "open" : "closed", yes: yes, no: no, voted: voted, eligible: eligible,
@@ -34,11 +35,12 @@ extension Components.Schemas.CatchUp {
         _ key: String, _ kind: Components.Schemas.CatchUpItem.KindPayload, unread: Bool, ago: TimeInterval,
         actor: Components.Schemas.CatchUpPerson? = nil, cabal: Components.Schemas.CatchUpCabal,
         proposal: Components.Schemas.CatchUpProposal? = nil, quote: Components.Schemas.CatchUpQuote? = nil,
-        invite: Components.Schemas.CatchUpInvite? = nil
+        invite: Components.Schemas.CatchUpInvite? = nil,
+        clearedReason: Components.Schemas.CatchUpItem.ClearedReasonPayload? = nil
     ) -> Components.Schemas.CatchUpItem {
         .init(
-            key: key, kind: kind, unread: unread, at: sampleNow.addingTimeInterval(-ago), actor: actor, cabal: cabal,
-            proposal: proposal, quote: quote, invite: invite)
+            key: key, kind: kind, unread: unread, at: sampleNow.addingTimeInterval(-ago), clearedReason: clearedReason,
+            actor: actor, cabal: cabal, proposal: proposal, quote: quote, invite: invite)
     }
 
     public static let six = Components.Schemas.CatchUp(
@@ -87,5 +89,54 @@ extension Components.Schemas.CatchUp {
                     eligible: 4, expiresIn: -4 * 86_400, outcome: .failed, choice: .no)),
         ],
         cleared: [])
+
+    public static let caughtUp = Components.Schemas.CatchUp(
+        count: 0, cabals: [acCapital, techTitans, degens], waiting: [], replies: [], invites: [], results: [],
+        cleared: [
+            item(
+                "proposal:00000000-0000-7000-8000-00000000b011", .result, unread: false, ago: 30, cabal: acCapital,
+                proposal: proposal(
+                    11, kind: "buy", symbol: "NVDAx", name: "NVIDIA", usdc: 400_000_000, yes: 5, no: 1, voted: 6,
+                    eligible: 6, expiresIn: -30, outcome: .filled, choice: .yes, filled: true),
+                clearedReason: .voted),
+            item(
+                "comment:00000000-0000-7000-8000-00000000d011", .mention, unread: false, ago: 20 * 60,
+                actor: person(1, "Christelle"), cabal: acCapital,
+                proposal: proposal(
+                    11, kind: "buy", symbol: "NVDAx", name: "NVIDIA", usdc: 400_000_000, yes: 5, no: 1, voted: 6,
+                    eligible: 6, expiresIn: -30, outcome: .filled, choice: .yes, filled: true),
+                quote: .init(authorName: "Christelle", isYou: false, text: "Still out: @Andres, Jordan?"),
+                clearedReason: .replied),
+            item(
+                "comment:00000000-0000-7000-8000-00000000d012", .reply, unread: false, ago: 3 * 86_400,
+                actor: person(2, "Mia"), cabal: techTitans,
+                proposal: proposal(
+                    12, kind: "sell", symbol: "TSLAx", name: "Tesla", usdc: nil, yes: 2, no: 2, voted: 4,
+                    eligible: 4, expiresIn: -86_400, outcome: .failed, choice: .no),
+                quote: .init(authorName: "You", isYou: true, text: "Deliveries miss is priced in."),
+                clearedReason: .cleared),
+            item(
+                "invite:00000000-0000-7000-8000-00000000e011", .invite, unread: false, ago: 86_400,
+                actor: person(3, "Sam"), cabal: quantKids,
+                invite: .init(id: "00000000-0000-7000-8000-00000000e011", memberCount: 5, topHoldingName: nil),
+                clearedReason: .cleared),
+            item(
+                "proposal:00000000-0000-7000-8000-00000000b013", .result, unread: false, ago: 5 * 3_600,
+                cabal: degens,
+                proposal: proposal(
+                    13, kind: "buy", symbol: "METAx", name: "Meta", usdc: 300_000_000, yes: 4, no: 1, voted: 5,
+                    eligible: 5, expiresIn: -5 * 3_600, outcome: .filled, choice: .yes, filled: true),
+                clearedReason: .voted),
+            item(
+                "proposal:00000000-0000-7000-8000-00000000b014", .result, unread: false, ago: 4 * 86_400,
+                cabal: techTitans,
+                proposal: proposal(
+                    14, kind: "sell", symbol: "TSLAx", name: "Tesla", usdc: nil, yes: 2, no: 2, voted: 4,
+                    eligible: 4, expiresIn: -4 * 86_400, outcome: .failed, choice: .no),
+                clearedReason: .voted),
+        ])
+
+    public static let firstUse = Components.Schemas.CatchUp(
+        count: 0, cabals: [], waiting: [], replies: [], invites: [], results: [], cleared: [])
 }
 #endif

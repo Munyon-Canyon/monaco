@@ -158,7 +158,7 @@ Opens from the Home toolbar bell. A pushed screen with the large title "Catch up
 | Invites | The inviter's photo with the cabal's crest, "Sam invited you to Quant Kids", "5 members · holds OpenAI" and a "Join" button that joins and toasts "You're in Quant Kids." |
 | Results | The asset logo with the crest, "Buy META passed 4–1", "Degens · you voted Yes · filled", the time. A tap opens the proposal |
 
-States. Loading: five row skeletons labelled "Loading Catch up". Failed: "Couldn’t load this view" with "Try again". Harness: `-MonacoCatchUpSample <six|loading|error>`; `-activityFeedHarness <x>` stays as an alias until #6589. Read, clear, keep, the swipe, the caught-up state and the "One by one" card view are #6566 and #6571.
+States. Loading: five row skeletons labelled "Loading Catch up". Failed: "Couldn’t load this view" with "Try again". Harness: `-MonacoCatchUpSample <six|caughtUp|firstUse|loading|error>`; `-activityFeedHarness <x>` stays as an alias until #6589. Read, clear, keep, the swipe, the caught-up state and the "One by one" card view are #6566 and #6571.
 
 ## Cabals tab
 

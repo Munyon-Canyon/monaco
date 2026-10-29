@@ -12,6 +12,13 @@ public enum CatchUpCopy {
     public static let repliesHeader = "Replies and mentions"
     public static let invitesHeader = "Invites"
     public static let resultsHeader = "Results"
+    public static let clearedHeader = "Cleared today"
+
+    public static let caughtUpTitle = "You're caught up"
+    public static let openFeed = "Open Feed"
+    public static let clearAction = "Clear"
+    public static let clearFailedToast = "Couldn't clear that. Try again."
+    public static let firstUseLine = "When a cabal you're in votes, it lands here first."
 
     public static func subLine(count: Int) -> String {
         "\(count) to catch up · what you can still change comes first"
@@ -96,17 +103,14 @@ public enum CatchUpCopy {
         }
     }
 
+    public static func replyAbout(_ item: Item) -> String? {
+        if let proposal = item.proposal { return proposalTitle(proposal) }
+        guard let post = item.post else { return nil }
+        return post.actorName.isEmpty ? post.label : "\(post.actorName)'s \(post.label)"
+    }
+
     public static func replySubtitle(_ item: Item) -> String {
-        let cabal = item.cabal?.name
-        let about: String?
-        if let proposal = item.proposal {
-            about = proposalTitle(proposal)
-        } else if let post = item.post {
-            about = post.actorName.isEmpty ? post.label : "\(post.actorName)'s \(post.label)"
-        } else {
-            about = nil
-        }
-        return [cabal, about].compactMap { $0 }.joined(separator: " · ")
+        [item.cabal?.name, replyAbout(item)].compactMap { $0 }.joined(separator: " · ")
     }
 
     public static func quote(_ item: Item) -> (author: String, text: String)? {
@@ -161,5 +165,69 @@ public enum CatchUpCopy {
         let parts = calendar.dateComponents([.month, .day], from: at)
         let month = calendar.shortMonthSymbols[(parts.month ?? 1) - 1]
         return "\(month) \(parts.day ?? 1)"
+    }
+
+    public static func caughtUpLine(cabals: [Components.Schemas.CatchUpCabal]) -> String {
+        let names: String
+        switch cabals.count {
+        case 0: return firstUseLine
+        case 1: names = cabals[0].name
+        case 2: names = "\(cabals[0].name) or \(cabals[1].name)"
+        case 3: names = "\(cabals[0].name), \(cabals[1].name) or \(cabals[2].name)"
+        default: names = "your cabals"
+        }
+        return "Nothing in \(names) waits on you. The next vote lands here first."
+    }
+
+    public static func clearedSubtitle(_ item: Item, now: Date) -> String {
+        guard let reason = item.clearedReason else { return subtitle(item, now: now) }
+        let cabal = item.cabal?.name
+        switch reason {
+        case .voted:
+            if item.kind == .result { return resultSubtitle(item) }
+            let choice = item.proposal?.yourChoice.map { $0 == .yes ? "you voted Yes" : "you voted No" } ?? "you voted"
+            return [cabal, choice].compactMap { $0 }.joined(separator: " · ")
+        case .replied:
+            return [cabal, "you replied"].compactMap { $0 }.joined(separator: " · ")
+        case .joined:
+            return [cabal, "you joined"].compactMap { $0 }.joined(separator: " · ")
+        case .cleared:
+            guard item.kind == .invite else { return subtitle(item, now: now) }
+            return [inviteSubtitle(item), "later"].filter { !$0.isEmpty }.joined(separator: " · ")
+        }
+    }
+
+    public static func spokenTime(_ at: Date, now: Date, calendar: Calendar) -> String {
+        let seconds = now.timeIntervalSince(at)
+        if seconds < 60 { return "just now" }
+        if seconds < 3600 { return plural(Int(seconds / 60), "minute") + " ago" }
+        if seconds < 86400 { return plural(Int(seconds / 3600), "hour") + " ago" }
+        if seconds < 7 * 86400 { return plural(Int(seconds / 86400), "day") + " ago" }
+        return relativeTime(at, now: now, calendar: calendar)
+    }
+
+    private static func plural(_ value: Int, _ unit: String) -> String {
+        value == 1 ? "1 \(unit)" : "\(value) \(unit)s"
+    }
+
+    public static func accessibilityLabel(_ item: Item, now: Date, calendar: Calendar) -> String {
+        var label: String
+        switch item.kind {
+        case .mention, .reply:
+            label = "\(rowTitle(item))"
+            if let cabal = item.cabal?.name { label += " in \(cabal)" }
+            if let about = replyAbout(item) { label += ", \(about)" }
+            if let quote = quote(item) {
+                let spoken = quote.text.replacingOccurrences(of: ":", with: ",")
+                    .replacingOccurrences(of: "@", with: "at ")
+                label += ": \(spoken)"
+            }
+        case .waitingVote, .result, .invite:
+            let line = item.clearedReason == nil ? subtitle(item, now: now) : clearedSubtitle(item, now: now)
+            label = [rowTitle(item), line].filter { !$0.isEmpty }.joined(separator: ", ")
+        }
+        label += " \(spokenTime(item.at, now: now, calendar: calendar))"
+        if item.unread { label += ", unread" }
+        return label + "."
     }
 }
