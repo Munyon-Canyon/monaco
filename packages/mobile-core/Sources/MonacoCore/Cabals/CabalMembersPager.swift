@@ -8,6 +8,12 @@ public struct CabalMemberRow: Identifiable, Equatable, Sendable {
     public init(_ member: Components.Schemas.CabalMember) {
         self.member = member
     }
+
+    public init(_ row: Components.Schemas.CabalMemberRow) {
+        member = .init(
+            userId: row.userId, handle: row.handle, displayName: row.displayName, photoUrl: row.photoUrl,
+            role: row.role.rawValue, canVote: row.canVote, joinedAt: row.joinedAt)
+    }
 }
 
 @Observable
@@ -24,7 +30,7 @@ public final class CabalMembersPager {
                     path: .init(id: cabalID), query: .init(cursor: cursor, limit: pageSize)
                 ).ok.body.json
             }
-            return (page.items.map(CabalMemberRow.init), page.nextCursor)
+            return (page.items.map { CabalMemberRow($0) }, page.nextCursor)
         }
     }
 

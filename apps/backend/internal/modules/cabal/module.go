@@ -9,6 +9,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal/port"
 	governanceport "github.com/monaco/monaco/apps/backend/internal/modules/governance/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
+	rankingport "github.com/monaco/monaco/apps/backend/internal/modules/ranking/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
@@ -46,6 +47,7 @@ type Module struct {
 	unread     app.UnreadCounter
 	votes      app.OpenVotes
 	codes      app.CodeResolver
+	calls      app.MemberCalls
 }
 
 type liveReads struct {
@@ -53,6 +55,7 @@ type liveReads struct {
 		ShareUnits(ctx context.Context, cabalID ids.CabalID, user ids.UserID) (money.SharesUnits, error)
 		OpenFund(ctx context.Context, cabalID ids.CabalID, user ids.UserID) (bool, error)
 		PotValue(ctx context.Context, cabalID ids.CabalID) (money.Micros, error)
+		Ownership(ctx context.Context, cabalID ids.CabalID) (map[ids.UserID]int32, error)
 	}
 	sharesOn func(ctx context.Context, db dbsqlc.DBTX, cabalID ids.CabalID, user ids.UserID) (money.SharesUnits, error)
 	openOn   func(ctx context.Context, db dbsqlc.DBTX, cabalID ids.CabalID, user ids.UserID) (bool, error)
@@ -68,6 +71,10 @@ func (l liveReads) OpenFund(ctx context.Context, cabalID ids.CabalID, user ids.U
 
 func (l liveReads) PotValue(ctx context.Context, cabalID ids.CabalID) (money.Micros, error) {
 	return l.reads.PotValue(ctx, cabalID)
+}
+
+func (l liveReads) Ownership(ctx context.Context, cabalID ids.CabalID) (map[ids.UserID]int32, error) {
+	return l.reads.Ownership(ctx, cabalID)
 }
 
 func (l liveReads) ShareUnitsOn(
@@ -119,6 +126,9 @@ func (m *Module) Wire(set module.Set) {
 		if provider, ok := mod.(interface{ Codes() app.CodeResolver }); ok {
 			m.codes = provider.Codes()
 		}
+		if provider, ok := mod.(interface{ Calls() rankingport.Calls }); ok {
+			m.calls = provider.Calls()
+		}
 		if provider, ok := mod.(interface{ Queries() governanceport.Queries }); ok {
 			if votes, ok := provider.Queries().(app.OpenVotes); ok {
 				m.votes = votes
@@ -141,7 +151,16 @@ func (m *Module) http() adapters.HTTP {
 	if votes == nil {
 		votes = app.NoOpenVotes{}
 	}
+	calls := m.calls
+	if calls == nil {
+		calls = app.NoCalls{}
+	}
+	var ownership app.MemberOwnership = app.NoOwnership{}
+	if reads, ok := m.treasury.(app.MemberOwnership); ok {
+		ownership = reads
+	}
 	return adapters.HTTP{
+		Ownership: ownership, Calls: calls,
 		Create:  m.CreateCabalHandler(),
 		Join:    app.NewJoinCabalHandler(m.deps.UoW, m.deps.Clock),
 		Request: app.NewRequestAccessHandler(m.deps.UoW, m.deps.IDs, m.deps.Clock, m.codes),

@@ -46,3 +46,35 @@ func (q *Queries) MemberSharesInCabalsOf(ctx context.Context, userID uuid.UUID) 
 	}
 	return items, nil
 }
+
+const shareUnitsByCabal = `-- name: ShareUnitsByCabal :many
+SELECT user_id, share_units::text AS share_units
+FROM user_positions
+WHERE cabal_id = $1::uuid AND share_units > 0
+ORDER BY user_id
+`
+
+type ShareUnitsByCabalRow struct {
+	UserID     uuid.UUID
+	ShareUnits string
+}
+
+func (q *Queries) ShareUnitsByCabal(ctx context.Context, cabalID uuid.UUID) ([]ShareUnitsByCabalRow, error) {
+	rows, err := q.db.Query(ctx, shareUnitsByCabal, cabalID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ShareUnitsByCabalRow
+	for rows.Next() {
+		var i ShareUnitsByCabalRow
+		if err := rows.Scan(&i.UserID, &i.ShareUnits); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
