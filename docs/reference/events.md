@@ -654,6 +654,7 @@ Subject `events.proposal.expired`, version 1.
 | `v` | `int` |
 | `proposal_id` | `uuid.UUID` |
 | `cabal_id` | `uuid.UUID` |
+| `kind` | `string` |
 
 ## `proposal.failed`
 
@@ -664,6 +665,7 @@ Subject `events.proposal.failed`, version 1.
 | `v` | `int` |
 | `proposal_id` | `uuid.UUID` |
 | `cabal_id` | `uuid.UUID` |
+| `kind` | `string` |
 
 ## `proposal.passed`
 

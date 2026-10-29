@@ -90,7 +90,7 @@ func TestVoteDeciding_pushesNobodyOnceTheProposalIsClosedExpiredOrARule(t *testi
 	t.Parallel()
 	for name, update := range map[string]string{
 		"passed":         `UPDATE proposals SET status = 'passed' WHERE id = $1`,
-		"rule":           `UPDATE proposals SET kind = 'rule' WHERE id = $1`,
+		"rule":           `UPDATE proposals SET kind = 'rule', rule_change = '{"v":1,"rule":"show_sides","from":false,"to":true}', symbol = NULL, mint = NULL, quote_out_amount = NULL, usdc_micros = NULL, token_amount = NULL WHERE id = $1`,
 		"past its close": `UPDATE proposals SET expires_at = created_at WHERE id = $1`,
 	} {
 		t.Run(name, func(t *testing.T) {

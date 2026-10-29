@@ -109,12 +109,14 @@ func (c *ProposalComparisons) quote(
 	ctx context.Context, row sqlc.GetProposalRow, now time.Time,
 ) (LiveComparison, error) {
 	const op = "governance.ProposalComparison"
-	asset, err := c.propose.ports.Assets.AssetBySymbol(ctx, row.Symbol)
+	asset, err := c.propose.ports.Assets.AssetBySymbol(ctx, row.Symbol.String)
 	if err != nil {
 		return LiveComparison{}, err
 	}
 	trade := domain.Trade{
-		Kind: domain.KindBuy, Symbol: row.Symbol, USDCMicros: money.MicrosFromUint64(unsigned(row.UsdcMicros.Int64)),
+		Kind:       domain.KindBuy,
+		Symbol:     row.Symbol.String,
+		USDCMicros: money.MicrosFromUint64(unsigned(row.UsdcMicros.Int64)),
 	}
 	routed, comparison, err := c.propose.route(ctx, asset, trade)
 	if market.ProbeFailed(err) {

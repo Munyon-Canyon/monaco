@@ -74,6 +74,7 @@ type ProposalView struct {
 	CanVote      bool
 	Comparison   *multichain.Comparison
 	Network      chain.Network
+	Rule         *RuleView
 }
 
 type ProposalPage struct {
@@ -205,6 +206,7 @@ func (r *ProposalReads) page(
 	if err != nil {
 		return ProposalPage{}, err
 	}
+	rules := make([]*RuleView, 0, len(rows))
 	for _, row := range rows {
 		view, err := proposalView(row, tallies[row.ID].tally)
 		if err != nil {
@@ -213,8 +215,9 @@ func (r *ProposalReads) page(
 		view.CabalName = names[view.CabalID]
 		view.CanVote = view.Status == domain.StatusOpen && tallies[row.ID].callerVotes
 		page.Items = append(page.Items, view)
+		rules = append(rules, view.Rule)
 	}
-	return page, nil
+	return page, r.nameRuleUsers(ctx, rules)
 }
 
 type listedTally struct {
@@ -260,10 +263,15 @@ func proposalView(row sqlc.ListProposalsRow, tally Tally) (ProposalView, error) 
 	if err != nil {
 		return ProposalView{}, err
 	}
+	rule, err := decodeRuleView(row.RuleChange)
+	if err != nil {
+		return ProposalView{}, err
+	}
 	return ProposalView{
-		ID: ids.ProposalIDFrom(row.ID), CabalID: ids.CabalIDFrom(row.CabalID),
-		ProposerID: ids.UserIDFrom(row.ProposerID), Kind: kind, Symbol: row.Symbol, USDCMicros: row.UsdcMicros.Int64,
-		TokenAmount: row.TokenAmount.Int64, QuoteOut: row.QuoteOutAmount, Thesis: row.Thesis.String,
+		ID: ids.ProposalIDFrom(row.ID), CabalID: ids.CabalIDFrom(row.CabalID), Rule: rule,
+		ProposerID: ids.UserIDFrom(row.ProposerID), Kind: kind, Symbol: row.Symbol.String,
+		USDCMicros: row.UsdcMicros.Int64, TokenAmount: row.TokenAmount.Int64, QuoteOut: row.QuoteOutAmount.Int64,
+		Thesis: row.Thesis.String,
 		Status: status, StatusReason: errs.Code(row.StatusReason.String), ExpiresAt: row.ExpiresAt,
 		CreatedAt: row.CreatedAt, Tally: tally, MyBallot: domain.Choice(row.MyBallot), Comparison: comparison,
 		Network: chain.Network(row.Network),

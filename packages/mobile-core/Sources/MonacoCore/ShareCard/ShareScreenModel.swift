@@ -235,7 +235,10 @@ public final class ShareScreenModel {
         guard isOpen || SharePassedBuilder.isPassed(proposal.status) else {
             throw APIError.decoding("nothing to share for a \(proposal.status.rawValue) proposal")
         }
-        let (cabalID, symbol, now) = (proposal.cabalId, proposal.symbol, now())
+        guard let symbol = proposal.symbol else {
+            throw APIError.decoding("nothing to share for a rule proposal")
+        }
+        let (cabalID, now) = (proposal.cabalId, now())
         async let cabal = api.read { try await $0.getCabal(path: .init(id: cabalID)).ok.body.json }
         async let referral = try? api.read { try await $0.getMyReferralCode().ok.body.json }
         let chart = try await Self.fetchChart(

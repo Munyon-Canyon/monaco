@@ -12,7 +12,7 @@ import (
 )
 
 const getProposalHead = `-- name: GetProposalHead :one
-SELECT kind, symbol, coalesce(thesis, '')::text AS thesis FROM proposals WHERE id = $1
+SELECT kind, coalesce(symbol, '')::text AS symbol, coalesce(thesis, '')::text AS thesis FROM proposals WHERE id = $1
 `
 
 type GetProposalHeadRow struct {

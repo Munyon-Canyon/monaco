@@ -162,30 +162,50 @@ func (h *CastVoteHandler) vote(
 		ProposalID: cmd.ProposalID, Status: domain.StatusOpen, MyBallot: cmd.Choice,
 		Tally: Tally{Yes: yes, No: no, Voters: voters, Needed: rule.Needed(voters)},
 	}
-	var decided events.Event
-	var passedPrice int64
-	var hasPrice bool
 	verdict := domain.Tally(rule, voters, yes, no)
 	out.MyVote = *myVoteOf(order, verdict != domain.Undecided)
-	switch verdict {
-	case domain.Undecided:
+	if verdict == domain.Undecided {
 		out.UndoUntil = undoUntil(n.FirstCastAt, n.Changed)
 		return out, nil
-	case domain.Passed:
-		comparison, err := decodeComparison(p.PriceComparison)
-		if err != nil {
-			return CastVoteResult{}, err
-		}
-		out.Status, decided = domain.StatusPassed, passed(p, comparison)
-		passedPrice, hasPrice = priced.storable(p.Mint)
-	case domain.Failed:
-		out.Status, decided = domain.StatusFailed, events.ProposalFailed{V: 1, ProposalID: p.ID, CabalID: p.CabalID}
 	}
-	transition := decidedTransition(p.ID, out.Status, cmd.VoterID.UUID(), now, passedPrice, hasPrice)
+	fin, err := closeOut(p, verdict, priced)
+	if err != nil {
+		return CastVoteResult{}, err
+	}
+	out.Status = fin.status
+	transition := decidedTransition(p.ID, out.Status, cmd.VoterID.UUID(), now, fin.price, fin.hasPrice)
 	if _, err := q.Transition(ctx, transition); err != nil {
 		return CastVoteResult{}, err
 	}
-	return out, tx.Events.Append(ctx, decided)
+	if fin.event == nil {
+		return out, nil
+	}
+	return out, tx.Events.Append(ctx, fin.event)
+}
+
+type closing struct {
+	status   domain.Status
+	event    events.Event
+	price    int64
+	hasPrice bool
+}
+
+func closeOut(p sqlc.LockProposalRow, verdict domain.Outcome, priced candidate) (closing, error) {
+	if verdict == domain.Failed {
+		return closing{
+			status: domain.StatusFailed,
+			event:  events.ProposalFailed{V: 1, ProposalID: p.ID, CabalID: p.CabalID, Kind: p.Kind},
+		}, nil
+	}
+	if domain.Kind(p.Kind) == domain.KindRule {
+		return closing{status: domain.StatusPassed}, nil
+	}
+	comparison, err := decodeComparison(p.PriceComparison)
+	if err != nil {
+		return closing{}, err
+	}
+	price, hasPrice := priced.storable(p.Mint.String)
+	return closing{status: domain.StatusPassed, event: passed(p, comparison), price: price, hasPrice: hasPrice}, nil
 }
 
 func decidedTransition(
@@ -260,9 +280,9 @@ func appendVoteCast(
 
 func passed(p sqlc.LockProposalRow, comparison *multichain.Comparison) events.ProposalPassed {
 	return events.ProposalPassed{
-		V: 1, ProposalID: p.ID, CabalID: p.CabalID, ProposerID: p.ProposerID, Kind: p.Kind, Symbol: p.Symbol,
-		Mint: chain.SolanaAddress(p.Mint), USDCMicros: money.MicrosFromUint64(unsigned(p.UsdcMicros.Int64)),
-		TokenAmount: unsigned(p.TokenAmount.Int64), QuoteOutAmount: unsigned(p.QuoteOutAmount),
+		V: 1, ProposalID: p.ID, CabalID: p.CabalID, ProposerID: p.ProposerID, Kind: p.Kind, Symbol: p.Symbol.String,
+		Mint: chain.SolanaAddress(p.Mint.String), USDCMicros: money.MicrosFromUint64(unsigned(p.UsdcMicros.Int64)),
+		TokenAmount: unsigned(p.TokenAmount.Int64), QuoteOutAmount: unsigned(p.QuoteOutAmount.Int64),
 		PriceComparison: comparison, Network: chain.Network(p.Network),
 	}
 }

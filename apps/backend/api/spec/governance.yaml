@@ -217,7 +217,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ProposalDetail"
-              example: {id: 01890a5d-ac96-774b-bcce-b302099a8057, cabal_id: 01890a5d-ac96-774b-bcce-b302099a8058, cabal_name: Friday Night Lights, proposer_id: 01890a5d-ac96-774b-bcce-b302099a8059, proposer: {id: 01890a5d-ac96-774b-bcce-b302099a8059, display_name: Mia, photo_url: null}, proposer_return_1m_bps: 820, proposer_return_private: false, kind: buy, symbol: AAPLx, usdc_micros: 25000000, token_amount: null, quote_out_amount: 105000000, thesis: Earnings next week., status: open, status_reason: null, status_message: null, expires_at: "2026-10-04T15:00:00Z", created_at: "2026-10-03T15:00:00Z", tally: {"yes": 1, "no": 0, voters: 2, needed: 2}, my_ballot: "yes", voters: [{user_id: 01890a5d-ac96-774b-bcce-b302099a8059, voted: true, choice: "yes", cast_at: "2026-10-03T16:00:00Z", display_name: Mia, photo_url: null}, {user_id: 01890a5d-ac96-774b-bcce-b302099a8061, voted: false, choice: null, cast_at: null, display_name: Kai, photo_url: null}], sides_visible: false, can_vote: true, can_withdraw: true, swap: null, stats: {treasury_share_bps: 250, closes_at: "2026-10-04T15:00:00Z", closed_at: null, price_micros: 220000000, shares_atomics: 11363636, shares_exact: false, token_decimals: 8, since_bps: null}, passed_price_micros: null, my_vote: {order: 1, of: 2, yes_order: 1, no_order: 0, decided: false}, reply_count: 6, reminder_set: false}
+              example: {id: 01890a5d-ac96-774b-bcce-b302099a8057, cabal_id: 01890a5d-ac96-774b-bcce-b302099a8058, cabal_name: Friday Night Lights, proposer_id: 01890a5d-ac96-774b-bcce-b302099a8059, proposer: {id: 01890a5d-ac96-774b-bcce-b302099a8059, display_name: Mia, photo_url: null}, proposer_return_1m_bps: 820, proposer_return_private: false, kind: buy, rule_change: null, symbol: AAPLx, usdc_micros: 25000000, token_amount: null, quote_out_amount: 105000000, thesis: Earnings next week., status: open, status_reason: null, status_message: null, expires_at: "2026-10-04T15:00:00Z", created_at: "2026-10-03T15:00:00Z", tally: {"yes": 1, "no": 0, voters: 2, needed: 2}, my_ballot: "yes", voters: [{user_id: 01890a5d-ac96-774b-bcce-b302099a8059, voted: true, choice: "yes", cast_at: "2026-10-03T16:00:00Z", display_name: Mia, photo_url: null}, {user_id: 01890a5d-ac96-774b-bcce-b302099a8061, voted: false, choice: null, cast_at: null, display_name: Kai, photo_url: null}], sides_visible: false, can_vote: true, can_withdraw: true, swap: null, stats: {treasury_share_bps: 250, closes_at: "2026-10-04T15:00:00Z", closed_at: null, price_micros: 220000000, shares_atomics: 11363636, shares_exact: false, token_decimals: 8, since_bps: null}, passed_price_micros: null, my_vote: {order: 1, of: 2, yes_order: 1, no_order: 0, decided: false}, reply_count: 6, reminder_set: false}
         default:
           $ref: "#/components/responses/Problem"
     delete:
@@ -245,7 +245,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ProposalDetail"
-              example: {id: 01890a5d-ac96-774b-bcce-b302099a8057, cabal_id: 01890a5d-ac96-774b-bcce-b302099a8058, cabal_name: Friday Night Lights, proposer_id: 01890a5d-ac96-774b-bcce-b302099a8059, proposer: {id: 01890a5d-ac96-774b-bcce-b302099a8059, display_name: Mia, photo_url: null}, proposer_return_1m_bps: 820, proposer_return_private: false, kind: buy, symbol: AAPLx, usdc_micros: 25000000, token_amount: null, quote_out_amount: 105000000, thesis: Earnings next week., status: withdrawn, status_reason: null, status_message: null, expires_at: "2026-10-04T15:00:00Z", created_at: "2026-10-03T15:00:00Z", tally: {"yes": 1, "no": 0, voters: 2, needed: 2}, my_ballot: "yes", voters: [{user_id: 01890a5d-ac96-774b-bcce-b302099a8059, voted: true, choice: "yes", cast_at: "2026-10-03T16:00:00Z", display_name: Mia, photo_url: null}, {user_id: 01890a5d-ac96-774b-bcce-b302099a8061, voted: false, choice: null, cast_at: null, display_name: Kai, photo_url: null}], sides_visible: false, can_vote: false, can_withdraw: false, swap: null, stats: {treasury_share_bps: 250, closes_at: "2026-10-04T15:00:00Z", closed_at: "2026-10-03T16:30:00Z", price_micros: 220000000, shares_atomics: 11363636, shares_exact: false, token_decimals: 8, since_bps: null}, passed_price_micros: null, my_vote: {order: 1, of: 2, yes_order: 1, no_order: 0, decided: false}, reply_count: 0, reminder_set: false}
+              example: {id: 01890a5d-ac96-774b-bcce-b302099a8057, cabal_id: 01890a5d-ac96-774b-bcce-b302099a8058, cabal_name: Friday Night Lights, proposer_id: 01890a5d-ac96-774b-bcce-b302099a8059, proposer: {id: 01890a5d-ac96-774b-bcce-b302099a8059, display_name: Mia, photo_url: null}, proposer_return_1m_bps: 820, proposer_return_private: false, kind: buy, rule_change: null, symbol: AAPLx, usdc_micros: 25000000, token_amount: null, quote_out_amount: 105000000, thesis: Earnings next week., status: withdrawn, status_reason: null, status_message: null, expires_at: "2026-10-04T15:00:00Z", created_at: "2026-10-03T15:00:00Z", tally: {"yes": 1, "no": 0, voters: 2, needed: 2}, my_ballot: "yes", voters: [{user_id: 01890a5d-ac96-774b-bcce-b302099a8059, voted: true, choice: "yes", cast_at: "2026-10-03T16:00:00Z", display_name: Mia, photo_url: null}, {user_id: 01890a5d-ac96-774b-bcce-b302099a8061, voted: false, choice: null, cast_at: null, display_name: Kai, photo_url: null}], sides_visible: false, can_vote: false, can_withdraw: false, swap: null, stats: {treasury_share_bps: 250, closes_at: "2026-10-04T15:00:00Z", closed_at: "2026-10-03T16:30:00Z", price_micros: 220000000, shares_atomics: 11363636, shares_exact: false, token_decimals: 8, since_bps: null}, passed_price_micros: null, my_vote: {order: 1, of: 2, yes_order: 1, no_order: 0, decided: false}, reply_count: 0, reminder_set: false}
         default:
           $ref: "#/components/responses/Problem"
   /v1/me/market-facts:
@@ -289,7 +289,7 @@ paths:
           content:
             application/json:
               schema: {type: array, maxItems: 50, items: {$ref: "#/components/schemas/PendingVote"}}
-              example: [{proposal_id: 01890a5d-ac96-774b-bcce-b302099a8057, cabal_id: 01890a5d-ac96-774b-bcce-b302099a8058, cabal_name: Friday Night Lights, kind: buy, symbol: NVDAx, usdc_micros: 400000000, token_amount: null, asset_name: NVIDIA, asset_logo_url: null, proposer: {user_id: 01890a5d-ac96-774b-bcce-b302099a8059, handle: mia, display_name: Mia, photo_url: null}, tally: {"yes": 4, "no": 1, voters: 8, needed: 5}, voted_count: 5, reply_count: 6, created_at: "2026-10-04T09:00:00Z", expires_at: "2026-10-04T15:00:00Z"}]
+              example: [{proposal_id: 01890a5d-ac96-774b-bcce-b302099a8057, cabal_id: 01890a5d-ac96-774b-bcce-b302099a8058, cabal_name: Friday Night Lights, kind: buy, rule_change: null, symbol: NVDAx, usdc_micros: 400000000, token_amount: null, asset_name: NVIDIA, asset_logo_url: null, proposer: {user_id: 01890a5d-ac96-774b-bcce-b302099a8059, handle: mia, display_name: Mia, photo_url: null}, tally: {"yes": 4, "no": 1, voters: 8, needed: 5}, voted_count: 5, reply_count: 6, created_at: "2026-10-04T09:00:00Z", expires_at: "2026-10-04T15:00:00Z"}]
         default:
           $ref: "#/components/responses/Problem"
   /v1/me/proposals:
@@ -336,7 +336,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ProposalList"
-              example: {proposals: [{id: 01890a5d-ac96-774b-bcce-b302099a8057, cabal_id: 01890a5d-ac96-774b-bcce-b302099a8058, cabal_name: Friday Night Lights, proposer_id: 01890a5d-ac96-774b-bcce-b302099a8059, kind: buy, symbol: AAPLx, usdc_micros: 25000000, token_amount: null, quote_out_amount: 105000000, thesis: Earnings next week., status: executed, status_reason: null, status_message: null, expires_at: "2026-10-04T15:00:00Z", created_at: "2026-10-03T15:00:00Z", tally: {"yes": 2, "no": 0, voters: 2, needed: 2}, my_ballot: "yes", can_vote: false}], next_cursor: null}
+              example: {proposals: [{id: 01890a5d-ac96-774b-bcce-b302099a8057, cabal_id: 01890a5d-ac96-774b-bcce-b302099a8058, cabal_name: Friday Night Lights, proposer_id: 01890a5d-ac96-774b-bcce-b302099a8059, kind: buy, rule_change: null, symbol: AAPLx, usdc_micros: 25000000, token_amount: null, quote_out_amount: 105000000, thesis: Earnings next week., status: executed, status_reason: null, status_message: null, expires_at: "2026-10-04T15:00:00Z", created_at: "2026-10-03T15:00:00Z", tally: {"yes": 2, "no": 0, voters: 2, needed: 2}, my_ballot: "yes", can_vote: false}], next_cursor: null}
         default:
           $ref: "#/components/responses/Problem"
   /v1/proposals/{id}/votes:
@@ -740,8 +740,8 @@ components:
         void_reason: {type: string, description: The reason the moderator gave., examples: [spam proposal]}
     ProposalKind:
       type: string
-      description: Whether the proposal spends USDC on the token or sells the token for USDC.
-      enum: [buy, sell]
+      description: Whether the proposal spends USDC on the token, sells the token for USDC, or changes one of the cabal's rules.
+      enum: [buy, sell, rule]
       examples: [buy]
     ProposalVoteItem:
       type: object
@@ -886,6 +886,7 @@ components:
         - cabal_name
         - proposer_id
         - kind
+        - rule_change
         - symbol
         - usdc_micros
         - token_amount
@@ -910,21 +911,52 @@ components:
         cabal_name: {type: string, description: "The cabal's current name.", examples: [Friday Night Lights]}
         proposer_id: {type: string, format: uuid, description: The member who proposed it., examples: [01890a5d-ac96-774b-bcce-b302099a8059]}
         kind: {$ref: "#/components/schemas/ProposalKind"}
-        symbol: {type: string, description: The token symbol., examples: [AAPLx]}
+        rule_change:
+          type: [object, "null"]
+          description: >-
+            The change a rule proposal asks for. Null for a buy or a sell. `from` is the value when the proposal
+            opened and `to` the value it asks for. Both are a boolean for `show_sides`, `voter` and `admin`, an
+            integer or null for `max_trade_bps`, an integer for `proposal_expiry_seconds` and a string for
+            `threshold` and `join_mode`.
+          examples: [{rule: show_sides, from: false, to: true, user: null}]
+          x-go-type-name: ProposalRuleChange
+          additionalProperties: false
+          required: [rule, from, to, user]
+          properties:
+            rule:
+              type: string
+              description: Which rule the proposal changes.
+              enum: [show_sides, max_trade_bps, threshold, proposal_expiry_seconds, join_mode, voter, admin]
+              examples: [show_sides]
+            from: {description: The rule's value when the proposal opened., examples: [false]}
+            to: {description: The value the proposal asks for., examples: [true]}
+            user:
+              type: [object, "null"]
+              description: The member a `voter` or `admin` change targets. Null for a cabal-wide rule.
+              examples: [null]
+              x-go-type-name: ProposalRuleChangeUser
+              additionalProperties: false
+              required: [user_id, handle, display_name, photo_url]
+              properties:
+                user_id: {type: string, format: uuid, examples: ["01890a5d-ac96-774b-bcce-b302099a8058"]}
+                handle: {type: [string, "null"], description: Null until onboarding sets one., examples: [kai]}
+                display_name: {type: string, description: Empty when the user has none., examples: [Kai]}
+                photo_url: {type: [string, "null"], description: Null when the user has none., examples: [null]}
+        symbol: {type: [string, "null"], description: The token symbol. Null for a rule proposal., examples: [AAPLx]}
         usdc_micros:
           type: [integer, "null"]
           format: int64
-          description: USDC a buy spends, in micros. Null for a sell.
+          description: USDC a buy spends, in micros. Null for a sell and for a rule proposal.
           examples: [25000000]
         token_amount:
           type: [integer, "null"]
           format: int64
-          description: Token base units a sell spends. Null for a buy.
+          description: Token base units a sell spends. Null for a buy and for a rule proposal.
           examples: [null]
         quote_out_amount:
-          type: integer
+          type: [integer, "null"]
           format: int64
-          description: The quoted output, in the output asset's base units, when the proposal opened.
+          description: The quoted output, in the output asset's base units, when the proposal opened. Null for a rule proposal.
           examples: [105000000]
         thesis: {type: [string, "null"], description: "The proposer's reason, up to 280 characters.", examples: [Earnings next week.]}
         status: {$ref: "#/components/schemas/ProposalStatus"}
@@ -1000,6 +1032,7 @@ components:
         - cabal_name
         - proposer_id
         - kind
+        - rule_change
         - symbol
         - usdc_micros
         - token_amount
@@ -1056,21 +1089,52 @@ components:
         proposer_return_1m_bps: {type: [integer, "null"], format: int64, description: "The proposer's one-month return in basis points, from the people board's `1M` range as of the last valuation run, not a live figure. Null when the proposer hides it or has no ranked row.", examples: [820]}
         proposer_return_private: {type: boolean, description: "True only when the proposer chose to hide their return. False for a proposer with no ranked row.", examples: [false]}
         kind: {$ref: "#/components/schemas/ProposalKind"}
-        symbol: {type: string, description: The token symbol., examples: [AAPLx]}
+        rule_change:
+          type: [object, "null"]
+          description: >-
+            The change a rule proposal asks for. Null for a buy or a sell. `from` is the value when the proposal
+            opened and `to` the value it asks for. Both are a boolean for `show_sides`, `voter` and `admin`, an
+            integer or null for `max_trade_bps`, an integer for `proposal_expiry_seconds` and a string for
+            `threshold` and `join_mode`.
+          examples: [{rule: show_sides, from: false, to: true, user: null}]
+          x-go-type-name: ProposalDetailRuleChange
+          additionalProperties: false
+          required: [rule, from, to, user]
+          properties:
+            rule:
+              type: string
+              description: Which rule the proposal changes.
+              enum: [show_sides, max_trade_bps, threshold, proposal_expiry_seconds, join_mode, voter, admin]
+              examples: [show_sides]
+            from: {description: The rule's value when the proposal opened., examples: [false]}
+            to: {description: The value the proposal asks for., examples: [true]}
+            user:
+              type: [object, "null"]
+              description: The member a `voter` or `admin` change targets. Null for a cabal-wide rule.
+              examples: [null]
+              x-go-type-name: ProposalDetailRuleChangeUser
+              additionalProperties: false
+              required: [user_id, handle, display_name, photo_url]
+              properties:
+                user_id: {type: string, format: uuid, examples: ["01890a5d-ac96-774b-bcce-b302099a8058"]}
+                handle: {type: [string, "null"], description: Null until onboarding sets one., examples: [kai]}
+                display_name: {type: string, description: Empty when the user has none., examples: [Kai]}
+                photo_url: {type: [string, "null"], description: Null when the user has none., examples: [null]}
+        symbol: {type: [string, "null"], description: The token symbol. Null for a rule proposal., examples: [AAPLx]}
         usdc_micros:
           type: [integer, "null"]
           format: int64
-          description: USDC a buy spends, in micros. Null for a sell.
+          description: USDC a buy spends, in micros. Null for a sell and for a rule proposal.
           examples: [25000000]
         token_amount:
           type: [integer, "null"]
           format: int64
-          description: Token base units a sell spends. Null for a buy.
+          description: Token base units a sell spends. Null for a buy and for a rule proposal.
           examples: [null]
         quote_out_amount:
-          type: integer
+          type: [integer, "null"]
           format: int64
-          description: The quoted output, in the output asset's base units, when the proposal opened.
+          description: The quoted output, in the output asset's base units, when the proposal opened. Null for a rule proposal.
           examples: [105000000]
         price_comparison:
           description: >-
@@ -1220,6 +1284,7 @@ components:
         - cabal_id
         - cabal_name
         - kind
+        - rule_change
         - symbol
         - usdc_micros
         - token_amount
@@ -1236,19 +1301,50 @@ components:
         cabal_id: {type: string, format: uuid, description: The cabal id., examples: [01890a5d-ac96-774b-bcce-b302099a8058]}
         cabal_name: {type: string, description: "The cabal's current name.", examples: [Friday Night Lights]}
         kind: {$ref: "#/components/schemas/ProposalKind"}
-        symbol: {type: string, description: The token symbol., examples: [NVDAx]}
+        rule_change:
+          type: [object, "null"]
+          description: >-
+            The change a rule proposal asks for. Null for a buy or a sell. `from` is the value when the proposal
+            opened and `to` the value it asks for. Both are a boolean for `show_sides`, `voter` and `admin`, an
+            integer or null for `max_trade_bps`, an integer for `proposal_expiry_seconds` and a string for
+            `threshold` and `join_mode`.
+          examples: [{rule: show_sides, from: false, to: true, user: null}]
+          x-go-type-name: PendingVoteRuleChange
+          additionalProperties: false
+          required: [rule, from, to, user]
+          properties:
+            rule:
+              type: string
+              description: Which rule the proposal changes.
+              enum: [show_sides, max_trade_bps, threshold, proposal_expiry_seconds, join_mode, voter, admin]
+              examples: [show_sides]
+            from: {description: The rule's value when the proposal opened., examples: [false]}
+            to: {description: The value the proposal asks for., examples: [true]}
+            user:
+              type: [object, "null"]
+              description: The member a `voter` or `admin` change targets. Null for a cabal-wide rule.
+              examples: [null]
+              x-go-type-name: PendingVoteRuleChangeUser
+              additionalProperties: false
+              required: [user_id, handle, display_name, photo_url]
+              properties:
+                user_id: {type: string, format: uuid, examples: ["01890a5d-ac96-774b-bcce-b302099a8058"]}
+                handle: {type: [string, "null"], description: Null until onboarding sets one., examples: [kai]}
+                display_name: {type: string, description: Empty when the user has none., examples: [Kai]}
+                photo_url: {type: [string, "null"], description: Null when the user has none., examples: [null]}
+        symbol: {type: [string, "null"], description: The token symbol. Null for a rule proposal., examples: [NVDAx]}
         usdc_micros:
           type: [integer, "null"]
           format: int64
-          description: USDC a buy spends, in micros. Null for a sell.
+          description: USDC a buy spends, in micros. Null for a sell and for a rule proposal.
           examples: [400000000]
         token_amount:
           type: [integer, "null"]
           format: int64
-          description: Token base units a sell spends. Null for a buy.
+          description: Token base units a sell spends. Null for a buy and for a rule proposal.
           examples: [null]
-        asset_name: {type: string, description: "The asset's display name.", examples: [NVIDIA]}
-        asset_logo_url: {type: [string, "null"], description: Null when the asset has no logo., examples: ["https://cdn.example.com/logos/nvda.png"]}
+        asset_name: {type: [string, "null"], description: "The asset's display name. Null for a rule proposal.", examples: [NVIDIA]}
+        asset_logo_url: {type: [string, "null"], description: Null when the asset has no logo and for a rule proposal., examples: ["https://cdn.example.com/logos/nvda.png"]}
         proposer:
           $ref: "#/components/schemas/PendingVoteProposer"
         tally: {$ref: "#/components/schemas/Tally"}

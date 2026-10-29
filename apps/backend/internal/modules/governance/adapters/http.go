@@ -378,7 +378,8 @@ func (h HTTP) detail(ctx context.Context, id ids.ProposalID, user ids.UserID) (a
 		Proposer:            wireProposer(got.Proposer),
 		ProposerReturn1mBps: got.ProposerReturnBps, ProposerReturnPrivate: got.ProposerReturnPrivate,
 		PassedPriceMicros: got.PassedPriceMicros, SidesVisible: got.SidesVisible,
-		Stats: wireStats(got.Stats), ReplyCount: got.ReplyCount, ReminderSet: got.ReminderSet,
+		RuleChange: wireDetailRuleChange(got.Proposal.Rule),
+		Stats:      wireStats(got.Stats), ReplyCount: got.ReplyCount, ReminderSet: got.ReminderSet,
 	}
 	if m := got.MyVote; m != nil {
 		mine := api.ProposalMyVote(wireMyVote(*m))
@@ -457,15 +458,27 @@ func (h HTTP) GetMyPendingVotes(
 	out := make(api.GetMyPendingVotes200JSONResponse, len(pending))
 	for i, v := range pending {
 		out[i] = api.PendingVote{
-			ProposalId: v.ProposalID.UUID(), CabalId: v.CabalID.UUID(), CabalName: v.CabalName,
-			Kind: api.ProposalKind(v.Kind), Symbol: v.Symbol, ExpiresAt: v.ExpiresAt, CreatedAt: v.CreatedAt,
-			UsdcMicros: baseAmount(v.USDC.Uint64()), TokenAmount: baseAmount(v.TokenAmount.Uint64()),
-			AssetName: v.AssetName, AssetLogoUrl: present(v.AssetLogo),
+			ProposalId: v.ProposalID.UUID(),
+			CabalId:    v.CabalID.UUID(),
+			CabalName:  v.CabalName,
+			Kind: api.ProposalKind(
+				v.Kind,
+			),
+			Symbol:       present(v.Symbol),
+			RuleChange:   wirePendingRuleChange(v.Rule),
+			ExpiresAt:    v.ExpiresAt,
+			CreatedAt:    v.CreatedAt,
+			UsdcMicros:   baseAmount(v.USDC.Uint64()),
+			TokenAmount:  baseAmount(v.TokenAmount.Uint64()),
+			AssetName:    present(v.AssetName),
+			AssetLogoUrl: present(v.AssetLogo),
 			Proposer: api.PendingVoteProposer{
 				UserId: v.Proposer.ID.UUID(), Handle: present(v.Proposer.Handle),
 				DisplayName: v.Proposer.DisplayName, PhotoUrl: present(v.Proposer.PhotoURL),
 			},
-			Tally: wireTally(v.Tally), VotedCount: v.VotedCount, ReplyCount: v.ReplyCount,
+			Tally:      wireTally(v.Tally),
+			VotedCount: v.VotedCount,
+			ReplyCount: v.ReplyCount,
 		}
 	}
 	return out, nil
@@ -480,10 +493,11 @@ func wireProposal(v app.ProposalView) api.Proposal {
 		Kind: api.ProposalKind(
 			v.Kind,
 		),
-		Symbol:          v.Symbol,
+		Symbol:          present(v.Symbol),
+		RuleChange:      wireRuleChange(v.Rule),
 		UsdcMicros:      positive(v.USDCMicros),
 		TokenAmount:     positive(v.TokenAmount),
-		QuoteOutAmount:  v.QuoteOut,
+		QuoteOutAmount:  positive(v.QuoteOut),
 		Status:          api.ProposalStatus(v.Status),
 		ExpiresAt:       v.ExpiresAt,
 		CreatedAt:       v.CreatedAt,
@@ -520,10 +534,10 @@ func wireOpenedProposal(opened app.OpenedProposal, cabalName string, proposer ap
 		CabalName:      cabalName,
 		ProposerId:     d.ProposerID.UUID(),
 		Kind:           api.ProposalKind(d.Kind),
-		Symbol:         d.Symbol,
+		Symbol:         present(d.Symbol),
 		UsdcMicros:     positive(opened.USDCMicros),
 		TokenAmount:    positive(opened.TokenAmount),
-		QuoteOutAmount: opened.QuoteOutAmount,
+		QuoteOutAmount: ptr(opened.QuoteOutAmount),
 		Status:         api.ProposalStatusOpen,
 		ExpiresAt:      d.ExpiresAt,
 		CreatedAt:      opened.CreatedAt,

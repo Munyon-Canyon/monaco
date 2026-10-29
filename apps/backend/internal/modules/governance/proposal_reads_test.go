@@ -291,8 +291,9 @@ func TestHTTP_GetCabalProposals(t *testing.T) {
 	if len(first.Proposals) != 1 || first.NextCursor == nil || len(second.Proposals) != 1 || second.NextCursor != nil {
 		t.Fatalf("pages = %+v then %+v, want one item each and a cursor only on the first", first, second)
 	}
+	symbol, quoteOut := "AAPLx", int64(105_000_000)
 	base := api.Proposal{
-		CabalId: d.cabal, ProposerId: sell.ProposerID, Symbol: "AAPLx", QuoteOutAmount: 105_000_000,
+		CabalId: d.cabal, ProposerId: sell.ProposerID, Symbol: &symbol, QuoteOutAmount: &quoteOut,
 		Tally: api.Tally{Voters: 1, Needed: 1},
 	}
 	wantSell, wantBuy := base, base

@@ -230,7 +230,7 @@ func TestCastVote_UnanimousFailsOnFirstNo(t *testing.T) {
 	if len(failed) != 1 || json.Unmarshal(failed[0], &ev) != nil || d.terminal(t, p.ID) != 1 {
 		t.Fatalf("failed events = %s, want exactly one terminal event", failed)
 	}
-	if ev != (events.ProposalFailed{V: 1, ProposalID: p.ID, CabalID: p.CabalID}) {
+	if ev != (events.ProposalFailed{V: 1, ProposalID: p.ID, CabalID: p.CabalID, Kind: p.Kind}) {
 		t.Fatalf("proposal.failed = %+v", ev)
 	}
 }

@@ -1,2 +1,2 @@
 -- name: ProposedMints :many
-SELECT DISTINCT mint FROM proposals WHERE status IN ('open', 'passed') ORDER BY mint;
+SELECT DISTINCT mint::text AS mint FROM proposals WHERE status IN ('open', 'passed') AND mint IS NOT NULL ORDER BY mint;

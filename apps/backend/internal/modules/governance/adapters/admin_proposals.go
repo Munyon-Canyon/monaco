@@ -48,8 +48,8 @@ func wireAdminProposal(got app.AdminProposal) api.AdminProposal {
 	out := api.AdminProposal{
 		Id: p.Id, CabalId: p.CabalId,
 		Proposer: api.AdminProposer{Id: got.Proposer.ID.UUID(), Handle: got.Proposer.Handle},
-		Kind:     p.Kind, Symbol: p.Symbol, UsdcMicros: p.UsdcMicros, TokenAmount: p.TokenAmount,
-		QuoteOutAmount: p.QuoteOutAmount, Thesis: p.Thesis, Status: p.Status, StatusReason: p.StatusReason,
+		Kind:     p.Kind, Symbol: orEmpty(p.Symbol), UsdcMicros: p.UsdcMicros, TokenAmount: p.TokenAmount,
+		QuoteOutAmount: orZero(p.QuoteOutAmount), Thesis: p.Thesis, Status: p.Status, StatusReason: p.StatusReason,
 		ExpiresAt: p.ExpiresAt, CreatedAt: p.CreatedAt, Tally: p.Tally,
 		Voters:             make([]api.ProposalVoter, len(got.Detail.Voters)),
 		StatusHistory:      make([]api.AdminStatusChange, len(got.History)),

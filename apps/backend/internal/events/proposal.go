@@ -75,6 +75,7 @@ type ProposalFailed struct {
 	V          int       `json:"v"`
 	ProposalID uuid.UUID `json:"proposal_id"`
 	CabalID    uuid.UUID `json:"cabal_id"`
+	Kind       string    `json:"kind,omitempty"`
 }
 
 func (ProposalFailed) Type() Type { return TypeProposalFailed }
@@ -87,6 +88,7 @@ type ProposalExpired struct {
 	V          int       `json:"v"`
 	ProposalID uuid.UUID `json:"proposal_id"`
 	CabalID    uuid.UUID `json:"cabal_id"`
+	Kind       string    `json:"kind,omitempty"`
 }
 
 func (ProposalExpired) Type() Type { return TypeProposalExpired }

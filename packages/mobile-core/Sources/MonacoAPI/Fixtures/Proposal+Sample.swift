@@ -211,3 +211,48 @@ extension Components.Schemas.ProposalDetail {
         return detail
     }
 }
+
+extension Components.Schemas.Proposal {
+    public static func ruleSample(now: Date) -> Self {
+        var proposal = sample(kind: .rule)
+        proposal.symbol = nil
+        proposal.usdcMicros = nil
+        proposal.quoteOutAmount = nil
+        proposal.expiresAt = now.addingTimeInterval(86_400)
+        proposal.createdAt = now
+        proposal.tally = .init(yes: 3, no: 1, voters: 8, needed: 5)
+        proposal.ruleChange = .init(rule: .showSides, from: false, to: true, user: nil)
+        return proposal
+    }
+}
+
+extension Components.Schemas.ProposalDetail {
+    public static func ruleSample(now: Date) -> Self {
+        var detail = sample(kind: .rule)
+        detail.symbol = nil
+        detail.usdcMicros = nil
+        detail.tokenAmount = nil
+        detail.quoteOutAmount = nil
+        detail.expiresAt = now.addingTimeInterval(86_400)
+        detail.createdAt = now
+        detail.tally = .init(yes: 3, no: 1, voters: 8, needed: 5)
+        detail.ruleChange = .init(rule: .showSides, from: false, to: true, user: nil)
+        return detail
+    }
+}
+
+extension Components.Schemas.PendingVote {
+    public static func ruleSample(now: Date) -> Self {
+        var vote = sample(kind: .rule)
+        vote.symbol = nil
+        vote.usdcMicros = nil
+        vote.tokenAmount = nil
+        vote.assetName = nil
+        vote.expiresAt = now.addingTimeInterval(14_400)
+        vote.createdAt = now.addingTimeInterval(-21_600)
+        vote.tally = .init(yes: 3, no: 1, voters: 8, needed: 5)
+        vote.votedCount = 4
+        vote.ruleChange = .init(rule: .showSides, from: false, to: true, user: nil)
+        return vote
+    }
+}

@@ -13,7 +13,7 @@ import (
 )
 
 const proposalSubjects = `-- name: ProposalSubjects :many
-SELECT id, cabal_id, kind, symbol, coalesce(usdc_micros, -1)::bigint AS usdc_micros
+SELECT id, cabal_id, kind, coalesce(symbol, '')::text AS symbol, coalesce(usdc_micros, -1)::bigint AS usdc_micros
 FROM proposals
 WHERE id = ANY($1::uuid[])
 `
@@ -54,7 +54,7 @@ func (q *Queries) ProposalSubjects(ctx context.Context, proposalIds []uuid.UUID)
 
 const proposalsBy = `-- name: ProposalsBy :many
 SELECT
-  p.id, p.cabal_id, p.kind, p.symbol, p.mint, coalesce(p.usdc_micros, -1)::bigint AS usdc_micros, p.status,
+  p.id, p.cabal_id, p.kind, coalesce(p.symbol, '')::text AS symbol, coalesce(p.mint, '')::text AS mint, coalesce(p.usdc_micros, -1)::bigint AS usdc_micros, p.status,
   p.created_at,
   (SELECT count(*) FROM votes AS v WHERE v.proposal_id = p.id AND v.choice = 'yes')::int AS yes_count,
   (SELECT count(*) FROM votes AS v WHERE v.proposal_id = p.id AND v.choice = 'no')::int AS no_count
@@ -125,7 +125,7 @@ func (q *Queries) ProposalsBy(ctx context.Context, arg ProposalsByParams) ([]Pro
 
 const votesBy = `-- name: VotesBy :many
 SELECT
-  p.id AS proposal_id, p.cabal_id, p.kind, p.symbol, p.mint, coalesce(p.usdc_micros, -1)::bigint AS usdc_micros, v.choice,
+  p.id AS proposal_id, p.cabal_id, p.kind, coalesce(p.symbol, '')::text AS symbol, coalesce(p.mint, '')::text AS mint, coalesce(p.usdc_micros, -1)::bigint AS usdc_micros, v.choice,
   v.cast_at
 FROM votes AS v
 JOIN proposals AS p ON p.id = v.proposal_id
