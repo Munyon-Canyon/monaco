@@ -40,6 +40,7 @@ struct CabalSliceBand: View {
         case .loaded(let summary):
             if summary.slice != nil {
                 StatGrid(items: Self.items(summary, openVotes: Int(cabalModel?.cabal?.openProposalCount ?? 0)))
+                    .monacoPrivate()
                     .accessibilityElement(children: .contain)
                     .accessibilityIdentifier("cabal-stat-block")
             } else {
