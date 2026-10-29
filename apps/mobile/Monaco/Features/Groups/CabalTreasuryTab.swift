@@ -90,7 +90,11 @@ struct CabalTreasuryBody: View {
     @ViewBuilder
     private func loaded(_ summary: CabalPotSummary) -> some View {
         if summary.state == .zero {
-            note(CabalTreasuryCopy.zeroPotNote(canPropose: canPropose), id: "cabal-holdings-empty")
+            VStack(alignment: .leading, spacing: CabalTreasuryMetrics.sectionGap) {
+                note(CabalTreasuryCopy.zeroPotNote(canPropose: canPropose), id: "cabal-holdings-empty")
+                CabalTreasuryActions(
+                    cabalID: cabalID, cashOut: nil, history: CabalTreasuryRows.history(move), open: open)
+            }
         } else {
             let rows = summary.treasury
             VStack(alignment: .leading, spacing: CabalTreasuryMetrics.sectionGap) {
