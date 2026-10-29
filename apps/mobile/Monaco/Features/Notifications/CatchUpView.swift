@@ -44,6 +44,8 @@ struct CatchUpView: View {
                         Image(systemName: "square.stack")
                         Text(CatchUpCopy.oneByOne)
                     }
+                    .frame(minHeight: MonacoButtonMetrics.hitTarget)
+                    .contentShape(Rectangle())
                 }
                 .accessibilityIdentifier("catch-up-one-by-one")
             }

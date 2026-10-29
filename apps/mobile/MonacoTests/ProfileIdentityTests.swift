@@ -23,7 +23,7 @@ struct ProfileIdentityTests {
     }
 
     @Test func theCashRowSpeaksEachFigure() {
-        #expect(ProfileCashRow.spoken(.amount(500_000_000)) == "$500.00")
+        #expect(ProfileCashRow.spoken(.amount(500_000_000)) == "500 dollars")
         #expect(ProfileCashRow.spoken(.loading) == "loading")
         #expect(ProfileCashRow.spoken(.unavailable) == "unavailable")
     }

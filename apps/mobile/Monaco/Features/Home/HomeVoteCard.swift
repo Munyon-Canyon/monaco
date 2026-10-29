@@ -52,6 +52,8 @@ struct HomeVoteCard: View {
                     .foregroundStyle(MonacoTheme.secondaryText)
                     .accessibilityHidden(true)
             }
+            .frame(minHeight: MonacoButtonMetrics.hitTarget)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityHint("Opens the proposal")

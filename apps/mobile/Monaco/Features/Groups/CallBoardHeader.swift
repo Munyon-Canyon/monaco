@@ -21,7 +21,9 @@ struct CallBoardHeader: View {
                             .foregroundStyle(
                                 period == selection ? MonacoTheme.primaryText : MonacoTheme.secondaryText
                             )
-                            .frame(minHeight: MonacoUnderlineTabsMetrics.minHeight)
+                            .frame(
+                                minWidth: MonacoButtonMetrics.hitTarget, minHeight: MonacoUnderlineTabsMetrics.minHeight
+                            )
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)

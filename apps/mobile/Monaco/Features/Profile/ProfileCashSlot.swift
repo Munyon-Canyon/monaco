@@ -116,10 +116,20 @@ struct ProfileCashRow: View {
         }
     }
 
+    private static func spokenDollars(cents: Int64) -> String {
+        let dollars = cents / 100
+        let remainder = cents % 100
+        var parts: [String] = []
+        if dollars > 0 || remainder == 0 { parts.append("\(dollars) \(dollars == 1 ? "dollar" : "dollars")") }
+        if remainder > 0 { parts.append("\(remainder) \(remainder == 1 ? "cent" : "cents")") }
+        return parts.joined(separator: " ")
+    }
+
     static func spoken(_ value: ProfileMoneyValue) -> String {
         switch value {
         case .loading: "loading"
-        case .amount(let micros): UsdAmountFormatter.format(micros: UsdAmountFormatter.flooredToCents(micros))
+        case .amount(let micros):
+            spokenDollars(cents: UsdAmountFormatter.flooredToCents(micros) / 10_000)
         case .unavailable: "unavailable"
         }
     }

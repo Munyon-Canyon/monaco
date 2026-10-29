@@ -69,6 +69,7 @@ struct CatchUpRow: View {
                 actions.open(item)
             } label: {
                 content(subtitle: CatchUpCopy.subtitle(item, now: now))
+                    .frame(minHeight: MonacoButtonMetrics.hitTarget, alignment: .top)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
