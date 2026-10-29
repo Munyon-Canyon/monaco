@@ -213,11 +213,11 @@ enum StocksAssetDetailJourney {
             openAsset(app, alpha, step: "S5.1")
         }
 
-        recorder.step("S5.2", "see Cabals holding the stock") {
-            scrollTo(app, app.element("asset-cabal-positions"), named: "asset-cabal-positions", step: "S5.2")
+        recorder.step("S5.2", "see In your cabals") {
+            scrollTo(app, app.element("asset-in-your-cabals"), named: "asset-in-your-cabals", step: "S5.2")
             let holding = app.descendants(matching: .any)
-                .matching(NSPredicate(format: "identifier BEGINSWITH 'asset-position-'")).firstMatch
-            XCTAssertTrue(holding.exists, "S5.2: no cabal row under 'Cabals holding \(alpha.ticker)'")
+                .matching(NSPredicate(format: "identifier BEGINSWITH 'asset-held-'")).firstMatch
+            XCTAssertTrue(holding.exists, "S5.2: no cabal row under 'In your cabals'")
         }
 
         recorder.step("S5.3", "tap Propose a sell") {
