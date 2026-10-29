@@ -100,6 +100,7 @@ public struct ShareFacts: Equatable, Sendable {
 public enum ShareFigureTone: Equatable, Sendable {
     case gain
     case loss
+    case neutral
 }
 
 public struct ShareCardSpec: Equatable, Sendable {

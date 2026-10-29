@@ -82,14 +82,14 @@ enum ShareSampleCase: String, CaseIterable {
 
     var stickerEyes: ShareEyes { self == .stickerOn ? ShareEyes() : ShareScreenModel.stickerEyes }
 
-    var isScreen: Bool { rawValue.hasPrefix("screen") }
+    var isScreen: Bool { rawValue.hasPrefix("screen") || self == .stickerOn }
 
     var screenFormat: ShareFormat {
         switch self {
         case .screenPassed, .screenVote: .square
         case .screenSquare: .square
         case .screenStory: .story
-        case .screenSticker: .sticker
+        case .screenSticker, .stickerOn: .sticker
         default: .post
         }
     }
@@ -102,6 +102,7 @@ enum ShareSampleCase: String, CaseIterable {
         case .screenBuySellOff: ShareEyes(buySell: false)
         case .screenCodeOff: ShareEyes(code: false)
         case .screenStake: ShareEyes(pnlDollars: true, buySell: false, code: false)
+        case .screenSticker: ShareScreenModel.stickerEyes
         case .screenPortfolio: ShareEyes(pnlDollars: true, buySell: false)
         default: ShareEyes()
         }
@@ -112,7 +113,7 @@ enum ShareSampleCase: String, CaseIterable {
     var screenTitle: String {
         switch self {
         case .screenVote: ShareScreenModel.voteTitle
-        case .screenSticker: ShareScreenModel.stickerTitle
+        case .screenSticker, .stickerOn: ShareScreenModel.stickerTitle
         default: ShareScreenModel.positionTitle
         }
     }
@@ -299,6 +300,7 @@ private struct ShareScreenSample: View {
     let sample: ShareSampleCase
     @State private var eyes: ShareEyes
     @State private var format: ShareFormat
+    @State private var path = [0]
 
     init(sample: ShareSampleCase) {
         self.sample = sample
@@ -319,15 +321,18 @@ private struct ShareScreenSample: View {
     }
 
     var body: some View {
-        NavigationStack {
-            ShareScreenContent(
-                state: state, eyes: $eyes, format: $format, frozenProgress: sample.replayProgress,
-                unusedEyes: sample.unusedEyes,
-                share: { _, _ in }, copyImage: { _ in }, retry: {}
-            )
-            .monacoCanvas()
-            .navigationTitle(format == .sticker ? ShareScreenModel.stickerTitle : sample.screenTitle)
-            .navigationBarTitleDisplayMode(.inline)
+        NavigationStack(path: $path) {
+            MonacoTheme.canvas
+                .navigationDestination(for: Int.self) { _ in
+                    ShareScreenContent(
+                        state: state, eyes: $eyes, format: $format, frozenProgress: sample.replayProgress,
+                        unusedEyes: sample.unusedEyes,
+                        share: { _, _ in }, copyImage: { _ in }, retry: {}
+                    )
+                    .monacoCanvas()
+                    .navigationTitle(format == .sticker ? ShareScreenModel.stickerTitle : sample.screenTitle)
+                    .navigationBarTitleDisplayMode(.inline)
+                }
         }
         .environment(\.colorScheme, .dark)
     }

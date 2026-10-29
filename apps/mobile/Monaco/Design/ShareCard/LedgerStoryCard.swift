@@ -7,7 +7,7 @@ struct LedgerStoryCard: View {
     var progress: Double = 1
 
     private var scale: CGFloat { size.width / FShareCard.designWidth }
-    private var tone: Color { spec.figure.tone == .gain ? MonacoTheme.profit : MonacoTheme.loss }
+    private var tone: Color { spec.figure.tone == .loss ? MonacoTheme.loss : MonacoTheme.profit }
 
     var body: some View {
         VStack(spacing: 0) {

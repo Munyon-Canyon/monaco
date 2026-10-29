@@ -229,13 +229,13 @@ founder:
 
 | Frame | Appearance | Verdict | Difference | Follow-up |
 | --- | --- | --- | --- | --- |
-| [`11-invite-sheet`](../screens/11-invite-sheet.png) | dark | difference | Sheet content matches, but it sits over a cabal page (QA pot) instead of the Profile screen the frame shows. | #7031 (#6489) |
-| [`11-share-A`](../screens/11-share-A.png) | dark | difference | Back button missing; chart marker labels sit differently (not on the frame's positions). | #7031 (#6503) |
-| [`11-share-B`](../screens/11-share-B.png) | dark | difference | Back button missing, header sub-line truncated ("pass…"), and the chart is cut off with overlapping labels and a large empty gap. | #7031 (#6531) |
-| [`11-share-C`](../screens/11-share-C.png) | dark | difference | App adds an "AC Capital · Your share" row between chart and P&L that the frame does not have; back button missing; "Join with code" absent as in frame. | #7031 (#6537) |
-| [`11-share-card-vote`](../screens/11-share-card-vote.png) | dark | difference | "$400" is small and green in the app, large and white in the frame; back button missing. | #7031 (#6531) |
-| [`11-share-sticker`](../screens/11-share-sticker.png) | dark | difference | Frame shows the minimal sticker on a checker backdrop with P&L, Buy/Sell and Code toggles hidden; app shows the full card text with all toggles on, no checker backdrop and a "Replay the position" row. | #7031 (#6537) |
-| [`11-share-sticker-on`](../screens/11-share-sticker-on.png) | dark | difference | Frame shows the editor with the on-state sticker on the checker and toggles; app shows only a dashed-border sticker on black with no title, toggles or back button. | #7031 (#6537) |
+| [`11-invite-sheet`](../screens/11-invite-sheet.png) | dark | match | Fixed in #7031. | |
+| [`11-share-A`](../screens/11-share-A.png) | dark | difference | Back button fixed in #7031; chart marker labels still sit differently (not on the frame's positions). | #7031 (#6503) |
+| [`11-share-B`](../screens/11-share-B.png) | dark | difference | Back button and sub-line fixed in #7031; the chart is still cut off with overlapping labels and a large empty gap. | #7031 (#6531) |
+| [`11-share-C`](../screens/11-share-C.png) | dark | match | Fixed in #7031. | |
+| [`11-share-card-vote`](../screens/11-share-card-vote.png) | dark | match | Fixed in #7031. | |
+| [`11-share-sticker`](../screens/11-share-sticker.png) | dark | match | Fixed in #7031. | |
+| [`11-share-sticker-on`](../screens/11-share-sticker-on.png) | dark | match | Fixed in #7031. | |
 
 founder:
 

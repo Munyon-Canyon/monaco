@@ -11,7 +11,7 @@ struct FShareChart: View {
     static let sealSize: CGFloat = 20
     static let ringWidth: CGFloat = 2
 
-    private var lineColor: Color { tone == .gain ? MonacoTheme.profit : MonacoTheme.loss }
+    private var lineColor: Color { tone == .loss ? MonacoTheme.loss : MonacoTheme.profit }
 
     var body: some View {
         GeometryReader { proxy in
