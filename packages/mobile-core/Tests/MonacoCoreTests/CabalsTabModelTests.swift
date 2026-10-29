@@ -56,6 +56,31 @@ final class CabalsTabModelTests: XCTestCase {
         XCTAssertEqual(tiles[1].valueText, "$2,710.00")
     }
 
+    func testALoadedTileCarriesItsUnreadCountFromMyCabalsById() async throws {
+        let ids = Components.Schemas.MyPortfolio.sampleOwnProfile.cabals.map(\.cabal.id)
+        let transport = try Self.transport(cabals: Self.cabalsJSON(unread: [ids[1]: 2]))
+        let model = CabalsTabModel(api: api(transport))
+
+        await model.load()
+
+        XCTAssertEqual(try XCTUnwrap(model.content).tiles.map(\.unreadCount), [0, 2, 0])
+    }
+
+    func testAFailingMyCabalsStillLoadsTilesWithNoUnread() async throws {
+        let transport = try Self.transport(cabals: nil)
+        let model = CabalsTabModel(api: api(transport))
+
+        await model.load()
+
+        XCTAssertEqual(try XCTUnwrap(model.content).tiles.map(\.unreadCount), [0, 0, 0])
+    }
+
+    func testTheUnreadCopyIsSilentAtZeroAndPluralFromTwo() async throws {
+        XCTAssertNil(CabalsTabCopy.unread(0))
+        XCTAssertEqual(CabalsTabCopy.unread(1), "1 unread message")
+        XCTAssertEqual(CabalsTabCopy.unread(2), "2 unread messages")
+    }
+
     func testTheTabReadsThePortfolioAndTheInvitesOnce() async throws {
         let transport = try Self.transport()
         let model = CabalsTabModel(api: api(transport))
@@ -64,7 +89,7 @@ final class CabalsTabModelTests: XCTestCase {
 
         let sent = await transport.sent
         let paths = sent.compactMap(\.path).sorted()
-        XCTAssertEqual(paths, ["/v1/me/cabal-invites", "/v1/me/portfolio"])
+        XCTAssertEqual(paths, ["/v1/me/cabal-invites", "/v1/me/cabals", "/v1/me/portfolio"])
     }
 
     func testAnOrderAppliedLocallyMovesTheTiles() async throws {
@@ -119,7 +144,7 @@ final class CabalsTabModelTests: XCTestCase {
 
         await hints.send(.changed(.user("me"), what: "cabals", id: "1"))
 
-        let refreshed = await waitUntil { await transport.sent.count == 4 }
+        let refreshed = await waitUntil { await transport.sent.count == 6 }
         XCTAssertTrue(refreshed)
     }
 
@@ -156,19 +181,31 @@ final class CabalsTabModelTests: XCTestCase {
     }
 
     private static func transport(
-        portfolio: Components.Schemas.MyPortfolio = .sampleOwnProfile, invites: String? = nil
+        portfolio: Components.Schemas.MyPortfolio = .sampleOwnProfile, invites: String? = nil,
+        cabals: String? = "[]"
     ) throws -> StubTransport {
         try transport(
-            portfolioReplies: [try portfolioReply(portfolio)], inviteReplies: [.json(.ok, invites ?? quantKidsInvite)])
+            portfolioReplies: [try portfolioReply(portfolio)], inviteReplies: [.json(.ok, invites ?? quantKidsInvite)],
+            cabalsReplies: [cabals.map { .json(.ok, $0) } ?? .failure(URLError(.notConnectedToInternet))])
     }
 
     private static func transport(
-        portfolioReplies: [StubTransport.Reply], inviteReplies: [StubTransport.Reply]
+        portfolioReplies: [StubTransport.Reply], inviteReplies: [StubTransport.Reply],
+        cabalsReplies: [StubTransport.Reply] = Array(repeating: .json(.ok, "[]"), count: 4)
     ) throws -> StubTransport {
         StubTransport(routes: [
+            "/v1/me/cabals": cabalsReplies,
             "/v1/me/portfolio": portfolioReplies,
             "/v1/me/cabal-invites": inviteReplies,
         ])
+    }
+
+    private static func cabalsJSON(unread: [String: Int]) -> String {
+        let rows = unread.map { id, count in
+            #"{"id":"\#(id)","name":"Cabal","picture_url":null,"role":"member","can_vote":true,"member_count":2,"#
+                + #""joined_at":"2026-09-30T12:00:00Z","pending_request_count":0,"unread_count":\#(count)}"#
+        }
+        return "[\(rows.joined(separator: ","))]"
     }
 
     private static let quantKidsInvite = """
