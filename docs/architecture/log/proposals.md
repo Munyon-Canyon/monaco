@@ -21,3 +21,4 @@ Dated record of changes to [proposals.md](../proposals.md). Add one line per cha
 - 2026-10-28: A proposal stores the asset's price when the vote passed, and the detail returns it with the proposer's name and photo (#6457).
 - 2026-10-28: `GET /v1/me/market-facts` answers a watched stock with its Monaco fact, ranked vote open, held, called (#6447).
 - 2026-10-28: The proposal detail keeps each voter's side private until the proposal closes in a cabal whose rule was on when it opened, and gives every voter a name and photo (#6468).
+- 2026-10-29: A voter who has not decided can ask for a reminder an hour before close with `PUT /v1/proposals/{id}/reminder`, clear it with `DELETE`, and see `reminder_set` on the detail. Voting drops the reminder (#6478).

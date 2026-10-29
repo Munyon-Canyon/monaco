@@ -78,7 +78,11 @@ SELECT
   p.id, p.cabal_id, p.proposer_id, p.kind, p.symbol, p.usdc_micros, p.token_amount, p.quote_out_amount,
   p.thesis, p.threshold, p.status, p.status_reason, p.expires_at, p.created_at, p.pot_value_micros, p.closed_at,
   p.passed_price_micros, p.decided_by, p.sides_after_close,
-  coalesce(mine.choice, '')::text AS my_ballot, p.price_comparison, coalesce(p.network, '')::text AS network, p.mint
+  coalesce(mine.choice, '')::text AS my_ballot, p.price_comparison, coalesce(p.network, '')::text AS network, p.mint,
+  EXISTS (
+    SELECT 1 FROM proposal_close_reminders AS r
+    WHERE r.proposal_id = p.id AND r.user_id = $1 AND r.sent_at IS NULL
+  ) AS reminder_set
 FROM proposals AS p
 LEFT JOIN votes AS mine ON mine.proposal_id = p.id AND mine.voter_id = $1
 WHERE p.id = $2
@@ -113,6 +117,7 @@ type GetProposalRow struct {
 	PriceComparison   []byte
 	Network           string
 	Mint              string
+	ReminderSet       bool
 }
 
 func (q *Queries) GetProposal(ctx context.Context, arg GetProposalParams) (GetProposalRow, error) {
@@ -142,6 +147,7 @@ func (q *Queries) GetProposal(ctx context.Context, arg GetProposalParams) (GetPr
 		&i.PriceComparison,
 		&i.Network,
 		&i.Mint,
+		&i.ReminderSet,
 	)
 	return i, err
 }

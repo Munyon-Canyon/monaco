@@ -85,6 +85,7 @@ func (m *Module) Mount(r api.Mount) {
 			market.New(m.deps).Catalog(), market.New(m.deps).Prices(),
 		),
 		RetractVote: app.NewRetractVoteHandler(m.deps.UoW, m.deps.Clock, hints),
+		Reminders:   app.NewReminderHandler(m.deps.UoW, m.deps.Clock),
 		Withdraw:    app.NewWithdrawProposalHandler(m.deps.UoW, m.deps.Clock, hints),
 		Void: app.NewVoidProposalHandler(
 			m.deps.UoW, m.deps.Pool, m.deps.IDs, m.deps.Clock, trading.New(m.deps).Queries(), hints,

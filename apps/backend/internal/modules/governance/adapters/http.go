@@ -29,6 +29,7 @@ type HTTP struct {
 	Pending     *app.PendingVoteReads
 	Comparisons *app.ProposalComparisons
 	Facts       *app.MarketFacts
+	Reminders   *app.ReminderHandler
 }
 
 var _ api.StrictServerInterface = HTTP{}
@@ -95,6 +96,38 @@ func (h HTTP) DeleteProposalVote(
 		Status:     api.ProposalStatus(got.Status),
 		Tally:      wireTally(got.Tally),
 	}, nil
+}
+
+func (h HTTP) PutProposalReminder(
+	ctx context.Context, req api.PutProposalReminderRequestObject,
+) (api.PutProposalReminderResponseObject, error) {
+	user, err := caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	got, err := h.Reminders.Set(ctx, app.SetReminder{ProposalID: ids.ProposalIDFrom(req.Id), UserID: user})
+	if err != nil {
+		return nil, err
+	}
+	return api.PutProposalReminder200JSONResponse(wireReminder(got)), nil
+}
+
+func (h HTTP) DeleteProposalReminder(
+	ctx context.Context, req api.DeleteProposalReminderRequestObject,
+) (api.DeleteProposalReminderResponseObject, error) {
+	user, err := caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	got, err := h.Reminders.Clear(ctx, app.ClearReminder{ProposalID: ids.ProposalIDFrom(req.Id), UserID: user})
+	if err != nil {
+		return nil, err
+	}
+	return api.DeleteProposalReminder200JSONResponse(wireReminder(got)), nil
+}
+
+func wireReminder(r app.ReminderResult) api.ProposalReminder {
+	return api.ProposalReminder{ProposalId: r.ProposalID.UUID(), ReminderSet: r.ReminderSet, DueAt: r.DueAt}
 }
 
 func (h HTTP) GetCabalProposals(
@@ -345,7 +378,7 @@ func (h HTTP) detail(ctx context.Context, id ids.ProposalID, user ids.UserID) (a
 		Proposer:            wireProposer(got.Proposer),
 		ProposerReturn1mBps: got.ProposerReturnBps, ProposerReturnPrivate: got.ProposerReturnPrivate,
 		PassedPriceMicros: got.PassedPriceMicros, SidesVisible: got.SidesVisible,
-		Stats: wireStats(got.Stats), ReplyCount: got.ReplyCount,
+		Stats: wireStats(got.Stats), ReplyCount: got.ReplyCount, ReminderSet: got.ReminderSet,
 	}
 	if m := got.MyVote; m != nil {
 		mine := api.ProposalMyVote(wireMyVote(*m))

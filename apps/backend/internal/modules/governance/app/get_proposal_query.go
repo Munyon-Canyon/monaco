@@ -51,6 +51,8 @@ type ProposalDetail struct {
 	Stats      Stats
 	MyVote     *MyVote
 	ReplyCount int
+
+	ReminderSet bool
 }
 
 type ProposerCard struct {
@@ -108,7 +110,7 @@ func (r *ProposalReads) Get(ctx context.Context, req GetProposal) (ProposalDetai
 		Proposal: view, Voters: voters, SidesVisible: reveal, CanVote: open && isVoter,
 		CanWithdraw: open && view.ProposerID == req.Caller && !othersVoted,
 		Proposer:    proposer.card, ProposerReturnBps: proposer.bps, ProposerReturnPrivate: proposer.private,
-		PassedPriceMicros: passedPrice(row),
+		PassedPriceMicros: passedPrice(row), ReminderSet: row.ReminderSet,
 	}
 	return out, r.priced(ctx, row, &out)
 }

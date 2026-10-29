@@ -217,7 +217,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ProposalDetail"
-              example: {id: 01890a5d-ac96-774b-bcce-b302099a8057, cabal_id: 01890a5d-ac96-774b-bcce-b302099a8058, cabal_name: Friday Night Lights, proposer_id: 01890a5d-ac96-774b-bcce-b302099a8059, proposer: {id: 01890a5d-ac96-774b-bcce-b302099a8059, display_name: Mia, photo_url: null}, proposer_return_1m_bps: 820, proposer_return_private: false, kind: buy, symbol: AAPLx, usdc_micros: 25000000, token_amount: null, quote_out_amount: 105000000, thesis: Earnings next week., status: open, status_reason: null, status_message: null, expires_at: "2026-10-04T15:00:00Z", created_at: "2026-10-03T15:00:00Z", tally: {"yes": 1, "no": 0, voters: 2, needed: 2}, my_ballot: "yes", voters: [{user_id: 01890a5d-ac96-774b-bcce-b302099a8059, voted: true, choice: "yes", cast_at: "2026-10-03T16:00:00Z", display_name: Mia, photo_url: null}, {user_id: 01890a5d-ac96-774b-bcce-b302099a8061, voted: false, choice: null, cast_at: null, display_name: Kai, photo_url: null}], sides_visible: false, can_vote: true, can_withdraw: true, swap: null, stats: {treasury_share_bps: 250, closes_at: "2026-10-04T15:00:00Z", closed_at: null, price_micros: 220000000, shares_atomics: 11363636, shares_exact: false, token_decimals: 8, since_bps: null}, passed_price_micros: null, my_vote: {order: 1, of: 2, yes_order: 1, no_order: 0, decided: false}, reply_count: 6}
+              example: {id: 01890a5d-ac96-774b-bcce-b302099a8057, cabal_id: 01890a5d-ac96-774b-bcce-b302099a8058, cabal_name: Friday Night Lights, proposer_id: 01890a5d-ac96-774b-bcce-b302099a8059, proposer: {id: 01890a5d-ac96-774b-bcce-b302099a8059, display_name: Mia, photo_url: null}, proposer_return_1m_bps: 820, proposer_return_private: false, kind: buy, symbol: AAPLx, usdc_micros: 25000000, token_amount: null, quote_out_amount: 105000000, thesis: Earnings next week., status: open, status_reason: null, status_message: null, expires_at: "2026-10-04T15:00:00Z", created_at: "2026-10-03T15:00:00Z", tally: {"yes": 1, "no": 0, voters: 2, needed: 2}, my_ballot: "yes", voters: [{user_id: 01890a5d-ac96-774b-bcce-b302099a8059, voted: true, choice: "yes", cast_at: "2026-10-03T16:00:00Z", display_name: Mia, photo_url: null}, {user_id: 01890a5d-ac96-774b-bcce-b302099a8061, voted: false, choice: null, cast_at: null, display_name: Kai, photo_url: null}], sides_visible: false, can_vote: true, can_withdraw: true, swap: null, stats: {treasury_share_bps: 250, closes_at: "2026-10-04T15:00:00Z", closed_at: null, price_micros: 220000000, shares_atomics: 11363636, shares_exact: false, token_decimals: 8, since_bps: null}, passed_price_micros: null, my_vote: {order: 1, of: 2, yes_order: 1, no_order: 0, decided: false}, reply_count: 6, reminder_set: false}
         default:
           $ref: "#/components/responses/Problem"
     delete:
@@ -245,7 +245,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ProposalDetail"
-              example: {id: 01890a5d-ac96-774b-bcce-b302099a8057, cabal_id: 01890a5d-ac96-774b-bcce-b302099a8058, cabal_name: Friday Night Lights, proposer_id: 01890a5d-ac96-774b-bcce-b302099a8059, proposer: {id: 01890a5d-ac96-774b-bcce-b302099a8059, display_name: Mia, photo_url: null}, proposer_return_1m_bps: 820, proposer_return_private: false, kind: buy, symbol: AAPLx, usdc_micros: 25000000, token_amount: null, quote_out_amount: 105000000, thesis: Earnings next week., status: withdrawn, status_reason: null, status_message: null, expires_at: "2026-10-04T15:00:00Z", created_at: "2026-10-03T15:00:00Z", tally: {"yes": 1, "no": 0, voters: 2, needed: 2}, my_ballot: "yes", voters: [{user_id: 01890a5d-ac96-774b-bcce-b302099a8059, voted: true, choice: "yes", cast_at: "2026-10-03T16:00:00Z", display_name: Mia, photo_url: null}, {user_id: 01890a5d-ac96-774b-bcce-b302099a8061, voted: false, choice: null, cast_at: null, display_name: Kai, photo_url: null}], sides_visible: false, can_vote: false, can_withdraw: false, swap: null, stats: {treasury_share_bps: 250, closes_at: "2026-10-04T15:00:00Z", closed_at: "2026-10-03T16:30:00Z", price_micros: 220000000, shares_atomics: 11363636, shares_exact: false, token_decimals: 8, since_bps: null}, passed_price_micros: null, my_vote: {order: 1, of: 2, yes_order: 1, no_order: 0, decided: false}, reply_count: 0}
+              example: {id: 01890a5d-ac96-774b-bcce-b302099a8057, cabal_id: 01890a5d-ac96-774b-bcce-b302099a8058, cabal_name: Friday Night Lights, proposer_id: 01890a5d-ac96-774b-bcce-b302099a8059, proposer: {id: 01890a5d-ac96-774b-bcce-b302099a8059, display_name: Mia, photo_url: null}, proposer_return_1m_bps: 820, proposer_return_private: false, kind: buy, symbol: AAPLx, usdc_micros: 25000000, token_amount: null, quote_out_amount: 105000000, thesis: Earnings next week., status: withdrawn, status_reason: null, status_message: null, expires_at: "2026-10-04T15:00:00Z", created_at: "2026-10-03T15:00:00Z", tally: {"yes": 1, "no": 0, voters: 2, needed: 2}, my_ballot: "yes", voters: [{user_id: 01890a5d-ac96-774b-bcce-b302099a8059, voted: true, choice: "yes", cast_at: "2026-10-03T16:00:00Z", display_name: Mia, photo_url: null}, {user_id: 01890a5d-ac96-774b-bcce-b302099a8061, voted: false, choice: null, cast_at: null, display_name: Kai, photo_url: null}], sides_visible: false, can_vote: false, can_withdraw: false, swap: null, stats: {treasury_share_bps: 250, closes_at: "2026-10-04T15:00:00Z", closed_at: "2026-10-03T16:30:00Z", price_micros: 220000000, shares_atomics: 11363636, shares_exact: false, token_decimals: 8, since_bps: null}, passed_price_micros: null, my_vote: {order: 1, of: 2, yes_order: 1, no_order: 0, decided: false}, reply_count: 0, reminder_set: false}
         default:
           $ref: "#/components/responses/Problem"
   /v1/me/market-facts:
@@ -441,6 +441,64 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/RetractVoteResult"
+        default:
+          $ref: "#/components/responses/Problem"
+  /v1/proposals/{id}/reminder:
+    put:
+      operationId: putProposalReminder
+      tags: [governance]
+      x-idempotent: true
+      summary: Ask to be reminded shortly before an open proposal closes.
+      description: >-
+        Stores the caller's request for a one-shot nudge and returns when it falls due: one hour before
+        `expires_at`, or now when less than an hour is left. A second call moves nothing but resets a sent
+        reminder. A caller who has already voted gets `reminder_set: false` and no row stored. A proposal that is
+        no longer open answers proposal_closed, and a caller outside the proposal's frozen voter set answers
+        not_a_voter. Voting deletes the reminder. A replay with the same Idempotency-Key returns the first response.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The proposal id.
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "200":
+          description: The reminder is stored, or the caller had already voted and nothing was stored.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProposalReminder"
+        default:
+          $ref: "#/components/responses/Problem"
+    delete:
+      operationId: deleteProposalReminder
+      tags: [governance]
+      x-idempotent: true
+      summary: Drop the caller's reminder for a proposal.
+      description: >-
+        Deletes the caller's own reminder. It is a self-cleanup that never refuses for the proposal's state or the
+        caller's membership: a closed proposal, a non-voter and a missing reminder all answer 200 with
+        `reminder_set: false`. Only an unknown proposal answers proposal_not_found. A replay with the same
+        Idempotency-Key returns the first response.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The proposal id.
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "200":
+          description: The caller has no reminder for the proposal.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProposalReminder"
         default:
           $ref: "#/components/responses/Problem"
   /v1/admin/proposals/{id}/void:
@@ -965,6 +1023,7 @@ components:
         - stats
         - my_vote
         - reply_count
+        - reminder_set
         - sides_visible
       properties:
         id: {type: string, format: uuid, description: The proposal id., examples: [01890a5d-ac96-774b-bcce-b302099a8057]}
@@ -990,6 +1049,7 @@ components:
           minimum: 0
           description: Live replies in the proposal's thread, as the social module counts them. Zero when there are none.
           examples: [6]
+        reminder_set: {type: boolean, description: "True when the caller asked to be reminded before this proposal closes and it has not been sent. False after a vote and for a non-member.", examples: [false]}
         proposer_id: {type: string, format: uuid, description: The member who proposed it., examples: [01890a5d-ac96-774b-bcce-b302099a8059]}
         proposer: {$ref: "#/components/schemas/ProposalProposer"}
         passed_price_micros: {type: [integer, "null"], format: int64, description: "The asset's last stored price when the vote passed; null before it passed, for a proposal that passed before this field existed, or when no price was stored.", examples: [709800000]}
@@ -1380,6 +1440,26 @@ components:
             Until when the caller can undo this ballot. Null when the ballot settled the proposal or has
             changed side.
           examples: ["2026-10-03T16:00:15Z"]
+    ProposalReminder:
+      type: object
+      description: The caller's reminder for one proposal.
+      additionalProperties: false
+      required: [proposal_id, reminder_set, due_at]
+      properties:
+        proposal_id:
+          type: string
+          format: uuid
+          description: The proposal id.
+          examples: [01890a5d-ac96-774b-bcce-b302099a8057]
+        reminder_set:
+          type: boolean
+          description: True while an unsent reminder is stored for the caller.
+          examples: [true]
+        due_at:
+          type: [string, "null"]
+          format: date-time
+          description: When the reminder falls due. Null when none is stored.
+          examples: ["2026-10-04T14:00:00Z"]
     RetractVoteResult:
       type: object
       description: The proposal after the caller's ballot was removed.

@@ -21,12 +21,13 @@ Later, cabal chat messages can reference a proposal and open a thread on it. The
 ```
 proposals 1 ──< proposal_voters    voter set frozen at creation
 proposals 1 ──< votes              (proposal_id, voter_id) primary key
+proposals 1 ──< proposal_close_reminders  (proposal_id, user_id) primary key
 proposals 1 ─── feed_objects 1 ──< feed_comments  (social module; comments live on the proposal's feed item)
 proposals 1 ──< swaps              trading module; at most one live (non-failed) row
 proposals 1 ──< cabal chat messages   future: chat messages that reference a proposal
 ```
 
-Only `proposals`, `proposal_voters` and `votes` are governance tables. The others belong to other modules and reference the proposal by id.
+Only `proposals`, `proposal_voters`, `votes` and `proposal_close_reminders` are governance tables. The others belong to other modules and reference the proposal by id.
 
 **`proposals`**
 
@@ -52,6 +53,8 @@ Only `proposals`, `proposal_voters` and `votes` are governance tables. The other
 **`proposal_voters`**: `proposal_id`, `voter_id`. The cabal's voter set, copied from the cabal module's query port in the `ProposeTrade` transaction. Members who join or leave mid-vote do not change it, so the number of yes votes a proposal needs is fixed when it opens.
 
 **`votes`**: `proposal_id`, `voter_id`, `choice` (`yes`/`no`), `cast_at`, `first_cast_at`, `changed`. One ballot per voter per proposal. `first_cast_at` never moves, and `changed` turns true when a re-cast flips the side and never turns back. A voter may change their ballot while the proposal is `open` (upsert on the primary key); ballots are frozen once status leaves `open`.
+
+**`proposal_close_reminders`**: `proposal_id`, `user_id`, `due_at`, `created_at`, `sent_at`. One row per member and proposal who asked to be reminded, with a partial index on `due_at` where `sent_at` is null. Both ids have foreign keys. See [Remind before close](#remind-before-close).
 
 **Stats**: `GET /v1/proposals/{id}` returns `stats` and `my_vote` beside the proposal. Stored: the pot at open, the close time and the deciding voter. Computed on read: `stats.treasury_share_bps`, which is `MulDiv(usdc_micros, 10000, pot_value_micros)` for a buy and `quote_out_amount` over the pot for a sell, rounded down and null when the pot is null or zero; `my_vote`, the caller's place among the ballots by first cast and by side, from window functions over `votes` so no other voter's ballot leaves the database; and `reply_count`, from the social module's reply counter. The vote response carries the same `my_vote`, so the toast needs no second read. The list stays one query and carries none of these.
 
@@ -116,6 +119,17 @@ One `uow.Do` locks the proposal and the ballot, deletes the ballot and appends `
 
 The money path is untouched. An undo exists only while the proposal is `open`, before `proposal.passed`, so nothing reaches the trade engine and no swap, ledger or treasury row is read or written.
 
+## Remind before close
+
+A voter who has not decided can ask for one nudge before the vote closes. The control is "Remind me at close" under the vote on the proposal screen.
+
+- **Opt-in, per member and proposal.** `PUT /v1/proposals/{id}/reminder` stores a row in `proposal_close_reminders`. The caller must pass the same checks as a ballot: the proposal is `open` and not expired (`proposal_closed`) and the caller is in the frozen voter set (`not_a_voter`). The command locks the proposal row like `CastVote`. A caller who has already voted gets 200 with `reminder_set: false` and no row, so an old screen does not error.
+- **Due time.** `domain.ReminderDue` returns the later of now and `expires_at` minus `domain.ReminderLead` (one hour). A member who asks with less than an hour left is due now. Asking again moves `due_at` and clears `sent_at`.
+- **Voting drops it.** `CastVote` deletes the caller's row in the ballot's transaction, under the proposal lock. Undoing a ballot within the window does not bring the row back.
+- **`DELETE` is a self-cleanup.** It deletes the caller's own row and never refuses for the proposal's state or the caller's membership: a closed proposal, a non-voter and a missing row all answer 200 with `reminder_set: false`. It answers `proposal_not_found` only for an unknown proposal.
+- **The detail.** `GET /v1/proposals/{id}` returns `reminder_set`, true while the caller has an unsent row. It is false after a vote and for a non-member.
+- **Not the member-wide reminder.** The notify poller's "votes left" reminder (`notify.vote_reminders`) goes to every member who has not voted, a third of the way into the window. This one is opt-in and personal, and a member can get both. The poller that sends this reminder and its event are a separate change.
+
 ## CRUD surface
 
 Every cabal is public, so anyone signed in can read a cabal's proposals. Non-members are view-only: they cannot vote (they are not in the voter set), and they cannot comment on another cabal's proposals until moderation ships ([feed.md](feed.md)).
@@ -130,6 +144,8 @@ Routes follow the [`cabal` naming](backend-platform.md#decided). Every mutating 
 | `DELETE /v1/proposals/{id}` | `WithdrawProposal` ([flow 13](backend-platform.md#flows)) | Proposer withdraws; nobody else can. Allowed only while `open` and before any other member has voted. Soft delete to `withdrawn`. |
 | `POST /v1/proposals/{id}/votes` | `CastVote` | Cast or change a ballot. |
 | `DELETE /v1/proposals/{id}/votes` | `RetractVote` | Undo the caller's ballot within 15 seconds of its first cast, while the proposal is `open` and the ballot has never changed side. |
+| `PUT /v1/proposals/{id}/reminder` | `SetReminder` | Ask for a one-shot reminder an hour before close, or now when less than an hour is left. Voters who have not voted only; a voter who has voted gets `reminder_set: false`. |
+| `DELETE /v1/proposals/{id}/reminder` | `ClearReminder` | Drop the caller's own reminder. Idempotent; 200 for any proposal state and any caller, `proposal_not_found` for an unknown id. |
 | `GET /v1/me/market-facts?symbols=…` | query | One fact per requested symbol (1 to 50), first match wins: `vote_open` (an open proposal in the caller's current cabals whose frozen voter set holds the caller), then `held` (the treasury `Held` port, units summed across cabals), then `called` (a proposal in those cabals with `status IN ('passed', 'executed')` and `closed_at` in the last 7 days). A cabal the caller left yields nothing. One `CabalsOf`, two statements and one `Held` call for any symbol count. |
 | `GET/POST /v1/proposals/{id}/comments` | `CreateComment` (social module, [flow 21](backend-platform.md#flows)) | Comment thread on the proposal's feed item. Members only until moderation ships. |
 
