@@ -5,7 +5,7 @@ import MonacoCore
 import SwiftUI
 
 enum CatchUpSampleScenario: String {
-    case six, loading, error
+    case six, loading, error, caughtUp, firstUse
 
     static let launchArgument = "-MonacoCatchUpSample"
     static let legacyArgument = "-activityFeedHarness"
@@ -26,6 +26,8 @@ enum CatchUpSampleScenario: String {
     var state: LoadState<CatchUpScreen> {
         switch self {
         case .six: .loaded(CatchUpScreen(.six))
+        case .caughtUp: .loaded(CatchUpScreen(.caughtUp))
+        case .firstUse: .loaded(CatchUpScreen(.firstUse))
         case .loading: .loading
         case .error: .failed(.transport(URLError(.notConnectedToInternet)))
         }

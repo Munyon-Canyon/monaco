@@ -228,10 +228,19 @@ extension CatchUpModel {
     public static func preview(state: LoadState<CatchUpScreen>, now: Date) -> CatchUpModel {
         let serverURL = URL(string: "http://127.0.0.1:9") ?? URL(fileURLWithPath: "/")
         let model = CatchUpModel(
-            api: APIClient(serverURL: serverURL, tokens: PreviewTokens()),
+            api: APIClient(serverURL: serverURL, tokens: PreviewTokens(), transport: PreviewTransport()),
             hints: PreviewHints(), clock: { now })
         model.state = state
         return model
+    }
+}
+
+private struct PreviewTransport: ClientTransport {
+    func send(
+        _ request: HTTPRequest, body _: HTTPBody?, baseURL _: URL, operationID _: String
+    ) async throws -> (HTTPResponse, HTTPBody?) {
+        guard request.method == .post else { throw URLError(.notConnectedToInternet) }
+        return (HTTPResponse(status: .noContent), nil)
     }
 }
 

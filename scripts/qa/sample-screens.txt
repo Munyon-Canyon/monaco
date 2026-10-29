@@ -684,6 +684,7 @@ flow-20a-report-target-not-found -MonacoFlow 20a reportTargetNotFound
 flow-20a-rate-limited         -MonacoFlow 20a rateLimited
 flow-20a-unauthorized         -MonacoFlow 20a unauthorized
 flow-20a-interrupted          -MonacoFlow 20a interrupted
+flow-34-unauthorized          -MonacoFlow 34 unauthorized
 # END generated flow scenarios
 account-activity-ready        -accountActivityHarness ready
 account-activity-pending      -accountActivityHarness pending
