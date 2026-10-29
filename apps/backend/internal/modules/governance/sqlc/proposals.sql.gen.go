@@ -398,6 +398,17 @@ func (q *Queries) OpenProposal(ctx context.Context, arg OpenProposalParams) (int
 	return result.RowsAffected(), nil
 }
 
+const proposalMint = `-- name: ProposalMint :one
+SELECT mint FROM proposals WHERE id = $1
+`
+
+func (q *Queries) ProposalMint(ctx context.Context, id uuid.UUID) (string, error) {
+	row := q.db.QueryRow(ctx, proposalMint, id)
+	var mint string
+	err := row.Scan(&mint)
+	return mint, err
+}
+
 const proposalsToVoidForBan = `-- name: ProposalsToVoidForBan :many
 SELECT id FROM proposals
 WHERE proposer_id = $1 AND status IN ('open', 'passed')
@@ -484,17 +495,19 @@ SET status = $1::text,
   void_reason = CASE WHEN $1::text = 'voided' THEN $2::text END,
   closed_at = CASE WHEN $3::text = 'open' THEN $4::timestamptz ELSE closed_at END,
   decided_by = CASE WHEN $3::text = 'open' THEN NULLIF($5::text, '')::uuid ELSE decided_by END,
+  passed_price_micros = COALESCE($6::bigint, passed_price_micros),
   updated_at = $4::timestamptz
-WHERE id = $6 AND status = $3::text
+WHERE id = $7 AND status = $3::text
 `
 
 type TransitionParams struct {
-	ToStatus   string
-	Reason     pgtype.Text
-	FromStatus string
-	At         time.Time
-	DecidedBy  string
-	ID         uuid.UUID
+	ToStatus          string
+	Reason            pgtype.Text
+	FromStatus        string
+	At                time.Time
+	DecidedBy         string
+	PassedPriceMicros pgtype.Int8
+	ID                uuid.UUID
 }
 
 func (q *Queries) Transition(ctx context.Context, arg TransitionParams) (int64, error) {
@@ -504,6 +517,7 @@ func (q *Queries) Transition(ctx context.Context, arg TransitionParams) (int64, 
 		arg.FromStatus,
 		arg.At,
 		arg.DecidedBy,
+		arg.PassedPriceMicros,
 		arg.ID,
 	)
 	if err != nil {

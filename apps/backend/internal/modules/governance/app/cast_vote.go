@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"log/slog"
+	"math"
 	"time"
 
 	"github.com/google/uuid"
@@ -13,12 +14,14 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/sqlc"
+	"github.com/monaco/monaco/apps/backend/internal/modules/market"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
+	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 )
 
 type CastVote struct {
@@ -45,10 +48,22 @@ type CastVoteHandler struct {
 	cabals Cabals
 	clock  clock.Clock
 	hints  Hints
+	assets Assets
+	prices market.Prices
+}
+
+type candidate struct {
+	mint  string
+	price *money.Micros
 }
 
 func NewCastVoteHandler(uow *db.UnitOfWork, cabals Cabals, c clock.Clock, hints Hints) *CastVoteHandler {
 	return &CastVoteHandler{uow: uow, cabals: cabals, clock: c, hints: hints}
+}
+
+func (h *CastVoteHandler) Priced(a Assets, p market.Prices) *CastVoteHandler {
+	h.assets, h.prices = a, p
+	return h
 }
 
 func (h *CastVoteHandler) banned(ctx context.Context, proposal ids.ProposalID) error {
@@ -60,13 +75,49 @@ func (h *CastVoteHandler) banned(ctx context.Context, proposal ids.ProposalID) e
 	return notBanned(ctx, h.cabals, ids.CabalIDFrom(cabal), op)
 }
 
+func (h *CastVoteHandler) candidatePrice(ctx context.Context, proposal ids.ProposalID) candidate {
+	const op = "governance.CastVote"
+	if h.assets == nil || h.prices == nil {
+		return candidate{}
+	}
+	raw, err := sqlc.New(h.uow.Reads()).ProposalMint(ctx, proposal.UUID())
+	if err != nil {
+		return priceUnavailable(ctx, proposal, errs.Wrap(err, errs.CodeInternal, op))
+	}
+	mint, err := market.ParseMint(raw)
+	if err != nil {
+		return priceUnavailable(ctx, proposal, err)
+	}
+	asset, err := h.assets.AssetByMint(ctx, mint)
+	if err != nil {
+		return priceUnavailable(ctx, proposal, err)
+	}
+	prices, err := h.prices.PricesAsOf(ctx, []market.AssetID{asset.ID}, h.clock.Now())
+	if err != nil {
+		return priceUnavailable(ctx, proposal, err)
+	}
+	found, ok := prices[asset.ID]
+	if !ok {
+		return candidate{mint: raw}
+	}
+	price := found.Micros
+	return candidate{mint: raw, price: &price}
+}
+
+func priceUnavailable(ctx context.Context, proposal ids.ProposalID, err error) candidate {
+	observability.Degraded(ctx, observability.GovernancePassedPriceUnavailable,
+		slog.String("proposal_id", proposal.UUID().String()), slog.String("code", string(errs.CodeOf(err))))
+	return candidate{}
+}
+
 func (h *CastVoteHandler) Handle(ctx context.Context, cmd CastVote) (CastVoteResult, error) {
 	var out CastVoteResult
 	var cabal uuid.UUID
 	banned := h.banned(ctx, cmd.ProposalID)
+	priced := h.candidatePrice(ctx, cmd.ProposalID)
 	err := h.uow.Do(ctx, func(ctx context.Context, tx db.Tx) error {
 		var err error
-		out, err = h.vote(ctx, tx, cmd, banned, &cabal)
+		out, err = h.vote(ctx, tx, cmd, banned, priced, &cabal)
 		return err
 	})
 	if err != nil {
@@ -77,7 +128,7 @@ func (h *CastVoteHandler) Handle(ctx context.Context, cmd CastVote) (CastVoteRes
 }
 
 func (h *CastVoteHandler) vote(
-	ctx context.Context, tx db.Tx, cmd CastVote, banned error, cabal *uuid.UUID,
+	ctx context.Context, tx db.Tx, cmd CastVote, banned error, priced candidate, cabal *uuid.UUID,
 ) (CastVoteResult, error) {
 	const op = "governance.CastVote"
 	q := sqlc.New(tx.Queries())
@@ -109,6 +160,8 @@ func (h *CastVoteHandler) vote(
 		Tally: Tally{Yes: yes, No: no, Voters: voters, Needed: rule.Needed(voters)},
 	}
 	var decided events.Event
+	var passedPrice int64
+	var hasPrice bool
 	verdict := domain.Tally(rule, voters, yes, no)
 	out.MyVote = *myVoteOf(order, verdict != domain.Undecided)
 	switch verdict {
@@ -121,16 +174,35 @@ func (h *CastVoteHandler) vote(
 			return CastVoteResult{}, err
 		}
 		out.Status, decided = domain.StatusPassed, passed(p, comparison)
+		passedPrice, hasPrice = priced.storable(p.Mint)
 	case domain.Failed:
 		out.Status, decided = domain.StatusFailed, events.ProposalFailed{V: 1, ProposalID: p.ID, CabalID: p.CabalID}
 	}
-	if _, err := q.Transition(ctx, sqlc.TransitionParams{
-		ID: p.ID, FromStatus: string(domain.StatusOpen), ToStatus: string(out.Status), At: now,
-		DecidedBy: cmd.VoterID.UUID().String(),
-	}); err != nil {
+	transition := decidedTransition(p.ID, out.Status, cmd.VoterID.UUID(), now, passedPrice, hasPrice)
+	if _, err := q.Transition(ctx, transition); err != nil {
 		return CastVoteResult{}, err
 	}
 	return out, tx.Events.Append(ctx, decided)
+}
+
+func decidedTransition(
+	id uuid.UUID, to domain.Status, voter uuid.UUID, at time.Time, price int64, hasPrice bool,
+) sqlc.TransitionParams {
+	t := sqlc.TransitionParams{
+		ID: id, FromStatus: string(domain.StatusOpen), ToStatus: string(to), At: at, DecidedBy: voter.String(),
+	}
+	t.PassedPriceMicros.Int64, t.PassedPriceMicros.Valid = price, hasPrice
+	return t
+}
+
+func (c candidate) storable(mint string) (int64, bool) {
+	if c.price == nil || c.mint != mint {
+		return 0, false
+	}
+	if n := c.price.Uint64(); n <= math.MaxInt64 {
+		return int64(n), true
+	}
+	return 0, false
 }
 
 func castAndRank(

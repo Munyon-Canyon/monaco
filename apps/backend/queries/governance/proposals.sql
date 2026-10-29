@@ -67,6 +67,7 @@ SET status = @to_status::text,
   void_reason = CASE WHEN @to_status::text = 'voided' THEN sqlc.narg(reason)::text END,
   closed_at = CASE WHEN @from_status::text = 'open' THEN @at::timestamptz ELSE closed_at END,
   decided_by = CASE WHEN @from_status::text = 'open' THEN NULLIF(sqlc.arg(decided_by)::text, '')::uuid ELSE decided_by END,
+  passed_price_micros = COALESCE(sqlc.narg(passed_price_micros)::bigint, passed_price_micros),
   updated_at = @at::timestamptz
 WHERE id = @id AND status = @from_status::text;
 
@@ -91,6 +92,9 @@ SELECT status FROM proposals WHERE id = @id;
 
 -- name: CabalOfProposal :one
 SELECT cabal_id FROM proposals WHERE id = @id;
+
+-- name: ProposalMint :one
+SELECT mint FROM proposals WHERE id = @id;
 
 -- name: ProposerOfProposal :one
 SELECT proposer_id FROM proposals WHERE id = @id;

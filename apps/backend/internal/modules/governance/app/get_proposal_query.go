@@ -7,6 +7,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/sqlc"
+	identityport "github.com/monaco/monaco/apps/backend/internal/modules/identity/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market"
 	rankingport "github.com/monaco/monaco/apps/backend/internal/modules/ranking/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading"
@@ -37,12 +38,20 @@ type ProposalDetail struct {
 	Swap        *trading.SwapView
 	Fill        Fill
 
+	Proposer              ProposerCard
 	ProposerReturnBps     *int64
 	ProposerReturnPrivate bool
+	PassedPriceMicros     *int64
 
 	Stats      Stats
 	MyVote     *MyVote
 	ReplyCount int
+}
+
+type ProposerCard struct {
+	ID          ids.UserID
+	DisplayName string
+	PhotoURL    string
 }
 
 type Fill struct {
@@ -75,7 +84,7 @@ func (r *ProposalReads) Get(ctx context.Context, req GetProposal) (ProposalDetai
 	if err != nil {
 		return ProposalDetail{}, err
 	}
-	bps, private, err := r.proposerReturn(ctx, view.ProposerID)
+	proposer, err := r.proposerFacts(ctx, view.ProposerID)
 	if err != nil {
 		return ProposalDetail{}, err
 	}
@@ -87,8 +96,9 @@ func (r *ProposalReads) Get(ctx context.Context, req GetProposal) (ProposalDetai
 	out := ProposalDetail{
 		Stats: facts.stats, MyVote: facts.myVote, ReplyCount: facts.replyCount,
 		Proposal: view, Voters: voters, CanVote: open && isVoter,
-		CanWithdraw:       open && view.ProposerID == req.Caller && !othersVoted,
-		ProposerReturnBps: bps, ProposerReturnPrivate: private,
+		CanWithdraw: open && view.ProposerID == req.Caller && !othersVoted,
+		Proposer:    proposer.card, ProposerReturnBps: proposer.bps, ProposerReturnPrivate: proposer.private,
+		PassedPriceMicros: passedPrice(row),
 	}
 	return out, r.priced(ctx, row, &out)
 }
@@ -192,25 +202,56 @@ func listRow(r sqlc.GetProposalRow) sqlc.ListProposalsRow {
 	}
 }
 
-func (r *ProposalReads) proposerReturn(ctx context.Context, id ids.UserID) (*int64, bool, error) {
+func passedPrice(row sqlc.GetProposalRow) *int64 {
+	if !row.PassedPriceMicros.Valid {
+		return nil
+	}
+	return &row.PassedPriceMicros.Int64
+}
+
+type proposerFacts struct {
+	card    ProposerCard
+	bps     *int64
+	private bool
+}
+
+func (r *ProposalReads) ProposerCard(ctx context.Context, id ids.UserID) (ProposerCard, error) {
+	cards, err := r.users.UsersByID(ctx, []ids.UserID{id})
+	if err != nil {
+		return ProposerCard{}, errs.Wrap(err, errs.CodeOf(err), "governance.GetProposal")
+	}
+	return cardOf(id, cards), nil
+}
+
+func cardOf(id ids.UserID, cards map[ids.UserID]identityport.UserCard) ProposerCard {
+	card, ok := cards[id]
+	if !ok || card.Deleted {
+		return ProposerCard{ID: id}
+	}
+	return ProposerCard{ID: id, DisplayName: card.DisplayName, PhotoURL: card.PhotoURL}
+}
+
+func (r *ProposalReads) proposerFacts(ctx context.Context, id ids.UserID) (proposerFacts, error) {
 	const op = "governance.GetProposal"
 	who := []ids.UserID{id}
 	cards, err := r.users.UsersByID(ctx, who)
 	if err != nil {
-		return nil, false, errs.Wrap(err, errs.CodeOf(err), op)
+		return proposerFacts{}, errs.Wrap(err, errs.CodeOf(err), op)
 	}
 	found, err := r.rets.PeopleReturns(ctx, rankingport.Range1M, who)
 	if err != nil {
-		return nil, false, errs.Wrap(err, errs.CodeOf(err), op)
+		return proposerFacts{}, errs.Wrap(err, errs.CodeOf(err), op)
 	}
+	out := proposerFacts{card: cardOf(id, cards)}
 	card, ok := cards[id]
 	switch {
 	case !ok || card.Deleted:
-		return nil, false, nil
 	case !card.SharePerformance:
-		return nil, true, nil
+		out.private = true
+	default:
+		out.bps = found[id].ReturnBps
 	}
-	return found[id].ReturnBps, false, nil
+	return out, nil
 }
 
 func tallyVoters(rows []sqlc.ProposalVotersRow, caller ids.UserID) ([]Voter, Tally, bool, bool) {
