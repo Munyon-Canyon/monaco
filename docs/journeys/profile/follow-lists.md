@@ -4,7 +4,7 @@ title: Followers and following
 version: 2
 milestone: M17
 requires: [auth/sign-in]
-actors: [A]
+actors: [A, B]
 flows: [20]
 xcuitest: [apps/mobile/MonacoUITests/Journeys/ProfileFollowListsJourney.swift, apps/mobile/MonacoUITests/Journeys/ProfileFollowListsJourneyUITests.swift]
 ---

@@ -162,6 +162,7 @@ enum StocksBrowseJourney {
 
         recorder.step("S2.1", "search by name") {
             openStocks(app, step: "S2.1")
+            chooseChip(app, "All", step: "S2.1")
             let field = searchField(app)
             XCTAssertTrue(field.waitForExistence(timeout: 15), "S2.1: no search field on the Markets tab")
             replaceQuery(app, with: alpha.name)

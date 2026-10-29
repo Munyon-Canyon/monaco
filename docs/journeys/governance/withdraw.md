@@ -1,7 +1,7 @@
 ---
 id: governance/withdraw
 title: Withdraw a proposal
-version: 2
+version: 3
 milestone: M13
 requires: [auth/sign-in]
 actors: [A, B]
@@ -32,24 +32,16 @@ The format of this doc is in [App journeys](../README.md).
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
 | S1.1 | A | tap, type, then tap | the Cabals tab, `cabals-search-field`, then the `cabals-search-result-<id>` | `{cabalName}` | `cabal-header-name` reads `{cabalName}` within 15 s |
-| S1.2 | A | tap | `proposal-card-<proposalID>` in the cabal's proposals | | The Proposal screen shows "Votes" and "Why buy" within 15 s |
+| S1.2 | A | tap | `cabal-open-proposal-<proposalID>` in the cabal's open proposals | | The Proposal screen shows "Votes" and "Why buy" within 15 s |
 | S1.3 | A | tap | "Withdraw proposal" | | The confirm "Withdraw this proposal?" with "Votes so far are dropped." shows within 5 s |
-| S1.4 | A | tap | "Withdraw" in the confirm | | The toast "Proposal withdrawn." shows within 10 s, and the card shows the status chip "Withdrawn" within 10 s |
-| S1.5 | B | tap | the Home tab | | `proposal-card-<proposalID>` is not under "Needs your vote" within 15 s |
+| S1.4 | A | tap | "Withdraw" in the confirm | | The toast "Proposal withdrawn." shows within 10 s, and the Proposal screen reads "Withdrawn" within 10 s |
+| S1.5 | B | tap | the Home tab | | `home-vote-card-<proposalID>` is not under "Your vote" within 15 s |
 
 ## Ground truth
 
 `apps/mobile/qa/journeys/governance/withdraw.truth.sh` reads the hand-off. After S1, the proposal's status is `withdrawn`.
 
-## Known failures on staging
-
-| Step | What fails | Blocked by |
-| --- | --- | --- |
-| S1.2 | The cabal's proposals show only proposals the viewer can vote on, so the proposer never sees their own card there, and a card does not open `ProposalRoute` | #612 |
-| S1.3 | `ProposalDetailSlot` has no "Withdraw proposal" button, so the proposal cannot be withdrawn from the app. `DELETE /v1/proposals/{id}` (flow 13) is built | #612 |
-| S1.4 | Follows S1.3 | #612 |
-
 ## Not covered
 
-- Accessibility identifiers for "Withdraw proposal" and its confirm. They do not exist yet, so the test finds them by label. They belong to #612 in `apps/mobile/Monaco/Features/Proposals/ProposalDetailSlot.swift`.
+- The confirm's "Withdraw" button has no identifier, so the test finds it by label. "Withdraw proposal" is `proposal-withdraw`.
 - A withdraw refused because a vote already closed the proposal. The flow layer covers it (flow 13, `ProposalClosed`).

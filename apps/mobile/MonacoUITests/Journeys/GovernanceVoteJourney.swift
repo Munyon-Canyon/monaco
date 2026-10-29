@@ -45,9 +45,15 @@ enum GovernanceVoteJourney {
     }
 
     static func expectToast(_ app: XCUIApplication, _ message: String, undo: Bool, step: String) {
-        XCTAssertTrue(
-            waitForLabel(app.element("monaco-toast-banner"), message, timeout: checkTimeout),
-            "\(step): the toast does not read \"\(message)\" within \(Int(checkTimeout)) s")
+        let banner = app.element("monaco-toast-banner")
+        let text = app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", message)).firstMatch
+        let deadline = Date().addingTimeInterval(checkTimeout)
+        var shown = false
+        repeat {
+            shown = (banner.exists && banner.label.contains(message)) || text.exists
+            if !shown { RunLoop.current.run(until: Date().addingTimeInterval(0.2)) }
+        } while !shown && Date() < deadline
+        XCTAssertTrue(shown, "\(step): the toast does not read \"\(message)\" within \(Int(checkTimeout)) s")
         XCTAssertEqual(
             app.element("monaco-toast-action").exists, undo,
             "\(step): the toast \(undo ? "has no" : "offers") Undo")

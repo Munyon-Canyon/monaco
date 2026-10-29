@@ -80,7 +80,7 @@ enum CabalsBrowseJourney {
             if JoinJourney.searchField(app).exists { app.tapBack() }
             app.tab("Cabals").tap()
             let held = tile(app, named: mine(run: run))
-            XCTAssertTrue(held.waitForExistence(timeout: screenTimeout), "S2.1: no tile for \(mine(run: run))")
+            XCTAssertTrue(app.revealInGrid(held), "S2.1: no tile for \(mine(run: run))")
             held.press(forDuration: 1.0)
             for item in ["Fund", "Propose buy", "Invite", "Share"] {
                 XCTAssertTrue(

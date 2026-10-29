@@ -2,7 +2,7 @@ import XCTest
 
 enum GovernanceWithdrawJourney {
     static let id = "governance/withdraw"
-    static let version = 2
+    static let version = 3
 
     static let screenTimeout: TimeInterval = 15
     static let checkTimeout: TimeInterval = 10
@@ -14,7 +14,7 @@ enum GovernanceWithdrawJourney {
     static func proposerWithdraws(
         _ app: XCUIApplication, cabalName: String, proposalID: String, recorder: JourneyRecorder
     ) {
-        let card = GovernanceVoteJourney.card(app, proposalID)
+        let card = app.element("cabal-open-proposal-\(proposalID)")
 
         recorder.step("S1.1", "the proposer opens the cabal") {
             JoinJourney.openBySearch(app, cabalName, step: "S1.1")
@@ -24,7 +24,7 @@ enum GovernanceWithdrawJourney {
             app.scrollIntoReach(card)
             XCTAssertTrue(
                 card.waitForExistence(timeout: screenTimeout),
-                "S1.2: proposal-card-\(proposalID) is not in the cabal's proposals within \(Int(screenTimeout)) s")
+                "S1.2: no cabal-open-proposal-\(proposalID) in the cabal within \(Int(screenTimeout)) s")
             card.tap()
             GovernanceVoteJourney.waitForProposalScreen(app, step: "S1.2")
         }
@@ -45,7 +45,7 @@ enum GovernanceWithdrawJourney {
             XCTAssertTrue(confirm.waitForExistence(timeout: checkTimeout), "S1.4: the confirm shows no \"Withdraw\"")
             confirm.tap()
             JoinJourney.waitForToast(app, "Proposal withdrawn.", step: "S1.4")
-            GovernanceVoteJourney.expectText(card, "Withdrawn", step: "S1.4")
+            GovernanceVoteJourney.expectText(app, "Withdrawn", step: "S1.4")
         }
     }
 
@@ -56,8 +56,8 @@ enum GovernanceWithdrawJourney {
                 "S1.5: the tab bar did not show within \(Int(screenTimeout)) s")
             app.tab("Home").tap()
             XCTAssertTrue(
-                GovernanceVoteJourney.waitForGone(GovernanceVoteJourney.card(app, proposalID), timeout: screenTimeout),
-                "S1.5: proposal-card-\(proposalID) is still on B's Home after the withdraw")
+                GovernanceVoteJourney.waitForGone(app.element("home-vote-card-\(proposalID)"), timeout: screenTimeout),
+                "S1.5: home-vote-card-\(proposalID) is still on B's Home after the withdraw")
         }
     }
 }

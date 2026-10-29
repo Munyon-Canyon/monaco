@@ -44,7 +44,7 @@ Starts signed in (auth/sign-in).
 
 | Step | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- |
-| S2.1 | tap, then type | the Markets tab, then `monaco-search-field` | `Journey Alpha` | Within 10 s, `assets-row-JRNYAx` shows and `assets-row-JRNYZx` does not |
+| S2.1 | tap, tap, then type | the Markets tab, `markets-chip-All` (S1 left Held selected, and Cancel keeps the chip), then `monaco-search-field` | `Journey Alpha` | Within 10 s, `assets-row-JRNYAx` shows and `assets-row-JRNYZx` does not |
 | S2.2 | clear, then type | `monaco-search-field` | `zzqj{QA.run}` | Within 10 s, `assets-empty` reads "No results for" and the query |
 | S2.3 | tap Cancel | `markets-search-cancel` | | Within 10 s, `assets-empty` is gone and the chips are back with `markets-chip-All` selected |
 

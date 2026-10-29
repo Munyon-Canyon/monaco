@@ -45,6 +45,11 @@ enum ProfileOverviewJourney {
         }
     }
 
+    static func positionsFigure(_ app: XCUIApplication) -> String {
+        let texts = app.element("profile-positions").staticTexts.allElementsBoundByIndex
+        return texts.map(\.label).first { $0.hasPrefix("$") } ?? ""
+    }
+
     static func cabalsCount(_ app: XCUIApplication) -> Int? {
         let label = app.element("profile-stat-cabals").label
         return label.split(whereSeparator: { !$0.isNumber }).first.flatMap { Int($0) }
@@ -68,7 +73,7 @@ enum ProfileOverviewJourney {
                 waitUntil(15) { (cabalsCount(app) ?? 0) >= 1 },
                 "S1.2: 'Cabals' reads '\(app.element("profile-stat-cabals").label)', not a count of 1 or more")
             XCTAssertTrue(
-                app.element("profile-positions").label.contains("Positions"),
+                app.element("profile-positions").staticTexts["Positions"].exists,
                 "S1.2: no 'Positions' column")
             XCTAssertTrue(
                 app.element("profile-pnl-1m").label.contains("P&L \u{00B7} 1M"), "S1.2: no 'P&L · 1M' column")
@@ -241,15 +246,11 @@ enum ProfileOverviewJourney {
     static func totals(_ app: XCUIApplication, cabal: Cabal, recorder: JourneyRecorder) {
         recorder.step("S7.1", "the identity card shows the member's totals") {
             openProfile(app, step: "S7.1")
-            let positions = app.element("profile-positions")
             let performance = app.element("profile-pnl-1m")
             let pending = ["", "loading", "unavailable"]
             XCTAssertTrue(
-                waitUntil(15) { !pending.contains(positions.value as? String ?? "") },
-                "S7.1: 'Positions' reads '\(positions.value as? String ?? "")', not a dollar figure")
-            XCTAssertTrue(
-                (positions.value as? String)?.hasPrefix("$") == true,
-                "S7.1: 'Positions' reads '\(positions.value as? String ?? "")', not a dollar figure")
+                waitUntil(15) { positionsFigure(app).hasPrefix("$") },
+                "S7.1: 'Positions' reads '\(positionsFigure(app))', not a dollar figure")
             XCTAssertFalse(
                 pending.contains(performance.value as? String ?? ""),
                 "S7.1: 'P&L · 1M' reads '\(performance.value as? String ?? "")', not a figure")

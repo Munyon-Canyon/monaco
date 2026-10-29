@@ -65,9 +65,10 @@ enum CabalsApproveRequestJourney {
         JoinJourney.openRequests(app, step: step)
         let rows = app.descendants(matching: .any).matching(identifier: "cabal-join-request-row")
         XCTAssertEqual(rows.count, 1, "\(step): expected one request row")
-        XCTAssertTrue(rows.firstMatch.label.contains(member), "\(step): the request does not name \(member)")
+        XCTAssertTrue(JoinJourney.rowNames(rows.firstMatch, member), "\(step): the request does not name \(member)")
         XCTAssertTrue(
-            rows.firstMatch.label.contains("Asked to join"), "\(step): the request row does not read Asked to join")
+            JoinJourney.rowNames(rows.firstMatch, "Asked to join"),
+            "\(step): the request row does not read Asked to join")
     }
 
     static func creatorDenies(_ app: XCUIApplication, run: String, member: String, recorder: JourneyRecorder) {
