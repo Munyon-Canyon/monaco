@@ -12,12 +12,6 @@ struct ProfileIdentityTests {
         PortfolioSummary(portfolio)
     }
 
-    private func profile() -> SessionProfile {
-        ProfileSampleHarness.sampleProfile(
-            userID: "u", displayName: " Alex ", photoURL: nil,
-            createdAt: ISO8601DateFormatter().date(from: "2026-10-01T14:30:00Z"))
-    }
-
     @Test func aNewProfileDrawsZerosAsDesigned() {
         let stats = summary(.sampleEmpty).stats
         #expect(IdentityPerformance(stats: stats) == .empty)
@@ -27,47 +21,6 @@ struct ProfileIdentityTests {
     @Test func aLossKeepsItsSignAndTwoDecimals() {
         let stats = summary(.sampleLoss).stats
         #expect(IdentityPerformance(stats: stats) == .figure(dollars: "−$1.00", percent: "−0.11%"))
-    }
-
-    @Test func theCardNamesTheMemberAndTheAllTimePeriod() {
-        let model = ProfileHeader.model(for: profile(), portfolio: .loaded(summary(.sample)))
-        #expect(model.displayName == "Alex")
-        #expect(model.periodText == "All time")
-        #expect(model.positionsValue == "$1,000.00")
-        #expect(model.joinedText?.hasPrefix("Joined ") == true)
-        #expect(model.bio == nil)
-    }
-
-    @Test func theCardShowsLoadingAndFailureWithoutInventingFigures() {
-        let loading = ProfileHeader.model(for: profile(), portfolio: .loading)
-        #expect(loading.performance == .loading)
-        var withBio = profile()
-        withBio.bio = "Hi"
-        let failed = ProfileHeader.model(for: withBio, portfolio: .failed(.signedOut))
-        #expect(failed.performance == .failed)
-        #expect(failed.bio == "Hi")
-    }
-
-    @Test func theOwnCardShowsTheRealBioAndTheOneMonthFigure() {
-        var member = profile()
-        member.bio = "Building in public.\nNYC"
-        let model = ProfileHeader.model(
-            for: member, portfolio: .loaded(summary(.sample)),
-            oneMonth: .loaded(.figure(pnlMicros: -417_680_000, returnBps: -348)))
-        #expect(model.bio == "Building in public.\nNYC")
-        #expect(model.periodText == "1M")
-        #expect(model.performance == .figure(dollars: "−$417.68", percent: "−3.48%"))
-        #expect(model.positionsValue == "$1,000.00")
-        #expect(model.positionsPhase == .loaded)
-    }
-
-    @Test func theOwnCardKeepsPositionsWhenOnlyTheOneMonthFigureFails() {
-        let model = ProfileHeader.model(for: profile(), portfolio: .loaded(summary(.sample)), oneMonth: .failed)
-        #expect(model.performance == .failed)
-        #expect(model.positionsPhase == .loaded)
-        let waiting = ProfileHeader.model(for: profile(), portfolio: .loaded(summary(.sample)), oneMonth: .loading)
-        #expect(waiting.performance == .loading)
-        #expect(waiting.positionsValue == "$1,000.00")
     }
 
     @Test func aPublicReturnDrawsAFigureThePrivateStateOrNoReturn() {
@@ -97,10 +50,8 @@ struct ProfileIdentityTests {
         }
     }
 
-    @Test func theFullScreenErrorNeedsNoProfileAndNoLoadInFlight() {
-        #expect(ProfileScreen.showsLoadFailure(profile: nil, isLoading: false))
-        #expect(!ProfileScreen.showsLoadFailure(profile: nil, isLoading: true))
-        #expect(!ProfileScreen.showsLoadFailure(profile: profile(), isLoading: false))
+    @Test func theFullScreenErrorNeedsAFailedReadAndNoCardToKeep() {
+        #expect(!ProfileScreen.showsLoadFailure(model: nil))
     }
 
     @Test func netWorthWaitsForBothCashAndThePortfolio() {
@@ -133,7 +84,7 @@ struct ProfileIdentityTests {
     @Test func theRowsFollowTheDesignOrder() {
         let names = ProfileScreen.sections.map { String(describing: $0) }
         #expect(!names.contains("ProfileStatsSlot"))
-        #expect(names.first == "ProfileHeaderSlot")
+        #expect(names.first == "ProfileCardSlot")
         #expect(names.last == "ProfileLinksSlot")
     }
 }

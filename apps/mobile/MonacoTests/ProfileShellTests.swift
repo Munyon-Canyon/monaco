@@ -1,3 +1,5 @@
+import MonacoAPI
+import MonacoCore
 import SwiftUI
 import UIKit
 import XCTest
@@ -6,9 +8,26 @@ import XCTest
 
 nonisolated final class ProfileShellTests: XCTestCase {
     @MainActor
-    func testFollowCountsAndFindFriendsSlotsAreLive() {
-        XCTAssertTrue(ProfileFollowCountsSlot.isLive)
+    func testTheCardStandingAndLinksSlotsAreLive() {
+        XCTAssertTrue(ProfileCardSlot.isLive)
+        XCTAssertTrue(ProfileStandingSlot.isLive)
         XCTAssertTrue(ProfileLinksSlot.isLive)
+    }
+
+    @MainActor
+    func testTheSectionsFollowTheDesignOrderWithoutTheV3HeaderAndCounts() {
+        let names = ProfileScreen.sections.map { String(describing: $0) }
+        XCTAssertEqual(names.prefix(2), ["ProfileCardSlot", "ProfileStandingSlot"])
+        XCTAssertFalse(names.contains("ProfileHeaderSlot"))
+        XCTAssertFalse(names.contains("ProfileFollowCountsSlot"))
+    }
+
+    @MainActor
+    func testTheShareRoundNeedsTheProfileAndThePortfolio() {
+        let profile = ProfileSampleHarness.sampleProfile(userID: "u", displayName: "Alex", photoURL: nil)
+        XCTAssertFalse(ProfileScreen.canShare(profile: nil, portfolioState: .loading))
+        XCTAssertFalse(ProfileScreen.canShare(profile: profile, portfolioState: .loading))
+        XCTAssertTrue(ProfileScreen.canShare(profile: profile, portfolioState: .loaded(PortfolioSummary(.sample))))
     }
 
     @MainActor
