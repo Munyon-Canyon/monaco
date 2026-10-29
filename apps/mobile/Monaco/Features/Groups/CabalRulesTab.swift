@@ -110,6 +110,8 @@ private struct CabalRulesBody: View {
                 trailing: {
                     Toggle(row.title, isOn: sidesBinding(current: showSides))
                         .labelsHidden()
+                        .frame(minHeight: MonacoButtonMetrics.hitTarget)
+                        .contentShape(Rectangle())
                         .disabled(!canPropose)
                         .accessibilityHint(canPropose ? "" : CabalRulesTabCopy.readOnlyHint)
                         .accessibilityIdentifier("cabal-rules-show-sides-toggle")

@@ -59,6 +59,9 @@ struct WithdrawAddressField: View {
                 .labelStyle(.iconOnly)
                 .buttonBorderShape(.circle)
                 .tint(MonacoTheme.tint)
+                .frame(minWidth: MonacoButtonMetrics.hitTarget, minHeight: MonacoButtonMetrics.hitTarget)
+                .contentShape(Rectangle())
+                .disabled(!isEnabled)
                 .accessibilityIdentifier("withdraw-paste")
                 if let onScan {
                     Button(action: onScan) {

@@ -107,6 +107,8 @@ private struct MembersAllList: View {
                     showsInvite = true
                 } label: {
                     Image(systemName: "person.badge.plus")
+                        .frame(minWidth: MonacoButtonMetrics.hitTarget, minHeight: MonacoButtonMetrics.hitTarget)
+                        .contentShape(Rectangle())
                 }
                 .accessibilityLabel(CabalMemberCopy.invite)
                 .accessibilityIdentifier("members-invite-button")
