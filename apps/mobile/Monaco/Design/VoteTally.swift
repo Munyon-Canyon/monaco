@@ -112,6 +112,7 @@ struct VotePair: View {
     var onPhaseChange: ((VotePairPhase) -> Void)? = nil
     var haptics: VoteHaptics = .live
 
+    @Environment(\.voteHoldPreview) private var holdPreview
     @State private var machine = VoteHoldMachine()
     @State private var ticker: Task<Void, Never>?
 
@@ -159,10 +160,18 @@ struct VotePair: View {
                 if VoteHaptics.playsLanded(from: old, to: new) { haptics.landed() }
             }
             .onChange(of: phase) { _, new in onPhaseChange?(new) }
+            .onAppear { seedHoldPreview() }
             .onDisappear {
                 ticker?.cancel()
                 machine.lift()
             }
+    }
+
+    private func seedHoldPreview() {
+        guard let progress = holdPreview, case .picked(let side) = selection else { return }
+        var next = selection
+        _ = machine.press(side, selection: &next)
+        _ = machine.advance(to: progress, selection: &next)
     }
 
     private func button(_ side: VoteSide) -> some View {
@@ -355,5 +364,16 @@ struct VoteTallyEnds: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(yes) yes, \(no) no, \(middle)")
         .accessibilityIdentifier(VoteIdentifier.make(identifierPrefix, "vote-ends", identifierSuffix))
+    }
+}
+
+private struct VoteHoldPreviewKey: EnvironmentKey {
+    static let defaultValue: Double? = nil
+}
+
+extension EnvironmentValues {
+    var voteHoldPreview: Double? {
+        get { self[VoteHoldPreviewKey.self] }
+        set { self[VoteHoldPreviewKey.self] = newValue }
     }
 }

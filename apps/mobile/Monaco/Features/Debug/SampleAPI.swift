@@ -103,6 +103,15 @@ nonisolated final class SampleAPIProtocol: URLProtocol {
     private static let createdName = Mutex<String?>(nil)
     private static let castChoice = Mutex<String?>(nil)
     private static let postedComments = Mutex<[Components.Schemas.Comment]>([])
+    private static let proposalThreads: [Components.Schemas.CommentThread] = [
+        Components.Schemas.CommentThread.samples[0],
+        Components.Schemas.CommentThread(
+            comment: .sample(
+                "c4", author: "Sam", body: "In.", minutesAgo: 3,
+                quote: .sample("c-logan", author: "Logan", excerpt: "44% NVDA after this."),
+                reactions: [.init(emoji: "❤️", count: 1, mine: false)]),
+            replies: []),
+    ]
     private static let portfolioReads = Mutex(0)
     private static let assetReads = Mutex(0)
 
@@ -451,7 +460,7 @@ nonisolated extension SampleAPIProtocol {
             return json(
                 Components.Schemas.ProposalCommentPage(
                     feedObjectId: "01920000-0000-7000-8000-000000000007",
-                    items: threadsWithPosted(Components.Schemas.CommentThread.samples), nextCursor: nil))
+                    items: threadsWithPosted(proposalThreads), nextCursor: nil))
         case ("POST", "comments"):
             guard let posted = postedComments.withLock({ $0.last }) else {
                 return problem(400, "invalid_request", "No comment in the request.")

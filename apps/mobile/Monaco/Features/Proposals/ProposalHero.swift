@@ -14,7 +14,11 @@ struct ProposalHero: View {
     private var proposer: ProposalMember? { members.first { $0.id == summary.proposerID } }
     private var cabalLabel: String { summary.cabalName.isEmpty ? "Your cabal" : summary.cabalName }
     private var kindLabel: String { summary.kind == "sell" ? "Sell" : "Buy" }
-    private var ticker: String { AssetSymbolFormatter.display(summary.symbol, kind: asset?.kind ?? .stock) }
+    private var ticker: String {
+        asset?.kind == .preIpo
+            ? summary.assetName(asset: asset)
+            : AssetSymbolFormatter.display(summary.symbol, kind: asset?.kind ?? .stock)
+    }
 
     static func crestLine(
         cabalName: String, proposer: String, createdAt: Date, now: Date, calendar: Calendar
@@ -75,14 +79,15 @@ struct ProposalHero: View {
                     .font(MonacoTheme.Typo.title)
                     .foregroundStyle(MonacoTheme.ink)
                     .fixedSize(horizontal: false, vertical: true)
-                Text(summary.assetName(asset: asset))
-                    .font(MonacoTheme.Typo.subhead)
-                    .foregroundStyle(MonacoTheme.secondaryText)
                 if let subtitle {
                     Text(subtitle)
                         .font(MonacoTheme.Typo.subhead)
                         .foregroundStyle(MonacoTheme.secondaryText)
                         .accessibilityIdentifier("proposal-hero-subtitle")
+                } else {
+                    Text(summary.assetName(asset: asset))
+                        .font(MonacoTheme.Typo.subhead)
+                        .foregroundStyle(MonacoTheme.secondaryText)
                 }
             }
             Spacer(minLength: MonacoTheme.Space.s)

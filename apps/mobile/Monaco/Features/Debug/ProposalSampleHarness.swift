@@ -45,6 +45,8 @@ enum ProposalSampleScenario: String, CaseIterable {
     case spaceXOpen
     case voteOrdinary
     case voteSettles
+    case votePicked
+    case voteHolding
     case nonMember
     case permissionSheet
     case holdYes
@@ -72,6 +74,9 @@ enum ProposalSampleScenario: String, CaseIterable {
         case .permissionSheet: PermissionSheetSampleRoute()
         case .holdYes, .holdVoted, .holdClosed, .holdViewOnly: VoteHoldSampleRoute(pick: .yes)
         case .holdCold: VoteHoldSampleRoute(pick: nil)
+        case .votePicked: ProposalSampleRoute(votes: .closed, seed: .picked)
+        case .voteHolding: ProposalSampleRoute(votes: .closed, seed: .holding)
+        case .voteSettles: ProposalSampleRoute(votes: .closed, seed: .settle)
         default: ProposalSampleRoute(votes: .closed)
         }
     }
@@ -142,8 +147,11 @@ enum ProposalSampleScenario: String, CaseIterable {
             script.proposal = .failedTSLA()
         case .spaceXOpen:
             script.asset = .spaceX
-            script.proposal = .preIpoSpaceX()
+            script.proposal = .preIpoSpaceX().votedYesOfSix()
         case .voteOrdinary:
+            script.asset = .nvda
+            script.proposal = .votableNVDA()
+        case .votePicked, .voteHolding:
             script.asset = .nvda
             script.proposal = .votableNVDA()
         case .voteSettles:
@@ -180,10 +188,64 @@ nonisolated struct ProposalSampleRoute: AppRoute {
     }
 
     let votes: Votes
+    var seed: ProposalSampleSeed = .none
 
     @MainActor func destination() -> some View {
         ProposalScreen(proposalID: "proposal-1", sections: [ProposalSampleDetailSlot.self, ProposalCommentsSlot.self])
             .environment(\.presentsProposalVotes, votes == .open)
+            .environment(\.proposalSampleSeed, seed)
+            .environment(\.voteHoldPreview, seed == .holding ? 0.4 : nil)
+    }
+}
+
+nonisolated enum ProposalSampleSeed: Hashable, Sendable {
+    case none, picked, holding, settle
+}
+
+private struct ProposalSampleSeedKey: EnvironmentKey {
+    static let defaultValue = ProposalSampleSeed.none
+}
+
+extension EnvironmentValues {
+    fileprivate var proposalSampleSeed: ProposalSampleSeed {
+        get { self[ProposalSampleSeedKey.self] }
+        set { self[ProposalSampleSeedKey.self] = newValue }
+    }
+}
+
+@MainActor
+private final class ProposalSampleModelBox {
+    var model: ProposalDetailModel?
+}
+
+private struct ProposalSampleDetail: View {
+    let proposalID: String
+    @Environment(AppEnvironment.self) private var environment
+    @Environment(\.proposalSampleSeed) private var seed
+    @State private var box = ProposalSampleModelBox()
+
+    var body: some View {
+        if seed == .none {
+            ProposalDetailSlotView(proposalID: proposalID)
+        } else {
+            let model = seededModel()
+            ProposalDetailSlotView(proposalID: proposalID, model: model)
+                .task {
+                    guard seed == .settle else { return }
+                    await model.load()
+                    _ = await model.vote(ProposalBallot.yes.rawValue)
+                }
+        }
+    }
+
+    private func seededModel() -> ProposalDetailModel {
+        if let model = box.model { return model }
+        let model = ProposalDetailModel(
+            id: proposalID, cabalID: "", repository: ProposalsRepository(api: environment.api),
+            hints: environment.hints)
+        if seed == .picked || seed == .holding { model.voteSelection = .picked(.yes) }
+        box.model = model
+        return model
     }
 }
 
@@ -273,7 +335,7 @@ private enum ProposalSampleDetailSlot: ProposalSection {
     static let isLive = true
 
     static func body(for context: ProposalContext) -> some View {
-        ProposalDetailSlotView(proposalID: context.proposalID)
+        ProposalSampleDetail(proposalID: context.proposalID)
     }
 }
 
@@ -281,6 +343,13 @@ extension Components.Schemas.ProposalDetail {
     fileprivate func voted(_ side: Components.Schemas.BallotChoice) -> Self {
         var detail = self
         detail.myBallot = MyBallotPayload(rawValue: side.rawValue)
+        return detail
+    }
+
+    fileprivate func votedYesOfSix() -> Self {
+        var detail = voted(.yes)
+        detail.canVote = true
+        detail.tally = .init(yes: 2, no: 0, voters: 6, needed: 4)
         return detail
     }
 
