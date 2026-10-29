@@ -2415,6 +2415,32 @@ func TestCheck_coverpkgInstrumentsOnlyChangedPackages(t *testing.T) {
 	}
 }
 
+func TestImportersOf_stopsAtTheHarnessForAModuleScopedTestFile(t *testing.T) {
+	t.Parallel()
+	listing := strings.Join([]string{
+		"m m/internal/modules/x |",
+		"m m/internal/testkit/scenario m/internal/modules/x |",
+		"m m/internal/modules/y m/internal/testkit/scenario |",
+		"m m/internal/modules/w m/internal/testkit/scenario m/cmd/api |",
+		"m m/cmd/api m/internal/modules/x |",
+		"m m/internal/platform/db |",
+		"m m/internal/modules/z m/internal/platform/db |",
+	}, "\n")
+	got := importersOf(listing, []string{"internal/modules/x"}, true)
+	if want := []string{"./cmd/api", "./internal/testkit/scenario"}; !slices.Equal(got, want) {
+		t.Fatalf("scoped: %v, want %v (the harness and cmd/api for their own tests, not y through them)", got, want)
+	}
+	got = importersOf(listing, []string{"internal/modules/x"}, false)
+	want := []string{"./cmd/api", "./internal/modules/w", "./internal/modules/y", "./internal/testkit/scenario"}
+	if !slices.Equal(got, want) {
+		t.Fatalf("unscoped: %v, want %v (w is reached through scenario and again through cmd/api)", got, want)
+	}
+	got = importersOf(listing, []string{"internal/platform/db", "internal/modules/x"}, false)
+	if !slices.Contains(got, "./internal/modules/z") || !slices.Contains(got, "./internal/modules/y") {
+		t.Fatalf("a shared package's test keeps the full growth: %v", got)
+	}
+}
+
 func TestLinkedPackages(t *testing.T) {
 	t.Parallel()
 	listing := strings.Join([]string{

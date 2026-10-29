@@ -1012,12 +1012,23 @@ const (
 		importListSeparator + ` {{join .TestImports " "}} {{join .XTestImports " "}}`
 )
 
+func testHarnessPackages() []string {
+	return []string{
+		"internal/testkit",
+		"internal/testkit/scenario",
+		"internal/testkit/flows",
+		"internal/platform/httpx/api/apiall",
+	}
+}
+
 func testDependents(listing func() ([]byte, error), files []string) ([]string, error) {
 	var dirs []string
+	scoped := true
 	for _, f := range files {
 		rel, ok := strings.CutPrefix(f, "apps/backend/")
 		if ok && (strings.HasSuffix(rel, "_test.go") || strings.HasSuffix(rel, ".allow")) {
 			dirs = append(dirs, path.Dir(rel))
+			scoped = scoped && strings.HasPrefix(rel, "internal/modules/")
 		}
 	}
 	if len(dirs) == 0 {
@@ -1027,10 +1038,10 @@ func testDependents(listing func() ([]byte, error), files []string) ([]string, e
 	if err != nil {
 		return nil, fmt.Errorf("list the importers of the packages whose tests changed: %w", err)
 	}
-	return importersOf(string(out), dirs), nil
+	return importersOf(string(out), dirs, scoped), nil
 }
 
-func importersOf(listing string, dirs []string) []string {
+func importersOf(listing string, dirs []string, scoped bool) []string {
 	g := parseImportListing(listing)
 	importers := map[string][]string{}
 	for _, edges := range []map[string][]string{g.imports, g.testImports} {
@@ -1040,25 +1051,41 @@ func importersOf(listing string, dirs []string) []string {
 			}
 		}
 	}
-	seen := map[string]bool{}
 	queue := make([]string, 0, len(dirs))
 	for _, dir := range dirs {
 		queue = append(queue, path.Join(g.module, dir))
 	}
-	for ; len(queue) > 0; queue = queue[1:] {
-		for _, importer := range importers[queue[0]] {
-			if !seen[importer] {
-				seen[importer] = true
-				queue = append(queue, importer)
-			}
-		}
+	stop := func(string) bool { return false }
+	if scoped {
+		stop = func(pkg string) bool { return harnessOrMain(strings.TrimPrefix(pkg, g.module+"/")) }
 	}
-	deps := make([]string, 0, len(seen))
-	for pkg := range seen {
+	deps := make([]string, 0, len(importers))
+	for pkg := range growImporters(importers, queue, stop) {
 		deps = append(deps, "./"+strings.TrimPrefix(pkg, g.module+"/"))
 	}
 	slices.Sort(deps)
 	return deps
+}
+
+func growImporters(importers map[string][]string, queue []string, stop func(string) bool) map[string]bool {
+	seen := map[string]bool{}
+	for ; len(queue) > 0; queue = queue[1:] {
+		for _, importer := range importers[queue[0]] {
+			if seen[importer] {
+				continue
+			}
+			seen[importer] = true
+			if !stop(importer) {
+				queue = append(queue, importer)
+			}
+		}
+	}
+	return seen
+}
+
+func harnessOrMain(rel string) bool {
+	return slices.Contains(testHarnessPackages(), rel) ||
+		strings.HasPrefix(rel, "cmd/") && !strings.HasPrefix(rel, "cmd/monacoctl")
 }
 
 func coverFlags(backend string, pkgs []string, covered map[string]bool, profile string) []string {
