@@ -98,6 +98,19 @@ func wireCallBoard(v app.CallBoardView) api.CallBoard {
 			CallsToPass: int32Ptr(v.Gap.CallsToPass), AboveIsPerfect: v.Gap.AboveIsPerfect,
 		}
 	}
+	if l := v.LeadChange; l != nil {
+		out.LeadChange = &api.CallBoardLeadChange{
+			Id: l.ID, Leader: wireCallSubject(l.Leader), Passed: wireCallSubject(l.Passed),
+			LeaderRatePct: clamp32(l.LeaderRatePct), ChangedAt: l.ChangedAt, MovementPlaces: clamp32(l.MovementPlaces),
+		}
+		if l.Call != nil {
+			out.LeadChange.Call = &api.CallBoardLeadCall{
+				ProposalId: l.Call.ProposalID,
+				Kind:       api.CallBoardLeadChangeCallKind(l.Call.Kind),
+				Symbol:     l.Call.Symbol,
+			}
+		}
+	}
 	if v.UnrankedMe != nil {
 		out.UnrankedMe = &api.CallBoardUnrankedMe{
 			Subject: wireCallSubject(v.UnrankedMe.Subject), Resolved: clamp32(v.UnrankedMe.Resolved),

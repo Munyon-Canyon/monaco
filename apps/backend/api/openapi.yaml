@@ -9809,7 +9809,7 @@ components:
       type: object
       description: One Leaderboard C screen for a board and a period.
       additionalProperties: false
-      required: [board, filter, period, computed_at, total_ranked, top, me, above, below, gap, climb_bps, unranked_me, around, unranked]
+      required: [board, filter, period, computed_at, total_ranked, top, me, above, below, gap, climb_bps, unranked_me, around, unranked, lead_change]
       properties:
         board: {type: string, enum: [people, cabals], description: The board., examples: [people]}
         filter: {type: string, enum: [all, friends], description: Whether the board holds everyone or the caller's friends., examples: [all]}
@@ -9979,6 +9979,33 @@ components:
           examples: [[]]
           items:
             $ref: "#/components/schemas/CallBoardRow"
+        lead_change:
+          type: [object, "null"]
+          description: Who took the lead in the latest run that changed it, for 24 hours. Null when nothing changed, the day is over, or on Friends unless both people are friends and the leader is #1 among them.
+          examples: [null]
+          x-go-type-name: CallBoardLeadChange
+          additionalProperties: false
+          required: [id, leader, passed, leader_rate_pct, call, changed_at, movement_places]
+          properties:
+            id: {type: string, format: uuid, description: The lead change id. The app remembers the last one it showed., examples: ["01890a5d-ac96-774b-bcce-b302099a8058"]}
+            leader:
+              $ref: "#/components/schemas/LeaderboardSubject"
+            passed:
+              $ref: "#/components/schemas/LeaderboardSubject"
+            leader_rate_pct: {type: integer, format: int32, description: The new leader's rate as a whole percent when the lead changed., examples: [92]}
+            call:
+              type: [object, "null"]
+              description: The right call of the new leader's that caused the change. Null when no call of theirs did.
+              examples: [null]
+              x-go-type-name: CallBoardLeadCall
+              additionalProperties: false
+              required: [proposal_id, kind, symbol]
+              properties:
+                proposal_id: {type: string, format: uuid, examples: ["01890a5d-ac96-774b-bcce-b302099a8058"]}
+                kind: {type: string, enum: [buy, sell], examples: [buy]}
+                symbol: {type: string, examples: [META]}
+            changed_at: {type: string, format: date-time, description: The run time of the change., examples: ["2026-10-22T14:00:00Z"]}
+            movement_places: {type: integer, format: int32, description: How many places the new leader climbed in that run. 0 when they were not ranked., examples: [1]}
     CallBoardMovement:
       type: object
       description: How the row moved since the board's daily baseline.

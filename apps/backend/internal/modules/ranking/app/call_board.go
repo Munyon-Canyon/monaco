@@ -163,6 +163,9 @@ func writeBoards(ctx context.Context, q *sqlc.Queries, run boardRun, open []rank
 		if err != nil {
 			return 0, err
 		}
+		if err := recordLeadChange(ctx, q, in, run); err != nil {
+			return 0, err
+		}
 		rows := boardRows(in, domain.Movement(baseline, in.entries), calls, run.id, run.finishedAt)
 		if err := replaceBoard(ctx, q, in.callInput, rows); err != nil {
 			return 0, err

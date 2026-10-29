@@ -172,6 +172,7 @@ func (m *Module) readCallBoard(follows app.Follows) app.ReadCallBoard {
 		Follows:  follows,
 		Members:  m.member,
 		Heads:    m.callHeads,
+		Leads:    reads,
 		Clock:    m.deps.Clock,
 	}
 }
