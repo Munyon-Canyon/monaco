@@ -22,6 +22,7 @@ type Module struct {
 	assets  app.Assets
 	ballots app.Ballots
 	heads   app.ProposalHeads
+	votes   app.VoteStates
 	sender  apns.Sender
 }
 
@@ -47,6 +48,10 @@ func WithProposalHeads(heads app.ProposalHeads) Option {
 	return func(m *Module) { m.heads = heads }
 }
 
+func WithVoteStates(votes app.VoteStates) Option {
+	return func(m *Module) { m.votes = votes }
+}
+
 func WithSender(sender apns.Sender) Option {
 	return func(m *Module) { m.sender = sender }
 }
@@ -54,8 +59,15 @@ func WithSender(sender apns.Sender) Option {
 func New(d module.Deps, opts ...Option) *Module {
 	gov := governance.New(d)
 	m := &Module{
-		deps: d, users: identity.New(d).Queries(), cabals: cabal.New(d).Queries(),
-		assets: market.New(d).Catalog(), ballots: gov.Ballots(), heads: gov.ProposalHeads(), sender: d.APNs,
+		deps:   d,
+		users:  identity.New(d).Queries(),
+		cabals: cabal.New(d).Queries(),
+		assets: market.New(d).
+			Catalog(),
+		ballots: gov.Ballots(),
+		heads:   gov.ProposalHeads(),
+		votes:   gov.VoteStates(),
+		sender:  d.APNs,
 	}
 	for _, opt := range opts {
 		opt(m)
@@ -96,6 +108,7 @@ func (m *Module) Consumers() []bus.Consumer {
 		adapters.Push(pusher, app.ProposalCreated{
 			Cabals: m.cabals, Users: m.users, Assets: m.assets, Ballots: m.ballots, Heads: m.heads, Clock: m.deps.Clock,
 		}),
+		adapters.Push(pusher, app.VoteDeciding{VotePorts: m.votePorts(), Clock: m.deps.Clock}),
 		adapters.Push(pusher, app.ResultFailed{ResultPorts: results}),
 		adapters.Push(pusher, app.ResultExpired{ResultPorts: results}),
 		adapters.Push(pusher, app.CabalAccessRequestedAdmins{
@@ -113,6 +126,11 @@ func (m *Module) Consumers() []bus.Consumer {
 	}}}
 }
 
+func (m *Module) votePorts() app.VotePorts {
+	return app.VotePorts{Cabals: m.cabals, Assets: m.assets, States: m.votes}
+}
+
 func (m *Module) Pollers() []poller.Poller {
-	return []poller.Poller{app.NewFollowDigest(m.pusher())}
+	pusher := m.pusher()
+	return []poller.Poller{app.NewFollowDigest(pusher), app.NewRemindVoters(pusher, m.votePorts())}
 }

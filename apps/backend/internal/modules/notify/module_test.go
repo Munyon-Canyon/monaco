@@ -28,7 +28,7 @@ func TestModule_servesDevicesConsumesEveryPushKindAndRunsTheFollowDigest(t *test
 	}
 	if m.Name() != "notify" || !testkit.Serves(m.Mount, "POST", "/v1/devices") ||
 		!testkit.Serves(m.Mount, "DELETE", "/v1/devices/"+token('a')) ||
-		!slices.Equal(pollers, []string{"notify.follow_digest 1h0m0s"}) ||
+		!slices.Equal(pollers, []string{"notify.follow_digest 1h0m0s", "notify.vote_reminders 1m0s"}) ||
 		!slices.Equal(handlers, []string{
 			"notify notify.notify_test_requested notify.test_requested",
 			"notify notify.deposit_credited deposit.credited",
@@ -38,6 +38,7 @@ func TestModule_servesDevicesConsumesEveryPushKindAndRunsTheFollowDigest(t *test
 			"notify notify.trade_failed trade.failed",
 			"notify notify.trade_blocked trade.blocked",
 			"notify notify.proposal_created proposal.created",
+			"notify notify.vote_cast vote.cast",
 			"notify notify.proposal_failed proposal.failed",
 			"notify notify.proposal_expired proposal.expired",
 			"notify notify.cabal_access_requested cabal.access_requested",

@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"maps"
 	"math"
+	"slices"
 	"time"
 
 	"github.com/google/uuid"
@@ -53,11 +54,16 @@ type Capped interface {
 	DailyCap() int
 }
 
+type Keyed[E events.Event] interface {
+	SourceKey(e E) uuid.UUID
+}
+
 type Notification struct {
 	Kind    string
 	UserID  ids.UserID
 	Message Message
 	Cap     int
+	source  ids.EventID
 }
 
 type Notify[E events.Event] struct {
@@ -84,18 +90,34 @@ func (n Notify[E]) Handle(ctx context.Context, d bus.Delivery, e E) error {
 	if err != nil {
 		return err
 	}
-	notes, err := n.notes(ctx, e, recipients, func(i int, to ids.UserID) bool {
+	sources := n.sources(d.EventID, e)
+	notes, err := n.notes(ctx, e, recipients, sources, func(i int, to ids.UserID) bool {
 		category, categorised := domain.CategoryOf(n.Kinds[i].Name())
 		return eligible[to] && (!categorised || prefs[to].Enabled(category))
 	})
 	if err != nil {
 		return err
 	}
-	return n.Pusher.Push(ctx, d, notes)
+	return n.Pusher.Push(ctx, d, distinct(sources), notes)
+}
+
+func (n Notify[E]) sources(event ids.EventID, e E) []ids.EventID {
+	sources := make([]ids.EventID, len(n.Kinds))
+	for i, k := range n.Kinds {
+		sources[i] = event
+		if keyed, ok := k.(Keyed[E]); ok {
+			sources[i] = ids.EventIDFrom(keyed.SourceKey(e))
+		}
+	}
+	return sources
 }
 
 func (n Notify[E]) notes(
-	ctx context.Context, e E, recipients [][]ids.UserID, wanted func(kind int, to ids.UserID) bool,
+	ctx context.Context,
+	e E,
+	recipients [][]ids.UserID,
+	sources []ids.EventID,
+	wanted func(kind int, to ids.UserID) bool,
 ) ([]Notification, error) {
 	var notes []Notification
 	for i, k := range n.Kinds {
@@ -111,7 +133,10 @@ func (n Notify[E]) notes(
 			if err != nil {
 				return nil, err
 			}
-			notes = append(notes, Notification{Kind: k.Name(), UserID: to, Message: msg, Cap: limit})
+			notes = append(
+				notes,
+				Notification{Kind: k.Name(), UserID: to, Message: msg, Cap: limit, source: sources[i]},
+			)
 		}
 	}
 	return notes, nil
@@ -130,20 +155,27 @@ func NewPusher(uow *db.UnitOfWork, users Users, sender apns.Sender, g ids.Genera
 }
 
 func (p *Pusher) eligible(ctx context.Context, event ids.EventID, users []ids.UserID) (map[ids.UserID]bool, error) {
-	eligible := map[ids.UserID]bool{}
 	if len(users) == 0 {
-		return eligible, nil
+		return map[ids.UserID]bool{}, nil
 	}
 	causing, err := p.causingUser(ctx, event)
 	if err != nil {
 		return nil, err
 	}
+	return p.live(ctx, users, causing)
+}
+
+func (p *Pusher) live(ctx context.Context, users []ids.UserID, causing string) (map[ids.UserID]bool, error) {
+	eligible := map[ids.UserID]bool{}
 	var distinct []ids.UserID
 	for _, u := range users {
 		if _, seen := eligible[u]; !seen {
 			eligible[u] = false
 			distinct = append(distinct, u)
 		}
+	}
+	if len(distinct) == 0 {
+		return eligible, nil
 	}
 	cards, err := p.users.UsersByID(ctx, distinct)
 	if err != nil {
@@ -153,6 +185,21 @@ func (p *Pusher) eligible(ctx context.Context, event ids.EventID, users []ids.Us
 		eligible[id] = !card.Deleted && id.String() != causing
 	}
 	return eligible, nil
+}
+
+func (p *Pusher) wanted(ctx context.Context, kind string, users []ids.UserID) ([]ids.UserID, error) {
+	live, err := p.live(ctx, users, "")
+	if err != nil {
+		return nil, err
+	}
+	prefs, err := p.preferences(ctx, users)
+	if err != nil {
+		return nil, err
+	}
+	category, categorised := domain.CategoryOf(kind)
+	return slices.DeleteFunc(slices.Clone(users), func(u ids.UserID) bool {
+		return !live[u] || categorised && !prefs[u].Enabled(category)
+	}), nil
 }
 
 func (p *Pusher) preferences(ctx context.Context, users []ids.UserID) (map[ids.UserID]domain.Preferences, error) {
@@ -199,11 +246,20 @@ func (p *Pusher) causingUser(ctx context.Context, event ids.EventID) (string, er
 	return actor.ActorID, nil
 }
 
-func (p *Pusher) Push(ctx context.Context, d bus.Delivery, notes []Notification) error {
-	if _, err := p.write(ctx, d, notes); err != nil {
-		return err
+func (p *Pusher) Push(ctx context.Context, d bus.Delivery, sources []ids.EventID, notes []Notification) error {
+	for _, source := range sources {
+		keyed := d
+		keyed.EventID = source
+		if _, err := p.write(ctx, keyed, notesOf(notes, source)); err != nil {
+			return err
+		}
 	}
-	sendErr := p.send(ctx, d.EventID)
+	var sendErr error
+	for _, source := range sources {
+		if err := p.send(ctx, source); err != nil && sendErr == nil {
+			sendErr = err
+		}
+	}
 	denied := errs.CodeOf(sendErr) == errs.CodeAPNSAuthFailed
 	if sendErr != nil && !denied {
 		return sendErr
@@ -221,33 +277,64 @@ func (p *Pusher) Push(ctx context.Context, d bus.Delivery, notes []Notification)
 	return sendErr
 }
 
+func notesOf(notes []Notification, source ids.EventID) []Notification {
+	return slices.DeleteFunc(slices.Clone(notes), func(n Notification) bool { return n.source != source })
+}
+
+func distinct(sources []ids.EventID) []ids.EventID {
+	var out []ids.EventID
+	for _, s := range sources {
+		if !slices.Contains(out, s) {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
 func (p *Pusher) write(ctx context.Context, d bus.Delivery, notes []Notification) (int, error) {
-	if len(notes) == 0 {
+	return p.writeWith(ctx, d, notes, nil)
+}
+
+func (p *Pusher) writeWith(
+	ctx context.Context, d bus.Delivery, notes []Notification, also func(context.Context, *sqlc.Queries) error,
+) (int, error) {
+	if len(notes) == 0 && also == nil {
 		return 0, nil
 	}
 	written := 0
 	err := p.uow.Do(ctx, func(ctx context.Context, tx db.Tx) error {
 		written = 0
 		q := sqlc.New(tx.Queries())
-		var broadcast uuid.UUID
-		if len(notes) > 1 {
-			id, err := q.InsertBroadcast(ctx, sqlc.InsertBroadcastParams{
-				ID: p.ids.NewV7(), Kind: notes[0].Kind, SourceEventID: d.EventID.UUID(),
-				RecipientCount: int32(min(len(notes), math.MaxInt32)), CreatedAt: d.At,
-			})
-			switch {
-			case errors.Is(err, sql.ErrNoRows):
-				return nil
-			case err != nil:
+		if len(notes) > 0 {
+			var err error
+			if written, err = p.insertBatch(ctx, q, notes, d); err != nil {
 				return err
 			}
-			broadcast = id
 		}
-		var err error
-		written, err = p.insertAll(ctx, q, notes, broadcast, d)
-		return err
+		if also == nil {
+			return nil
+		}
+		return also(ctx, q)
 	})
 	return written, err
+}
+
+func (p *Pusher) insertBatch(ctx context.Context, q *sqlc.Queries, notes []Notification, d bus.Delivery) (int, error) {
+	var broadcast uuid.UUID
+	if len(notes) > 1 {
+		id, err := q.InsertBroadcast(ctx, sqlc.InsertBroadcastParams{
+			ID: p.ids.NewV7(), Kind: notes[0].Kind, SourceEventID: d.EventID.UUID(),
+			RecipientCount: int32(min(len(notes), math.MaxInt32)), CreatedAt: d.At,
+		})
+		switch {
+		case errors.Is(err, sql.ErrNoRows):
+			return 0, nil
+		case err != nil:
+			return 0, err
+		}
+		broadcast = id
+	}
+	return p.insertAll(ctx, q, notes, broadcast, d)
 }
 
 func (p *Pusher) insertAll(

@@ -651,7 +651,9 @@ func (anyHead) ProposalHead(context.Context, ids.ProposalID) (governanceport.Pro
 	return governanceport.ProposalHead{Kind: "buy", Symbol: "AAPLx", Thesis: "Small add before earnings."}, nil
 }
 
-func copyCases(cabals app.Cabals, users app.Users, assets app.Assets, to ids.UserID) map[string]copyCase {
+func copyCases(
+	cabals app.Cabals, users app.Users, assets app.Assets, votes app.VoteStates, to ids.UserID,
+) map[string]copyCase {
 	results := app.ResultPorts{Cabals: cabals, Assets: assets, Ballots: anyBallots{to}, Heads: anyHead{}}
 	return map[string]copyCase{
 		"test":             {events.TypeNotifyTestRequested, renderer[events.NotifyTestRequested](app.Test{})},
@@ -682,6 +684,13 @@ func copyCases(cabals app.Cabals, users app.Users, assets app.Assets, to ids.Use
 			renderer[events.ProposalCreated](app.ProposalCreated{
 				Cabals: cabals, Users: users, Assets: assets, Ballots: anyBallots{to}, Heads: anyHead{},
 				Clock: testkit.NewClock(time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)),
+			}),
+		},
+		"vote_deciding": {
+			events.TypeVoteCast,
+			renderer[events.VoteCast](app.VoteDeciding{
+				VotePorts: app.VotePorts{Cabals: cabals, Assets: assets, States: votes},
+				Clock:     testkit.NewClock(time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)),
 			}),
 		},
 		"new_follower": {
@@ -764,7 +773,9 @@ func TestNotifyCopy(t *testing.T) {
 	posted := goldenEvent(t, events.TypeChatMessagePosted).(events.ChatMessagePosted)
 	asked := goldenEvent(t, events.TypeCabalAccessRequested).(events.CabalAccessRequested)
 	decided := goldenEvent(t, events.TypeCabalAccessDecided).(events.CabalAccessDecided)
+	cast := goldenEvent(t, events.TypeVoteCast).(events.VoteCast)
 	seeds := []fakes.CabalSeed{
+		{View: cabal.View{ID: ids.CabalIDFrom(cast.CabalID), Name: cabalName}},
 		{View: cabal.View{ID: ids.CabalIDFrom(*paused.CabalID), Name: cabalName}},
 		{View: cabal.View{ID: ids.CabalIDFrom(created.CabalID), Name: cabalName}},
 		{View: cabal.View{ID: ids.CabalIDFrom(posted.CabalID), Name: cabalName}},
@@ -783,7 +794,7 @@ func TestNotifyCopy(t *testing.T) {
 	users := fakes.NewIdentity([]identity.UserCard{proposer, follower, replier, poster, requester}, nil)
 	assets := marketfake.NewCatalog(marketfake.Fixtures()...)
 	covered := map[events.Type]bool{}
-	for name, c := range copyCases(cabals, users, assets, to) {
+	for name, c := range copyCases(cabals, users, assets, fixedVotes{state: decidingState(cast.CabalID)}, to) {
 		covered[c.typ] = true
 		msg, err := c.render(t.Context(), goldenEvent(t, c.typ), to)
 		if err != nil {
@@ -873,4 +884,38 @@ func withRenderedCabals(t *testing.T, seeds []fakes.CabalSeed) []fakes.CabalSeed
 
 func reflectCabalID(e events.Event) uuid.UUID {
 	return reflect.ValueOf(e).FieldByName("CabalID").Interface().(uuid.UUID)
+}
+
+type keyedCrowd struct {
+	crowd
+	key uuid.UUID
+}
+
+func (k *keyedCrowd) SourceKey(events.NotifyTestRequested) uuid.UUID { return k.key }
+
+func TestPush_aKeyedKindWritesOneRowPerMemberAcrossDifferentEvents(t *testing.T) {
+	t.Parallel()
+	r := newPushRig(t)
+	first, second := r.user(t, "active"), r.user(t, "active")
+	r.device(t, first, token('a'))
+	r.device(t, second, token('b'))
+	key := r.ids.NewV7()
+	kind := &keyedCrowd{crowd: crowd{users: []ids.UserID{first, second}}, key: key}
+	d1, e1 := r.trigger(t, opsActor, first)
+	d2, e2 := r.trigger(t, opsActor, second)
+
+	err1 := r.handle(t, r.sender, d1, e1, kind)
+	err2 := r.handle(t, r.sender, d2, e2, kind)
+
+	if err1 != nil || err2 != nil {
+		t.Fatalf("Handle = %v and %v, want no error", err1, err2)
+	}
+	r.wantCount(t, "rows under the key", 2, `SELECT count(*) FROM notifications WHERE source_event_id = $1`, key)
+	r.wantCount(t, "rows under the events", 0, `SELECT count(*) FROM notifications WHERE source_event_id = ANY($1)`,
+		[]uuid.UUID{d1.EventID.UUID(), d2.EventID.UUID()})
+	if got := len(r.sender.Sent()); got != 2 {
+		t.Fatalf("sends = %d, want one per member", got)
+	}
+	r.wantRecorded(t, d1, 1)
+	r.wantRecorded(t, d2, 1)
 }
