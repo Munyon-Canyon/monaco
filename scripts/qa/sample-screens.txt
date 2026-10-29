@@ -155,6 +155,8 @@ share-screen-stake            -MonacoShareSample screenStake
 share-screen-portfolio        -MonacoShareSample screenPortfolio
 
 home-populated                -MonacoHomeSample populated
+home-feed-preview             -MonacoHomeSample populated -MonacoSampleScroll 1
+home-feed-everyone            -MonacoHomeSample feedPreviewEveryone
 home-empty                    -MonacoHomeSample empty
 home-loading                  -MonacoHomeSample loading
 home-nudge-x                  -MonacoHomeSample nudgeX -MonacoFeatureConnectX YES
