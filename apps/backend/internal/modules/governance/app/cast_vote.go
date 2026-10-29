@@ -154,7 +154,7 @@ func (h *CastVoteHandler) vote(
 	if err != nil {
 		return CastVoteResult{}, err
 	}
-	if err := appendVoteCast(ctx, tx, p.ID, p.CabalID, cmd, now); err != nil {
+	if err := recordCast(ctx, tx, p, cmd, now); err != nil {
 		return CastVoteResult{}, err
 	}
 	voters, yes, no := int(n.Voters), int(n.Yes), int(n.No)
@@ -235,6 +235,17 @@ func mayVote(p sqlc.LockProposalRow, now time.Time, op string) error {
 		return errs.New(errs.CodeProposalClosed, op, slog.Time("expires_at", p.ExpiresAt))
 	case !p.IsVoter:
 		return errs.New(errs.CodeNotAVoter, op)
+	}
+	return nil
+}
+
+func recordCast(ctx context.Context, tx db.Tx, p sqlc.LockProposalRow, cmd CastVote, at time.Time) error {
+	if err := appendVoteCast(ctx, tx, p.ID, p.CabalID, cmd, at); err != nil {
+		return err
+	}
+	drop := sqlc.DeleteReminderParams{ProposalID: p.ID, UserID: cmd.VoterID.UUID()}
+	if _, err := sqlc.New(tx.Queries()).DeleteReminder(ctx, drop); err != nil {
+		return errs.Wrap(err, errs.CodeInternal, "governance.CastVote")
 	}
 	return nil
 }

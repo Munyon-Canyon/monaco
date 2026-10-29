@@ -39,7 +39,7 @@ extension Components.Schemas.ProposalDetail {
             stats: .init(
                 treasuryShareBps: 250, closesAt: .now.addingTimeInterval(isOpen ? 43_200 : -3_600),
                 closedAt: isOpen ? nil : .now.addingTimeInterval(-3_600)),
-            replyCount: 6, proposerId: members[1].userId,
+            replyCount: 6, reminderSet: false, proposerId: members[1].userId,
             proposer: .init(id: members[1].userId, displayName: members[1].displayName, photoUrl: nil),
             passedPriceMicros: passedPriceMicros,
             proposerReturn1mBps: 820, proposerReturnPrivate: false, kind: kind,

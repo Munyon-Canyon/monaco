@@ -852,6 +852,11 @@ type ProposalDetail struct {
 	// Examples: 105000000
 	QuoteOutAmount int64 `json:"quote_out_amount"`
 
+	// ReminderSet True when the caller asked to be reminded before this proposal closes and it has not been sent. False after a vote and for a non-member.
+	//
+	// Examples: false
+	ReminderSet bool `json:"reminder_set"`
+
 	// ReplyCount Live replies in the proposal's thread, as the social module counts them. Zero when there are none.
 	//
 	// Examples: 6
@@ -1064,6 +1069,24 @@ type ProposalProposer struct {
 	//
 	// Examples: null
 	PhotoUrl *string `json:"photo_url"`
+}
+
+// ProposalReminder The caller's reminder for one proposal.
+type ProposalReminder struct {
+	// DueAt When the reminder falls due. Null when none is stored.
+	//
+	// Examples: 2026-10-04T14:00:00Z
+	DueAt *time.Time `json:"due_at"`
+
+	// ProposalId The proposal id.
+	//
+	// Examples: 01890a5d-ac96-774b-bcce-b302099a8057
+	ProposalId openapi_types.UUID `json:"proposal_id"`
+
+	// ReminderSet True while an unsent reminder is stored for the caller.
+	//
+	// Examples: true
+	ReminderSet bool `json:"reminder_set"`
 }
 
 // ProposalStats Facts about a proposal. `treasury_share_bps`, `closes_at` and `closed_at` are recorded when the proposal opens or closes. `price_micros` and `since_bps` are live, read at request time from the price book, and `shares_atomics` is an estimate until the trade fills.
@@ -1447,6 +1470,18 @@ type DeleteProposalParams struct {
 	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
 }
 
+// DeleteProposalReminderParams defines parameters for DeleteProposalReminder.
+type DeleteProposalReminderParams struct {
+	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
+	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
+}
+
+// PutProposalReminderParams defines parameters for PutProposalReminder.
+type PutProposalReminderParams struct {
+	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
+	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
+}
+
 // DeleteProposalVoteParams defines parameters for DeleteProposalVote.
 type DeleteProposalVoteParams struct {
 	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
@@ -1515,6 +1550,12 @@ type ServerInterface interface {
 	// GetProposal Read one proposal.
 	// (GET /v1/proposals/{id})
 	GetProposal(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
+	// DeleteProposalReminder Drop the caller's reminder for a proposal.
+	// (DELETE /v1/proposals/{id}/reminder)
+	DeleteProposalReminder(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params DeleteProposalReminderParams)
+	// PutProposalReminder Ask to be reminded shortly before an open proposal closes.
+	// (PUT /v1/proposals/{id}/reminder)
+	PutProposalReminder(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params PutProposalReminderParams)
 	// DeleteProposalVote Undo the caller's ballot on an open proposal.
 	// (DELETE /v1/proposals/{id}/votes)
 	DeleteProposalVote(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params DeleteProposalVoteParams)
@@ -2120,6 +2161,114 @@ func (siw *ServerInterfaceWrapper) GetProposal(w http.ResponseWriter, r *http.Re
 	handler.ServeHTTP(w, r)
 }
 
+// DeleteProposalReminder operation middleware
+func (siw *ServerInterfaceWrapper) DeleteProposalReminder(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params DeleteProposalReminderParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey externalRef0.IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteProposalReminder(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PutProposalReminder operation middleware
+func (siw *ServerInterfaceWrapper) PutProposalReminder(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params PutProposalReminderParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey externalRef0.IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PutProposalReminder(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // DeleteProposalVote operation middleware
 func (siw *ServerInterfaceWrapper) DeleteProposalVote(w http.ResponseWriter, r *http.Request) {
 
@@ -2415,6 +2564,8 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/proposals", wrapper.GetMyProposals)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/proposals/{id}", wrapper.DeleteProposal)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/proposals/{id}", wrapper.GetProposal)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/proposals/{id}/reminder", wrapper.DeleteProposalReminder)
+	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/v1/proposals/{id}/reminder", wrapper.PutProposalReminder)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/proposals/{id}/votes", wrapper.DeleteProposalVote)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/proposals/{id}/votes", wrapper.GetProposalVotes)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/proposals/{id}/votes", wrapper.PostProposalVote)
@@ -2898,6 +3049,86 @@ func (response GetProposaldefaultApplicationProblemPlusJSONResponse) VisitGetPro
 	return err
 }
 
+type DeleteProposalReminderRequestObject struct {
+	Id     openapi_types.UUID `json:"id"`
+	Params DeleteProposalReminderParams
+}
+
+type DeleteProposalReminderResponseObject interface {
+	VisitDeleteProposalReminderResponse(w http.ResponseWriter) error
+}
+
+type DeleteProposalReminder200JSONResponse ProposalReminder
+
+func (response DeleteProposalReminder200JSONResponse) VisitDeleteProposalReminderResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteProposalReminderdefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response DeleteProposalReminderdefaultApplicationProblemPlusJSONResponse) VisitDeleteProposalReminderResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutProposalReminderRequestObject struct {
+	Id     openapi_types.UUID `json:"id"`
+	Params PutProposalReminderParams
+}
+
+type PutProposalReminderResponseObject interface {
+	VisitPutProposalReminderResponse(w http.ResponseWriter) error
+}
+
+type PutProposalReminder200JSONResponse ProposalReminder
+
+func (response PutProposalReminder200JSONResponse) VisitPutProposalReminderResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutProposalReminderdefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response PutProposalReminderdefaultApplicationProblemPlusJSONResponse) VisitPutProposalReminderResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type DeleteProposalVoteRequestObject struct {
 	Id     openapi_types.UUID `json:"id"`
 	Params DeleteProposalVoteParams
@@ -3057,6 +3288,12 @@ type StrictServerInterface interface {
 	// GetProposal Read one proposal.
 	// (GET /v1/proposals/{id})
 	GetProposal(ctx context.Context, request GetProposalRequestObject) (GetProposalResponseObject, error)
+	// DeleteProposalReminder Drop the caller's reminder for a proposal.
+	// (DELETE /v1/proposals/{id}/reminder)
+	DeleteProposalReminder(ctx context.Context, request DeleteProposalReminderRequestObject) (DeleteProposalReminderResponseObject, error)
+	// PutProposalReminder Ask to be reminded shortly before an open proposal closes.
+	// (PUT /v1/proposals/{id}/reminder)
+	PutProposalReminder(ctx context.Context, request PutProposalReminderRequestObject) (PutProposalReminderResponseObject, error)
 	// DeleteProposalVote Undo the caller's ballot on an open proposal.
 	// (DELETE /v1/proposals/{id}/votes)
 	DeleteProposalVote(ctx context.Context, request DeleteProposalVoteRequestObject) (DeleteProposalVoteResponseObject, error)
@@ -3431,6 +3668,60 @@ func (sh *strictHandler) GetProposal(w http.ResponseWriter, r *http.Request, id 
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetProposalResponseObject); ok {
 		if err := validResponse.VisitGetProposalResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteProposalReminder operation middleware
+func (sh *strictHandler) DeleteProposalReminder(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params DeleteProposalReminderParams) {
+	var request DeleteProposalReminderRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteProposalReminder(ctx, request.(DeleteProposalReminderRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteProposalReminder")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteProposalReminderResponseObject); ok {
+		if err := validResponse.VisitDeleteProposalReminderResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PutProposalReminder operation middleware
+func (sh *strictHandler) PutProposalReminder(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params PutProposalReminderParams) {
+	var request PutProposalReminderRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PutProposalReminder(ctx, request.(PutProposalReminderRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PutProposalReminder")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PutProposalReminderResponseObject); ok {
+		if err := validResponse.VisitPutProposalReminderResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
