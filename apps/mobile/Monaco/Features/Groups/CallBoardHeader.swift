@@ -13,6 +13,8 @@ struct CallBoardHeader: View {
             if dynamicTypeSize.isAccessibilitySize {
                 VStack(alignment: .leading, spacing: 0) {
                     line
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .accessibilityIdentifier("leaderboard-period-line")
                     ViewThatFits(in: .horizontal) {
@@ -23,6 +25,8 @@ struct CallBoardHeader: View {
             } else {
                 HStack(spacing: MonacoTheme.Space.m) {
                     line
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .accessibilityIdentifier("leaderboard-period-line")
                     labels

@@ -70,6 +70,8 @@ Defects by size: large 4, xxLarge 16, xxxLarge 26, AX1 42, AX5 70.
 
 `FDynamicTypeAuditUITests/test02Home` passes at xxxLarge and AX5 (#7196). From `xxLarge` the Home first-use actions stack full width, and the empty-state copy, the standing line, the leaderboard row and the feed preview rows wrap instead of ending in `…`. The feed preview meta line draws its reply count as its own icon and number, so the audit reads the visible text. A Home slot that is hidden draws no content, so the audit no longer reads text clipped to zero height.
 
+The Leaderboard period line wraps and grows at accessibility sizes instead of clipping (#7212).
+
 ## Frames 04
 
 | Frame | Size | Verdict | Rule broken | Follow-up |
