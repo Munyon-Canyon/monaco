@@ -318,7 +318,7 @@ struct VoteStatusLine: View {
             .font(MonacoTheme.Typo.subhead)
             .foregroundStyle(MonacoTheme.secondaryText)
             .fixedSize(horizontal: false, vertical: true)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(maxWidth: .infinity, minHeight: MonacoButtonMetrics.hitTarget, alignment: .leading)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(facts.joined(separator: ", "))
             .accessibilityIdentifier(VoteIdentifier.make(identifierPrefix, "vote-status", identifierSuffix))
