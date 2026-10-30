@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"net/http"
 	"os/exec"
-	"path/filepath"
 	"slices"
 	"strings"
 	"time"
@@ -55,6 +54,7 @@ type Options struct {
 	Clock        clock.Clock
 	PollEvery    time.Duration
 	ProbeTimeout time.Duration
+	SchemaCache  string
 }
 
 type Stack struct {
@@ -71,6 +71,7 @@ type Stack struct {
 	Crashes  int
 
 	opts      Options
+	container string
 	env       []string
 	procs     map[string]*process
 	remove    func(context.Context) error
@@ -108,6 +109,7 @@ func (s *Stack) postgres(ctx context.Context) (err error) {
 
 func (s *Stack) dockerPostgres(ctx context.Context, runID string) (string, func(context.Context) error, error) {
 	pg, err := startPostgres(ctx, s.opts.Docker, runID)
+	s.container = pg.name
 	return pg.url, pg.remove, err
 }
 
@@ -126,7 +128,7 @@ func (s *Stack) schema(ctx context.Context) error {
 	if err := waitPostgres(ctx, s.DBURL, s.pollInterval()); err != nil {
 		return err
 	}
-	if err := migrate(ctx, s.opts.Atlas, filepath.Join(s.opts.Dir, "migrations"), s.DBURL); err != nil {
+	if err := s.applySchema(ctx); err != nil {
 		return err
 	}
 	pool, err := db.Open(ctx, config.DB{URL: s.DBURL, MaxConns: 8})
