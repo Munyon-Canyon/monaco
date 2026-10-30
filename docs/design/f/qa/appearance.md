@@ -23,7 +23,7 @@ Shots stay outside the repo.
 
 Reshoot for #7108: `just build mobile` at `ee109c882` on simulator "Monaco 7108", each frame terminated, launched with its manifest arguments and screenshotted every 0.5 to 2 s for 6 to 20 s. `12-toast` was caught mid-hold in the first 2 to 3 s in Light and Dark, each with and without `-MonacoReduceTransparency YES`. The three catch-up frames stayed on Home's "Couldn't load your portfolio" in Light on that run. #7114 reshot them on simulator "Monaco 7114" at `8392ed2fa`: on the first launches after install the harness route had not reached Home's stack, and once the app had launched on that simulator `deck`, `deckScrolled` and `caughtUp` each drew within 2 s in Light. Terminate and relaunch a frame that shows Home before judging it.
 
-Audit: `FAppearanceAuditUITests`, run with `test-without-building` in two holds, groups 02 to 08 and then 09 to 19, because one run of all 18 groups exceeds `xcode-lock`'s 1800 s sim hold. Run it one or a few groups at a time (`-only-testing:MonacoUITests/FAppearanceAuditUITests/test07Frames`).
+Audit: `FAppearanceAuditUITests`, run with `test-without-building` in Dark only (#7183). Run it one or a few groups at a time (`-only-testing:MonacoUITests/FAppearanceAuditUITests/test07Frames`).
 
 ## Screen frames
 
@@ -232,7 +232,7 @@ Computed from MonacoTheme's hex values by the WCAG formula, the same as `WCAGCon
 | `tertiaryText` | Glyphs only (a row's chevron when the title says where it goes, the "–" before "did not vote"); 1.4.11 covers only marks needed to understand content. | No text in tertiary in any of the 95 shots. |
 | Crown | The rank and the accessibility label ("first") say it. | Beside a printed rank on board rows. On member avatars (`CabalMemberRow`, `FirstFundView`), the podium and the profile header there is no printed rank, but every crown is labelled ("Month leader", "leads this month") or sits in an element whose label is `row.spoken`, so the exemption holds through the label. |
 | Identity hue as a fill on the canvas | The cabal's name sits beside every crest and is its accessibility label. | The crest's name always sits beside it or in its label. |
-| System-drawn chrome (tab bar, its badge, system materials and sheets) | No fixed colour exists to assert; measured only by the `.contrast` UI audit. | The audit samples the glass, which is why the audit rows are allow-listed. |
+| System-drawn chrome (tab bar, its badge, system materials and sheets) | No fixed colour exists to assert; measured only by the `.contrast` UI audit. | The audit samples the glass, which is why the audit allows contrast findings on static text. |
 
 ## Repo-rules sweep
 
@@ -243,9 +243,9 @@ Computed from MonacoTheme's hex values by the WCAG formula, the same as `WCAGCon
 
 ## Audit
 
-95 screens, each in Dark and Light. 70 screens report contrast issues, the identical set in both appearances: 430 unique (screen, label) pairs and 969 issue reports (most "Contrast failed", some "not high enough unless font size is larger"). 25 screens are clean.
+95 screens, each in Dark only (#7183). The audit allows a contrast finding when the element is static text. Token text and crest initials are SwiftUI `Text`, which XCUITest reports as static text, and `MonacoContrastTests` holds every token pair at AA. The audit samples composited pixels, not the drawn pair, so those findings are false positives.
 
-All 430 pairs are allow-listed by class, each with a reason in `FAppearanceAuditUITests.swift`: `crest` (initials on an identity hue, 1 to 3 capital letters or digits) and `token` (everything else). Every flagged label is token-coloured text whose pair `DesignContrastTests` holds at AA in both schemes. The identical set across appearances shows that the audit samples composited pixels, not the drawn pair. The allow-list makes the audit a regression lock: a new label that fails fails the run.
+An exact-label list, `realExceptions` in `FAppearanceAuditUITests.swift`, holds real exceptions only. It is empty today. Any other finding fails the run, and the printed `AUDIT` line carries its screen, label, identifier and element type.
 
 ## Follow-ups
 
