@@ -255,6 +255,37 @@ func TestMiddleware_ActorScopeKeysOnTheActorAndSkipsAnonymousCallers(t *testing.
 	}
 }
 
+func TestMiddleware_EachUserGetsTheirOwnBurstAndRefusalsLogTheKeyKind(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t, testkit.DB(t), "{actor: {rate: 1, per: 1h, burst: 2}}", false)
+	got := h.statuses(t,
+		call{actor: "user:a"}, call{actor: "user:a"}, call{actor: "user:a"},
+		call{actor: "user:b"}, call{actor: "opaque"}, call{actor: "opaque"}, call{actor: "opaque"})
+	if want := []int{204, 204, 429, 204, 204, 204, 429}; !slices.Equal(got, want) {
+		t.Fatalf("statuses = %v, want %v", got, want)
+	}
+	var kinds []any
+	for _, raw := range bytes.Split(bytes.TrimSpace(h.logs.Bytes()), []byte("\n")) {
+		var entry struct {
+			Detail map[string]any `json:"detail"`
+		}
+		if len(raw) == 0 || json.Unmarshal(raw, &entry) != nil || entry.Detail["key_kind"] == nil {
+			continue
+		}
+		line := entry.Detail
+		if line["scope"] != "actor" || line["operation"] != "postThing" {
+			t.Fatalf("log line = %v, want operation postThing scope actor", line)
+		}
+		kinds = append(kinds, line["key_kind"])
+	}
+	if want := []any{"user", "unknown"}; !slices.Equal(kinds, want) {
+		t.Fatalf("logged key_kind = %v, want %v\n%s", kinds, want, h.logs.Bytes())
+	}
+	if bytes.Contains(h.logs.Bytes(), []byte("user:a")) {
+		t.Fatalf("logs carry the raw actor key: %s", h.logs.Bytes())
+	}
+}
+
 func TestMiddleware_StoreDownFailsOpen(t *testing.T) {
 	t.Parallel()
 	pool := testkit.DB(t)
@@ -265,7 +296,7 @@ func TestMiddleware_StoreDownFailsOpen(t *testing.T) {
 	}
 	lines := h.lines(t, "ratelimit.store_failed")
 	if len(lines) != 1 || lines[0]["level"] != "WARN" || lines[0]["code"] != "db_unavailable" ||
-		lines[0]["operation"] != "postThing" || lines[0]["scope"] != "actor" {
+		lines[0]["operation"] != "postThing" || lines[0]["scope"] != "actor" || lines[0]["key_kind"] != "unknown" {
 		t.Fatalf("store_failed lines = %v, want one WARN with code db_unavailable", lines)
 	}
 	if got := h.counter(t, "monaco_ratelimit_errors_total"); got != 1 {

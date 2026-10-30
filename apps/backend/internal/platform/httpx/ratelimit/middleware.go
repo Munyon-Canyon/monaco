@@ -43,28 +43,33 @@ func Middleware(
 
 func (g guard) allow(w http.ResponseWriter, r *http.Request, rt route) bool {
 	for _, lim := range rt.limits {
-		id, ok := g.id(r, lim.scope)
+		id, kind, ok := g.id(r, lim.scope)
 		if !ok {
 			continue
 		}
 		d, err := g.limiter.Take(r.Context(), "op:"+rt.operation+":"+string(lim.scope)+":"+id, lim.policy, 1)
 		if err != nil {
-			g.limiter.failOpen(r.Context(), rt.operation, lim.scope, err)
+			g.limiter.failOpen(r.Context(), rt.operation, lim.scope, kind, err)
 			return true
 		}
 		if !d.Allowed {
-			g.limiter.refuse(w, r, rt.operation, lim.scope, d.RetryAfter)
+			g.limiter.refuse(w, r, rt.operation, lim.scope, kind, d.RetryAfter)
 			return false
 		}
 	}
 	return true
 }
 
-func (g guard) id(r *http.Request, s scope) (string, bool) {
+func (g guard) id(r *http.Request, s scope) (id, keyKind string, ok bool) {
 	if s == scopeActor {
-		return g.actorKey(r)
+		id, ok = g.actorKey(r)
+		keyKind = "unknown"
+		if kind, _, found := strings.Cut(id, ":"); found {
+			keyKind = kind
+		}
+		return id, keyKind, ok
 	}
-	return clientIP(r, g.trustProxyHeaders), true
+	return clientIP(r, g.trustProxyHeaders), "ip", true
 }
 
 func clientIP(r *http.Request, trustProxyHeaders bool) string {
@@ -81,20 +86,29 @@ func clientIP(r *http.Request, trustProxyHeaders bool) string {
 	return host
 }
 
-func (l *Limiter) failOpen(ctx context.Context, operation string, s scope, err error) {
+func (l *Limiter) failOpen(ctx context.Context, operation string, s scope, keyKind string, err error) {
 	if errors.Is(err, context.Canceled) || errors.Is(ctx.Err(), context.Canceled) {
 		return
 	}
 	l.storeErrors.Add(ctx, 1)
 	boundary.Warn(ctx, observability.RateLimitStoreFailed, slog.String("operation", operation),
-		slog.String("scope", string(s)), slog.String("code", string(errs.CodeOf(err))), slog.Any("err", err))
+		slog.String("scope", string(s)), slog.String("key_kind", keyKind),
+		slog.String("code", string(errs.CodeOf(err))), slog.Any("err", err))
 }
 
-func (l *Limiter) refuse(w http.ResponseWriter, r *http.Request, operation string, s scope, retryAfter time.Duration) {
+func (l *Limiter) refuse(
+	w http.ResponseWriter,
+	r *http.Request,
+	operation string,
+	s scope,
+	keyKind string,
+	retryAfter time.Duration,
+) {
 	l.rejected.Add(r.Context(), 1, metric.WithAttributes(
 		attribute.String("operation", operation), attribute.String("scope", string(s))))
 	seconds := max(int64((retryAfter+time.Second-1)/time.Second), 1)
 	w.Header().Set("Retry-After", strconv.FormatInt(seconds, 10))
 	httpx.Problem(w, r, errs.New(errs.CodeRateLimited, "ratelimit.Middleware",
-		slog.String("operation", operation), slog.String("scope", string(s)), slog.Int64("retry_after_s", seconds)))
+		slog.String("operation", operation), slog.String("scope", string(s)), slog.String("key_kind", keyKind),
+		slog.Int64("retry_after_s", seconds)))
 }
