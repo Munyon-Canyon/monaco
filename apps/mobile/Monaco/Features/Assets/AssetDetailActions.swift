@@ -11,7 +11,7 @@ struct AssetDetailActions: View {
 
     var body: some View {
         let layout =
-            dynamicTypeSize.isAccessibilitySize
+            dynamicTypeSize >= .xxxLarge
             ? AnyLayout(VStackLayout(spacing: MonacoTheme.Space.sm))
             : AnyLayout(HStackLayout(spacing: MonacoTheme.Space.sm))
         layout {
