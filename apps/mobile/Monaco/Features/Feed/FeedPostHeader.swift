@@ -43,7 +43,7 @@ struct FeedPostHeader: View {
         } else {
             HStack(alignment: .firstTextBaseline, spacing: MonacoTheme.Space.xs) {
                 nameText
-                if !verb.isEmpty { verbText.lineLimit(1) }
+                if !verb.isEmpty { verbText.fixedSize(horizontal: false, vertical: true) }
                 Spacer(minLength: MonacoTheme.Space.s)
                 ageText
             }
