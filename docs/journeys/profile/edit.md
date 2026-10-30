@@ -6,6 +6,7 @@ milestone: M9
 requires: [auth/sign-in]
 actors: [A]
 flows: [23, 23a]
+simslim: photos
 xcuitest: [apps/mobile/MonacoUITests/Journeys/ProfileEditJourney.swift, apps/mobile/MonacoUITests/Journeys/ProfileEditJourneyUITests.swift]
 ---
 
@@ -22,7 +23,7 @@ The format of this doc is in [App journeys](../README.md).
 | P1 | Everything [auth/sign-in](../auth/sign-in.md) needs |
 | P2 | Actor A has a handle and a display name |
 | P3 | Before each scenario, `scripts/qa/journey.py` runs `apps/mobile/qa/journeys/profile/edit.setup.sh` with the scenario id. It sets A's `auth_state` to `AWAITING_SOCIALS`, so no one edits the database by hand |
-| P4 | The simulator's photo library has at least one photo. A new simulator ships with sample photos |
+| P4 | The simulator's photo library has at least one photo. A new simulator ships with sample photos. The journey runs on the `photos` SimSlim profile (`ci/profiles/photos.json`), which keeps Photos on |
 | P5 | S4 starts from the name S1 saved. Run on its own, S4 first renames A to `Alfred {QA.run}` |
 
 ## Scenarios

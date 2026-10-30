@@ -105,6 +105,7 @@ class Journey:
         self.xcuitest = _as_list(meta.get("xcuitest", []))
         funds = meta.get("funds", {})
         self.funds = funds if isinstance(funds, dict) else {}
+        self.simslim = meta.get("simslim", "")
         self.scenarios = re.findall(r"^### (S\d+) ", body, re.M)
         self.steps = re.findall(r"^\| (S\d+\.\d+) \|", body, re.M)
         self.known = parse_known(body, self.steps)
@@ -274,6 +275,8 @@ def check_journeys(journeys, accounts, git_apply_check=None):
                 bad(journey.path, "funds names actor %s, which is not in actors" % actor)
             if not isinstance(amount, int) or amount < 1:
                 bad(journey.path, "funds for actor %s must be whole USDC from 1, got %r" % (actor, amount))
+        if journey.simslim and not (ROOT / "ci" / "profiles" / ("%s.json" % journey.simslim)).is_file():
+            bad(journey.path, "simslim names profile %r, which has no ci/profiles/%s.json" % (journey.simslim, journey.simslim))
         for required in journey.requires:
             if required not in by_id:
                 bad(journey.path, "requires %r, which is not a journey doc" % required)
@@ -758,12 +761,16 @@ def use_derived_data(logins):
 
 
 
-def simslim_ensure(mode, udid):
-    """Slims a dedicated simulator when it is created, or repairs it once before a run. Raises when SimSlim is missing."""
-    sh([str(ROOT / "scripts" / "simslim-ensure.sh"), mode, udid], check=True)
+def simslim_ensure(mode, udid, profile=""):
+    """Slims a dedicated simulator when it is created, or repairs it once before a run. Raises when SimSlim is missing.
+    A profile name selects ci/profiles/<name>.json; none leaves the script's base-slim default."""
+    env = None
+    if profile:
+        env = dict(os.environ, SIMSLIM_PROFILE=str(ROOT / "ci" / "profiles" / ("%s.json" % profile)))
+    sh([str(ROOT / "scripts" / "simslim-ensure.sh"), mode, udid], check=True, env=env)
 
 
-def resolve_simulator(override="", logins=None):
+def resolve_simulator(override="", logins=None, profile=""):
     """The one simulator every actor of a run uses: --sim's, else the one named after the lane and the
     logins the run holds, created on first use."""
     if override:
@@ -772,7 +779,7 @@ def resolve_simulator(override="", logins=None):
     name = journey_simulator_name(logins)
     udid = named_simulator(devices, name)
     if udid:
-        simslim_ensure("check", udid)
+        simslim_ensure("check", udid, profile)
         return udid
     device_type, runtime = simulator_template(devices)
     udid = sh(["xcrun", "simctl", "create", name, device_type, runtime], stdout=subprocess.PIPE, check=True).stdout.strip()
@@ -780,7 +787,7 @@ def resolve_simulator(override="", logins=None):
     lane = lane_name()
     if lane:
         register_lane_simulator(udid, lane, name)
-    simslim_ensure("create", udid)
+    simslim_ensure("create", udid, profile)
     return udid
 
 
@@ -1592,7 +1599,7 @@ def actor_logins(journey, accounts):
 def run_journey_as(args, api_base_url, journeys, journey, scenarios, accounts, builder):
     logins = held_logins(journey, accounts)
     use_derived_data(logins)
-    sim = resolve_simulator(args.sim, logins)
+    sim = resolve_simulator(args.sim, logins, journey.simslim)
     check_simulator_api_environment(sim, api_base_url)
     OUT.mkdir(parents=True, exist_ok=True)
     funding, refund = funding_refund(journey, accounts)
@@ -1638,7 +1645,7 @@ def run_mutants(args, api_base_url):
         accounts = locks.enter_context(actor_logins(journey, load_accounts()))
         logins = held_logins(journey, accounts)
         use_derived_data(logins)
-        sim = resolve_simulator(args.sim, logins)
+        sim = resolve_simulator(args.sim, logins, journey.simslim)
         check_simulator_api_environment(sim, api_base_url)
         funding_refund(journey, accounts)
         caught = 0
