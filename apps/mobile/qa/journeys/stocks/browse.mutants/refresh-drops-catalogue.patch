@@ -5,7 +5,7 @@ A pull to refresh swaps the list for a search that matches nothing. S3.2 expects
 diff --git a/apps/mobile/Monaco/Features/Assets/StocksTabView.swift b/apps/mobile/Monaco/Features/Assets/StocksTabView.swift
 --- a/apps/mobile/Monaco/Features/Assets/StocksTabView.swift
 +++ b/apps/mobile/Monaco/Features/Assets/StocksTabView.swift
-@@ -207,7 +207,7 @@ private struct StocksTabScreen: View {
+@@ -221,7 +221,7 @@ private struct StocksTabScreen: View {
                  if model.browse == .held {
                      await held.load()
                  } else {
@@ -13,4 +13,4 @@ diff --git a/apps/mobile/Monaco/Features/Assets/StocksTabView.swift b/apps/mobil
 +                    model.setQuery("zzqj")
                  }
              }
-             .accessibilityIdentifier("assets-grid")
+             .accessibilityIdentifier(searching ? "assets-grid-search" : "assets-grid")
