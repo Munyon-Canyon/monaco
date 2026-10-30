@@ -105,13 +105,6 @@ struct CabalHoldingScreen: View {
                 performance(holding)
                 chart(holding)
                 HoldingStatGrid(stats: holding.stats)
-                if holding.hasPendingFigures {
-                    Text(CabalHoldingCopy.opensSoon)
-                        .font(MonacoTheme.Typo.caption)
-                        .foregroundStyle(MonacoTheme.secondaryText)
-                        .padding(.top, MonacoTheme.Space.s)
-                        .accessibilityIdentifier("holding-opens-soon")
-                }
                 trades(holding)
                 related(holding)
                 HoldingDetails(holding: holding) { open(AssetRoute(symbol: holding.symbol)) }
@@ -199,10 +192,6 @@ struct CabalHoldingScreen: View {
             }
             .padding(.top, MonacoTheme.Space.m)
             .padding(.bottom, MonacoTheme.Space.m)
-        } else {
-            QuietChart(message: CabalHoldingCopy.chartOpensSoon)
-                .padding(.vertical, MonacoTheme.Space.m)
-                .accessibilityIdentifier("holding-chart-quiet")
         }
     }
 

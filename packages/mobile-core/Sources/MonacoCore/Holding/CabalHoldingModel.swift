@@ -77,16 +77,19 @@ public final class CabalHoldingModel {
             trades = .loading
         }
         async let position = fetchPosition()
+        async let performance = fetchPerformance()
         async let history = fetchTrades(cursor: nil)
         async let related = fetchRelated()
-        let (positionResult, historyResult, relatedResult) = await (position, history, related)
+        let (positionResult, performanceResult, historyResult, relatedResult) = await (
+            position, performance, history, related
+        )
         guard issued == generation, !Task.isCancelled else { return }
         switch positionResult {
         case .success(let fetched):
             decimals = fetched.asset?.decimals ?? decimals
             proposalAsset = fetched.asset
             cabalName = fetched.cabalName
-            outcome = assemble(fetched)
+            outcome = assemble(fetched, performance: performanceResult)
         case .failure(let error):
             fail(error, hadHolding: hadHolding)
         }
@@ -152,11 +155,12 @@ public final class CabalHoldingModel {
         }
     }
 
-    private func assemble(_ fetched: Position) -> CabalHoldingOutcome {
+    private func assemble(_ fetched: Position, performance: HoldingPerformance?) -> CabalHoldingOutcome {
         let held = fetched.pot.holdings.first { $0.symbol == symbol }
         let kind = held.map { AssetKind(raw: $0.kind.rawValue) } ?? fetched.asset?.kind ?? .stock
         let ticker = AssetSymbolFormatter.display(symbol, kind: kind)
         let name = held?.displayName ?? fetched.asset?.displayName ?? ticker
+        let base = performance.map { figures.withPerformance($0) } ?? figures
         let minutes = Int(now().timeIntervalSince(fetched.pot.pricesAsOf) / 60)
         let holding = CabalHolding(
             cabalID: cabalID, symbol: symbol, assetName: name, cabalName: fetched.cabalName, assetKind: kind,
@@ -165,7 +169,7 @@ public final class CabalHoldingModel {
             pnlMicros: held?.pnlMicros ?? 0,
             unitsText: held?.units ?? "0",
             staleMinutes: held != nil && minutes >= Self.staleAfterMinutes ? minutes : nil,
-            figures: figures.withAverageBuy(held?.avgEntryMicros.flatMap { Int64($0) }))
+            figures: base.withAverageBuy(held?.avgEntryMicros.flatMap { Int64($0) }))
         return outcome(for: holding)
     }
 
@@ -173,6 +177,14 @@ public final class CabalHoldingModel {
         let pot: Components.Schemas.CabalPot
         let cabalName: String
         let asset: ProposalAsset?
+    }
+
+    private func fetchPerformance() async -> HoldingPerformance? {
+        let (cabalID, symbol, api) = (cabalID, symbol, api)
+        let fetched = try? await api.read { client in
+            try await client.getHoldingPerformance(path: .init(id: cabalID, symbol: symbol)).ok.body.json
+        }
+        return fetched.map(HoldingPerformance.init)
     }
 
     private struct TradePage: Sendable {

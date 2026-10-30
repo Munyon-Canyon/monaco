@@ -50,15 +50,17 @@ public struct CabalHolding: Equatable, Sendable {
         public let averageSellMicros: Int64?
         public let realizedMicros: Int64?
         public let series: [HoldingPeriod: ValueCurve]
+        public let nothingSold: Bool
 
         public init(
             averageBuyMicros: Int64? = nil, averageSellMicros: Int64? = nil, realizedMicros: Int64? = nil,
-            series: [HoldingPeriod: ValueCurve] = [:]
+            series: [HoldingPeriod: ValueCurve] = [:], nothingSold: Bool = false
         ) {
             self.averageBuyMicros = averageBuyMicros
             self.averageSellMicros = averageSellMicros
             self.realizedMicros = realizedMicros
             self.series = series
+            self.nothingSold = nothingSold
         }
 
         public static let none = Figures()
@@ -66,7 +68,14 @@ public struct CabalHolding: Equatable, Sendable {
         func withAverageBuy(_ micros: Int64?) -> Figures {
             Figures(
                 averageBuyMicros: micros ?? averageBuyMicros, averageSellMicros: averageSellMicros,
-                realizedMicros: realizedMicros, series: series)
+                realizedMicros: realizedMicros, series: series, nothingSold: nothingSold)
+        }
+
+        func withPerformance(_ performance: HoldingPerformance) -> Figures {
+            Figures(
+                averageBuyMicros: averageBuyMicros, averageSellMicros: performance.averageSellMicros,
+                realizedMicros: performance.realizedMicros, series: performance.series,
+                nothingSold: performance.averageSellMicros == nil)
         }
     }
 
@@ -141,8 +150,6 @@ public struct CabalHolding: Equatable, Sendable {
 
     public var hasMissingFigures: Bool { stats.contains { $0.tone == .missing } }
 
-    public var hasPendingFigures: Bool { figures.averageSellMicros == nil || figures.realizedMicros == nil }
-
     public var averageBuyText: String {
         figures.averageBuyMicros.map { UsdAmountFormatter.format(micros: $0) } ?? CabalHoldingCopy.missing
     }
@@ -153,13 +160,16 @@ public struct CabalHolding: Equatable, Sendable {
         [
             Stat(label: CabalHoldingCopy.Stat.units, value: unitsText, tone: .neutral),
             money(CabalHoldingCopy.Stat.averageBuy, figures.averageBuyMicros, signed: false),
-            money(CabalHoldingCopy.Stat.averageSell, figures.averageSellMicros, signed: false),
+            money(
+                CabalHoldingCopy.Stat.averageSell, figures.averageSellMicros, signed: false,
+                noSales: figures.nothingSold),
             isEmpty
                 ? Stat(label: CabalHoldingCopy.Stat.costBasis, value: CabalHoldingCopy.missing, tone: .missing)
                 : Stat(
                     label: CabalHoldingCopy.Stat.costBasis,
                     value: UsdAmountFormatter.format(micros: costBasisMicros), tone: .neutral),
-            money(CabalHoldingCopy.Stat.realized, figures.realizedMicros, signed: true),
+            money(
+                CabalHoldingCopy.Stat.realized, figures.realizedMicros, signed: true, noSales: figures.nothingSold),
             isEmpty
                 ? Stat(label: CabalHoldingCopy.Stat.unrealized, value: CabalHoldingCopy.missing, tone: .missing)
                 : Stat(
@@ -168,7 +178,8 @@ public struct CabalHolding: Equatable, Sendable {
         ]
     }
 
-    private func money(_ label: String, _ micros: Int64?, signed: Bool) -> Stat {
+    private func money(_ label: String, _ micros: Int64?, signed: Bool, noSales: Bool = false) -> Stat {
+        if noSales { return Stat(label: label, value: CabalHoldingCopy.noSales, tone: .neutral) }
         guard let micros else { return Stat(label: label, value: CabalHoldingCopy.missing, tone: .missing) }
         let text = signed ? UsdAmountFormatter.format(signedMicros: micros) : UsdAmountFormatter.format(micros: micros)
         return Stat(label: label, value: text, tone: signed ? Tone(signedMicros: micros) : .neutral)
