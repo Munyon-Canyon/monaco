@@ -261,22 +261,31 @@ func encodeActivityCursor(at time.Time, id uuid.UUID) string {
 }
 
 func (r *ActivityReads) stockKeys(ctx context.Context, cabalID ids.CabalID, mint domain.Asset) ([]string, error) {
+	keys, _, err := stockListings(ctx, r.q, r.listings, cabalID, mint)
+	return keys, err
+}
+
+func stockListings(
+	ctx context.Context, q *sqlc.Queries, listings ListingReader, cabalID ids.CabalID, mint domain.Asset,
+) ([]string, map[string]ListingQuote, error) {
 	keys := []string{string(mint)}
-	if r.listings == nil {
-		return keys, nil
+	if listings == nil {
+		return keys, nil, nil
 	}
-	listed, err := r.q.CabalActivityListingKeys(ctx, cabalID.UUID())
+	listed, err := q.CabalActivityListingKeys(ctx, cabalID.UUID())
 	if err != nil || len(listed) == 0 {
-		return keys, err
+		return keys, nil, err
 	}
-	quotes, err := r.listings(ctx, listed, time.Time{})
+	quotes, err := listings(ctx, listed, time.Time{})
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
+	matched := map[string]ListingQuote{}
 	for _, key := range listed {
-		if q, ok := quotes[key]; ok && q.Asset != nil && q.Asset.Mint == string(mint) {
+		if quote, ok := quotes[key]; ok && quote.Asset != nil && quote.Asset.Mint == string(mint) {
 			keys = append(keys, key)
+			matched[key] = quote
 		}
 	}
-	return keys, nil
+	return keys, matched, nil
 }

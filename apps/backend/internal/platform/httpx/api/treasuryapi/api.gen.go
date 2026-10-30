@@ -679,6 +679,19 @@ type HoldingListing struct {
 	ValueMicros int64 `json:"value_micros"`
 }
 
+// HoldingPerformance What a cabal made selling one stock, replayed from its confirmed buys and sells.
+type HoldingPerformance struct {
+	// AvgSellMicros The average price one share sold for, the proceeds of every sell over the shares sold, in USDC micros, rounded down. Null when nothing was sold.
+	//
+	// Examples: 250000000
+	AvgSellMicros *string `json:"avg_sell_micros"`
+
+	// RealizedPnlMicros Signed profit locked in by selling, each sell's proceeds less the average cost of the units it removed, in USDC micros. Zero when nothing was sold.
+	//
+	// Examples: 30000000
+	RealizedPnlMicros int64 `json:"realized_pnl_micros"`
+}
+
 // UserTxn One inbound, outbound or cabal transfer affecting the caller.
 type UserTxn struct {
 	// Cabal The cabal involved, when it remains available. Null for deposits, withdrawals, and deleted cabals.
@@ -826,6 +839,9 @@ type ServerInterface interface {
 	// GetFundPreview Preview a fund before it is submitted.
 	// (GET /v1/cabals/{id}/fund/preview)
 	GetFundPreview(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params GetFundPreviewParams)
+	// GetHoldingPerformance Read what a cabal has made selling one stock.
+	// (GET /v1/cabals/{id}/holdings/{symbol}/performance)
+	GetHoldingPerformance(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, symbol string)
 	// GetCabalPot Read a cabal's pot, its holdings and the caller's slice.
 	// (GET /v1/cabals/{id}/pot)
 	GetCabalPot(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
@@ -1128,6 +1144,41 @@ func (siw *ServerInterfaceWrapper) GetFundPreview(w http.ResponseWriter, r *http
 	handler.ServeHTTP(w, r)
 }
 
+// GetHoldingPerformance operation middleware
+func (siw *ServerInterfaceWrapper) GetHoldingPerformance(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "symbol" -------------
+	var symbol string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "symbol", r.PathValue("symbol"), &symbol, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "symbol", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetHoldingPerformance(w, r, id, symbol)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetCabalPot operation middleware
 func (siw *ServerInterfaceWrapper) GetCabalPot(w http.ResponseWriter, r *http.Request) {
 
@@ -1385,6 +1436,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/cabals/{id}/cashouts/{job_id}", wrapper.GetCashOutJob)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/cabals/{id}/fund", wrapper.FundCabal)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/cabals/{id}/fund/preview", wrapper.GetFundPreview)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/cabals/{id}/holdings/{symbol}/performance", wrapper.GetHoldingPerformance)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/cabals/{id}/pot", wrapper.GetCabalPot)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/fund-transfers/{id}", wrapper.GetFundTransfer)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/me/held", wrapper.GetMyHeld)
@@ -1634,6 +1686,46 @@ func (response GetFundPreviewdefaultApplicationProblemPlusJSONResponse) VisitGet
 	return err
 }
 
+type GetHoldingPerformanceRequestObject struct {
+	Id     openapi_types.UUID `json:"id"`
+	Symbol string             `json:"symbol"`
+}
+
+type GetHoldingPerformanceResponseObject interface {
+	VisitGetHoldingPerformanceResponse(w http.ResponseWriter) error
+}
+
+type GetHoldingPerformance200JSONResponse HoldingPerformance
+
+func (response GetHoldingPerformance200JSONResponse) VisitGetHoldingPerformanceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetHoldingPerformancedefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response GetHoldingPerformancedefaultApplicationProblemPlusJSONResponse) VisitGetHoldingPerformanceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetCabalPotRequestObject struct {
 	Id openapi_types.UUID `json:"id"`
 }
@@ -1810,6 +1902,9 @@ type StrictServerInterface interface {
 	// GetFundPreview Preview a fund before it is submitted.
 	// (GET /v1/cabals/{id}/fund/preview)
 	GetFundPreview(ctx context.Context, request GetFundPreviewRequestObject) (GetFundPreviewResponseObject, error)
+	// GetHoldingPerformance Read what a cabal has made selling one stock.
+	// (GET /v1/cabals/{id}/holdings/{symbol}/performance)
+	GetHoldingPerformance(ctx context.Context, request GetHoldingPerformanceRequestObject) (GetHoldingPerformanceResponseObject, error)
 	// GetCabalPot Read a cabal's pot, its holdings and the caller's slice.
 	// (GET /v1/cabals/{id}/pot)
 	GetCabalPot(ctx context.Context, request GetCabalPotRequestObject) (GetCabalPotResponseObject, error)
@@ -2031,6 +2126,33 @@ func (sh *strictHandler) GetFundPreview(w http.ResponseWriter, r *http.Request, 
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetFundPreviewResponseObject); ok {
 		if err := validResponse.VisitGetFundPreviewResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetHoldingPerformance operation middleware
+func (sh *strictHandler) GetHoldingPerformance(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, symbol string) {
+	var request GetHoldingPerformanceRequestObject
+
+	request.Id = id
+	request.Symbol = symbol
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetHoldingPerformance(ctx, request.(GetHoldingPerformanceRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetHoldingPerformance")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetHoldingPerformanceResponseObject); ok {
+		if err := validResponse.VisitGetHoldingPerformanceResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

@@ -183,8 +183,10 @@ func (m *Module) Mount(r api.Mount) {
 		CashOut:     m.cashOutHandler(),
 		Pot:         m.reads(),
 		Held:        m.heldReads(),
-		Cabals:      m.cabals,
-		Members:     m.members,
+		Performance: app.NewHoldingPerformanceReads(
+			m.deps.Pool, m.members, names, marketListings(market.New(m.deps).Prices())),
+		Cabals:  m.cabals,
+		Members: m.members,
 	}, r)
 }
 
