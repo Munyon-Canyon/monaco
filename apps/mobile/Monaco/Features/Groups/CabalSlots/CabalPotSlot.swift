@@ -124,6 +124,7 @@ struct CabalPotBand: View {
                 label
                 Text("$0.00").moneyFont(.row).skeletonBar(width: 120)
             }
+            .frame(minHeight: MonacoButtonMetrics.hitTarget)
             .accessibilityIdentifier("cabal-pot-loading")
         case .failed:
             MonacoErrorRow(thing: "the pot", identifier: "cabal-pot-failed", inset: false) {
