@@ -139,17 +139,9 @@ private struct HomeFeedPreviewRow: View {
         .accessibilityLabel(row.spoken)
     }
 
-    private var subtitle: some View {
-        HStack(alignment: .firstTextBaseline, spacing: MonacoTheme.Space.xs) {
-            Text(row.subtitle)
-            if row.replies > 0 {
-                Text("·")
-                    .accessibilityHidden(true)
-                Image(systemName: "bubble.left")
-                    .accessibilityHidden(true)
-                Text("\(row.replies)")
-            }
-        }
+    private var subtitle: Text {
+        guard row.replies > 0 else { return Text(row.subtitle) }
+        return Text("\(row.subtitle) · \(Image(systemName: "bubble.left")) \(row.replies)")
     }
 
     @ViewBuilder private var lead: some View {

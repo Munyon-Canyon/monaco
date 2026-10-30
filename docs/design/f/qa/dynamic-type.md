@@ -174,6 +174,8 @@ Defects by size: large 4, xxLarge 16, xxxLarge 26, AX1 42, AX5 70.
 
 ## Frames 12
 
+#7211 stacks the info sheet rows from xxxLarge, lets sheet titles, info rows, the Home feed row subtitle and every Monaco button wrap to full height from xxxLarge, so the 19 `FDynamicTypeAuditUITests/test12Sheets` clipped-text findings at xxxLarge and AX5 are fixed in code; the audit rerun is pending.
+
 | Frame | Size | Verdict | Rule broken | Follow-up |
 | --- | --- | --- | --- | --- |
 | [`12-toast`](../screens/12-toast.png) | large | ok | — | — |

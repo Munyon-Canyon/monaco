@@ -102,8 +102,9 @@ private struct MonacoButtonChrome: ViewModifier {
         content
             .labelStyle(MonacoButtonLabelStyle())
             .font(kind.font)
-            .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
+            .lineLimit(dynamicTypeSize >= .xxxLarge ? nil : 1)
             .minimumScaleFactor(0.9)
+            .fixedSize(horizontal: false, vertical: true)
             .multilineTextAlignment(.center)
             .foregroundStyle(isEnabled ? label : MonacoTheme.disabledLabel)
             .padding(.horizontal, kind.horizontalPadding)
