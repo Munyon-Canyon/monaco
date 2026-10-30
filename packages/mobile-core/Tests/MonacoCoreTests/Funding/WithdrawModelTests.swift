@@ -49,10 +49,20 @@ final class WithdrawModelTests: XCTestCase {
         await flush(rig)
 
         XCTAssertEqual(rig.model.state, .invalid(maxMicros: 499_500_000, overMicros: 150_500_000))
-        XCTAssertEqual(rig.model.line, "≈ 0.00 USDC · fee $0.50")
+        XCTAssertEqual(rig.model.line, "≈ 650.00 USDC · fee $0.50")
         XCTAssertEqual(rig.model.limitSlot, "Up to $499.50")
         XCTAssertNil(rig.model.buttonTitle)
         XCTAssertFalse(rig.model.canSubmit)
+    }
+
+    func testAWithinLimitAmountShowsTheServerReceiveEstimate() async {
+        let rig = rig([previewPath: [quote(receive: "119500000", over: "0")]])
+        rig.model.setAddress(solana)
+        rig.model.setAmountText("120")
+        await flush(rig)
+
+        XCTAssertEqual(rig.model.state, .typed)
+        XCTAssertEqual(rig.model.line, "≈ 119.50 USDC · fee $0.50")
     }
 
     func testAnAmountUnderTheMinimumIsBelowMinimum() async {

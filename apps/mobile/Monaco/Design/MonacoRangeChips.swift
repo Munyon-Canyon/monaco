@@ -9,6 +9,7 @@ struct MonacoChipLabel: ViewModifier {
     var isPreset = false
     var leadingSymbol: MonacoIcon?
     var fillsWidth = false
+    var horizontalPadding = MonacoTheme.Space.m
     @Environment(\.isEnabled) private var isEnabled
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ScaledMetric(relativeTo: .subheadline) private var symbolSize: CGFloat = 15
@@ -26,7 +27,7 @@ struct MonacoChipLabel: ViewModifier {
         .foregroundStyle(Self.colors(isSelected: isSelected, isEnabled: isEnabled).label)
         .lineLimit(1)
         .minimumScaleFactor(0.8)
-        .padding(.horizontal, MonacoTheme.Space.m)
+        .padding(.horizontal, horizontalPadding)
         .frame(maxWidth: fillsWidth ? .infinity : nil, minHeight: Self.capsuleHeight)
         .background(Capsule().fill(Self.colors(isSelected: isSelected, isEnabled: isEnabled).fill))
         .frame(minHeight: MonacoButtonMetrics.hitTarget)
@@ -43,11 +44,13 @@ struct MonacoChipLabel: ViewModifier {
 
 extension View {
     func monacoChipLabel(
-        isSelected: Bool, isPreset: Bool = false, leadingSymbol: MonacoIcon? = nil, fillsWidth: Bool = false
+        isSelected: Bool, isPreset: Bool = false, leadingSymbol: MonacoIcon? = nil, fillsWidth: Bool = false,
+        horizontalPadding: CGFloat = MonacoTheme.Space.m
     ) -> some View {
         modifier(
             MonacoChipLabel(
-                isSelected: isSelected, isPreset: isPreset, leadingSymbol: leadingSymbol, fillsWidth: fillsWidth))
+                isSelected: isSelected, isPreset: isPreset, leadingSymbol: leadingSymbol, fillsWidth: fillsWidth,
+                horizontalPadding: horizontalPadding))
     }
 }
 

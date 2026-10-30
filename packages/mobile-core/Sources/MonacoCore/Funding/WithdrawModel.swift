@@ -142,7 +142,8 @@ public final class WithdrawModel {
             return WithdrawCopy.emptyLine(feeMicros: quote?.feeMicros, network: network)
         case .typed, .needsAddress, .failed, .invalid:
             if quoteFailed { return WithdrawCopy.feeFailed }
-            guard let fresh = freshQuote, let receive = fresh.receiveMicros else { return nil }
+            guard let fresh = freshQuote, let receive = (fresh.overMicros ?? 0) > 0 ? amountMicros : fresh.receiveMicros
+            else { return nil }
             return WithdrawCopy.typedLine(receiveMicros: receive, feeMicros: fresh.feeMicros)
         case .belowMinimum(let min): return WithdrawCopy.belowMinimum(minMicros: min)
         case .settled(_, _, let network, let arrival, _):

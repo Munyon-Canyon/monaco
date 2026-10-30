@@ -5,14 +5,15 @@ Tapping a network chip keeps the network on Solana. S2.1 waits for the line to n
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/apps/mobile/Monaco/Features/Settings/WithdrawScreen.swift b/apps/mobile/Monaco/Features/Settings/WithdrawScreen.swift
+index 69b1e6587..61dbec8d8 100644
 --- a/apps/mobile/Monaco/Features/Settings/WithdrawScreen.swift
 +++ b/apps/mobile/Monaco/Features/Settings/WithdrawScreen.swift
-@@ -219,7 +219,7 @@ private struct WithdrawNetworkChips: View {
+@@ -217,7 +217,7 @@ private struct WithdrawNetworkChips: View {
                      Button {
                          guard !isSelected else { return }
                          Haptics.selection()
 -                        select(network)
 +                        select(selected)
                      } label: {
-                         Text(network.name).monacoChipLabel(isSelected: isSelected, leadingSymbol: .check)
-                     }
+                         Text(network.name).monacoChipLabel(
+                             isSelected: isSelected, leadingSymbol: .check, horizontalPadding: MonacoTheme.Space.sm)

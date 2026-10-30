@@ -219,7 +219,8 @@ private struct WithdrawNetworkChips: View {
                         Haptics.selection()
                         select(network)
                     } label: {
-                        Text(network.name).monacoChipLabel(isSelected: isSelected, leadingSymbol: .check)
+                        Text(network.name).monacoChipLabel(
+                            isSelected: isSelected, leadingSymbol: .check, horizontalPadding: MonacoTheme.Space.sm)
                     }
                     .buttonStyle(.plain)
                     .accessibilityAddTraits(isSelected ? [.isSelected] : [])
