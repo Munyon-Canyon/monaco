@@ -9,17 +9,6 @@ import XCTest
 final class CabalSearchModelTests: XCTestCase {
     private let samples = Components.Schemas.CabalSearchItem.samples
 
-    func testAnEmptyQueryIsIdleAndSendsNothing() async {
-        let transport = StubTransport(scripted: [])
-        let model = makeModel(transport)
-        model.query = "   "
-        await model.search()
-        XCTAssertFalse(model.isActive)
-        XCTAssertEqual(model.state, .idle)
-        let sent = await transport.sent
-        XCTAssertTrue(sent.isEmpty)
-    }
-
     func testRowsReadTheirSizeModeAndAction() async throws {
         let transport = StubTransport(.json(.ok, try Self.page(samples)))
         let model = makeModel(transport)
@@ -102,6 +91,7 @@ final class CabalSearchModelTests: XCTestCase {
         model.query = " sun "
         await model.search()
         XCTAssertEqual(model.searched, model.trimmedQuery)
+        XCTAssertFalse(model.needsSearch)
         let sent = await transport.sent
         XCTAssertEqual(sent.count, 1)
     }

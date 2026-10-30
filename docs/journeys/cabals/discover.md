@@ -1,7 +1,7 @@
 ---
 id: cabals/discover
 title: Find a public cabal
-version: 2
+version: 3
 milestone: UI v3
 requires: [auth/sign-in]
 actors: [A]
@@ -11,11 +11,11 @@ xcuitest: [apps/mobile/MonacoUITests/Journeys/CabalsDiscoverJourney.swift, apps/
 
 # Find a public cabal
 
-A member opens "Find a cabal" from the "+" menu on the Cabals tab, reads what it shows with nothing typed, finds a public cabal by name, opens its public screen, asks to join from there and sees "Request pending" on the screen and on the search row. [cabals/browse](browse.md) asks from the search row and [cabals/join](join.md) walks the whole approval, so this journey is the search screen and the public cabal screen themselves. Public search sits behind the "+" round (`cabals-new-button`, then `cabals-menu-find`; founder decision Q7, #6522). The public cabal screen is `PublicCabalView`, the signed-in non-member state of `CabalRoute`, which #6502 keeps unchanged for search and discovery (its landing is only for invite links). The rules are [Cabals](../../architecture/cabals.md#join-and-access-requests).
+A member opens "Find a cabal" from the "+" menu on the Cabals tab, sees the public cabals it lists with nothing typed, finds a public cabal by name, opens its public screen, asks to join from there and sees "Request pending" on the screen and on the search row. [cabals/browse](browse.md) asks from the search row and [cabals/join](join.md) walks the whole approval, so this journey is the search screen and the public cabal screen themselves. Public search sits behind the "+" round (`cabals-new-button`, then `cabals-menu-find`; founder decision Q7, #6522). The public cabal screen is `PublicCabalView`, the signed-in non-member state of `CabalRoute`, which #6502 keeps unchanged for search and discovery (its landing is only for invite links). The rules are [Cabals](../../architecture/cabals.md#join-and-access-requests).
 
 The format of this doc is in [App journeys](../README.md).
 
-Find a cabal is reached by tapping `cabals-new-button` on the Cabals tab and then "Find a cabal" in its menu. The search field is empty and the page's title reads "Find a cabal".
+Find a cabal is reached by tapping `cabals-new-button` on the Cabals tab and then "Find a cabal" in its menu. The search field is empty, the page's title reads "Find a cabal" and the public cabals are listed below it, biggest first.
 
 ## Preconditions
 
@@ -33,7 +33,7 @@ Starts signed in (auth/sign-in).
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S1.1 | A | tap, then tap | the Cabals tab, `cabals-new-button`, then "Find a cabal" | | Within 10 s, the page title "Find a cabal" shows, the search field is empty and `cabals-browse-coming` reads "Browsing every public cabal opens soon. Search by name to find more.". `cabals-search-empty` is not shown |
+| S1.1 | A | tap, then tap | the Cabals tab, `cabals-new-button`, then "Find a cabal" | | Within 10 s, the page title "Find a cabal" shows, the search field is empty and `cabals-search-results` lists at least one `cabals-search-result-<id>` row, each with a Join or Request button, a "Joined" badge or a "Request pending" badge. `cabals-search-empty` is not shown |
 | S1.2 | A | type | the search field | `zzqq nobody` | Within 10 s, `cabals-search-empty` reads "No matching cabals" |
 
 ### S2 Open a public cabal and ask
@@ -59,5 +59,6 @@ Starts on Find a cabal (S1).
 
 - Joining an open cabal from the row or the public screen, and a declined request. [cabals/join](join.md) covers them.
 - The private cabal state ("This cabal is private"). The API reports no private cabal, so the state is unreachable. `GroupDetailSampleHarness` covers it.
-- The browse rows for the public cabal board with ranked cabals. The board depends on funded cabals, and S1.1 asserts only the caption.
+- Scrolling the browse list to a second page. It needs more public cabals than one page holds. `CabalSearchModelTests` covers the paging.
+- The "No public cabals yet" state (`cabals-browse-empty`). The dev database always holds the cabals S1 seeds. `-MonacoDiscoverSample` covers it.
 - The loading skeleton and the full-screen load failure. They need the backend to fail mid-run. `-MonacoDiscoverSample` (`loading`, `error`) covers them.

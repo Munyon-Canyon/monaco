@@ -37,7 +37,6 @@ public struct CabalSearchRow: Identifiable, Equatable, Sendable {
 }
 
 public enum CabalSearchState: Equatable, Sendable {
-    case idle
     case loading
     case empty(String)
     case failed(APIError)
@@ -76,10 +75,9 @@ public final class CabalSearchModel {
         query.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    public var isActive: Bool { !trimmedQuery.isEmpty }
+    public var needsSearch: Bool { pager == nil || searched != trimmedQuery }
 
     public var state: CabalSearchState {
-        guard isActive else { return .idle }
         guard let pager else { return .loading }
         if !pager.items.isEmpty {
             return .rows(pager.items.map(overlaid))
@@ -102,11 +100,6 @@ public final class CabalSearchModel {
 
     public func search() async {
         let text = trimmedQuery
-        guard !text.isEmpty else {
-            pager = nil
-            searched = ""
-            return
-        }
         let api = api
         let pager = CursorPager<CabalSearchRow> { cursor in
             let page = try await api.read { client in
@@ -217,7 +210,7 @@ private struct CabalSearchPreviewTransport: ClientTransport {
         switch operationID {
         case "getCabals":
             let query = URLComponents(string: request.path ?? "")?.queryItems?.first { $0.name == "query" }?.value ?? ""
-            let matches = items.filter { $0.name.localizedCaseInsensitiveContains(query) }
+            let matches = items.filter { query.isEmpty || $0.name.localizedCaseInsensitiveContains(query) }
             let page = Components.Schemas.CabalSearchPage(items: matches, nextCursor: nil)
             return (response, HTTPBody(try encoder.encode(page)))
         case "postCabalAccessRequest":
