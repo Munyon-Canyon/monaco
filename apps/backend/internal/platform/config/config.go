@@ -120,6 +120,7 @@ type HTTP struct {
 	Addr              string
 	MaxBodyBytes      int32
 	TrustProxyHeaders bool
+	RateLimitOff      bool
 }
 
 type Worker struct {
@@ -312,6 +313,7 @@ func Load(environ []string) (Config, error) {
 	}
 	bad.checkAPNs(cfg)
 	bad.checkTrade(cfg)
+	bad.checkRateLimit(cfg)
 	bad.missing = append(bad.missing, missingIn(cfg)...)
 	for k := range vars {
 		if strings.HasPrefix(k, "MONACO_") && !known[k] && !isIOSBuildKey(k) {
@@ -493,6 +495,7 @@ func platformFields() []field {
 		text("MONACO_HTTP_ADDR", ":8080", func(c *Config) *string { return &c.HTTP.Addr }),
 		count("MONACO_HTTP_MAX_BODY_BYTES", 1<<20, func(c *Config) *int32 { return &c.HTTP.MaxBodyBytes }),
 		boolean("TRUST_PROXY_HEADERS", func(c *Config) *bool { return &c.HTTP.TrustProxyHeaders }),
+		boolean("MONACO_RATE_LIMIT_OFF", func(c *Config) *bool { return &c.HTTP.RateLimitOff }),
 		text("MONACO_WORKER_HEALTH_ADDR", ":8081", func(c *Config) *string { return &c.Worker.HealthAddr }),
 		duration("FUND_SEND_WINDOW", 2*time.Minute, func(c *Config) *time.Duration { return &c.Worker.FundSendWindow }),
 		duration("WITHDRAWAL_UNSENT_AGE", 2*time.Minute,
@@ -643,6 +646,12 @@ func tradeFields() []field {
 func (e *keysError) checkTrade(c Config) {
 	if c.Trade.Engine == TradeEngineStub && !c.LocalDev() {
 		e.invalid = append(e.invalid, "TRADE_ENGINE (stub runs only in local dev)")
+	}
+}
+
+func (e *keysError) checkRateLimit(c Config) {
+	if c.HTTP.RateLimitOff && c.Env.Deployed() {
+		e.invalid = append(e.invalid, "MONACO_RATE_LIMIT_OFF (runs only outside staging and production)")
 	}
 }
 
