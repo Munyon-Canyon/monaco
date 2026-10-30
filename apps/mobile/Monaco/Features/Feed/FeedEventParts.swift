@@ -39,10 +39,7 @@ struct FeedPostObjectLine: View {
         } else if dynamicTypeSize.isAccessibilitySize {
             stacked
         } else {
-            ViewThatFits(in: .horizontal) {
-                inline
-                stacked
-            }
+            inline
         }
     }
 
@@ -56,6 +53,9 @@ struct FeedPostObjectLine: View {
             .font(MonacoTheme.Typo.section)
             .foregroundStyle(MonacoTheme.primaryText)
             .monacoPrivate()
+            .lineLimit(1)
+            .fixedSize(horizontal: true, vertical: false)
+            .layoutPriority(2)
     }
 
     private var place: some View {
@@ -63,6 +63,9 @@ struct FeedPostObjectLine: View {
             .font(.footnote)
             .foregroundStyle(object.placeIsWarning ? MonacoTheme.warning : MonacoTheme.secondaryText)
             .monacoPrivate()
+            .lineLimit(1)
+            .truncationMode(.tail)
+            .layoutPriority(0)
     }
 
     @ViewBuilder private var trailing: some View {
@@ -72,10 +75,16 @@ struct FeedPostObjectLine: View {
             Text(text)
                 .font(.footnote)
                 .foregroundStyle(MonacoTheme.signed(text))
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
+                .layoutPriority(1)
         case .text(let text):
             Text(text)
                 .font(.footnote)
                 .foregroundStyle(MonacoTheme.secondaryText)
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
+                .layoutPriority(1)
         case nil:
             EmptyView()
         }

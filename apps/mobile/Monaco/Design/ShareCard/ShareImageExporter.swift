@@ -26,7 +26,7 @@ struct ShareExportView: View {
 
     private var story: some View {
         let cardWidth = size.width - Self.storyInset * 2 * unit
-        let cardSize = CGSize(width: cardWidth, height: cardWidth * 5 / 4)
+        let cardSize = CGSize(width: cardWidth, height: cardWidth * (spec.facts.isLedger ? 16.0 / 9.0 : 5.0 / 4.0))
         return VStack(spacing: 0) {
             if !spec.facts.isLedger {
                 Text("monaco")

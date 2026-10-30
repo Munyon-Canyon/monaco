@@ -165,7 +165,7 @@ founder:
 | [`05-post-reply`](../screens/05-post-reply.png) | dark | difference | Frame is the reply sheet over the feed with draft text and an enabled send button, quoting "Logan sold"; app shows an empty "Say something" composer on a black screen quoting "Logan proposed". | #7025 (#6548, #6556, #6558) |
 | [`05-comment-actions`](../screens/05-comment-actions.png) | n/a | no harness | No shot: the harness has no line for the comment-actions menu. | #7025 (#6552) |
 | [`05-post-public`](../screens/05-post-public.png) | dark | difference | Frame ends with a "Members of Pilates reply here" footer and no composer or Reply links; app shows the "Say something" composer and Reply links to a non-member. | #7025 (#6553, #6506) |
-| [`05-feed-empty`](../screens/05-feed-empty.png) | dark | difference | Frame's "From everyone" rows read "Buy AMZN $250" and "Buy Stripe $300"; app rows read bare "AMZN" and "STRIPE" with no side or amount. | #7025 (#6542) |
+| [`05-feed-empty`](../screens/05-feed-empty.png) | dark | difference | Frame's "From everyone" rows read "Buy AMZN $250" and "Buy Stripe $300"; app rows read bare "AMZN" and "STRIPE" with no side or amount. | #7025 (#6542), #7194 keeps the asset line on one line (cabal name truncates); re-shoot pending |
 
 founder:
 
@@ -258,9 +258,9 @@ founder:
 
 | Frame | Appearance | Verdict | Difference | Follow-up |
 | --- | --- | --- | --- | --- |
-| [`14-hold-sheet`](../screens/14-hold-sheet.png) | dark | difference | Sheet shows the proposal page behind it instead of Home; sheet's vote buttons sit in a separate large card with a different header. | #7033 (#6557, #6559), fixed; re-shoot pending |
+| [`14-hold-sheet`](../screens/14-hold-sheet.png) | dark | difference | Sheet shows the proposal page behind it instead of Home; sheet's vote buttons sit in a separate large card with a different header. | #7033 (#6557, #6559), #7194 titles it "Buy NVDA · $400"; re-shoot pending |
 | [`14-wrap-sheet`](../screens/14-wrap-sheet.png) | dark | difference | Sheet sits over a "Couldn't load this view" error instead of Home; "+1.4%" caption is stacked below instead of inline. | #7033 (#6570), fixed; re-shoot pending |
-| [`14-ledger-story`](../screens/14-ledger-story.png) | dark | difference | App puts the +1.4% headline below the chart, adds a "monaco" wordmark above the card, and uses a purple placeholder cover with a glitch instead of the cabal photo; back button missing. | #7033 (#6581), fixed; re-shoot pending |
+| [`14-ledger-story`](../screens/14-ledger-story.png) | dark | difference | App puts the +1.4% headline below the chart, adds a "monaco" wordmark above the card, and uses a purple placeholder cover with a glitch instead of the cabal photo; back button missing. | #7033 (#6581), #7194 draws the story at 9:16 near full width; re-shoot pending |
 
 founder:
 
