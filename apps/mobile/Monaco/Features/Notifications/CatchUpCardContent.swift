@@ -17,6 +17,7 @@ struct CatchUpCardContent: View {
     let actions: CatchUpCardActions
 
     @Environment(\.calendar) private var calendar
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.sm) {
@@ -138,8 +139,14 @@ struct CatchUpCardContent: View {
         .monacoPrivate()
     }
 
+    private var buttonsLayout: AnyLayout {
+        dynamicTypeSize >= .xxxLarge
+            ? AnyLayout(VStackLayout(spacing: MonacoTheme.Space.sm))
+            : AnyLayout(HStackLayout(spacing: MonacoTheme.Space.sm))
+    }
+
     private var buttons: some View {
-        HStack(spacing: MonacoTheme.Space.sm) {
+        buttonsLayout {
             switch item.kind {
             case .reply, .mention:
                 button(CatchUpDeckCopy.reply, identifier: "catch-up-deck-reply") { actions.reply(item) }
