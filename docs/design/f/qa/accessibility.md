@@ -34,6 +34,8 @@ Distinct issues (frame, element, type), with swipe repeats removed: 142.
 
 Per group: 02 hit 6 · 03 hit 9, detect 1 · 04 hit 65, detect 1 · 05 hit 28, desc 1, detect 1 · 06 hit 1 · 07 hit 3 · 08 detect 2 · 09 trait 1 · 10 hit 2, desc 2, detect 1 · 11 detect 1 · 12 hit 2, detect 1 · 14 detect 2 · 15 hit 5 · 16 hit 4 · 18 hit 1, detect 1 · 19 detect 1. Group 13 has none.
 
+Fixed by #7197: the comment composer field now has a 44 pt minimum height, and a comment row is one 44 pt tappable (double-tap to react, long press for actions) with the relative time hidden from accessibility because the row label already speaks it. This resolves the `comment-composer-field`, `comment-body-*` and relative-time hit findings below.
+
 Test results: `testGroup13`, `testReduceMotionScreensDraw`, `testTheListHoldsTheNinetyFiveScreens` and `testEveryAllowedFindingHasAReason` pass. The other 16 group tests fail on the issues above; the allow-list stays empty because each issue has a follow-up instead.
 
 Fixes to the test from this run:
@@ -178,7 +180,7 @@ Audit issues (10):
 | 04-reply-composer | `—` | — | button | 42x42 | small |
 | 04-reply-composer | `—` | Continue | button | 274x33 | small |
 | 04-gif-reply | `comment-author-c1` | Mia | button | 41x44 | small |
-| 15 frames | `comment-composer-field` | — | button | 223x19 | small |
+| 15 frames | `comment-composer-field` | — | button | 223x19 | small (fixed by #7197) |
 | 04-reply-composer | `comment-composer-gif` | Add a GIF | button | 42x42 | small |
 | 04-reply-composer | `comment-composer-plus` | Add a poll, quote or stock | button | 42x42 | small |
 | 04-reply-composer | `comment-composer-send` | Send reply | button | 42x42 | small |
@@ -265,7 +267,7 @@ Audit issues (66):
 | Frames | Identifier | Label | Trait | Smallest size | Verdict |
 | --- | --- | --- | --- | --- | --- |
 | 5 frames | `—` | — | button | 42x42 | small |
-| 3 frames | `comment-composer-field` | — | button | 223x19 | small |
+| 3 frames | `comment-composer-field` | — | button | 223x19 | small (fixed by #7197) |
 | 05-post-reply | `comment-composer-gif` | Add a GIF | button | 42x42 | small |
 | 05-post-reply | `comment-composer-plus` | Add a poll, quote or stock | button | 42x42 | small |
 | 05-post-reply | `comment-composer-send` | Send reply | button | 42x42 | small |
@@ -314,7 +316,7 @@ Audit issues (30):
 | 05-post-public | `comment-body-c4` | In. | hit | Hit area is too small |
 | 05-post-reply | `—` | — | desc | Element has no description |
 | 05-post-reply | `—` | — | detect | Potentially inaccessible text |
-| 05-post-reply | `comment-composer-field` | — | hit | Hit area is too small |
+| 05-post-reply | `comment-composer-field` | — | hit | Hit area is too small (fixed by #7197) |
 | 05-post-scrolled | `—` | 20m | hit | Hit area is too small |
 | 05-post-scrolled | `—` | 30m | hit | Hit area is too small |
 | 05-post-scrolled | `—` | 40m | hit | Hit area is too small |
@@ -437,7 +439,7 @@ Audit issues (2):
 
 | Frames | Identifier | Label | Trait | Smallest size | Verdict |
 | --- | --- | --- | --- | --- | --- |
-| 15-passed | `comment-composer-field` | — | button | 232x20 | small |
+| 15-passed | `comment-composer-field` | — | button | 232x20 | small (fixed by #7197) |
 | 15-leaderboard-moment | `leaderboard-period-week` | Week | button | 39x44 | small |
 | 15-passed | `proposal-result-tally` | ✓ 2 · 2 of 3 voted · 0 ✕ | button | 157x18 | small |
 
