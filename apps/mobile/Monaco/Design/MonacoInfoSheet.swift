@@ -13,6 +13,15 @@ struct MonacoInfoSheet: View {
     let identifier: String
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    private var stacksRows: Bool { dynamicTypeSize >= .xxxLarge }
+
+    private var rowLayout: AnyLayout {
+        stacksRows
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: MonacoTheme.Space.xs))
+            : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: MonacoTheme.Space.s))
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
@@ -24,15 +33,17 @@ struct MonacoInfoSheet: View {
                 VStack(spacing: 0) {
                     ForEach(Array(rows.enumerated()), id: \.offset) { index, row in
                         if index > 0 { Divider() }
-                        HStack(alignment: .firstTextBaseline, spacing: MonacoTheme.Space.s) {
+                        rowLayout {
                             Text(row.label)
                                 .font(MonacoTheme.Typo.headline)
                                 .foregroundStyle(MonacoTheme.primaryText)
-                            Spacer(minLength: MonacoTheme.Space.s)
+                                .fixedSize(horizontal: false, vertical: true)
+                            if !stacksRows { Spacer(minLength: MonacoTheme.Space.s) }
                             Text(row.value)
                                 .font(MonacoTheme.Typo.body)
                                 .foregroundStyle(MonacoTheme.secondaryText)
-                                .multilineTextAlignment(.trailing)
+                                .multilineTextAlignment(stacksRows ? .leading : .trailing)
+                                .fixedSize(horizontal: false, vertical: true)
                         }
                         .padding(.vertical, MonacoTheme.Space.sm)
                         .accessibilityElement(children: .combine)
