@@ -136,6 +136,7 @@ struct CabalContextMenuSampleSheet: View {
                         Text(action.title)
                             .font(MonacoTheme.Typo.body)
                             .foregroundStyle(MonacoTheme.primaryText)
+                            .fixedSize(horizontal: false, vertical: true)
                         Spacer(minLength: MonacoTheme.Space.m)
                         Image(systemName: action.icon.symbol)
                             .foregroundStyle(MonacoTheme.primaryText)

@@ -106,6 +106,8 @@ struct CabalPotBand: View {
 
     private static let pull = SectionStackMetrics.spacing - MonacoTheme.Space.sm
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     var body: some View {
         content
             .frame(maxWidth: .infinity, minHeight: Self.pull + MonacoTheme.Space.xs, alignment: .leading)
@@ -131,16 +133,13 @@ struct CabalPotBand: View {
     }
 
     @ViewBuilder private func loaded(_ summary: CabalPotSummary) -> some View {
-        let figure = line(figure: Text(Self.dimmedCents(summary.potValue)), move: move)
+        let figure = line(figure: Text(Self.dimmedCents(summary.potValue)), move: move, chevron: openHistory != nil)
         if let openHistory {
             Button(action: openHistory) {
-                HStack(spacing: MonacoTheme.Space.s) {
-                    figure
-                    MonacoRowChevron()
-                }
-                .contentShape(Rectangle())
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel(Self.spoken(summary.potValue, move: move))
+                figure
+                    .contentShape(Rectangle())
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(Self.spoken(summary.potValue, move: move))
             }
             .buttonStyle(.plain)
             .accessibilityHint(CabalTreasuryCopy.historyHint)
@@ -159,14 +158,14 @@ struct CabalPotBand: View {
             .foregroundStyle(MonacoTheme.secondaryText)
     }
 
-    private func line(figure: Text, move: CabalHeaderCopy.Move?) -> some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(alignment: .firstTextBaseline, spacing: MonacoTheme.Space.s) {
-                parts(figure, move: move)
-            }
-            VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
-                parts(figure, move: move)
-            }
+    private func line(figure: Text, move: CabalHeaderCopy.Move?, chevron: Bool) -> some View {
+        let layout =
+            dynamicTypeSize >= .xxxLarge
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: MonacoTheme.Space.xs))
+            : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: MonacoTheme.Space.s))
+        return HStack(spacing: MonacoTheme.Space.s) {
+            layout { parts(figure, move: move) }
+            if chevron { MonacoRowChevron() }
         }
     }
 
@@ -181,7 +180,7 @@ struct CabalPotBand: View {
             Text(move.line)
                 .font(MonacoTheme.Typo.subhead)
                 .foregroundStyle(Self.color(move.direction))
-                .lineLimit(1)
+                .fixedSize(horizontal: false, vertical: true)
                 .accessibilityIdentifier("cabal-pot-move")
         }
     }

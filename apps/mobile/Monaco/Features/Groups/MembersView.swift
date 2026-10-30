@@ -179,33 +179,85 @@ private struct MembersRequestRow: View {
     let approve: () -> Void
     let decline: () -> Void
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    private var layout: MonacoRowLayout { MonacoRowLayout(dynamicTypeSize: dynamicTypeSize) }
+
     var body: some View {
-        MonacoRow(
-            title: request.name,
-            subtitle: CabalMemberCopy.requestLine(via: request.via, createdAt: request.createdAt, now: .now),
-            subtitleLineLimit: 2, isLast: false, trailingIsInteractive: true, isPrivate: true,
-            leading: {
-                MonacoAvatar(
-                    photoURL: request.photoURL, displayName: request.name, size: MonacoRowLayout.baseMarkSize,
-                    seed: request.userID)
-            },
-            trailing: {
-                Button(CabalMemberCopy.approve, action: approve)
-                    .buttonStyle(.monacoCompact)
-                    .disabled(isDeciding)
-                    .accessibilityLabel("\(CabalMemberCopy.approve) \(request.name)")
-                    .accessibilityIdentifier("cabal-join-approve")
+        content
+            .padding(.horizontal, MonacoTheme.Space.gutter)
+            .padding(.vertical, MonacoTheme.Space.s)
+            .frame(minHeight: MonacoRowLayout.minHeight)
+            .contentShape(Rectangle())
+            .overlay(alignment: .bottom) {
+                MonacoRule()
+                    .padding(.leading, layout.separatorLeadingInset)
+                    .padding(.horizontal, MonacoTheme.Space.gutter)
             }
+            .contextMenu {
+                Button(CabalMemberCopy.decline, role: .destructive, action: decline)
+                    .accessibilityIdentifier("cabal-join-deny")
+            }
+            .swipeActions(edge: .trailing) {
+                Button(CabalMemberCopy.decline, role: .destructive, action: decline)
+            }
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("cabal-join-request-row")
+    }
+
+    @ViewBuilder private var content: some View {
+        if layout.isStacked {
+            VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
+                HStack(spacing: MonacoTheme.Space.sm) {
+                    avatar
+                    name.frame(maxWidth: .infinity, alignment: .leading)
+                }
+                line
+                approveButton
+            }
+        } else {
+            HStack(spacing: MonacoTheme.Space.sm) {
+                avatar
+                VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
+                    name
+                    line
+                }
+                .frame(minWidth: layout.minimumTitleWidth, maxWidth: .infinity, alignment: .leading)
+                approveButton.layoutPriority(1)
+            }
+        }
+    }
+
+    private var avatar: some View {
+        MonacoAvatar(
+            photoURL: request.photoURL, displayName: request.name, size: MonacoRowLayout.baseMarkSize,
+            seed: request.userID
         )
-        .contextMenu {
-            Button(CabalMemberCopy.decline, role: .destructive, action: decline)
-                .accessibilityIdentifier("cabal-join-deny")
-        }
-        .swipeActions(edge: .trailing) {
-            Button(CabalMemberCopy.decline, role: .destructive, action: decline)
-        }
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("cabal-join-request-row")
+        .frame(width: MonacoRowLayout.baseMarkSize, height: MonacoRowLayout.baseMarkSize)
+    }
+
+    private var name: some View {
+        Text(request.name)
+            .font(MonacoTheme.Typo.rowTitle)
+            .foregroundStyle(MonacoTheme.primaryText)
+            .lineLimit(2)
+            .monacoPrivate(true)
+    }
+
+    private var line: some View {
+        Text(CabalMemberCopy.requestLine(via: request.via, createdAt: request.createdAt, now: .now))
+            .font(MonacoTheme.Typo.caption)
+            .foregroundStyle(MonacoTheme.secondaryText)
+            .fixedSize(horizontal: false, vertical: true)
+            .monacoPrivate(true)
+    }
+
+    private var approveButton: some View {
+        Button(CabalMemberCopy.approve, action: approve)
+            .buttonStyle(.monacoCompact)
+            .disabled(isDeciding)
+            .accessibilityLabel("\(CabalMemberCopy.approve) \(request.name)")
+            .accessibilityIdentifier("cabal-join-approve")
     }
 }
 

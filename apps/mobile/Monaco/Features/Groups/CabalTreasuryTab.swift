@@ -192,34 +192,19 @@ struct CabalTreasuryCashCard: View {
 
     var body: some View {
         MonacoCard(style: .tight) {
-            HStack(spacing: MonacoTheme.Space.sm) {
-                Image(systemName: MonacoIcon.card.symbol)
-                    .font(MonacoTheme.Typo.title2)
-                    .foregroundStyle(MonacoTheme.primaryText)
-                    .frame(width: HomeCashRowMetrics.tile, height: HomeCashRowMetrics.tile)
-                    .background(
-                        MonacoTheme.surfaceSunken, in: RoundedRectangle(cornerRadius: MonacoTheme.Radius.chip)
-                    )
-                    .accessibilityHidden(true)
-                VStack(alignment: .leading, spacing: 0) {
-                    Text(cash.label)
-                        .font(MonacoTheme.Typo.headline)
-                        .foregroundStyle(MonacoTheme.primaryText)
-                    HStack(spacing: 0) {
-                        Text(cash.apy)
-                            .font(MonacoTheme.Typo.subhead)
-                            .foregroundStyle(MonacoTheme.secondaryText)
-                        infoButton
-                    }
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: MonacoTheme.Space.sm) {
+                    tile
+                    labels
+                    amount
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                Text(cash.amount)
-                    .moneyFigure(.row)
-                    .foregroundStyle(MonacoTheme.primaryText)
-                    .lineLimit(1)
-                    .minimumScaleFactor(MoneyStyle.row.minimumScaleFactor)
-                    .accessibilityLabel("Cash")
-                    .accessibilityValue(cash.amount)
+                VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
+                    HStack(spacing: MonacoTheme.Space.sm) {
+                        tile
+                        labels
+                    }
+                    amount
+                }
             }
             .frame(minHeight: MonacoButtonMetrics.hitTarget)
         }
@@ -227,6 +212,40 @@ struct CabalTreasuryCashCard: View {
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("cabal-holdings-cash")
         .sheet(isPresented: $showsInfo) { CabalTreasuryApyInfoSheet() }
+    }
+
+    private var tile: some View {
+        Image(systemName: MonacoIcon.card.symbol)
+            .font(MonacoTheme.Typo.title2)
+            .foregroundStyle(MonacoTheme.primaryText)
+            .frame(width: HomeCashRowMetrics.tile, height: HomeCashRowMetrics.tile)
+            .background(MonacoTheme.surfaceSunken, in: RoundedRectangle(cornerRadius: MonacoTheme.Radius.chip))
+            .accessibilityHidden(true)
+    }
+
+    private var labels: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(cash.label)
+                .font(MonacoTheme.Typo.headline)
+                .foregroundStyle(MonacoTheme.primaryText)
+            HStack(spacing: 0) {
+                Text(cash.apy)
+                    .font(MonacoTheme.Typo.subhead)
+                    .foregroundStyle(MonacoTheme.secondaryText)
+                infoButton
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var amount: some View {
+        Text(cash.amount)
+            .moneyFigure(.row)
+            .foregroundStyle(MonacoTheme.primaryText)
+            .lineLimit(1)
+            .minimumScaleFactor(MoneyStyle.row.minimumScaleFactor)
+            .accessibilityLabel("Cash")
+            .accessibilityValue(cash.amount)
     }
 
     private var infoButton: some View {
