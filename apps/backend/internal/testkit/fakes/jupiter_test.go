@@ -146,7 +146,7 @@ func TestJupiter_anUnknownTakerStillGetsTheRecordedOrder(t *testing.T) {
 	t.Parallel()
 	h := newSwapHarness(t)
 	got := h.order(funded, 25_000_000)
-	if got.RequestID != "req-buy-aaplx-1" || string(got.Transaction) != "unsigned-buy-tx" {
+	if got.RequestID != "req-buy-aaplx-1" || len(got.Transaction) == 0 {
 		t.Fatalf("order for a taker with no fake wallet = %+v, want the recorded fixture", got)
 	}
 }

@@ -24,6 +24,7 @@ type RPC interface {
 	LatestBlockhash(ctx context.Context) (solana.Blockhash, error)
 	MintConfig(ctx context.Context, mint chain.SolanaAddress) (solana.MintConfig, error)
 	SendTransaction(ctx context.Context, tx []byte) (chain.Signature, error)
+	LookupTables(ctx context.Context, tables []chain.SolanaAddress) (chain.LookupTables, error)
 }
 
 type Relayer struct {
@@ -96,7 +97,7 @@ func CheckBoot(ctx context.Context, cfg config.Config, opts ...httpclient.Option
 	return r.CheckFloor(ctx)
 }
 
-func (r *Relayer) CoSign(_ context.Context, raw []byte) ([]byte, error) {
+func (r *Relayer) CoSign(ctx context.Context, raw []byte) ([]byte, error) {
 	const op = "relayer.CoSign"
 	tx, err := chain.DecodeTransaction(raw)
 	if err != nil {
@@ -104,6 +105,15 @@ func (r *Relayer) CoSign(_ context.Context, raw []byte) ([]byte, error) {
 	}
 	if tx.Signers[0] != r.address {
 		return nil, errs.New(errs.CodeInvalidInput, op, slog.String("fee_payer", string(tx.Signers[0])))
+	}
+	_, ixs, err := chain.ResolveInstructions(raw, func(tables []chain.SolanaAddress) (chain.LookupTables, error) {
+		return r.rpc.LookupTables(ctx, tables)
+	})
+	if err != nil {
+		return nil, err
+	}
+	if err := chain.ScreenPrograms(ixs); err != nil {
+		return nil, err
 	}
 	if err := tx.Sign(r.key); err != nil {
 		return nil, errs.Wrap(err, errs.CodeInternal, op)

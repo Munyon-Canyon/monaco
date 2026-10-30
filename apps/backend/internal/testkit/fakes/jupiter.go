@@ -3,14 +3,15 @@ package fakes
 import (
 	"crypto/ed25519"
 	"encoding/base64"
-	"encoding/binary"
 	"encoding/json"
 	"math/big"
 	"net/http"
+	"net/url"
 	"slices"
 	"strconv"
 
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
+	"github.com/monaco/monaco/apps/backend/internal/testkit/swaptx"
 )
 
 const (
@@ -81,8 +82,7 @@ func (s *Server) jupiterOrder(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, reply)
 		return
 	}
-	signers, err := orderSigners(q.Get("payer"), taker)
-	if err != nil {
+	if err := checkAddresses(q.Get("payer"), taker); err != nil {
 		rejectOrder(w)
 		return
 	}
@@ -91,7 +91,7 @@ func (s *Server) jupiterOrder(w http.ResponseWriter, r *http.Request) {
 	n := s.orderCount
 	reply.RequestID = "req-" + strconv.FormatUint(n, 10)
 	s.orders[reply.RequestID] = swapOrder{taker: taker, outMint: reply.OutputMint, in: reply.InAmount, out: out}
-	tx := unsignedTx(signers, n)
+	tx := honestTx(q, out, bps, n)
 	s.blockhashes[blockhashOf(tx)] = true
 	if sig, ok := expectedSignature(walletID, tx); ok {
 		s.unexecuted[sig] = true
@@ -145,37 +145,31 @@ func threshold(out string, bps int64) string {
 	return n.Quo(n, big.NewInt(10_000)).String()
 }
 
-func orderSigners(payer, taker string) ([]chain.SolanaAddress, error) {
-	signers := []string{taker}
-	if payer != "" && payer != taker {
-		signers = []string{payer, taker}
-	}
-	out := make([]chain.SolanaAddress, len(signers))
-	for i, s := range signers {
-		addr, err := chain.ParseAddress(s)
-		if err != nil {
-			return nil, err
+func checkAddresses(payer, taker string) error {
+	for _, a := range []string{payer, taker} {
+		if a == "" {
+			continue
 		}
-		out[i] = addr
+		if _, err := chain.ParseAddress(a); err != nil {
+			return err
+		}
 	}
-	return out, nil
+	return nil
 }
 
-func unsignedTx(signers []chain.SolanaAddress, nonce uint64) []byte {
-	n := len(signers)
-	blockhash := make([]byte, ed25519.PublicKeySize)
-	binary.BigEndian.PutUint64(blockhash[len(blockhash)-8:], nonce)
-	required := byte(1)
-	if n == 2 {
-		required = 2
+func honestTx(q url.Values, out string, bps int64, nonce uint64) []byte {
+	in, _ := new(big.Int).SetString(q.Get("amount"), 10)
+	quoted, _ := new(big.Int).SetString(out, 10)
+	payer := q.Get("payer")
+	if payer == "" {
+		payer = q.Get("taker")
 	}
-	msg := append([]byte{required, 0, 0}, chain.CompactU16(n)...)
-	for _, s := range signers {
-		key, _ := s.Bytes()
-		msg = append(msg, key...)
-	}
-	msg = append(append(msg, blockhash...), 0)
-	return append(append(chain.CompactU16(n), make([]byte, n*ed25519.SignatureSize)...), msg...)
+	return swaptx.Honest(swaptx.Spec{
+		Payer: chain.SolanaAddress(payer), Wallet: chain.SolanaAddress(q.Get("taker")),
+		In:       chain.Mint{Address: chain.SolanaAddress(q.Get("inputMint"))},
+		Out:      chain.Mint{Address: chain.SolanaAddress(q.Get("outputMint"))},
+		InAmount: in.Uint64(), QuotedOut: quoted.Uint64(), SlippageBps: swaptx.Bps(bps), Nonce: nonce,
+	})
 }
 
 func fullySignedBy(tx chain.Transaction, taker string) bool {

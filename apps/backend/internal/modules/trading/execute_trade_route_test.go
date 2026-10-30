@@ -183,7 +183,7 @@ func TestExecuteTrade_anUnknownWinnerBlocksTheTradeAsUntradable(t *testing.T) {
 func TestExecuteTrade_aSolanaWinnerOnAnotherTokenBuysThatToken(t *testing.T) {
 	t.Parallel()
 	e := newEngineEnv(t)
-	ondo := chain.Mint{Address: "AAPLonDo1111111111111111111111111111111111111", Decimals: 9}
+	ondo := chain.Mint{Address: "88a8Dstsn9NgnpiThVQEgRaWKNr4jFxjKuKbut21N2Da", Decimals: 9}
 	e.quote(usdcToken(), ondo, 210_000_000, true)
 	e.jup.SetOrder(
 		jupiterMint(usdcToken()),

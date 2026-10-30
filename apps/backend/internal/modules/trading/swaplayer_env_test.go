@@ -74,6 +74,7 @@ type layerEnv struct {
 	fills  *chainFills
 	reads  sqlc.DBTX
 	uow    *db.UnitOfWork
+	tables app.LookupTables
 }
 
 func newLayerEnv(t *testing.T) *layerEnv {
@@ -106,7 +107,7 @@ func (e *layerEnv) script(requestID string) {
 func (e *layerEnv) layer() *app.SwapLayer {
 	return app.NewSwapLayer(app.SwapLayerDeps{
 		UoW: e.uow, Reads: e.reads, Clock: e.clk, IDs: e.ids, Venue: e.venue, Signer: e.signer, Chain: e.fills,
-		Hints: e.hints,
+		Hints: e.hints, Tables: e.tables,
 	})
 }
 

@@ -24,6 +24,10 @@ type stubRPC struct {
 	sendErr error
 }
 
+func (*stubRPC) LookupTables(context.Context, []chain.SolanaAddress) (chain.LookupTables, error) {
+	return chain.LookupTables{}, nil
+}
+
 func (*stubRPC) LatestBlockhash(context.Context) (solana.Blockhash, error) {
 	return solana.Blockhash{Hash: [32]byte{7}, LastValidBlockHeight: 100}, nil
 }
