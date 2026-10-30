@@ -6,7 +6,7 @@ struct MarketsSearch: View {
     let open: (MarketAsset) -> Void
 
     var body: some View {
-        ScrollView {
+        Group {
             if !model.isSearching {
                 Color.clear.frame(height: MonacoTheme.Space.l)
             } else if model.searchResults.isEmpty {
@@ -15,8 +15,6 @@ struct MarketsSearch: View {
                 results
             }
         }
-        .scrollDismissesKeyboard(.interactively)
-        .accessibilityIdentifier("assets-grid-search")
     }
 
     private var results: some View {

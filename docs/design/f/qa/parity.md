@@ -177,6 +177,8 @@ founder:
 | [`06-markets-search`](../screens/06-markets-search.png) | dark | match | — | — |
 | [`06-markets-held`](../screens/06-markets-held.png) | dark | match | — | — |
 
+Re-shot on 10-30 after #7190: the search row scrolls with the list under the large "Markets" title (inline on scroll), and the navigation bar is hidden while typing, as `06-markets-search` shows.
+
 founder:
 
 ## Stock (07)

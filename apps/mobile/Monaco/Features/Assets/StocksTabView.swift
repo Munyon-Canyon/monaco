@@ -41,6 +41,7 @@ struct StocksTabView: View {
             }
         }
         .monacoTopLevelHeader(title: StocksTab.title)
+        .toolbar(searching ? .hidden : .automatic, for: .navigationBar)
         .toolbar {
             if !searching {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -157,7 +158,9 @@ private struct StocksTabScreen: View {
     }
 
     private var stage: Stage {
-        guard model.browse != .held, model.preIpo.rows.isEmpty, model.watchlistRows.isEmpty else { return .browse }
+        guard !searching, model.browse != .held, model.preIpo.rows.isEmpty, model.watchlistRows.isEmpty else {
+            return .browse
+        }
         switch model.preIpo.phase {
         case .idle, .loading: return .loading
         case .failed: return .failed
@@ -173,9 +176,6 @@ private struct StocksTabScreen: View {
             .onChange(of: query) { _, value in model.setQuery(value) }
             .onChange(of: fieldFocused) { _, focused in
                 if focused { searching = true }
-            }
-            .safeAreaInset(edge: .top, spacing: 0) {
-                if stage != .failed { searchRow }
             }
             .sheet(isPresented: $showsPreIpoInfo) { MarketsPreIpoInfoSheet() }
     }
@@ -202,35 +202,18 @@ private struct StocksTabScreen: View {
         }
         .padding(.horizontal, MonacoTheme.Space.gutter)
         .padding(.bottom, MonacoTheme.Space.s)
-        .background(MonacoTheme.canvas)
     }
 
-    private var content: some View {
-        ZStack {
-            browseContent
-                .opacity(searching ? 0 : 1)
-                .allowsHitTesting(!searching)
-                .accessibilityHidden(searching)
-            if searching {
-                MarketsSearch(model: model, open: open)
-                    .background(MonacoTheme.canvas)
-            }
-        }
-    }
-
-    @ViewBuilder private var browseContent: some View {
+    @ViewBuilder private var content: some View {
         switch stage {
-        case .loading:
-            ScrollView { MarketsLoading() }
         case .failed:
             AssetsLoadFailure(identifier: "assets-failed") { Task { await model.loadMarkets() } }
-        case .browse:
+        case .loading, .browse:
             ScrollView {
-                VStack(alignment: .leading, spacing: MonacoTheme.Space.section) {
-                    header
-                    sections
+                VStack(alignment: .leading, spacing: 0) {
+                    searchRow
+                    results
                 }
-                .padding(.top, MonacoTheme.Space.s)
                 .padding(.bottom, MonacoTheme.Space.homeClear)
             }
             .scrollDismissesKeyboard(.interactively)
@@ -241,7 +224,21 @@ private struct StocksTabScreen: View {
                     await model.loadMarkets()
                 }
             }
-            .accessibilityIdentifier("assets-grid")
+            .accessibilityIdentifier(searching ? "assets-grid-search" : "assets-grid")
+        }
+    }
+
+    @ViewBuilder private var results: some View {
+        if searching {
+            MarketsSearch(model: model, open: open)
+        } else if stage == .loading {
+            MarketsLoading()
+        } else {
+            VStack(alignment: .leading, spacing: MonacoTheme.Space.section) {
+                header
+                sections
+            }
+            .padding(.top, MonacoTheme.Space.s)
         }
     }
 
