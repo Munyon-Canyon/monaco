@@ -155,7 +155,7 @@ enum ProposalSampleScenario: String, CaseIterable {
             script.asset = .nvda
             script.proposal = .filledMETA()
         case .tslaFailed:
-            script.asset = .nvda
+            script.asset = .teslaTSLA
             script.proposal = Components.Schemas.ProposalDetail.failedTSLA()
                 .closedResult(yes: 2, no: 2, voters: 5, needed: 3, ballot: .no, order: 2, sides: false)
         case .spaceXOpen:
@@ -482,6 +482,13 @@ extension ProposalVoteFlowScenario.Undo {
 }
 
 extension Components.Schemas.AssetDetail {
+    fileprivate static var teslaTSLA: Self {
+        var asset = nvda
+        asset.symbol = "TSLAx"
+        asset.displayName = "Tesla"
+        return asset
+    }
+
     fileprivate static var pilatesAMZN: Self {
         var asset = nvda
         asset.symbol = "AMZNx"

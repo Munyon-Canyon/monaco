@@ -89,18 +89,34 @@ final class ProposalStatsTests: XCTestCase {
         XCTAssertEqual(result.cells.first.map { "\($0.label) \($0.value)" }, "Price $185.00")
     }
 
-    func testTheEligibilityLineNeverPromisesATenderFill() async throws {
-        for kind in [Components.Schemas.ProposalKind.buy, .sell] {
-            for window in [Components.Schemas.PreIpoSellWindow.tenderQuarterly, .anyTime] {
-                var asset = Components.Schemas.AssetDetail.spaceX
-                asset.preIpo?.sellWindow = window
-                asset.preIpo?.nextTenderOn = window == .anyTime ? nil : "2027-01-15"
-                let eligibility = try XCTUnwrap(ProposalAsset(asset).preIpo).eligibility
-                let text = PreIpoCopy.proposalEligibilityLine(eligibility)
-                XCTAssertEqual(text, "Proposal eligible · fills when it passes", "\(kind) \(window)")
-                XCTAssertFalse(text.lowercased().contains("tender"))
-            }
-        }
+    func testATenderWindowNamesTheNextTenderInTheEligibilityLine() async throws {
+        var asset = Components.Schemas.AssetDetail.spaceX
+        asset.preIpo?.sellWindow = .tenderQuarterly
+        asset.preIpo?.nextTenderOn = "2027-01-15"
+        let preIpo = try XCTUnwrap(ProposalAsset(asset).preIpo)
+        let fill = try XCTUnwrap(preIpo.profile?.fillLine)
+        XCTAssertEqual(
+            PreIpoCopy.proposalEligibilityLine(preIpo.eligibility, fillLine: fill),
+            "Proposal eligible · fills at the next tender, Jan 2027")
+    }
+
+    func testAnyTimeWindowFillsWhenTheProposalPasses() async throws {
+        var asset = Components.Schemas.AssetDetail.spaceX
+        asset.preIpo?.sellWindow = .anyTime
+        asset.preIpo?.nextTenderOn = nil
+        let preIpo = try XCTUnwrap(ProposalAsset(asset).preIpo)
+        let fill = try XCTUnwrap(preIpo.profile?.fillLine)
+        XCTAssertEqual(
+            PreIpoCopy.proposalEligibilityLine(preIpo.eligibility, fillLine: fill),
+            "Proposal eligible · fills when it passes")
+    }
+
+    func testATenderWindowWithoutADateFillsWhenTheProposalPasses() async throws {
+        var asset = Components.Schemas.AssetDetail.spaceX
+        asset.preIpo?.sellWindow = .tenderQuarterly
+        asset.preIpo?.nextTenderOn = nil
+        let preIpo = try XCTUnwrap(ProposalAsset(asset).preIpo)
+        XCTAssertEqual(preIpo.profile?.fillLine, "fills when it passes")
     }
 
     func testAResearchOnlyAssetReadsResearchOnlyWithNoFillClause() async throws {

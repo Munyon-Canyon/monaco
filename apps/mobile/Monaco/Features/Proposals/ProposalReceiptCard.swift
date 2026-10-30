@@ -22,12 +22,7 @@ struct ProposalReceiptCard: View {
         return model.members.filter { missing.contains($0.id) }.map(\.name)
     }
 
-    private var hasTrade: Bool {
-        switch summary.status {
-        case .passed, .executed, .executionBlocked: true
-        default: summary.swap != nil
-        }
-    }
+    private var hasTrade: Bool { ProposalResultCopy.drawsTradeRow(status: summary.status) }
 
     private var myRow: ProposalResultCopy.Row? {
         ProposalResultCopy.myRow(

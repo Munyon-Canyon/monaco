@@ -133,7 +133,8 @@ struct ProposalDetailSlotView: View {
                     onInfo: { infoSheet = model.asset?.preIpo == nil ? .price : .estimate })
             }
             if let preIpo = model.asset?.preIpo, let profile = preIpo.profile {
-                ProposalPreIpoLedger(lines: profile.ledger, eligibility: preIpo.eligibility)
+                ProposalPreIpoLedger(
+                    lines: profile.ledger, eligibility: preIpo.eligibility, fillLine: profile.fillLine)
             }
             if let thesis = summary.thesis, !thesis.isEmpty {
                 ProposalReasonSection(title: "Thesis", text: thesis, style: .plain)

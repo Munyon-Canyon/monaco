@@ -106,8 +106,12 @@ public enum PreIpoCopy {
     public static let proposalSubtitle = "Pre-IPO · priced at the secondary estimate"
     public static let proposalFillLine = "fills when it passes"
 
-    public static func proposalEligibilityLine(_ eligibility: PreIpoEligibility) -> String {
-        eligibility == .eligible ? "\(eligible) · \(proposalFillLine)" : researchOnly
+    public static func proposalTenderFillLine(_ month: String) -> String { "fills at the next tender, \(month)" }
+
+    public static func proposalEligibilityLine(
+        _ eligibility: PreIpoEligibility, fillLine: String = proposalFillLine
+    ) -> String {
+        eligibility == .eligible ? "\(eligible) · \(fillLine)" : researchOnly
     }
 
     public static func roundsCount(rounds: Int, estimates: Int) -> String {
@@ -156,5 +160,6 @@ public enum PreIpoCopy {
         proposalSubtitle,
         proposalEligibilityLine(.eligible),
         proposalEligibilityLine(.researchOnly),
+        proposalEligibilityLine(.eligible, fillLine: proposalTenderFillLine("Jan 2027")),
     ]
 }
