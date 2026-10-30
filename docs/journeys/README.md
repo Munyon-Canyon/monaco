@@ -48,6 +48,7 @@ requires: []                # journeys that must have run first, by id
 actors: [A]                 # one account per actor; every actor shares one simulator
 flows: [01]                 # backend flows this journey exercises
 # funds: only for a journey that moves money, see below
+# simslim: only for a journey that needs a category base-slim turns off, see below
 xcuitest: [apps/mobile/MonacoUITests/Journeys/SignInJourney.swift, apps/mobile/MonacoUITests/Journeys/SignInJourneyUITests.swift]
 ---
 ```
@@ -66,6 +67,8 @@ A scenario is a `###` heading that starts with its id (`### S1 Sign in`) and a t
 A step that has no accessibility identifier to target is a gap in the app. Add the identifier in the same ticket.
 
 `scripts/qa/journey.py` passes the run values to the test, the setup script and the truth check as `MONACO_QA_RUN` and `MONACO_QA_REFUND_ADDRESS`. It makes `MONACO_QA_RUN` for each run, so a value one run writes never matches one an earlier run left on the same database. It reads `MONACO_QA_REFUND_ADDRESS` from the environment. When it is unset, it uses the QA pot's address from `monacoctl qa pot --address`, and refuses to start a journey with `funds` only when neither is available.
+
+`simslim` names a profile in `ci/profiles/`. `scripts/qa/journey.py` passes it as `SIMSLIM_PROFILE` to `scripts/simslim-ensure.sh` before that journey. Every other journey uses `ci/profiles/base-slim.json`, and the shared simulator is re-slimmed when the profile changes.
 
 The setup script and the truth check also get `MONACO_QA_HANDOFF`, the run's hand-off file: a JSON object of strings that the test reads with `JourneyHandoff.read`. A setup script writes a value there that only it can make, such as a dev token, and the truth check reads back what the run left there, such as the dev user's id.
 

@@ -307,6 +307,24 @@ class Coverage(Tree):
         self.assertIn("uncovered: 02", output.getvalue())
 
 
+class SimslimProfile(Tree):
+    def declare(self, name):
+        self.write("docs/journeys/auth/sign-in.md", DOC.replace("actors: [A]\n", "actors: [A]\nsimslim: %s\n" % name))
+
+    def test_a_journey_without_simslim_has_no_profile(self):
+        self.assertEqual(journey.load_journeys()["auth/sign-in"].simslim, "")
+
+    def test_a_named_profile_that_exists_passes_and_is_read(self):
+        self.write("ci/profiles/photos.json", "{}")
+        self.declare("photos")
+        self.assertEqual(self.problems(), [])
+        self.assertEqual(journey.load_journeys()["auth/sign-in"].simslim, "photos")
+
+    def test_an_unknown_profile_is_named(self):
+        self.declare("nope")
+        self.assertIn("simslim names profile 'nope', which has no ci/profiles/nope.json", self.problems()[0])
+
+
 class Funds(Tree):
     def fund(self, lines):
         self.write("docs/journeys/auth/sign-in.md", DOC.replace("actors: [A]\n", "actors: [A]\nfunds:\n" + lines))
@@ -842,6 +860,38 @@ class Simulators(Tree):
         self.assertEqual(journey.resolve_simulator(), "have")
         ensure = [c[1:] for c in calls if c[0].endswith("simslim-ensure.sh")]
         self.assertEqual(ensure, [["check", "have"]])
+
+    def ensure_envs(self, **kwargs):
+        envs = []
+        stub = self.stub_for([])
+        def capture(args, **kw):
+            if args[0].endswith("simslim-ensure.sh"):
+                envs.append(kw.get("env"))
+            return stub(args, **kw)
+        journey.sh = capture
+        self.devices["other"] = [{"udid": "have", "name": "Monaco Journeys", "isAvailable": True}]
+        journey.resolve_simulator(**kwargs)
+        return envs
+
+    def test_a_journey_profile_reaches_simslim_ensure_as_simslim_profile(self):
+        envs = self.ensure_envs(profile="photos")
+        self.assertEqual(len(envs), 1)
+        self.assertEqual(envs[0]["SIMSLIM_PROFILE"], str(journey.ROOT / "ci" / "profiles" / "photos.json"))
+        self.assertTrue(envs[0]["SIMSLIM_PROFILE"].endswith("ci/profiles/photos.json"))
+
+    def test_a_journey_without_a_profile_leaves_the_environment_alone(self):
+        self.assertEqual(self.ensure_envs(), [None])
+
+    def test_a_created_simulator_is_slimmed_with_the_profile_too(self):
+        envs = []
+        stub = self.stub_for([])
+        def capture(args, **kw):
+            if args[0].endswith("simslim-ensure.sh"):
+                envs.append(kw.get("env"))
+            return stub(args, **kw)
+        journey.sh = capture
+        journey.resolve_simulator(profile="photos")
+        self.assertTrue(envs[0]["SIMSLIM_PROFILE"].endswith("ci/profiles/photos.json"))
 
     def test_an_explicit_simulator_is_kept_and_not_slimmed(self):
         journey.sh = lambda args, **kwargs: self.fail("unexpected command: %r" % (args,))
@@ -1529,7 +1579,7 @@ class Budget(Output):
         hang.chmod(0o755)
         args = ["run", "auth/sign-in", "--no-build", "--timeout", "2"]
         with unittest.mock.patch.object(journey, "journey_backend", lambda *a: _yielding("http://127.0.0.1:8080")), \
-                unittest.mock.patch.object(journey, "resolve_simulator", lambda override="", logins=None: "sim"), \
+                unittest.mock.patch.object(journey, "resolve_simulator", lambda override="", logins=None, profile="": "sim"), \
                 unittest.mock.patch.object(journey, "check_simulator_api_environment", lambda sim, url: None), \
                 unittest.mock.patch.object(journey, "prepare_logins", lambda *a: None), \
                 unittest.mock.patch.object(journey, "reset_journey_simulator", lambda *a: None), \
@@ -1614,7 +1664,7 @@ class KnownRuns(Output):
         fake = self.write("xcodebuild.sh", "#!/bin/sh\ncat %s\n" % log)
         fake.chmod(0o755)
         with unittest.mock.patch.object(journey, "journey_backend", lambda *a: _yielding("http://127.0.0.1:8080")), \
-                unittest.mock.patch.object(journey, "resolve_simulator", lambda override="", logins=None: "sim"), \
+                unittest.mock.patch.object(journey, "resolve_simulator", lambda override="", logins=None, profile="": "sim"), \
                 unittest.mock.patch.object(journey, "check_simulator_api_environment", lambda sim, url: None), \
                 unittest.mock.patch.object(journey, "prepare_logins", lambda *a: None), \
                 unittest.mock.patch.object(journey, "reset_journey_simulator", lambda *a: None), \
@@ -1699,7 +1749,7 @@ class Session(Output):
     def run_journey(self, body, *extra):
         script = self.fake_xcodebuild(body)
         with unittest.mock.patch.object(journey, "journey_backend", lambda *a: _yielding("http://127.0.0.1:8080")), \
-                unittest.mock.patch.object(journey, "resolve_simulator", lambda override="", logins=None: "sim"), \
+                unittest.mock.patch.object(journey, "resolve_simulator", lambda override="", logins=None, profile="": "sim"), \
                 unittest.mock.patch.object(journey, "check_simulator_api_environment", lambda sim, url: None), \
                 unittest.mock.patch.object(journey, "prepare_logins", lambda *a: None), \
                 unittest.mock.patch.object(journey, "reset_journey_simulator", lambda *a: None), \
@@ -1851,7 +1901,7 @@ class MutantRunSetup(unittest.TestCase):
             for name, value in (("load_journeys", lambda: {"money/withdraw": fake}), ("pick", lambda j, i: fake),
                                 ("sh", sh), ("actor_logins", lambda j, a: contextlib.nullcontext({})),
                                 ("load_accounts", lambda: {}), ("held_logins", lambda j, a: []),
-                                ("use_derived_data", lambda l: None), ("resolve_simulator", lambda s, l: "sim"),
+                                ("use_derived_data", lambda l: None), ("resolve_simulator", lambda s, l, p: "sim"),
                                 ("check_simulator_api_environment", lambda s, u: None),
                                 ("reset_journey_simulator", lambda *a: None), ("build", lambda *a: None),
                                 ("mutant_expectation", lambda p: ["S1"]), ("run_once", run_once),
@@ -1937,7 +1987,7 @@ class All(Output):
             return [], "PASS"
 
         with unittest.mock.patch.object(journey, "journey_backend", backend), \
-                unittest.mock.patch.object(journey, "resolve_simulator", lambda override="", logins=None: "sim"), \
+                unittest.mock.patch.object(journey, "resolve_simulator", lambda override="", logins=None, profile="": "sim"), \
                 unittest.mock.patch.object(journey, "check_simulator_api_environment", lambda sim, url: None), \
                 unittest.mock.patch.object(journey, "prepare_logins", lambda *a: None), \
                 unittest.mock.patch.object(journey, "reset_journey_simulator", lambda *a: None), \
