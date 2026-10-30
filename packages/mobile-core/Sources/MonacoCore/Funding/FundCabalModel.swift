@@ -22,6 +22,7 @@ public final class FundCabalModel {
     public var amountText = ""
     public private(set) var preview: Components.Schemas.FundPreview?
     public private(set) var watchedTransferID: String?
+    public private(set) var shareUnavailable = false
 
     public let cabalID: String
     public let cabalName: String
@@ -93,8 +94,10 @@ public final class FundCabalModel {
     public var line: String {
         switch state {
         case .empty, .invalid:
+            if shareUnavailable { return FundCabalCopy.fromCash }
             return FundCabalCopy.shareLine(now: sliceNowBps ?? 0)
         case .typed(let now, let after):
+            if shareUnavailable { return FundCabalCopy.fromCash }
             return FundCabalCopy.shareLine(now: now, after: after)
         case .belowMinimum(let minMicros):
             return FundCabalCopy.belowMinimum(minMicros: minMicros)
@@ -201,6 +204,7 @@ public final class FundCabalModel {
             }
             guard issued == generation else { return }
             preview = wire
+            shareUnavailable = false
             if settled {
                 cashAfterMicros = maxMicros
             } else {
@@ -208,8 +212,19 @@ public final class FundCabalModel {
             }
         } catch {
             guard issued == generation, !Task.isCancelled else { return }
-            if preview == nil { resting = .failed(BalanceSource.message(for: APIError(error))) }
+            let failure = APIError(error)
+            if Self.isPricesStale(failure) {
+                shareUnavailable = true
+                if preview == nil { resting = .empty }
+            } else if preview == nil {
+                resting = .failed(BalanceSource.message(for: failure))
+            }
         }
+    }
+
+    private static func isPricesStale(_ error: APIError) -> Bool {
+        if case .problem(let problem) = error { return problem.code == .known(.pricesStale) }
+        return false
     }
 
     private func applyPreview(_ wire: Components.Schemas.FundPreview?, micros: Int64) {

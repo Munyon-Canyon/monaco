@@ -134,6 +134,51 @@ final class FundCabalModelTests: XCTestCase {
         XCTAssertEqual(sent.last?.path, "/v1/cabals/\(cabalID)/fund/preview?amount_micros=250000000")
     }
 
+    func testStalePricesKeepTheLineAtFromYourCashWithoutAShare() async throws {
+        let rig = rig(
+            StubTransport(scripted: [.json(.ok, preview()), try .problem(problem(503, .pricesStale))]))
+        await rig.model.load()
+
+        await type("250", into: rig)
+        _ = await waitUntil { rig.model.shareUnavailable }
+
+        XCTAssertEqual(rig.model.line, "From your cash")
+        XCTAssertEqual(rig.model.maxMicros, 500_000_000)
+    }
+
+    func testStalePricesOnTheFirstLoadShowFromYourCashNotAFailure() async throws {
+        let rig = rig(StubTransport(scripted: [try .problem(problem(503, .pricesStale))]))
+
+        await rig.model.load()
+
+        XCTAssertEqual(rig.model.state, .empty)
+        XCTAssertEqual(rig.model.line, "From your cash")
+        XCTAssertTrue(rig.model.shareUnavailable)
+    }
+
+    func testTheShareComesBackWhenThePricesDo() async throws {
+        let rig = rig(
+            StubTransport(
+                scripted: [
+                    try .problem(problem(503, .pricesStale)), .json(.ok, preview()),
+                ]))
+        await rig.model.load()
+
+        await rig.model.load()
+
+        XCTAssertFalse(rig.model.shareUnavailable)
+        XCTAssertEqual(rig.model.line, "From your cash · your share 35%")
+    }
+
+    func testAnOtherFailureOnTheFirstLoadStillShowsItsMessage() async throws {
+        let rig = rig(StubTransport(scripted: [try .problem(problem(422, .insufficientFunds))]))
+
+        await rig.model.load()
+
+        XCTAssertEqual(rig.model.state, .failed("Server says no."))
+        XCTAssertFalse(rig.model.shareUnavailable)
+    }
+
     func testAnAmountOverTheCashIsInvalidWithoutAButton() async {
         let rig = rig(
             StubTransport(scripted: [.json(.ok, preview()), .json(.ok, preview(after: 3658, over: "150000000"))]))

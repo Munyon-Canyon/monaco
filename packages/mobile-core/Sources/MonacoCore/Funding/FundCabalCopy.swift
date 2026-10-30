@@ -20,6 +20,8 @@ public enum FundCabalCopy {
         return micros % 1_000_000 == 0 ? String(formatted.dropLast(3)) : formatted
     }
 
+    public static let fromCash = "From your cash"
+
     public static func shareLine(now: Int32, after: Int32? = nil) -> String {
         guard let after else { return "From your cash · your share \(percent(bps: now))" }
         return "From your cash · your share \(percent(bps: now)) → \(percent(bps: after))"
