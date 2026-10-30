@@ -70,6 +70,42 @@ func TestPullImage_fallsBackToTheMirrorAndTagsTheECRName(t *testing.T) {
 	}
 }
 
+func TestPullImage_goesStraightToTheMirrorWhenECRDataLimitIsExceeded(t *testing.T) {
+	t.Parallel()
+	code, log, _ := runPullImageFailingWith(t, "public.ecr.aws", "Error response from daemon: error from registry: Data limit exceeded", ecrPostgres)
+	if code != 0 {
+		t.Fatalf("exit = %d, want 0", code)
+	}
+	if got := strings.Count(log, "pull -q "+ecrPostgres+"\n"); got != 1 {
+		t.Fatalf("ECR pulls = %d, want 1: %q", got, log)
+	}
+	for _, want := range []string{"pull -q " + mirrorPostgres + "\n", "tag " + mirrorPostgres + " " + ecrPostgres + "\n"} {
+		if !strings.Contains(log, want) {
+			t.Fatalf("docker calls = %q, missing %q", log, want)
+		}
+	}
+}
+
+func TestPullImage_exitsOneWithBothErrorsWhenECRDataLimitIsExceededAndTheMirrorFails(t *testing.T) {
+	t.Parallel()
+	code, log, out := runPullImageFailingWith(t, "postgres", "Error response from daemon: error from registry: Data limit exceeded", ecrPostgres)
+	if code != 1 {
+		t.Fatalf("exit = %d, want 1", code)
+	}
+	if got := strings.Count(out, "Data limit exceeded"); got < 3 {
+		t.Fatalf("output %q names the registry error %d times, want the ECR error and the mirror error each in the summary", out, got)
+	}
+	if !strings.Contains(out, "pull-image: "+ecrPostgres+": ") || !strings.Contains(out, "pull-image: "+mirrorPostgres+": ") {
+		t.Fatalf("output %q does not carry both errors", out)
+	}
+	if got := strings.Count(log, "pull -q "+ecrPostgres+"\n"); got != 1 {
+		t.Fatalf("ECR pulls = %d, want 1: %q", got, log)
+	}
+	if strings.Contains(log, "tag ") {
+		t.Fatalf("docker calls = %q, tagged an image that never pulled", log)
+	}
+}
+
 func TestPullImage_skipsECRRetriesWhenECRRateLimits(t *testing.T) {
 	t.Parallel()
 	code, log, _ := runPullImageFailingWith(t, "public.ecr.aws", "toomanyrequests: Data limit exceeded", ecrPostgres)
