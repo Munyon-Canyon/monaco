@@ -59,6 +59,7 @@ public struct PreIpoDetail: Equatable, Sendable {
         public let estimateText: String
         public let estimateCaption: String
         public let ledger: [PreIpoCopy.LedgerLine]
+        public let fillLine: String
         public let steps: [PreIpoStep]
         public let countLine: String
         public let statsTop: [AssetStatCell]
@@ -115,6 +116,11 @@ extension PreIpoDetail.Profile {
         estimateText = estimatePrice
         estimateCaption = PreIpoCopy.estimateCaption(asOf: estimateDay)
         self.ledger = ledger
+        fillLine =
+            payload.sellWindow == .tenderQuarterly
+            ? payload.nextTenderOn.flatMap(dates.parse)
+                .map { PreIpoCopy.proposalTenderFillLine(dates.monthYear($0)) } ?? PreIpoCopy.proposalFillLine
+            : PreIpoCopy.proposalFillLine
         steps = rounds + [estimateStep]
         countLine = PreIpoCopy.roundsCount(rounds: rounds.count, estimates: 1)
         let valuation = AssetStats.abbreviated(payload.valuationMicros)

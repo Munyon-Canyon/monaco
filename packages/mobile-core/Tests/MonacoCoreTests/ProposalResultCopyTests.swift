@@ -30,6 +30,12 @@ final class ProposalResultCopyTests: XCTestCase {
 
     private let tally = ProposalTally(yes: 5, no: 1, voters: 8, needed: 5)
 
+    func testOnlyAPassedProposalDrawsATradeRow() {
+        let drawn: [ProposalStatus] = ProposalStatus.allCases.filter { ProposalResultCopy.drawsTradeRow(status: $0) }
+        XCTAssertEqual(drawn, [.passed, .executed, .executionBlocked])
+        XCTAssertFalse(ProposalResultCopy.drawsTradeRow(status: .failed))
+    }
+
     func testHeadlines() {
         let cases: [(ProposalStatus, ProposalTally, String)] = [
             (.passed, tally, "Passed 5–1"), (.executed, tally, "Passed 5–1"),

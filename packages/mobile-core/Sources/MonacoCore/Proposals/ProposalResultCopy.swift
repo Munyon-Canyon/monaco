@@ -143,6 +143,13 @@ public enum ProposalResultCopy {
             title: title, subtitle: subtitle, trailing: sinceBps.map(percent), tone: tone(sinceBps))
     }
 
+    public static func drawsTradeRow(status: ProposalStatus) -> Bool {
+        switch status {
+        case .passed, .executed, .executionBlocked: true
+        case .open, .failed, .expired, .withdrawn, .voided: false
+        }
+    }
+
     public static func pendingTradeRow(swap: ProposalSwap?, isSell: Bool, units: String?, statusMessage: String?)
         -> Row
     {

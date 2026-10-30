@@ -104,7 +104,9 @@ struct StatGrid: View {
                 Text(item.label)
                     .font(MonacoTheme.Typo.subhead)
                     .foregroundStyle(MonacoTheme.secondaryText)
-                    .fixedSize(horizontal: false, vertical: true)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
+                    .minimumScaleFactor(0.75)
+                    .fixedSize(horizontal: false, vertical: dynamicTypeSize.isAccessibilitySize)
                     .accessibilityLabel("\(item.label), \(item.spokenValue ?? item.value)")
                 if let info = item.info {
                     Button(action: info) {

@@ -4,6 +4,7 @@ import SwiftUI
 struct ProposalPreIpoLedger: View {
     let lines: [PreIpoCopy.LedgerLine]
     let eligibility: PreIpoEligibility
+    var fillLine = PreIpoCopy.proposalFillLine
     var showsEligibility = true
     var identifier = "proposal-preipo-ledger"
 
@@ -12,8 +13,9 @@ struct ProposalPreIpoLedger: View {
     var body: some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
             MonacoCard(style: .inset) {
-                VStack(spacing: MonacoTheme.Space.s) {
-                    ForEach(lines, id: \.label) { line in
+                VStack(spacing: 0) {
+                    ForEach(Array(lines.enumerated()), id: \.offset) { index, line in
+                        if index > 0 { MonacoRule() }
                         HStack(alignment: .firstTextBaseline, spacing: MonacoTheme.Space.s) {
                             Text(line.label)
                                 .font(MonacoTheme.Typo.subhead)
@@ -25,6 +27,7 @@ struct ProposalPreIpoLedger: View {
                                 .monospacedDigit()
                                 .foregroundStyle(MonacoTheme.ink)
                         }
+                        .padding(.vertical, MonacoTheme.Space.sm)
                         .accessibilityElement(children: .combine)
                     }
                 }
@@ -34,7 +37,7 @@ struct ProposalPreIpoLedger: View {
                     Image(systemName: (eligible ? MonacoIcon.check : MonacoIcon.info).symbol)
                         .foregroundStyle(eligible ? MonacoTheme.profit : MonacoTheme.secondaryText)
                         .accessibilityHidden(true)
-                    Text(PreIpoCopy.proposalEligibilityLine(eligibility))
+                    Text(PreIpoCopy.proposalEligibilityLine(eligibility, fillLine: fillLine))
                         .font(MonacoTheme.Typo.subhead)
                         .foregroundStyle(MonacoTheme.secondaryText)
                         .fixedSize(horizontal: false, vertical: true)
