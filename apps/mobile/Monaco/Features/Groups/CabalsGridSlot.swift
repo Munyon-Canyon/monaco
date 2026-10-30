@@ -13,6 +13,11 @@ enum CabalsGridMetrics {
     static let crest: CGFloat = 60
     static let columns = 4
     static let accessibilityColumns = 2
+    static let invitesFirstRows = 3
+
+    static func pinsInvitesFirst(tiles: Int, columns: Int) -> Bool {
+        tiles > columns * invitesFirstRows
+    }
 }
 
 struct CabalsGridSection: View {
@@ -33,11 +38,14 @@ struct CabalsGridSection: View {
                 MonacoSectionHeader("Your cabals").countText(content.countText)
                     .padding(.horizontal, MonacoTheme.Space.gutter)
                 LazyVGrid(columns: columns, alignment: .center, spacing: MonacoTheme.Space.m) {
+                    if pinsInvitesFirst {
+                        invitedTiles(content)
+                    }
                     ForEach(store.tiles) { tile in
                         cell(tile)
                     }
-                    ForEach(content.invites) { invite in
-                        invited(invite)
+                    if !pinsInvitesFirst {
+                        invitedTiles(content)
                     }
                     if !accountRestricted {
                         newCabal
@@ -95,10 +103,22 @@ struct CabalsGridSection: View {
         }
     }
 
+    private var columnCount: Int {
+        dynamicTypeSize.isAccessibilitySize ? CabalsGridMetrics.accessibilityColumns : CabalsGridMetrics.columns
+    }
+
     private var columns: [GridItem] {
-        let large = dynamicTypeSize.isAccessibilitySize
-        let count = large ? CabalsGridMetrics.accessibilityColumns : CabalsGridMetrics.columns
-        return Array(repeating: GridItem(.flexible(), spacing: MonacoTheme.Space.s, alignment: .top), count: count)
+        Array(repeating: GridItem(.flexible(), spacing: MonacoTheme.Space.s, alignment: .top), count: columnCount)
+    }
+
+    private var pinsInvitesFirst: Bool {
+        CabalsGridMetrics.pinsInvitesFirst(tiles: store.tiles.count, columns: columnCount)
+    }
+
+    private func invitedTiles(_ content: CabalsTabContent) -> some View {
+        ForEach(content.invites) { invite in
+            invited(invite)
+        }
     }
 
     private var hint: some View {
