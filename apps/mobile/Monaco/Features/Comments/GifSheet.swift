@@ -152,9 +152,10 @@ private struct GifGrid: View {
                     onPick(gif)
                 } label: {
                     GifStill(gif: gif)
+                        .accessibilityElement(children: .ignore)
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel(gif.title)
+                .accessibilityLabel(gif.title.isEmpty ? "GIF" : gif.title)
                 .accessibilityIdentifier("gif-cell-\(gif.id)")
             }
         }

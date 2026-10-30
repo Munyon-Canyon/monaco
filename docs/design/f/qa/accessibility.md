@@ -538,3 +538,9 @@ Filed on 2026-10-29 in F launch (phase 1).
 
 - Do the on-device VoiceOver check for "Vote Yes" and the double-tap-and-hold on all three surfaces.
 - Check skeletons for Reduce Motion (not read here).
+
+### Follow-up #7199
+
+- **GIF sheet tiles.** Each tile's still is a shape with an image overlay; the tile now ignores its children and the button carries the GIF's title as its label, with "GIF" when the title is empty (`GifSheet.swift`).
+- **Already labelled, left as is.** The composer's ⊕ ("plusAccessibility"), GIF, send and remove-attachment buttons, the sheet's Close, the invite settings gear and the review sheet's market-order i carry labels; the composer has no emoji button.
+- **Pending.** The audit rerun of groups 04, 08, 10 and 11 has not run; the operator rule keeps UI test runs out of lanes.
