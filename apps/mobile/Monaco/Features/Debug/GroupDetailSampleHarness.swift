@@ -120,6 +120,13 @@ extension GroupDetailSampleScenario {
         }
     }
 
+    var showsViewer: Bool {
+        switch self {
+        case .fMembers, .fMembersScrolled, .fMembersAll, .fVoters: true
+        default: false
+        }
+    }
+
     var routes: [any AppRoute] {
         let id = GroupDetailSampleData.cabalID
         switch self {
@@ -321,7 +328,7 @@ struct GroupDetailSampleHarness: View {
 
     var body: some View {
         SampleAppFrame(
-            auth: auth, tab: .cabals, routes: scenario.routes,
+            auth: auth, tab: .cabals, routes: scenario.routes, opensWithViewer: scenario.showsViewer,
             session: scenario == .loading ? SampleAppFrame.loading : SampleAppFrame.signedIn)
     }
 }

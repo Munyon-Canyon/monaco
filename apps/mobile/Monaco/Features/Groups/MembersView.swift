@@ -67,6 +67,7 @@ private struct MembersAllList: View {
     }
 
     @Environment(AppEnvironment.self) private var environment
+    @Environment(\.hostMainTab) private var hostMainTab
     @State private var showsInvite = false
 
     private var items: [Item] {
@@ -118,6 +119,13 @@ private struct MembersAllList: View {
         .accessibilityIdentifier("members-list")
     }
 
+    private func open(_ row: Components.Schemas.CabalMemberRow) {
+        let preview = UserPreview(displayName: row.displayName, handle: row.handle, photoURL: row.photoUrl)
+        environment.navigator.open(
+            UserProfileRoute(userID: row.userId, preview: preview),
+            in: hostMainTab ?? environment.navigator.selectedTab)
+    }
+
     @ViewBuilder private func row(_ item: Item) -> some View {
         let viewerID = environment.viewer?.userID
         switch item {
@@ -130,11 +138,14 @@ private struct MembersAllList: View {
             MonacoSectionHeader(title)
                 .padding(.horizontal, MonacoTheme.Space.gutter)
         case .member(let entry, _):
-            CabalMemberLink(
-                entry: entry, viewerID: viewerID,
-                subtitle: CabalMemberCopy.voterLine(entry.row),
-                isLast: entry.id == model.rows.last?.id
-            )
+            Button {
+                open(entry.row)
+            } label: {
+                CabalMemberLine(
+                    entry: entry, viewerID: viewerID, subtitle: CabalMemberCopy.voterLine(entry.row),
+                    chevron: true, isLast: entry.id == model.rows.last?.id)
+            }
+            .buttonStyle(.monacoRow)
             .onAppear { Task { await model.loadMore(after: entry) } }
         case .invite:
             Button {
@@ -172,7 +183,7 @@ private struct MembersRequestRow: View {
         MonacoRow(
             title: request.name,
             subtitle: CabalMemberCopy.requestLine(via: request.via, createdAt: request.createdAt, now: .now),
-            isLast: false, trailingIsInteractive: true, isPrivate: true,
+            subtitleLineLimit: 2, isLast: false, trailingIsInteractive: true, isPrivate: true,
             leading: {
                 MonacoAvatar(
                     photoURL: request.photoURL, displayName: request.name, size: MonacoRowLayout.baseMarkSize,

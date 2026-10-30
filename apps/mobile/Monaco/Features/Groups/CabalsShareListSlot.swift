@@ -50,7 +50,6 @@ struct CabalsShareListSection: View {
                         .foregroundStyle(tile.isFunded ? tile.direction.pnlTone.color : MonacoTheme.secondaryText)
                 }
             }
-            .padding(.horizontal, MonacoTheme.Space.gutter)
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("cabals-share-row-\(tile.id)")
