@@ -21,7 +21,7 @@ struct EmojiCategoryBar: View {
     let current: String
     let onSelect: (String) -> Void
 
-    private static let tapSize: CGFloat = 44
+    @ScaledMetric(relativeTo: .title3) private var tapSize: CGFloat = 44
 
     var body: some View {
         VStack(spacing: 0) {
@@ -40,11 +40,11 @@ struct EmojiCategoryBar: View {
                             .foregroundStyle(
                                 current == category.id ? MonacoTheme.primaryText : MonacoTheme.secondaryText
                             )
-                            .frame(width: Self.tapSize, height: Self.tapSize)
+                            .frame(minWidth: tapSize, minHeight: tapSize)
                             .background {
                                 if current == category.id { Circle().fill(MonacoTheme.border) }
                             }
-                            .frame(maxWidth: .infinity, minHeight: Self.tapSize)
+                            .frame(maxWidth: .infinity, minHeight: tapSize)
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
