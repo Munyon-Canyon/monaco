@@ -1,7 +1,7 @@
 ---
 id: cabals/join
 title: Join a cabal
-version: 10
+version: 11
 milestone: M10
 requires: [auth/sign-in]
 actors: [A, B]
@@ -58,7 +58,7 @@ The setup creates both cabals through the API, so this journey does not depend o
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
 | S3.1 | B | open, then tap | the cabal `QA gate {QA.run}`, then `cabal-join-button` | | `cabal-join-policy` reads "Approval required: the creator reviews each request.". The toast "Request sent. You'll be in once the creator says yes." shows, and `cabal-join-requested` reads "Request pending" |
-| S3.2 | A | open, tap, long press, then tap | the cabal `QA gate {QA.run}`, the Members tab, `cabal-members-see-all`, the `cabal-join-request-row`, then "Decline" (`cabal-join-deny`) in its menu | | The toast "Denied." shows |
+| S3.2 | A | open, tap, long press, then tap | the cabal `QA gate {QA.run}`, the Members tab, `cabal-members-see-all`, the `cabal-join-request-row`, then "Decline" (`cabal-join-deny`) in its menu | | The toast "Declined." shows |
 | S3.3 | B | open | the cabal `QA gate {QA.run}` | | `cabal-join-declined` reads "Request declined" and `cabal-join-button` reads "Ask again" within 15 s |
 | S3.4 | B | tap | `cabal-join-button` | | The toast "Request sent. You'll be in once the creator says yes." shows, and `cabal-join-requested` reads "Request pending" |
 

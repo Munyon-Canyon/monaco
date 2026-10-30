@@ -1,7 +1,7 @@
 journey: cabals/join
 expect-fail: S3
 
-Decline in the request row's menu approves the request. S3.2 waits for the toast "Denied.", so it must fail.
+Decline in the request row's menu approves the request. S3.2 waits for the toast "Declined.", so it must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 a

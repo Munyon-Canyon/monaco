@@ -44,7 +44,7 @@ public enum CabalAccessStanding: Equatable, Sendable {
 public final class CabalAccessModel {
     public static let joinedToast = CabalEntry.joinedToast
     public static let approvedToast = "Approved."
-    public static let deniedToast = "Denied."
+    public static let deniedToast = "Declined."
     public static let inviteDeclinedToast = "Invite declined."
     public static let approvedWithoutVoteToast = "Approved. Add them as a voter in Cabal settings."
 
