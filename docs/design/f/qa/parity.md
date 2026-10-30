@@ -207,10 +207,10 @@ founder:
 | [`09-fund-cabal`](../screens/09-fund-cabal.png) | dark | match (15 pt floor) | — | — |
 | [`09-fund-cabal-invalid`](../screens/09-fund-cabal-invalid.png) | dark | match (15 pt floor) | — | — |
 | [`09-fund-cabal-settled`](../screens/09-fund-cabal-settled.png) | dark | match (15 pt floor) | — | #7029 |
-| [`09-withdraw-empty`](../screens/09-withdraw-empty.png) | dark | match (15 pt floor) | — | #7029 |
-| [`09-withdraw`](../screens/09-withdraw.png) | dark | match (15 pt floor) | — | #7029 |
-| [`09-withdraw-invalid`](../screens/09-withdraw-invalid.png) | dark | match (15 pt floor) | — | #7029 |
-| [`09-withdraw-settled`](../screens/09-withdraw-settled.png) | dark | match (15 pt floor) | Address abbreviation is sample data. | #7029 |
+| [`09-withdraw-empty`](../screens/09-withdraw-empty.png) | dark | match (15 pt floor) | All four network chips fit the row (12 pt chip padding), re-shot 2026-10-30. | #7029, #7193 |
+| [`09-withdraw`](../screens/09-withdraw.png) | dark | match (15 pt floor) | All four network chips fit the row, re-shot 2026-10-30. | #7029, #7193 |
+| [`09-withdraw-invalid`](../screens/09-withdraw-invalid.png) | dark | match (15 pt floor) | "$650" reads "≈ 650.00 USDC · fee $0.50" over the limit and all four network chips fit, re-shot 2026-10-30. | #7029, #7193 |
+| [`09-withdraw-settled`](../screens/09-withdraw-settled.png) | dark | match (15 pt floor) | Address abbreviation is sample data; all four network chips fit the row, re-shot 2026-10-30. | #7029, #7193 |
 
 founder:
 
