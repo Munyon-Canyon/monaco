@@ -84,6 +84,25 @@ final class HomePendingVotesModelTests: XCTestCase {
         XCTAssertEqual(fired.first?.1, ["p-1"])
     }
 
+    func testASettlingVoteCollapsesItsCardToTheSettledLineAndLeavesYourVoteCount() async {
+        let settling =
+            #"{"proposal_id":"p-1","status":"passed","tally":{"yes":5,"no":1,"voters":8,"needed":5},"my_ballot":"yes","undo_until":null,"my_vote":{"order":5,"of":8,"yes_order":5,"no_order":0,"decided":true}}"#
+        let transport = StubTransport(
+            routes: [
+                pendingPath: [list(pending("p-1", closes: "2033-05-17T15:00:00Z"))],
+                "/v1/proposals/p-1/votes": [.json(.ok, settling)],
+            ])
+        let model = model(transport)
+        await model.load()
+        XCTAssertEqual(model.waitingCount, 1)
+        _ = await model.shown?.vote(.yes)
+        let card = model.shown
+        XCTAssertEqual(card?.isSettled, true)
+        XCTAssertEqual(card?.subhead(now: .now).contains("passed 5\u{2013}1"), true)
+        XCTAssertEqual(model.waitingCount, 0)
+        XCTAssertEqual(model.votedIDs, ["p-1"])
+    }
+
     func testARefusedVoteDoesNotFireOnVoteCommitted() async {
         let transport = StubTransport(
             routes: [
