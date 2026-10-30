@@ -82,6 +82,14 @@ struct VoteHoldSheet: View {
         }
     }
 
+    static func title(_ summary: ProposalSummary) -> String {
+        let side = summary.kind == "sell" ? "Sell" : "Buy"
+        let head = "\(side) \(AssetSymbolFormatter.display(summary.symbol))"
+        guard let micros = summary.usdcMicros else { return head }
+        let whole = UsdAmountFormatter.format(micros: micros / 1_000_000 * 1_000_000).dropLast(3)
+        return "\(head) \u{00B7} \(whole)"
+    }
+
     private func row(_ model: VoteHoldModel, _ summary: ProposalSummary) -> some View {
         let proposer = model.detail.members.first { $0.id == summary.proposerID }?.name
         let list = ProposalListRow(
@@ -94,7 +102,7 @@ struct VoteHoldSheet: View {
                     symbol: summary.symbol, displayName: list.assetName, assetKind: list.kind, size: .row,
                     logoURL: list.logoURL)
                 VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
-                    Text(list.title)
+                    Text(Self.title(summary))
                         .font(MonacoTheme.Typo.headline)
                         .foregroundStyle(MonacoTheme.primaryText)
                     Text([summary.cabalName, proposer].compactMap { $0 }.joined(separator: " · "))

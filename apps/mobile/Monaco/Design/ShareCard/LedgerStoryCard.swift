@@ -43,12 +43,16 @@ struct LedgerStoryCard: View {
         .accessibilityIdentifier("ledger-share-card")
     }
 
+    private var coverHeight: CGFloat { size.height > size.width * 1.5 ? 160 : 64 }
+
     @ViewBuilder private var cover: some View {
         if case .photo(_, _, let crest?) = spec.header.mark {
             CabalMark(
                 groupId: crest.cabalID, name: crest.name, size: size.width, pictureUrl: crest.pictureURL?.absoluteString
             )
-            .frame(width: size.width - FShareCard.frameWidth * 2 * scale, height: 64 * scale, alignment: .center)
+            .frame(
+                width: size.width - FShareCard.frameWidth * 2 * scale, height: coverHeight * scale, alignment: .center
+            )
             .clipped()
         }
     }
