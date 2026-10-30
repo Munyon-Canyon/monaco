@@ -143,8 +143,8 @@ scripts/qa/journey.py check                                   # docs and tests a
 scripts/qa/journey.py run auth/sign-in                        # every scenario, once
 scripts/qa/journey.py run auth/sign-in --runs 10              # for the flake rate
 scripts/qa/journey.py run auth/sign-in --scenario S2          # S1, then S2: a scenario starts where the last one ended
-scripts/qa/journey.py run --all                               # every journey, one build, one backend
-scripts/qa/journey.py run cabals/join profile/overview       # rerun several on one build and one backend
+scripts/qa/journey.py run --all                               # every journey, one build per actor set, one backend
+scripts/qa/journey.py run cabals/join profile/overview       # rerun several on one build per actor set and one backend
 scripts/qa/journey.py run auth/sign-in --timeout 600          # a longer budget than 300 s
 scripts/qa/journey.py run auth/sign-in --rebuild              # build even when the stamp matches
 scripts/qa/journey.py mutants auth/sign-in                    # catch rate against the seeded bugs
@@ -165,7 +165,7 @@ Each run appends a row to `.logs/qa/journeys/results.tsv`:
 
 `run` builds the app once per checkout. After a build it writes `.logs/qa/journeys/derived-<logins>/build.stamp` (one derived folder per set of logins the run holds, such as `derived-A-B`, so two runs never share one), the sha256 of `HEAD`, the uncommitted diff of `apps/mobile` and `packages/mobile-core`, and their untracked files. The next `run` prints `reusing build <stamp>` and skips `build-for-testing` while the stamp matches and the `.xctestrun` file is still under `derived-<logins>/Build/Products`. `--rebuild` builds anyway, and `--no-build` never builds. `mutants` always builds and deletes the stamp after it reverts a patch.
 
-`run --all` runs every journey in `requires` order, ties by id, on one build and one backend, and exits with the worst result. It skips a journey with a `funds` block, printing `SKIP funds`, unless `MONACO_QA_REFUND_ADDRESS` is set.
+`run --all` runs every journey in `requires` order, ties by id, on one build per actor set and one backend, and exits with the worst result. It skips a journey with a `funds` block, printing `SKIP funds`, unless `MONACO_QA_REFUND_ADDRESS` is set.
 
 `--timeout` (seconds, default 300) is the budget for one journey run: its setup scripts, every test call and the truth check together. The build is outside it. When the budget runs out, the run stops the running command and its children, gives the open scenario the result `TIMEOUT` and the ones after it `SKIP`, and prints `<journey> timed out after <n> s in <scenario> test` (or `<scenario> setup`). A `TIMEOUT` counts as a failure in the report and exits 1.
 
