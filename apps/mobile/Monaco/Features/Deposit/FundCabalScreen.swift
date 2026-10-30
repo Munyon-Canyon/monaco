@@ -4,6 +4,7 @@ import SwiftUI
 enum FundNoteCopy {
     static let title = "Your share"
     static let share = "Your share is the part of the pot you own. It moves when anyone funds or cashes out."
+    static let stale = "Prices are updating, so your share isn't shown right now. You can still fund."
 }
 
 struct FirstFundHandOff: Identifiable {
@@ -160,7 +161,7 @@ struct FundCabalKeypadView: View {
             if first { onFirstFund?() }
         }
         .sensoryFeedback(.error, trigger: isInvalid) { was, now in !was && now }
-        .sheet(isPresented: $showsNote) { FundNoteSheet() }
+        .sheet(isPresented: $showsNote) { FundNoteSheet(showsStale: model.shareUnavailable) }
         .sheet(isPresented: $showsSources) {
             FundSourcePicker(rows: sources, selectedID: model.cabalID) { id in
                 showsSources = false
@@ -197,12 +198,17 @@ enum FundPillMetrics {
 }
 
 struct FundNoteSheet: View {
+    var showsStale = false
+
     var body: some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.sm) {
             if LaunchFeatures.apy {
                 Text(CabalYield.fundNote)
             }
             Text(FundNoteCopy.share)
+            if showsStale {
+                Text(FundNoteCopy.stale)
+            }
         }
         .font(MonacoTheme.Typo.subhead)
         .foregroundStyle(MonacoTheme.secondaryText)

@@ -21,6 +21,7 @@ final class FundCabalCopyTests: XCTestCase {
     }
 
     func testTheShareLineShowsTheArrowOnlyWithAnAfter() {
+        XCTAssertEqual(FundCabalCopy.fromCash, "From your cash")
         XCTAssertEqual(FundCabalCopy.shareLine(now: 3500), "From your cash · your share 35%")
         XCTAssertEqual(FundCabalCopy.shareLine(now: 3500, after: 3600), "From your cash · your share 35% → 36%")
         XCTAssertEqual(FundCabalCopy.shareLine(now: 850, after: 1210), "From your cash · your share 8.5% → 12%")
