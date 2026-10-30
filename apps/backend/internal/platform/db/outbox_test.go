@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"slices"
+	"sync"
 	"testing"
 	"time"
 
@@ -224,13 +225,13 @@ func TestDrain_twoDrainsSkipEachOthersLockedRows(t *testing.T) {
 	outbox := db.NewOutbox(h.pool, h.clock)
 	holding, release := make(chan struct{}), make(chan struct{})
 	first := make(chan db.Batch, 1)
+	var hold sync.Once
 	go func() {
 		b, err := outbox.Drain(t.Context(), 2, func(context.Context, db.OutboxRow) error {
-			select {
-			case holding <- struct{}{}:
+			hold.Do(func() {
+				holding <- struct{}{}
 				<-release
-			default:
-			}
+			})
 			return nil
 		})
 		if err != nil {
@@ -238,7 +239,13 @@ func TestDrain_twoDrainsSkipEachOthersLockedRows(t *testing.T) {
 		}
 		first <- b
 	}()
-	<-holding
+	select {
+	case <-holding:
+	case b := <-first:
+		t.Fatalf("first drain returned %v without publishing a row", b.Published)
+	case <-time.After(time.Minute):
+		t.Fatal("first drain never reached its publish")
+	}
 
 	second, err := outbox.Drain(t.Context(), 100, func(context.Context, db.OutboxRow) error { return nil })
 	if err != nil {
