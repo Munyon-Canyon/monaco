@@ -109,6 +109,7 @@ public final class CabalsTabModel {
     public func load() async {
         generation += 1
         let issued = generation
+        let before = state
         if case .loaded = state {} else { state = .loading }
         do {
             async let portfolio = api.read { try await $0.getMyPortfolio().ok.body.json }
@@ -124,7 +125,12 @@ public final class CabalsTabModel {
             state = .loaded(CabalsTabContent(tiles: tiles, invites: pending))
             lastError = nil
         } catch {
-            if Task.isCancelled { return }
+            if Task.isCancelled {
+                if issued == generation, case .loading = state {
+                    if case .loading = before { state = .idle } else { state = before }
+                }
+                return
+            }
             guard issued > settled else { return }
             settled = issued
             let error = APIError(error)
