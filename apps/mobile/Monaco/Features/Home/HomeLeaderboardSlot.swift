@@ -19,7 +19,10 @@ private struct HomeLeaderboard: View {
     @Environment(PortfolioModel.self) private var portfolio: PortfolioModel?
     @Environment(ScreenRefresh.self) private var refresh: ScreenRefresh?
     @Environment(\.homeReads) private var reads
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var model: HomeLeaderboardModel?
+
+    private var wraps: Bool { dynamicTypeSize >= .xxLarge }
 
     var body: some View {
         let gate = HomeGate(portfolio: portfolio, reads: reads, balance: environment.balance.state)
@@ -70,17 +73,20 @@ private struct HomeLeaderboard: View {
                         Text(row.title)
                             .font(MonacoTheme.Typo.rowTitle)
                             .foregroundStyle(MonacoTheme.primaryText)
-                            .lineLimit(2)
+                            .lineLimit(wraps ? nil : 2)
+                            .fixedSize(horizontal: false, vertical: wraps)
                         Text(row.subtitle)
                             .font(MonacoTheme.Typo.caption)
                             .foregroundStyle(MonacoTheme.secondaryText)
-                            .lineLimit(2)
+                            .lineLimit(wraps ? nil : 2)
+                            .fixedSize(horizontal: false, vertical: wraps)
+                        if wraps, let rate = row.rateText {
+                            rateLabel(rate)
+                        }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    if let rate = row.rateText {
-                        Text(rate)
-                            .font(MonacoTheme.Typo.rowTitle.monospacedDigit())
-                            .foregroundStyle(MonacoTheme.primaryText)
+                    if !wraps, let rate = row.rateText {
+                        rateLabel(rate)
                     }
                     MonacoRowChevron()
                 }
@@ -93,6 +99,12 @@ private struct HomeLeaderboard: View {
         .accessibilityLabel(row.spoken)
         .accessibilityAddTraits(.isButton)
         .accessibilityIdentifier("home-leaderboard-row")
+    }
+
+    private func rateLabel(_ rate: String) -> some View {
+        Text(rate)
+            .font(MonacoTheme.Typo.rowTitle.monospacedDigit())
+            .foregroundStyle(MonacoTheme.primaryText)
     }
 
     private func leader(_ row: HomeLeaderboardRow) -> some View {

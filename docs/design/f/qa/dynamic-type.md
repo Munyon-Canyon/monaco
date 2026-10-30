@@ -64,9 +64,11 @@ Defects by size: large 4, xxLarge 16, xxxLarge 26, AX1 42, AX5 70.
 | [`02-home-scrolled`](../screens/02-home-scrolled.png) | AX5 | defect | 1 nothing truncated: Section header 'Your cabals 3 · 1 invited' breaks mid-word ('You/r/ca-/bals', 'in-/vit-/ed') in a narrow column beside 'See all' | #7118 |
 | [`02-home-empty`](../screens/02-home-empty.png) | large | ok | — | — |
 | [`02-home-empty`](../screens/02-home-empty.png) | xxLarge | ok | — | — |
-| [`02-home-empty`](../screens/02-home-empty.png) | xxxLarge | defect | 1 no truncation: feed rows 'Christelle - Degens - 1h -...' and 'Rosa - Night Shift - 50m -...' end in '...' (not a person or cabal name alone) | #7118 |
+| [`02-home-empty`](../screens/02-home-empty.png) | xxxLarge | ok | — | — |
 | [`02-home-empty`](../screens/02-home-empty.png) | AX1 | defect | 2 rows stack: feed row 'Buy AMZN $250' has the vote tally 3 - 0 beside the title, not stacked; Cash row Deposit ok | #7118 |
 | [`02-home-empty`](../screens/02-home-empty.png) | AX5 | defect | 12 overlap: card icon drawn over '3.5' in 'Cash - USDC 3.5 % APY'; $500.00 beside label, not stacked | #7118 |
+
+`FDynamicTypeAuditUITests/test02Home` passes at xxxLarge and AX5 (#7196). From `xxLarge` the Home first-use actions stack full width, and the empty-state copy, the standing line, the leaderboard row and the feed preview rows wrap instead of ending in `…`. The feed preview meta line draws its reply count as its own icon and number, so the audit reads the visible text. A Home slot that is hidden draws no content, so the audit no longer reads text clipped to zero height.
 
 ## Frames 04
 
