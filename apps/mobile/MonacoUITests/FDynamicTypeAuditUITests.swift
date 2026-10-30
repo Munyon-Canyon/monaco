@@ -25,6 +25,10 @@ nonisolated final class FDynamicTypeAuditUITests: XCTestCase {
         "the join request row draws whole at AX5 in the screenshot and the accessibility tree; "
         + "the audit still flags its name and sub-line after eight layout variants (#7235)"
 
+    private static let proposeBuyBackdropReason =
+        "the 'Propose buy' text behind the presented review sheet is flagged at every scroll position "
+        + "after the sheet title wraps (#7285) and the asset buttons stack (#7206); the sheet covers it"
+
     private static let allowed: [AllowedIssue] = [
         AllowedIssue(
             screen: "*", element: "no element",
@@ -35,6 +39,12 @@ nonisolated final class FDynamicTypeAuditUITests: XCTestCase {
         AllowedIssue(
             screen: "f__03-cabal-members-all", element: "'Asked to join · ",
             reason: requestRowReason),
+        AllowedIssue(
+            screen: "f__08-review-sheet", element: "48 'Propose buy'",
+            reason: proposeBuyBackdropReason),
+        AllowedIssue(
+            screen: "f__08-review-sheet-preipo", element: "48 'Propose buy'",
+            reason: proposeBuyBackdropReason),
     ]
 
     private static let preScaledReason: String? =

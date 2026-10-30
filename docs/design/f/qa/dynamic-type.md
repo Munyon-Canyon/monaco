@@ -18,7 +18,7 @@ Build: Debug `Monaco.app` from `149c981ab` (`staging` at `0e9545061` plus #7078'
 
 All 475 pairs were shot. The sim lock's 30-minute hold stopped the first run partway through `extra-extra-extra-large`; the second run shot the six frames it had missed, then AX1 and AX5. Nine frames were shot again at all five sizes with `MONACO_QA_SCREEN_SETTLE=8` because their first shots showed the wrong screen. Even then, `15-passed` draws an empty page at every size, and the `16-catch-up*` lines sometimes stop on Home, so 20 pairs are recorded as `no shot` (#7127). Each frame's five shots were laid side by side and judged by eye against the rules.
 
-`FDynamicTypeAuditUITests` (#7078) runs `.dynamicType` and `.textClipped` on the same 95 frames at xxxLarge and AX5, one test method per frame group: `scripts/qa/xcode-lock.sh xcode xcodebuild test-without-building ... -only-testing:MonacoUITests/FDynamicTypeAuditUITests/<group>`. Its allow-list holds only reports with no element and the members-all request row's false positive (#7201), so while the defects below are open it fails on their frames; it was not run to completion in #6586 (see [Next steps](#next-steps)).
+`FDynamicTypeAuditUITests` (#7078) runs `.dynamicType` and `.textClipped` on the same 95 frames at xxxLarge and AX5, one test method per frame group: `scripts/qa/xcode-lock.sh xcode xcodebuild test-without-building ... -only-testing:MonacoUITests/FDynamicTypeAuditUITests/<group>`. Its allow-list holds only reports with no element and the members-all request row's false positive (#7201) and the review sheet's backdrop 'Propose buy' text (#7206), so while the defects below are open it fails on their frames; it was not run to completion in #6586 (see [Next steps](#next-steps)).
 
 Sizes: `large` is the default, `xxLarge` is the prototype's "Larger text" step, `xxxLarge` is the largest non-accessibility size, `AX1` is `accessibility-medium` and `AX5` is `accessibility-extra-extra-extra-large`.
 
@@ -418,14 +418,16 @@ Defects by size: large 4, xxLarge 16, xxxLarge 26, AX1 42, AX5 70.
 | --- | --- | --- | --- | --- |
 | [`08-review-sheet`](../screens/08-review-sheet.png) | large | ok | — | — |
 | [`08-review-sheet`](../screens/08-review-sheet.png) | xxLarge | defect | 8 sheet: Shares/Price/Of treasury/To pass grid: '2%' value under 'Of treasury' and 'To pass 3 of 3' cut by pinned Send to vote button | #7120 |
-| [`08-review-sheet`](../screens/08-review-sheet.png) | xxxLarge | defect | 8 sheet: Of treasury and To pass values ('2%', '3 of 3') hidden behind Send to vote button | #7120 |
+| [`08-review-sheet`](../screens/08-review-sheet.png) | xxxLarge | ok | — (the 'Propose buy' text behind the sheet is allow-listed; the asset buttons stack from xxxLarge) | #7206 |
 | [`08-review-sheet`](../screens/08-review-sheet.png) | AX1 | defect | 8 sheet: Stat grid cut: Shares value '≈ 1.82' and Price row hidden behind Send to vote; Of treasury and To pass not visible | #7120 |
-| [`08-review-sheet`](../screens/08-review-sheet.png) | AX5 | defect | 2 rows stack: NVIDIA row not stacked: $400 trailing while 'Buy · market order' hyphenates ('mar-ket or-') and is cut by Send to vote; stats and QA pot hidden | #7120 |
+| [`08-review-sheet`](../screens/08-review-sheet.png) | AX5 | ok | — (the 'Propose buy' text behind the sheet is allow-listed; the asset buttons stack from xxxLarge) | #7206 |
 | [`08-review-sheet-preipo`](../screens/08-review-sheet-preipo.png) | large | ok | — | — |
 | [`08-review-sheet-preipo`](../screens/08-review-sheet-preipo.png) | xxLarge | ok | — | — |
-| [`08-review-sheet-preipo`](../screens/08-review-sheet-preipo.png) | xxxLarge | ok | — | — |
+| [`08-review-sheet-preipo`](../screens/08-review-sheet-preipo.png) | xxxLarge | ok | — (the 'Propose buy' text behind the sheet is allow-listed; the asset buttons stack from xxxLarge) | #7206 |
 | [`08-review-sheet-preipo`](../screens/08-review-sheet-preipo.png) | AX1 | defect | 8 sheet: Last 'Secondary estimate · Oct 20' row wraps and its second line is cut off behind the pinned Send to vote button | #7120 |
-| [`08-review-sheet-preipo`](../screens/08-review-sheet-preipo.png) | AX5 | defect | 2 rows stack: SpaceX row not stacked: $500 stays trailing while 'Buy ≈ 2.70 sh at the estimate' wraps one word per line and is cut by Send to vote; QA pot row hidden | #7120 |
+| [`08-review-sheet-preipo`](../screens/08-review-sheet-preipo.png) | AX5 | ok | — (the 'Propose buy' text behind the sheet is allow-listed; the asset buttons stack from xxxLarge) | #7206 |
+
+`FDynamicTypeAuditUITests/test08Review` reports only the allow-listed 'Propose buy' backdrop text at xxxLarge and AX5 (#7206). From xxxLarge the asset detail's propose buttons stack full width.
 
 ## Frames 09
 
