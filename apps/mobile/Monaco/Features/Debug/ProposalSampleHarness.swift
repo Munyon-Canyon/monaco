@@ -3,6 +3,7 @@ import MonacoAPI
 import MonacoCore
 import MonacoFlows
 import SwiftUI
+import Synchronization
 
 enum ProposalSampleScenario: String, CaseIterable {
     case open
@@ -247,6 +248,7 @@ private struct ProposalSampleDetail: View {
                 .task {
                     guard seed == .settle else { return }
                     await model.load()
+                    SampleDetailFreezeProtocol.freeze()
                     _ = await model.vote(ProposalBallot.yes.rawValue)
                 }
         }
@@ -261,6 +263,28 @@ private struct ProposalSampleDetail: View {
         box.model = model
         return model
     }
+}
+
+nonisolated final class SampleDetailFreezeProtocol: URLProtocol {
+    private static let frozen = Mutex(false)
+
+    static func freeze() {
+        let first = frozen.withLock { frozen in
+            defer { frozen = true }
+            return !frozen
+        }
+        if first { URLProtocol.registerClass(SampleDetailFreezeProtocol.self) }
+    }
+
+    override class func canInit(with request: URLRequest) -> Bool {
+        frozen.withLock { $0 } && request.httpMethod == "GET" && request.url?.path == "/v1/proposals/proposal-1"
+    }
+
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+
+    override func startLoading() {}
+
+    override func stopLoading() {}
 }
 
 nonisolated struct PermissionSheetSampleRoute: AppRoute {
@@ -327,7 +351,7 @@ private enum ClosedFixture {
     }
 }
 
-private enum ProposalSampleDetailSlot: ProposalSection {
+enum ProposalSampleDetailSlot: ProposalSection {
     static let isLive = true
 
     static func body(for context: ProposalContext) -> some View {
