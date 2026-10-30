@@ -42,17 +42,22 @@ struct ProposalPassedSheet: View {
     let onShare: () -> Void
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @ScaledMetric(relativeTo: .largeTitle) private var sealSize: CGFloat = 56
 
     var body: some View {
-        VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
+        let layout =
+            dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: MonacoTheme.Space.sm))
+            : AnyLayout(HStackLayout(spacing: MonacoTheme.Space.sm))
+        return VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
             Text(moment.cabalName)
                 .font(MonacoTheme.Typo.body)
                 .foregroundStyle(MonacoTheme.secondaryText)
                 .accessibilityIdentifier("proposal-passed-cabal")
             MonacoCard {
                 VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
-                    HStack(spacing: MonacoTheme.Space.sm) {
+                    layout {
                         Image(systemName: "checkmark.seal.fill")
                             .resizable()
                             .scaledToFit()
@@ -64,16 +69,19 @@ struct ProposalPassedSheet: View {
                                 .font(MonacoTheme.Typo.display)
                                 .foregroundStyle(MonacoTheme.primaryText)
                             Text(moment.tally)
+                                .fixedSize(horizontal: false, vertical: true)
                                 .font(MonacoTheme.Typo.body)
                                 .foregroundStyle(MonacoTheme.secondaryText)
                                 .accessibilityIdentifier("proposal-passed-tally")
                         }
                     }
                     Text(moment.trade)
+                        .fixedSize(horizontal: false, vertical: true)
                         .font(MonacoTheme.Typo.body)
                         .foregroundStyle(MonacoTheme.primaryText)
                         .accessibilityIdentifier("proposal-passed-trade")
                     Text(moment.calledIt)
+                        .fixedSize(horizontal: false, vertical: true)
                         .font(MonacoTheme.Typo.body)
                         .foregroundStyle(MonacoTheme.secondaryText)
                         .accessibilityIdentifier("proposal-passed-called-it")
@@ -91,8 +99,8 @@ struct ProposalPassedSheet: View {
         .padding(.horizontal, MonacoTheme.Space.gutter)
         .padding(.bottom, MonacoTheme.Space.m)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .monacoSheet(
-            title: moment.title, titleIdentifier: "proposal-passed-title", detents: .review, showsClose: true,
+        .monacoFittedSheet(
+            title: moment.title, titleIdentifier: "proposal-passed-title", detents: .result, showsClose: true,
             closeIdentifier: "proposal-passed-close"
         )
         .accessibilityIdentifier("proposal-passed-sheet")
