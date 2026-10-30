@@ -103,6 +103,7 @@ struct CabalPotBand: View {
     let model: CabalPotModel?
     var move: CabalHeaderCopy.Move?
     var openHistory: (() -> Void)?
+    var isPinned = false
 
     private static let pull = SectionStackMetrics.spacing - MonacoTheme.Space.sm
 
@@ -110,9 +111,10 @@ struct CabalPotBand: View {
 
     var body: some View {
         content
-            .frame(maxWidth: .infinity, minHeight: Self.pull + MonacoTheme.Space.xs, alignment: .leading)
+            .frame(maxWidth: .infinity, minHeight: isPinned ? 0 : Self.pull + MonacoTheme.Space.xs, alignment: .leading)
             .padding(.horizontal, MonacoTheme.Space.gutter)
-            .padding(.top, -Self.pull)
+            .padding(.vertical, isPinned ? MonacoTheme.Space.xs : 0)
+            .padding(.top, isPinned ? 0 : -Self.pull)
     }
 
     @ViewBuilder private var content: some View {

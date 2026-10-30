@@ -85,11 +85,19 @@ struct CabalScreen: View {
         .onPreferenceChange(CabalTabsTop.self) { tabsTop = $0 }
         .overlay(alignment: .top) {
             if CabalTabsPin.isPinned(tabsTop: tabsTop, barBottom: barBottom), cabal.cabal?.me != nil {
-                CabalTabBar(
-                    selection: selection, memberCount: cabal.cabal?.memberCount, identifierPrefix: "cabal-tab-pinned"
-                )
-                .monacoUnderlineTabsPinned()
-                .accessibilityIdentifier("cabal-tabs-pinned")
+                VStack(spacing: 0) {
+                    CabalMoveReader(cabalID: context.cabalID) { move in
+                        CabalPotBand(model: pot, move: move, isPinned: true)
+                            .background(MonacoTheme.canvas)
+                            .accessibilityIdentifier("cabal-pot-pinned")
+                    }
+                    CabalTabBar(
+                        selection: selection, memberCount: cabal.cabal?.memberCount,
+                        identifierPrefix: "cabal-tab-pinned"
+                    )
+                    .monacoUnderlineTabsPinned()
+                    .accessibilityIdentifier("cabal-tabs-pinned")
+                }
             }
         }
         .cabalMoreActions(

@@ -71,7 +71,7 @@ struct CabalContextMenuPreview: View {
     }
 
     private var figures: Text {
-        let value = Text(CabalHeaderCopy.compactDollars(tile.valueMicros)).foregroundStyle(MonacoTheme.secondaryText)
+        let value = Text(CabalHeaderCopy.compactDollars(tile.valueMicros)).foregroundStyle(MonacoTheme.profit)
         guard tile.isFunded else { return value }
         let gap = Text(" \u{00B7} ").foregroundStyle(MonacoTheme.secondaryText)
         return value + gap + Text(tile.returnText).foregroundStyle(tile.direction.pnlTone.color)
@@ -119,8 +119,7 @@ struct CabalContextMenuSampleSheet: View {
             Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .presentationBackground(.ultraThinMaterial)
-        .presentationDetents([.large])
+        .background(.ultraThinMaterial)
         .accessibilityIdentifier("cabals-menu-sample")
     }
 
