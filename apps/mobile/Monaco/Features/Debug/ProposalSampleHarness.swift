@@ -572,9 +572,9 @@ final class ProposalSampleHarnessEntry: SampleHarnessEntry {
                                 .analyticsScreen("vote_hold"))
                     }))
         }
+        let opensWithViewer = scenario == .nvdaPassedMoment || scenario == .tslaFailed
         return AnyView(
-            SampleAppFrame(
-                auth: auth, tab: .cabals, routes: [scenario.route], opensWithViewer: scenario == .nvdaPassedMoment))
+            SampleAppFrame(auth: auth, tab: .cabals, routes: [scenario.route], opensWithViewer: opensWithViewer))
     }
 }
 #endif

@@ -18,8 +18,12 @@ struct HomeVoteCard: View {
             VStack(alignment: .leading, spacing: MonacoTheme.Space.sm) {
                 header
                 VoteTallyBar(yes: tally.yes, no: tally.no, eligible: tally.voters)
-                buttons
-                hint
+                if let outcome = model.outcome, outcome.settled {
+                    settledLine(outcome)
+                } else {
+                    buttons
+                    hint
+                }
             }
         }
         .accessibilityElement(children: .contain)
@@ -57,6 +61,28 @@ struct HomeVoteCard: View {
         .buttonStyle(.plain)
         .accessibilityHint("Opens the proposal")
         .accessibilityIdentifier("\(identifierPrefix)-vote-open-\(model.id)")
+    }
+
+    private func settledLine(_ outcome: CastOutcome) -> some View {
+        let line = ProposalVoteCopy.committedOrdinary(choice: outcome.choice, tally: outcome.tally)
+        return HStack(spacing: MonacoTheme.Space.sm) {
+            Image(systemName: outcome.status == .passed ? "checkmark.seal.fill" : "xmark.circle")
+                .foregroundStyle(outcome.status == .passed ? MonacoTheme.profit : MonacoTheme.loss)
+                .accessibilityHidden(true)
+            Text(line.title)
+                .font(MonacoTheme.Typo.headline)
+                .foregroundStyle(MonacoTheme.primaryText)
+            Label("\(line.yes)", systemImage: "checkmark")
+                .foregroundStyle(MonacoTheme.profit)
+            Label("\(line.no)", systemImage: "xmark")
+                .foregroundStyle(MonacoTheme.loss)
+            Spacer(minLength: 0)
+        }
+        .font(MonacoTheme.Typo.subhead)
+        .frame(minHeight: MonacoButtonMetrics.hitTarget)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(line.accessibilityLabel)
+        .accessibilityIdentifier("\(identifierPrefix)-vote-settled-\(model.id)")
     }
 
     @ViewBuilder private var buttons: some View {

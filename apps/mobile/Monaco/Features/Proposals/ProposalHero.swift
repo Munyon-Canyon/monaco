@@ -69,51 +69,67 @@ struct ProposalHero: View {
         .accessibilityIdentifier("proposal-crest-line")
     }
 
-    private var heroRow: some View {
-        let layout =
-            dynamicTypeSize.isAccessibilitySize
-            ? AnyLayout(VStackLayout(alignment: .leading, spacing: MonacoTheme.Space.s))
-            : AnyLayout(HStackLayout(alignment: .center, spacing: MonacoTheme.Space.sm))
-        return layout {
-            heroTitle
-            if !dynamicTypeSize.isAccessibilitySize { Spacer(minLength: MonacoTheme.Space.s) }
-            if let micros = amountMicros {
-                Text(Self.amountLabel(micros: micros))
-                    .moneyFigure(.card)
-                    .foregroundStyle(MonacoTheme.ink)
-                    .accessibilityIdentifier("proposal-hero-amount")
+    @ViewBuilder private var heroRow: some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
+                mark
+                VStack(alignment: .leading, spacing: 0) {
+                    title
+                    subline
+                }
+                amount
             }
-        }
-        .accessibilityElement(children: .combine)
-    }
-
-    private var heroTitle: some View {
-        let layout =
-            dynamicTypeSize.isAccessibilitySize
-            ? AnyLayout(VStackLayout(alignment: .leading, spacing: MonacoTheme.Space.s))
-            : AnyLayout(HStackLayout(alignment: .center, spacing: MonacoTheme.Space.sm))
-        return layout {
-            StockMark(
-                symbol: summary.symbol, displayName: asset?.displayName, assetKind: asset?.kind ?? .stock,
-                size: .review, logoURL: asset?.logoURL)
-            VStack(alignment: .leading, spacing: 0) {
-                Text("\(kindLabel) \(ticker)")
-                    .font(MonacoTheme.Typo.title)
-                    .foregroundStyle(MonacoTheme.ink)
-                    .fixedSize(horizontal: false, vertical: true)
-                if let subtitle {
-                    Text(subtitle)
-                        .font(MonacoTheme.Typo.subhead)
-                        .foregroundStyle(MonacoTheme.secondaryText)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .accessibilityIdentifier("proposal-hero-subtitle")
-                } else {
-                    Text(summary.assetName(asset: asset))
-                        .font(MonacoTheme.Typo.subhead)
-                        .foregroundStyle(MonacoTheme.secondaryText)
-                        .fixedSize(horizontal: false, vertical: true)
+            .accessibilityElement(children: .combine)
+        } else {
+            HStack(alignment: .center, spacing: MonacoTheme.Space.sm) {
+                mark
+                VStack(alignment: .leading, spacing: 0) {
+                    HStack(alignment: .firstTextBaseline, spacing: MonacoTheme.Space.s) {
+                        title
+                        Spacer(minLength: MonacoTheme.Space.s)
+                        amount
+                    }
+                    subline
                 }
             }
+            .accessibilityElement(children: .combine)
+        }
+    }
+
+    private var mark: some View {
+        StockMark(
+            symbol: summary.symbol, displayName: asset?.displayName, assetKind: asset?.kind ?? .stock,
+            size: .review, logoURL: asset?.logoURL)
+    }
+
+    private var title: some View {
+        Text("\(kindLabel) \(ticker)")
+            .font(MonacoTheme.Typo.title)
+            .foregroundStyle(MonacoTheme.ink)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    @ViewBuilder private var amount: some View {
+        if let micros = amountMicros {
+            Text(Self.amountLabel(micros: micros))
+                .moneyFigure(.card)
+                .foregroundStyle(MonacoTheme.ink)
+                .accessibilityIdentifier("proposal-hero-amount")
+        }
+    }
+
+    @ViewBuilder private var subline: some View {
+        let isAccessibility = dynamicTypeSize.isAccessibilitySize
+        let line = Text(subtitle ?? summary.assetName(asset: asset))
+            .font(MonacoTheme.Typo.subhead)
+            .foregroundStyle(MonacoTheme.secondaryText)
+            .lineLimit(isAccessibility ? nil : 1)
+            .minimumScaleFactor(isAccessibility ? 1 : 0.75)
+            .fixedSize(horizontal: false, vertical: isAccessibility)
+        if subtitle != nil {
+            line.accessibilityIdentifier("proposal-hero-subtitle")
+        } else {
+            line
         }
     }
 

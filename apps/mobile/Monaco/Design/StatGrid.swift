@@ -54,11 +54,16 @@ struct StatGrid: View {
     let items: [StatItem]
     var columns: Int = StatMetrics.defaultColumns
     var inCard: Bool = true
+    var singleLineValues: Bool = false
 
-    init(items: [StatItem], columns: Int = StatMetrics.defaultColumns, inCard: Bool = true) {
+    init(
+        items: [StatItem], columns: Int = StatMetrics.defaultColumns, inCard: Bool = true,
+        singleLineValues: Bool = false
+    ) {
         self.items = items
         self.columns = columns
         self.inCard = inCard
+        self.singleLineValues = singleLineValues
     }
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -86,7 +91,7 @@ struct StatGrid: View {
             ForEach(Array(Self.rows(items, columns: count).enumerated()), id: \.offset) { _, row in
                 HStack(alignment: .lastTextBaseline, spacing: StatMetrics.columnGap) {
                     ForEach(Array(row.enumerated()), id: \.offset) { _, item in
-                        cell(item, lineLimit: count > 4 ? 1 : 2)
+                        cell(item, lineLimit: valueLineLimit(count: count))
                     }
                     if row.count < count {
                         ForEach(0..<(count - row.count), id: \.self) { _ in
@@ -98,7 +103,12 @@ struct StatGrid: View {
         }
     }
 
-    private func cell(_ item: StatItem, lineLimit: Int) -> some View {
+    private func valueLineLimit(count: Int) -> Int? {
+        if singleLineValues { return dynamicTypeSize.isAccessibilitySize ? nil : 1 }
+        return count > 4 ? 1 : 2
+    }
+
+    private func cell(_ item: StatItem, lineLimit: Int?) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 0) {
                 Text(item.label)
@@ -126,7 +136,7 @@ struct StatGrid: View {
                 .moneyFont(.card)
                 .foregroundStyle(StatMetrics.color(for: item.tone))
                 .lineLimit(lineLimit)
-                .minimumScaleFactor(0.8)
+                .minimumScaleFactor(singleLineValues ? 0.6 : 0.8)
                 .accessibilityHidden(item.info != nil)
         }
         .frame(maxWidth: .infinity, minHeight: StatMetrics.cellMinHeight, alignment: .bottomLeading)
