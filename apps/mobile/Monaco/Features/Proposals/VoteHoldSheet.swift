@@ -19,17 +19,26 @@ struct VoteHoldSheet: View {
     @Environment(\.analytics) private var analytics
     @State private var box = VoteHoldBox()
     @State private var holding = false
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    private var detents: Set<PresentationDetent> {
+        let half = PresentationDetent.fraction(MonacoSheetDetents.halfFraction)
+        return dynamicTypeSize >= .xxxLarge ? [half, .large] : [half]
+    }
 
     var body: some View {
         let model = box.model(request: request, environment: environment)
-        VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
-            header
-            content(model)
-            Spacer(minLength: 0)
+        ScrollView {
+            VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
+                header
+                content(model)
+                Spacer(minLength: 0)
+            }
         }
+        .scrollBounceBehavior(.basedOnSize)
         .padding(.horizontal, MonacoTheme.Space.gutter)
         .padding(.top, MonacoTheme.Space.m)
-        .presentationDetents([.fraction(MonacoSheetDetents.halfFraction)])
+        .presentationDetents(detents)
         .presentationDragIndicator(.visible)
         .task {
             await model.load()
@@ -44,6 +53,7 @@ struct VoteHoldSheet: View {
             Text("Your vote")
                 .font(MonacoTheme.Typo.section)
                 .foregroundStyle(MonacoTheme.primaryText)
+                .fixedSize(horizontal: false, vertical: true)
             Spacer()
             Button {
                 dismiss()
@@ -105,9 +115,11 @@ struct VoteHoldSheet: View {
                     Text(Self.title(summary))
                         .font(MonacoTheme.Typo.headline)
                         .foregroundStyle(MonacoTheme.primaryText)
+                        .fixedSize(horizontal: false, vertical: true)
                     Text([summary.cabalName, proposer].compactMap { $0 }.joined(separator: " · "))
                         .font(MonacoTheme.Typo.subhead)
                         .foregroundStyle(MonacoTheme.secondaryText)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer(minLength: 0)
             }
@@ -180,6 +192,7 @@ struct VoteHoldSheet: View {
                 )
                 .font(MonacoTheme.Typo.subhead)
                 .foregroundStyle(MonacoTheme.secondaryText)
+                .fixedSize(horizontal: false, vertical: true)
                 .accessibilityIdentifier("proposal-vote-hint")
             }
         }
