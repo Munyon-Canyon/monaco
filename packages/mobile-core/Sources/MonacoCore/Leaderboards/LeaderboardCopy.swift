@@ -34,12 +34,6 @@ public enum LeaderboardCopy {
     public static let loadingMore = "Couldn't load more rankings."
     public static let movementNotCompared = "Rank movement not compared for this sort"
 
-    public static func contextLine(board: LeaderboardBoardKind, range: LeaderboardRange, hasMovement: Bool) -> String {
-        let subject = board == .cabals ? "Cabal P&L" : "Shared personal P&L"
-        let tail = hasMovement ? "Rank change vs previous snapshot" : "Rank change opens soon"
-        return "\(subject) · \(range.label) · \(tail)"
-    }
-
     public static func allShown(board: LeaderboardBoardKind, count: Int) -> String {
         "All \(count) eligible \(board == .cabals ? "cabals" : "people") shown"
     }

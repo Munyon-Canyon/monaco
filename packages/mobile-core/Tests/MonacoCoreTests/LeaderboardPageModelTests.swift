@@ -36,30 +36,6 @@ final class LeaderboardPageModelTests: XCTestCase {
         ]
     }
 
-    func testContextLineNamesTheBoardAndPeriod() async {
-        XCTAssertEqual(
-            model(fixture: LeaderboardFixture(cabals: cabals)).contextLine,
-            "Cabal P&L · 1M · Rank change vs previous snapshot")
-        XCTAssertEqual(
-            model(board: .people, range: .all, fixture: LeaderboardFixture()).contextLine,
-            "Shared personal P&L · All · Rank change vs previous snapshot")
-    }
-
-    func testLiveContextLineSaysMovementOpensSoon() async {
-        XCTAssertEqual(model().contextLine, "Cabal P&L · 1M · Rank change opens soon")
-        XCTAssertEqual(
-            model(board: .people, range: .oneWeek).contextLine, "Shared personal P&L · 1W · Rank change opens soon")
-    }
-
-    func testTheContextLineFollowsTheCategoryAndPeriod() async {
-        let page = model(fixture: LeaderboardFixture())
-
-        page.select(category: .people)
-        page.select(range: .oneDay)
-
-        XCTAssertEqual(page.contextLine, "Shared personal P&L · 1D · Rank change vs previous snapshot")
-    }
-
     func testABoardIsStaleOnlyWhenEveryRowIsDelayed() async {
         let delayed = [entry(1, "A", delayed: true), entry(2, "B", delayed: true)]
         let mixed = [entry(1, "A", delayed: true), entry(2, "B")]
