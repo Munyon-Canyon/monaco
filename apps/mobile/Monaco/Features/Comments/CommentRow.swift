@@ -135,9 +135,15 @@ struct CommentRow: View {
     }
 
     private var byline: some View {
-        HStack(alignment: .firstTextBaseline, spacing: MonacoTheme.Space.s) {
-            nameLink
-            timeLabel
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .firstTextBaseline, spacing: MonacoTheme.Space.s) {
+                nameLink
+                timeLabel
+            }
+            VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
+                nameLink
+                timeLabel
+            }
         }
     }
 
@@ -146,7 +152,7 @@ struct CommentRow: View {
             Text(row.authorName)
                 .font(MonacoTheme.Typo.headline)
                 .foregroundStyle(MonacoTheme.primaryText)
-                .lineLimit(1)
+                .fixedSize(horizontal: false, vertical: true)
                 .monacoPrivate()
         }
     }
@@ -155,7 +161,7 @@ struct CommentRow: View {
         Text(time)
             .font(MonacoTheme.Typo.subhead)
             .foregroundStyle(MonacoTheme.secondaryText)
-            .lineLimit(1)
+            .fixedSize()
             .accessibilityHidden(true)
     }
 
