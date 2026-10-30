@@ -20,12 +20,13 @@ enum MoneyCashOutJourney {
             let balance = app.element("platform-balance-value")
             XCTAssertTrue(balance.waitForExistence(timeout: 60), "S1.1: no account balance on Home within 60 s")
             let deadline = Date().addingTimeInterval(60)
-            while (balance.label.isEmpty || balance.label.contains("$0.00")) && Date() < deadline {
+            let reading = { MoneyDepositJourney.balanceReading(balance) }
+            while (reading().isEmpty || reading().contains("$0.00")) && Date() < deadline {
                 RunLoop.current.run(until: Date().addingTimeInterval(0.5))
             }
             XCTAssertFalse(
-                balance.label.isEmpty || balance.label.contains("$0.00"),
-                "S1.1: the account balance reads \(balance.label): fund A from the Phantom agent wallet first"
+                reading().isEmpty || reading().contains("$0.00"),
+                "S1.1: the account balance reads \(reading()): fund A from the Phantom agent wallet first"
             )
         }
 
