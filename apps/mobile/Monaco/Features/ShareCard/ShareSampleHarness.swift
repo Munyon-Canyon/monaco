@@ -143,6 +143,10 @@ enum ShareSampleData {
     ) -> ShareCardSpec {
         var detail = Components.Schemas.ProposalDetail.filledMETA(now: now)
         detail.passedPriceMicros = passedPrice
+        detail.createdAt = now.addingTimeInterval(-39_600)
+        detail.stats.closesAt = now.addingTimeInterval(-27_600)
+        detail.stats.closedAt = now.addingTimeInterval(-27_600)
+        detail.swap?.filledAt = now.addingTimeInterval(-21_600)
         detail.cabalName = "Degens"
         detail.symbol = "META"
         detail.tally = .init(yes: 4, no: 1, voters: 6, needed: 4)
@@ -209,11 +213,13 @@ enum ShareSampleData {
     }
 
     private static let metaChart: [ShareChartPoint] = {
-        let start = now.addingTimeInterval(-7_200 - 36_000)
-        let prices: [Int64] = [702, 705, 698, 704, 709, 712, 716, 714, 719, 722, 720, 724]
-        return prices.enumerated().map {
+        let start = now.addingTimeInterval(-39_600)
+        let cents: [Int64] = [
+            70_200, 70_450, 70_700, 70_920, 71_100, 71_650, 71_800, 72_000, 72_150, 72_300, 72_250, 72_440,
+        ]
+        return cents.enumerated().map {
             let time = start.addingTimeInterval(TimeInterval($0.offset) * 3_600)
-            return ShareChartPoint(time: time, priceMicros: $0.element * 1_000_000)
+            return ShareChartPoint(time: time, priceMicros: $0.element * 10_000)
         }
     }()
 

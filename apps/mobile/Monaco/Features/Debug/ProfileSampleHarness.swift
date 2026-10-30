@@ -182,13 +182,13 @@ struct ProfileSampleHarness: View {
 
     var body: some View {
         SampleAppFrame(
-            auth: auth, tab: .profile, routes: scenario.editPresets == nil ? [] : [EditProfileRoute()], store: store
-        ) { Self.fill($0, for: scenario) }
+            auth: auth, tab: .profile, routes: scenario.editPresets == nil ? [] : [EditProfileRoute()], store: store,
+            session: { Self.fill($0, for: scenario) },
+            sheet: scenario == .invite
+                ? { AnyView(CabalInviteSheet(cabal: .sample(role: "creator"), mode: .share)) } : nil
+        )
         .environment(\.profileHeaderPresets, presets)
         .environment(\.editProfilePresets, scenario.editPresets ?? EditProfilePresets())
-        .sheet(isPresented: .constant(scenario == .invite)) {
-            CabalInviteSheet(cabal: .sample(role: "creator"), mode: .share)
-        }
     }
 
     private var presets: ProfileHeaderPresets {
