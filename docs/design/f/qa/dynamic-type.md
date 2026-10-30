@@ -170,6 +170,8 @@ Defects by size: large 4, xxLarge 16, xxxLarge 26, AX1 42, AX5 70.
 | [`04-gif-reply`](../screens/04-gif-reply.png) | AX1 | ok | — | — |
 | [`04-gif-reply`](../screens/04-gif-reply.png) | AX5 | defect | 12 overlap: Stray 'posts=0' label drawn over the 'Replies 2' header text | #7120 |
 
+`FDynamicTypeAuditUITests/test04Proposal`'s clipped-text findings at xxxLarge and AX5 are fixed by #7202, apart from the `04b-hold-*` Home rows, which #7196 fixed. From `xxxLarge` the GIF sheet header stacks, so "Trending GIFs" and "Powered by GIPHY" wrap, and the reply composer's quote wraps instead of ending in `…`. A sheet title such as "Reply to Mia" wraps at every size. The vote status line ("3 of 7 voted · ends in 23h") wraps (#7203). The test was not rerun in #7202; the next group-by-group run confirms these rows.
+
 ## Frames 12
 
 | Frame | Size | Verdict | Rule broken | Follow-up |
