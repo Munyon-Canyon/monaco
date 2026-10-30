@@ -1,8 +1,30 @@
 #!/usr/bin/env bash
 # journey.py runs this before each scenario with the scenario id. It puts the journey's catalogue rows
 # and their price samples in the local database (Preconditions P2 and P3), so no step taps to create them.
+# For S1 it also takes actor A out of every cabal that holds a stock, so the Held step's empty state does
+# not depend on which journey ran before (Precondition P5).
 # stocks/asset-detail runs it too.
 set -euo pipefail
+
+cd "$(git rev-parse --show-toplevel)"
+# shellcheck source=/dev/null
+source scripts/qa/seed.sh
+
+leave_cabals_holding_stocks() {
+  local id removed
+  id="$(qa_user_id A)"
+  removed="$(qa_sql -v id="$id" <<<"WITH gone AS (
+    DELETE FROM cabal_members m
+    WHERE m.user_id = :'id'
+      AND EXISTS (SELECT 1 FROM cabal_positions p WHERE p.cabal_id = m.cabal_id AND p.units > 0)
+    RETURNING 1
+  ) SELECT count(*) FROM gone")"
+  echo "$1: left $removed cabals that hold a stock as A"
+}
+
+if [[ "${1:-}" == S1 ]]; then
+  leave_cabals_holding_stocks "$1"
+fi
 
 error_file="$(mktemp)"
 trap 'rm -f "$error_file"' EXIT
