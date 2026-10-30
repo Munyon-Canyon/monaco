@@ -49,7 +49,6 @@ public final class LeaderboardLoader {
 
     public private(set) var query: LeaderboardQuery
     public private(set) var computedAt: Date?
-    public private(set) var moves: [String: Int] = [:]
     public private(set) var toast: String?
 
     private let api: APIClient
@@ -183,7 +182,6 @@ public final class LeaderboardLoader {
     }
 
     private func replaceRows() {
-        moves = [:]
         loadTask?.cancel()
         loadTask = Task { [weak self] in
             guard !Task.isCancelled else { return }
@@ -192,14 +190,13 @@ public final class LeaderboardLoader {
     }
 
     private func refresh(toastsFailure: Bool = false) async {
-        let before = pager.items.map(\.key)
+        let depth = pager.items.count
         let issued = query
         do {
-            let read = try await readRows(upTo: before.count, for: issued)
+            let read = try await readRows(upTo: depth, for: issued)
             guard issued == query else { return }
             notePage(read.lastPage, for: issued)
             pager.replace(items: read.rows, nextCursor: read.nextCursor)
-            moves = rankChanges(old: before, new: read.rows.map(\.key))
         } catch {
             guard toastsFailure, issued == query, !Task.isCancelled else { return }
             toast = ToastCopy.message(for: APIError(error))

@@ -41,6 +41,4 @@ public struct LeaderboardRowView: Equatable, Sendable, Identifiable {
             pictureURL: row.subject.pictureUrl, valueMicros: row.valueMicros, pnlMicros: row.pnlMicros,
             returnBps: row.returnBps, pricesDelayed: row.flags.contains(.stalePrices), isViewer: true)
     }
-
-    var key: BoardRowKey { BoardRowKey(id: id, rank: rank) }
 }
