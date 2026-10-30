@@ -1538,13 +1538,11 @@ def run_all(args, api_base_url, builder, only=None):
         named = [pick(journeys, name) for name in only]
         journeys = {journey.id: journey for journey in named}
     worst = 0
+    opted_in_to_money = bool(os.environ.get("MONACO_QA_REFUND_ADDRESS"))
     for journey_id in requires_order(journeys):
-        if journeys[journey_id].funds and not only:
-            try:
-                refund_address()
-            except JourneyError:
-                print("%s SKIP funds" % journey_id)
-                continue
+        if journeys[journey_id].funds and not only and not opted_in_to_money:
+            print("%s SKIP funds" % journey_id)
+            continue
         print("== %s" % journey_id, flush=True)
         try:
             # Each journey's simulators go down and their `sim` slots go back before the next journey
