@@ -151,6 +151,7 @@ type fixture struct {
 	hub      *hub
 	env      []string
 	run      Runner
+	clockMu  sync.Mutex
 	now      time.Time
 	waited   []time.Duration
 	home     string
@@ -272,7 +273,11 @@ func foundCaffeinate(string) (string, error) { return "/usr/bin/caffeinate", nil
 func absentCaffeinate(string) (string, error) { return "", exec.ErrNotFound }
 
 func (f *fixture) clock(env *Env) {
-	env.Now = func() time.Time { return f.now }
+	env.Now = func() time.Time {
+		f.clockMu.Lock()
+		defer f.clockMu.Unlock()
+		return f.now
+	}
 	env.After = f.after
 	env.Load = func(context.Context, string) (float64, error) { return 0, nil }
 	env.Start = func(string, ...string) error { return nil }
@@ -283,13 +288,16 @@ func (f *fixture) clock(env *Env) {
 }
 
 func (f *fixture) after(d time.Duration) <-chan time.Time {
+	f.clockMu.Lock()
 	f.now = f.now.Add(d)
 	f.waited = append(f.waited, d)
+	n, now := len(f.waited), f.now
+	f.clockMu.Unlock()
 	if f.onWait != nil {
-		f.onWait(len(f.waited))
+		f.onWait(n)
 	}
 	fired := make(chan time.Time, 1)
-	fired <- f.now
+	fired <- now
 	return fired
 }
 
