@@ -2,6 +2,7 @@ package market
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -19,6 +20,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/adapters/xstocks"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/domain"
+	"github.com/monaco/monaco/apps/backend/internal/modules/market/port"
 	treasuryport "github.com/monaco/monaco/apps/backend/internal/modules/treasury/port"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
@@ -69,6 +71,13 @@ type SessionInfo = domain.SessionInfo
 type Calendar interface {
 	Session(ctx context.Context, id AssetID, at time.Time) (SessionInfo, error)
 }
+
+type (
+	PositionPrices = port.PositionPrices
+	PositionPoint  = port.Bucketed
+
+	PositionPriceReader = app.PositionPrices
+)
 
 type Prices interface {
 	LatestPrices(ctx context.Context) (map[AssetID]Price, error)
@@ -121,6 +130,13 @@ type Module struct {
 	hot        []app.HotMints
 	holders    app.HolderCounts
 	holding    app.CabalsHolding
+	chartOnce  sync.Once
+	charts     chartParts
+}
+
+type chartParts struct {
+	chart   *adapters.CachedChart
+	history app.PriceHistory
 }
 
 func New(d module.Deps) *Module { return &Module{multichain: newMultichain(d), deps: d} }
@@ -189,22 +205,43 @@ func (m *Module) RouteChecker() *app.RouteChecker {
 func (m *Module) Mount(r api.Mount) {
 	list := app.NewListAssets(m.deps.Pool, m.deps.Clock, m.hot...).WithHolders(m.holders)
 	cache := adapters.NewCache(m.deps.Clock)
-	chart := app.NewChart(m.deps.Pool, m.deps.Clock)
 	detail := app.NewDetail(m.deps.Pool, list).WithHolding(m.holding)
-	if m.deps.Config.CoinGecko.HistoryEnabled {
-		history := adapters.CacheHistory(m.priceHistory(), cache)
-		chart.WithHistory(history)
-		detail.WithHistory(history)
+	parts := m.chartParts()
+	if parts.history != nil {
+		detail.WithHistory(parts.history)
 	}
 	marketapi.Mount(adapters.HTTP{
 		List:      adapters.CacheList(list, cache),
 		Detail:    detail,
-		Chart:     adapters.CacheChart(chart, cache),
+		Chart:     parts.chart,
 		BestChain: app.NewBestChains(m.Catalog(), adapters.DeferRouter(m.Router), m.deps.Clock),
 		Clock:     m.deps.Clock,
 
 		PollInterval: m.deps.Config.Market.PricePollInterval,
 	}, r)
+}
+
+func (m *Module) chartParts() chartParts {
+	m.chartOnce.Do(func() {
+		cache := adapters.NewCache(m.deps.Clock)
+		chart := app.NewChart(m.deps.Pool, m.deps.Clock)
+		if m.deps.Config.CoinGecko.HistoryEnabled {
+			m.charts.history = adapters.CacheHistory(m.priceHistory(), cache)
+			chart.WithHistory(m.charts.history)
+		}
+		m.charts.chart = adapters.CacheChart(chart, cache)
+	})
+	return m.charts
+}
+
+func (m *Module) PositionPrices() *PositionPriceReader {
+	return app.NewPositionPrices(lazyCharter(func() app.Charter { return m.chartParts().chart }))
+}
+
+type lazyCharter func() app.Charter
+
+func (l lazyCharter) Handle(ctx context.Context, symbol string, req app.ChartRequest) (app.Chart, error) {
+	return l().Handle(ctx, symbol, req)
 }
 
 func (*Module) Consumers() []bus.Consumer { return nil }

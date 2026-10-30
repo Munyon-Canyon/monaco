@@ -85,10 +85,24 @@ func (h HTTP) GetHoldingPerformance(
 	if err != nil {
 		return nil, err
 	}
-	out := api.HoldingPerformance{RealizedPnlMicros: perf.RealizedPnLMicros.Int64()}
+	out := api.HoldingPerformance{
+		RealizedPnlMicros: perf.RealizedPnLMicros.Int64(),
+		Series: api.HoldingPnLSeries{
+			N1W: pnlPoints(perf.Series["1W"]), N1M: pnlPoints(perf.Series["1M"]), N3M: pnlPoints(perf.Series["3M"]),
+			N1Y: pnlPoints(perf.Series["1Y"]), ALL: pnlPoints(perf.Series["ALL"]),
+		},
+	}
 	if perf.AvgSellMicros != nil {
 		avg := perf.AvgSellMicros.String()
 		out.AvgSellMicros = &avg
 	}
 	return api.GetHoldingPerformance200JSONResponse(out), nil
+}
+
+func pnlPoints(points []app.PnLPoint) []api.HoldingPnLPoint {
+	out := make([]api.HoldingPnLPoint, len(points))
+	for i, p := range points {
+		out[i] = api.HoldingPnLPoint{At: p.At, PnlMicros: p.PnLMicros.Int64()}
+	}
+	return out
 }
