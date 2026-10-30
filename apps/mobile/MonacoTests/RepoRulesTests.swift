@@ -18,6 +18,14 @@ struct RepoRulesTests {
         #expect(stale.isEmpty, "owned files no longer flagged, drop them from the allow list: \(stale.sorted())")
     }
 
+    @Test
+    func noMaskedTextHidesItselfFromAccessibility() throws {
+        let flagged = try Self.appSources().flatMap { path, source in
+            PrivateMaskAccessibilityRule.violations(in: source).map { "\(path):\($0)" }
+        }
+        #expect(flagged.isEmpty, "use monacoPrivateFigure() so masked text stays accessible: \(flagged)")
+    }
+
     private static func appSources(filePath: String = #filePath) throws -> [(String, String)] {
         let root = URL(filePath: filePath).deletingLastPathComponent().deletingLastPathComponent()
             .appending(path: "Monaco")
@@ -26,6 +34,23 @@ struct RepoRulesTests {
             let path = String(url.standardizedFileURL.path.dropFirst(root.standardizedFileURL.path.count + 1))
             return (path, try String(contentsOf: url, encoding: .utf8))
         }
+    }
+}
+
+enum PrivateMaskAccessibilityRule {
+    static let allowedIdentifiers: Set<String> = ["referral-code-field"]
+
+    static func violations(in source: String) -> [Int] {
+        let lines = source.split(separator: "\n", omittingEmptySubsequences: false).map {
+            $0.trimmingCharacters(in: .whitespaces)
+        }
+        return lines.indices.filter { index in
+            guard lines[index].hasPrefix(".monacoPrivate("),
+                let next = lines[(index + 1)...].first(where: { !$0.isEmpty }),
+                next.hasPrefix(".accessibilityIdentifier(")
+            else { return false }
+            return !allowedIdentifiers.contains { next.contains("\"\($0)\"") }
+        }.map { $0 + 1 }
     }
 }
 

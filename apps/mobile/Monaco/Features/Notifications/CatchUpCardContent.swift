@@ -68,7 +68,7 @@ struct CatchUpCardContent: View {
                 .font(MonacoTheme.Typo.headline)
                 .foregroundStyle(MonacoTheme.primaryText)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .monacoPrivate()
+                .monacoPrivateFigure()
                 .accessibilityIdentifier("catch-up-deck-post-head")
         }
     }

@@ -208,7 +208,7 @@ struct AmountKeypadScreen<Source: View, Header: View>: View {
             .foregroundStyle(MonacoTheme.secondaryText)
             .multilineTextAlignment(.center)
             .fixedSize(horizontal: false, vertical: true)
-            .monacoPrivate()
+            .monacoPrivateFigure()
             .accessibilityIdentifier("amount-keypad-line")
     }
 
@@ -314,7 +314,7 @@ private struct AmountKeypadSlot: View {
             .foregroundStyle(MonacoTheme.secondaryText)
             .multilineTextAlignment(.center)
             .fixedSize(horizontal: false, vertical: true)
-            .monacoPrivate()
+            .monacoPrivateFigure()
             .accessibilityIdentifier("amount-keypad-slot")
     }
 }
