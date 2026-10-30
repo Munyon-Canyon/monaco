@@ -20,6 +20,7 @@ struct ProposeFromAssetScreen: View {
     @Environment(\.hostMainTab) private var hostMainTab
     @State private var model: ProposeFromAssetModel?
     @State private var pickedCabal: Components.Schemas.MyCabal?
+    @State private var pendingCabal: Components.Schemas.MyCabal?
     @State private var showsPicker = false
     @State private var keptAmountMicros: Int64?
     @State private var logoURL: URL?
@@ -96,7 +97,7 @@ struct ProposeFromAssetScreen: View {
                 MonacoGroupedList {
                     ForEach(cabals, id: \.id) { cabal in
                         Button {
-                            if cabal.id != pickedCabal?.id { pickedCabal = cabal }
+                            pendingCabal = cabal
                             showsPicker = false
                         } label: {
                             ProposePickCabalRow(cabal: cabal, isLast: cabal.id == cabals.last?.id)
@@ -124,6 +125,11 @@ struct ProposeFromAssetScreen: View {
     }
 
     private func pickerDismissed() {
+        if let cabal = pendingCabal {
+            pendingCabal = nil
+            if cabal.id != pickedCabal?.id { pickedCabal = cabal }
+            return
+        }
         guard pickedCabal == nil else { return }
         environment.navigator.closeProposeFlow(in: hostMainTab ?? environment.navigator.selectedTab)
     }
