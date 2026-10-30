@@ -19,7 +19,7 @@ FROM (VALUES
   ('JRNYAx', 123450000::bigint), ('JRNYPx', 50000000::bigint), ('JRNYQx', 51000000::bigint), ('JRNYZx', 10000000::bigint)
 ) AS p(symbol, price_micros)
 JOIN assets a ON a.symbol = p.symbol
-CROSS JOIN (VALUES (now() - interval '12 hours'), (now())) AS s(ts);
+CROSS JOIN (VALUES (now() - interval '6 days'), (now())) AS s(ts);
 
 INSERT INTO price_points (mint, ts, price_micros, source)
 SELECT a.mint,
