@@ -23,6 +23,7 @@ The format of this doc is in [App journeys](../README.md).
 | P2 | Before each scenario, `scripts/qa/journey.py` runs `apps/mobile/qa/journeys/stocks/browse.setup.sh` with the scenario id. It runs `apps/mobile/qa/journeys/stocks/browse.catalogue.sql`, which upserts four catalogue rows into `assets`, marked chain-checked and tradable by override, and two `price_points` samples for each, stamped six days ago and now. No step taps to create them |
 | P3 | `JRNYAx` is an `equity` named "Journey Alpha" with `popular_rank` 1, priced $123.45. `JRNYPx` is a `pre_ipo` named "Journey Private", priced $50.00. `JRNYZx` is an `equity` named "Journey Zulu" with no `popular_rank`, priced $10.00. The fourth row, `JRNYQx`, is a second listing of "Journey Private" that [stocks/asset-detail](asset-detail.md) reads |
 | P4 | The market data is the seeded rows. The run never calls the live Jupiter API: `journey.py` starts the local backend, and the steps read only what `GET /v1/assets` serves from the database |
+| P5 | Before S1 the setup takes A out of every cabal that holds a stock (journeys like governance/propose-sell seed one through `qa_seed_scenario cabal-with-confirmed-trade A`), so S1.5's Held empty state does not depend on journey order. A later journey that seeds holdings for A must not rely on browse |
 
 ## Scenarios
 
