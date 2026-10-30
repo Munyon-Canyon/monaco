@@ -302,7 +302,7 @@ Defects by size: large 4, xxLarge 16, xxxLarge 26, AX1 42, AX5 70.
 
 ## Frames 05
 
-The Feed and post page wrap instead of clipping at large text (#7203). The feed post header verb, the comment byline name and time, the quiet-week vote tally and the post object place line wrap or stack from xxxLarge, and the byline stacks name over time when it does not fit one line. The emoji picker section headers (`Features/Reactions`) and the vote status line (`Design/VoteTally.swift`) sit outside this ticket's paths and stay clipped.
+The Feed and post page wrap instead of clipping at large text (#7203). The feed post header verb, the comment byline name and time, the quiet-week vote tally and the post object place line wrap or stack from xxxLarge, and the byline stacks name over time when it does not fit one line. The emoji picker section headers now wrap and grow at large text. The vote status line (`Design/VoteTally.swift`) sits outside this ticket's paths and stays clipped.
 
 | Frame | Size | Verdict | Rule broken | Follow-up |
 | --- | --- | --- | --- | --- |
@@ -330,7 +330,7 @@ The Feed and post page wrap instead of clipping at large text (#7203). The feed 
 | [`05-emoji-picker`](../screens/05-emoji-picker.png) | xxLarge | ok | — | — |
 | [`05-emoji-picker`](../screens/05-emoji-picker.png) | xxxLarge | ok | — | — |
 | [`05-emoji-picker`](../screens/05-emoji-picker.png) | AX1 | ok | — | — |
-| [`05-emoji-picker`](../screens/05-emoji-picker.png) | AX5 | defect | 2 overlap: 'Search emoji' field overlaps 'Frequently used'; 'Smileys and peo…' truncated and emoji drawn over headings; the post header verb wraps now (#7203) | #7121 |
+| [`05-emoji-picker`](../screens/05-emoji-picker.png) | AX5 | ok | — | #7203 |
 | [`05-post`](../screens/05-post.png) | large | ok | — | — |
 | [`05-post`](../screens/05-post.png) | xxLarge | defect | 1 truncation: reply quote 'Logan Took the gain while it was…' ends in an ellipsis (not a name) | #7121 |
 | [`05-post`](../screens/05-post.png) | xxxLarge | defect | 1 truncation: reply quote 'Logan Took the gain while it was…' ends in an ellipsis (not a name) | #7121 |
