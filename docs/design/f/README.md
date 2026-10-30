@@ -18,7 +18,7 @@ The designer drew 141 frames. This folder keeps 120: **Launch (phase 1) 104** an
 
 A frame is `<screen number>-<screen>-<state>`: `04-vote-holding` is screen 04 (the proposal), the vote, while the hold runs. `04b-hold-1-pick` is the same hold as Home's vote card draws it. A `-scrolled` frame is the same screen scrolled down.
 
-Dark is the default appearance. A frame ending `-light` is the light twin of the dark frame with the same name minus the suffix (`02-home-dark` has `02-home-light`).
+The F launch is dark only: the app sets `UIUserInterfaceStyle` to Dark and ignores the phone's Light setting. A frame ending `-light` is the light twin of the dark frame with the same name minus the suffix (`02-home-dark` has `02-home-light`); the twins are for a later phase and no launch build draws them.
 
 ## Phase 2
 

@@ -1,5 +1,7 @@
 # F appearance review
 
+The F launch ships dark only (#7183): the app sets `UIUserInterfaceStyle` to Dark, so the Light results below describe the light palette kept in the codebase for a later phase, not what a launch build draws.
+
 This page is the result of #6585's sweep of the 95 F screens in the appearance each frame was not drawn in, plus Reduce Transparency, the contrast contract and the repo rules. #6583's parity review (`parity.md`) judged each frame in its own appearance; #6586 and #6587 cover text sizes and VoiceOver.
 
 ## How it was run
