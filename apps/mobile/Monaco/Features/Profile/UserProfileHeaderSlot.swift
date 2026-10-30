@@ -319,20 +319,11 @@ private struct UserProfileCard: View {
 private struct UserProfileCounts: View {
     let data: UserProfileContentData
 
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-
-    private var stacked: Bool { dynamicTypeSize >= .xxLarge }
-
     var body: some View {
-        let layout =
-            stacked
-            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 0))
-            : AnyLayout(HStackLayout(spacing: MonacoTheme.Space.s))
-        layout {
-            parts(separated: !stacked)
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: MonacoTheme.Space.s) { parts(separated: true) }
+            VStack(alignment: .leading, spacing: 0) { parts(separated: false) }
         }
-        .lineLimit(stacked ? nil : 1)
-        .minimumScaleFactor(stacked ? 1 : 0.8)
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, MonacoTheme.Space.gutter)
     }
@@ -353,7 +344,8 @@ private struct UserProfileCounts: View {
             Text("\(data.inCommon) in common")
                 .font(MonacoTheme.Typo.caption)
                 .foregroundStyle(MonacoTheme.muted)
-                .frame(minHeight: stacked ? MonacoButtonMetrics.hitTarget : 0, alignment: .leading)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(minHeight: MonacoButtonMetrics.hitTarget, alignment: .leading)
                 .accessibilityIdentifier("user-profile-in-common")
         }
     }

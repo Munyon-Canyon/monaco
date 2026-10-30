@@ -499,6 +499,8 @@ Defects by size: large 4, xxLarge 16, xxxLarge 26, AX1 42, AX5 70.
 | [`10-profile-other-cabals`](../screens/10-profile-other-cabals.png) | AX1 | defect | 1 truncation: Counts line truncated '48 foll… · 21 follo… · 2 in com…'; cabal rows keep 20%/15%/8% trailing instead of stacking under name | #7118 |
 | [`10-profile-other-cabals`](../screens/10-profile-other-cabals.png) | AX5 | defect | 4 stat rows: Counts line '…fo… · …f… · 3 c… · 2 in…' mostly cut; handle '#1 this…' truncated; P&L and Right calls stay two columns with labels wrapping ('P&L / · 1M', 'Right / calls ·') | #7118 |
 
+`FDynamicTypeAuditUITests/test10Profile` passes at xxxLarge and AX5 (#7209). The other-member counts line now picks a horizontal or stacked layout with `ViewThatFits`, as the own-profile counts do, so each label gets the width and height it needs.
+
 ## Frames 11
 
 #7210 lets the share dock chip labels wrap and stacks the chips from xxxLarge at full width, and lets the invite sheet heading and failed-state title and message wrap to full height with the heading icons stacked below the title from xxxLarge, so the 17 `FDynamicTypeAuditUITests/test11Share` clipped-text findings at xxxLarge and AX5 are fixed in code; the audit rerun is pending.
