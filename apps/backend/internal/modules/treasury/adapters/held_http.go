@@ -7,6 +7,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/port"
 	api "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/treasuryapi"
+	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
@@ -69,4 +70,25 @@ func wireHolding(w *int64Wire, h port.Holding) api.CabalHolding {
 		out.AvgEntryMicros = &avg
 	}
 	return out
+}
+
+func (h HTTP) GetHoldingPerformance(
+	ctx context.Context, req api.GetHoldingPerformanceRequestObject,
+) (api.GetHoldingPerformanceResponseObject, error) {
+	user, err := caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	perf, err := h.Performance.Handle(ctx, app.HoldingPerformanceQuery{
+		CabalID: ids.CabalIDFrom(req.Id), Caller: user, Symbol: req.Symbol,
+	})
+	if err != nil {
+		return nil, err
+	}
+	out := api.HoldingPerformance{RealizedPnlMicros: perf.RealizedPnLMicros.Int64()}
+	if perf.AvgSellMicros != nil {
+		avg := perf.AvgSellMicros.String()
+		out.AvgSellMicros = &avg
+	}
+	return api.GetHoldingPerformance200JSONResponse(out), nil
 }

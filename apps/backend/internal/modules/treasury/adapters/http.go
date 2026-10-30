@@ -28,6 +28,7 @@ type HTTP struct {
 	FundReads   sqlc.DBTX
 	Pot         *Queries
 	Held        *app.HeldReads
+	Performance *app.HoldingPerformanceReads
 	Cabals      app.CabalViews
 	Members     app.Members
 }

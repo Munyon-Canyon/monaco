@@ -5185,6 +5185,44 @@ paths:
               schema: {$ref: "#/components/schemas/FundPreview"}
               example: {available_micros: "500000000", min_micros: "1000000", slice_bps_now: 3500, slice_bps_after: 3600, over_micros: "0", paused: false, first_funded_at: "2026-10-03T15:00:00Z"}
         default: {$ref: "#/components/responses/Problem"}
+  /v1/cabals/{id}/holdings/{symbol}/performance:
+    get:
+      operationId: getHoldingPerformance
+      tags: [treasury]
+      summary: Read what a cabal has made selling one stock.
+      description: >-
+        Returns the average price the cabal sold one share of the stock for and the profit it locked in by selling,
+        both replayed from the cabal's confirmed buys and sells against the weighted-average cost of each token it
+        holds, with every chain's listing of the stock counted together. Only members can read it; anyone else gets
+        `not_cabal_member`. `avg_sell_micros` is null when nothing was sold. A symbol the cabal never traded reads
+        no sells and zero profit.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The cabal id.
+          schema:
+            type: string
+            format: uuid
+        - name: symbol
+          in: path
+          required: true
+          description: The stock's token symbol.
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 64
+            examples: [NVDAx]
+      responses:
+        "200":
+          description: The stock's sell performance.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HoldingPerformance"
+              example: {avg_sell_micros: "250000000", realized_pnl_micros: 30000000}
+        default:
+          $ref: "#/components/responses/Problem"
   /v1/cabals/{id}/pot:
     get:
       operationId: getCabalPot
@@ -12205,6 +12243,14 @@ components:
         network: {$ref: "#/components/schemas/Network"}
         token_amount: {type: string, pattern: "^[0-9]+$", description: Token base units held in this listing., examples: ["73000000"]}
         value_micros: {type: integer, format: int64, description: This part's value in USDC micros., examples: [60000000]}
+    HoldingPerformance:
+      type: object
+      description: What a cabal made selling one stock, replayed from its confirmed buys and sells.
+      additionalProperties: false
+      required: [avg_sell_micros, realized_pnl_micros]
+      properties:
+        avg_sell_micros: {type: [string, "null"], pattern: "^(0|[1-9][0-9]*)$", description: "The average price one share sold for, the proceeds of every sell over the shares sold, in USDC micros, rounded down. Null when nothing was sold.", examples: ["250000000"]}
+        realized_pnl_micros: {type: integer, format: int64, description: "Signed profit locked in by selling, each sell's proceeds less the average cost of the units it removed, in USDC micros. Zero when nothing was sold.", examples: [30000000]}
     UserTxn:
       type: object
       description: One inbound, outbound or cabal transfer affecting the caller.
