@@ -2,7 +2,7 @@ import XCTest
 
 enum CabalsApproveRequestJourney {
     static let id = "cabals/approve-request"
-    static let version = 4
+    static let version = 5
 
     static let screenTimeout: TimeInterval = 15
 
@@ -81,7 +81,7 @@ enum CabalsApproveRequestJourney {
 
         recorder.step("S1.6", "deny it") {
             JoinJourney.decide(app, approve: false, step: "S1.6")
-            JoinJourney.waitForToast(app, "Denied.", step: "S1.6")
+            JoinJourney.waitForToast(app, "Declined.", step: "S1.6")
             XCTAssertTrue(
                 JoinJourney.waitForRequestsGone(app, timeout: 10),
                 "S1.6: the request is still on the Members screen"

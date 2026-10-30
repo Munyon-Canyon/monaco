@@ -112,7 +112,7 @@ final class CabalAccessModelTests: XCTestCase {
         await model.load()
         guard case .pending(let pending) = model.standing else { return XCTFail("got \(model.standing)") }
         await model.decide(pending[0], approve: false)
-        XCTAssertEqual(model.toast?.message, "Denied.")
+        XCTAssertEqual(model.toast?.message, "Declined.")
         XCTAssertEqual(model.standing, .hidden)
     }
 

@@ -3,7 +3,7 @@ import XCTest
 
 enum JoinJourney {
     static let id = "cabals/join"
-    static let version = 10
+    static let version = 11
 
     static let screenTimeout: TimeInterval = 15
 
@@ -313,7 +313,7 @@ extension JoinJourney {
             app.openCabal(named: gateCabal(run: run))
             openRequests(app, step: "S3.2")
             decide(app, approve: false, step: "S3.2")
-            waitForToast(app, "Denied.", step: "S3.2")
+            waitForToast(app, "Declined.", step: "S3.2")
         }
     }
 

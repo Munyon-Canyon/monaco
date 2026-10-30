@@ -1,7 +1,7 @@
 ---
 id: cabals/approve-request
 title: Ask to join, cancel, and the creator's answer
-version: 4
+version: 5
 milestone: M10
 requires: [auth/sign-in]
 actors: [A, B]
@@ -36,7 +36,7 @@ The format of this doc is in [App journeys](../README.md).
 | S1.3 | B | tap | `cabal-join-cancel` | | `cabal-join-button` reads "Request to join" again within 10 s, and there is no `cabal-join-requested` |
 | S1.4 | B | tap | `cabal-join-button` | | `cabal-join-requested` reads "Request pending" within 10 s |
 | S1.5 | A | open, then tap | the cabal through `openCabal(named:)`, the Members tab, then `cabal-members-see-all` | `QA ask {QA.run}` | One `cabal-join-request-row` names B, reads "Asked to join" and holds `cabal-join-approve` "Approve B" within 15 s |
-| S1.6 | A | long press, then tap | the `cabal-join-request-row`, then "Decline" (`cabal-join-deny`) in its menu | | The toast "Denied." shows within 10 s. The request row is gone, and after the back button `cabal-member-count` still reads "1 member" |
+| S1.6 | A | long press, then tap | the `cabal-join-request-row`, then "Decline" (`cabal-join-deny`) in its menu | | The toast "Declined." shows within 10 s. The request row is gone, and after the back button `cabal-member-count` still reads "1 member" |
 
 ### S2 The creator approves
 
