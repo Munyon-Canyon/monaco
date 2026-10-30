@@ -16,7 +16,7 @@ struct WithdrawScreenTests {
     private static let presetIDs = ["+$1", "+$10", "+$20", "Max"].map { "amount-keypad-preset-\($0)" }
     private static let keyIDs = (0...9).map { "amount-keypad-\($0)" } + ["amount-keypad-dot", "amount-keypad-delete"]
     private static let fieldIDs = ["withdraw-address-field", "withdraw-paste"]
-    private static let networkIDs = ["solana", "base", "arbitrum", "ethereum"].map { "withdraw-network-\($0)" }
+    private static let networkIDs = ["solana", "base"].map { "withdraw-network-\($0)" }
 
     private static func identifiers(of state: WithdrawSampleState, until id: String) async throws -> Set<String> {
         try AccessibilityTree.setAutomation(enabled: true)
@@ -69,9 +69,9 @@ struct WithdrawScreenTests {
         }
         #expect(apply("ethereum:\(recipient)@8453"))
         #expect(address == recipient && network == .base)
-        network = .arbitrum
+        network = .solana
         #expect(apply(recipient))
-        #expect(network == .arbitrum)
+        #expect(network == .solana)
     }
 
     @Test(.timeLimit(.minutes(1))) func theTypedStateDrawsTheAction() async throws {

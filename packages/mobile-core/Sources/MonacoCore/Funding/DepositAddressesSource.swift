@@ -47,14 +47,8 @@ public struct DepositNetwork: Equatable, Hashable, Sendable, Identifiable {
             let fee = item.estimatedFeeMicros.flatMap { try? AccountBalance.micros($0) }
             return DepositNetwork(id: id, address: address, estimatedFeeMicros: fee)
         }
-        var ordered = networks.filter(\.isSolana) + networks.filter { !$0.isSolana }
-        if !ordered.contains(where: { $0.id == DemoMonad.id }),
-            let evm = ordered.first(where: \.isEVM)
-        {
-            ordered.append(
-                DepositNetwork(id: DemoMonad.id, address: evm.address, estimatedFeeMicros: evm.estimatedFeeMicros))
-        }
-        return ordered
+        let offered = networks.filter { LaunchFeatures.offersMoney($0.id) }
+        return offered.filter(\.isSolana) + offered.filter { !$0.isSolana }
     }
 
     private struct Wire: Decodable {

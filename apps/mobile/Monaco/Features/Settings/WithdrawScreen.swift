@@ -33,7 +33,7 @@ struct WithdrawScreen: View {
         let next = WithdrawModel(
             api: environment.api, hints: environment.hints,
             submission: environment.moneySubmission(slot: Withdrawing.slot), settlements: environment.settlements,
-            ownDepositAddress: environment.balance.balance?.depositAddress, demoMode: false,
+            ownDepositAddress: environment.balance.balance?.depositAddress,
             clock: ContinuousClock(), balance: environment.balance)
         model = next
         next.load()

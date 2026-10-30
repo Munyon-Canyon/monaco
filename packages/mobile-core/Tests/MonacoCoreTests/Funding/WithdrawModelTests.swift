@@ -143,12 +143,13 @@ final class WithdrawModelTests: XCTestCase {
         XCTAssertNil(rig.model.addressProblem)
     }
 
-    func testMonadIsOnlyOfferedInDemoMode() {
-        XCTAssertEqual(rig([:]).model.networks, [.solana, .base, .arbitrum, .ethereum])
-        XCTAssertEqual(rig([:], demoMode: true).model.networks, [.solana, .base, .arbitrum, .ethereum, .monad])
-        let plain = rig([:]).model
-        plain.setNetwork(.monad)
-        XCTAssertEqual(plain.network, .solana)
+    func testOnlyTheLaunchMoneyChainsAreOffered() {
+        let model = rig([:]).model
+        XCTAssertEqual(model.networks, [.solana, .base])
+        for hidden in [WithdrawNetwork.arbitrum, .ethereum, .monad] {
+            model.setNetwork(hidden)
+            XCTAssertEqual(model.network, .solana)
+        }
     }
 
     func testThreeEditsInOnePauseSendOneQuote() async {
@@ -311,7 +312,7 @@ extension WithdrawModelTests {
     }
 
     private func rig(
-        _ routes: [String: [StubTransport.Reply]], demoMode: Bool = false, withBalance: Bool = false
+        _ routes: [String: [StubTransport.Reply]], withBalance: Bool = false
     ) -> Rig {
         let transport = StubTransport(routes: routes)
         let api = APIClient(
@@ -321,7 +322,7 @@ extension WithdrawModelTests {
         let model = WithdrawModel(
             api: api, hints: hints, submission: IdempotentSubmission(makeKey: { "key-1" }),
             settlements: SettlementWatcher(api: api, hints: hints, journal: PendingIntentJournal()),
-            ownDepositAddress: ownSolana, demoMode: demoMode, clock: clock,
+            ownDepositAddress: ownSolana, clock: clock,
             balance: withBalance ? BalanceSource(api: api, hints: hints) : nil)
         return Rig(model: model, clock: clock, transport: transport)
     }

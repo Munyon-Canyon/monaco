@@ -29,11 +29,10 @@ struct AddressPayloadTests {
         #expect(result?.network == nil)
     }
 
-    @Test(arguments: [("1", WithdrawNetwork.ethereum), ("8453", .base), ("42161", .arbitrum)])
-    func aDirectEthereumURINamesItsChain(chain: String, network: WithdrawNetwork) {
-        let result = parsed("ethereum:\(Self.recipient)@\(chain)?value=1e6")
+    @Test func aDirectEthereumURINamesItsChain() {
+        let result = parsed("ethereum:\(Self.recipient)@8453?value=1e6")
         #expect(result?.address == Self.recipient)
-        #expect(result?.network == network)
+        #expect(result?.network == .base)
     }
 
     @Test func aDirectEthereumURIWithNoChainKeepsThePickedNetwork() {
@@ -42,7 +41,7 @@ struct AddressPayloadTests {
         #expect(result?.network == nil)
     }
 
-    @Test(arguments: ["10", "137", "0", "0x1", "abc", ""])
+    @Test(arguments: ["1", "10", "137", "42161", "0", "0x1", "abc", ""])
     func anUnsupportedChainIsRejected(chain: String) {
         #expect(parsed("ethereum:\(Self.recipient)@\(chain)") == nil)
     }

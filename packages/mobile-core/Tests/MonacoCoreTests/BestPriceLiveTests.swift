@@ -149,13 +149,13 @@ final class BestPriceLiveTests: XCTestCase {
     func testAClosedPinnedBuyShowsOnlyThePinnedChainsStoredPrice() async throws {
         var proposal = Components.Schemas.Proposal.sample(kind: .buy)
         proposal.status = .executed
-        proposal.network = .ethereum
+        proposal.network = .robinhood
         proposal.priceComparison = BestPrice.sampleComparison(now: quotedAt)
         let model = LiveBestPriceModel(sleep: { try await TestClock().sleep(for: $0) }, fetch: Fetches([]).next)
 
         let row = try XCTUnwrap(model.row(for: ProposalSummary(proposal), decimals: 8, now: quotedAt))
-        XCTAssertEqual(row.network, .ethereum)
-        XCTAssertEqual(row.figure, "$251.26 a share on Ethereum")
+        XCTAssertEqual(row.network, .robinhood)
+        XCTAssertEqual(row.figure, "$251.26 a share on Robinhood Chain")
         XCTAssertNil(row.headline)
         XCTAssertNil(row.venues)
     }

@@ -10,8 +10,6 @@ import Testing
 struct DepositNetworksTests {
     private let solana = DepositNetwork(id: "solana", address: "5kwEmpcR8Txq1b4bDazRm9j4cx8Qo2aiE53rYA1dCDDP")
     private let base = DepositNetwork(id: "base", address: "0x5aaeb6053f3e94c9b9a09f33669435e7ef1beaed")
-    private let arbitrum = DepositNetwork(id: "arbitrum", address: "0x5aaeb6053f3e94c9b9a09f33669435e7ef1beaed")
-    private let ethereum = DepositNetwork(id: "ethereum", address: "0x5aaeb6053f3e94c9b9a09f33669435e7ef1beaed")
 
     @Test func theOnrampComesBeforeTheCryptoRow() {
         #expect(DepositChooser.order == [.onramp, .crypto])
@@ -23,9 +21,9 @@ struct DepositNetworksTests {
     }
 
     @Test func moreThanOneNetworkOpensTheListSolanaFirst() {
-        let networks = [solana, base, arbitrum, ethereum]
+        let networks = [solana, base]
         #expect(DepositChooser.cryptoRoute(networks) == AnyAppRoute(DepositNetworksRoute(networks: networks)))
-        #expect(DepositChooser.cryptoHint(networks) == "Solana, Base, Arbitrum or Ethereum")
+        #expect(DepositChooser.cryptoHint(networks) == "Solana or Base")
     }
 
     @Test func eachNetworkShowsItsAddressWithCopyAndQR() throws {
@@ -62,7 +60,7 @@ struct DepositNetworksTests {
     }
 
     @Test func theNewCopyPassesTheMainFlowAudit() throws {
-        let networks = [solana, base, arbitrum, ethereum]
+        let networks = [solana, base]
         let paid = DepositNetwork(id: "base", address: base.address, estimatedFeeMicros: 163_098)
         var strings = [
             DepositChooser.cryptoTitle, DepositChooser.cryptoHint(networks), DepositNetworksView.title,
