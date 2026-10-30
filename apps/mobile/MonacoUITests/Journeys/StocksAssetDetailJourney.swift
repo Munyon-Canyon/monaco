@@ -38,7 +38,8 @@ enum StocksAssetDetailJourney {
     static func cabalRows(_ app: XCUIApplication) -> XCUIElementQuery {
         app.descendants(matching: .any).matching(
             NSPredicate(
-                format: "identifier BEGINSWITH 'propose-pick-cabal-' AND identifier != 'propose-pick-cabal-question'"))
+                format: "identifier BEGINSWITH 'propose-pick-cabal-' AND NOT identifier IN %@",
+                ["propose-pick-cabal-question", "propose-pick-cabal-sheet"]))
     }
 
     static func expectPicker(_ app: XCUIApplication, asking question: String) {
