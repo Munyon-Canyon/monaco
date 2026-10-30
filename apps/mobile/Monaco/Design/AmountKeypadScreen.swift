@@ -129,8 +129,7 @@ struct AmountKeypadScreen<Source: View, Header: View>: View {
             sourceLayout {
                 source
             }
-            .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
-            .minimumScaleFactor(dynamicTypeSize.isAccessibilitySize ? 1 : 0.8)
+            .modifier(AmountKeypadSourceText())
             .multilineTextAlignment(.center)
             Image(systemName: "chevron.down")
                 .font(MonacoTheme.Typo.subhead)
@@ -208,6 +207,7 @@ struct AmountKeypadScreen<Source: View, Header: View>: View {
             .font(MonacoTheme.Typo.subhead)
             .foregroundStyle(MonacoTheme.secondaryText)
             .multilineTextAlignment(.center)
+            .fixedSize(horizontal: false, vertical: true)
             .monacoPrivate()
             .accessibilityIdentifier("amount-keypad-line")
     }
@@ -313,6 +313,7 @@ private struct AmountKeypadSlot: View {
             .font(MonacoTheme.Typo.subhead)
             .foregroundStyle(MonacoTheme.secondaryText)
             .multilineTextAlignment(.center)
+            .fixedSize(horizontal: false, vertical: true)
             .monacoPrivate()
             .accessibilityIdentifier("amount-keypad-slot")
     }
@@ -325,9 +326,12 @@ private struct AmountKeypadSettledButton: View {
         HStack(spacing: MonacoButtonMetrics.iconGap) {
             Image(systemName: "checkmark.circle.fill").accessibilityHidden(true)
             Text(title)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .font(MonacoTheme.Typo.button)
         .foregroundStyle(MonacoTheme.primaryButtonLabel)
+        .padding(.vertical, MonacoTheme.Space.s)
         .frame(maxWidth: .infinity, minHeight: MonacoButtonMetrics.minimumHeight)
         .background(
             RoundedRectangle(cornerRadius: MonacoTheme.Radius.button, style: .continuous)
@@ -365,7 +369,7 @@ struct AmountKeypadLimitLine: View {
     var body: some View {
         HStack(spacing: MonacoTheme.Space.xs) {
             Image(systemName: "info.circle").accessibilityHidden(true)
-            Text(text).multilineTextAlignment(.center)
+            Text(text).multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
         }
         .font(MonacoTheme.Typo.subhead)
         .foregroundStyle(MonacoTheme.secondaryText)
@@ -375,9 +379,21 @@ struct AmountKeypadLimitLine: View {
     }
 }
 
+private struct AmountKeypadSourceText: ViewModifier {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    func body(content: Content) -> some View {
+        let wraps = AmountKeypadSourceLayout.wraps(at: dynamicTypeSize)
+        content
+            .fixedSize(horizontal: false, vertical: wraps)
+            .lineLimit(wraps ? nil : 1)
+            .minimumScaleFactor(wraps ? 1 : 0.8)
+    }
+}
+
 enum AmountKeypadSourceLayout {
     static func wraps(at size: DynamicTypeSize) -> Bool {
-        size.isAccessibilitySize
+        size >= .xxxLarge
     }
 
     static func layout(at size: DynamicTypeSize) -> AnyLayout {
