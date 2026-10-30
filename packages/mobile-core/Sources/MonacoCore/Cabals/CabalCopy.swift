@@ -85,7 +85,7 @@ public enum CabalCopy {
     public static func cashAfterFunding(_ amount: String) -> String { "Cash after funding \(amount)" }
     public static let onlyVotersCaption = "Only voters can propose"
     public static let cashOutUnavailable = "Cash out unavailable: no funded share"
-    public static let returnsOpenSoon = "Returns open soon"
+    public static let noReturnYet = "No return yet"
     public static let linkCopied = "Link copied."
     public static let votersSaved = "Voters saved."
     public static let noMessagesTitle = "No messages yet"

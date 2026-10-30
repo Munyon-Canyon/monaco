@@ -285,7 +285,7 @@ The trading-bot slot and its route are not on the screen: the agent feature was 
 
 ## Public cabal (`CabalRoute`, non-member)
 
-Title is the cabal name. A tall cover hero with the name and member count, a return block ("—" with "Returns open soon" until the API exposes a non-member return), a "Membership" card (Joining, Voting, Voting window) and one call to action: "Join", "Request to join", a disabled "Request pending" with "Cancel request", "Ask again" after a denial, "Accept invite" with "Decline", or "Open your cabal". The private state ("This cabal is private" with "Back") is built and unreachable until the API reports a private cabal. The About block stays hidden until a cabal has a description.
+Title is the cabal name. A tall cover hero with the name and member count, a return block (the cabal's 1M return from NAV per share and its 1M P&L from value-history, readable by every signed-in user; "—" with "No return yet" when the curve has no points), a "Membership" card (Joining, Voting, Voting window) and one call to action: "Join", "Request to join", a disabled "Request pending" with "Cancel request", "Ask again" after a denial, "Accept invite" with "Decline", or "Open your cabal". The private state ("This cabal is private" with "Back") is built and unreachable until the API reports a private cabal. The About block stays hidden until a cabal has a description.
 
 ## Members & voters (`MembersRoute`)
 
