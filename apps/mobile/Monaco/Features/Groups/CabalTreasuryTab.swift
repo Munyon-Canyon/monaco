@@ -228,11 +228,13 @@ struct CabalTreasuryCashCard: View {
             Text(cash.label)
                 .font(MonacoTheme.Typo.headline)
                 .foregroundStyle(MonacoTheme.primaryText)
-            HStack(spacing: 0) {
-                Text(cash.apy)
-                    .font(MonacoTheme.Typo.subhead)
-                    .foregroundStyle(MonacoTheme.secondaryText)
-                infoButton
+            if LaunchFeatures.apy {
+                HStack(spacing: 0) {
+                    Text(cash.apy)
+                        .font(MonacoTheme.Typo.subhead)
+                        .foregroundStyle(MonacoTheme.secondaryText)
+                    infoButton
+                }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

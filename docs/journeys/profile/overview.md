@@ -1,7 +1,7 @@
 ---
 id: profile/overview
 title: Your profile
-version: 10
+version: 11
 milestone: M9
 requires: [auth/sign-in]
 actors: [A]
@@ -35,7 +35,7 @@ Starts signed in (auth/sign-in).
 | S1.2 | wait | `profile-stat-cabals` | | Within 15 s, the card shows "Positions" (`profile-positions`) and "P&L · 1M" (`profile-pnl-1m`), and the counts line ends with "cabal" or "cabals" by count (`profile-stat-cabals`, 1 or more). `profile-standing` reads "% right calls this month" or the unranked line an account under five resolved votes gets | The count badge on "Your cabals" (`cabalRows.count`) |
 | S1.3 | tap, then scroll to | the Cabals tab (`profile-tab-cabals`), then `profile-cabal-row-{cabalID}` | | The tab lists the row for `cabalName` with its ownership share and "admin" or "voter" | `ProfileCabalsSection` rows |
 | S1.4 | find | `profile-settings-row` | | The round button in the title bar reads "Settings" | None, new in spec ("Settings" row) |
-| S1.5 | read | `profile-cash-row`, `profile-add-money-link` | | The cash row reads "Cash", "USDC" and "3.5% APY". `profile-add-money-link` reads "Deposit" above the tab bar | None, new in spec |
+| S1.5 | read | `profile-cash-row`, `profile-add-money-link` | | The cash row reads "Cash" and "USDC", with no APY text and no `profile-apy-info` button. `profile-add-money-link` reads "Deposit" above the tab bar | None, new in spec |
 
 ### S2 Pull to refresh
 

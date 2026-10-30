@@ -28,8 +28,9 @@ struct ProfileIdentityTests {
         #expect(ProfileCashRow.spoken(.unavailable) == "unavailable")
     }
 
-    @Test func theCashRowNamesTheApyAndItsInfo() {
+    @Test func theCashRowHidesTheApyAtLaunch() {
         #expect(ProfileCopy.cashLabel == "Cash \u{00B7} USDC")
+        #expect(!LaunchFeatures.apy)
         #expect(ProfileCopy.apyLabel == "3.5% APY")
         #expect(ProfileCopy.apyInfo == CabalYield.fundNote)
     }

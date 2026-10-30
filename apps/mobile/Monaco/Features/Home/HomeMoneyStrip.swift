@@ -82,12 +82,14 @@ struct HomeCashRow: View {
                 .font(MonacoTheme.Typo.headline)
                 .foregroundStyle(MonacoTheme.primaryText)
                 .accessibilityIdentifier("home-cash-label")
-            HStack(alignment: .top, spacing: 0) {
-                Text(ProfileCopy.apyLabel)
-                    .font(MonacoTheme.Typo.subhead)
-                    .foregroundStyle(MonacoTheme.secondaryText)
-                    .fixedSize(horizontal: false, vertical: true)
-                infoButton
+            if LaunchFeatures.apy {
+                HStack(alignment: .top, spacing: 0) {
+                    Text(ProfileCopy.apyLabel)
+                        .font(MonacoTheme.Typo.subhead)
+                        .foregroundStyle(MonacoTheme.secondaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+                    infoButton
+                }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

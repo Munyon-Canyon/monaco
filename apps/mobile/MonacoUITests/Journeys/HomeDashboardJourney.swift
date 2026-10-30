@@ -2,7 +2,7 @@ import XCTest
 
 enum HomeDashboardJourney {
     static let id = "home/dashboard"
-    static let version = 7
+    static let version = 8
 
     static func recorder() -> JourneyRecorder {
         JourneyRecorder(journey: id, version: version)
@@ -31,13 +31,13 @@ enum HomeDashboardJourney {
                 "S1.1: no '· past month' line under the figure")
         }
 
-        recorder.step("S1.2", "the cash row with Cash, USDC, APY and Deposit") {
+        recorder.step("S1.2", "the cash row with Cash, USDC and Deposit") {
             let cashRow = app.element("home-cash-row")
             XCTAssertTrue(cashRow.waitForExistence(timeout: 10), "S1.2: no cash row")
             let texts = cashRow.staticTexts.allElementsBoundByIndex.map(\.label) + [cashRow.label]
-            for word in ["Cash", "USDC", "3.5% APY"] {
-                XCTAssertTrue(texts.contains { $0.contains(word) }, "S1.2: the cash row reads \(texts), no \(word)")
-            }
+            let reads = { (word: String) in texts.contains { $0.contains(word) } }
+            XCTAssertTrue(reads("Cash") && reads("USDC"), "S1.2: the cash row reads \(texts), no Cash or USDC")
+            XCTAssertFalse(reads("APY") || app.element("home-apy-info").exists, "S1.2: the cash row shows APY")
             let cash = app.element("platform-balance-value")
             XCTAssertTrue(
                 (cash.value as? String)?.hasPrefix("$") == true,
