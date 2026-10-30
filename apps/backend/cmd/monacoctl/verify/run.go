@@ -84,21 +84,22 @@ func (t Target) settle() (Target, error) {
 }
 
 type Config struct {
-	Dir      string
-	Environ  []string
-	Go       string
-	Docker   Docker
-	Atlas    string
-	TempDir  string
-	Budget   Budget
-	Postgres PostgresFunc
-	Modules  func(module.Deps) module.Set
-	Scripts  map[string]flows.Script
-	Env      map[string][]string
-	Ledger   []LedgerCheck
-	Clock    clock.Clock
-	Stdout   io.Writer
-	Stderr   io.Writer
+	Dir         string
+	Environ     []string
+	Go          string
+	Docker      Docker
+	Atlas       string
+	TempDir     string
+	Budget      Budget
+	Postgres    PostgresFunc
+	SchemaCache string
+	Modules     func(module.Deps) module.Set
+	Scripts     map[string]flows.Script
+	Env         map[string][]string
+	Ledger      []LedgerCheck
+	Clock       clock.Clock
+	Stdout      io.Writer
+	Stderr      io.Writer
 }
 
 func Run(ctx context.Context, cfg Config, target Target) int {
@@ -142,7 +143,7 @@ func run(ctx context.Context, cfg Config, target Target) (err error) {
 	stack, err := Up(runCtx, Options{
 		Dir: cfg.Dir, Atlas: cfg.Atlas, Docker: cfg.Docker, Environ: cfg.Environ, Bins: bins,
 		Budget: cfg.Budget, Postgres: cfg.Postgres, CoverDir: cover, Faultpoint: target.CrashAt, WorkerEnv: env,
-		Clock: cfg.Clock,
+		Clock: cfg.Clock, SchemaCache: cfg.SchemaCache,
 	})
 	rep.phases[PhaseStack] = time.Since(began)
 	defer func() {

@@ -30,7 +30,7 @@ func verifyTool(environ []string, wd, goBin string) tool {
 			Dir: root, Environ: environ, Go: goBin, Docker: "docker",
 			Atlas:  filepath.Join(root, "..", "..", ".bin", "atlas"),
 			Budget: verify.DefaultBudget(), Modules: registered.Build, Scripts: flows.Scripts(), Env: flows.Env(),
-			Ledger: verify.LedgerChecks(), Stdout: stdout, Stderr: stderr,
+			Ledger: verify.LedgerChecks(), SchemaCache: verify.SchemaCacheDir(), Stdout: stdout, Stderr: stderr,
 		}, target)
 	}
 }
