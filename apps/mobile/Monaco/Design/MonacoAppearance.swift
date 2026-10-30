@@ -218,9 +218,10 @@ extension View {
 }
 
 enum MonacoSheetDetents {
-    case review, votes, result, fitted
+    case review, votes, result, fitted, tall
 
     static let halfFraction: CGFloat = 0.5
+    static let tallFraction: CGFloat = 0.72
 
     static let half: [PresentationDetent] = [.medium]
 
@@ -243,6 +244,8 @@ enum MonacoSheetDetents {
         switch self {
         case .review, .votes:
             base = Self.half
+        case .tall:
+            base = [.fraction(Self.tallFraction)]
         case .result, .fitted:
             if fittedHeight > 0, fittedHeight < screenHeight * Self.halfFraction {
                 base = [.height(fittedHeight)]

@@ -196,8 +196,8 @@ founder:
 
 | Frame | Appearance | Verdict | Difference | Follow-up |
 | --- | --- | --- | --- | --- |
-| [`08-review-sheet`](../screens/08-review-sheet.png) | dark | match | The sample draws the NVIDIA stock page behind the sheet and the empty "Why this trade? (optional)" row. | #7028 (#6567) |
-| [`08-review-sheet-preipo`](../screens/08-review-sheet-preipo.png) | dark | match | The sample draws the SpaceX page behind the sheet, "Buy ≈ 2.70 sh at the estimate" and the Last round / Secondary estimate card. | #7028 (#6567) |
+| [`08-review-sheet`](../screens/08-review-sheet.png) | dark | match | The sample draws the NVIDIA stock page behind the sheet and the empty "Why this trade? (optional)" row. The sheet opens at 72% of the screen, so the Shares / Price / Of treasury / To pass row sits whole above "Send to vote" at the default size and at XXXL; the sample passes no "Change" link on the cabal row, which F shows (the link exists when the host passes one). | #7028 (#6567), #7192 |
+| [`08-review-sheet-preipo`](../screens/08-review-sheet-preipo.png) | dark | match | The sample draws the SpaceX page behind the sheet, "Buy ≈ 2.70 sh at the estimate" and the Last round / Secondary estimate card, which has no row padding or divider (not changed here), and no "Change" link. The sheet opens at 72% of the screen (#7192). | #7028 (#6567), #7192 |
 
 founder:
 
