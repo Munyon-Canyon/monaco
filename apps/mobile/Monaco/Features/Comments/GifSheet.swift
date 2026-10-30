@@ -61,8 +61,9 @@ struct GifSheet: View {
     }
 
     private var header: some View {
+        let stacked = dynamicTypeSize >= .xxxLarge
         let layout =
-            dynamicTypeSize.isAccessibilitySize
+            stacked
             ? AnyLayout(VStackLayout(alignment: .leading, spacing: MonacoTheme.Space.xs))
             : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: MonacoTheme.Space.s))
         return layout {
@@ -70,11 +71,13 @@ struct GifSheet: View {
                 .font(MonacoTheme.Typo.section)
                 .foregroundStyle(MonacoTheme.primaryText)
                 .accessibilityAddTraits(.isHeader)
+                .fixedSize(horizontal: false, vertical: true)
                 .accessibilityIdentifier("gif-title")
-            if !dynamicTypeSize.isAccessibilitySize { Spacer(minLength: 0) }
+            if !stacked { Spacer(minLength: 0) }
             Text(model.attribution)
                 .font(MonacoTheme.Typo.caption)
                 .foregroundStyle(MonacoTheme.secondaryText)
+                .fixedSize(horizontal: false, vertical: true)
                 .accessibilityIdentifier("gif-attribution")
             MonacoGlassButton(systemImage: "xmark", accessibilityLabel: "Close", style: .quiet, size: .compact) {
                 dismiss()

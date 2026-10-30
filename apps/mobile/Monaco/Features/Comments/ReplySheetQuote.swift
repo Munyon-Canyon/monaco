@@ -19,7 +19,8 @@ struct ReplySheetQuote: View {
             QuoteFrame(label: "\(row.authorName). \(row.text)") {
                 (Text(row.authorName).font(MonacoTheme.Typo.subheadStrong).foregroundStyle(MonacoTheme.primaryText)
                     + Text(" ") + Text(row.text).font(MonacoTheme.Typo.body).foregroundStyle(MonacoTheme.secondaryText))
-                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
+                    .lineLimit(dynamicTypeSize >= .xxxLarge ? nil : 2)
+                    .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
         case .post(let item):
@@ -50,7 +51,7 @@ private struct PostQuote: View {
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
-    private var lineLimit: Int? { dynamicTypeSize.isAccessibilitySize ? nil : 1 }
+    private var lineLimit: Int? { dynamicTypeSize >= .xxxLarge ? nil : 1 }
 
     var body: some View {
         QuoteFrame(label: facts.spoken) {

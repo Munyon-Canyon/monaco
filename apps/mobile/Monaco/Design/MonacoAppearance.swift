@@ -296,6 +296,7 @@ struct MonacoSheetHeading: View {
         let text = Text(title)
             .font(MonacoTheme.Typo.section)
             .foregroundStyle(MonacoTheme.primaryText)
+            .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: .infinity, alignment: .leading)
             .accessibilityAddTraits(.isHeader)
         if let identifier {
