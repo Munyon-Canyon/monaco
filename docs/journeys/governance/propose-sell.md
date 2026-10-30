@@ -1,7 +1,7 @@
 ---
 id: governance/propose-sell
 title: Propose a sell
-version: 6
+version: 7
 milestone: M13
 requires: [auth/sign-in]
 actors: [A]
@@ -23,7 +23,7 @@ The format of this doc is in [App journeys](../README.md).
 | --- | --- |
 | P1 | Actor A has signed in once (`auth/sign-in`), and their `privy_user_id` is in `apps/mobile/qa/journeys/accounts.tsv` |
 | P2 | The dev database is migrated (`just migrate db`). `scripts/qa/journey.py run` starts the backend with `just run backend` |
-| P3 | `apps/mobile/qa/journeys/governance/propose-sell.setup.sh` ran right before the scenario. It marks A as done with onboarding, seeds `monacoctl dev seed-scenario cabal-with-confirmed-trade` with A as owner (a cabal that holds AAPLx), renames it `QA sell {QA.run}`, and writes AAPLx samples to `price_points` every 4 minutes for the next 16 minutes, because the pot refuses a price older than 5 minutes and the journey backend runs no price poller |
+| P3 | `apps/mobile/qa/journeys/governance/propose-sell.setup.sh` ran right before the scenario. It marks A as done with onboarding, seeds `monacoctl dev seed-scenario cabal-with-confirmed-trade` with A as owner (a cabal that holds AAPLx), renames it `QA sell {QA.run}`, adds one closed (expired) buy proposal so the cabal shows its Fund / Propose row instead of the "Quiet in here." card, and writes AAPLx samples to `price_points` every 4 minutes for the next 16 minutes, because the pot refuses a price older than 5 minutes and the journey backend runs no price poller |
 
 ## Scenarios
 
