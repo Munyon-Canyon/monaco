@@ -43,22 +43,25 @@ private struct HomeFeedPreview: View {
 
     var body: some View {
         let rows = items.map { FeedPreviewRowFacts($0, source: source, now: Date()) }
+        let hidden = rows.isEmpty || waitsForFirstUse
         VStack(alignment: .leading, spacing: 0) {
-            MonacoSectionHeader(header, trailing: "See all") {
-                environment.navigator.selectedTab = .feed
-            }
-            .padding(.horizontal, MonacoTheme.Space.gutter)
-            MonacoGroupedList {
-                ForEach(rows) { row in
-                    NavigationLink(value: row.destination.route) {
-                        HomeFeedPreviewRow(row: row, isLast: row.id == rows.last?.id)
+            if !hidden {
+                MonacoSectionHeader(header, trailing: "See all") {
+                    environment.navigator.selectedTab = .feed
+                }
+                .padding(.horizontal, MonacoTheme.Space.gutter)
+                MonacoGroupedList {
+                    ForEach(rows) { row in
+                        NavigationLink(value: row.destination.route) {
+                            HomeFeedPreviewRow(row: row, isLast: row.id == rows.last?.id)
+                        }
+                        .buttonStyle(.monacoRow)
+                        .accessibilityIdentifier("home-feed-preview-row-\(row.id)")
                     }
-                    .buttonStyle(.monacoRow)
-                    .accessibilityIdentifier("home-feed-preview-row-\(row.id)")
                 }
             }
         }
-        .homeSlotHidden(rows.isEmpty || waitsForFirstUse)
+        .homeSlotHidden(hidden)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier(source == .yourCabals ? "home-feed-preview" : "home-feed-everyone")
         .task(id: waitsForFirstUse) {
@@ -91,27 +94,32 @@ private struct HomeFeedPreviewRow: View {
 
     private var layout: MonacoRowLayout { MonacoRowLayout(dynamicTypeSize: dynamicTypeSize) }
 
+    private var wraps: Bool { dynamicTypeSize >= .xxLarge }
+
+    private var stacksTrailing: Bool { layout.isStacked || dynamicTypeSize >= .xxxLarge }
+
     var body: some View {
-        HStack(alignment: layout.isStacked ? .top : .center, spacing: MonacoTheme.Space.sm) {
+        HStack(alignment: stacksTrailing ? .top : .center, spacing: MonacoTheme.Space.sm) {
             lead
                 .frame(width: MonacoRowLayout.baseMarkSize, height: MonacoRowLayout.baseMarkSize)
             VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
                 Text(row.title)
                     .font(MonacoTheme.Typo.rowTitle)
                     .foregroundStyle(MonacoTheme.primaryText)
-                    .lineLimit(layout.isStacked ? nil : layout.titleLineLimit)
+                    .lineLimit(wraps ? nil : layout.titleLineLimit)
+                    .fixedSize(horizontal: false, vertical: wraps)
                     .truncationMode(.tail)
                 subtitle
                     .font(MonacoTheme.Typo.caption)
                     .foregroundStyle(MonacoTheme.secondaryText)
                     .lineLimit(nil)
                     .fixedSize(horizontal: false, vertical: true)
-                if layout.isStacked {
+                if stacksTrailing {
                     trailing
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            if !layout.isStacked {
+            if !stacksTrailing {
                 trailing
                     .layoutPriority(1)
             }
@@ -131,9 +139,17 @@ private struct HomeFeedPreviewRow: View {
         .accessibilityLabel(row.spoken)
     }
 
-    private var subtitle: Text {
-        guard row.replies > 0 else { return Text(row.subtitle) }
-        return Text("\(row.subtitle) · \(Image(systemName: "bubble.left")) \(row.replies)")
+    private var subtitle: some View {
+        HStack(alignment: .firstTextBaseline, spacing: MonacoTheme.Space.xs) {
+            Text(row.subtitle)
+            if row.replies > 0 {
+                Text("·")
+                    .accessibilityHidden(true)
+                Image(systemName: "bubble.left")
+                    .accessibilityHidden(true)
+                Text("\(row.replies)")
+            }
+        }
     }
 
     @ViewBuilder private var lead: some View {

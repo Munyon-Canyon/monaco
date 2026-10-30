@@ -13,11 +13,33 @@ private struct HomeFirstUse: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(PortfolioModel.self) private var portfolio: PortfolioModel?
     @Environment(\.homeReads) private var reads
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var joining = false
+
+    private var actionsLayout: AnyLayout {
+        dynamicTypeSize >= .xxLarge
+            ? AnyLayout(VStackLayout(spacing: MonacoTheme.Space.s))
+            : AnyLayout(HStackLayout(spacing: MonacoTheme.Space.s))
+    }
 
     var body: some View {
         let gate = HomeGate(portfolio: portfolio, reads: reads, balance: environment.balance.state)
+        let hidden = !gate.firstUse || gate.sharedFailure
         VStack(spacing: MonacoTheme.Space.s) {
+            if !hidden {
+                content
+            }
+        }
+        .padding(.horizontal, MonacoTheme.Space.gutter)
+        .frame(maxWidth: .infinity)
+        .homeSlotHidden(hidden)
+        .sheet(isPresented: $joining) { JoinLinkSheet() }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("home-cabals-empty")
+    }
+
+    @ViewBuilder private var content: some View {
+        Group {
             Image(systemName: MonacoIcon.pair.symbol)
                 .font(MonacoTheme.Typo.title)
                 .foregroundStyle(MonacoTheme.secondaryText)
@@ -30,7 +52,8 @@ private struct HomeFirstUse: View {
                 .font(MonacoTheme.Typo.body)
                 .foregroundStyle(MonacoTheme.secondaryText)
                 .multilineTextAlignment(.center)
-            HStack(spacing: MonacoTheme.Space.s) {
+                .fixedSize(horizontal: false, vertical: true)
+            actionsLayout {
                 Button {
                     environment.navigator.open(CreateCabalRoute(), in: .home)
                 } label: {
@@ -48,11 +71,5 @@ private struct HomeFirstUse: View {
             }
             .padding(.top, MonacoTheme.Space.s)
         }
-        .padding(.horizontal, MonacoTheme.Space.gutter)
-        .frame(maxWidth: .infinity)
-        .homeSlotHidden(!gate.firstUse || gate.sharedFailure)
-        .sheet(isPresented: $joining) { JoinLinkSheet() }
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("home-cabals-empty")
     }
 }
