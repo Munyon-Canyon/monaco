@@ -172,7 +172,10 @@ enum HomeSampleData {
             pnls = [-300_000_000, 0, 0]
         case .fAccount, .fUnfunded:
             return .sampleF
-        case .unfunded, .empty:
+        case .unfunded:
+            values = [0, 0, 0]
+            pnls = [0, 0, 0]
+        case .empty:
             return .sampleEmpty
         }
         let total: Int64 = values.reduce(0, +)
@@ -180,8 +183,7 @@ enum HomeSampleData {
         let totalNetContributed: Int64 = total - totalPnl
         let totalReturnBps: Int64? = total == 0 ? nil : totalPnl * 10_000 / max(totalNetContributed, 1)
         let paired = Array(zip(cabals, zip(values, pnls)))
-        let shown = figures == .partlyFunded ? paired.filter { $0.1.0 > 0 } : paired
-        let rows: [Components.Schemas.PortfolioCabal] = shown.map { cabal, figure in
+        let rows: [Components.Schemas.PortfolioCabal] = paired.map { cabal, figure in
             let value: Int64 = figure.0
             let pnl: Int64 = figure.1
             let netContributed: Int64 = value - pnl
