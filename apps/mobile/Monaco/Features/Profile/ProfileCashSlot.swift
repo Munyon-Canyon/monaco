@@ -91,13 +91,15 @@ struct ProfileCashRow: View {
                 .foregroundStyle(MonacoTheme.primaryText)
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
-            HStack(spacing: 0) {
-                Text(ProfileCopy.apyLabel)
-                    .font(MonacoTheme.Typo.subhead)
-                    .foregroundStyle(MonacoTheme.secondaryText)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .allowsHitTesting(false)
-                infoButton
+            if LaunchFeatures.apy {
+                HStack(spacing: 0) {
+                    Text(ProfileCopy.apyLabel)
+                        .font(MonacoTheme.Typo.subhead)
+                        .foregroundStyle(MonacoTheme.secondaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .allowsHitTesting(false)
+                    infoButton
+                }
             }
         }
     }

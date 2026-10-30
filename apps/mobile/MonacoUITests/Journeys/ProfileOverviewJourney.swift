@@ -2,7 +2,7 @@ import XCTest
 
 enum ProfileOverviewJourney {
     static let id = "profile/overview"
-    static let version = 10
+    static let version = 11
 
     static let signOutTitle = "Sign out of Monaco?"
     static let signOutMessage =
@@ -111,8 +111,8 @@ enum ProfileOverviewJourney {
             for text in ["Cash", "USDC"] {
                 XCTAssertTrue(cash.label.contains(text), "S1.5: the cash row reads '\(cash.label)', with no '\(text)'")
             }
-            XCTAssertTrue(
-                app.staticTexts["3.5% APY"].waitForExistence(timeout: 5), "S1.5: no APY text beside the cash row")
+            XCTAssertFalse(app.staticTexts["3.5% APY"].exists, "S1.5: APY text beside the cash row")
+            XCTAssertFalse(app.element("profile-apy-info").exists, "S1.5: an APY info button on the cash row")
             let dock = app.element("profile-add-money-link")
             XCTAssertTrue(dock.waitForExistence(timeout: 5), "S1.5: no Deposit dock above the tab bar")
             XCTAssertTrue(dock.label.contains("Deposit"), "S1.5: the dock reads '\(dock.label)', not 'Deposit'")

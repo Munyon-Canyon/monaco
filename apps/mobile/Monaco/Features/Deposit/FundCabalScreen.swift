@@ -199,7 +199,9 @@ enum FundPillMetrics {
 struct FundNoteSheet: View {
     var body: some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.sm) {
-            Text(CabalYield.fundNote)
+            if LaunchFeatures.apy {
+                Text(CabalYield.fundNote)
+            }
             Text(FundNoteCopy.share)
         }
         .font(MonacoTheme.Typo.subhead)

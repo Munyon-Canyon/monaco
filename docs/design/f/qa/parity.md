@@ -26,6 +26,7 @@ Shots and sheets stay outside the repo. The per-group PNG sheets are attached to
 - `match`: the same order, components, copy and states as the frame.
 - `match (15 pt floor)`: matches, and is taller only because the app floors row sub-lines at 15 pt (#4110), or differs only by a Context allowance: the real status bar, keyboard and tab bar; sample-harness data instead of the fixture's names and numbers; initials or an identity hue where the frame shows a photo; the real vote window; Q22's initials emblem; #6509's first-fund order.
 - `no backend at launch`: the Treasury tab's bot row hidden and the stat block's "Bot Off" (#6511, Q29). On `03-cabal-treasury*` that gap is never a difference; those rows are `difference` only for their other gaps.
+- `founder-approved difference`: the app drops something the frame shows because Andres (founder, 2026-10-30) ruled it out of the launch app. Never a defect, and no follow-up issue. The cash rows on Home, Profile and the cabal Treasury tab show no "3.5% APY" and no info button on any frame that draws them (#7242, `LaunchFeatures.apy`). Each row's own text still says what else differs.
 - `difference`: a different kind of fact, a missing or extra component, a different order, copy or state. The row says what each side shows.
 - `no harness`: the state exists, but no harness line draws it (or the line draws another frame's state).
 - `system`: a Lock Screen, Notification Center, expanded push or Face ID surface, judged from a push shot.
