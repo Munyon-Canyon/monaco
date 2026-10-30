@@ -131,7 +131,7 @@ private struct CabalsBoard: View {
                 showsRankInfo = true
             } label: {
                 HStack(spacing: MonacoTheme.Space.xs) {
-                    Text("Rank change")
+                    Text("About")
                     Image(systemName: MonacoIcon.info.symbol)
                 }
                 .font(MonacoTheme.Typo.caption)
@@ -140,7 +140,7 @@ private struct CabalsBoard: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Rank change")
+            .accessibilityLabel(LeaderboardCopy.infoLabel)
             .accessibilityIdentifier("cabals-board-rank-info")
         }
         .frame(minHeight: 44)
@@ -203,8 +203,7 @@ private struct CabalsBoard: View {
                 ForEach(visible) { row in
                     NavigationLink(value: AnyAppRoute(CabalRoute(id: row.id))) {
                         BoardRow(
-                            row: row, figure: .pnl, isLast: row.id == visible.last?.id, chevron: true,
-                            movement: loader.moves[row.id]
+                            row: row, figure: .pnl, isLast: row.id == visible.last?.id, chevron: true
                         ) {
                             CabalMark(groupId: row.id, name: row.name, pictureUrl: row.pictureURL)
                         }
@@ -269,9 +268,6 @@ private struct CabalsBoard: View {
 
     private var rankInfoSheet: some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
-            Text(
-                "The arrow compares this rank with the preceding snapshot using the same period, category and sort. A change from fifth to first is ↑ 4. Missing history shows New, not an invented movement."
-            )
             Text(
                 "Dollar P&L and percentage return share the selected period. Deposits are not gains. Only permitted public performance is ranked."
             )

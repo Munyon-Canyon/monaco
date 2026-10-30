@@ -107,7 +107,7 @@ final class LeaderboardLoaderTests: XCTestCase {
         XCTAssertEqual(paths.last, "/v1/leaderboards/people?range=ALL&cursor=Mg&filter=all")
     }
 
-    func testAHintReadsTheFirstPageOnceAndRecordsTheMoves() async throws {
+    func testAHintReadsTheFirstPageOnce() async throws {
         let first = Page.samplePeople(count: 3)
         let order = [first.rows[1], first.rows[0], first.rows[2]]
         let swapped = first.with(rows: order.enumerated().map { $1.ranked($0 + 1) })
@@ -118,10 +118,9 @@ final class LeaderboardLoaderTests: XCTestCase {
 
         await hints.send(.changed(.global, what: "leaderboards_updated", id: "1"))
         await transport.waitForRequests(2)
-        while loader.moves.isEmpty { await Task.yield() }
+        while loader.rows.first?.id != "user-2" { await Task.yield() }
 
         XCTAssertEqual(loader.rows.map(\.id), ["user-2", "user-1", "user-3"])
-        XCTAssertEqual(loader.moves, ["user-2": 1, "user-1": -1])
         let count = await transport.sent.count
         XCTAssertEqual(count, 2)
         task.cancel()
@@ -265,7 +264,6 @@ final class LeaderboardLoaderRefreshTests: XCTestCase {
         let count = await transport.sent.count
         XCTAssertEqual(count, 4)
         XCTAssertEqual(loader.rows.map(\.id), before)
-        XCTAssertEqual(loader.moves, [:])
         XCTAssertNil(loader.toast)
     }
 
@@ -339,7 +337,6 @@ final class LeaderboardLoaderRefreshTests: XCTestCase {
         XCTAssertFalse(loader.isLoading)
         XCTAssertEqual(loader.rows.count, 40)
         XCTAssertEqual(Array(loader.rows.map(\.id).prefix(3)), ["user-2", "user-1", "user-3"])
-        XCTAssertEqual(loader.moves, ["user-2": 1, "user-1": -1])
         XCTAssertFalse(loader.hasMore)
         XCTAssertNil(loader.toast)
         let paths = await transport.sent.map(\.path)
