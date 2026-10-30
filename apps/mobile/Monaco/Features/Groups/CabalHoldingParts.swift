@@ -148,8 +148,7 @@ struct HoldingDetails: View {
             VStack(spacing: 0) {
                 ReceiptLine(label: CabalHoldingCopy.Detail.asset, value: .words(holding.ticker))
                 ReceiptLine(label: CabalHoldingCopy.Detail.scope, value: .words(holding.cabalName))
-                ReceiptLine(
-                    label: CabalHoldingCopy.Detail.averageBuy, value: .words(CabalHoldingCopy.Detail.averageBuyValue))
+                ReceiptLine(label: CabalHoldingCopy.Detail.averageBuy, value: .words(holding.averageBuyDetail))
                 ReceiptLine(
                     label: CabalHoldingCopy.Detail.pnlScope, value: .words(CabalHoldingCopy.Detail.pnlScopeValue),
                     isLast: false)

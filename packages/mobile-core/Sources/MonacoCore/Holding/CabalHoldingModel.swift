@@ -165,7 +165,7 @@ public final class CabalHoldingModel {
             pnlMicros: held?.pnlMicros ?? 0,
             unitsText: held?.units ?? "0",
             staleMinutes: held != nil && minutes >= Self.staleAfterMinutes ? minutes : nil,
-            figures: figures)
+            figures: figures.withAverageBuy(held?.avgEntryMicros.flatMap { Int64($0) }))
         return outcome(for: holding)
     }
 
