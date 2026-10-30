@@ -45,7 +45,6 @@ public final class WithdrawModel {
     private let settlements: SettlementWatcher
     private let balance: BalanceSource?
     private let ownDepositAddress: String?
-    private let demoMode: Bool
     private let clock: any Clock<Duration>
     @ObservationIgnored private var quoteTask: Task<Void, Never>?
     @ObservationIgnored private var requestedKey: QuoteKey?
@@ -56,20 +55,18 @@ public final class WithdrawModel {
 
     public init(
         api: APIClient, hints: any HintSource, submission: IdempotentSubmission, settlements: SettlementWatcher,
-        ownDepositAddress: String?, demoMode: Bool, clock: any Clock<Duration>, balance: BalanceSource? = nil
+        ownDepositAddress: String?, clock: any Clock<Duration>, balance: BalanceSource? = nil
     ) {
         source = WithdrawSource(api: api)
         withdrawing = Withdrawing(source: source, hints: hints, submission: submission)
         self.settlements = settlements
         self.balance = balance
         self.ownDepositAddress = ownDepositAddress
-        self.demoMode = demoMode
         self.clock = clock
     }
 
     public var networks: [WithdrawNetwork] {
-        let base: [WithdrawNetwork] = [.solana, .base, .arbitrum, .ethereum]
-        return demoMode ? base + [.monad] : base
+        WithdrawNetwork.allCases.filter { LaunchFeatures.offersMoney($0.rawValue) }
     }
 
     public var amountMicros: Int64 { AmountText.micros(amountText) ?? 0 }

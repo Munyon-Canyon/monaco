@@ -50,9 +50,9 @@ final class BestPriceTests: XCTestCase {
         let best = try XCTUnwrap(BestPrice(BestPrice.sampleComparison(now: Date()), isSell: false))
 
         XCTAssertEqual(best.headline, "Best price across 3 venues")
-        XCTAssertEqual(best.venues.map(\.name), ["Base", "Solana", "Ethereum"])
+        XCTAssertEqual(best.venues.map(\.name), ["Base", "Solana", "Robinhood Chain"])
         XCTAssertEqual(best.venues.map(\.isWinner), [true, false, false])
-        XCTAssertEqual(best.venues.map(\.network), [.base, .solana, .ethereum])
+        XCTAssertEqual(best.venues.map(\.network), [.base, .solana, .robinhood])
         XCTAssertEqual(best.venues.map(best.figure), ["0.0401 shares", "0.0400 shares", "0.0398 shares"])
         XCTAssertEqual(best.advantage, "You get 0.0001 more shares than the next best")
     }
@@ -113,15 +113,11 @@ final class BestPriceTests: XCTestCase {
         XCTAssertEqual(best.winner.id, "a")
         XCTAssertEqual(best.headline, "Best price across 1 venue")
         XCTAssertNil(best.advantage)
-        XCTAssertEqual(best.unavailable.map(\.id), ["b", "c", "d", "e", "demo-monad"])
-        XCTAssertEqual(best.unavailable.map(\.name), ["Base", "Ethereum", "Arbitrum", "Robinhood Chain", "Monad"])
-        XCTAssertEqual(best.unavailable.map(\.network), ["base", "ethereum", "arbitrum", "robinhood", "monad"])
+        XCTAssertEqual(best.unavailable.map(\.id), ["b", "e"])
+        XCTAssertEqual(best.unavailable.map(\.name), ["Base", "Robinhood Chain"])
+        XCTAssertEqual(best.unavailable.map(\.network), ["base", "robinhood"])
         XCTAssertEqual(
-            best.unavailable.map(\.reason),
-            [
-                "Unavailable right now", "No route", "Unavailable right now",
-                "Unavailable: not set up on this chain yet", "No price yet",
-            ])
+            best.unavailable.map(\.reason), ["Unavailable right now", "Unavailable: not set up on this chain yet"])
     }
 
     func testEachChainIsOneRowWithItsBestQuote() throws {
@@ -168,8 +164,8 @@ final class BestPriceTests: XCTestCase {
         let best = try XCTUnwrap(BestPrice(compared, isSell: false))
 
         XCTAssertEqual(best.venues.map(\.id), ["a"])
-        XCTAssertEqual(best.unavailable.map(\.id), ["c", "demo-monad"])
-        XCTAssertEqual(best.unavailable.map(\.name), ["Base", "Monad"])
+        XCTAssertEqual(best.unavailable.map(\.id), ["c"])
+        XCTAssertEqual(best.unavailable.map(\.name), ["Base"])
     }
 
     func testEveryChainIsLabelledByItsNameAlone() throws {

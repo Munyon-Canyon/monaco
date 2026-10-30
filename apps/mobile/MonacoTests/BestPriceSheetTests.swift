@@ -21,9 +21,9 @@ struct BestPriceSheetTests {
 
     @Test func theSheetListsEveryVenueCheckedWithTheWinnerFirst() throws {
         let rows = BestPriceSheet.rows(try bestPrice())
-        #expect(rows.map(\.name) == ["Base", "Solana", "Ethereum", "Monad"])
-        #expect(rows.map(\.figure) == ["0.0401 shares", "0.0400 shares", "0.0398 shares", "No price yet"])
-        #expect(rows.map(\.isWinner) == [true, false, false, false])
+        #expect(rows.map(\.name) == ["Base", "Solana", "Robinhood Chain"])
+        #expect(rows.map(\.figure) == ["0.0401 shares", "0.0400 shares", "0.0398 shares"])
+        #expect(rows.map(\.isWinner) == [true, false, false])
         #expect(try bestPrice().advantage == "You get 0.0001 more shares than the next best")
     }
 

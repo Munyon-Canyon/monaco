@@ -23,7 +23,7 @@ extension BestPrice {
                     "01928a6e-0000-7000-8000-000000000001", issuer: "xstocks", network: .solana, venue: .jupiter,
                     shares: "40000000"),
                 quote(
-                    "01928a6e-0000-7000-8000-000000000003", issuer: "ondo", network: .ethereum, venue: .uniswap,
+                    "01928a6e-0000-7000-8000-000000000003", issuer: "robinhood", network: .robinhood, venue: .uniswap,
                     shares: "39800000"),
             ],
             unavailable: [])

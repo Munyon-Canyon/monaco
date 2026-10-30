@@ -32,7 +32,7 @@ public struct ProposeChainOption: Identifiable, Equatable, Sendable {
     public static func options(_ bestPrice: BestPrice?, isEstimate: Bool = false) -> [ProposeChainOption] {
         guard let bestPrice, !bestPrice.isSell else { return [] }
         var networks: [Components.Schemas.Network] = []
-        for venue in bestPrice.venues where !networks.contains(venue.network) {
+        for venue in bestPrice.venues where !networks.contains(venue.network) && LaunchFeatures.offers(venue.network) {
             networks.append(venue.network)
         }
         guard networks.count > 1 else { return [] }
@@ -49,9 +49,6 @@ public struct ProposeChainOption: Identifiable, Equatable, Sendable {
                     networkID: network.rawValue, isBest: false)
             }
         }
-        let demo = ProposeChainOption(
-            chain: .unavailable(DemoMonad.id), title: DemoMonad.name, figure: "No price yet",
-            networkID: DemoMonad.id, isBest: false, isAvailable: false)
-        return [best] + chains + [demo]
+        return [best] + chains
     }
 }

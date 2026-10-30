@@ -214,7 +214,7 @@ final class ProposeReviewModelTests: XCTestCase {
         let service = ReviewService()
         let model = makeModel(kind: .stock, service: service, comparison: BestPrice.sampleComparison(now: Date()))
 
-        model.choose(.network(.ethereum))
+        model.choose(.network(.robinhood))
         XCTAssertEqual(
             model.rows,
             [
@@ -226,7 +226,7 @@ final class ProposeReviewModelTests: XCTestCase {
         await model.send()
 
         let networks = await service.networks
-        XCTAssertEqual(networks, [.ethereum])
+        XCTAssertEqual(networks, [.robinhood])
     }
 
     func testChoosingAfterASuccessfulSendChangesNothing() async {

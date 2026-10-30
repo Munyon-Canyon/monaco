@@ -39,20 +39,14 @@ public struct BestPrice: Equatable, Sendable {
             }
             if !venues[index].isWinner, Self.beats(venue, venues[index], isSell: isSell) { venues[index] = venue }
         }
-        self.venues = venues
+        self.venues = venues.filter { $0.isWinner || LaunchFeatures.offers($0.network) }
         var networks = Set(venues.map(\.network))
-        var unavailable = comparison.unavailable.compactMap { venue -> UnavailableVenue? in
-            guard networks.insert(venue.network).inserted else { return nil }
+        unavailable = comparison.unavailable.compactMap { venue -> UnavailableVenue? in
+            guard LaunchFeatures.offers(venue.network), networks.insert(venue.network).inserted else { return nil }
             return UnavailableVenue(
                 id: venue.listingId, name: Self.chainName(venue.network), network: venue.network.rawValue,
                 reason: Self.reasonText(venue.reason, detail: venue.reasonDetail))
         }
-        if !isSell {
-            unavailable.append(
-                UnavailableVenue(
-                    id: "demo-\(DemoMonad.id)", name: DemoMonad.name, network: DemoMonad.id, reason: "No price yet"))
-        }
-        self.unavailable = unavailable
         self.isSell = isSell
     }
 

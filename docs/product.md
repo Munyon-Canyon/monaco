@@ -21,7 +21,7 @@ The loop is: join, put money in, decide, watch the pot, decide again. Leaderboar
 | **Proposal** | A request the cabal votes on: buy or sell. |
 | **Voter set** | The members allowed to propose and vote. Either everyone or a named list. |
 | **Cash out** | Selling some or all of your share units back to the cabal for USDC in your account balance. |
-| **Withdraw** | Sending USDC from your account balance to an outside address on Solana, Base, Arbitrum or Ethereum. |
+| **Withdraw** | Sending USDC from your account balance to an outside address on Solana or Base. |
 
 User-facing copy says "cabal", "pot value", "your slice" and "gain or loss". It never says "NAV", "P&L", "wallet", "gas", "mint" or "xStock", and it never shows a raw token address.
 
@@ -51,7 +51,7 @@ Money reaches a cabal in two steps, on purpose:
 
 1. **Deposit.** Card or Apple Pay needs no address. To send from another app or an exchange, the user picks a network and sees one deposit address for it, with a copy button:
     - **Solana:** the user's own deposit address (internally, their Solana member wallet). USDC sent there is account balance a few seconds after it lands.
-    - **Base, Arbitrum or Ethereum:** one address, the same on all three. Monaco moves USDC sent there to Solana, and it shows as **Arriving** until it lands, then as account balance.
+    - **Base:** one EVM address. Monaco moves USDC sent there to Solana, and it shows as **Arriving** until it lands, then as account balance.
 
     Every balance lives on Solana; the other networks are only ways in. Only USDC counts, and only on the networks listed. There is no amount to type in the app.
 2. **Fund.** The user picks a cabal and an amount up to their account balance. Monaco moves exactly that amount into the cabal's pot and credits share units at today's share price once the transfer confirms.
@@ -99,14 +99,14 @@ Sells work the same way and keep the issuer and chain already held.
 
 | Issuer | Chains it lists on | At launch |
 | --- | --- | --- |
-| xStocks | Solana, Ethereum, Arbitrum | Solana only. Ethereum and Arbitrum are deposit and withdrawal networks only, not trading venues ([#5491](https://github.com/Munyon-Canyon/monaco/issues/5491)); real quotes found no Uniswap route on Arbitrum and 31–99% price impact on Ethereum ([#4969](https://github.com/Munyon-Canyon/monaco/issues/4969)). |
-| Ondo | Solana, Ethereum | Solana, per listing, once verified. Ethereum is a deposit and withdrawal network only ([#5491](https://github.com/Munyon-Canyon/monaco/issues/5491)). |
+| xStocks | Solana, Ethereum, Arbitrum | Solana only. Ethereum and Arbitrum are not trading venues ([#5491](https://github.com/Munyon-Canyon/monaco/issues/5491)); real quotes found no Uniswap route on Arbitrum and 31–99% price impact on Ethereum ([#4969](https://github.com/Munyon-Canyon/monaco/issues/4969)). |
+| Ondo | Solana, Ethereum | Solana, per listing, once verified. Ethereum is not a trading venue ([#5491](https://github.com/Munyon-Canyon/monaco/issues/5491)). |
 | Coinbase | Base | Per listing, once verified. Routes through Uniswap v4 pools. |
 | Robinhood | Robinhood Chain | Per listing, once verified |
 
 Which chain words a member sees:
 
-- **Network names** (Solana, Base, Arbitrum, Ethereum, Robinhood Chain) appear only in the Deposit and Withdraw network pickers, the Review sheet's venue rows, the chain picker, and the stock page's best-price line. Nowhere else. Arbitrum and Ethereum are deposit and withdrawal networks only, so only the Deposit and Withdraw pickers name them; trades happen on Solana, Base and Robinhood Chain ([#5491](https://github.com/Munyon-Canyon/monaco/issues/5491)).
+- **Network names** (Solana, Base, Robinhood Chain) appear only in the Deposit and Withdraw network pickers, the Review sheet's venue rows, the chain picker, and the stock page's best-price line. Nowhere else. The launch app offers only Solana, Base and Robinhood Chain; Deposit and Withdraw offer Solana and Base, and Ethereum, Arbitrum and Monad are hidden everywhere (one list, `LaunchFeatures`, in MonacoCore). Backend support and data stay, so each can come back by editing that list ([#7244](https://github.com/Munyon-Canyon/monaco/issues/7244)).
 - **Venue names** appear only on a trade's detail, which shows what was checked, for example "Checked 3 venues for Apple. Best: Ondo. You got 0.002 more shares than the next best." Issuer names follow the copy rule above: never "xStock".
 - Nowhere else: proposals, holdings, the pot and activity name the stock, not the chain.
 
@@ -158,7 +158,7 @@ Pot value is saved after every fund, trade and cash out, so charts and boards ca
 Also two steps, mirroring money in:
 
 1. **Cash out** (the **Cash out** button on the cabal screen). Pick an amount from a small minimum up to your whole stake; cashing out everything is the same flow at the maximum. Your shares are debited, your slice of stock is sold if the pot is short of USDC, and USDC equal to your share of the pot lands in your account balance. You get your fraction of the pot now, not the dollars you put in. If the sale raises less than your slice, you are paid what it raised and keep the shares that didn't cover.
-2. **Withdraw** (the **Withdraw** button on the account balance row, on Home or Profile). Pick a network (Solana, Base, Arbitrum or Ethereum) and paste an address on it. Monaco sends USDC from your account balance there. On Solana the exact amount arrives. On another network Monaco moves it across chains first, so the screen shows "You'll receive about $X". Transfers can't be undone, so the address is checked for its network before you can continue. This never touches cabal holdings.
+2. **Withdraw** (the **Withdraw** button on the account balance row, on Home or Profile). Pick a network (Solana or Base) and paste an address on it. Monaco sends USDC from your account balance there. On Solana the exact amount arrives. On another network Monaco moves it across chains first, so the screen shows "You'll receive about $X". Transfers can't be undone, so the address is checked for its network before you can continue. This never touches cabal holdings.
 
 Payouts are always USDC, never stock.
 

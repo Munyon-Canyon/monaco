@@ -12,10 +12,10 @@ final class ProposeReviewChainPreviewTests: XCTestCase {
         XCTAssertTrue(model.isEstimate)
         XCTAssertEqual(model.chain, .best)
         XCTAssertEqual(model.bestPrice?.winner.network, .base)
-        XCTAssertEqual(model.chainOptions.map(\.title), ["Best price", "Base", "Solana", "Monad"])
+        XCTAssertEqual(model.chainOptions.map(\.title), ["Best price", "Base", "Solana"])
         XCTAssertEqual(
             model.chainOptions.map(\.figure),
-            ["about 1.0030 shares", "about 1.0030 shares", "about 1.0000 shares", "No price yet"])
+            ["about 1.0030 shares", "about 1.0030 shares", "about 1.0000 shares"])
         XCTAssertEqual(model.rows.first, .init(label: "Cabal gets", value: "about 0.73 shares"))
         XCTAssertTrue(model.canSend)
     }

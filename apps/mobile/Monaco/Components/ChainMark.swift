@@ -8,10 +8,7 @@ struct ChainMark: View {
         switch network {
         case "solana": "SolanaMark"
         case "base": "BaseMark"
-        case "ethereum": "EthereumMark"
-        case "arbitrum": "ArbitrumMark"
         case "robinhood": "RobinhoodChainMark"
-        case "monad": "MonadMark"
         default: nil
         }
     }

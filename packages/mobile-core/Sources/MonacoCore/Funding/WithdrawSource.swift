@@ -118,7 +118,7 @@ public struct WithdrawSource: Sendable {
 #if DEBUG
 extension WithdrawModel {
     public static func sample(
-        transport: some ClientTransport, ownDepositAddress: String?, demoMode: Bool = false,
+        transport: some ClientTransport, ownDepositAddress: String?,
         clock: any Clock<Duration>
     ) -> WithdrawModel {
         let api = APIClient(
@@ -128,7 +128,7 @@ extension WithdrawModel {
         settlements.bind(accountID: "sample")
         return WithdrawModel(
             api: api, hints: hints, submission: IdempotentSubmission(), settlements: settlements,
-            ownDepositAddress: ownDepositAddress, demoMode: demoMode, clock: clock,
+            ownDepositAddress: ownDepositAddress, clock: clock,
             balance: BalanceSource(api: api, hints: hints))
     }
 }

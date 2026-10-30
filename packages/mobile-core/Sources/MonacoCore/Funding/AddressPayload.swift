@@ -38,7 +38,7 @@ public enum AddressPayload {
         let parts = target.split(separator: "@", maxSplits: 1, omittingEmptySubsequences: false)
         guard let address = evm(String(parts[0])) else { return nil }
         guard parts.count == 2 else { return (address, nil) }
-        guard let network = chains[String(parts[1])] else { return nil }
+        guard let network = chains[String(parts[1])], LaunchFeatures.offersMoney(network.rawValue) else { return nil }
         return (address, network)
     }
 }

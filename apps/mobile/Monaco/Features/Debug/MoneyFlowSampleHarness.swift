@@ -156,8 +156,6 @@ private struct MoneyFlowContentSample: View {
             DepositNetworksView(networks: [
                 DepositNetwork(id: DepositNetwork.solanaID, address: MoneyFlowContentFixture.address),
                 DepositNetwork(id: "base", address: MoneyFlowContentFixture.evmAddress),
-                DepositNetwork(id: "arbitrum", address: MoneyFlowContentFixture.evmAddress),
-                DepositNetwork(id: "ethereum", address: MoneyFlowContentFixture.evmAddress),
             ])
         case .depositAddress, .depositWaiting, .depositReceived:
             DepositContent(
