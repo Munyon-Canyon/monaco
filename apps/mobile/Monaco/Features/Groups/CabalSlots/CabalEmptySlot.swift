@@ -73,7 +73,7 @@ struct CabalEmptyCard: View {
 
     private func buttons(canPropose: Bool) -> some View {
         let layout =
-            dynamicTypeSize.isAccessibilitySize
+            dynamicTypeSize >= .xxxLarge
             ? AnyLayout(VStackLayout(spacing: MonacoTheme.Space.s))
             : AnyLayout(HStackLayout(spacing: MonacoTheme.Space.sm))
         return layout {

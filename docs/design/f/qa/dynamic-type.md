@@ -241,9 +241,9 @@ Defects by size: large 4, xxLarge 16, xxxLarge 26, AX1 42, AX5 70.
 | [`03-cabal-members-scrolled`](../screens/03-cabal-members-scrolled.png) | AX5 | ok | — | — |
 | [`03-cabal-members-all`](../screens/03-cabal-members-all.png) | large | ok | — | — |
 | [`03-cabal-members-all`](../screens/03-cabal-members-all.png) | xxLarge | defect | 1 no truncation: 'Asked to join - Jordan's lin...' and Christelle 'voted 14 of...' end in '...' | #7119 |
-| [`03-cabal-members-all`](../screens/03-cabal-members-all.png) | xxxLarge | defect | 1 no truncation: Leo subtitle 'Asked to join - Jordan's...' ends in '...' | #7119 |
+| [`03-cabal-members-all`](../screens/03-cabal-members-all.png) | xxxLarge | ok | — | — |
 | [`03-cabal-members-all`](../screens/03-cabal-members-all.png) | AX1 | defect | 2 rows stack: record line ('7 of 9 right - voted 11 of 11') sits above the 35% rate; spec wants record under the rate | #7119 |
-| [`03-cabal-members-all`](../screens/03-cabal-members-all.png) | AX5 | defect | 1 no truncation: Leo 'Jordan's link -...' ends in '...'; Christelle crown badge drawn over '12 of 13 right' text; 'voted 14 of...' cut | #7119 |
+| [`03-cabal-members-all`](../screens/03-cabal-members-all.png) | AX5 | defect | 1 no truncation: the request row's 'Leo' and 'Asked to join · Jordan's link · 2h' are drawn whole, but the clipped-text audit still flags both | #7201 |
 | [`03-cabal-empty`](../screens/03-cabal-empty.png) | large | ok | — | — |
 | [`03-cabal-empty`](../screens/03-cabal-empty.png) | xxLarge | ok | — | — |
 | [`03-cabal-empty`](../screens/03-cabal-empty.png) | xxxLarge | ok | — | — |
