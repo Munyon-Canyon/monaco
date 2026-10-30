@@ -71,8 +71,8 @@ final class CabalHoldingTests: XCTestCase {
             CabalHoldingCopy.privateBody("Big Ballers"), "Only members of Big Ballers can see its positions.")
         XCTAssertTrue(
             MainFlowCopyAudit.stringsAreClean([
-                CabalHoldingCopy.fallbackTitle, CabalHoldingCopy.positionValue, CabalHoldingCopy.opensSoon,
-                CabalHoldingCopy.chartOpensSoon, CabalHoldingCopy.emptyTitle, CabalHoldingCopy.emptyBody,
+                CabalHoldingCopy.fallbackTitle, CabalHoldingCopy.positionValue, CabalHoldingCopy.noSales,
+                CabalHoldingCopy.emptyTitle, CabalHoldingCopy.emptyBody,
                 CabalHoldingCopy.tradeHistory, CabalHoldingCopy.noTrades, CabalHoldingCopy.olderTrades,
                 CabalHoldingCopy.tradeFailed, CabalHoldingCopy.related, CabalHoldingCopy.details,
                 CabalHoldingCopy.viewMarket, CabalHoldingCopy.errorTitle, CabalHoldingCopy.errorBody,

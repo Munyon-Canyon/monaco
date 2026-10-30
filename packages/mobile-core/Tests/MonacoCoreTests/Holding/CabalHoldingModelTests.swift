@@ -216,16 +216,6 @@ final class CabalHoldingModelTests: XCTestCase {
         XCTAssertEqual(holding.stats.map(\.value)[1], "—")
         XCTAssertEqual(holding.stats[1].tone, .missing)
         XCTAssertEqual(holding.averageBuyDetail, "— · Quantity-weighted acquisition cost")
-        XCTAssertFalse(holding.hasPendingFigures)
-    }
-
-    func testAverageSellAndRealizedStayPendingWithoutTheirFigures() async throws {
-        let (model, _) = make(
-            pot: try potReply(holdingSymbol: symbol, avgEntryMicros: "206430000"), activity: [try activityReply([])])
-
-        await model.load()
-
-        XCTAssertEqual(model.holding?.hasPendingFigures, true)
     }
 
     private func make(
