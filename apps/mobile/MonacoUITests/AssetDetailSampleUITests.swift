@@ -167,7 +167,8 @@ nonisolated final class AssetDetailSampleUITests: XCTestCase {
 
         scrollTo(app, app.staticTexts["Market stats"], "Market stats")
         scrollTo(app, app.staticTexts["Market cap and supply open soon."], "the opens-soon line")
-        XCTAssertTrue(app.staticTexts["Company profile opens soon."].exists || anyElement(app, "asset-about").exists)
+        XCTAssertFalse(app.staticTexts["Company profile opens soon."].exists)
+        XCTAssertFalse(anyElement(app, "asset-about").exists)
         attachScreenshot(app, name: "stock-stats")
     }
 

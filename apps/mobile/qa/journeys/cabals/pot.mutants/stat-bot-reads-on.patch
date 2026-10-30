@@ -7,9 +7,10 @@ scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 diff --git a/packages/mobile-core/Sources/MonacoCore/LaunchFeatures.swift b/packages/mobile-core/Sources/MonacoCore/LaunchFeatures.swift
 --- a/packages/mobile-core/Sources/MonacoCore/LaunchFeatures.swift
 +++ b/packages/mobile-core/Sources/MonacoCore/LaunchFeatures.swift
-@@ -1,4 +1,4 @@
+@@ -1,5 +1,5 @@
  public enum LaunchFeatures {
      public static let apy = false
 -    public static let bots = false
 +    public static let bots = true
+     public static let companyProfile = false
  }

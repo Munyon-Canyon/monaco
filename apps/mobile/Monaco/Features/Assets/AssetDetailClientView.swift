@@ -105,7 +105,7 @@ struct AssetDetailClientView: View {
                     scrub: AssetScrubHeader(chart: model.chart, barIndex: scrubbedIndex), priceTick: priceTick)
                 AssetDetailChartSection(detail: detail, model: model, scrubbedIndex: $scrubbedIndex)
                 AssetDetailActions(detail: detail, canSell: !model.heldRows.isEmpty, propose: propose)
-                if detail.kind == .preIpo { AssetAbout(detail: detail) }
+                if AssetAbout.isShown(kind: detail.kind) { AssetAbout(detail: detail) }
                 AssetInYourCabals(
                     held: model.heldRows, proposals: model.openProposals,
                     openCabal: { environment.navigator.open(CabalRoute(id: $0), in: tab) },
