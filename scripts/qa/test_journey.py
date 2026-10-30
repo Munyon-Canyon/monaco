@@ -518,6 +518,33 @@ class JourneyTradeEngine(unittest.TestCase):
                 journey.start_backend("http://127.0.0.1:1")
         self.assertEqual(seen["MONACO_FUND_PAGE_PORT"], "off")
 
+    def test_backend_commands_get_no_runner_only_variables(self):
+        runner_only = {"MONACO_NO_SIMSLIM": "1", "MONACO_LOCK_HOLD": "5", "MONACO_QA_REFUND_ADDRESS": "wallet"}
+        seen = []
+
+        def run(step, **kwargs):
+            seen.append(kwargs["env"])
+            return types.SimpleNamespace(returncode=0)
+
+        with unittest.mock.patch.dict(os.environ, dict(runner_only, TRADE_ENGINE="stub"), clear=True), \
+                unittest.mock.patch.object(journey, "sh", run):
+            journey.apply_event_streams(Path(tempfile.mkdtemp()) / "backend.log")
+
+            def popen(_args, **kwargs):
+                seen.append(kwargs["env"])
+                raise RuntimeError("stop")
+
+            with unittest.mock.patch.object(journey, "apply_event_streams", lambda log: None), \
+                    unittest.mock.patch.object(journey.subprocess, "Popen", popen), \
+                    unittest.mock.patch.object(journey, "OUT", Path(tempfile.mkdtemp())):
+                with self.assertRaises(RuntimeError):
+                    journey.start_backend("http://127.0.0.1:1")
+        self.assertEqual(len(seen), 4)
+        for env in seen:
+            self.assertEqual(env["TRADE_ENGINE"], "stub")
+            for key in runner_only:
+                self.assertNotIn(key, env)
+
 
 class Slots(unittest.TestCase):
     def setUp(self):
