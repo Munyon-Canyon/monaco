@@ -21,10 +21,20 @@ nonisolated final class FDynamicTypeAuditUITests: XCTestCase {
     private static let accessibilityXXXLarge = "UICTContentSizeCategoryAccessibilityXXXL"
     private static let swipes = 2
 
+    private static let requestRowReason =
+        "the join request row draws whole at AX5 in the screenshot and the accessibility tree; "
+        + "the audit still flags its name and sub-line after eight layout variants (#7235)"
+
     private static let allowed: [AllowedIssue] = [
         AllowedIssue(
             screen: "*", element: "no element",
-            reason: "a report with no element to name; it appears only while the screen scrolls")
+            reason: "a report with no element to name; it appears only while the screen scrolls"),
+        AllowedIssue(
+            screen: "f__03-cabal-members-all", element: "'Leo'",
+            reason: requestRowReason),
+        AllowedIssue(
+            screen: "f__03-cabal-members-all", element: "'Asked to join · ",
+            reason: requestRowReason),
     ]
 
     private static let preScaledReason: String? =

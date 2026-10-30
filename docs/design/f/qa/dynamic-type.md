@@ -18,7 +18,7 @@ Build: Debug `Monaco.app` from `149c981ab` (`staging` at `0e9545061` plus #7078'
 
 All 475 pairs were shot. The sim lock's 30-minute hold stopped the first run partway through `extra-extra-extra-large`; the second run shot the six frames it had missed, then AX1 and AX5. Nine frames were shot again at all five sizes with `MONACO_QA_SCREEN_SETTLE=8` because their first shots showed the wrong screen. Even then, `15-passed` draws an empty page at every size, and the `16-catch-up*` lines sometimes stop on Home, so 20 pairs are recorded as `no shot` (#7127). Each frame's five shots were laid side by side and judged by eye against the rules.
 
-`FDynamicTypeAuditUITests` (#7078) runs `.dynamicType` and `.textClipped` on the same 95 frames at xxxLarge and AX5, one test method per frame group: `scripts/qa/xcode-lock.sh xcode xcodebuild test-without-building ... -only-testing:MonacoUITests/FDynamicTypeAuditUITests/<group>`. Its allow-list stays empty, so while the defects below are open it fails on their frames; it was not run to completion in #6586 (see [Next steps](#next-steps)).
+`FDynamicTypeAuditUITests` (#7078) runs `.dynamicType` and `.textClipped` on the same 95 frames at xxxLarge and AX5, one test method per frame group: `scripts/qa/xcode-lock.sh xcode xcodebuild test-without-building ... -only-testing:MonacoUITests/FDynamicTypeAuditUITests/<group>`. Its allow-list holds only reports with no element and the members-all request row's false positive (#7201), so while the defects below are open it fails on their frames; it was not run to completion in #6586 (see [Next steps](#next-steps)).
 
 Sizes: `large` is the default, `xxLarge` is the prototype's "Larger text" step, `xxxLarge` is the largest non-accessibility size, `AX1` is `accessibility-medium` and `AX5` is `accessibility-extra-extra-extra-large`.
 
@@ -243,7 +243,7 @@ Defects by size: large 4, xxLarge 16, xxxLarge 26, AX1 42, AX5 70.
 | [`03-cabal-members-all`](../screens/03-cabal-members-all.png) | xxLarge | defect | 1 no truncation: 'Asked to join - Jordan's lin...' and Christelle 'voted 14 of...' end in '...' | #7119 |
 | [`03-cabal-members-all`](../screens/03-cabal-members-all.png) | xxxLarge | ok | — | — |
 | [`03-cabal-members-all`](../screens/03-cabal-members-all.png) | AX1 | defect | 2 rows stack: record line ('7 of 9 right - voted 11 of 11') sits above the 35% rate; spec wants record under the rate | #7119 |
-| [`03-cabal-members-all`](../screens/03-cabal-members-all.png) | AX5 | defect | 1 no truncation: the request row's 'Leo' and 'Asked to join · Jordan's link · 2h' are drawn whole, but the clipped-text audit still flags both | #7201 |
+| [`03-cabal-members-all`](../screens/03-cabal-members-all.png) | AX5 | ok | — (the request row's 'Leo' and sub-line draw whole; the audit's clipped flag on them is allow-listed as a false positive) | #7201 |
 | [`03-cabal-empty`](../screens/03-cabal-empty.png) | large | ok | — | — |
 | [`03-cabal-empty`](../screens/03-cabal-empty.png) | xxLarge | ok | — | — |
 | [`03-cabal-empty`](../screens/03-cabal-empty.png) | xxxLarge | ok | — | — |
