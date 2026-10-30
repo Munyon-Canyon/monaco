@@ -90,12 +90,14 @@ struct CommentRow: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(isHighlighted ? MonacoTheme.surfaceSunken : Color.clear)
         .animation(.easeOut(duration: 0.2), value: isHighlighted)
+        .frame(minHeight: CommentRowMetrics.replyTarget, alignment: .top)
         .contentShape(Rectangle())
         .onGeometryChange(for: CGRect.self) {
             $0.frame(in: .global)
         } action: {
             frameBox.frame = $0
         }
+        .onTapGesture(count: 2) { if row.canReact { onDoubleTap() } }
         .onLongPressGesture {
             guard canLongPress, let onLongPress else { return }
             Haptics.tap()
@@ -154,6 +156,7 @@ struct CommentRow: View {
             .font(MonacoTheme.Typo.subhead)
             .foregroundStyle(MonacoTheme.secondaryText)
             .lineLimit(1)
+            .accessibilityHidden(true)
     }
 
     private var bodyText: some View {
@@ -161,8 +164,6 @@ struct CommentRow: View {
             .font(MonacoTheme.Typo.body)
             .foregroundStyle(row.isDeleted ? MonacoTheme.secondaryText : MonacoTheme.bodyText)
             .fixedSize(horizontal: false, vertical: true)
-            .contentShape(Rectangle())
-            .onTapGesture(count: 2) { if row.canReact { onDoubleTap() } }
             .accessibilityIdentifier("comment-body-\(row.id)")
             .monacoPrivate()
     }

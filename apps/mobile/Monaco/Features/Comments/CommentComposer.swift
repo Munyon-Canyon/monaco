@@ -161,6 +161,8 @@ struct ComposerField: View {
             .focused(focused)
             .padding(.leading, MonacoTheme.Space.m)
             .padding(.vertical, MonacoTheme.Space.sm)
+            .frame(minHeight: CommentRowMetrics.replyTarget)
+            .contentShape(Rectangle())
             .accessibilityIdentifier("comment-composer-field")
             .monacoPrivate()
             if let onGif { ComposerGifButton(action: onGif) }
