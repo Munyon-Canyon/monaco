@@ -117,10 +117,10 @@ struct V3LargeTextLayoutTests {
         StatItem(label: "Value", value: "$13,950.00"),
     ]
 
-    @Test(arguments: [DynamicTypeSize.large, .xxxLarge, .accessibility1, .accessibility5])
-    func thePickerLabelAndKeypadSourceWrapOnlyAtAccessibilitySizes(size: DynamicTypeSize) {
+    @Test(arguments: [DynamicTypeSize.large, .xxLarge, .xxxLarge, .accessibility1, .accessibility5])
+    func thePickerLabelWrapsAtAccessibilitySizesAndTheKeypadSourceFromXxxLarge(size: DynamicTypeSize) {
         #expect(MonacoMenuSelect<String>.wraps(at: size) == size.isAccessibilitySize)
-        #expect(AmountKeypadSourceLayout.wraps(at: size) == size.isAccessibilitySize)
+        #expect(AmountKeypadSourceLayout.wraps(at: size) == (size >= .xxxLarge))
     }
 
     @Test func theMoneyStripWrapsOnceTheFiguresStopFittingOneLine() {

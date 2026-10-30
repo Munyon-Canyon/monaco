@@ -427,6 +427,8 @@ Defects by size: large 4, xxLarge 16, xxxLarge 26, AX1 42, AX5 70.
 
 ## Frames 09
 
+#7207 makes the keypad source pill stack from xxxLarge, lets the amount line, slot, limit line and settled button wrap to full height, so the 31 `FDynamicTypeAuditUITests/test09Money` clipped-text findings at xxxLarge and AX5 are fixed in code; the audit rerun is pending.
+
 | Frame | Size | Verdict | Rule broken | Follow-up |
 | --- | --- | --- | --- | --- |
 | [`09-fund-cabal-empty`](../screens/09-fund-cabal-empty.png) | large | ok | — | — |
