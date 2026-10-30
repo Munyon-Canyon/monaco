@@ -77,6 +77,7 @@ struct FeedOutsideTally: View {
             split
                 .font(MonacoTheme.Typo.headline)
                 .foregroundStyle(MonacoTheme.primaryText)
+                .fixedSize(horizontal: false, vertical: true)
                 .accessibilityLabel("\(tally.yes) yes, \(tally.no) no")
                 .accessibilityIdentifier("feed-vote-ends-\(identifier)")
             VoteStatusLine(

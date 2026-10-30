@@ -302,6 +302,8 @@ Defects by size: large 4, xxLarge 16, xxxLarge 26, AX1 42, AX5 70.
 
 ## Frames 05
 
+The Feed and post page wrap instead of clipping at large text (#7203). The feed post header verb, the comment byline name and time, the quiet-week vote tally and the post object place line wrap or stack from xxxLarge, and the byline stacks name over time when it does not fit one line. The emoji picker section headers (`Features/Reactions`) and the vote status line (`Design/VoteTally.swift`) sit outside this ticket's paths and stay clipped.
+
 | Frame | Size | Verdict | Rule broken | Follow-up |
 | --- | --- | --- | --- | --- |
 | [`05-feed-A`](../screens/05-feed-A.png) | large | ok | — | — |
@@ -328,7 +330,7 @@ Defects by size: large 4, xxLarge 16, xxxLarge 26, AX1 42, AX5 70.
 | [`05-emoji-picker`](../screens/05-emoji-picker.png) | xxLarge | ok | — | — |
 | [`05-emoji-picker`](../screens/05-emoji-picker.png) | xxxLarge | ok | — | — |
 | [`05-emoji-picker`](../screens/05-emoji-picker.png) | AX1 | ok | — | — |
-| [`05-emoji-picker`](../screens/05-emoji-picker.png) | AX5 | defect | 1 truncation; 12 overlap: 'Alex propos…' verb truncated; 'Search emoji' field overlaps 'Frequently used'; 'Smileys and peo…' truncated and emoji drawn over headings | #7121 |
+| [`05-emoji-picker`](../screens/05-emoji-picker.png) | AX5 | defect | 2 overlap: 'Search emoji' field overlaps 'Frequently used'; 'Smileys and peo…' truncated and emoji drawn over headings; the post header verb wraps now (#7203) | #7121 |
 | [`05-post`](../screens/05-post.png) | large | ok | — | — |
 | [`05-post`](../screens/05-post.png) | xxLarge | defect | 1 truncation: reply quote 'Logan Took the gain while it was…' ends in an ellipsis (not a name) | #7121 |
 | [`05-post`](../screens/05-post.png) | xxxLarge | defect | 1 truncation: reply quote 'Logan Took the gain while it was…' ends in an ellipsis (not a name) | #7121 |
@@ -336,14 +338,14 @@ Defects by size: large 4, xxLarge 16, xxxLarge 26, AX1 42, AX5 70.
 | [`05-post`](../screens/05-post.png) | AX5 | defect | 1 clipped: buy 'B' marker on chart is cut off | #7121 |
 | [`05-post-scrolled`](../screens/05-post-scrolled.png) | large | ok | — | — |
 | [`05-post-scrolled`](../screens/05-post-scrolled.png) | xxLarge | defect | 1 truncation: reply quote 'Logan Took the gain while it was…' ends in an ellipsis (not a name) | #7121 |
-| [`05-post-scrolled`](../screens/05-post-scrolled.png) | xxxLarge | defect | 1 truncation: reply quote 'Logan Took the gain while it was…' ends in an ellipsis (not a name) | #7121 |
+| [`05-post-scrolled`](../screens/05-post-scrolled.png) | xxxLarge | ok | — | #7203 |
 | [`05-post-scrolled`](../screens/05-post-scrolled.png) | AX1 | defect | 1 truncation: reply quotes 'Logan Took the gain while it…' and 'Andres Good timing on this…' truncated | #7121 |
-| [`05-post-scrolled`](../screens/05-post-scrolled.png) | AX5 | defect | 1 truncation: 'Logan Took…' and 'Andres Goo…' reply quotes truncated | #7121 |
+| [`05-post-scrolled`](../screens/05-post-scrolled.png) | AX5 | ok | — | #7203 |
 | [`05-post-reply`](../screens/05-post-reply.png) | large | ok | — | — |
 | [`05-post-reply`](../screens/05-post-reply.png) | xxLarge | ok | — | — |
 | [`05-post-reply`](../screens/05-post-reply.png) | xxxLarge | ok | — | — |
 | [`05-post-reply`](../screens/05-post-reply.png) | AX1 | defect | 1 truncation: 'AAPL $…' money in quoted reply header truncated | #7121 |
-| [`05-post-reply`](../screens/05-post-reply.png) | AX5 | defect | 1 truncation: 'A…', 'Tec…', '+6.…' truncated in quoted reply header (ticker, money, percent) | #7121 |
+| [`05-post-reply`](../screens/05-post-reply.png) | AX5 | ok | — | #7203 |
 | [`05-comment-actions`](../screens/05-comment-actions.png) | large | ok | — | — |
 | [`05-comment-actions`](../screens/05-comment-actions.png) | xxLarge | ok | — | — |
 | [`05-comment-actions`](../screens/05-comment-actions.png) | xxxLarge | ok | — | — |
@@ -358,7 +360,7 @@ Defects by size: large 4, xxLarge 16, xxxLarge 26, AX1 42, AX5 70.
 | [`05-feed-empty`](../screens/05-feed-empty.png) | xxLarge | ok | — | — |
 | [`05-feed-empty`](../screens/05-feed-empty.png) | xxxLarge | ok | — | — |
 | [`05-feed-empty`](../screens/05-feed-empty.png) | AX1 | ok | — | — |
-| [`05-feed-empty`](../screens/05-feed-empty.png) | AX5 | defect | 1 truncation: 'Find people' button label breaks mid-word (peop/le) and 'Start a cabal' breaks to 'caba/l' | #7121 |
+| [`05-feed-empty`](../screens/05-feed-empty.png) | AX5 | defect | 1 truncation: '3 of 7 voted · ends in 23h' (`VoteStatusLine` in `Design/VoteTally.swift`) clipped; the '3 yes, 0 no' tally wraps now (#7203) | #7203 |
 
 ## Frames 06
 
