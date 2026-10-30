@@ -21,11 +21,27 @@ enum MoneyDepositJourney {
         return Decimal(string: label[range].dropFirst().replacingOccurrences(of: ",", with: ""))
     }
 
+    static func balanceReading(_ element: XCUIElement) -> String {
+        if let value = element.value as? String, dollars(value) != nil { return value }
+        return element.label
+    }
+
+    static func waitForBalanceReading(
+        _ element: XCUIElement, containing text: String, timeout: TimeInterval
+    ) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        repeat {
+            if element.exists, balanceReading(element).contains(text) { return true }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+        } while Date() < deadline
+        return element.exists && balanceReading(element).contains(text)
+    }
+
     static func waitForBalance(_ app: XCUIApplication, atLeast minimum: Decimal, timeout: TimeInterval) -> Bool {
         let value = app.element("platform-balance-value")
         let deadline = Date().addingTimeInterval(timeout)
         repeat {
-            if value.exists, let amount = dollars(value.label), amount >= minimum { return true }
+            if value.exists, let amount = dollars(balanceReading(value)), amount >= minimum { return true }
             RunLoop.current.run(until: Date().addingTimeInterval(0.2))
         } while Date() < deadline
         return false
@@ -89,7 +105,7 @@ enum MoneyDepositJourney {
             app.tab("Home").tap()
             XCTAssertTrue(
                 waitForBalance(app, atLeast: 1, timeout: 30),
-                "S1.1: the account balance is under $1.00 after 30 s: fund A first (\(app.element("platform-balance-value").label))"
+                "S1.1: the account balance is under $1.00 after 30 s: fund A first (\(balanceReading(app.element("platform-balance-value"))))"
             )
         }
 

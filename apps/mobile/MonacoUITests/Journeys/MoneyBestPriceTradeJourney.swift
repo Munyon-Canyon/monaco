@@ -125,8 +125,8 @@ enum MoneyBestPriceTradeJourney {
             app.tab("Home").tap()
             let balance = app.element("platform-balance-value")
             XCTAssertTrue(
-                JoinJourney.waitForLabel(balance, containing: "$0.00", timeout: potTimeout),
-                "S5.3: the account balance does not read $0.00 within \(Int(potTimeout)) s: \(balance.label)"
+                MoneyDepositJourney.waitForBalanceReading(balance, containing: "$0.00", timeout: potTimeout),
+                "S5.3: the account balance does not read $0.00 within \(Int(potTimeout)) s: \(MoneyDepositJourney.balanceReading(balance))"
             )
         }
     }
