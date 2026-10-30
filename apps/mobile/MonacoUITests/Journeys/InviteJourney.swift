@@ -2,7 +2,7 @@ import XCTest
 
 enum InviteJourney {
     static let id = "cabals/invite"
-    static let version = 9
+    static let version = 10
 
     static let cabalName = "QA pot"
 
@@ -15,6 +15,15 @@ enum InviteJourney {
 
     static func inviteTiles(_ app: XCUIApplication) -> XCUIElementQuery {
         app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'cabals-invited-'"))
+    }
+
+    static func scrollToInviteTile(_ app: XCUIApplication, timeout: TimeInterval) -> Bool {
+        if waitForCount(inviteTiles(app), 1, timeout: timeout) { return true }
+        let grid = app.descendants(matching: .any).matching(identifier: "cabals-grid").firstMatch
+        for _ in 0..<12 where inviteTiles(app).count == 0 {
+            grid.swipeUp()
+        }
+        return inviteTiles(app).count == 1
     }
 
     static func pendingRows(_ app: XCUIApplication) -> XCUIElementQuery {
@@ -92,7 +101,7 @@ enum InviteJourney {
         recorder.step("S1.1", "open the Cabals tab and find the invited tile") {
             app.tab("Cabals").tap()
             XCTAssertTrue(
-                waitForCount(inviteTiles(app), 1, timeout: 10),
+                scrollToInviteTile(app, timeout: 10),
                 "S1.1: expected one Invited tile on the Cabals tab within 10 s, found \(inviteTiles(app).count)"
             )
             let label = inviteTiles(app).firstMatch.label
@@ -198,7 +207,7 @@ enum InviteJourney {
         recorder.step("S2.8", "open the Cabals tab and find exactly one invited tile") {
             app.tab("Cabals").tap()
             XCTAssertTrue(
-                waitForCount(inviteTiles(app), 1, timeout: 10),
+                scrollToInviteTile(app, timeout: 10),
                 "S2.8: expected exactly one Invited tile within 10 s, found \(inviteTiles(app).count)"
             )
             let label = inviteTiles(app).firstMatch.label

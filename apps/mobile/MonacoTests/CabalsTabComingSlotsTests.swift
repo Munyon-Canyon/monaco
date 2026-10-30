@@ -24,6 +24,15 @@ struct CabalsTabComingSlotsTests {
         #expect(!sections.contains { $0 == CabalsBoardSlot.self })
     }
 
+    @Test func invitesLeadOnlyWhenTheGridPassesThreeRows() {
+        #expect(!CabalsGridMetrics.pinsInvitesFirst(tiles: 3, columns: 4))
+        #expect(!CabalsGridMetrics.pinsInvitesFirst(tiles: 12, columns: 4))
+        #expect(CabalsGridMetrics.pinsInvitesFirst(tiles: 13, columns: 4))
+        #expect(CabalsGridMetrics.pinsInvitesFirst(tiles: 149, columns: 4))
+        #expect(!CabalsGridMetrics.pinsInvitesFirst(tiles: 6, columns: 2))
+        #expect(CabalsGridMetrics.pinsInvitesFirst(tiles: 7, columns: 2))
+    }
+
     @Test(.timeLimit(.minutes(1)))
     func emptyTabOffersToStartACabal() async throws {
         let labels = try await Self.labels(
