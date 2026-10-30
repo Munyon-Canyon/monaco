@@ -34,6 +34,7 @@ struct CabalScreen: View {
     @State private var tabsTop: CGFloat?
     @State private var pendingMore: CabalMoreItem?
     @State private var models = CabalScreenModels()
+    @State private var publicChart: ValueChartModel?
     @State private var retryTick = 0
     @State private var refresh = ScreenRefresh()
     @State private var nameBottom: CGFloat?
@@ -60,10 +61,13 @@ struct CabalScreen: View {
             } else if cabal.cabal == nil, case .failed = cabal.state {
                 CabalFullScreenError(identifier: "cabal-failed") { retryTick += 1 }
             } else if let loaded = cabal.cabal, loaded.me == nil, Self.showsPublicLayout(self.sections) {
-                PublicCabalView(cabal: cabal, retry: { retryTick += 1 })
-                    .environment(\.cabalModel, cabal)
-                    .environment(\.cabalPotModel, pot)
-                    .environment(refresh)
+                PublicCabalView(
+                    cabal: cabal, returns: CabalPublicReturn(publicChart?.curve), retry: { retryTick += 1 }
+                )
+                .environment(\.cabalModel, cabal)
+                .environment(\.cabalPotModel, pot)
+                .environment(refresh)
+                .task(id: retryTick) { await preparedPublicChart().refresh() }
             } else {
                 SectionStack(context: context, sections: sections)
                     .environment(\.cabalModel, cabal)
@@ -156,6 +160,15 @@ struct CabalScreen: View {
         guard let cabal else { return }
         ShareCardLauncher.shareCabal(
             id: cabal.id, navigator: environment.navigator, in: hostMainTab ?? environment.navigator.selectedTab)
+    }
+
+    private func preparedPublicChart() -> ValueChartModel {
+        if let publicChart { return publicChart }
+        let created = ValueChartModel(
+            subjects: [.cabal(id: context.cabalID)], ranges: [.oneMonth], range: .oneMonth, api: environment.api,
+            hints: environment.hints)
+        publicChart = created
+        return created
     }
 
     private static func showsPublicLayout(_ sections: [any CabalSection.Type]) -> Bool {

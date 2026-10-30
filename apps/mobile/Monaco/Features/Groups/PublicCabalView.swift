@@ -2,15 +2,10 @@ import MonacoAPI
 import MonacoCore
 import SwiftUI
 
-struct PublicCabalReturn: Equatable {
-    let percentText: String
-    let pnlText: String?
-}
-
 struct PublicCabalView: View {
     let cabal: CabalModel
     var isPrivate = false
-    var returns: PublicCabalReturn?
+    var returns: CabalPublicReturn = .none
     let retry: () -> Void
 
     @Environment(\.dismiss) private var dismiss
@@ -61,21 +56,26 @@ struct PublicCabalView: View {
 
     @ViewBuilder private var returnsBlock: some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
-            if let returns {
-                PercentText(percentReturn: returns.percentText, style: .large)
+            switch returns {
+            case .value(let percent, let pnl):
+                PercentText(percentReturn: percent, style: .large)
                     .accessibilityIdentifier("public-cabal-return")
-                Text([returns.pnlText, "1M P&L"].compactMap { $0 }.joined(separator: " \u{00B7} "))
+                Text("\(pnl) \u{00B7} \(CabalPublicReturn.range) P&L")
                     .font(MonacoTheme.Typo.caption)
                     .foregroundStyle(MonacoTheme.secondaryText)
-            } else {
+                    .accessibilityIdentifier("public-cabal-pnl")
+            case .none, .pending:
                 Text("\u{2014}")
                     .moneyFont(.large)
                     .foregroundStyle(MonacoTheme.secondaryText)
                     .accessibilityLabel("Return unavailable")
                     .accessibilityIdentifier("public-cabal-return")
-                Text(CabalCopy.returnsOpenSoon)
-                    .font(MonacoTheme.Typo.caption)
-                    .foregroundStyle(MonacoTheme.secondaryText)
+                if returns == .none {
+                    Text(CabalCopy.noReturnYet)
+                        .font(MonacoTheme.Typo.caption)
+                        .foregroundStyle(MonacoTheme.secondaryText)
+                        .accessibilityIdentifier("public-cabal-no-return")
+                }
             }
         }
         .accessibilityElement(children: .combine)
