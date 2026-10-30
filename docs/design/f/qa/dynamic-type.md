@@ -286,6 +286,8 @@ The Leaderboard period line wraps and grows at accessibility sizes instead of cl
 | [`19-permission-sheet`](../screens/19-permission-sheet.png) | AX1 | defect | 8 sheets: 'Not now' button not visible; sheet content runs to the screen bottom, 'Deliver quietly' at the home indicator edge | #7126 |
 | [`19-permission-sheet`](../screens/19-permission-sheet.png) | AX5 | defect | 8 sheets: Body text 'vote.' clipped at bottom; 'Turn on notifications', 'Deliver quietly' and 'Not now' are not visible | #7126 |
 
+`FDynamicTypeAuditUITests/test19Permission`'s clipped-text findings at xxxLarge and AX5 are fixed by the PR for #7217: the push pre-prompt sheet's title, body and sample card title and body wrap to their full height, and from `xxxLarge` the sample card stacks its "now" caption under the text. The test was not rerun in this PR; the next group-by-group run confirms these rows.
+
 ## Frames 14
 
 | Frame | Size | Verdict | Rule broken | Follow-up |

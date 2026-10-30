@@ -18,6 +18,7 @@ struct PushPrePromptSheet: View {
                 .font(MonacoTheme.Typo.section)
                 .foregroundStyle(MonacoTheme.primaryText)
                 .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .center)
                 .accessibilityAddTraits(.isHeader)
                 .accessibilityIdentifier("push-pre-prompt-title")
@@ -25,6 +26,7 @@ struct PushPrePromptSheet: View {
                 .font(MonacoTheme.Typo.body)
                 .foregroundStyle(MonacoTheme.secondaryText)
                 .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .center)
             if let sample = prompt.sample { sampleCard(sample) }
             Button {
@@ -52,16 +54,22 @@ struct PushPrePromptSheet: View {
     }
 
     private func sampleCard(_ sample: PushSample) -> some View {
-        HStack(alignment: .top, spacing: MonacoTheme.Space.sm) {
+        let layout =
+            dynamicTypeSize >= .xxxLarge
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: MonacoTheme.Space.sm))
+            : AnyLayout(HStackLayout(alignment: .top, spacing: MonacoTheme.Space.sm))
+        return layout {
             CabalMark(
                 groupId: "push-sample", name: "Cabal", size: .row, pictureUrl: sample.cabalImageURL?.absoluteString)
             VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
                 Text(sample.title)
                     .font(MonacoTheme.Typo.subheadStrong)
                     .foregroundStyle(MonacoTheme.ink)
+                    .fixedSize(horizontal: false, vertical: true)
                 Text(sample.body)
                     .font(MonacoTheme.Typo.subhead)
                     .foregroundStyle(MonacoTheme.bodyText)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             Text("now")
