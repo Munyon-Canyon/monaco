@@ -366,24 +366,24 @@ Defects by size: large 4, xxLarge 16, xxxLarge 26, AX1 42, AX5 70.
 | --- | --- | --- | --- | --- |
 | [`06-markets-A`](../screens/06-markets-A.png) | large | ok | — | — |
 | [`06-markets-A`](../screens/06-markets-A.png) | xxLarge | ok | — | — |
-| [`06-markets-A`](../screens/06-markets-A.png) | xxxLarge | defect | 1 truncation: 'Secondary estimate · Oct…' date cut on Pre-IPO rows | #7122 |
+| [`06-markets-A`](../screens/06-markets-A.png) | xxxLarge | defect | 1 truncation: 'Secondary estimate · Oct…' date cut on Pre-IPO rows; search placeholder clipped, #7205 shortens it to "Search" at xxxLarge and above | #7122 |
 | [`06-markets-A`](../screens/06-markets-A.png) | AX1 | defect | 1 truncation; 2 stack: 'Secondary estimate…' truncated; rows not stacked at AX1 | #7122 |
-| [`06-markets-A`](../screens/06-markets-A.png) | AX5 | defect | 1 truncation; 2 stack: 'Vote o…', '24 sh…', '2.2 sh…' truncated; rows not stacked | #7122 |
+| [`06-markets-A`](../screens/06-markets-A.png) | AX5 | defect | 1 truncation; 2 stack: 'Vote o…', '24 sh…', '2.2 sh…' truncated; rows not stacked; search placeholder clipped, #7205 shortens it to "Search" at xxxLarge and above | #7122 |
 | [`06-markets-A-scrolled`](../screens/06-markets-A-scrolled.png) | large | ok | — | — |
 | [`06-markets-A-scrolled`](../screens/06-markets-A-scrolled.png) | xxLarge | defect | 1 truncation: 'Secondary estimate · O…' subtitle truncated on Anthropic and Databricks rows | #7122 |
-| [`06-markets-A-scrolled`](../screens/06-markets-A-scrolled.png) | xxxLarge | defect | 1 truncation: 'Secondary estimate · Oct…' date cut on SpaceX, OpenAI, Anthropic, Databricks rows | #7122 |
+| [`06-markets-A-scrolled`](../screens/06-markets-A-scrolled.png) | xxxLarge | defect | 1 truncation: 'Secondary estimate · Oct…' date cut on SpaceX, OpenAI, Anthropic, Databricks rows; search placeholder clipped, #7205 shortens it to "Search" at xxxLarge and above | #7122 |
 | [`06-markets-A-scrolled`](../screens/06-markets-A-scrolled.png) | AX1 | defect | 1 truncation; 2 stack: subtitles 'Secondary estimate…' truncated; rows not stacked, figure beside name | #7122 |
-| [`06-markets-A-scrolled`](../screens/06-markets-A-scrolled.png) | AX5 | defect | 1 truncation; 2 stack: 'Anthr…', 'Datab…', 'Secon…', 'Resea…' truncated; Moving today cards show 'A…', 'N…', 'T…', '+7.9…'; rows not stacked | #7122 |
+| [`06-markets-A-scrolled`](../screens/06-markets-A-scrolled.png) | AX5 | defect | 1 truncation; 2 stack: 'Anthr…', 'Datab…', 'Secon…', 'Resea…' truncated; Moving today cards show 'A…', 'N…', 'T…', '+7.9…'; rows not stacked; search placeholder clipped, #7205 shortens it to "Search" at xxxLarge and above | #7122 |
 | [`06-markets-search`](../screens/06-markets-search.png) | large | ok | — | — |
 | [`06-markets-search`](../screens/06-markets-search.png) | xxLarge | defect | 1 truncation: 'Advanced Micro Devi…' stock name truncated | #7122 |
-| [`06-markets-search`](../screens/06-markets-search.png) | xxxLarge | defect | 1 truncation: 'Advanced Micro D…' stock name truncated | #7122 |
+| [`06-markets-search`](../screens/06-markets-search.png) | xxxLarge | defect | 1 truncation: 'Advanced Micro D…' stock name truncated; search placeholder clipped, #7205 shortens it to "Search" at xxxLarge and above | #7122 |
 | [`06-markets-search`](../screens/06-markets-search.png) | AX1 | defect | 1 truncation; 2 stack: 'Advanced Micro Dev…' truncated; rows not stacked | #7122 |
-| [`06-markets-search`](../screens/06-markets-search.png) | AX5 | defect | 1 truncation; 2 stack: 'Micro…', 'Advan…', 'Super…', 'Microc…' truncated; rows not stacked | #7122 |
+| [`06-markets-search`](../screens/06-markets-search.png) | AX5 | defect | 1 truncation; 2 stack: 'Micro…', 'Advan…', 'Super…', 'Microc…' truncated; rows not stacked; search placeholder clipped, #7205 shortens it to "Search" at xxxLarge and above | #7122 |
 | [`06-markets-held`](../screens/06-markets-held.png) | large | ok | — | — |
 | [`06-markets-held`](../screens/06-markets-held.png) | xxLarge | ok | — | — |
-| [`06-markets-held`](../screens/06-markets-held.png) | xxxLarge | defect | 1 truncation: 'AC Capital · 12 sh · Pre-I…' SpaceX subtitle truncated | #7122 |
+| [`06-markets-held`](../screens/06-markets-held.png) | xxxLarge | defect | 1 truncation: 'AC Capital · 12 sh · Pre-I…' SpaceX subtitle truncated; search placeholder clipped, #7205 shortens it to "Search" at xxxLarge and above | #7122 |
 | [`06-markets-held`](../screens/06-markets-held.png) | AX1 | defect | 1 truncation; 2 stack: SpaceX subtitle 'AC Capital · 12 sh ·…' truncated; rows not stacked | #7122 |
-| [`06-markets-held`](../screens/06-markets-held.png) | AX5 | defect | 1 money broken; 2 stack: '$8,360.' / '00' and '$4,320.' / '00' money wraps mid-figure; rows not stacked | #7122 |
+| [`06-markets-held`](../screens/06-markets-held.png) | AX5 | defect | 1 money broken; 2 stack: '$8,360.' / '00' and '$4,320.' / '00' money wraps mid-figure; rows not stacked; search placeholder clipped, #7205 shortens it to "Search" at xxxLarge and above | #7122 |
 
 ## Frames 07
 

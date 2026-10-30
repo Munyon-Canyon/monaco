@@ -141,6 +141,7 @@ struct StocksTabView: View {
 }
 
 private struct StocksTabScreen: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let model: MonacoCore.StocksTabModel
     let held: HeldModel
     @Binding var query: String
@@ -182,8 +183,12 @@ private struct StocksTabScreen: View {
 
     private var searchRow: some View {
         HStack(spacing: MonacoTheme.Space.m) {
-            MonacoSearchField(placeholder: "Stocks and Pre-IPO", text: $query, showsClear: false)
-                .focused($fieldFocused)
+            MonacoSearchField(
+                placeholder: dynamicTypeSize >= .xxxLarge ? "Search" : "Stocks and Pre-IPO",
+                text: $query,
+                showsClear: false
+            )
+            .focused($fieldFocused)
             if searching {
                 Button {
                     query = ""
