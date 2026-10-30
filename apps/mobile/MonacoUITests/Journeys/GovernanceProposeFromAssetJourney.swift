@@ -47,6 +47,11 @@ enum GovernanceProposeFromAssetJourney {
             app.scrollIntoReach(row)
             XCTAssertTrue(row.waitForExistence(timeout: 10), "S1.3: no \(name) in the picker")
             row.tap()
+            let pickerSheet = app.element("propose-pick-cabal-sheet")
+            let closed = XCTNSPredicateExpectation(
+                predicate: NSPredicate(format: "exists == false"), object: pickerSheet)
+            XCTAssertEqual(
+                XCTWaiter().wait(for: [closed], timeout: 15), .completed, "S1.3: the picker stayed open")
             XCTAssertTrue(app.element("propose-amount-screen").waitForExistence(timeout: 10), "S1.3: no keypad")
             let source = app.element("amount-keypad-source")
             XCTAssertTrue(source.waitForExistence(timeout: 10), "S1.3: no keypad source")
