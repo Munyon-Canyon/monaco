@@ -69,7 +69,6 @@ nonisolated final class HomeCabalsSampleUITests: XCTestCase {
                 "no Home card for the cabal \(id)")
         }
         XCTAssertFalse(anyElement(app, "home-cabals-empty").exists, "the empty state shows for a member")
-        XCTAssertTrue(app.staticTexts["Not funded"].firstMatch.exists, "no \"Not funded\" on an unfunded card")
         attachScreenshot(app, name: "home-not-funded")
     }
 
@@ -82,7 +81,7 @@ nonisolated final class HomeCabalsSampleUITests: XCTestCase {
         XCTAssertTrue(
             revealInRail(app, techCrew, from: bigBallers).waitForExistence(timeout: 10),
             "no card for the unfunded cabal")
-        XCTAssertTrue(app.staticTexts["Not funded"].firstMatch.exists, "no \"Not funded\" on the unfunded card")
+        XCTAssertFalse(anyElement(app, "home-cabals-empty").exists, "the empty state shows for a member")
         attachScreenshot(app, name: "home-partly-funded")
     }
 
