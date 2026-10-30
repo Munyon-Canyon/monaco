@@ -2,12 +2,16 @@ package app
 
 import (
 	"context"
+	"errors"
 	"log/slog"
+	"maps"
 	"math"
 	"slices"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/sony/gobreaker/v2"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
@@ -95,9 +99,8 @@ func (p *SamplePrices) Tick(ctx context.Context) (poller.Report, error) {
 		return poller.Report{}, err
 	}
 	asked := need.mints()
-	fetchCtx, cancelFetch := context.WithTimeout(ctx, p.fetchWindow())
-	answered, sampleErr := p.source.Prices(fetchCtx, asked)
-	cancelFetch()
+	got := p.fetch(ctx, asked, start)
+	answered, sampleErr, failed, retried := got.answered, got.err, got.failed, got.retried
 	rows := sqlc.InsertPricePointsParams{Ts: at, Source: string(domain.SourceJupiter)}
 	var left []domain.Asset
 	for _, a := range need.assets {
@@ -123,16 +126,69 @@ func (p *SamplePrices) Tick(ctx context.Context) (poller.Report, error) {
 	logMissing(ctx, left)
 	report := poller.Report{Scanned: len(asked), Changed: written, Attrs: []slog.Attr{
 		slog.Int("priced", len(rows.Mints)), slog.Int("missing", missing),
-		slog.Int("hot", need.hot), slog.Int("total", len(asked)), slog.Int("failed_batches", 0),
+		slog.Int("hot", need.hot), slog.Int("total", len(asked)),
+		slog.Int("failed_batches", failed), slog.Int("retried_batches", retried),
 	}}
 	report.Attrs = append(report.Attrs, evmAttrs...)
 	if sampleErr != nil {
 		return report, errs.Wrap(sampleErr, errs.CodeOf(sampleErr), "market.SamplePrices.Tick",
 			slog.Int("written", written), slog.Int("missing", missing),
 			slog.Int("hot", need.hot), slog.Int("total", len(asked)),
+			slog.Int("failed_batches", failed), slog.Int("retried_batches", retried),
 			slog.Int64("duration_ms", p.clock.Now().Sub(start).Milliseconds()))
 	}
 	return report, nil
+}
+
+func failedBatches(err error) int {
+	for _, a := range errs.Detail(err) {
+		if a.Key == "failed_batches" {
+			return int(a.Value.Int64())
+		}
+	}
+	return 0
+}
+
+func breakerOpen(err error) bool {
+	return errors.Is(err, gobreaker.ErrOpenState) || errors.Is(err, gobreaker.ErrTooManyRequests)
+}
+
+type fetched struct {
+	answered map[domain.Mint]money.Micros
+	err      error
+	failed   int
+	retried  int
+}
+
+func (p *SamplePrices) fetch(ctx context.Context, asked []domain.Mint, start time.Time) fetched {
+	fetchCtx, cancelFetch := context.WithTimeout(ctx, p.fetchWindow())
+	answered, err := p.source.Prices(fetchCtx, asked)
+	cancelFetch()
+	failed := failedBatches(err)
+	remaining := p.fetchWindow() - p.clock.Now().Sub(start)
+	if failed == 0 || remaining <= 0 || breakerOpen(err) {
+		return fetched{answered: answered, err: err, failed: failed}
+	}
+	merged := make(map[domain.Mint]money.Micros, len(asked))
+	maps.Copy(merged, answered)
+	retryErr := p.retryFailed(ctx, remaining, asked, merged)
+	return fetched{answered: merged, err: retryErr, failed: failedBatches(retryErr), retried: failed}
+}
+
+func (p *SamplePrices) retryFailed(
+	ctx context.Context, remaining time.Duration, asked []domain.Mint, answered map[domain.Mint]money.Micros,
+) error {
+	var again []domain.Mint
+	for _, m := range asked {
+		if _, ok := answered[m]; !ok {
+			again = append(again, m)
+		}
+	}
+	retryCtx, cancel := context.WithTimeout(ctx, remaining)
+	defer cancel()
+	got, err := p.source.Prices(retryCtx, again)
+	maps.Copy(answered, got)
+	return err
 }
 
 func (p *SamplePrices) catalogAssets(ctx context.Context) ([]domain.Asset, error) {
