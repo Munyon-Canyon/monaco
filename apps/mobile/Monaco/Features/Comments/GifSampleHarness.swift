@@ -41,6 +41,8 @@ enum GifScenario: String {
         self == .bubble || self == .reduceMotion
     }
 
+    var drawsProposal: Bool { self != .reduceMotion }
+
     @MainActor
     var provider: any GifProvider {
         switch self {
@@ -96,11 +98,10 @@ private struct GifRecordingSource: CommentsSource {
 
     private static var seededReply: Components.Schemas.Comment {
         var comment = Components.Schemas.Comment.gifSample(
-            "g1", author: "Jordan", parent: "c1",
+            "g1", author: "Jordan", minutesAgo: 0,
             quote: .init(
                 commentId: "c1", rootCommentId: "c1", authorDisplayName: "Mia",
-                excerpt: "What would our NVIDIA allocation be after this?", isDeleted: false, hasAttachment: false,
-                isFolded: false),
+                excerpt: "we can add on a dip", isDeleted: false, hasAttachment: false, isFolded: false),
             reactions: [.init(emoji: "❤️", count: 2, mine: false)])
         if let gif = SampleGifProvider.items.dropFirst().first {
             comment.attachment = .gif(
@@ -120,10 +121,10 @@ private struct GifRecordingSource: CommentsSource {
 
     func list(cursor _: String?) async throws -> CommentsPage {
         let thread = Components.Schemas.CommentThread(
-            comment: .sample("c1", author: "Mia", body: "What would our NVIDIA allocation be after this?"),
-            replies: seeded ? [Self.seededReply] : [])
+            comment: .sample("c1", author: "Mia", body: "we can add on a dip"), replies: [])
+        let root = seeded ? Components.Schemas.CommentThread(comment: Self.seededReply, replies: []) : thread
         let posted = await replies.all().map { Components.Schemas.CommentThread(comment: $0, replies: []) }
-        return CommentsPage(threads: [thread] + posted, nextCursor: nil)
+        return CommentsPage(threads: [root] + posted, nextCursor: nil)
     }
 
     func post(
@@ -149,6 +150,40 @@ private struct GifRecordingSource: CommentsSource {
     func permissions() async throws -> CommentPermissions { CommentPermissions(canComment: true) }
 }
 
+nonisolated struct GifProposalSampleRoute: AppRoute {
+    let scrolled: Bool
+
+    @MainActor func destination() -> some View {
+        GifProposalSamplePage(scrolled: scrolled)
+    }
+}
+
+private struct GifProposalSamplePage: View {
+    let scrolled: Bool
+    @Environment(AppEnvironment.self) private var environment
+    @Environment(\.proposalComments) private var comments
+    @State private var detail = ProposalDetailBox()
+
+    var body: some View {
+        let model = detail.model(proposalID: "proposal-1", environment: environment)
+        let sections: [any ProposalSection.Type] = [ProposalSampleDetailSlot.self, ProposalCommentsSlot.self]
+        SectionStack(context: ProposalContext(proposalID: "proposal-1"), sections: sections.map { $0.erased })
+            .defaultScrollAnchor(scrolled ? .bottom : .top)
+            .environment(\.proposalDetail, model)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    MonacoGlassButton(icon: .share, accessibilityLabel: "Share", style: .quiet, placement: .toolbar) {}
+                }
+            }
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                if let comments {
+                    CommentComposerBar(
+                        model: comments, thesis: model.value?.summary.thesis, offersPoll: true, asksCabal: true)
+                }
+            }
+    }
+}
+
 private struct GifHarnessScreen: View {
     let scenario: GifScenario
     let host: GifHost
@@ -166,7 +201,7 @@ private struct GifHarnessScreen: View {
         self.scenario = scenario
         self.host = host
         self.auth = auth
-        if !scenario.showsThread { SampleAPIProtocol.install(ProposalSampleScenario.nvdaOpen.script) }
+        if scenario.drawsProposal { SampleAPIProtocol.install(ProposalSampleScenario.nvdaOpen.script) }
         _presents = State(initialValue: host == .sheet && scenario != .viewer)
         _viewing = State(initialValue: scenario == .viewer)
     }
@@ -177,7 +212,7 @@ private struct GifHarnessScreen: View {
             .monacoCanvas()
             .overlay(alignment: .top) { postsLabel }
             .safeAreaInset(edge: .bottom, spacing: 0) {
-                if let comments, host != .sheet { CommentComposerBar(model: comments) }
+                if let comments, host != .sheet, !scenario.drawsProposal { CommentComposerBar(model: comments) }
             }
             .sheet(isPresented: $presents) {
                 GifSheet(gifs: scenario.provider, query: scenario.query) { attachment in
@@ -197,13 +232,16 @@ private struct GifHarnessScreen: View {
     }
 
     @ViewBuilder private var thread: some View {
-        if let comments, scenario.showsThread {
+        if scenario.drawsProposal {
+            SampleAppFrame(auth: auth, tab: .cabals, routes: [GifProposalSampleRoute(scrolled: scenario == .bubble)])
+                .environment(\.proposalComments, comments)
+        } else if let comments, scenario.showsThread {
             ScrollView {
                 CommentThreadView(model: comments)
                     .padding(.top, MonacoTheme.Space.xl)
             }
         } else {
-            SampleAppFrame(auth: auth, tab: .cabals, routes: [ProposalSampleScenario.nvdaOpen.route])
+            Color.clear
         }
     }
 

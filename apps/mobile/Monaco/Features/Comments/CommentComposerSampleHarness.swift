@@ -48,6 +48,40 @@ enum CommentComposerScenario: String {
     }
 }
 
+private struct ComposerMenuFrame: View {
+    private let rows: [(title: String, icon: MonacoIcon)] = [
+        (CommentsCopy.pollMenu, .pollCheck), ("Quote the thesis", .thesis), ("Share a stock", .markets),
+    ]
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: MonacoTheme.Radius.card, style: .continuous)
+        ZStack(alignment: .bottomLeading) {
+            MonacoTheme.scrim.ignoresSafeArea()
+            VStack(spacing: 0) {
+                ForEach(Array(rows.enumerated()), id: \.offset) { index, row in
+                    if index > 0 { Divider().overlay(MonacoTheme.border) }
+                    HStack {
+                        Text(row.title)
+                        Spacer(minLength: MonacoTheme.Space.l)
+                        Image(monaco: row.icon)
+                    }
+                    .font(.body)
+                    .foregroundStyle(MonacoTheme.primaryText)
+                    .padding(.horizontal, MonacoTheme.Space.gutter)
+                    .frame(minHeight: CommentRowMetrics.replyTarget)
+                }
+            }
+            .containerRelativeFrame(.horizontal) { width, _ in width * 0.63 }
+            .background(MonacoTheme.surface, in: shape)
+            .overlay(shape.stroke(MonacoTheme.border))
+            .padding(.leading, MonacoTheme.Space.gutter)
+            .padding(.bottom, MonacoTheme.Space.tabClear + MonacoTheme.Space.m)
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+}
+
 private struct CommentComposerHarnessScreen: View {
     let scenario: CommentComposerScenario
     let acts: Bool
@@ -60,7 +94,11 @@ private struct CommentComposerHarnessScreen: View {
         self.scenario = scenario
         self.acts = acts
         self.auth = auth
-        if scenario.drawsProposal { SampleAPIProtocol.install(ProposalSampleScenario.nvdaOpen.script) }
+        if scenario.drawsProposal {
+            var script = ProposalSampleScenario.nvdaOpen.script
+            if scenario == .menuSale { script.proposal?.thesis = nil }
+            SampleAPIProtocol.install(script)
+        }
         _detail = State(initialValue: .preview(scenario.previewMode, clock: ContinuousClock()))
     }
 
@@ -124,6 +162,7 @@ private struct CommentComposerHarnessScreen: View {
                         model: detail.comments, menuItems: [], thesis: thesisText, offersPoll: offersPoll)
                 }
             }
+            .overlay { if scenario == .menu { ComposerMenuFrame() } }
             .environment(\.pollVoting, PreviewPollVoting())
             .environment(\.stockSearch, Self.stockSearch)
             .environment(toasts)
