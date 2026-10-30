@@ -499,6 +499,8 @@ Defects by size: large 4, xxLarge 16, xxxLarge 26, AX1 42, AX5 70.
 
 ## Frames 11
 
+#7210 lets the share dock chip labels wrap and stacks the chips from xxxLarge at full width, and lets the invite sheet heading and failed-state title and message wrap to full height with the heading icons stacked below the title from xxxLarge, so the 17 `FDynamicTypeAuditUITests/test11Share` clipped-text findings at xxxLarge and AX5 are fixed in code; the audit rerun is pending.
+
 | Frame | Size | Verdict | Rule broken | Follow-up |
 | --- | --- | --- | --- | --- |
 | [`11-invite-sheet`](../screens/11-invite-sheet.png) | large | ok | — | — |

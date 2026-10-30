@@ -7,12 +7,12 @@ scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 diff --git a/apps/mobile/Monaco/Features/Groups/CabalInviteSheet.swift b/apps/mobile/Monaco/Features/Groups/CabalInviteSheet.swift
 --- a/apps/mobile/Monaco/Features/Groups/CabalInviteSheet.swift
 +++ b/apps/mobile/Monaco/Features/Groups/CabalInviteSheet.swift
-@@ -118,7 +118,7 @@ struct CabalInviteSheet: View {
-             ) { toggleFlip() }
-             .disabled(invite?.link == nil)
-             .accessibilityIdentifier("cabal-invite-qr-toggle")
--            if isAdmin { settingsMenu }
-+            if false { settingsMenu }
-             MonacoGlassButton(systemImage: "xmark", accessibilityLabel: "Close", style: .quiet, size: .compact) {
-                 dismiss()
-             }
+@@ -124,7 +124,7 @@ struct CabalInviteSheet: View {
+                 ) { toggleFlip() }
+                 .disabled(invite?.link == nil)
+                 .accessibilityIdentifier("cabal-invite-qr-toggle")
+-                if isAdmin { settingsMenu }
++                if false { settingsMenu }
+                 MonacoGlassButton(systemImage: "xmark", accessibilityLabel: "Close", style: .quiet, size: .compact) {
+                     dismiss()
+                 }
