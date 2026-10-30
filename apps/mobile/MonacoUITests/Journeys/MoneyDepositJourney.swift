@@ -94,17 +94,24 @@ enum MoneyDepositJourney {
     }
 
     static func expectWarning(_ app: XCUIApplication, on name: String, step: String) {
-        let note = app.element("deposit-network-warning")
-            .descendants(matching: .any)
-            .matching(NSPredicate(format: "label != ''"))
+        let container = app.element("deposit-network-warning")
+        let expected = "Only USDC on \(name)"
+        let note = container.descendants(matching: .any)
+            .matching(NSPredicate(format: "label == %@", expected))
             .firstMatch
-        XCTAssertTrue(
-            note.waitForExistence(timeout: screenTimeout),
-            "\(step): the network note above the address did not show within \(Int(screenTimeout)) s"
-        )
-        XCTAssertEqual(
-            note.label, "Only USDC on \(name)",
-            "\(step): the network note above the address")
+        _ = container.waitForExistence(timeout: screenTimeout)
+        if ProcessInfo.processInfo.environment["MONACO_QA_DEBUG"] != nil {
+            print(container.debugDescription)
+        }
+        if !note.waitForExistence(timeout: screenTimeout) {
+            let labels = container.descendants(matching: .any).allElementsBoundByIndex
+                .map(\.label)
+                .filter { !$0.isEmpty }
+                .joined(separator: ", ")
+            XCTFail(
+                "\(step): no network note \"\(expected)\" above the address within \(Int(screenTimeout)) s; the notice holds: \(labels)"
+            )
+        }
     }
 
     static func copySolana(_ app: XCUIApplication, recorder: JourneyRecorder) {
