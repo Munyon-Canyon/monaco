@@ -63,7 +63,7 @@ struct FeedPostObjectLine: View {
             .font(.footnote)
             .foregroundStyle(object.placeIsWarning ? MonacoTheme.warning : MonacoTheme.secondaryText)
             .monacoPrivate()
-            .lineLimit(1)
+            .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
             .truncationMode(.tail)
             .layoutPriority(0)
     }
