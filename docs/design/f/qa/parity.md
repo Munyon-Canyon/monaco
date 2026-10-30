@@ -231,9 +231,9 @@ founder:
 
 | Frame | Appearance | Verdict | Difference | Follow-up |
 | --- | --- | --- | --- | --- |
-| [`11-invite-sheet`](../screens/11-invite-sheet.png) | dark | match | Fixed in #7031. | |
+| [`11-invite-sheet`](../screens/11-invite-sheet.png) | dark | match | Fixed in #7031. Regressed when the sample sheet lost its app environment and drew the failed face; redrawn in #7185 from a new shot. | |
 | [`11-share-A`](../screens/11-share-A.png) | dark | match | Fixed in #7031. | |
-| [`11-share-B`](../screens/11-share-B.png) | dark | match | Fixed in #7031. | |
+| [`11-share-B`](../screens/11-share-B.png) | dark | match | Fixed in #7031. Regressed when the sample proposal closed before it was created, which left a stub line and both markers at the left edge; redrawn in #7185 from a new shot. | |
 | [`11-share-C`](../screens/11-share-C.png) | dark | match | Fixed in #7031. | |
 | [`11-share-card-vote`](../screens/11-share-card-vote.png) | dark | match | Fixed in #7031. | |
 | [`11-share-sticker`](../screens/11-share-sticker.png) | dark | match | Fixed in #7031. | |
