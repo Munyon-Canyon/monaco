@@ -186,7 +186,9 @@ struct ProposalDetailSlotView: View {
         case .proposeAgain:
             NavigationLink(
                 value: AnyAppRoute(
-                    ProposeFromAssetRoute(symbol: summary.symbol, kind: summary.kind == "sell" ? .sell : .buy))
+                    ProposeFromAssetRoute(
+                        symbol: summary.symbol, kind: summary.kind == "sell" ? .sell : .buy,
+                        prefill: ProposePrefill(cabalID: summary.cabalID)))
             ) {
                 Label("Propose again", systemImage: MonacoIcon.refresh.symbol)
             }

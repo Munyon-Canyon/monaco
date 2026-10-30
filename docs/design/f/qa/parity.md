@@ -39,9 +39,9 @@ Every `difference` and `no harness` row links one follow-up issue per group; the
 | Verdict | Frames |
 | --- | ---: |
 | match | 11 |
-| match (15 pt floor) | 21 |
+| match (15 pt floor) | 22 |
 | no backend at launch | 0 |
-| difference | 63 |
+| difference | 62 |
 | not built | 0 |
 | no harness | 6 |
 | system | 2 |
@@ -77,7 +77,7 @@ founder:
 
 | Frame | Appearance | Verdict | Difference | Follow-up |
 | --- | --- | --- | --- | --- |
-| [`12-toast`](../screens/12-toast.png) | dark | match | Toast shows over Home (no route pushed) with the vote card collapsed to "passed 5–1 · buying 1.82 sh" and "You voted Yes ✓5 ✗1", the "Your vote" count gone; no title behind it. | #7019 (#6458, #6506), #7191 |
+| [`12-toast`](../screens/12-toast.png) | dark | match | Toast shows over Home (no route pushed) at the top, as in the frame; the vote card is collapsed to its settled line: "passed 5–1 · buying 1.82 sh" and "You voted Yes ✓5 ✗1", with no Yes or No buttons and the "Your vote" count gone. | #7019 (#6458, #6506), #7191, #7232 |
 | [`12-info-sheet`](../screens/12-info-sheet.png) | dark | match | Sheet says "Solana, Base and Robinhood Chain ... trades 24/7" with Source CoinGecko, Updated <now>, Delay up to 1 min, no market-hours sentence, no stale banner behind. | #7019 (#6562) |
 
 founder:
@@ -123,8 +123,8 @@ founder:
 | [`04-vote-closed`](../screens/04-vote-closed.png) | dark | difference | App shows "Passed 2-0" with a right-side check and a voter list (Kai, Jordan, "Priya did not vote"); frame shows "Passed 4-1" with a tally row (check 4, "5 of 6 voted", 1 x), no voter list, and "You voted Yes / 4th of 6" with its subline. | #7022 (#6532) |
 | [`04-proposal-passed`](../screens/04-proposal-passed.png) | dark | difference | App shows the in-progress state ("Price / Of treasury / Passed" stats, "buying 1.82 sh - in progress", "Buying 1.82 sh In progress", voter list) where the frame shows the filled state (Fill / Shares / Now / Since, "filled at $219.40", "Bought ... fee"); "You voted Yes" lacks its subline and Monaco's system reply is not visible in the first reply slot. | #7022 (#6532, #6541) |
 | [`04-proposal-sides`](../screens/04-proposal-sides.png) | dark | no harness | Harness line draws 04-proposal-passed's state (in-progress, initials, two voters); the frame's filled 5-1 result with photo voter rows by side is not drawn. | #7022 (#6539) |
-| [`04-proposal-failed`](../screens/04-proposal-failed.png) | dark | difference | Trade row gone and the hero reads "Sell TSLA / Tesla" as in the frame; "Failed 2-2 / needed 3 - no trade", "You voted No 2nd of 5" and the tally match. Still differs: no "Propose again" button below the receipt, the stat row ends "Closed Oct 26" (frame Oct 18), the thesis is the sample's "Earnings next week.", and the frame's Monaco reply is not in the first reply slot. | #7022 (#6532, #6541), #7186 |
-| [`04-proposal-preipo`](../screens/04-proposal-preipo.png) | dark | difference | Eligibility line now reads "fills at the next tender, Jan 2027" (it wraps to two lines where the frame fits one), no stat label hyphenates and "Closes" stays on one line, and the Last round / Secondary estimate card has row padding and a divider. Still differs: the title reads "Buy SpaceX" but the subtitle wraps to two lines, the stat row draws two columns of two (frame one row of four, "Fri 5:41"), the ledger labels are muted regular (frame bold), and the vote card is cut by the composer in the shot. | #7022 (#6550), #7186 |
+| [`04-proposal-failed`](../screens/04-proposal-failed.png) | dark | match (15 pt floor) | Trade row gone and the hero reads "Sell TSLA / Tesla" as in the frame; "Failed 2-2 / needed 3 - no trade", "You voted No 2nd of 5" and the tally match. "Propose again" sits below the receipt and the vote rows, as in the frame, and opens the propose flow for the same stock and cabal; at the 15 pt floor it is just under the composer in the unscrolled shot. The sample's stat row ends "Closed Oct 26" (frame Oct 18), its thesis is "Earnings next week.", and the frame's Monaco reply is not in the first reply slot. | #7022 (#6532, #6541), #7186, #7232 |
+| [`04-proposal-preipo`](../screens/04-proposal-preipo.png) | dark | difference | Hero sub-line "Pre-IPO · priced at the secondary estimate" now sits on one line under the title, with "$500" on the title line, and the four stats draw on one row. Eligibility line reads "fills at the next tender, Jan 2027" (it wraps to two lines where the frame fits one), no stat label hyphenates, and the Last round / Secondary estimate card has row padding and a divider. Still differs: "Closes" reads "Sat 5:39 AM" scaled down to fit its column (frame "Fri 5:41", no AM or PM), the ledger labels are muted regular (frame bold), and the vote card is cut by the composer in the shot. | #7022 (#6550), #7186, #7232 |
 | [`04-reply-composer`](../screens/04-reply-composer.png) | dark | difference | App draws an empty composer ("Say something" with a plus button and a keyboard-tip overlay) over a blank black screen; frame shows the proposal behind, a typed reply "Fine by me if we cap it at 45%", a green send button and the keyboard. | #7022 (#6548) |
 | [`04-composer-menu`](../screens/04-composer-menu.png) | dark | match (15 pt floor) | The proposal sits under a scrim with the Poll / Quote the thesis / Share a stock menu (no Photo, no separator) above the dimmed composer, as in the frame. The harness draws the menu itself, because the system Menu opens only on a tap; the tab bar and the sample's replies (Maya, not Sam's quoted reply) are allowances. | #7022 (#6563, #6568), #7187 |
 | [`04-gif-sheet`](../screens/04-gif-sheet.png) | dark | difference | App sheet sits over a blank screen ("posts=0") instead of the proposal, puts "Powered by GIPHY" next to the title instead of right-aligned, and shows placeholder tiles instead of photos. | #7022 (#6556, #6558) |
