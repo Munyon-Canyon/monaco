@@ -334,13 +334,19 @@ extension XCUIApplication {
             "cabal-header-name did not read \(name) within \(Int(timeout)) s")
     }
 
+    func isAboveTabBar(_ element: XCUIElement) -> Bool {
+        let bar = tabBars.firstMatch
+        let top = bar.exists && !bar.frame.isEmpty ? bar.frame.minY : windows.firstMatch.frame.height * 0.85
+        return element.frame.maxY <= top
+    }
+
     func revealInGrid(_ tile: XCUIElement, maxSwipes: Int = 8) -> Bool {
         var swipes = 0
-        while !(tile.exists && tile.isHittable) && swipes < maxSwipes {
+        while !(tile.exists && tile.isHittable && isAboveTabBar(tile)) && swipes < maxSwipes {
             swipeUp()
             swipes += 1
         }
-        return tile.exists && tile.isHittable
+        return tile.exists && tile.isHittable && isAboveTabBar(tile)
     }
 
     func openCabalTab(_ name: String, timeout: TimeInterval = 10) {

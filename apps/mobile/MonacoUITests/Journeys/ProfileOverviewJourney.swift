@@ -39,10 +39,22 @@ enum ProfileOverviewJourney {
     static func reachCabal(_ app: XCUIApplication, _ target: XCUIElement) {
         let screen = app.windows.firstMatch.frame
         var attempts = 0
-        while !(target.exists && screen.contains(target.frame.insetBy(dx: 4, dy: 4))) && attempts < 40 {
+        while attempts < 40 {
+            let inside = target.exists && screen.contains(target.frame.insetBy(dx: 4, dy: 4))
+            if inside && app.isAboveTabBar(target) { break }
             app.swipeUp()
             attempts += 1
         }
+    }
+
+    static func tapCabalsTab(_ app: XCUIApplication) {
+        let tab = app.element("profile-tab-cabals")
+        var swipes = 0
+        while !(tab.exists && tab.isHittable && app.isAboveTabBar(tab)) && swipes < 8 {
+            app.swipeUp()
+            swipes += 1
+        }
+        tab.tap()
     }
 
     static func positionsFigure(_ app: XCUIApplication) -> String {
@@ -87,7 +99,7 @@ enum ProfileOverviewJourney {
         }
 
         recorder.step("S1.3", "find the cabal under Your cabals") {
-            app.element("profile-tab-cabals").tap()
+            tapCabalsTab(app)
             let cabalRow = row(app, cabal)
             reachCabal(app, cabalRow)
             XCTAssertTrue(cabalRow.waitForExistence(timeout: 10), "S1.3: no row for '\(cabal.name)' on the Cabals tab")
@@ -133,7 +145,7 @@ enum ProfileOverviewJourney {
                 waitUntil(15) {
                     header.exists && app.element("profile-stat-cabals").exists && (cabalsCount(app) ?? 0) >= 1
                 }, "S2.2: the header or the stats band was gone after the refresh")
-            app.element("profile-tab-cabals").tap()
+            tapCabalsTab(app)
             let cabalRow = row(app, cabal)
             reachCabal(app, cabalRow)
             XCTAssertTrue(
@@ -144,7 +156,7 @@ enum ProfileOverviewJourney {
     static func openCabal(_ app: XCUIApplication, cabal: Cabal, recorder: JourneyRecorder) {
         recorder.step("S3.1", "open the cabal from Your cabals") {
             openProfile(app, step: "S3.1")
-            app.element("profile-tab-cabals").tap()
+            tapCabalsTab(app)
             let cabalRow = row(app, cabal)
             reachCabal(app, cabalRow)
             XCTAssertTrue(cabalRow.waitForExistence(timeout: 15), "S3.1: no row for '\(cabal.name)'")
@@ -259,7 +271,7 @@ enum ProfileOverviewJourney {
         }
 
         recorder.step("S7.2", "the cabal card shows its value") {
-            app.element("profile-tab-cabals").tap()
+            tapCabalsTab(app)
             let card = row(app, cabal)
             reachCabal(app, card)
             XCTAssertTrue(card.waitForExistence(timeout: 15), "S7.2: no row for '\(cabal.name)'")

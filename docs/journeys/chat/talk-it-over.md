@@ -63,7 +63,7 @@ B has not opened the chat since S3, so the two messages A sends here are all B h
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
 | S5.1 | A | tap, tap, type, then tap, twice | `openCabal(named:)`, `cabal-more-button`, `cabal-more-chat`, `chat-composer`, then `chat-send` | `one {QA.run}`, then `two {QA.run}` | Both messages show within 5 s |
-| S5.2 | B | tap, then wait | the Cabals tab, then the `cabals-tile-<id>` of `QA {QA.run}` | | The tile's VoiceOver value reads "2 unread messages" within 10 s (see Known failures) |
+| S5.2 | B | tap, then wait | the Cabals tab, then the `cabals-tile-<id>` of `QA {QA.run}` | | The tile's VoiceOver value reads "2 unread messages" within 10 s |
 | S5.3 | B | tap, then tap | `openCabal(named:)`, `cabal-more-button`, then `cabal-more-chat` | | The chat shows `two {QA.run}` as its newest message and `gm {QA.run}`, and no message reads `typo {QA.run}` |
 | S5.4 | B | tap back, then tap back | `BackButton`, then `BackButton` | | `cabal-more-button` shows again after the first back, and the card's VoiceOver value no longer reads unread messages |
 
@@ -73,7 +73,7 @@ B has not opened the chat since S3, so the two messages A sends here are all B h
 
 ## Known failures on staging
 
-- S5.2 to S5.4 read an unread count on the Cabals tile, which lands with #7157.
+None known.
 
 ## Not covered
 
