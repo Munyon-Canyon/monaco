@@ -51,6 +51,10 @@ struct CabalsTabScreen: View {
             }
         }
         .task { await start() }
+        .onAppear {
+            guard let store, store.content == nil, !store.hasFailed else { return }
+            Task { await store.tab.load() }
+        }
     }
 
     @ViewBuilder private func emptyState(_ store: CabalsTabStore) -> some View {

@@ -130,6 +130,39 @@ final class CabalsTabModelTests: XCTestCase {
         XCTAssertEqual(model.failureTick, 1)
     }
 
+    func testACancelledFirstLoadDoesNotLeaveTheTabLoading() async throws {
+        let transport = try Self.transport(portfolioReplies: [.hang], inviteReplies: [.hang])
+        let model = CabalsTabModel(api: api(transport))
+        let load = Task { await model.load() }
+        let started = await waitUntil { await transport.sent.count >= 3 }
+        XCTAssertTrue(started)
+
+        load.cancel()
+        await load.value
+
+        guard case .idle = model.state else {
+            XCTFail("expected the tab back at idle, got \(model.state)")
+            return
+        }
+    }
+
+    func testACancelledRefreshKeepsTheLoadedTiles() async throws {
+        let transport = try Self.transport(
+            portfolioReplies: [try Self.portfolioReply(), .hang],
+            inviteReplies: [.json(.ok, Self.quantKidsInvite), .hang])
+        let model = CabalsTabModel(api: api(transport))
+        await model.load()
+        let refresh = Task { await model.load() }
+        let started = await waitUntil { await transport.sent.count >= 6 }
+        XCTAssertTrue(started)
+
+        refresh.cancel()
+        await refresh.value
+
+        XCTAssertEqual(model.content?.tiles.count, 3)
+        XCTAssertEqual(model.failureTick, 0)
+    }
+
     func testAnyUserHintReadsAgain() async throws {
         let transport = try Self.transport(
             portfolioReplies: [try Self.portfolioReply(), try Self.portfolioReply()],
