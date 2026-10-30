@@ -538,6 +538,16 @@ def refuse_busy_ports(busy, ports=BACKEND_PORTS):
                 ", ".join("pid %s (%s)" % (pid, cwd) for pid, cwd in busy)))
 
 
+RUNNER_ONLY_VARIABLES = ("MONACO_NO_SIMSLIM", "MONACO_LOCK_HOLD", "MONACO_LOCK_POLL", "MONACO_SIM_LOCK_DIR", "MONACO_SIM_SLOTS")
+
+
+def backend_environment():
+    """The runner's environment without the MONACO_ variables only the runner reads: config.Load refuses
+    every MONACO_ variable it does not know, so one of these reaching a backend command stops it at boot."""
+    return {key: value for key, value in os.environ.items()
+            if key not in RUNNER_ONLY_VARIABLES and not key.startswith("MONACO_QA_")}
+
+
 def apply_event_streams(log):
     """Brings the local JetStream streams up to the subjects this checkout declares, so a new event subject
     on staging cannot stop the backend at boot (bus.VerifyStreams). Idempotent, local dev only."""
@@ -545,7 +555,7 @@ def apply_event_streams(log):
         for step in (["just", "build", "backend"],
                      ["docker", "compose", "up", "-d", "--wait", "postgres", "nats"],
                      ["scripts/with-dotenv-local.sh", "bin/monacoctl", "bus", "apply"]):
-            if sh(step, stdout=out, stderr=subprocess.STDOUT).returncode != 0:
+            if sh(step, env=backend_environment(), stdout=out, stderr=subprocess.STDOUT).returncode != 0:
                 raise JourneyError("%s failed, see %s" % (" ".join(step[:3]), log))
 
 
@@ -554,8 +564,7 @@ def start_backend(base_url, timeout=300, trade_engine="stub", slot=0):
     OUT.mkdir(parents=True, exist_ok=True)
     print("starting the backend (log: %s)" % os.path.relpath(str(log), str(ROOT)))
     apply_event_streams(log)
-    # The backend refuses unknown MONACO_ variables at boot, and a run's account overrides are MONACO_QA_.
-    env = {key: value for key, value in os.environ.items() if not key.startswith("MONACO_QA_")}
+    env = backend_environment()
     api_port, worker_port = SLOT_PORTS[slot]
     env["MONACO_HTTP_ADDR"] = ":%d" % api_port
     env["MONACO_WORKER_HEALTH_ADDR"] = ":%d" % worker_port
