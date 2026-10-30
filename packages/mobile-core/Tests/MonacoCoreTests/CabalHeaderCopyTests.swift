@@ -41,15 +41,15 @@ final class CabalHeaderCopyTests: XCTestCase {
         XCTAssertEqual(subline(createdAt: created, role: nil), "8 members \u{00B7} since Aug 2026")
     }
 
-    func testTheStatBlockReadsShareSliceVotesAndBot() {
+    func testTheStatBlockReadsShareSliceAndVotes() {
         let stats = CabalHeaderCopy.stats(shareMicros: 7_000_000_000, sliceBps: 3500, openVotes: 1)
-        XCTAssertEqual(stats.map(\.label), ["Your share", "Of treasury", "Open votes", "Bot"])
-        XCTAssertEqual(stats.map(\.value), ["$7,000", "35%", "1", "Off"])
+        XCTAssertEqual(stats.map(\.label), ["Your share", "Of treasury", "Open votes"])
+        XCTAssertEqual(stats.map(\.value), ["$7,000", "35%", "1"])
     }
 
     func testAMemberWithNoShareSeesZeroDollarsAndZeroPercent() {
         let stats = CabalHeaderCopy.stats(shareMicros: 0, sliceBps: 0, openVotes: 0)
-        XCTAssertEqual(stats.map(\.value), ["$0", "0%", "0", "Off"])
+        XCTAssertEqual(stats.map(\.value), ["$0", "0%", "0"])
     }
 
     func testTheShareDropsCentsAndASmallSliceReadsUnderOnePercent() {
@@ -58,9 +58,10 @@ final class CabalHeaderCopyTests: XCTestCase {
         XCTAssertEqual(stats[1].value, "<1%")
     }
 
-    func testTheBotCellIsOffBecauseTheBackendHasNoBot() {
+    func testTheBotCellStaysHiddenWhileTradingBotsAreNotLaunched() {
+        XCTAssertFalse(LaunchFeatures.bots)
         XCTAssertEqual(CabalHeaderCopy.botValue, "Off")
-        XCTAssertEqual(CabalHeaderCopy.stats(shareMicros: 1, sliceBps: 1, openVotes: 1).last?.value, "Off")
+        XCTAssertFalse(CabalHeaderCopy.stats(shareMicros: 1, sliceBps: 1, openVotes: 1).contains { $0.label == "Bot" })
     }
 
     private func curve(_ navs: [Int64]) -> ValueCurve {

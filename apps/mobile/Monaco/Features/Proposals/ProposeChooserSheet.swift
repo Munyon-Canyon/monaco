@@ -129,12 +129,14 @@ struct ProposeChoices: View {
                     style: style, icon: .propose, title: buyTitle, detail: buyDetail, identifier: "propose-kind-buy"
                 ) { choose(.buy) }
                 sellRow(pot)
-                if style == .screen {
-                    MonacoSectionHeader("Trading bot")
-                        .padding(.horizontal, MonacoTheme.Space.gutter)
-                        .padding(.top, MonacoTheme.Space.m)
+                if LaunchFeatures.bots {
+                    if style == .screen {
+                        MonacoSectionHeader("Trading bot")
+                            .padding(.horizontal, MonacoTheme.Space.gutter)
+                            .padding(.top, MonacoTheme.Space.m)
+                    }
+                    botRow
                 }
-                botRow
             }
         }
     }
@@ -153,7 +155,7 @@ struct ProposeChoices: View {
         case .idle, .loading:
             ProposeChoiceRow(
                 style: style, icon: .down, title: ProposeFlowCopy.chooserSell, isEnabled: false,
-                identifier: "propose-kind-sell-loading"
+                isLast: !LaunchFeatures.bots, identifier: "propose-kind-sell-loading"
             ) {}
             .redacted(reason: .placeholder)
         case .failed:
@@ -164,7 +166,7 @@ struct ProposeChoices: View {
                 style: style, icon: .down, title: ProposeFlowCopy.chooserSell,
                 detail: hasHoldings
                     ? (style == .screen ? ProposeFlowCopy.fallbackSellDetail : nil) : ProposeFlowCopy.noHoldingsToSell,
-                isEnabled: hasHoldings, identifier: "propose-kind-sell"
+                isEnabled: hasHoldings, isLast: !LaunchFeatures.bots, identifier: "propose-kind-sell"
             ) { choose(.sell) }
         }
     }

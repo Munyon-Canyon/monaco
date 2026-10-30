@@ -1,19 +1,15 @@
 journey: cabals/pot
 expect-fail: S1
 
-The stat block reads "On" for the bot. S1.3 waits for "Off", so it must fail.
+The launch flag shows the bot cell again. S1.3 waits for no Bot cell, so it must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
-diff --git a/packages/mobile-core/Sources/MonacoCore/Cabals/CabalHeaderCopy.swift b/packages/mobile-core/Sources/MonacoCore/Cabals/CabalHeaderCopy.swift
-index 56bc8ded9..b7af19970 100644
---- a/packages/mobile-core/Sources/MonacoCore/Cabals/CabalHeaderCopy.swift
-+++ b/packages/mobile-core/Sources/MonacoCore/Cabals/CabalHeaderCopy.swift
-@@ -1,7 +1,7 @@
- import Foundation
- 
- public enum CabalHeaderCopy {
--    public static let botValue = "Off"
-+    public static let botValue = "On"
-     public static let moveRange = "1M"
- 
-     public struct Stat: Equatable, Sendable {
+diff --git a/packages/mobile-core/Sources/MonacoCore/LaunchFeatures.swift b/packages/mobile-core/Sources/MonacoCore/LaunchFeatures.swift
+--- a/packages/mobile-core/Sources/MonacoCore/LaunchFeatures.swift
++++ b/packages/mobile-core/Sources/MonacoCore/LaunchFeatures.swift
+@@ -1,4 +1,4 @@
+ public enum LaunchFeatures {
+     public static let apy = false
+-    public static let bots = false
++    public static let bots = true
+ }

@@ -40,12 +40,13 @@ public enum CabalHeaderCopy {
     }
 
     public static func stats(shareMicros: Int64, sliceBps: Int, openVotes: Int) -> [Stat] {
-        [
+        var stats: [Stat] = [
             Stat(label: "Your share", value: wholeDollars(shareMicros)),
             Stat(label: "Of treasury", value: percent(basisPoints: sliceBps)),
             Stat(label: "Open votes", value: "\(openVotes)"),
-            Stat(label: "Bot", value: botValue),
         ]
+        if LaunchFeatures.bots { stats.append(Stat(label: "Bot", value: botValue)) }
+        return stats
     }
 
     public static func move(_ curve: ValueCurve?, createdAt: Date, now: Date, calendar: Calendar = .current) -> Move? {

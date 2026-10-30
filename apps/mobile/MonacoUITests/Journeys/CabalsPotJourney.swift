@@ -2,7 +2,7 @@ import XCTest
 
 enum CabalsPotJourney {
     static let id = "cabals/pot"
-    static let version = 8
+    static let version = 9
 
     static let screenTimeout: TimeInterval = 15
 
@@ -29,15 +29,18 @@ enum CabalsPotJourney {
             )
         }
 
-        recorder.step("S1.3", "the stat block reads Your share $0, Of treasury 0%, Open votes 0, Bot Off") {
+        recorder.step("S1.3", "the stat block reads Your share $0, Of treasury 0%, Open votes 0, no Bot") {
             let block = app.element("cabal-stat-block")
             XCTAssertTrue(block.waitForExistence(timeout: 10), "S1.3: no stat block within 10 s")
-            for (label, value) in [("Your share", "$0"), ("Of treasury", "0%"), ("Open votes", "0"), ("Bot", "Off")] {
+            for (label, value) in [("Your share", "$0"), ("Of treasury", "0%"), ("Open votes", "0")] {
                 let cell = block.descendants(matching: .any)
                     .matching(NSPredicate(format: "label == %@", "\(label), \(value)")).firstMatch
                 XCTAssertTrue(
                     cell.waitForExistence(timeout: 10), "S1.3: no \(label) \(value) in the stat block")
             }
+            let bot = block.descendants(matching: .any)
+                .matching(NSPredicate(format: "label BEGINSWITH %@", "Bot,")).firstMatch
+            XCTAssertFalse(bot.exists, "S1.3: the stat block still shows a Bot cell")
         }
     }
 
