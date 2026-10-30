@@ -1895,7 +1895,7 @@ class All(Output):
         self.write("docs/journeys/cabals/fund.md", DOC.replace("auth/sign-in", "cabals/fund").replace(
             "requires: []", "requires: []\nfunds:\n  A: 5"))
 
-    def run_main(self, argv):
+    def run_main(self, argv, refund="", pot="", engines=None):
         backends, builds, ran = [], [], []
 
         @contextlib.contextmanager
@@ -1905,6 +1905,8 @@ class All(Output):
 
         def run_once(journey_, *a, **k):
             ran.append(journey_.id)
+            if engines is not None:
+                engines.append(os.environ.get("TRADE_ENGINE"))
             return [], "PASS"
 
         with unittest.mock.patch.object(journey, "journey_backend", backend), \
@@ -1915,8 +1917,8 @@ class All(Output):
                 unittest.mock.patch.object(journey, "ensure_build", lambda sim, log, rebuild=False: builds.append(sim)), \
                 unittest.mock.patch.object(journey, "run_once", run_once), \
                 unittest.mock.patch.object(journey, "build_label", lambda mutant=None: "abc"), \
-                unittest.mock.patch.dict(os.environ, {"MONACO_QA_REFUND_ADDRESS": ""}), \
-                unittest.mock.patch.object(journey, "with_dotenv", lambda args: ""), \
+                unittest.mock.patch.dict(os.environ, {"MONACO_QA_REFUND_ADDRESS": refund}), \
+                unittest.mock.patch.object(journey, "with_dotenv", lambda args: pot), \
                 redirect_stdout(StringIO()) as printed, unittest.mock.patch("sys.stderr", StringIO()) as err:
             code = journey.main(argv)
         return code, ran, (len(backends), len(builds)), printed.getvalue() + err.getvalue()
@@ -1928,6 +1930,22 @@ class All(Output):
         self.assertEqual(ran, ["auth/sign-in", "cabals/create", "cabals/join"])
         self.assertEqual(counts, (1, 1))
         self.assertIn("cabals/fund SKIP funds", out)
+
+    def test_all_skips_funds_journeys_even_when_the_qa_pot_resolves(self):
+        self.journeys()
+        code, ran, _, out = self.run_main(["run", "--all"], pot="Pot1")
+        self.assertEqual(code, 0)
+        self.assertEqual(ran, ["auth/sign-in", "cabals/create", "cabals/join"])
+        self.assertIn("cabals/fund SKIP funds", out)
+
+    def test_all_runs_funds_journeys_on_the_live_engine_when_the_refund_address_is_exported(self):
+        self.journeys()
+        engines = []
+        code, ran, _, out = self.run_main(["run", "--all"], refund="Phantom1", engines=engines)
+        self.assertEqual(code, 0)
+        self.assertIn("cabals/fund", ran)
+        self.assertNotIn("SKIP funds", out)
+        self.assertEqual(set(engines), {"live"})
 
     def test_named_journeys_run_in_requires_order_on_one_build_and_one_backend(self):
         self.journeys()
