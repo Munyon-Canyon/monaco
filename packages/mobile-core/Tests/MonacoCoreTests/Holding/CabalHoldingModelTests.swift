@@ -180,6 +180,54 @@ final class CabalHoldingModelTests: XCTestCase {
         XCTAssertEqual(holding.stats.map(\.value)[1...2], ["$206.43", "$230.00"])
     }
 
+    func testThePotsAverageEntryBecomesTheAverageBuy() async throws {
+        let (model, _) = make(
+            pot: try potReply(holdingSymbol: symbol, avgEntryMicros: "206430000"), activity: [try activityReply([])])
+
+        await model.load()
+
+        let holding = try XCTUnwrap(model.holding)
+        XCTAssertEqual(holding.figures.averageBuyMicros, 206_430_000)
+        XCTAssertEqual(holding.stats.map(\.value)[1], "$206.43")
+        XCTAssertEqual(holding.averageBuyDetail, "$206.43 · Quantity-weighted acquisition cost")
+        XCTAssertEqual(holding.stats[1].tone, .neutral)
+    }
+
+    func testAPotAverageEntryOverridesAnInjectedAverageBuy() async throws {
+        let figures = CabalHolding.Figures(averageBuyMicros: 1_000_000)
+        let (model, _) = make(
+            pot: try potReply(holdingSymbol: symbol, avgEntryMicros: "206430000"), activity: [try activityReply([])],
+            figures: figures)
+
+        await model.load()
+
+        XCTAssertEqual(model.holding?.figures.averageBuyMicros, 206_430_000)
+    }
+
+    func testANullAverageEntryShowsADashAndNoSoonNoteForIt() async throws {
+        let figures = CabalHolding.Figures(averageSellMicros: 230_000_000, realizedMicros: 117_860_000)
+        let (model, _) = make(
+            pot: try potReply(holdingSymbol: symbol), activity: [try activityReply([])], figures: figures)
+
+        await model.load()
+
+        let holding = try XCTUnwrap(model.holding)
+        XCTAssertNil(holding.figures.averageBuyMicros)
+        XCTAssertEqual(holding.stats.map(\.value)[1], "—")
+        XCTAssertEqual(holding.stats[1].tone, .missing)
+        XCTAssertEqual(holding.averageBuyDetail, "— · Quantity-weighted acquisition cost")
+        XCTAssertFalse(holding.hasPendingFigures)
+    }
+
+    func testAverageSellAndRealizedStayPendingWithoutTheirFigures() async throws {
+        let (model, _) = make(
+            pot: try potReply(holdingSymbol: symbol, avgEntryMicros: "206430000"), activity: [try activityReply([])])
+
+        await model.load()
+
+        XCTAssertEqual(model.holding?.hasPendingFigures, true)
+    }
+
     private func make(
         pot: StubTransport.Reply, activity: [StubTransport.Reply], more: [StubTransport.Reply] = [],
         figures: CabalHolding.Figures = .none, pagesPerLoad: Int = CabalHoldingModel.pagesPerLoad
@@ -207,8 +255,11 @@ final class CabalHoldingModelTests: XCTestCase {
         return (model, transport)
     }
 
-    private func potReply(holdingSymbol: String, pricesAsOf: Date? = nil) throws -> StubTransport.Reply {
+    private func potReply(
+        holdingSymbol: String, pricesAsOf: Date? = nil, avgEntryMicros: String? = nil
+    ) throws -> StubTransport.Reply {
         let asOf = ISO8601DateFormatter().string(from: pricesAsOf ?? now)
+        let avgEntry = avgEntryMicros.map { "\"\($0)\"" } ?? "null"
         return .json(
             .ok,
             """
@@ -216,7 +267,7 @@ final class CabalHoldingModelTests: XCTestCase {
             "pnl_micros":407140000,"return_bps":null,"prices_as_of":"\(asOf)","holdings":[{"symbol":"\
             \(holdingSymbol)","display_name":"NVIDIA","kind":"equity","units":"30.0000","token_amount":3000000000,\
             "price_micros":220000000,"value_micros":6600000000,"weight_bps":10000,"cost_basis_micros":6192860000,\
-            "pnl_micros":407140000}],"me":null}
+            "pnl_micros":407140000,"avg_entry_micros":\(avgEntry)}],"me":null}
             """)
     }
 

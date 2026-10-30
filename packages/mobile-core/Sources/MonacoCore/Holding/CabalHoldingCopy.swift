@@ -4,7 +4,7 @@ public enum CabalHoldingCopy {
     public static let fallbackTitle = "Cabal asset holding"
     public static let positionValue = "Position value"
     public static let allTime = "All time"
-    public static let opensSoon = "Average prices and realized P&L open soon."
+    public static let opensSoon = "Average sell and realized P&L open soon."
     public static let chartOpensSoon = "Position chart opens soon"
     public static let emptyTitle = "No position yet"
     public static let emptyBody = "Completed trades in this cabal appear here."
@@ -43,6 +43,10 @@ public enum CabalHoldingCopy {
 
     public static func title(_ name: String) -> String {
         "\(name) holding"
+    }
+
+    public static func averageBuyDetail(_ price: String) -> String {
+        "\(price) · \(Detail.averageBuyValue)"
     }
 
     public static func pnlLabel(_ period: String) -> String {

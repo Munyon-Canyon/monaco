@@ -62,6 +62,12 @@ public struct CabalHolding: Equatable, Sendable {
         }
 
         public static let none = Figures()
+
+        func withAverageBuy(_ micros: Int64?) -> Figures {
+            Figures(
+                averageBuyMicros: micros ?? averageBuyMicros, averageSellMicros: averageSellMicros,
+                realizedMicros: realizedMicros, series: series)
+        }
     }
 
     public let cabalID: String
@@ -134,6 +140,14 @@ public struct CabalHolding: Equatable, Sendable {
     }
 
     public var hasMissingFigures: Bool { stats.contains { $0.tone == .missing } }
+
+    public var hasPendingFigures: Bool { figures.averageSellMicros == nil || figures.realizedMicros == nil }
+
+    public var averageBuyText: String {
+        figures.averageBuyMicros.map { UsdAmountFormatter.format(micros: $0) } ?? CabalHoldingCopy.missing
+    }
+
+    public var averageBuyDetail: String { CabalHoldingCopy.averageBuyDetail(averageBuyText) }
 
     public var stats: [Stat] {
         [

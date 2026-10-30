@@ -105,7 +105,7 @@ struct CabalHoldingScreen: View {
                 performance(holding)
                 chart(holding)
                 HoldingStatGrid(stats: holding.stats)
-                if holding.hasMissingFigures {
+                if holding.hasPendingFigures {
                     Text(CabalHoldingCopy.opensSoon)
                         .font(MonacoTheme.Typo.caption)
                         .foregroundStyle(MonacoTheme.secondaryText)

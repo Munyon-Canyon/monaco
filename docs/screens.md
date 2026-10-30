@@ -565,10 +565,10 @@ Threads (`ChatThreadRoute`), delete, "Seen by N" (#704) and @mentions (#2147) ke
 | 2 | Stale notice | A warn notice, "Holding value last updated 14 minutes ago.", when the price read is ten minutes old or more |
 | 3 | Performance | "Position value", the value in `moneyFont(.hero)`, and the return with "Position P&L · All time" |
 | 4 | Chart | The position's value line with the 1W 1M 3M 1Y All periods, or `QuietChart` "Position chart opens soon" while there is no series. No position: "No position yet" / "Completed trades in this cabal appear here." |
-| 5 | Stat grid | Units, Average buy, Average sell, Cost basis, Realized P&L · total, Unrealized P&L. A missing figure reads "—", with "Average prices and realized P&L open soon." under the grid |
+| 5 | Stat grid | Units, Average buy, Average sell, Cost basis, Realized P&L · total, Unrealized P&L. Average buy is the pot's `avg_entry_micros`. A missing figure reads "—", with "Average sell and realized P&L open soon." under the grid while either of those two is unserved |
 | 6 | Trade history | "Cabal · Times shown in UTC", then a row per confirmed buy or sell of the symbol: sign tile, "Buy · 24.4444 units", the UTC date, the unit price and the total. A row opens `TransactionRoute`. "Show older trades" pages on. A failed read shows "Couldn't load trade history." with "Try again" in this section only |
 | 7 | Related proposals | Up to two open proposals of this cabal on the symbol, drawn by `ProposalCard`, or "No open proposals for NVDA" |
-| 8 | Position details | A disclosure: Asset, Scope, Average buy, P&L scope, and "View token market", which pushes `AssetRoute` |
+| 8 | Position details | A disclosure: Asset, Scope, Average buy (the stat's value, then "Quantity-weighted acquisition cost"), P&L scope, and "View token market", which pushes `AssetRoute` |
 
 States: loading skeleton (`holding-loading`); error (`holding-error`, "Couldn't load this view" with "Try again"); a reload that fails with data on screen keeps the data and shows the toast "Couldn't refresh this holding."; empty; loss (the return, chart and Unrealized cell in the loss colour); stale; not a member ("This holding is private").
 
