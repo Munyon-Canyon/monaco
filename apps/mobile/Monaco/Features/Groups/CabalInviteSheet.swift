@@ -105,22 +105,29 @@ struct CabalInviteSheet: View {
     }
 
     private var heading: some View {
-        HStack(spacing: CabalInviteMetrics.roundGap) {
+        let layout =
+            dynamicTypeSize >= .xxxLarge
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: CabalInviteMetrics.roundGap))
+            : AnyLayout(HStackLayout(spacing: CabalInviteMetrics.roundGap))
+        return layout {
             Text(invite?.preview?.title ?? CabalInviteCopy.title(name: cabal.name))
                 .font(MonacoTheme.Typo.section)
                 .foregroundStyle(MonacoTheme.primaryText)
+                .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .accessibilityAddTraits(.isHeader)
                 .accessibilityIdentifier("cabal-invite-title")
-            MonacoGlassButton(
-                systemImage: showsQR ? "rectangle.on.rectangle" : MonacoIcon.qr.symbol,
-                accessibilityLabel: showsQR ? "Show invite card" : "Show QR code", style: .quiet, size: .compact
-            ) { toggleFlip() }
-            .disabled(invite?.link == nil)
-            .accessibilityIdentifier("cabal-invite-qr-toggle")
-            if isAdmin { settingsMenu }
-            MonacoGlassButton(systemImage: "xmark", accessibilityLabel: "Close", style: .quiet, size: .compact) {
-                dismiss()
+            HStack(spacing: CabalInviteMetrics.roundGap) {
+                MonacoGlassButton(
+                    systemImage: showsQR ? "rectangle.on.rectangle" : MonacoIcon.qr.symbol,
+                    accessibilityLabel: showsQR ? "Show invite card" : "Show QR code", style: .quiet, size: .compact
+                ) { toggleFlip() }
+                .disabled(invite?.link == nil)
+                .accessibilityIdentifier("cabal-invite-qr-toggle")
+                if isAdmin { settingsMenu }
+                MonacoGlassButton(systemImage: "xmark", accessibilityLabel: "Close", style: .quiet, size: .compact) {
+                    dismiss()
+                }
             }
         }
         .frame(minHeight: 48)
@@ -168,9 +175,19 @@ struct CabalInviteSheet: View {
                 .accessibilityIdentifier("cabal-invite-loading")
         case .failed:
             VStack(spacing: MonacoTheme.Space.m) {
-                EmptyState(
-                    title: "Couldn\u{2019}t load your invite", message: "Check your connection and try again.",
-                    systemImage: MonacoIcon.link.symbol)
+                VStack(spacing: MonacoTheme.Space.s) {
+                    Text("Couldn\u{2019}t load your invite")
+                        .font(MonacoTheme.Typo.section)
+                        .foregroundStyle(MonacoTheme.primaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text("Check your connection and try again.")
+                        .font(MonacoTheme.Typo.subhead)
+                        .foregroundStyle(MonacoTheme.secondaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: .infinity)
+                .padding(.top, MonacoTheme.Space.l)
                 Button("Try again") { Task { await invite?.load() } }
                     .buttonStyle(.monacoOutline)
                     .accessibilityIdentifier("cabal-invite-retry")

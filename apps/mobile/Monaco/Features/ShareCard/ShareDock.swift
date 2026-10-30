@@ -83,7 +83,7 @@ struct ShareDock: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private var stacksChips: AnyLayout {
-        dynamicTypeSize.isAccessibilitySize
+        dynamicTypeSize >= .xxxLarge
             ? AnyLayout(VStackLayout(alignment: .leading, spacing: MonacoTheme.Space.xs))
             : AnyLayout(HStackLayout(spacing: MonacoTheme.Space.s))
     }
@@ -149,16 +149,17 @@ struct ShareEyeChip: View {
                 Image(systemName: isOn ? MonacoIcon.eye.symbol : "eye.slash")
                     .accessibilityHidden(true)
                 Text(eye.title(ledger: isLedger))
+                    .fixedSize(horizontal: false, vertical: true)
             }
             .font(MonacoTheme.Typo.subheadStrong)
             .foregroundStyle(isOn ? MonacoTheme.primaryText : MonacoTheme.secondaryText)
-            .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
-            .minimumScaleFactor(0.8)
             .padding(.horizontal, MonacoTheme.Space.sm)
+            .padding(.vertical, MonacoTheme.Space.xs)
             .frame(minHeight: MonacoButtonMetrics.compactHeight)
             .background(Capsule().fill(isOn ? MonacoTheme.surfaceSunken : Color.clear))
             .overlay(Capsule().strokeBorder(isOn ? Color.clear : MonacoTheme.hairline, lineWidth: 1))
             .frame(minHeight: MonacoButtonMetrics.hitTarget)
+            .frame(maxWidth: dynamicTypeSize >= .xxxLarge ? .infinity : nil, alignment: .leading)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
