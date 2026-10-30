@@ -93,11 +93,6 @@ struct MonacoSurfaceComponentTests {
         #expect(MonacoNotice(.info, message: "Saved").spokenText == "Saved")
     }
 
-    @Test func theOpensSoonCaptionIsOneSentence() {
-        #expect(MonacoOpensSoon().text == "Opens soon")
-        #expect(MonacoOpensSoon("Rewards").text == "Rewards opens soon")
-    }
-
     @Test func aPnLPillReadsItsFigureWithTheSharedWording() {
         #expect(PnLPill(text: "+8.2% · 1M", tone: .gain).spokenText == "up 8.2 percent, 1M")
         #expect(PnLPill(text: "P&L private", tone: .muted).spokenText == "P&L private")

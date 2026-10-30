@@ -32,9 +32,6 @@ struct GalleryNoticeSamples: View {
                 GalleryCase(caption: "Quiet empty line") {
                     MonacoQuietEmpty("No proposals yet", systemImage: MonacoIcon.propose.symbol)
                 }
-                GalleryCase(caption: "Opens soon") {
-                    MonacoOpensSoon("Markets")
-                }
             }
         }
     }

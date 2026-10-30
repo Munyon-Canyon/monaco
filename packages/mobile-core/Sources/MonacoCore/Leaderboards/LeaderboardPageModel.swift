@@ -226,13 +226,7 @@ public final class LeaderboardPageModel {
 
     public var isFixture: Bool { fixture != nil }
 
-    public var hasMovement: Bool { isFixture }
-
     public var hasFiltersApplied: Bool { appliedFilters != .standard }
-
-    public var contextLine: String {
-        LeaderboardCopy.contextLine(board: category, range: range, hasMovement: hasMovement)
-    }
 
     public var toast: String? { liveLoader?.toast }
 

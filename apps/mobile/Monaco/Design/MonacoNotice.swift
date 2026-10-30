@@ -125,21 +125,3 @@ struct MonacoQuietEmpty: View {
         .accessibilityElement(children: .combine)
     }
 }
-
-struct MonacoOpensSoon: View {
-    private let thing: String?
-
-    init(_ thing: String? = nil) {
-        self.thing = thing
-    }
-
-    var text: String {
-        thing.map { "\($0) opens soon" } ?? "Opens soon"
-    }
-
-    var body: some View {
-        Text(text)
-            .font(MonacoTheme.Typo.caption)
-            .foregroundStyle(MonacoTheme.secondaryText)
-    }
-}
