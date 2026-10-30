@@ -33,7 +33,15 @@ if command -v simslim >/dev/null 2>&1 && [[ -n "${SIMSLIM_UDID:-}" && "$udid" ==
   fi
 fi
 
-open -a Simulator >/dev/null 2>&1 || true
+devicehub="$(xcode-select -p 2>/dev/null)/../Applications/DeviceHub.app"
+if [[ -d "$devicehub" ]]; then
+  open "$devicehub" --args -CurrentDeviceUDID "$udid" >/dev/null 2>&1 && ui_opened=1 || ui_opened=0
+else
+  open -a Simulator --args -CurrentDeviceUDID "$udid" >/dev/null 2>&1 && ui_opened=1 || ui_opened=0
+fi
+if [[ "$ui_opened" != 1 ]]; then
+  echo "warning: could not open a simulator window (no DeviceHub.app or Simulator.app); the app still launches on ${sim_name:-$udid}." >&2
+fi
 
 _ios_clipboard_bridge() {
   local cmd="$1"
