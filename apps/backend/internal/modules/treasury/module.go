@@ -59,6 +59,7 @@ type Module struct {
 	fund            fundDeps
 	treasuryWallets app.TreasuryWallets
 	memberWallets   app.MemberWallets
+	positionPrices  app.PositionPrices
 }
 
 type fundDeps struct {
@@ -144,6 +145,11 @@ func (m *Module) Wire(set module.Set) {
 			m.fund.wallets = provider.Queries()
 			m.memberWallets = provider.Queries()
 		}
+		if provider, ok := mod.(interface {
+			PositionPrices() *market.PositionPriceReader
+		}); ok {
+			m.positionPrices = positionPrices(provider.PositionPrices())
+		}
 		if provider, ok := mod.(interface{ Pauses() fundingport.Pauses }); ok {
 			pauses := provider.Pauses()
 			m.fund.pauses = pauses
@@ -184,7 +190,8 @@ func (m *Module) Mount(r api.Mount) {
 		Pot:         m.reads(),
 		Held:        m.heldReads(),
 		Performance: app.NewHoldingPerformanceReads(
-			m.deps.Pool, m.members, names, marketListings(market.New(m.deps).Prices())),
+			m.deps.Pool, m.members, names, marketListings(market.New(m.deps).Prices()),
+			m.positionPrices, m.deps.Clock),
 		Cabals:  m.cabals,
 		Members: m.members,
 	}, r)
@@ -404,6 +411,17 @@ func (m *Module) reads() *adapters.Queries {
 		m.deps.Clock,
 		chain.SolanaAddress(m.deps.Config.Solana.USDCMint),
 	).WithListings(marketListings(marketModule.Prices()))
+}
+
+func positionPrices(source market.PositionPrices) app.PositionPrices {
+	return func(ctx context.Context, symbol, chartRange string) ([]app.PricePoint, error) {
+		points, err := source.PositionPrices(ctx, symbol, chartRange)
+		out := make([]app.PricePoint, len(points))
+		for i, p := range points {
+			out[i] = app.PricePoint{At: p.At, PriceMicros: p.PriceMicros}
+		}
+		return out, err
+	}
 }
 
 func marketListings(reader market.ListingPrices) app.ListingReader {

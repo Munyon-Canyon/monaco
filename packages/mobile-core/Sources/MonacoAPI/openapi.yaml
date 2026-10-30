@@ -5196,7 +5196,8 @@ paths:
         both replayed from the cabal's confirmed buys and sells against the weighted-average cost of each token it
         holds, with every chain's listing of the stock counted together. Only members can read it; anyone else gets
         `not_cabal_member`. `avg_sell_micros` is null when nothing was sold. A symbol the cabal never traded reads
-        no sells and zero profit.
+        no sells and zero profit. `series` gives the position P&L over time for each chart range, up to 48 points
+        oldest first, ending at now; every range is empty for a symbol the cabal never held.
       parameters:
         - name: id
           in: path
@@ -5221,7 +5222,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HoldingPerformance"
-              example: {avg_sell_micros: "250000000", realized_pnl_micros: 30000000}
+              example: {avg_sell_micros: "250000000", realized_pnl_micros: 30000000, series: {"1W": [{at: "2026-10-30T12:00:00Z", pnl_micros: 30000000}], "1M": [{at: "2026-10-30T12:00:00Z", pnl_micros: 30000000}], "3M": [], "1Y": [], "ALL": []}}
         default:
           $ref: "#/components/responses/Problem"
   /v1/cabals/{id}/pot:
@@ -11943,10 +11944,29 @@ components:
     HoldingPerformance:
       type: object
       description: What a cabal made selling one stock, replayed from its confirmed buys and sells.
-      required: [avg_sell_micros, realized_pnl_micros]
+      required: [avg_sell_micros, realized_pnl_micros, series]
       properties:
         avg_sell_micros: {type: [string, "null"], pattern: "^(0|[1-9][0-9]*)$", description: "The average price one share sold for, the proceeds of every sell over the shares sold, in USDC micros, rounded down. Null when nothing was sold.", examples: ["250000000"]}
         realized_pnl_micros: {type: integer, format: int64, description: "Signed profit locked in by selling, each sell's proceeds less the average cost of the units it removed, in USDC micros. Zero when nothing was sold.", examples: [30000000]}
+        series:
+          type: object
+          description: The position P&L over time for each chart range. Every range is an empty array for a symbol the cabal never held.
+          x-go-type-name: HoldingPnLSeries
+          required: ["1W", "1M", "3M", "1Y", "ALL"]
+          examples: [{"1W": [{at: "2026-10-30T12:00:00Z", pnl_micros: 30000000}], "1M": [], "3M": [], "1Y": [], "ALL": []}]
+          properties:
+            "1W": {type: array, maxItems: 48, description: "The position P&L over the 1W range, oldest first, ending at now.", items: {$ref: "#/components/schemas/HoldingPnLPoint"}, examples: [[{at: "2026-10-30T12:00:00Z", pnl_micros: 30000000}]]}
+            "1M": {type: array, maxItems: 48, description: "The position P&L over the 1M range, oldest first, ending at now.", items: {$ref: "#/components/schemas/HoldingPnLPoint"}, examples: [[{at: "2026-10-30T12:00:00Z", pnl_micros: 30000000}]]}
+            "3M": {type: array, maxItems: 48, description: "The position P&L over the 3M range, oldest first, ending at now.", items: {$ref: "#/components/schemas/HoldingPnLPoint"}, examples: [[{at: "2026-10-30T12:00:00Z", pnl_micros: 30000000}]]}
+            "1Y": {type: array, maxItems: 48, description: "The position P&L over the 1Y range, oldest first, ending at now.", items: {$ref: "#/components/schemas/HoldingPnLPoint"}, examples: [[{at: "2026-10-30T12:00:00Z", pnl_micros: 30000000}]]}
+            "ALL": {type: array, maxItems: 48, description: "The position P&L over the ALL range, oldest first, ending at now.", items: {$ref: "#/components/schemas/HoldingPnLPoint"}, examples: [[{at: "2026-10-30T12:00:00Z", pnl_micros: 30000000}]]}
+    HoldingPnLPoint:
+      type: object
+      description: The position P&L at one moment, the current value of the units held less the remaining cost basis plus the realized P&L.
+      required: [at, pnl_micros]
+      properties:
+        at: {type: string, format: date-time, description: When the P&L was valued., examples: ["2026-10-30T12:00:00Z"]}
+        pnl_micros: {type: integer, format: int64, description: "Signed position P&L in USDC micros.", examples: [-12000000]}
     UserTxn:
       type: object
       description: One inbound, outbound or cabal transfer affecting the caller.

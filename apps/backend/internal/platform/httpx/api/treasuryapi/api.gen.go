@@ -690,6 +690,54 @@ type HoldingPerformance struct {
 	//
 	// Examples: 30000000
 	RealizedPnlMicros int64 `json:"realized_pnl_micros"`
+
+	// Series The position P&L over time for each chart range. Every range is an empty array for a symbol the cabal never held.
+	//
+	// Examples: {"1M":[],"1W":[{"at":"2026-10-30T12:00:00Z","pnl_micros":30000000}],"1Y":[],"3M":[],"ALL":[]}
+	Series HoldingPnLSeries `json:"series"`
+}
+
+// HoldingPnLSeries The position P&L over time for each chart range. Every range is an empty array for a symbol the cabal never held.
+//
+// Examples: {"1M":[],"1W":[{"at":"2026-10-30T12:00:00Z","pnl_micros":30000000}],"1Y":[],"3M":[],"ALL":[]}
+type HoldingPnLSeries struct {
+	// N1M The position P&L over the 1M range, oldest first, ending at now.
+	//
+	// Examples: [{"at":"2026-10-30T12:00:00Z","pnl_micros":30000000}]
+	N1M []HoldingPnLPoint `json:"1M"`
+
+	// N1W The position P&L over the 1W range, oldest first, ending at now.
+	//
+	// Examples: [{"at":"2026-10-30T12:00:00Z","pnl_micros":30000000}]
+	N1W []HoldingPnLPoint `json:"1W"`
+
+	// N1Y The position P&L over the 1Y range, oldest first, ending at now.
+	//
+	// Examples: [{"at":"2026-10-30T12:00:00Z","pnl_micros":30000000}]
+	N1Y []HoldingPnLPoint `json:"1Y"`
+
+	// N3M The position P&L over the 3M range, oldest first, ending at now.
+	//
+	// Examples: [{"at":"2026-10-30T12:00:00Z","pnl_micros":30000000}]
+	N3M []HoldingPnLPoint `json:"3M"`
+
+	// ALL The position P&L over the ALL range, oldest first, ending at now.
+	//
+	// Examples: [{"at":"2026-10-30T12:00:00Z","pnl_micros":30000000}]
+	ALL []HoldingPnLPoint `json:"ALL"`
+}
+
+// HoldingPnLPoint The position P&L at one moment, the current value of the units held less the remaining cost basis plus the realized P&L.
+type HoldingPnLPoint struct {
+	// At When the P&L was valued.
+	//
+	// Examples: 2026-10-30T12:00:00Z
+	At time.Time `json:"at"`
+
+	// PnlMicros Signed position P&L in USDC micros.
+	//
+	// Examples: -12000000
+	PnlMicros int64 `json:"pnl_micros"`
 }
 
 // UserTxn One inbound, outbound or cabal transfer affecting the caller.

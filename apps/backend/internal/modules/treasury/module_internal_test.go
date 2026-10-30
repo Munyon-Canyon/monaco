@@ -2,6 +2,7 @@ package treasury
 
 import (
 	"context"
+	"errors"
 	"math/big"
 	"testing"
 	"time"
@@ -124,5 +125,26 @@ func TestNew_refusesHeldCabalsUntilWired(t *testing.T) {
 	_, err := New(module.Deps{}).heldCabals.CabalsOf(t.Context(), ids.UserID{})
 	if errs.CodeOf(err) != errs.CodeUpstreamUnavailable {
 		t.Fatalf("CabalsOf before Wire = %v, want upstream_unavailable", err)
+	}
+}
+
+type stubPositionPrices struct {
+	points []market.PositionPoint
+	err    error
+}
+
+func (s stubPositionPrices) PositionPrices(context.Context, string, string) ([]market.PositionPoint, error) {
+	return s.points, s.err
+}
+
+func TestPositionPrices_mapsTheMarketPointsAndKeepsItsError(t *testing.T) {
+	t.Parallel()
+	at := time.Date(2026, 10, 30, 12, 0, 0, 0, time.UTC)
+	fail := errs.New(errs.CodeDBUnavailable, "test")
+	got, err := positionPrices(stubPositionPrices{
+		points: []market.PositionPoint{{At: at, PriceMicros: money.MicrosFromUint64(9)}}, err: fail,
+	})(t.Context(), "AAPLx", "1W")
+	if !errors.Is(err, fail) || len(got) != 1 || !got[0].At.Equal(at) || got[0].PriceMicros.Uint64() != 9 {
+		t.Fatalf("positionPrices = %+v, %v, want one point of 9 and the market error", got, err)
 	}
 }

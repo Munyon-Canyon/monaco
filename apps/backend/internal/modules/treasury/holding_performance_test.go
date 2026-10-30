@@ -56,7 +56,7 @@ func seedPerfTrade(
 }
 
 func perfReads(pool *pgxpool.Pool, members member) *app.HoldingPerformanceReads {
-	return app.NewHoldingPerformanceReads(pool, members, perfNames{}, perfListings)
+	return app.NewHoldingPerformanceReads(pool, members, perfNames{}, perfListings, nil, clock.Real{})
 }
 
 func TestHoldingPerformance_replaysBuysAndSellsAcrossEveryChainOfTheStock(t *testing.T) {
@@ -146,14 +146,14 @@ func TestHoldingPerformance_failsOnASellOfMoreThanWasBoughtAndOnUnreadableNames(
 	if _, err := perfReads(pool, true).Handle(t.Context(), query); errs.CodeOf(err) != errs.CodeInternal {
 		t.Fatalf("oversold replay = %v, want internal", err)
 	}
-	down := app.NewHoldingPerformanceReads(pool, member(true), failingNames{}, perfListings)
+	down := app.NewHoldingPerformanceReads(pool, member(true), failingNames{}, perfListings, nil, clock.Real{})
 	if _, err := down.Handle(t.Context(), query); errs.CodeOf(err) != errs.CodeDBUnavailable {
 		t.Fatalf("unreadable names = %v, want db_unavailable", err)
 	}
 	failed := app.NewHoldingPerformanceReads(pool, member(true), perfNames{},
 		func(context.Context, []string, time.Time) (map[string]app.ListingQuote, error) {
 			return nil, errs.New(errs.CodeDBUnavailable, "test")
-		})
+		}, nil, clock.Real{})
 	seedPerfTrade(t, pool, c.ID, perfEVM, "buy", "confirmed", 1, 1, base)
 	if _, err := failed.Handle(t.Context(), query); errs.CodeOf(err) != errs.CodeDBUnavailable {
 		t.Fatalf("unreadable listings = %v, want db_unavailable", err)
@@ -200,11 +200,11 @@ func TestHoldingPerformance_failsWhenMembershipOrTheTradesCannotBeRead(t *testin
 	pool := testkit.DB(t)
 	c := testkit.NewCabal(t, pool)
 	query := app.HoldingPerformanceQuery{CabalID: c.ID, Caller: c.Creator.ID, Symbol: "AAPLx"}
-	broken := app.NewHoldingPerformanceReads(pool, failingMembers{}, perfNames{}, perfListings)
+	broken := app.NewHoldingPerformanceReads(pool, failingMembers{}, perfNames{}, perfListings, nil, clock.Real{})
 	if _, err := broken.Handle(t.Context(), query); errs.CodeOf(err) != errs.CodeDBUnavailable {
 		t.Fatalf("membership read failure = %v, want db_unavailable", err)
 	}
-	unwired := app.NewHoldingPerformanceReads(pool, member(true), perfNames{}, nil)
+	unwired := app.NewHoldingPerformanceReads(pool, member(true), perfNames{}, nil, nil, clock.Real{})
 	cancelled, cancel := context.WithCancel(t.Context())
 	cancel()
 	if _, err := unwired.Handle(cancelled, query); errs.CodeOf(err) != errs.CodeDBUnavailable {

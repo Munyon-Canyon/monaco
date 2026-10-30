@@ -4,10 +4,13 @@ import (
 	"context"
 	"log/slog"
 	"math/big"
+	"sort"
+	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/sqlc"
+	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
@@ -18,9 +21,26 @@ type HoldingPerformanceQuery struct {
 	Symbol  string
 }
 
+const maxSeriesPoints = 48
+
+func SeriesRanges() []string { return []string{"1W", "1M", "3M", "1Y", "ALL"} }
+
+type PricePoint struct {
+	At          time.Time
+	PriceMicros money.Micros
+}
+
+type PositionPrices func(ctx context.Context, symbol, chartRange string) ([]PricePoint, error)
+
+type PnLPoint struct {
+	At        time.Time
+	PnLMicros money.SignedMicros
+}
+
 type HoldingPerformance struct {
 	AvgSellMicros     *money.Micros
 	RealizedPnLMicros money.SignedMicros
+	Series            map[string][]PnLPoint
 }
 
 type HoldingPerformanceReads struct {
@@ -28,12 +48,16 @@ type HoldingPerformanceReads struct {
 	members  Members
 	assets   AssetNames
 	listings ListingReader
+	prices   PositionPrices
+	clock    clock.Clock
 }
 
 func NewHoldingPerformanceReads(
-	db sqlc.DBTX, members Members, assets AssetNames, listings ListingReader,
+	db sqlc.DBTX, members Members, assets AssetNames, listings ListingReader, prices PositionPrices, c clock.Clock,
 ) *HoldingPerformanceReads {
-	return &HoldingPerformanceReads{q: sqlc.New(db), members: members, assets: assets, listings: listings}
+	return &HoldingPerformanceReads{
+		q: sqlc.New(db), members: members, assets: assets, listings: listings, prices: prices, clock: c,
+	}
 }
 
 func (r *HoldingPerformanceReads) Handle(
@@ -72,23 +96,128 @@ func (r *HoldingPerformanceReads) Handle(
 	if err != nil {
 		return HoldingPerformance{}, errs.Wrap(err, errs.CodeDBUnavailable, op)
 	}
-	var sales salesTotal
+	sales, line, err := replay(rows, names, quotes)
+	if err != nil {
+		return HoldingPerformance{}, err
+	}
+	series, err := r.series(ctx, req.Symbol, line)
+	if err != nil {
+		return HoldingPerformance{}, errs.Wrap(err, errs.CodeOf(err), op)
+	}
+	out, err := sales.result()
+	out.Series = series
+	return out, err
+}
+
+func replay(
+	rows []sqlc.ListTradesForPairsRow, names map[domain.Asset]AssetName, quotes map[string]ListingQuote,
+) (*salesTotal, *pnlTimeline, error) {
+	sales := &salesTotal{}
 	positions := map[string]*replayed{}
+	line := &pnlTimeline{}
 	for _, row := range rows {
 		tr, err := tradeOf(row)
 		if err != nil {
-			return HoldingPerformance{}, err
+			return nil, nil, err
 		}
 		state, ok := positions[row.Asset]
 		if !ok {
 			state = &replayed{}
 			positions[row.Asset] = state
 		}
-		if err := sales.apply(state, tr, sharesFor(row.Asset, names, quotes)); err != nil {
-			return HoldingPerformance{}, err
+		shares := sharesFor(row.Asset, names, quotes)
+		if err := sales.apply(state, tr, shares); err != nil {
+			return nil, nil, err
+		}
+		if err := line.record(tr, shares, positions, sales); err != nil {
+			return nil, nil, err
 		}
 	}
-	return sales.result()
+	return sales, line, nil
+}
+
+type pnlStep struct {
+	at     time.Time
+	shares *big.Rat
+	net    *big.Int
+}
+
+type pnlTimeline struct {
+	steps  []pnlStep
+	shares big.Rat
+}
+
+func (l *pnlTimeline) record(
+	tr trade, shares sharesOf, positions map[string]*replayed, sales *salesTotal,
+) error {
+	moved, err := shares(tr)
+	if err != nil {
+		return err
+	}
+	if tr.side == sideBuy {
+		l.shares.Add(&l.shares, moved)
+	} else {
+		l.shares.Sub(&l.shares, moved)
+	}
+	net := new(big.Int)
+	for _, state := range positions {
+		net.Add(net, new(big.Int).SetUint64(state.cost))
+	}
+	realized := new(big.Int).SetUint64(sales.proceeds.Uint64())
+	realized.Sub(realized, new(big.Int).SetUint64(sales.removed.Uint64()))
+	l.steps = append(l.steps, pnlStep{at: tr.at, shares: new(big.Rat).Set(&l.shares), net: net.Sub(net, realized)})
+	return nil
+}
+
+func (l *pnlTimeline) pnlAt(at time.Time, price money.Micros) money.SignedMicros {
+	i := sort.Search(len(l.steps), func(i int) bool { return l.steps[i].at.After(at) })
+	if i == 0 {
+		return money.SignedMicrosFromInt64(0)
+	}
+	step := l.steps[i-1]
+	value := new(big.Rat).Mul(step.shares, new(big.Rat).SetInt(new(big.Int).SetUint64(price.Uint64())))
+	value.Sub(value, new(big.Rat).SetInt(step.net))
+	return money.SignedMicrosFromInt64(new(big.Int).Quo(value.Num(), value.Denom()).Int64())
+}
+
+func (r *HoldingPerformanceReads) series(
+	ctx context.Context, symbol string, line *pnlTimeline,
+) (map[string][]PnLPoint, error) {
+	out := make(map[string][]PnLPoint, len(SeriesRanges()))
+	if len(line.steps) == 0 || r.prices == nil {
+		return out, nil
+	}
+	now := r.clock.Now().UTC()
+	first := line.steps[0].at
+	for _, name := range SeriesRanges() {
+		prices, err := r.prices(ctx, symbol, name)
+		if err != nil {
+			return nil, err
+		}
+		if len(prices) == 0 {
+			continue
+		}
+		points := make([]PnLPoint, 0, len(prices)+1)
+		for _, p := range prices {
+			if !p.At.Before(first) && p.At.Before(now) {
+				points = append(points, PnLPoint{At: p.At, PnLMicros: line.pnlAt(p.At, p.PriceMicros)})
+			}
+		}
+		points = append(points, PnLPoint{At: now, PnLMicros: line.pnlAt(now, prices[len(prices)-1].PriceMicros)})
+		out[name] = thinSeries(points)
+	}
+	return out, nil
+}
+
+func thinSeries(points []PnLPoint) []PnLPoint {
+	if len(points) <= maxSeriesPoints {
+		return points
+	}
+	out := make([]PnLPoint, maxSeriesPoints)
+	for i := range out {
+		out[i] = points[i*(len(points)-1)/(maxSeriesPoints-1)]
+	}
+	return out
 }
 
 type sharesOf func(tr trade) (*big.Rat, error)
