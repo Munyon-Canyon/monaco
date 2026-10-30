@@ -153,10 +153,6 @@ func newHandler(deps module.Deps, spec []byte, meters metric.MeterProvider) (htt
 	if err != nil {
 		return nil, err
 	}
-	rateLimit := ratelimit.Middleware(limiter, policies, httpx.ActorKey, deps.Config.HTTP.TrustProxyHeaders)
-	if deps.Config.HTTP.RateLimitOff {
-		rateLimit = func(next http.Handler) http.Handler { return next }
-	}
 	return httpx.Handler(httpx.Deps{
 		Logger:        deps.Logger,
 		Env:           deps.Config.Env,
@@ -168,7 +164,7 @@ func newHandler(deps module.Deps, spec []byte, meters metric.MeterProvider) (htt
 		IdempotentRun: deps.Config.Timeouts.IdempotentRun,
 		Verifier:      verifier,
 		AdminVerifier: adminauthn.NewAdminVerifier(verifier, deps.Pool),
-		RateLimit:     rateLimit,
+		RateLimit:     ratelimit.Middleware(limiter, policies, httpx.ActorKey, deps.Config.HTTP.TrustProxyHeaders),
 		WebOrigins:    deps.Config.WebAllowedOrigins(),
 		Ready:         deps.Pool,
 	}, registered.Build(deps).Mount, spec)

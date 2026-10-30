@@ -110,6 +110,14 @@ func (s *Server) privyUser(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	if local, ok := strings.CutPrefix(id, "did:privy:qa-f36-"); ok {
+		email := "qa-f36-" + local + "@example.com"
+		writeJSON(
+			w,
+			map[string]any{"id": id, "linked_accounts": []map[string]string{{"type": "email", "address": email}}},
+		)
+		return
+	}
 	privyError(w, http.StatusNotFound, "User not found")
 }
 

@@ -4,6 +4,8 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/google/uuid"
+
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/scenario"
 )
@@ -12,7 +14,7 @@ const cabalOrderPath = "/v1/me/cabals/order"
 
 func twoCabals(script string) []scenario.Step {
 	return []scenario.Step{
-		scenario.SignIn("did:privy:qa-f36-" + script),
+		scenario.SignIn("did:privy:qa-f36-" + script + "-" + uuid.NewString()[:8]),
 		scenario.Post(cabalsPath, cabalOf("open", "all")),
 		scenario.ExpectStatus(http.StatusCreated),
 		scenario.Remember("id", "first"),
