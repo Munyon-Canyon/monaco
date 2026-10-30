@@ -20,6 +20,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/sony/gobreaker/v2"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
@@ -1092,4 +1093,102 @@ func TestSamplePrices_aConflictingInsertPublishesWhatTheDatabaseKeeps(t *testing
 	}
 	wantTick(t, sent[0], r.bucket, tickPrice(aapl, 150_000_000, r.bucket))
 	wantTickMatchesTheDatabase(t, r, sent[0])
+}
+
+type retrySource struct {
+	mu      sync.Mutex
+	first   func() (map[domain.Mint]money.Micros, error)
+	second  map[domain.Mint]money.Micros
+	secErr  error
+	asked   [][]domain.Mint
+	onFirst func()
+}
+
+func (s *retrySource) Prices(_ context.Context, mints []domain.Mint) (map[domain.Mint]money.Micros, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.asked = append(s.asked, slices.Clone(mints))
+	if len(s.asked) == 1 {
+		if s.onFirst != nil {
+			s.onFirst()
+		}
+		return s.first()
+	}
+	return s.second, s.secErr
+}
+
+func oneFailedBatch() error {
+	return errs.New(errs.CodeUpstreamTimeout, "test.batch", slog.Int("failed_batches", 1))
+}
+
+func TestSamplePrices_aBatchThatTimesOutOnceIsRetriedInTheSameBucket(t *testing.T) {
+	t.Parallel()
+	aapl, tsla := marketfake.AAPLx(), marketfake.TSLAx()
+	src := &retrySource{
+		first: func() (map[domain.Mint]money.Micros, error) {
+			return map[domain.Mint]money.Micros{aapl.Mint: usd(254_371_234)}, oneFailedBatch()
+		},
+		second: map[domain.Mint]money.Micros{tsla.Mint: usd(180_000_000)},
+	}
+	r := newSampleRig(t, func(clock.Clock) app.PriceSource { return src }, aapl, tsla)
+	report, err := r.poller.Tick(t.Context())
+	if err != nil {
+		t.Fatalf("Tick = %v, want the retry to clear the failed batch", err)
+	}
+	if len(src.asked) != 2 || len(src.asked[1]) != 1 || src.asked[1][0] != tsla.Mint {
+		t.Fatalf("asked %v, want a second call for tsla only", src.asked)
+	}
+	if attr(report.Attrs, "failed_batches") != "0" || attr(report.Attrs, "retried_batches") != "1" {
+		t.Fatalf("report attrs = %v, want 0 failed and 1 retried", report.Attrs)
+	}
+	wantPoints(t, r.pool,
+		pricePoint{aapl.Mint.String(), r.bucket, 254_371_234, "jupiter"},
+		pricePoint{tsla.Mint.String(), r.bucket, 180_000_000, "jupiter"})
+}
+
+func TestSamplePrices_aBatchThatFailsTheRetryToo_keepsTheCodeAndCountsBoth(t *testing.T) {
+	t.Parallel()
+	aapl, tsla := marketfake.AAPLx(), marketfake.TSLAx()
+	src := &retrySource{
+		first: func() (map[domain.Mint]money.Micros, error) {
+			return map[domain.Mint]money.Micros{aapl.Mint: usd(254_371_234)}, oneFailedBatch()
+		},
+		secErr: oneFailedBatch(),
+	}
+	r := newSampleRig(t, func(clock.Clock) app.PriceSource { return src }, aapl, tsla)
+	_, err := r.poller.Tick(t.Context())
+	detail := errs.Detail(err)
+	if errs.CodeOf(err) != errs.CodeUpstreamTimeout || attr(detail, "failed_batches") != "1" ||
+		attr(detail, "retried_batches") != "1" {
+		t.Fatalf("Tick err = %v %v, want upstream_timeout with 1 failed and 1 retried", err, detail)
+	}
+	wantPoints(t, r.pool, pricePoint{aapl.Mint.String(), r.bucket, 254_371_234, "jupiter"})
+}
+
+func TestSamplePrices_anOpenBreakerIsNotRetried(t *testing.T) {
+	t.Parallel()
+	aapl, tsla := marketfake.AAPLx(), marketfake.TSLAx()
+	src := &retrySource{first: func() (map[domain.Mint]money.Micros, error) {
+		return nil, errs.Wrap(gobreaker.ErrOpenState, errs.CodeUpstreamUnavailable, "test",
+			slog.Int("failed_batches", 1))
+	}}
+	r := newSampleRig(t, func(clock.Clock) app.PriceSource { return src }, aapl, tsla)
+	_, err := r.poller.Tick(t.Context())
+	if errs.CodeOf(err) != errs.CodeUpstreamUnavailable || len(src.asked) != 1 {
+		t.Fatalf("Tick = %v after %d calls, want the breaker error after exactly 1", err, len(src.asked))
+	}
+}
+
+func TestSamplePrices_aFetchWindowUsedUpIsNotRetried(t *testing.T) {
+	t.Parallel()
+	aapl, tsla := marketfake.AAPLx(), marketfake.TSLAx()
+	src := &retrySource{first: func() (map[domain.Mint]money.Micros, error) {
+		return nil, oneFailedBatch()
+	}}
+	r := newSampleRig(t, func(clock.Clock) app.PriceSource { return src }, aapl, tsla)
+	src.onFirst = func() { r.clock.Advance(2 * time.Minute) }
+	_, err := r.poller.Tick(t.Context())
+	if errs.CodeOf(err) != errs.CodeUpstreamTimeout || len(src.asked) != 1 {
+		t.Fatalf("Tick = %v after %d calls, want the timeout after exactly 1", err, len(src.asked))
+	}
 }
