@@ -53,13 +53,15 @@ struct EmojiPickerSheet: View {
     @ScaledMetric(relativeTo: .title) private var scaledCell = PickerMetrics.cell
     @ScaledMetric(relativeTo: .subheadline) private var scaledHeader = PickerMetrics.headerHeight
 
-    private var isLarge: Bool { dynamicTypeSize.isAccessibilitySize }
+    private var isLarge: Bool { dynamicTypeSize >= .xxxLarge }
 
-    private var columns: Int { isLarge ? PickerMetrics.accessibilityColumns : PickerMetrics.columns }
+    private var columns: Int {
+        dynamicTypeSize.isAccessibilitySize ? PickerMetrics.accessibilityColumns : PickerMetrics.columns
+    }
 
-    private var cell: CGFloat { isLarge ? scaledCell : PickerMetrics.cell }
+    private var cell: CGFloat { scaledCell }
 
-    private var headerHeight: CGFloat { isLarge ? scaledHeader : PickerMetrics.headerHeight }
+    private var headerHeight: CGFloat { scaledHeader }
 
     init(initialQuery: String = "", catalog: EmojiCatalog = .bundled, onPick: @escaping (String) -> Void) {
         _query = State(initialValue: initialQuery)
@@ -194,11 +196,8 @@ struct EmojiPickerSheet: View {
             Text(section.title)
                 .font(MonacoTheme.Typo.subheadStrong)
                 .foregroundStyle(MonacoTheme.secondaryText)
-                .fixedSize(horizontal: false, vertical: isLarge)
-                .frame(
-                    maxWidth: .infinity, minHeight: headerHeight, maxHeight: isLarge ? nil : headerHeight,
-                    alignment: .leading
-                )
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, minHeight: headerHeight, alignment: .leading)
                 .padding(.horizontal, PickerMetrics.headerInset)
                 .accessibilityAddTraits(.isHeader)
             grid(section.emojis, identifierPrefix: section.identifierPrefix)
