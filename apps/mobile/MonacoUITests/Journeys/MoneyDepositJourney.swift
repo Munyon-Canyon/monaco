@@ -94,9 +94,16 @@ enum MoneyDepositJourney {
     }
 
     static func expectWarning(_ app: XCUIApplication, on name: String, step: String) {
-        let warning = app.element("deposit-network-warning")
+        let note = app.element("deposit-network-warning")
+            .descendants(matching: .any)
+            .matching(NSPredicate(format: "label != ''"))
+            .firstMatch
+        XCTAssertTrue(
+            note.waitForExistence(timeout: screenTimeout),
+            "\(step): the network note above the address did not show within \(Int(screenTimeout)) s"
+        )
         XCTAssertEqual(
-            warning.label, "Only USDC on \(name)",
+            note.label, "Only USDC on \(name)",
             "\(step): the network note above the address")
     }
 
