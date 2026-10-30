@@ -70,13 +70,15 @@ struct GroupCashView: View {
             MonacoCard(style: .inset) {
                 MonacoKeyRows {
                     ReceiptLine(label: "Asset", value: .words(summary.asset))
-                    ReceiptLine(label: "Cash in the cabal", value: .data(summary.cash))
-                    ReceiptLine(label: "Yield status", value: .words(summary.yieldLabel), isLast: true)
-                        .accessibilityIdentifier("group-cash-yield")
+                    ReceiptLine(label: "Cash in the cabal", value: .data(summary.cash), isLast: !LaunchFeatures.apy)
+                    if LaunchFeatures.apy {
+                        ReceiptLine(label: "Yield status", value: .words(summary.yieldLabel), isLast: true)
+                            .accessibilityIdentifier("group-cash-yield")
+                    }
                 }
             }
             .padding(.horizontal, MonacoTheme.Space.gutter)
-            if let notice = summary.notice {
+            if LaunchFeatures.apy, let notice = summary.notice {
                 MonacoNotice(notice.tone == .warn ? .warn : .info, message: notice.message)
                     .padding(.horizontal, MonacoTheme.Space.gutter)
                     .padding(.top, MonacoTheme.Space.sm)
