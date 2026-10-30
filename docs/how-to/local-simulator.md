@@ -32,6 +32,13 @@ trap for exactly this bug, and both have been updated to the ad-hoc flags
 above. If you're pasting an `xcodebuild` command from an old doc or PR,
 double check it doesn't carry `CODE_SIGNING_ALLOWED=NO` forward.
 
+## Simulator window
+
+`just run mobile` and `scripts/ios-sim` open the simulator UI the selected Xcode
+ships: DeviceHub on Xcode 27, which has no separate Simulator.app, and
+Simulator.app on older Xcode. When neither opens, the script prints a warning and
+still launches the app on the chosen simulator.
+
 ## Parallel agents: one simulator per worktree
 
 Each linked git worktree is a lane, named by its directory. A lane gets its own
