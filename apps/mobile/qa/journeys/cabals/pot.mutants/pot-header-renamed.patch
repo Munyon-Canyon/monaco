@@ -5,10 +5,10 @@ The pot value is renamed `cabal-pot-amount`. S1.1 waits for `cabal-pot-value`, s
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalPotSlot.swift b/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalPotSlot.swift
-index 64e1cd51b..64b4bce9e 100644
+index 0382f8709..77dd5ad0b 100644
 --- a/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalPotSlot.swift
 +++ b/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalPotSlot.swift
-@@ -137,12 +137,12 @@ struct CabalPotBand: View {
+@@ -146,13 +146,13 @@ struct CabalPotBand: View {
              }
              .buttonStyle(.plain)
              .accessibilityHint(CabalTreasuryCopy.historyHint)
@@ -16,6 +16,7 @@ index 64e1cd51b..64b4bce9e 100644
 +            .accessibilityIdentifier("cabal-pot-amount")
          } else {
              figure
+                 .frame(minHeight: MonacoButtonMetrics.hitTarget)
                  .accessibilityElement(children: .ignore)
                  .accessibilityLabel(Self.spoken(summary.potValue, move: move))
 -                .accessibilityIdentifier("cabal-pot-value")

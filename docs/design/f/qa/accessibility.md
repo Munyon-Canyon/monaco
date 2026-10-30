@@ -36,6 +36,8 @@ Per group: 02 hit 6 · 03 hit 9, detect 1 · 04 hit 65, detect 1 · 05 hit 28, d
 
 Fixed by #7197: the comment composer field now has a 44 pt minimum height, and a comment row is one 44 pt tappable (double-tap to react, long press for actions) with the relative time hidden from accessibility because the row label already speaks it. This resolves the `comment-composer-field`, `comment-body-*` and relative-time hit findings below.
 
+Fixed by #7198: `proposal-vote-status`, `proposal-result-tally`, `platform-balance-value`, `home-portfolio-chip` and `cabal-pot-value` now have a 44 pt minimum height (`MonacoButtonMetrics.hitTarget`), with a full-row content shape on the result tally's button. This resolves their hit findings in groups 02, 03 and 04 below; the audit groups were not rerun on this change. The Treasury line's clipping in the parity frame (#7188) is likely `CabalPotBand`'s `.padding(.top, -pull)`, which leaves the band only `Space.xs` of layout height; that layout fix is out of scope here.
+
 Test results: `testGroup13`, `testReduceMotionScreensDraw`, `testTheListHoldsTheNinetyFiveScreens` and `testEveryAllowedFindingHasAReason` pass. The other 16 group tests fail on the issues above; the allow-list stays empty because each issue has a follow-up instead.
 
 Fixes to the test from this run:

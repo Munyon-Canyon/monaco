@@ -139,6 +139,7 @@ struct CabalPotBand: View {
         if let openHistory {
             Button(action: openHistory) {
                 figure
+                    .frame(minHeight: MonacoButtonMetrics.hitTarget)
                     .contentShape(Rectangle())
                     .accessibilityElement(children: .ignore)
                     .accessibilityLabel(Self.spoken(summary.potValue, move: move))
@@ -148,6 +149,7 @@ struct CabalPotBand: View {
             .accessibilityIdentifier("cabal-pot-value")
         } else {
             figure
+                .frame(minHeight: MonacoButtonMetrics.hitTarget)
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel(Self.spoken(summary.potValue, move: move))
                 .accessibilityIdentifier("cabal-pot-value")

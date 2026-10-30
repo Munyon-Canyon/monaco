@@ -69,6 +69,7 @@ struct ProposalResultCard<Sides: View>: View {
                 .foregroundStyle(MonacoTheme.loss)
         }
         .font(MonacoTheme.Typo.subhead)
+        .frame(minHeight: MonacoButtonMetrics.hitTarget)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(ProposalResultCopy.tallyLine(tally: tally))
         if model == nil {
@@ -77,7 +78,7 @@ struct ProposalResultCard<Sides: View>: View {
             Button {
                 showsVotes = true
             } label: {
-                text.frame(maxWidth: .infinity, alignment: .leading)
+                text.frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .accessibilityHint("Shows who voted")
