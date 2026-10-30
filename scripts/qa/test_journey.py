@@ -16,6 +16,7 @@ import sys
 import tempfile
 import threading
 import time
+import types
 import unittest
 import unittest.mock
 from contextlib import redirect_stdout
@@ -2087,6 +2088,28 @@ class XcodeVersionWarning(unittest.TestCase):
     def test_a_missing_pin_or_missing_xcodebuild_returns_none(self):
         self.assertIsNone(self.warning_for(None, "26.3"))
         self.assertIsNone(self.warning_for("26.4.1", None))
+
+
+class OnceBuilder(unittest.TestCase):
+    def run_builder(self, no_build):
+        calls = []
+        saved = journey.DERIVED
+        args = types.SimpleNamespace(no_build=no_build, rebuild=False)
+        try:
+            with unittest.mock.patch.object(journey, "ensure_build", lambda *a: calls.append(journey.DERIVED.name)):
+                builder = journey.once_builder(args)
+                for logins in ({"A": "A"}, {"A": "A", "B": "B"}, {"A": "A"}, {"A": "A", "B": "B"}):
+                    journey.use_derived_data(logins)
+                    builder("sim")
+        finally:
+            journey.DERIVED = saved
+        return calls
+
+    def test_builds_once_per_derived_folder(self):
+        self.assertEqual(self.run_builder(False), ["derived-A", "derived-A-B"])
+
+    def test_no_build_never_builds(self):
+        self.assertEqual(self.run_builder(True), [])
 
 
 if __name__ == "__main__":

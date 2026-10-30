@@ -1502,13 +1502,13 @@ def xcode_version_warning(read_installed=installed_xcode_version):
 
 
 def once_builder(args):
-    """Builds at most once per invocation, and not at all when the stamp matches or --no-build."""
-    done = []
+    """Builds once per derived folder in this invocation, and not at all when the stamp matches or --no-build."""
+    done = set()
 
     def builder(sim):
-        if not args.no_build and not done:
+        if not args.no_build and DERIVED not in done:
             ensure_build(sim, OUT / ("build-%s.log" % DERIVED.name.partition("-")[2]), args.rebuild)
-        done.append(sim)
+        done.add(DERIVED)
     return builder
 
 
