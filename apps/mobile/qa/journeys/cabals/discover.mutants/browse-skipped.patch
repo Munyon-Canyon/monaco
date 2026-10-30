@@ -1,0 +1,18 @@
+journey: cabals/discover
+expect-fail: S1
+
+The empty Discover query never loads the public cabals. S1.1 expects cabals-search-results with at least one row, so S1 must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+diff --git a/apps/mobile/Monaco/Features/Groups/DiscoverCabalsView.swift b/apps/mobile/Monaco/Features/Groups/DiscoverCabalsView.swift
+index 843fba878..43d91cf3e 100644
+--- a/apps/mobile/Monaco/Features/Groups/DiscoverCabalsView.swift
++++ b/apps/mobile/Monaco/Features/Groups/DiscoverCabalsView.swift
+@@ -93,7 +93,7 @@ private struct DiscoverCabalsContent: View {
+             results
+         }
+         .task(id: model.trimmedQuery) {
+-            guard model.needsSearch else { return }
++            guard model.needsSearch, !model.trimmedQuery.isEmpty else { return }
+             if model.pager != nil { try? await Task.sleep(for: DiscoverCabalsView.debounce) }
+             guard !Task.isCancelled else { return }
+             await model.search()

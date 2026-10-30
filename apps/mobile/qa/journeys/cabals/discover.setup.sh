@@ -88,7 +88,10 @@ ready_actor A "$token_a"
 
 case "$scenario" in
   S1)
-    echo "nothing to seed for $scenario"
+    host="$(token new --pool discover-host)"
+    call PATCH /v1/me "$host" '{"display_name":"QA host"}' >/dev/null
+    create_cabal "$host" "QA browse $run" request >/dev/null
+    echo "seeded: QA host created 'QA browse $run'"
     ;;
   S2)
     host="$(token new --pool discover-host)"

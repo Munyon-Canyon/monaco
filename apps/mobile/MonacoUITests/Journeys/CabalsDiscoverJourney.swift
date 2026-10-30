@@ -2,10 +2,9 @@ import XCTest
 
 enum CabalsDiscoverJourney {
     static let id = "cabals/discover"
-    static let version = 2
+    static let version = 3
 
     static let screenTimeout: TimeInterval = 15
-    static let browseCaption = "Browsing every public cabal opens soon. Search by name to find more."
 
     static func recorder() -> JourneyRecorder {
         JourneyRecorder(journey: id, version: version)
@@ -30,9 +29,12 @@ enum CabalsDiscoverJourney {
         recorder.step("S1.1", "open Find a cabal with nothing typed") {
             openFind(app, step: "S1.1")
             XCTAssertTrue(app.staticTexts["Find a cabal"].exists, "S1.1: no Find a cabal title")
-            let caption = app.element("cabals-browse-coming")
-            XCTAssertTrue(caption.waitForExistence(timeout: 10), "S1.1: no cabals-browse-coming for an empty query")
-            XCTAssertEqual(caption.label, browseCaption, "S1.1: the caption reads '\(caption.label)'")
+            XCTAssertTrue(
+                app.element("cabals-search-results").waitForExistence(timeout: 10),
+                "S1.1: no cabals-search-results for an empty query")
+            let rows = app.descendants(matching: .any).matching(
+                NSPredicate(format: "identifier BEGINSWITH 'cabals-search-result-'"))
+            XCTAssertGreaterThan(rows.count, 0, "S1.1: the empty query lists no public cabal")
             XCTAssertFalse(app.element("cabals-search-empty").exists, "S1.1: the empty result shows with nothing typed")
         }
 

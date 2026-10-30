@@ -93,8 +93,8 @@ private struct DiscoverCabalsContent: View {
             results
         }
         .task(id: model.trimmedQuery) {
-            guard model.searched != model.trimmedQuery else { return }
-            try? await Task.sleep(for: DiscoverCabalsView.debounce)
+            guard model.needsSearch else { return }
+            if model.pager != nil { try? await Task.sleep(for: DiscoverCabalsView.debounce) }
             guard !Task.isCancelled else { return }
             await model.search()
         }
@@ -103,8 +103,6 @@ private struct DiscoverCabalsContent: View {
     @ViewBuilder
     private var results: some View {
         switch model.state {
-        case .idle:
-            DiscoverBrowse(open: open)
         case .loading:
             VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
                 SkeletonBlock(height: SkeletonMetrics.cardHeight, radius: MonacoTheme.Radius.card)
@@ -114,6 +112,12 @@ private struct DiscoverCabalsContent: View {
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Searching cabals")
             .accessibilityIdentifier("cabals-search-loading")
+        case .empty(let searched) where searched.isEmpty:
+            EmptyState(
+                title: "No public cabals yet", message: "Public cabals show up here once they have members.",
+                systemImage: MonacoIcon.search.symbol
+            )
+            .accessibilityIdentifier("cabals-browse-empty")
         case .empty:
             EmptyState(
                 title: "No matching cabals", message: "Try another name.", systemImage: MonacoIcon.search.symbol
@@ -151,36 +155,6 @@ private struct DiscoverCabalsContent: View {
                 .accessibilityElement(children: .contain)
                 .accessibilityIdentifier("cabals-search-results")
             }
-        }
-    }
-}
-
-private struct DiscoverBrowse: View {
-    let open: (String) -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
-            LeaderboardHost(board: .cabals, refreshKey: "discover-board") { loader in
-                LeaderboardBoardList(
-                    loader: loader, skeletonRows: 4, failureThing: "cabals", identifier: "cabals-browse",
-                    showsEmpty: false, showsPaging: false,
-                    rowContent: { row, isLast in
-                        Button {
-                            open(row.id)
-                        } label: {
-                            MonacoRow(title: row.name, chevron: true, isLast: isLast) {
-                                CabalMark(groupId: row.id, name: row.name, pictureUrl: row.pictureURL)
-                            }
-                        }
-                        .buttonStyle(.monacoRow)
-                        .accessibilityIdentifier("cabals-browse-row-\(row.id)")
-                    })
-            }
-            Text("Browsing every public cabal opens soon. Search by name to find more.")
-                .font(MonacoTheme.Typo.caption)
-                .foregroundStyle(MonacoTheme.secondaryText)
-                .padding(.horizontal, MonacoTheme.Space.gutter)
-                .accessibilityIdentifier("cabals-browse-coming")
         }
     }
 }
@@ -249,9 +223,6 @@ final class DiscoverCabalsSampleHarnessEntry: SampleHarnessEntry {
         case "error":
             SampleAPIProtocol.install(SampleAPIScript())
             return AnyView(SampleAppFrame(auth: auth, tab: .cabals, routes: [DiscoverCabalsRoute(query: "week")]))
-        case "browse":
-            SampleAPIProtocol.install(SampleAPIScript())
-            return AnyView(SampleAppFrame(auth: auth, tab: .cabals, routes: [DiscoverCabalsRoute()]))
         default:
             return AnyView(DiscoverSampleScreen(state: state))
         }
@@ -263,7 +234,15 @@ private struct DiscoverSampleScreen: View {
 
     var body: some View {
         NavigationStack {
-            DiscoverCabalsView(query: state == "noResults" ? "zzzz" : "week", model: model)
+            DiscoverCabalsView(query: query, model: model)
+        }
+    }
+
+    private var query: String {
+        switch state {
+        case "browse": ""
+        case "noResults": "zzzz"
+        default: "week"
         }
     }
 
