@@ -30,6 +30,20 @@ enum ParitySampleScenario: String, CaseIterable {
         }
     }
 
+    var voteCardSetup: (@MainActor (HomeVoteCardModel) -> Void)? {
+        switch self {
+        case .toastSettled:
+            {
+                let outcome = CastOutcome(
+                    choice: .yes, status: .passed, tally: ProposalTally(yes: 5, no: 1, voters: 8, needed: 5),
+                    undoUntil: nil,
+                    myVote: ProposalMyVote(order: 5, of: 8, yesOrder: 5, noOrder: 0, decided: true))
+                $0.preview(.committed(outcome), sharesEstimate: "1.82")
+            }
+        case .infoSheet: nil
+        }
+    }
+
     var script: SampleAPIScript {
         var script = SampleAPIScript(role: "member")
         switch self {

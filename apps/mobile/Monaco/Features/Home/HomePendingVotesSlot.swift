@@ -164,6 +164,8 @@ struct HomePendingVotes: View {
         #if DEBUG
         if let scenario = HomeSampleScenario.matching(ProcessInfo.processInfo.arguments) {
             model.cardSetup = scenario.voteCardSetup
+        } else if let scenario = ParitySampleScenario.matching(ProcessInfo.processInfo.arguments) {
+            model.cardSetup = scenario.voteCardSetup
         }
         #endif
         return model

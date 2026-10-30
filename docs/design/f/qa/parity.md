@@ -77,7 +77,7 @@ founder:
 
 | Frame | Appearance | Verdict | Difference | Follow-up |
 | --- | --- | --- | --- | --- |
-| [`12-toast`](../screens/12-toast.png) | dark | match | Toast shows over Home (no route pushed) with the vote card collapsed to "You voted Yes ✓5 ✗1"; no title behind it. | #7019 (#6458, #6506) |
+| [`12-toast`](../screens/12-toast.png) | dark | match | Toast shows over Home (no route pushed) with the vote card collapsed to "passed 5–1 · buying 1.82 sh" and "You voted Yes ✓5 ✗1", the "Your vote" count gone; no title behind it. | #7019 (#6458, #6506), #7191 |
 | [`12-info-sheet`](../screens/12-info-sheet.png) | dark | match | Sheet says "Solana, Base and Robinhood Chain ... trades 24/7" with Source CoinGecko, Updated <now>, Delay up to 1 min, no market-hours sentence, no stale banner behind. | #7019 (#6562) |
 
 founder:
