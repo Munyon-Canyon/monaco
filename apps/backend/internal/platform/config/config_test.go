@@ -585,6 +585,18 @@ func TestLoadFailures(t *testing.T) {
 				"POSTHOG_API_KEY, ABLY_API_KEY",
 		},
 		{
+			name: "rate limit off in staging",
+			environ: append(append(required(), apnsKeys()...), "MONACO_ENV=staging", "MONACO_RATE_LIMIT_OFF=true",
+				"ABLY_API_KEY=ably-key"),
+			want: "config.Load: invalid_input: invalid MONACO_RATE_LIMIT_OFF (runs only outside staging and production)",
+		},
+		{
+			name: "rate limit off in production",
+			environ: append(append(required(), apnsKeys()...), "MONACO_ENV=production", "MONACO_RATE_LIMIT_OFF=true",
+				"POSTHOG_API_KEY=k", "ABLY_API_KEY=ably-key"),
+			want: "config.Load: invalid_input: invalid MONACO_RATE_LIMIT_OFF (runs only outside staging and production)",
+		},
+		{
 			name:    "trust proxy headers not a boolean",
 			environ: append(required(), "TRUST_PROXY_HEADERS=render"),
 			want:    "config.Load: invalid_input: invalid TRUST_PROXY_HEADERS (true or false)",
@@ -759,6 +771,7 @@ func TestRedactedHidesSecretsAndShowsTheRest(t *testing.T) {
 		{"APP_MIN_IOS_BUILD", "0"},
 		{"APP_STORE_URL", "https://testflight.apple.com/join/monaco"},
 		{"TRUST_PROXY_HEADERS", "false"},
+		{"MONACO_RATE_LIMIT_OFF", "false"},
 		{"FUND_PAGE_URL", ""},
 		{"WEB_ALLOWED_ORIGINS", ""},
 		{"EVM_RPC_URL_BASE", "***"},

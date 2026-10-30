@@ -1,6 +1,7 @@
 package main
 
 import (
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"regexp"
@@ -8,6 +9,7 @@ import (
 	"time"
 
 	"github.com/getkin/kin-openapi/openapi3"
+	"go.opentelemetry.io/otel/metric/noop"
 
 	openapi "github.com/monaco/monaco/apps/backend/api"
 	"github.com/monaco/monaco/apps/backend/internal/errs"
@@ -52,5 +54,27 @@ func TestBoot_mountsEveryOperationInTheContract(t *testing.T) {
 	}
 	if ops == 0 {
 		t.Fatal("api/openapi.yaml declares no operations")
+	}
+}
+
+func TestNewHandler_servesWithTheRateLimiterOff(t *testing.T) {
+	t.Parallel()
+	deps := module.Deps{Clock: clock.Real{}, Logger: slog.New(slog.DiscardHandler), Config: config.Config{
+		Env:      config.EnvLocal,
+		Auth:     config.Auth{DevTokenKey: "test-key"},
+		HTTP:     config.HTTP{RateLimitOff: true, MaxBodyBytes: 4096},
+		Privy:    config.Privy{BaseURL: "http://127.0.0.1", VerificationKey: fakes.PrivyVerificationKey()},
+		Timeouts: config.Timeouts{Privy: time.Second},
+	}}
+	handler, err := newHandler(deps, openapi.Spec, noop.NewMeterProvider())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for range 200 {
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/v1/app/config", nil))
+		if rec.Code == http.StatusTooManyRequests {
+			t.Fatalf("status = %d with the rate limiter off", rec.Code)
+		}
 	}
 }

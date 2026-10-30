@@ -171,7 +171,8 @@ func (s *Stack) processes(ctx context.Context) error {
 	)
 	s.env = append(s.env, testkit.APNsEnv()...)
 	s.Fakes = "http://" + fakes.addr
-	apiEnv, workerEnv := []string{"TRUST_PROXY_HEADERS=true", rpcBreakerOpen}, []string(nil)
+	apiEnv := []string{"TRUST_PROXY_HEADERS=true", "MONACO_RATE_LIMIT_OFF=true", rpcBreakerOpen}
+	workerEnv := []string(nil)
 	if s.opts.Faultpoint != "" {
 		apiEnv = append(apiEnv, "MONACO_BUS_API_RELAY=off")
 	}
