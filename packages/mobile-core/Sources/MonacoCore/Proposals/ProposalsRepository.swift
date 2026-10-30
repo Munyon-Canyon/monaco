@@ -73,6 +73,7 @@ public struct ProposalSummary: Identifiable, Equatable, Sendable {
     public let swap: ProposalSwap?
     public let bestPrice: BestPrice?
     public let network: Components.Schemas.Network?
+    public let replyCount: Int
 
     init(_ other: ProposalSummary, ballot: String, tally: ProposalTally) {
         self = other.replacing(ballot: ballot, tally: tally)
@@ -85,7 +86,7 @@ public struct ProposalSummary: Identifiable, Equatable, Sendable {
             tokenAmount: other.tokenAmount, quoteOutAmount: other.quoteOutAmount, createdAt: other.createdAt,
             tally: other.tally, myBallot: other.myBallot, status: .passed, statusMessage: other.statusMessage,
             expiresAt: other.expiresAt, canVote: other.canVote, canWithdraw: other.canWithdraw, swap: nil,
-            bestPrice: other.bestPrice, network: other.network)
+            bestPrice: other.bestPrice, network: other.network, replyCount: other.replyCount)
     }
 
     private func replacing(ballot: String, tally: ProposalTally) -> ProposalSummary {
@@ -94,7 +95,8 @@ public struct ProposalSummary: Identifiable, Equatable, Sendable {
             thesis: thesis, usdcMicros: usdcMicros, tokenAmount: tokenAmount, quoteOutAmount: quoteOutAmount,
             createdAt: createdAt, tally: tally, myBallot: ballot, status: status, statusMessage: statusMessage,
             expiresAt: expiresAt,
-            canVote: canVote, canWithdraw: canWithdraw, swap: swap, bestPrice: bestPrice, network: network)
+            canVote: canVote, canWithdraw: canWithdraw, swap: swap, bestPrice: bestPrice, network: network,
+            replyCount: replyCount)
     }
 
     private init(
@@ -102,7 +104,8 @@ public struct ProposalSummary: Identifiable, Equatable, Sendable {
         thesis: String?, usdcMicros: Int64?, tokenAmount: Int64?, quoteOutAmount: Int64, createdAt: Date,
         tally: ProposalTally, myBallot: String?, status: ProposalStatus, statusMessage: String?, expiresAt: Date,
         canVote: Bool,
-        canWithdraw: Bool, swap: ProposalSwap?, bestPrice: BestPrice?, network: Components.Schemas.Network?
+        canWithdraw: Bool, swap: ProposalSwap?, bestPrice: BestPrice?, network: Components.Schemas.Network?,
+        replyCount: Int
     ) {
         self.id = id
         self.cabalID = cabalID
@@ -125,6 +128,7 @@ public struct ProposalSummary: Identifiable, Equatable, Sendable {
         self.swap = swap
         self.bestPrice = bestPrice
         self.network = network
+        self.replyCount = replyCount
     }
 
     init(
@@ -154,6 +158,7 @@ public struct ProposalSummary: Identifiable, Equatable, Sendable {
         self.swap = swap
         bestPrice = BestPrice(proposal.priceComparison, isSell: proposal.kind == .sell)
         network = proposal.network
+        replyCount = Int(proposal.replyCount)
     }
 }
 
@@ -253,7 +258,7 @@ public struct ProposalDetail: Identifiable, Equatable, Sendable {
             statusReason: value.statusReason, statusMessage: value.statusMessage, expiresAt: value.expiresAt,
             createdAt: value.createdAt, tally: value.tally,
             myBallot: value.myBallot.flatMap { Components.Schemas.Proposal.MyBallotPayload(rawValue: $0.rawValue) },
-            canVote: value.canVote, network: value.network)
+            canVote: value.canVote, replyCount: value.replyCount, network: value.network)
         self.init(
             summary: ProposalSummary(
                 proposal, canVote: value.canVote, canWithdraw: value.canWithdraw, swap: ProposalSwap(value.swap)),

@@ -434,3 +434,40 @@ func TestTransition_executionKeepsDeciderAndCloseTime(t *testing.T) {
 		}
 	}
 }
+
+func TestProposals_List_carriesReplyCountPerProposalInOneRead(t *testing.T) {
+	t.Parallel()
+	d := newReadsDB(t)
+	first := d.seed(t, d.now)
+	second := d.seed(t, d.now.Add(time.Second))
+	replies := &replyBook{counts: map[ids.ProposalID]int{ids.ProposalIDFrom(first): 6}}
+	page, err := d.readsWith(replies).List(t.Context(), app.ListProposals{
+		CabalID: ids.CabalIDFrom(d.cabal), Caller: ids.UserIDFrom(d.caller),
+	})
+	if err != nil || len(page.Items) != 2 {
+		t.Fatalf("List = %+v, %v, want two items", page, err)
+	}
+	got := map[uuid.UUID]int{}
+	for _, v := range page.Items {
+		got[v.ID.UUID()] = v.ReplyCount
+	}
+	if got[first] != 6 || got[second] != 0 {
+		t.Errorf("reply counts = %v, want 6 for the first and 0 for the second", got)
+	}
+	if len(replies.calls) != 1 || len(replies.calls[0]) != 2 {
+		t.Errorf("reply reads = %v, want one batched read of both proposals", replies.calls)
+	}
+}
+
+func TestProposals_List_refusesWhenReplyCountsCannotBeRead(t *testing.T) {
+	t.Parallel()
+	d := newReadsDB(t)
+	d.seed(t, d.now)
+	down := &replyBook{err: errs.New(errs.CodeDBUnavailable, "test")}
+	_, err := d.readsWith(down).List(t.Context(), app.ListProposals{
+		CabalID: ids.CabalIDFrom(d.cabal), Caller: ids.UserIDFrom(d.caller),
+	})
+	if errs.CodeOf(err) != errs.CodeDBUnavailable {
+		t.Errorf("List with a failing reply read = %v, want db_unavailable", err)
+	}
+}

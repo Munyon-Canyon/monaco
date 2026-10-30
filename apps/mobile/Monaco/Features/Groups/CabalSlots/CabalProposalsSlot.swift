@@ -153,7 +153,8 @@ struct CabalOpenProposalRow: View {
     }
 
     static func statusLine(_ proposal: ProposalSummary, now: Date = .now) -> String {
-        ProposalVoteCopy.statusLine(tally: proposal.tally, replies: 0, expiresAt: proposal.expiresAt, now: now)
+        ProposalVoteCopy.statusLine(
+            tally: proposal.tally, replies: proposal.replyCount, expiresAt: proposal.expiresAt, now: now)
     }
 }
 

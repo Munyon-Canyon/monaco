@@ -75,6 +75,7 @@ type ProposalView struct {
 	Comparison   *multichain.Comparison
 	Network      chain.Network
 	Rule         *RuleView
+	ReplyCount   int
 }
 
 type ProposalPage struct {
@@ -206,6 +207,14 @@ func (r *ProposalReads) page(
 	if err != nil {
 		return ProposalPage{}, err
 	}
+	proposalIDs := make([]ids.ProposalID, len(rows))
+	for i, row := range rows {
+		proposalIDs[i] = ids.ProposalIDFrom(row.ID)
+	}
+	replies, err := r.Replies.ReplyCounts(ctx, proposalIDs)
+	if err != nil {
+		return ProposalPage{}, errs.Wrap(err, errs.CodeOf(err), "governance.ListProposals")
+	}
 	rules := make([]*RuleView, 0, len(rows))
 	for _, row := range rows {
 		view, err := proposalView(row, tallies[row.ID].tally)
@@ -213,6 +222,7 @@ func (r *ProposalReads) page(
 			return ProposalPage{}, err
 		}
 		view.CabalName = names[view.CabalID]
+		view.ReplyCount = replies[view.ID]
 		view.CanVote = view.Status == domain.StatusOpen && tallies[row.ID].callerVotes
 		page.Items = append(page.Items, view)
 		rules = append(rules, view.Rule)

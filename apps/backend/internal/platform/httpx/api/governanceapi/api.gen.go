@@ -916,6 +916,11 @@ type Proposal struct {
 	// Examples: 105000000
 	QuoteOutAmount *int64 `json:"quote_out_amount"`
 
+	// ReplyCount How many replies the proposal's thread has.
+	//
+	// Examples: 6
+	ReplyCount int `json:"reply_count"`
+
 	// RuleChange The change a rule proposal asks for. Null for a buy or a sell. `from` is the value when the proposal opened and `to` the value it asks for. Both are a boolean for `show_sides`, `voter` and `admin`, an integer or null for `max_trade_bps`, an integer for `proposal_expiry_seconds` and a string for `threshold` and `join_mode`.
 	//
 	// Examples: {"from":false,"rule":"show_sides","to":true,"user":null}

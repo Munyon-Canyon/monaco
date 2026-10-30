@@ -1996,7 +1996,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ProposalList"
-              example: {proposals: [{id: 01890a5d-ac96-774b-bcce-b302099a8057, cabal_id: 01890a5d-ac96-774b-bcce-b302099a8058, cabal_name: Friday Night Lights, proposer_id: 01890a5d-ac96-774b-bcce-b302099a8059, kind: buy, rule_change: null, symbol: AAPLx, usdc_micros: 25000000, token_amount: null, quote_out_amount: 105000000, thesis: Earnings next week., status: executed, status_reason: null, status_message: null, expires_at: "2026-10-04T15:00:00Z", created_at: "2026-10-03T15:00:00Z", tally: {"yes": 2, "no": 0, voters: 2, needed: 2}, my_ballot: "yes", can_vote: false}], next_cursor: null}
+              example: {proposals: [{id: 01890a5d-ac96-774b-bcce-b302099a8057, cabal_id: 01890a5d-ac96-774b-bcce-b302099a8058, cabal_name: Friday Night Lights, proposer_id: 01890a5d-ac96-774b-bcce-b302099a8059, kind: buy, rule_change: null, symbol: AAPLx, usdc_micros: 25000000, token_amount: null, quote_out_amount: 105000000, thesis: Earnings next week., status: executed, status_reason: null, status_message: null, expires_at: "2026-10-04T15:00:00Z", created_at: "2026-10-03T15:00:00Z", tally: {"yes": 2, "no": 0, voters: 2, needed: 2}, my_ballot: "yes", can_vote: false, reply_count: 0}], next_cursor: null}
         default:
           $ref: "#/components/responses/Problem"
   /v1/proposals/{id}:
@@ -7782,6 +7782,7 @@ components:
         - tally
         - my_ballot
         - can_vote
+        - reply_count
       properties:
         price_comparison:
           description: >-
@@ -7861,6 +7862,7 @@ components:
           type: boolean
           description: Whether the caller can vote on it now, which means it is open and they are one of its voters.
           examples: [true]
+        reply_count: {type: integer, minimum: 0, description: How many replies the proposal's thread has., examples: [6]}
         network:
           description: The chain the trade is pinned to. Absent when a buy takes the best price on any chain or a sell uses the Solana holding.
           $ref: "#/components/schemas/Network"

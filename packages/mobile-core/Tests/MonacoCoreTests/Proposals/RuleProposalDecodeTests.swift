@@ -14,7 +14,7 @@ final class RuleProposalDecodeTests: XCTestCase {
              "usdc_micros":null,"token_amount":null,"quote_out_amount":null,"thesis":null,"status":"open",
              "status_reason":null,"status_message":null,"expires_at":"2026-09-18T22:00:00Z",
              "created_at":"2026-09-17T22:00:00Z","tally":{"yes":3,"no":1,"voters":8,"needed":5},
-             "my_ballot":null,"can_vote":true}
+             "my_ballot":null,"can_vote":true,"reply_count":0}
             """
 
         let proposal = try monacoISO8601JSONDecoder().decode(

@@ -194,6 +194,6 @@ final class ProposalOutcomeTests: XCTestCase {
         let tokens = kind == "sell" ? "216100" : "null"
         let usdc = kind == "sell" ? "null" : "250000000"
         return
-            #"{"id":"\#(id)","cabal_id":"c","cabal_name":"Cabal","proposer_id":"u","kind":"\#(kind)","symbol":"AMZNx","usdc_micros":\#(usdc),"token_amount":\#(tokens),"quote_out_amount":1,"thesis":null,"status":"\#(status)","status_reason":\#(reason),"status_message":\#(text),"expires_at":"\#(expiry)","created_at":"2025-01-01T00:00:00Z","tally":{"yes":1,"no":0,"voters":3,"needed":2},"my_ballot":\#(mine),"can_vote":false}"#
+            #"{"id":"\#(id)","cabal_id":"c","cabal_name":"Cabal","proposer_id":"u","kind":"\#(kind)","symbol":"AMZNx","usdc_micros":\#(usdc),"token_amount":\#(tokens),"quote_out_amount":1,"thesis":null,"status":"\#(status)","status_reason":\#(reason),"status_message":\#(text),"expires_at":"\#(expiry)","created_at":"2025-01-01T00:00:00Z","tally":{"yes":1,"no":0,"voters":3,"needed":2},"my_ballot":\#(mine),"can_vote":false,"reply_count":0}"#
     }
 }
