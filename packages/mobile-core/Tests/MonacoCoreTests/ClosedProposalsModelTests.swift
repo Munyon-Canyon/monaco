@@ -147,7 +147,7 @@ final class ClosedProposalsModelTests: XCTestCase {
     }
 
     private static func proposal(_ id: String, cabal: String, proposer: String = "u") -> String {
-        #"{"id":"\#(id)","cabal_id":"\#(cabal)","cabal_name":"Cabal \#(cabal)","proposer_id":"\#(proposer)","kind":"buy","symbol":"AAPLx","usdc_micros":1,"token_amount":null,"quote_out_amount":1,"thesis":null,"status":"executed","status_reason":null,"status_message":null,"expires_at":"2026-01-01T00:00:00Z","created_at":"2025-01-01T00:00:00Z","tally":{"yes":1,"no":0,"voters":1,"needed":1},"my_ballot":"yes","can_vote":false}"#
+        #"{"id":"\#(id)","cabal_id":"\#(cabal)","cabal_name":"Cabal \#(cabal)","proposer_id":"\#(proposer)","kind":"buy","symbol":"AAPLx","usdc_micros":1,"token_amount":null,"quote_out_amount":1,"thesis":null,"status":"executed","status_reason":null,"status_message":null,"expires_at":"2026-01-01T00:00:00Z","created_at":"2025-01-01T00:00:00Z","tally":{"yes":1,"no":0,"voters":1,"needed":1},"my_ballot":"yes","can_vote":false,"reply_count":0}"#
     }
 
     private static let cabalBody =

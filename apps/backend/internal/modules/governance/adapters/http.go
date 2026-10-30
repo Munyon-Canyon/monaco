@@ -528,6 +528,7 @@ func wireProposal(v app.ProposalView) api.Proposal {
 		CreatedAt:       v.CreatedAt,
 		Tally:           wireTally(v.Tally),
 		CanVote:         v.CanVote,
+		ReplyCount:      v.ReplyCount,
 		PriceComparison: wireComparison(v.Comparison),
 		Network:         wireNetwork(v.Network),
 	}
