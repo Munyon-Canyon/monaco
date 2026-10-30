@@ -40,6 +40,10 @@ struct AssetMarketStats: View {
 struct AssetAbout: View {
     let detail: AssetDetailPresentation
 
+    static func isShown(kind: AssetKind, hasProfile: Bool = LaunchFeatures.companyProfile) -> Bool {
+        kind == .preIpo || hasProfile
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             MonacoSectionHeader(detail.name)
@@ -48,10 +52,6 @@ struct AssetAbout: View {
                     .font(MonacoTheme.Typo.body)
                     .foregroundStyle(MonacoTheme.bodyText)
                     .lineSpacing(MonacoTheme.Space.xs)
-            } else {
-                Text("Company profile opens soon.")
-                    .font(MonacoTheme.Typo.caption)
-                    .foregroundStyle(MonacoTheme.secondaryText)
             }
         }
         .padding(.horizontal, MonacoTheme.Space.gutter)
