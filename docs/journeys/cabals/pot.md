@@ -1,7 +1,7 @@
 ---
 id: cabals/pot
 title: The treasury
-version: 8
+version: 9
 milestone: M12
 requires: [auth/sign-in]
 actors: [A]
@@ -35,7 +35,7 @@ On the F cabal page the pot is the "Treasury" line and the slice is the stat blo
 | --- | --- | --- | --- | --- | --- |
 | S1.1 | A | call | `openCabal(named:)` | `QA slice {QA.run}` | `cabal-header-name` reads `QA slice {QA.run}`, and `cabal-pot-value` shows within 15 s |
 | S1.2 | A | wait | `cabal-pot-value` | | The "Treasury" line reads "$0.00" within 10 s |
-| S1.3 | A | wait | `cabal-stat-block` | | The stat block shows "Your share" "$0", "Of treasury" "0%", "Open votes" "0" and "Bot" "Off" within 10 s |
+| S1.3 | A | wait | `cabal-stat-block` | | The stat block shows "Your share" "$0", "Of treasury" "0%", "Open votes" "0" within 10 s, and no "Bot" cell |
 
 ### S2 Share the cabal's gain
 

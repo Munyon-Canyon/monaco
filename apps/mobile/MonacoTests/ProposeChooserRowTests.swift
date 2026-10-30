@@ -1,3 +1,4 @@
+import MonacoCore
 import Testing
 
 @testable import Monaco
@@ -11,6 +12,7 @@ struct ProposeChooserRowTests {
     }
 
     @Test func theBotChoiceStaysOffUntilTradingBotsLand() {
+        #expect(LaunchFeatures.bots == false)
         #expect(ProposeChooserConfig.isBotProposalLive == false)
     }
 }

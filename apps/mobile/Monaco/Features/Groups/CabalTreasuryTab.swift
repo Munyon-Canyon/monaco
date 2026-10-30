@@ -69,7 +69,7 @@ struct CabalTreasuryBody: View {
             }
     }
 
-    static func showsBotRow(isLive: Bool = ProposeChooserConfig.isBotProposalLive) -> Bool { isLive }
+    static func showsBotRow(isLaunched: Bool = LaunchFeatures.bots) -> Bool { isLaunched }
 
     @ViewBuilder private var content: some View {
         switch model?.state ?? .loading {

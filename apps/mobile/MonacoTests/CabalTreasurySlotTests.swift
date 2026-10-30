@@ -26,10 +26,10 @@ struct CabalTreasurySlotTests {
         #expect(CabalTreasuryTabSlot.isLive)
     }
 
-    @Test func theBotRowStaysHiddenWhileTheBotProposalIsNotLive() {
-        #expect(ProposeChooserConfig.isBotProposalLive == false)
+    @Test func theBotRowStaysHiddenWhileTradingBotsAreNotLaunched() {
+        #expect(LaunchFeatures.bots == false)
         #expect(CabalTreasuryBody.showsBotRow() == false)
-        #expect(CabalTreasuryBody.showsBotRow(isLive: true))
+        #expect(CabalTreasuryBody.showsBotRow(isLaunched: true))
     }
 
     @Test func theOldActivityListRouteIsTheTreasuryHistoryRoute() {
