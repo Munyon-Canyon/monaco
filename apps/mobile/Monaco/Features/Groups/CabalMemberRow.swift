@@ -19,7 +19,7 @@ struct CabalMemberLine: View {
                 stacked(row: row, name: name)
             } else {
                 MonacoRow(
-                    title: name, subtitle: subtitle, subtitleLineLimit: dynamicTypeSize >= .xxLarge ? 6 : 1,
+                    title: name, subtitle: subtitle, subtitleLineLimit: dynamicTypeSize >= .xxLarge ? 6 : 2,
                     chevron: chevron, isLast: isLast, isPrivate: true,
                     leading: { CabalMemberPhoto(row: row, name: name) },
                     trailing: { share(row) }

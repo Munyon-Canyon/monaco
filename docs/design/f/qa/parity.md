@@ -86,18 +86,18 @@ founder:
 
 | Frame | Appearance | Verdict | Difference | Follow-up |
 | --- | --- | --- | --- | --- |
-| [`03-cabals-tab`](../screens/03-cabals-tab.png) | dark | difference | Frame puts "3 · 1 invited" inline after "Your cabals"; app right-aligns it (rest matches). | #7020 (#6522) |
+| [`03-cabals-tab`](../screens/03-cabals-tab.png) | dark | match (15 pt floor) | "3 · 1 invited" now sits inline after "Your cabals" and the "Your share in each" sub-line reads whole ("$20,000 treasury · 35% yours"); the vote card's sub-line wraps "· 4h" at the 15 pt floor. | #7188 (#7020, #6522) |
 | [`03-cabals-tab-menu`](../screens/03-cabals-tab-menu.png) | dark | difference | Frame floats a small cabal header over a blurred tab with trailing icons and a gap before Invite/Share, header value green; app shows a large sheet with leading icons and grey value. | #7020 (#6560) |
-| [`03-cabal-treasury`](../screens/03-cabal-treasury.png) | dark | difference | Frame has a "Treasury $20,000.00 −4.1% · 1M" line under the title and "6 replies" in the vote row; app has neither (Bot Off is no backend at launch). | #7020 (#6481) |
-| [`03-cabal-treasury-light`](../screens/03-cabal-treasury-light.png) | light | difference | Same as dark: Treasury total line and "6 replies" missing (Bot Off is no backend at launch). | #7020 (#6481) |
+| [`03-cabal-treasury`](../screens/03-cabal-treasury.png) | dark | difference | The "Treasury $20,000.00 −4.1% · 1M >" line now draws under the title; frame's vote row has "6 replies" and the app omits it (Bot Off is no backend at launch). | #7188 (#6481) |
+| [`03-cabal-treasury-light`](../screens/03-cabal-treasury-light.png) | light | difference | Same as dark: Treasury line now drawn; "6 replies" missing (Bot Off is no backend at launch). | #7188 (#6481) |
 | [`03-cabal-treasury-scrolled`](../screens/03-cabal-treasury-scrolled.png) | dark | difference | Frame vote row reads "6 replies"; app omits it, and Fund/Propose sits under a faded header; the trading-bot row is hidden (no backend at launch). | #7020 (#6481) |
-| [`03-cabal-rules`](../screens/03-cabal-rules.png) | dark | difference | App Rules card runs edge to edge with larger rows (frame is inset, 16 pt margins); Treasury total line and "6 replies" missing. | #7020 (#6523, #6481) |
-| [`03-cabal-rules-scrolled`](../screens/03-cabal-rules-scrolled.png) | dark | difference | Shot is not scrolled to the frame's state (no collapsed "AC Capital" title, no pinned Treasury line, footer cut off); card is full-bleed; "6 replies" missing. | #7020 (#6523, #6481) |
-| [`03-cabal-rules-sides`](../screens/03-cabal-rules-sides.png) | dark | difference | Same as rules-scrolled; toggle on and "on since Oct" copy do match. | #7020 (#6523, #6481) |
-| [`03-cabal-members`](../screens/03-cabal-members.png) | dark | difference | Frame shows "Andres · you" and a Treasury line, "6 replies"; app shows no "you" marker and none of the others. | #7020 (#6534, #6481) |
-| [`03-cabal-members-scrolled`](../screens/03-cabal-members-scrolled.png) | dark | difference | Andres lacks "· you"; "6 replies" missing; See all / Invite rows are plain rows in the app, a tinted card with icons in the frame. | #7020 (#6534) |
-| [`03-cabal-members-all`](../screens/03-cabal-members-all.png) | dark | difference | Admin rows (Andres, Christelle) lack the "N of M right · voted" line and "· you"; every row shows a stray second chevron. | #7020 (#6534) |
-| [`03-cabal-empty`](../screens/03-cabal-empty.png) | dark | difference | Frame has "Treasury $600.00" line and a teal "Quiet in here" card; app has no Treasury line, a grey card, and the "Cabals like yours start with" heading is flush left of the margin. | #7020 (#6524) |
+| [`03-cabal-rules`](../screens/03-cabal-rules.png) | dark | difference | App Rules card runs edge to edge with larger rows (frame is inset, 16 pt margins); "6 replies" missing. The Treasury line now draws. | #7188 (#6523, #6481) |
+| [`03-cabal-rules-scrolled`](../screens/03-cabal-rules-scrolled.png) | dark | difference | Shot is not scrolled to the frame's state (no collapsed "AC Capital" title above the Treasury line, footer cut off); card is full-bleed; "6 replies" missing. The Treasury line now draws in the page. | #7188 (#6523, #6481) |
+| [`03-cabal-rules-sides`](../screens/03-cabal-rules-sides.png) | dark | difference | Same as rules-scrolled; toggle on and "on since Oct" copy do match. The Treasury line now draws in the page. | #7188 (#6523, #6481) |
+| [`03-cabal-members`](../screens/03-cabal-members.png) | dark | difference | Treasury line and "Andres · you" now match; Admin/Voter turnout lines wrap to a second line at the 15 pt floor instead of truncating; "6 replies" missing. | #7188 (#6534, #6481) |
+| [`03-cabal-members-scrolled`](../screens/03-cabal-members-scrolled.png) | dark | difference | "Andres · you" and whole turnout lines now match (wrapped at the 15 pt floor); See all / Invite are a card with icons but grey where the frame is green; "6 replies" missing. | #7188 (#6534) |
+| [`03-cabal-members-all`](../screens/03-cabal-members-all.png) | dark | match (15 pt floor) | "Andres · you", whole "N of M right · voted" lines, one chevron inside the margin and "Asked to join · Jordan's link · 2h" whole; the request sub-line wraps "· 2h" at the 15 pt floor. | #7188 (#6534) |
+| [`03-cabal-empty`](../screens/03-cabal-empty.png) | dark | match (15 pt floor) | "Treasury $600.00" line, stat block, teal "Quiet in here" card and the "Cabals like yours start with" list now match; the cover and mark are the sample's initials, and the app's sub-lines sit at the 15 pt floor. | #7188 (#6524) |
 
 founder:
 

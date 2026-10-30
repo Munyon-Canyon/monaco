@@ -104,11 +104,13 @@ struct CabalPotBand: View {
     var move: CabalHeaderCopy.Move?
     var openHistory: (() -> Void)?
 
+    private static let pull = SectionStackMetrics.spacing - MonacoTheme.Space.sm
+
     var body: some View {
         content
+            .frame(maxWidth: .infinity, minHeight: Self.pull + MonacoTheme.Space.xs, alignment: .leading)
             .padding(.horizontal, MonacoTheme.Space.gutter)
-            .padding(.top, -(SectionStackMetrics.spacing - MonacoTheme.Space.sm))
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.top, -Self.pull)
     }
 
     @ViewBuilder private var content: some View {
