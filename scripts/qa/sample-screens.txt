@@ -565,6 +565,7 @@ proposal-hold-voted           -MonacoProposalSample holdVoted
 proposal-hold-closed          -MonacoProposalSample holdClosed
 proposal-hold-view-only       -MonacoProposalSample holdViewOnly
 proposal-hold-cold            -MonacoProposalSample holdCold
+proposal-push-vote            -MonacoProposalSample pushVote -MonacoSampleVotePush 01920000-0000-7000-8000-000000000a01
 invite-landing-frame          -MonacoInviteLandingSample frame
 invite-landing-signed-in      -MonacoInviteLandingSample signedIn
 invite-landing-no-proposal    -MonacoInviteLandingSample noProposal

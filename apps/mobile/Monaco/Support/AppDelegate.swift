@@ -26,6 +26,9 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         if !Config.giphySDKKey.isEmpty, !Config.isRunningTests {
             Giphy.configure(apiKey: Config.giphySDKKey)
         }
+        #if DEBUG
+        SampleVotePush.scheduleIfRequested()
+        #endif
         guard let environment = Self.environment else {
             AppLogger.session.error("Push taps will not open a screen: the app environment is missing at launch")
             return true

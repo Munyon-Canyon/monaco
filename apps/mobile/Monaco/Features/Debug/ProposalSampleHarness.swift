@@ -56,6 +56,7 @@ enum ProposalSampleScenario: String, CaseIterable {
     case holdClosed
     case holdViewOnly
     case holdCold
+    case pushVote
 
     static let launchArgument = "-MonacoProposalSample"
 
@@ -175,7 +176,7 @@ enum ProposalSampleScenario: String, CaseIterable {
         case .permissionSheet:
             script.asset = .nvda
             script.proposal = Components.Schemas.ProposalDetail.passedNVDA().voted(.yes)
-        case .holdYes, .holdCold:
+        case .holdYes, .holdCold, .pushVote:
             script.asset = .nvda
             script.proposal = .votableNVDA()
         case .holdVoted:
@@ -582,7 +583,7 @@ final class ProposalSampleHarnessEntry: SampleHarnessEntry {
                                 .analyticsScreen("vote_hold"))
                     }))
         }
-        let opensWithViewer = scenario == .nvdaPassedMoment || scenario == .tslaFailed
+        let opensWithViewer = scenario == .nvdaPassedMoment || scenario == .tslaFailed || scenario == .pushVote
         return AnyView(
             SampleAppFrame(auth: auth, tab: .cabals, routes: [scenario.route], opensWithViewer: opensWithViewer))
     }
