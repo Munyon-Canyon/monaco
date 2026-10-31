@@ -42,8 +42,8 @@ then each sample-data UI class on its own with a screen recording and one retry 
 runner itself was killed (reported as flaky, not failing).
 
 Only sample-data classes run. They need no backend and no sign-in, and they never move money.
-The live-login tests in `MonacoUITests/MonacoUITests.swift` are never run: they need a real OTP
-code, so they cannot pass unattended.
+The signed-in journey classes in `MonacoUITests/Journeys` are never run: they need a backend and
+a Privy test login, so `scripts/qa/journey.py` runs them.
 
 `PerfBudgetSampleUITests` launches Home 5 times and fails when the median time to its first frame
 is over the `Home` budget in `apps/mobile/MonacoUITests/perf-budgets.tsv`. Run it alone with
