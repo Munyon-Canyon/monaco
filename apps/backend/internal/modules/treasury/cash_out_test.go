@@ -54,6 +54,10 @@ func (v cashOutValues) SolanaPositions(context.Context, ids.CabalID) ([]port.Pos
 	return nil, nil
 }
 
+func (cashOutValues) EVMPositions(context.Context, ids.CabalID) ([]port.ListingPosition, error) {
+	return nil, nil
+}
+
 func (v cashOutValues) TotalShares(context.Context, ids.CabalID) (money.SharesUnits, error) {
 	return money.SharesUnits{}, nil
 }

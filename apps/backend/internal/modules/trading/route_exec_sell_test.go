@@ -7,8 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
-
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/domain"
@@ -38,17 +36,17 @@ func (h *heldFake) SolanaPositions(context.Context, ids.CabalID) ([]treasury.Pos
 	return h.positions, nil
 }
 
-func (h *heldFake) CabalPositionsAt(context.Context, time.Time) ([]treasury.CabalPositions, error) {
-	if err := h.Check("CabalPositionsAt"); err != nil {
+func (h *heldFake) EVMPositions(context.Context, ids.CabalID) ([]treasury.ListingPosition, error) {
+	if err := h.Check("EVMPositions"); err != nil {
 		return nil, err
 	}
-	at := treasury.CabalPositions{CabalID: h.cabal}
+	var listings []treasury.ListingPosition
 	for _, p := range h.positions {
-		at.Listings = append(at.Listings, treasury.ListingPosition{
+		listings = append(listings, treasury.ListingPosition{
 			Key: string(p.Mint), Units: new(big.Int).SetUint64(p.Units.Uint64()),
 		})
 	}
-	return []treasury.CabalPositions{{CabalID: ids.CabalIDFrom(uuid.Nil)}, at}, nil
+	return listings, nil
 }
 
 func (e *routeEnv) selling() app.SwapRequest {
@@ -210,7 +208,7 @@ func TestExecuteTrade_aPositionsOutageOnAnEVMSellIsRetried(t *testing.T) {
 	cmd := e.sell(soldUnits)
 	cmd.Route = e.route
 	held := &heldFake{cabal: e.cabal}
-	held.FailOnce("CabalPositionsAt", errs.New(errs.CodeDBUnavailable, "treasury.Positions"))
+	held.FailOnce("EVMPositions", errs.New(errs.CodeDBUnavailable, "treasury.Positions"))
 
 	err := e.sellHandler(held).Handle(actorContext(t.Context()), e.delivery(t, cmd), cmd, nil)
 	if errs.CodeOf(err) != errs.CodeDBUnavailable {
@@ -244,8 +242,8 @@ func TestExecuteTrade_aSolanaWinnerOnAnotherTokenSellsThatToken(t *testing.T) {
 
 type unreadableListings struct{ heldFake }
 
-func (u *unreadableListings) CabalPositionsAt(context.Context, time.Time) ([]treasury.CabalPositions, error) {
-	return []treasury.CabalPositions{{CabalID: u.cabal, Listings: []treasury.ListingPosition{{Key: "base:0x"}}}}, nil
+func (u *unreadableListings) EVMPositions(context.Context, ids.CabalID) ([]treasury.ListingPosition, error) {
+	return []treasury.ListingPosition{{Key: "base:0x"}}, nil
 }
 
 func TestExecuteTrade_anEVMSellRefusesAPositionItCannotRead(t *testing.T) {
@@ -263,12 +261,8 @@ func TestExecuteTrade_anEVMSellRefusesAPositionItCannotRead(t *testing.T) {
 	if code := e.deliveryCode(t, d); code != string(errs.CodeTradeNotStarted) {
 		t.Fatalf("delivery %s, want trade_not_started", code)
 	}
-	if _, err := (app.UnwiredPositions{}).CabalPositionsAt(
-		t.Context(),
-		time.Time{},
-	); errs.CodeOf(
-		err,
-	) != errs.CodeUpstreamUnavailable {
-		t.Fatalf("unwired CabalPositionsAt err = %v, want upstream_unavailable", err)
+	if _, err := (app.UnwiredPositions{}).EVMPositions(t.Context(), ids.CabalID{}); errs.CodeOf(err) !=
+		errs.CodeUpstreamUnavailable {
+		t.Fatalf("unwired EVMPositions err = %v, want upstream_unavailable", err)
 	}
 }

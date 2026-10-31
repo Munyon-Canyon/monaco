@@ -6,39 +6,32 @@ import (
 	"maps"
 	"slices"
 	"strings"
-	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market"
 	treasuryport "github.com/monaco/monaco/apps/backend/internal/modules/treasury/port"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
-	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 )
 
 type Positions interface {
 	SolanaPositions(ctx context.Context, cabal ids.CabalID) ([]treasuryport.Position, error)
-	CabalPositionsAt(ctx context.Context, t time.Time) ([]treasuryport.CabalPositions, error)
+	EVMPositions(ctx context.Context, cabal ids.CabalID) ([]treasuryport.ListingPosition, error)
 }
 
-func evmListings(ctx context.Context, p Positions, at time.Time, cabal ids.CabalID) (map[string]uint64, error) {
-	all, err := p.CabalPositionsAt(ctx, at)
+func evmListings(ctx context.Context, p Positions, cabal ids.CabalID) (map[string]uint64, error) {
+	listings, err := p.EVMPositions(ctx, cabal)
 	if err != nil {
 		return nil, err
 	}
 	held := map[string]uint64{}
-	for _, c := range all {
-		if c.CabalID != cabal {
-			continue
+	for _, l := range listings {
+		if l.Units == nil || !l.Units.IsUint64() {
+			return nil, errs.New(errs.CodeDecodeFailed, "trading.evmListings", slog.String("asset", l.Key))
 		}
-		for _, l := range c.Listings {
-			if l.Units == nil || !l.Units.IsUint64() {
-				return nil, errs.New(errs.CodeDecodeFailed, "trading.evmListings", slog.String("asset", l.Key))
-			}
-			if l.Units.Sign() > 0 && isEVMAsset(l.Key) {
-				held[l.Key] = l.Units.Uint64()
-			}
+		if l.Units.Sign() > 0 && isEVMAsset(l.Key) {
+			held[l.Key] = l.Units.Uint64()
 		}
 	}
 	return held, nil
@@ -53,7 +46,6 @@ type LedgerHoldings struct {
 	Ledger  Positions
 	Catalog Catalog
 	USDC    chain.Mint
-	Clock   clock.Clock
 }
 
 func (h LedgerHoldings) Positions(ctx context.Context, cabal ids.CabalID) ([]Holding, error) {
@@ -61,7 +53,7 @@ func (h LedgerHoldings) Positions(ctx context.Context, cabal ids.CabalID) ([]Hol
 	if err != nil {
 		return nil, err
 	}
-	evm, err := evmListings(ctx, h.Ledger, h.Clock.Now(), cabal)
+	evm, err := evmListings(ctx, h.Ledger, cabal)
 	if err != nil {
 		return nil, err
 	}

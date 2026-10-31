@@ -253,7 +253,7 @@ func (m *Module) build() {
 	})
 	m.sells = app.NewSellForCashOutHandler(app.SellForCashOutDeps{
 		Layer: layer, UoW: m.deps.UoW, Reads: m.deps.Pool, Clock: clk, Venue: venue, USDC: usdc,
-		Holdings: app.LedgerHoldings{Ledger: ports.Positions, Catalog: ports.Catalog, USDC: usdc, Clock: clk},
+		Holdings: app.LedgerHoldings{Ledger: ports.Positions, Catalog: ports.Catalog, USDC: usdc},
 		Wallets:  app.CabalWallets{Cabals: ports.Cabals}, Routes: m.routed, EVMSales: route.EVMSales,
 	})
 }
