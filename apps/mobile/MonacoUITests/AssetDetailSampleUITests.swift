@@ -76,7 +76,11 @@ nonisolated final class AssetDetailSampleUITests: XCTestCase {
         scrollTo(app, buy, "Propose buy")
         XCTAssertEqual(buy.label, "Propose buy")
         XCTAssertTrue(buy.isEnabled)
-        XCTAssertFalse(app.buttons["asset-detail-propose-sell"].exists, "no cabal holds this stock")
+        let sell = app.buttons["asset-detail-propose-sell"]
+        XCTAssertTrue(sell.exists, "a voting cabal holds this stock")
+        XCTAssertEqual(buy.frame.minY, sell.frame.minY, accuracy: 1, "buy and sell should share one row")
+        XCTAssertEqual(buy.frame.width, sell.frame.width, accuracy: 1, "buy and sell should be equal widths")
+        XCTAssertLessThan(buy.frame.maxX, sell.frame.minX, "buy sits left of sell")
     }
 
     @MainActor
