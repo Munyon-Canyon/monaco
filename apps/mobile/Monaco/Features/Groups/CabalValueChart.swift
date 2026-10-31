@@ -2,23 +2,15 @@ import MonacoAPI
 import MonacoCore
 import SwiftUI
 
-enum CabalValueChartSlot: CabalSection {
-    static let isLive = true
-    static let ranges: [LeaderboardRange] = [.oneWeek, .oneMonth, .threeMonths, .sixMonths, .all]
-
-    static func body(for context: CabalContext) -> some View {
-        CabalValueChart(cabalID: context.cabalID, topInset: CabalChartMetrics.slotInset)
-    }
-}
-
 enum CabalChartMetrics {
     static let returnGap: CGFloat = MonacoTheme.Space.s
     static let chartGap: CGFloat = MonacoTheme.Space.sm
     static let periodsGap: CGFloat = MonacoTheme.Space.sm
-    static let slotInset: CGFloat = -(SectionStackMetrics.spacing - returnGap)
 }
 
 struct CabalValueChart: View {
+    static let ranges: [LeaderboardRange] = [.oneWeek, .oneMonth, .threeMonths, .sixMonths, .all]
+
     let cabalID: String
     let topInset: CGFloat
 
@@ -81,7 +73,7 @@ struct CabalValueChart: View {
     @ViewBuilder private var skeleton: some View {
         Text(" ").moneyFont(.row).skeletonBar(width: 140, radius: MonacoTheme.Radius.chip)
         chartSkeleton.padding(.top, CabalChartMetrics.chartGap)
-        MonacoRangeChipsSkeleton(ranges: CabalValueChartSlot.ranges).padding(.top, CabalChartMetrics.periodsGap)
+        MonacoRangeChipsSkeleton(ranges: CabalValueChart.ranges).padding(.top, CabalChartMetrics.periodsGap)
     }
 
     private var chartSkeleton: some View {
@@ -171,7 +163,7 @@ struct CabalValueChart: View {
     private func prepared() -> ValueChartModel {
         if let model { return model }
         let created = ValueChartModel(
-            subjects: [.cabal(id: cabalID)], ranges: CabalValueChartSlot.ranges, range: .oneMonth,
+            subjects: [.cabal(id: cabalID)], ranges: CabalValueChart.ranges, range: .oneMonth,
             api: environment.api, hints: environment.hints)
         model = created
         return created

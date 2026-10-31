@@ -122,7 +122,7 @@ struct ChartSkeletonHeightTests {
         history: StubTransport.Reply, waitingFor marker: String? = nil
     ) async throws -> CGFloat {
         try await height(
-            of: CabalValueChartSlot.body(for: CabalContext(cabalID: "cabal-1")),
+            of: CabalValueChart(cabalID: "cabal-1", topInset: MonacoTheme.Space.s),
             replies: [cabalHistoryPath: history], waitingFor: marker)
     }
 

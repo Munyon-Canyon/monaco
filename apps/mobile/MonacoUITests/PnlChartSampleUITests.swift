@@ -82,14 +82,18 @@ nonisolated final class PnlChartSampleUITests: XCTestCase {
     @MainActor
     func testCabalValueChartHoldsAndPinches() throws {
         let app = launch("-MonacoGroupDetailSample", "ready")
+        let pot = element(app, "cabal-pot-value")
+        XCTAssertTrue(pot.waitForExistence(timeout: 30), "no cabal pot value")
+        pot.tap()
+        XCTAssertTrue(
+            element(app, "cabal-treasury-history-screen").waitForExistence(timeout: 30),
+            "no Treasury history screen")
         exercise(app, chartID: "cabal-value-chart", prefix: "pnl-cabal")
-        app.terminate()
-        let relaunched = launch("-MonacoGroupDetailSample", "ready")
-        let chart = element(relaunched, "cabal-value-chart")
-        XCTAssertTrue(chart.waitForExistence(timeout: 30), "no cabal chart after relaunch")
-        bringIntoView(relaunched, chart)
+        let chart = element(app, "cabal-value-chart")
+        XCTAssertTrue(chart.waitForExistence(timeout: 30), "no cabal chart")
+        bringIntoView(app, chart)
         chart.pinch(withScale: 2.5, velocity: 2)
         XCTAssertTrue(chart.exists)
-        attach(relaunched, "pnl-cabal-pinched")
+        attach(app, "pnl-cabal-pinched")
     }
 }
