@@ -395,8 +395,9 @@ nonisolated final class ProposeFlowSampleUITests: XCTestCase {
         XCTAssertTrue(addReason.waitForExistence(timeout: 10), "the amount step never drew")
         sleep(1)
 
-        let title = app.navigationBars["Buy GOOGL"]
-        XCTAssertTrue(title.exists, "the Buy GOOGL bar never drew")
+        let title = element("propose-amount-operation")
+        XCTAssertTrue(title.exists, "the Buy header never drew")
+        XCTAssertTrue(title.label.hasPrefix("Buy "), "the header reads '\(title.label)'")
         let before = title.frame.minY
         title.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
             .press(

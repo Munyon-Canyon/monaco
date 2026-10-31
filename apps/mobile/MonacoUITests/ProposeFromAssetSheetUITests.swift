@@ -47,7 +47,9 @@ nonisolated final class ProposeFromAssetSheetUITests: XCTestCase {
         let row = cabalRows(app).firstMatch
         XCTAssertTrue(row.waitForExistence(timeout: 10), "no cabal row")
         row.tap()
-        XCTAssertTrue(app.navigationBars["Buy Alphabet"].waitForExistence(timeout: 15), "no amount step after a pick")
+        let header = element(app, "propose-amount-operation")
+        XCTAssertTrue(header.waitForExistence(timeout: 15), "no amount step after a pick")
+        XCTAssertEqual(header.label, "Buy Alphabet")
         XCTAssertFalse(element(app, "propose-pick-cabal-sheet").exists, "the sheet should be closed")
     }
 }
