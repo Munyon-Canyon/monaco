@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"log/slog"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"slices"
@@ -58,8 +59,8 @@ func newHarness(t *testing.T, db sqlc.DBTX, extension string, trustProxyHeaders 
 }
 
 type call struct {
-	method, path, remote, actor string
-	forwarded                   []string
+	method, path, remote, actor, cloudflare string
+	forwarded                               []string
 }
 
 func (h harness) do(t *testing.T, c call) *httptest.ResponseRecorder {
@@ -75,6 +76,9 @@ func (h harness) doIn(ctx context.Context, t *testing.T, c call) *httptest.Respo
 	req.RemoteAddr = cmpOr(c.remote, "192.0.2.1:4711")
 	for _, f := range c.forwarded {
 		req.Header.Add("X-Forwarded-For", f)
+	}
+	if c.cloudflare != "" {
+		req.Header.Set("CF-Connecting-IP", c.cloudflare)
 	}
 	if c.actor != "" {
 		req.Header.Set(actorHeader, c.actor)
@@ -194,23 +198,47 @@ func TestMiddleware_RetryAfterRoundsUpToWholeSeconds(t *testing.T) {
 func TestMiddleware_TrustProxyHeaders(t *testing.T) {
 	t.Parallel()
 	const ip = "{ip: {rate: 1, per: 1m, burst: 1}}"
-	t.Run("enabled keys on the rightmost entry", func(t *testing.T) {
+	t.Run("enabled keys on the member behind the edge", func(t *testing.T) {
 		t.Parallel()
 		pool := testkit.DB(t)
 		h := newHarness(t, pool, ip, true)
 		got := h.statuses(t,
-			call{forwarded: []string{"198.51.100.7, 203.0.113.9"}},
-			call{forwarded: []string{"198.51.100.8, 203.0.113.9"}},
-			call{forwarded: []string{"198.51.100.7", "203.0.113.10"}},
-			call{forwarded: []string{" "}},
-			call{remote: "192.0.2.1:9999"},
+			call{cloudflare: "198.51.100.7", forwarded: []string{"198.51.100.7, 104.23.253.112"}},
+			call{cloudflare: "198.51.100.7", forwarded: []string{"198.51.100.99, 104.23.253.112"}},
+			call{cloudflare: "198.51.100.8", forwarded: []string{"198.51.100.7, 104.23.253.112"}},
+			call{forwarded: []string{"198.51.100.20, 104.23.253.112"}},
+			call{forwarded: []string{"203.0.113.50, 198.51.100.21", "104.23.253.112"}},
+			call{forwarded: []string{"203.0.113.51, 198.51.100.21", "104.23.253.112"}},
+			call{forwarded: []string{"104.23.253.112"}},
+			call{cloudflare: "not an ip", forwarded: []string{"198.51.100.22, 104.23.253.112"}},
+			call{cloudflare: "2001:db8::1"},
+			call{cloudflare: "::ffff:198.51.100.30"},
+			call{cloudflare: "198.51.100.30"},
 		)
-		if want := []int{204, 429, 204, 204, 429}; !slices.Equal(got, want) {
+		if want := []int{204, 429, 204, 204, 204, 429, 204, 204, 204, 204, 429}; !slices.Equal(got, want) {
 			t.Fatalf("statuses = %v, want %v", got, want)
 		}
-		want := []string{"op:postThing:ip:192.0.2.1", "op:postThing:ip:203.0.113.10", "op:postThing:ip:203.0.113.9"}
+		want := []string{
+			"op:postThing:ip:192.0.2.1", "op:postThing:ip:198.51.100.20", "op:postThing:ip:198.51.100.21",
+			"op:postThing:ip:198.51.100.22", "op:postThing:ip:198.51.100.30", "op:postThing:ip:198.51.100.7",
+			"op:postThing:ip:198.51.100.8", "op:postThing:ip:2001:db8::1",
+		}
 		if got := keys(t, pool); !slices.Equal(got, want) {
 			t.Fatalf("bucket keys = %v, want %v", got, want)
+		}
+		sources := map[string]int{}
+		for _, line := range h.lines(t, "ratelimit.key_source") {
+			sources[line["source"].(string)]++
+		}
+		if want := map[string]int{
+			"cf-connecting-ip": 6,
+			"x-forwarded-for":  4,
+			"remote-addr":      1,
+		}; !maps.Equal(
+			sources,
+			want,
+		) {
+			t.Fatalf("key sources = %v, want %v", sources, want)
 		}
 	})
 	t.Run("disabled keys on the socket address", func(t *testing.T) {
