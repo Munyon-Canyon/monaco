@@ -186,6 +186,9 @@ enum SignInJourney {
                 app.tab("Home").waitForNonExistence(timeout: signedInTimeout),
                 "S3.3: the tab bar remained on screen within \(Int(signedInTimeout)) s after sign-out"
             )
+            if currentScreen(app) == .invite {
+                app.buttons["invite-skip-button"].tap()
+            }
             XCTAssertEqual(currentScreen(app), .login, "S3.3: the login form did not come back after sign-out")
             XCTAssertFalse(app.tab("Home").exists, "S3.3: the tab bar is still on screen after sign-out")
         }
