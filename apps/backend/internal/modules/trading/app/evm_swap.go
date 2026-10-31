@@ -172,7 +172,10 @@ func (s EVMSwap) chosen(ctx context.Context, spec EVMSwapSpec, candidates []EVMS
 }
 
 func floorMet(spec EVMSwapSpec, plan EVMSwapPlan) error {
-	floor := max(spec.MinOut, domain.SlippageOf(spec.SlippageBps).MinOut(plan.OutAmount))
+	floor := spec.MinOut
+	if floor == 0 {
+		floor = domain.SlippageOf(spec.SlippageBps).MinOut(plan.OutAmount)
+	}
 	if floor == 0 || plan.MinOut < floor {
 		return errs.New(errs.CodePriceMoved, evmSwapOp,
 			slog.Uint64("plan_min_out", plan.MinOut), slog.Uint64("floor", floor))

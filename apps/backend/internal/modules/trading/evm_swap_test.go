@@ -338,3 +338,61 @@ func TestEVMSwap_sendsEveryTransactionThroughPrivyUnderItsStepKey(t *testing.T) 
 		}
 	}
 }
+
+type venueFills struct {
+	*adapters.EVMVenue
+	fake *evmFake
+}
+
+func (v venueFills) Fill(
+	ctx context.Context,
+	n chain.Network,
+	hash string,
+	out, owner chain.EVMAddress,
+) (app.EVMFill, error) {
+	return v.fake.Fill(ctx, n, hash, out, owner)
+}
+
+func (v venueFills) Receipt(ctx context.Context, n chain.Network, hash string) (app.EVMFillState, error) {
+	return v.fake.Receipt(ctx, n, hash)
+}
+
+func TestEVMSwap_aBuyWhoseExecutionQuoteBeatsTheRequoteStillGoesThrough(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name, probeOut, minAmount string
+	}{
+		{"unchanged", "1000000", "990100"},
+		{"improved_5_bps", "1000500", "990196"},
+		{"improved_50_bps", "1005000", "990126"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			e := newEVMSwapEnv(t)
+			v := newVenueEnv(t)
+			approveData := abiCall("095ea7b3", word(permit2), word("9992500"))
+			v.script(
+				approvalReply(evmTxJSON(baseCash, approveData, "0x00")),
+				quoteReply(c.probeOut, c.probeOut, "null"),
+				quoteReply(c.probeOut, c.minAmount, "null"),
+				swapReply(evmTxJSON(venueRouter, "0x3593564c", "0x0")),
+			)
+			e.leg.Spec = v.spec(t)
+			e.leg.Spec.SlippageBps = 100
+			e.leg.Spec.Owner = evmAddress(t, evmTreasury)
+			e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: 990_000}}
+
+			got, err := app.EVMSwap{
+				Journal: e.journal,
+				Venue:   venueFills{EVMVenue: v.venue, fake: e.evm},
+				Sender:  e.evm,
+				Poll:    app.DefaultPoll(),
+			}.Run(actorContext(t.Context()), e.leg)
+
+			if err != nil || got.State != app.FillSucceeded {
+				t.Fatalf("Run = %+v, %v, want the buy to go through", got, err)
+			}
+		})
+	}
+}
