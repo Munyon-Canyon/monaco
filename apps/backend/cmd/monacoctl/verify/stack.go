@@ -72,6 +72,7 @@ type Stack struct {
 
 	opts      Options
 	container string
+	dumpTo    string
 	env       []string
 	procs     map[string]*process
 	remove    func(context.Context) error
@@ -86,20 +87,20 @@ func Up(ctx context.Context, o Options) (*Stack, error) {
 	if s.opts.Postgres == nil {
 		s.opts.Postgres = s.dockerPostgres
 	}
-	ctx, cancel := withDeadline(ctx, cmp.Or[clock.Clock](o.Clock, clock.Real{}), o.Budget.Stack,
+	budgeted, cancel := withDeadline(ctx, cmp.Or[clock.Clock](o.Clock, clock.Real{}), o.Budget.Stack,
 		&OverBudgetError{Phase: PhaseStack, Budget: o.Budget.Stack})
 	defer cancel()
 	for _, step := range []func(context.Context) error{
 		s.postgres, withoutContext(s.nats), s.schema, s.processes, s.healthy,
 	} {
-		if err := step(ctx); err != nil {
-			if cause := context.Cause(ctx); cause != nil && !errors.Is(err, cause) {
+		if err := step(budgeted); err != nil {
+			if cause := context.Cause(budgeted); cause != nil && !errors.Is(err, cause) {
 				err = fmt.Errorf("%w: %w", cause, err)
 			}
 			return s, err
 		}
 	}
-	return s, nil
+	return s, s.cacheSchema(ctx)
 }
 
 func (s *Stack) postgres(ctx context.Context) (err error) {

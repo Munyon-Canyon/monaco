@@ -11,12 +11,12 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
 
-func schemaStack(t *testing.T, docker, atlas string) (*Stack, string) {
+func schemaStack(t *testing.T, docker string) (*Stack, string) {
 	t.Helper()
 	url := testkit.DB(t).Config().ConnString()
 	cache := t.TempDir()
 	return &Stack{DBURL: url, container: "pg", opts: Options{
-		Dir: backendDir(t), Atlas: atlas, Docker: Docker(docker), SchemaCache: cache,
+		Dir: backendDir(t), Atlas: "true", Docker: Docker(docker), SchemaCache: cache,
 	}}, cache
 }
 
@@ -27,9 +27,12 @@ func TestApplySchema_dumpsTheMigratedSchemaThenRestoresItInsteadOfMigrating(t *t
 		"docker",
 		`printf '%s\n' '\restrict k' 'CREATE TABLE verify_schema_probe (id int);' '\unrestrict k'`,
 	)
-	s, cache := schemaStack(t, docker, "true")
+	s, cache := schemaStack(t, docker)
 	if err := s.applySchema(t.Context()); err != nil {
 		t.Fatalf("first applySchema: %v", err)
+	}
+	if err := s.cacheSchema(t.Context()); err != nil {
+		t.Fatalf("cacheSchema: %v", err)
 	}
 	dumps, _ := filepath.Glob(filepath.Join(cache, "*.sql"))
 	if len(dumps) != 1 {
@@ -56,7 +59,7 @@ func TestApplySchema_dumpsTheMigratedSchemaThenRestoresItInsteadOfMigrating(t *t
 
 func TestApplySchema_migratesWithoutCachingOutsideDocker(t *testing.T) {
 	t.Parallel()
-	s, cache := schemaStack(t, "/nonexistent/docker", "true")
+	s, cache := schemaStack(t, "/nonexistent/docker")
 	s.container = ""
 	if err := s.applySchema(t.Context()); err != nil {
 		t.Fatalf("applySchema: %v", err)
@@ -95,10 +98,14 @@ func TestApplySchema_reportsEachFailure(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			s, _ := schemaStack(t, writeScript(t, "docker", "echo 'select 1;'"), "true")
+			s, _ := schemaStack(t, writeScript(t, "docker", "echo 'select 1;'"))
 			tc.edit(s)
-			if err := s.applySchema(t.Context()); err == nil || !strings.Contains(err.Error(), tc.want) {
-				t.Fatalf("applySchema = %v, want %q", err, tc.want)
+			err := s.applySchema(t.Context())
+			if err == nil {
+				err = s.cacheSchema(t.Context())
+			}
+			if err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("applySchema then cacheSchema = %v, want %q", err, tc.want)
 			}
 		})
 	}
@@ -131,5 +138,27 @@ func TestSchemaCacheDir_isUnderTheUserCache(t *testing.T) {
 	t.Setenv("XDG_CACHE_HOME", "")
 	if got := SchemaCacheDir(); got != "" {
 		t.Fatalf("SchemaCacheDir without HOME = %q, want none", got)
+	}
+}
+
+func TestApplySchema_leavesThePgDumpOutOfTheStackUpBudget(t *testing.T) {
+	t.Parallel()
+	called := filepath.Join(t.TempDir(), "docker-called")
+	docker := writeScript(t, "docker", `touch "`+called+`"; echo 'select 1;'`)
+	s, cache := schemaStack(t, docker)
+	if err := s.applySchema(t.Context()); err != nil {
+		t.Fatalf("applySchema: %v", err)
+	}
+	if _, err := os.Stat(called); err == nil {
+		t.Fatal("applySchema ran docker; the pg_dump belongs after the stack is up")
+	}
+	if dumps, _ := filepath.Glob(filepath.Join(cache, "*.sql")); len(dumps) != 0 {
+		t.Fatalf("cache holds %v before cacheSchema", dumps)
+	}
+	if err := s.cacheSchema(t.Context()); err != nil {
+		t.Fatalf("cacheSchema: %v", err)
+	}
+	if dumps, _ := filepath.Glob(filepath.Join(cache, "*.sql")); len(dumps) != 1 {
+		t.Fatalf("cache holds %v after cacheSchema, want one dump", dumps)
 	}
 }

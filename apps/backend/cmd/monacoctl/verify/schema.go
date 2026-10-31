@@ -9,9 +9,12 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 )
+
+const schemaDumpTimeout = time.Minute
 
 func (s *Stack) applySchema(ctx context.Context) error {
 	dir := filepath.Join(s.opts.Dir, "migrations")
@@ -25,15 +28,24 @@ func (s *Stack) applySchema(ctx context.Context) error {
 	if err := migrate(ctx, s.opts.Atlas, dir, s.DBURL); err != nil {
 		return err
 	}
-	if cached == "" || s.container == "" {
+	if s.container != "" {
+		s.dumpTo = cached
+	}
+	return nil
+}
+
+func (s *Stack) cacheSchema(ctx context.Context) error {
+	if s.dumpTo == "" {
 		return nil
 	}
+	ctx, cancel := context.WithTimeout(ctx, schemaDumpTimeout)
+	defer cancel()
 	dump, err := s.opts.Docker.run(ctx, "exec", s.container,
 		"pg_dump", "--inserts", "--no-owner", "--no-privileges", "-U", "monaco", "monaco")
 	if err != nil {
 		return err
 	}
-	return writeAtomic(cached, withoutMetaCommands(dump))
+	return writeAtomic(s.dumpTo, withoutMetaCommands(dump))
 }
 
 func schemaDumpPath(cacheDir, migrations string) (string, error) {
