@@ -45,11 +45,12 @@ nonisolated final class FDynamicTypeAuditUITests: XCTestCase {
         AllowedIssue(
             screen: "f__08-review-sheet-preipo", element: "48 'Propose buy'",
             reason: proposeBuyBackdropReason),
+        AllowedIssue(
+            screen: "f__13-leaderboard-C-unranked", element: "'This week Oct 19 – 25'",
+            reason: "the period line wraps to two lines at AX5 and draws whole in the screenshot (#7398)"),
     ]
 
-    private static let preScaledReason: String? =
-        "Typo.scaled returns Font.system(size:) already scaled for the launch size, so the runtime font check reads it as fixed"
-    private static let offscreenReason: String? =
+    private static let offscreenReason =
         "the element is partly outside the viewport or under the tab bar while the screen is scrolled"
 
     nonisolated override func setUpWithError() throws {
@@ -182,7 +183,7 @@ nonisolated final class FDynamicTypeAuditUITests: XCTestCase {
             let navigationBar = app.navigationBars.firstMatch
             let navigationBarBottom = navigationBar.exists ? navigationBar.frame.maxY : viewport.minY
             do {
-                try app.performAccessibilityAudit(for: [.dynamicType, .textClipped]) { issue in
+                try app.performAccessibilityAudit(for: .textClipped) { issue in
                     let element = issue.element.map { "\($0.elementType.rawValue) '\($0.label)'" } ?? "no element"
                     let outsideViewport = issue.element.map { element in
                         let frame = element.frame
@@ -191,16 +192,15 @@ nonisolated final class FDynamicTypeAuditUITests: XCTestCase {
                             || frame.maxX > viewport.maxX
                     }
                     let reason =
-                        issue.auditType == .dynamicType
-                        ? Self.preScaledReason
-                        : (outsideViewport == true
-                            ? Self.offscreenReason : Self.allowedReason(screen.name, element))
+                        outsideViewport == true
+                        ? Self.offscreenReason : Self.allowedReason(screen.name, element)
                     if reason != nil { return true }
                     failures.append(
                         "\(screen.name) at \(size), scroll \(position): text clipped on \(element): "
                             + issue.compactDescription)
                     return true
                 }
+                try app.performAccessibilityAudit(for: .dynamicType) { _ in true }
             } catch {
                 failures.append("\(screen.name) at \(size), scroll \(position): the audit failed: \(error)")
             }
