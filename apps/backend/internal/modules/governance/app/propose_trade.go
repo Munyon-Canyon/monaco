@@ -51,6 +51,7 @@ type PinListings interface {
 type Treasury interface {
 	PotValue(ctx context.Context, id ids.CabalID) (money.Micros, error)
 	SolanaPositions(ctx context.Context, id ids.CabalID) ([]treasuryport.Position, error)
+	CashOutReservations(ctx context.Context) (map[ids.CabalID]money.Micros, error)
 }
 
 type Balances interface {
@@ -394,7 +395,7 @@ func spendableCash(
 	if err != nil {
 		return money.Micros{}, solana.MintConfig{}, err
 	}
-	cash, err := p.Balances.TokenBalance(ctx, wallet.Address, p.USDC)
+	onChain, err := p.Balances.TokenBalance(ctx, wallet.Address, p.USDC)
 	if err != nil {
 		return money.Micros{}, solana.MintConfig{}, err
 	}
@@ -402,7 +403,36 @@ func spendableCash(
 	if err != nil {
 		return money.Micros{}, solana.MintConfig{}, err
 	}
-	return money.MicrosFromUint64(cash.Uint64()), cfg, nil
+	booked, err := ledgerCash(ctx, p, cabal)
+	if err != nil {
+		return money.Micros{}, solana.MintConfig{}, err
+	}
+	cash := money.MicrosFromUint64(onChain.Uint64())
+	if booked.Cmp(cash) < 0 {
+		cash = booked
+	}
+	return cash, cfg, nil
+}
+
+func ledgerCash(ctx context.Context, p TradePorts, cabal ids.CabalID) (money.Micros, error) {
+	positions, err := p.Treasury.SolanaPositions(ctx, cabal)
+	if err != nil {
+		return money.Micros{}, err
+	}
+	var cash money.Micros
+	for _, position := range positions {
+		if position.Mint == p.USDC.Address {
+			cash = money.MicrosFromUint64(position.Units.Uint64())
+		}
+	}
+	reserved, err := p.Treasury.CashOutReservations(ctx)
+	if err != nil {
+		return money.Micros{}, err
+	}
+	if held := reserved[cabal]; held.Cmp(cash) < 0 {
+		return cash.Sub(held)
+	}
+	return money.Micros{}, nil
 }
 
 func (h *ProposeTradeHandler) route(

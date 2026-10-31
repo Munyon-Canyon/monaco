@@ -438,3 +438,7 @@ func TestCashOutSell_DeliveryReadFails_NeitherSellsNorBlocks(t *testing.T) {
 			len(b.blocked(t)), b.legs(t))
 	}
 }
+
+func (ledgerPositions) CashOutReservations(context.Context) (map[ids.CabalID]money.Micros, error) {
+	return map[ids.CabalID]money.Micros{}, nil
+}

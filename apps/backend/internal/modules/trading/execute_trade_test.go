@@ -88,6 +88,15 @@ func refusalCases() []refusalCase {
 			e.ledger.SetTokens(e.wallet.Address, usdcToken(), 25_249_999)
 			e.balances.setFee(aaplxMint, 100, math.MaxUint64)
 		}, errs.CodeInsufficientFunds, "25249999", "25250000"},
+		{"buy over the ledger cash while the chain holds more", func(e *engineEnv, _ *app.ExecuteTrade) {
+			e.positions.units = buyMicros - 1
+		}, errs.CodeInsufficientFunds, "24999999", "25000000"},
+		{"buy over the ledger cash left after a cash-out reservation", func(e *engineEnv, _ *app.ExecuteTrade) {
+			e.positions.reserved = 75_000_001
+		}, errs.CodeInsufficientFunds, "24999999", "25000000"},
+		{"buy while reservations exceed the ledger cash", func(e *engineEnv, _ *app.ExecuteTrade) {
+			e.positions.reserved = 200_000_000
+		}, errs.CodeInsufficientFunds, "0", "25000000"},
 		{"sell short of the token amount", func(e *engineEnv, cmd *app.ExecuteTrade) {
 			*cmd = e.sell(50_000_000)
 			e.ledger.SetTokens(e.wallet.Address, aaplxToken(), 49_999_999)
@@ -134,6 +143,31 @@ func TestExecuteTrade_aFailedProbeQuoteIsRetriedAndNeverBlocksAsPausedOrNoRoute(
 		t.Fatalf("err = %v with %d blocked, want jupiter_unavailable returned for redelivery and no block",
 			err, len(e.blocked(t, cmd.ProposalID)))
 	}
+}
+
+func assertLedgerReadRetried(t *testing.T, port string) {
+	t.Helper()
+	e := newEngineEnv(t)
+	e.positions.failing = port
+	cmd := e.buy()
+	d := e.delivery(t, cmd)
+
+	err := e.handle(t, d, cmd)
+
+	if errs.CodeOf(err) != errs.CodeDBUnavailable || len(e.blocked(t, cmd.ProposalID)) != 0 {
+		t.Fatalf("%s down: err = %v with %d blocked, want db_unavailable for redelivery and no block",
+			port, err, len(e.blocked(t, cmd.ProposalID)))
+	}
+}
+
+func TestExecuteTrade_aLedgerPositionsReadThatFailsIsRetriedAndNeverBlocks(t *testing.T) {
+	t.Parallel()
+	assertLedgerReadRetried(t, "SolanaPositions")
+}
+
+func TestExecuteTrade_aReservationsReadThatFailsIsRetriedAndNeverBlocks(t *testing.T) {
+	t.Parallel()
+	assertLedgerReadRetried(t, "CashOutReservations")
 }
 
 func TestExecuteTrade_eachRefusalBlocksOnceRecordsTheDeliveryAndNeverSwaps(t *testing.T) {

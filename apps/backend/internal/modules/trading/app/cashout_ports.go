@@ -13,11 +13,13 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
 type Positions interface {
 	SolanaPositions(ctx context.Context, cabal ids.CabalID) ([]treasuryport.Position, error)
 	EVMPositions(ctx context.Context, cabal ids.CabalID) ([]treasuryport.ListingPosition, error)
+	CashOutReservations(ctx context.Context) (map[ids.CabalID]money.Micros, error)
 }
 
 func evmListings(ctx context.Context, p Positions, cabal ids.CabalID) (map[string]uint64, error) {

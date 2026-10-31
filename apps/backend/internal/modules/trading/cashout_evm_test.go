@@ -242,4 +242,12 @@ func TestLedgerHoldings_refusesAListingPositionItCannotRead(t *testing.T) {
 		errs.CodeUpstreamUnavailable {
 		t.Fatalf("EVMPositions err = %v, want upstream_unavailable", err)
 	}
+	if _, err := (app.UnwiredPositions{}).CashOutReservations(t.Context()); errs.CodeOf(err) !=
+		errs.CodeUpstreamUnavailable {
+		t.Fatalf("CashOutReservations err = %v, want upstream_unavailable", err)
+	}
+}
+
+func (c *cashOutLots) CashOutReservations(context.Context) (map[ids.CabalID]money.Micros, error) {
+	return map[ids.CabalID]money.Micros{}, nil
 }

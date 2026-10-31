@@ -9,6 +9,7 @@ import (
 	fundingport "github.com/monaco/monaco/apps/backend/internal/modules/funding/port"
 	treasuryport "github.com/monaco/monaco/apps/backend/internal/modules/treasury/port"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
 type (
@@ -53,4 +54,8 @@ func (UnwiredPositions) SolanaPositions(context.Context, ids.CabalID) ([]treasur
 
 func (UnwiredPositions) EVMPositions(context.Context, ids.CabalID) ([]treasuryport.ListingPosition, error) {
 	return nil, unwired("Positions.EVMPositions")
+}
+
+func (UnwiredPositions) CashOutReservations(context.Context) (map[ids.CabalID]money.Micros, error) {
+	return nil, unwired("Positions.CashOutReservations")
 }
