@@ -40,13 +40,6 @@ enum ProposeSampleScenario: String, CaseIterable {
 
     static let launchArgument = "-MonacoProposeSample"
 
-    static func matching(_ arguments: [String]) -> ProposeSampleScenario? {
-        guard let flag = arguments.firstIndex(of: launchArgument), arguments.indices.contains(flag + 1) else {
-            return nil
-        }
-        return ProposeSampleScenario(rawValue: arguments[flag + 1])
-    }
-
     var script: SampleAPIScript {
         var script = SampleAPIScript()
         switch self {
@@ -145,9 +138,12 @@ private enum ProposeSampleLogo {
 final class ProposeSampleHarnessEntry: SampleHarnessEntry {
     @MainActor
     override class func root(arguments: [String], auth: PrivyAuthService) -> AnyView? {
-        guard let scenario = ProposeSampleScenario.matching(arguments) else { return nil }
-        SampleAPIProtocol.install(scenario.script)
-        return AnyView(SampleAppFrame(auth: auth, tab: scenario.tab, routes: [scenario.route]))
+        return scenarioRoot(
+            ProposeSampleScenario.self, flag: ProposeSampleScenario.launchArgument, arguments: arguments
+        ) { scenario in
+            SampleAPIProtocol.install(scenario.script)
+            return AnyView(SampleAppFrame(auth: auth, tab: scenario.tab, routes: [scenario.route]))
+        }
     }
 }
 

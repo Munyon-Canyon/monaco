@@ -18,13 +18,6 @@ enum LeaderboardSampleScenario: String, CaseIterable {
 
     static let launchArgument = "-MonacoLeaderboardSample"
 
-    static func matching(_ arguments: [String]) -> LeaderboardSampleScenario? {
-        guard let flag = arguments.firstIndex(of: launchArgument), arguments.indices.contains(flag + 1) else {
-            return nil
-        }
-        return LeaderboardSampleScenario(rawValue: arguments[flag + 1])
-    }
-
     var tab: CallBoardTab {
         switch self {
         case .cabalsMonth, .cabalsUnranked: .cabals
@@ -63,9 +56,13 @@ nonisolated struct LeaderboardSampleRoute: AppRoute {
 final class LeaderboardSampleHarnessEntry: SampleHarnessEntry {
     @MainActor
     override class func root(arguments: [String], auth: PrivyAuthService) -> AnyView? {
-        guard let scenario = LeaderboardSampleScenario.matching(arguments) else { return nil }
-        SampleAPIProtocol.install(SampleAPIScript())
-        return AnyView(SampleAppFrame(auth: auth, tab: .cabals, routes: [LeaderboardSampleRoute(scenario: scenario)]))
+        return scenarioRoot(
+            LeaderboardSampleScenario.self, flag: LeaderboardSampleScenario.launchArgument, arguments: arguments
+        ) { scenario in
+            SampleAPIProtocol.install(SampleAPIScript())
+            return AnyView(
+                SampleAppFrame(auth: auth, tab: .cabals, routes: [LeaderboardSampleRoute(scenario: scenario)]))
+        }
     }
 }
 

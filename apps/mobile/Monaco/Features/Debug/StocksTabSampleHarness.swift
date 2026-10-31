@@ -19,13 +19,6 @@ enum StocksTabSampleScenario: String, CaseIterable {
 
     static let launchArgument = "-MonacoStocksTabSample"
 
-    static func matching(_ arguments: [String]) -> StocksTabSampleScenario? {
-        guard let flag = arguments.firstIndex(of: launchArgument), arguments.indices.contains(flag + 1) else {
-            return nil
-        }
-        return StocksTabSampleScenario(rawValue: arguments[flag + 1])
-    }
-
     var script: SampleAPIScript {
         var script = SampleAPIScript(catalog: MarketsSampleCatalog.marketsAssets)
         switch self {
@@ -118,12 +111,15 @@ nonisolated struct SampleTickHints: HintConnecting {
 final class StocksTabSampleHarnessEntry: SampleHarnessEntry {
     @MainActor
     override class func root(arguments: [String], auth: PrivyAuthService) -> AnyView? {
-        guard let scenario = StocksTabSampleScenario.matching(arguments) else { return nil }
-        SampleAPIProtocol.install(scenario.script)
-        MarketsSampleCatalog.install(watched: scenario.watched)
-        StocksTab.sampleQuery = scenario.query
-        StocksTabView.sampleBrowse = scenario.browse
-        return AnyView(SampleAppFrame(auth: auth, tab: .stocks, routes: scenario.routes, hints: scenario.hints))
+        return scenarioRoot(
+            StocksTabSampleScenario.self, flag: StocksTabSampleScenario.launchArgument, arguments: arguments
+        ) { scenario in
+            SampleAPIProtocol.install(scenario.script)
+            MarketsSampleCatalog.install(watched: scenario.watched)
+            StocksTab.sampleQuery = scenario.query
+            StocksTabView.sampleBrowse = scenario.browse
+            return AnyView(SampleAppFrame(auth: auth, tab: .stocks, routes: scenario.routes, hints: scenario.hints))
+        }
     }
 }
 #endif

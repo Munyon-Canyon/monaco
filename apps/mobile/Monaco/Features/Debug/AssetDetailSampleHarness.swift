@@ -28,11 +28,6 @@ enum AssetDetailSampleScenario: String, CaseIterable {
     static let launchArgument = "-MonacoAssetDetailSample"
     private static let staleMinutes: TimeInterval = 14
 
-    static func requestedName(_ arguments: [String]) -> String? {
-        guard let flag = arguments.firstIndex(of: launchArgument) else { return nil }
-        return arguments.indices.contains(flag + 1) ? arguments[flag + 1] : ""
-    }
-
     var script: SampleAPIScript {
         var script = SampleAPIScript()
         switch self {
@@ -130,19 +125,16 @@ extension SampleAPIScript {
 final class AssetDetailSampleHarnessEntry: SampleHarnessEntry {
     @MainActor
     override class func root(arguments: [String], auth: PrivyAuthService) -> AnyView? {
-        guard let name = AssetDetailSampleScenario.requestedName(arguments) else { return nil }
-        guard let scenario = AssetDetailSampleScenario(rawValue: name) else {
+        return scenarioRoot(
+            AssetDetailSampleScenario.self, flag: AssetDetailSampleScenario.launchArgument, arguments: arguments
+        ) { scenario in
+            let script = scenario.script
+            SampleAPIProtocol.install(script)
+            MarketsSampleCatalog.install(watched: scenario == .open ? [script.asset.symbol] : [])
             return AnyView(
-                Text("Unknown sample scenario \(name)")
-                    .font(.body)
-                    .accessibilityIdentifier("sample-unknown-scenario"))
+                SampleAppFrame(auth: auth, tab: .stocks, routes: [AssetRoute(symbol: script.asset.symbol)])
+            )
         }
-        let script = scenario.script
-        SampleAPIProtocol.install(script)
-        MarketsSampleCatalog.install(watched: scenario == .open ? [script.asset.symbol] : [])
-        return AnyView(
-            SampleAppFrame(auth: auth, tab: .stocks, routes: [AssetRoute(symbol: script.asset.symbol)])
-        )
     }
 }
 #endif

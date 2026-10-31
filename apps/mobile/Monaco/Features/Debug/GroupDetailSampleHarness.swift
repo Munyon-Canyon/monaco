@@ -58,12 +58,6 @@ enum GroupDetailSampleScenario: String, CaseIterable {
 
     static let launchArgument = "-MonacoGroupDetailSample"
 
-    static func matching(_ arguments: [String]) -> GroupDetailSampleScenario? {
-        guard let flag = arguments.firstIndex(of: launchArgument), arguments.indices.contains(flag + 1) else {
-            return nil
-        }
-        return GroupDetailSampleScenario(rawValue: arguments[flag + 1])
-    }
 }
 
 extension GroupDetailSampleScenario {
@@ -337,9 +331,12 @@ struct GroupDetailSampleHarness: View {
 final class GroupDetailSampleHarnessEntry: SampleHarnessEntry {
     @MainActor
     override class func root(arguments: [String], auth: PrivyAuthService) -> AnyView? {
-        guard let scenario = GroupDetailSampleScenario.matching(arguments) else { return nil }
-        SampleAPIProtocol.install(scenario.script)
-        return AnyView(GroupDetailSampleHarness(scenario: scenario, auth: auth))
+        return scenarioRoot(
+            GroupDetailSampleScenario.self, flag: GroupDetailSampleScenario.launchArgument, arguments: arguments
+        ) { scenario in
+            SampleAPIProtocol.install(scenario.script)
+            return AnyView(GroupDetailSampleHarness(scenario: scenario, auth: auth))
+        }
     }
 }
 

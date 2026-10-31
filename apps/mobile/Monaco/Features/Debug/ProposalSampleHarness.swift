@@ -60,13 +60,6 @@ enum ProposalSampleScenario: String, CaseIterable {
 
     static let launchArgument = "-MonacoProposalSample"
 
-    static func matching(_ arguments: [String]) -> ProposalSampleScenario? {
-        guard let flag = arguments.firstIndex(of: launchArgument), arguments.indices.contains(flag + 1) else {
-            return nil
-        }
-        return ProposalSampleScenario(rawValue: arguments[flag + 1])
-    }
-
     var holdPick: ProposalBallot?? {
         switch self {
         case .holdYes, .holdVoted, .holdClosed, .holdViewOnly: .some(.yes)
@@ -571,21 +564,24 @@ final class ProposalVoteFlowHarnessEntry: SampleHarnessEntry {
 final class ProposalSampleHarnessEntry: SampleHarnessEntry {
     @MainActor
     override class func root(arguments: [String], auth: PrivyAuthService) -> AnyView? {
-        guard let scenario = ProposalSampleScenario.matching(arguments) else { return nil }
-        SampleAPIProtocol.install(scenario.script)
-        if let pick = scenario.holdPick {
+        return scenarioRoot(
+            ProposalSampleScenario.self, flag: ProposalSampleScenario.launchArgument, arguments: arguments
+        ) { scenario in
+            SampleAPIProtocol.install(scenario.script)
+            if let pick = scenario.holdPick {
+                return AnyView(
+                    SampleAppFrame(
+                        auth: auth, tab: .home,
+                        sheet: {
+                            AnyView(
+                                VoteHoldSheet(request: VoteHoldRequest(proposalID: "proposal-1", pick: pick))
+                                    .analyticsScreen("vote_hold"))
+                        }))
+            }
+            let opensWithViewer = scenario == .nvdaPassedMoment || scenario == .tslaFailed || scenario == .pushVote
             return AnyView(
-                SampleAppFrame(
-                    auth: auth, tab: .home,
-                    sheet: {
-                        AnyView(
-                            VoteHoldSheet(request: VoteHoldRequest(proposalID: "proposal-1", pick: pick))
-                                .analyticsScreen("vote_hold"))
-                    }))
+                SampleAppFrame(auth: auth, tab: .cabals, routes: [scenario.route], opensWithViewer: opensWithViewer))
         }
-        let opensWithViewer = scenario == .nvdaPassedMoment || scenario == .tslaFailed || scenario == .pushVote
-        return AnyView(
-            SampleAppFrame(auth: auth, tab: .cabals, routes: [scenario.route], opensWithViewer: opensWithViewer))
     }
 }
 #endif

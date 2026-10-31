@@ -40,13 +40,6 @@ enum WelcomeSampleScenario: String, CaseIterable {
 
     static let launchArgument = "-MonacoWelcomeSample"
 
-    static func matching(_ arguments: [String]) -> WelcomeSampleScenario? {
-        guard let flag = arguments.firstIndex(of: launchArgument) else { return nil }
-        guard arguments.indices.contains(flag + 1),
-            let scenario = WelcomeSampleScenario(rawValue: arguments[flag + 1])
-        else { return .code }
-        return scenario
-    }
 }
 
 struct WelcomeSampleHarness: View {
@@ -240,8 +233,11 @@ private struct EmptyStateSamples: View {
 final class WelcomeSampleHarnessEntry: SampleHarnessEntry {
     @MainActor
     override class func root(arguments: [String], auth _: PrivyAuthService) -> AnyView? {
-        guard let scenario = WelcomeSampleScenario.matching(arguments) else { return nil }
-        return AnyView(WelcomeSampleHarness(scenario: scenario))
+        return scenarioRoot(
+            WelcomeSampleScenario.self, flag: WelcomeSampleScenario.launchArgument, arguments: arguments
+        ) { scenario in
+            return AnyView(WelcomeSampleHarness(scenario: scenario))
+        }
     }
 }
 #endif

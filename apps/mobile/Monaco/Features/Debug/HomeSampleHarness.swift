@@ -432,9 +432,12 @@ struct HomeSampleHarness: View {
 final class HomeSampleHarnessEntry: SampleHarnessEntry {
     @MainActor
     override class func root(arguments: [String], auth: PrivyAuthService) -> AnyView? {
-        guard let scenario = HomeSampleScenario.matching(arguments) else { return nil }
-        SampleAPIProtocol.install(scenario.script)
-        return AnyView(HomeSampleHarness(scenario: scenario, auth: auth))
+        return scenarioRoot(
+            HomeSampleScenario.self, flag: "-MonacoHomeSample", arguments: arguments
+        ) { scenario in
+            SampleAPIProtocol.install(scenario.script)
+            return AnyView(HomeSampleHarness(scenario: scenario, auth: auth))
+        }
     }
 }
 #endif

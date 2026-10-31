@@ -100,10 +100,13 @@ private struct ParityInfoSheetHost: View {
 final class ParitySampleHarnessEntry: SampleHarnessEntry {
     @MainActor
     override class func root(arguments: [String], auth: PrivyAuthService) -> AnyView? {
-        guard let scenario = ParitySampleScenario.matching(arguments) else { return nil }
-        SampleAPIProtocol.install(scenario.script)
-        if scenario == .toastSettled { return AnyView(ParityToastSettledFrame(auth: auth, scenario: scenario)) }
-        return AnyView(SampleAppFrame(auth: auth, tab: scenario.tab, routes: scenario.routes))
+        return scenarioRoot(
+            ParitySampleScenario.self, flag: ParitySampleScenario.launchArgument, arguments: arguments
+        ) { scenario in
+            SampleAPIProtocol.install(scenario.script)
+            if scenario == .toastSettled { return AnyView(ParityToastSettledFrame(auth: auth, scenario: scenario)) }
+            return AnyView(SampleAppFrame(auth: auth, tab: scenario.tab, routes: scenario.routes))
+        }
     }
 }
 #endif

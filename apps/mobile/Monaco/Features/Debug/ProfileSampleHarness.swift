@@ -292,18 +292,21 @@ private func apiMode(for scenario: ProfileSampleScenario) -> SampleAPIScript.Mod
 final class ProfileSampleHarnessEntry: SampleHarnessEntry {
     @MainActor
     override class func root(arguments: [String], auth: PrivyAuthService) -> AnyView? {
-        guard let scenario = ProfileSampleScenario.matching(arguments) else { return nil }
-        SampleAPIProtocol.install(apiScript(for: scenario))
-        switch scenario {
-        case .tabsCabals, .tabsUnvalued, .tabsStale, .tabsSettling, .tabsActivity, .tabsEmpty, .tabsError:
-            return AnyView(ProfileTabsSampleScreen(scenario: scenario))
-        default:
-            break
+        return scenarioRoot(
+            ProfileSampleScenario.self, flag: "-MonacoProfileSample", arguments: arguments
+        ) { scenario in
+            SampleAPIProtocol.install(apiScript(for: scenario))
+            switch scenario {
+            case .tabsCabals, .tabsUnvalued, .tabsStale, .tabsSettling, .tabsActivity, .tabsEmpty, .tabsError:
+                return AnyView(ProfileTabsSampleScreen(scenario: scenario))
+            default:
+                break
+            }
+            if let state = scenario.personState {
+                return AnyView(UserProfileSampleScreen(state: state))
+            }
+            return AnyView(ProfileSampleHarness(scenario: scenario, auth: auth))
         }
-        if let state = scenario.personState {
-            return AnyView(UserProfileSampleScreen(state: state))
-        }
-        return AnyView(ProfileSampleHarness(scenario: scenario, auth: auth))
     }
 }
 #endif

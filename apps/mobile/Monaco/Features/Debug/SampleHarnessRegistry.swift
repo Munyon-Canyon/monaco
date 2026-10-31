@@ -55,6 +55,23 @@ enum SampleHarnessRegistry {
 
 class SampleHarnessEntry: NSObject {
     @MainActor
+    static func scenarioRoot<Scenario: RawRepresentable>(
+        _: Scenario.Type, flag: String, arguments: [String], build: (Scenario) -> AnyView
+    ) -> AnyView? where Scenario.RawValue == String {
+        guard let index = arguments.firstIndex(of: flag) else { return nil }
+        let name = arguments.indices.contains(index + 1) ? arguments[index + 1] : ""
+        guard let scenario = Scenario(rawValue: name) else { return unknownScenario(name) }
+        return build(scenario)
+    }
+
+    static func unknownScenario(_ name: String) -> AnyView {
+        AnyView(
+            Text("Unknown sample scenario \(name)")
+                .font(.body)
+                .accessibilityIdentifier("sample-unknown-scenario"))
+    }
+
+    @MainActor
     class func root(arguments _: [String], auth _: PrivyAuthService) -> AnyView? {
         nil
     }
