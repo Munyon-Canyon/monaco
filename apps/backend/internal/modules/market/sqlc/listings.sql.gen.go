@@ -243,11 +243,12 @@ func (q *Queries) HaltMissingListings(ctx context.Context, arg HaltMissingListin
 }
 
 const listEnabledListingsForAsset = `-- name: ListEnabledListingsForAsset :many
-SELECT id, asset_id, issuer, symbol, network, chain_id, token_address, wrapper_address, decimals,
-  shares_per_token::text AS shares_per_token, venue, enabled, verified_at, created_at
-FROM asset_listings
-WHERE asset_id = $1 AND enabled
-ORDER BY network, issuer
+SELECT l.id, l.asset_id, l.issuer, l.symbol, l.network, l.chain_id, l.token_address, l.wrapper_address, l.decimals,
+  l.shares_per_token::text AS shares_per_token, l.venue, l.enabled, l.verified_at, l.created_at
+FROM asset_listings AS l
+JOIN assets AS a ON a.id = l.asset_id
+WHERE l.asset_id = $1 AND l.enabled AND (l.network <> 'solana' OR l.token_address = a.mint)
+ORDER BY l.network, l.issuer
 `
 
 type ListEnabledListingsForAssetRow struct {
