@@ -66,9 +66,12 @@ func unblocked(ctx context.Context, blocks Blocks, e events.CommentCreated, to i
 }
 
 func collapseID(e events.CommentCreated) string {
-	root := e.ParentCommentID
+	root := e.CommentID
+	if e.ParentCommentID != nil {
+		root = *e.ParentCommentID
+	}
 	if e.ReplyToRootID != nil {
-		root = e.ReplyToRootID
+		root = *e.ReplyToRootID
 	}
 	return "comment-" + root.String()
 }
