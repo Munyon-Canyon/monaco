@@ -39,7 +39,7 @@ func (p ledgerPositions) SolanaPositions(context.Context, ids.CabalID) ([]treasu
 	return p, nil
 }
 
-func (ledgerPositions) CabalPositionsAt(context.Context, time.Time) ([]treasuryport.CabalPositions, error) {
+func (ledgerPositions) EVMPositions(context.Context, ids.CabalID) ([]treasuryport.ListingPosition, error) {
 	return nil, nil
 }
 

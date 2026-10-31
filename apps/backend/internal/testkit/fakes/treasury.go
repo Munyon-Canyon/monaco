@@ -284,6 +284,21 @@ func (f *Treasury) CabalPositionsAt(_ context.Context, _ time.Time) ([]treasury.
 	return cloneCabalPositions(f.cabalPositionsAt), nil
 }
 
+func (f *Treasury) EVMPositions(_ context.Context, cabalID ids.CabalID) ([]treasury.ListingPosition, error) {
+	if err := f.Check("EVMPositions"); err != nil {
+		return nil, err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	var out []treasury.ListingPosition
+	for _, c := range cloneCabalPositions(f.cabalPositionsAt) {
+		if c.CabalID == cabalID {
+			out = append(out, c.Listings...)
+		}
+	}
+	return out, nil
+}
+
 func (f *Treasury) MemberStakesAt(_ context.Context, _ time.Time) ([]treasury.MemberStake, error) {
 	if err := f.Check("MemberStakesAt"); err != nil {
 		return nil, err

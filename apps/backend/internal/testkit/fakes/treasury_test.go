@@ -2,6 +2,7 @@ package fakes_test
 
 import (
 	"errors"
+	"math/big"
 	"reflect"
 	"sync"
 	"testing"
@@ -139,6 +140,7 @@ func TestTreasury_Faults(t *testing.T) {
 		"StakesOf":         func() error { _, err := fake.StakesOf(t.Context(), userID); return err },
 		"ShareUnitsAt":     func() error { _, err := fake.ShareUnitsAt(t.Context(), cabalID, userID, time.Time{}); return err },
 		"CabalPositionsAt": func() error { _, err := fake.CabalPositionsAt(t.Context(), time.Time{}); return err },
+		"EVMPositions":     func() error { _, err := fake.EVMPositions(t.Context(), cabalID); return err },
 		"MemberStakesAt":   func() error { _, err := fake.MemberStakesAt(t.Context(), time.Time{}); return err },
 	}
 	for name, call := range calls {
@@ -186,5 +188,21 @@ func TestTreasury_PotValueCanFailForMissingPrice(t *testing.T) {
 	_, err := fake.PotValue(t.Context(), ids.CabalIDFrom(ids.Real{}.NewV7()))
 	if errs.CodeOf(err) != errs.CodePriceUnavailable {
 		t.Fatalf("PotValue code = %s, want %s", errs.CodeOf(err), errs.CodePriceUnavailable)
+	}
+}
+
+func TestTreasury_EVMPositionsReadsOnlyTheAskedCabal(t *testing.T) {
+	t.Parallel()
+	w := newTreasuryWorld()
+	listing := treasury.ListingPosition{Key: "base:0xaa", Units: big.NewInt(5)}
+	w.fake.SetCabalPositionsAt([]treasury.CabalPositions{
+		{CabalID: w.cabalID, Listings: []treasury.ListingPosition{listing}},
+		{CabalID: w.otherCabalID, Listings: []treasury.ListingPosition{{Key: "base:0xbb", Units: big.NewInt(9)}}},
+	})
+
+	got, err := w.fake.EVMPositions(t.Context(), w.cabalID)
+
+	if err != nil || !reflect.DeepEqual(got, []treasury.ListingPosition{listing}) {
+		t.Fatalf("EVMPositions = (%+v, %v), want only the asked cabal's listing", got, err)
 	}
 }

@@ -242,7 +242,7 @@ func (h *ExecuteTradeHandler) tradable(
 
 func (h *ExecuteTradeHandler) held(asset string) tradeCheck {
 	return func(ctx context.Context, cmd ExecuteTrade, req *SwapRequest) (refusal, error) {
-		evm, err := evmListings(ctx, h.d.Ports.Positions, h.d.Layer.d.Clock.Now(), cmd.CabalID)
+		evm, err := evmListings(ctx, h.d.Ports.Positions, cmd.CabalID)
 		if err != nil {
 			return refusal{}, err
 		}

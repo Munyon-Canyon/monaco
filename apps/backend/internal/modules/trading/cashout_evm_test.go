@@ -6,7 +6,6 @@ import (
 	"slices"
 	"strconv"
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
 
@@ -17,10 +16,8 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/jupiter"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
-	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
-	"github.com/monaco/monaco/apps/backend/internal/testkit"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/marketfake"
 )
 
@@ -40,16 +37,10 @@ func (c *cashOutLots) SolanaPositions(context.Context, ids.CabalID) ([]treasuryp
 	}, nil
 }
 
-func (c *cashOutLots) CabalPositionsAt(context.Context, time.Time) ([]treasuryport.CabalPositions, error) {
-	return []treasuryport.CabalPositions{
-		{
-			CabalID:  ids.CabalIDFrom(uuid.Nil),
-			Listings: []treasuryport.ListingPosition{{Key: c.token, Units: big.NewInt(7)}},
-		},
-		{CabalID: c.cabal, Listings: []treasuryport.ListingPosition{
-			{Key: c.token, Units: big.NewInt(soldUnits)},
-			{Key: "base:0x00000000000000000000000000000000000000dd", Units: big.NewInt(0)},
-		}},
+func (c *cashOutLots) EVMPositions(context.Context, ids.CabalID) ([]treasuryport.ListingPosition, error) {
+	return []treasuryport.ListingPosition{
+		{Key: c.token, Units: big.NewInt(soldUnits)},
+		{Key: "base:0x00000000000000000000000000000000000000dd", Units: big.NewInt(0)},
 	}, nil
 }
 
@@ -60,8 +51,9 @@ func (c *cashOutLots) Sale(_ context.Context, asset string, _ uint64) (app.EVMSa
 
 type evmCashOut struct {
 	*routeEnv
-	lots *cashOutLots
-	job  uuid.UUID
+	lots   *cashOutLots
+	job    uuid.UUID
+	ledger app.Positions
 }
 
 const cashOutBridgeFee = 7_955
@@ -93,10 +85,14 @@ func (e *evmCashOut) cashOut(t *testing.T, needed uint64) error {
 }
 
 func (e *evmCashOut) cashOutIn(ctx context.Context, needed uint64) error {
+	var ledger app.Positions = e.lots
+	if e.ledger != nil {
+		ledger = e.ledger
+	}
 	return app.NewSellForCashOutHandler(app.SellForCashOutDeps{
 		Layer: e.layer(), UoW: e.uow, Reads: e.reads, Clock: e.clk, Venue: e.venue,
 		Holdings: app.LedgerHoldings{
-			Ledger: e.lots, Catalog: marketfake.NewCatalog(marketfake.Fixtures()...), USDC: usdcToken(), Clock: e.clk,
+			Ledger: ledger, Catalog: marketfake.NewCatalog(marketfake.Fixtures()...), USDC: usdcToken(),
 		},
 		Wallets: app.CabalWallets{Cabals: liveCabals{e: e.engineEnv}}, USDC: usdcToken(), Routes: e.exec(),
 		EVMSales: e.lots,
@@ -230,25 +226,20 @@ func TestSellForCashOut_aSolanaAndABaseLotBothSellToCoverMoreThanTheLargerLot(t 
 
 type brokenListings struct{ cashOutLots }
 
-func (brokenListings) CabalPositionsAt(context.Context, time.Time) ([]treasuryport.CabalPositions, error) {
-	return []treasuryport.CabalPositions{{Listings: []treasuryport.ListingPosition{{Key: "base:0x"}}}}, nil
+func (brokenListings) EVMPositions(context.Context, ids.CabalID) ([]treasuryport.ListingPosition, error) {
+	return []treasuryport.ListingPosition{{Key: "base:0x"}}, nil
 }
 
 func TestLedgerHoldings_refusesAListingPositionItCannotRead(t *testing.T) {
 	t.Parallel()
 	holdings := app.LedgerHoldings{
 		Ledger: &brokenListings{}, Catalog: marketfake.NewCatalog(marketfake.Fixtures()...), USDC: usdcToken(),
-		Clock: testkit.NewClock(clock.Real{}.Now()),
 	}
 	if _, err := holdings.Positions(t.Context(), ids.CabalID{}); errs.CodeOf(err) != errs.CodeDecodeFailed {
 		t.Fatalf("Positions err = %v, want decode_failed", err)
 	}
-	if _, err := (app.UnwiredPositions{}).CabalPositionsAt(
-		t.Context(),
-		time.Time{},
-	); errs.CodeOf(
-		err,
-	) != errs.CodeUpstreamUnavailable {
-		t.Fatalf("CabalPositionsAt err = %v, want upstream_unavailable", err)
+	if _, err := (app.UnwiredPositions{}).EVMPositions(t.Context(), ids.CabalID{}); errs.CodeOf(err) !=
+		errs.CodeUpstreamUnavailable {
+		t.Fatalf("EVMPositions err = %v, want upstream_unavailable", err)
 	}
 }
