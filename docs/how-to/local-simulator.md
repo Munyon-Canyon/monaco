@@ -126,6 +126,8 @@ The Homebrew formula (`mobai-app/tap/simslim`) is arm64 only. On an Intel Mac in
 availability handler spinning the app's main thread as soon as a text field takes focus, so
 XCUITest never sees the app idle (#3224).
 
+It also keeps `com.apple.gamed`, which base-slim's `apps` category would otherwise turn off. XCUITest launches the app through DTServiceHub, which waits on `gamed`: without it every `XCUIApplication.launch()` holds the new process about 10.6 s before it runs any code, and `PerfBudgetSampleUITests` reports a Home launch of about 13 s instead of about 2.2 s (#7383). simslim 0.13.0 keeps `gamed` on by itself; older versions, such as the v0.11.0 the Intel install uses, do not.
+
 ## SimSlim profiles
 
 `scripts/simslim-profile.json` is Monaco's SimSlim capability profile
