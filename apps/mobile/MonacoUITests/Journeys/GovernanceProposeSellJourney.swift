@@ -2,7 +2,7 @@ import XCTest
 
 enum GovernanceProposeSellJourney {
     static let id = "governance/propose-sell"
-    static let version = 7
+    static let version = 8
 
     static func recorder() -> JourneyRecorder {
         JourneyRecorder(journey: id, version: version)
@@ -35,7 +35,7 @@ enum GovernanceProposeSellJourney {
             let row = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'propose-sell-AAPL'")).firstMatch
             XCTAssertTrue(row.waitForExistence(timeout: 10), "S1.4: no AAPL holding within 10 s (#2136)")
             row.tap()
-            XCTAssertTrue(app.element("amount-keypad-screen").waitForExistence(timeout: 10), "S1.4: no keypad")
+            XCTAssertTrue(app.element("propose-amount-screen").waitForExistence(timeout: 10), "S1.4: no keypad")
             XCTAssertTrue(app.element("amount-keypad-source").exists, "S1.4: no keypad source")
             for chip in ["25%", "50%", "All"] {
                 XCTAssertTrue(
