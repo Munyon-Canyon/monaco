@@ -274,7 +274,7 @@ func insertParams(cmd Withdraw, now time.Time) sqlc.InsertWithdrawalParams {
 func (h *WithdrawHandler) failUnsent(ctx context.Context, cmd Withdraw, cause error) error {
 	code := errs.CodeOf(cause)
 	err := h.d.UoW.Do(ctx, func(ctx context.Context, tx db.Tx) error {
-		moved, err := sqlc.New(tx.Queries()).FailWithdrawal(ctx, sqlc.FailWithdrawalParams{
+		moved, err := sqlc.New(tx.Queries()).FailUnsentWithdrawal(ctx, sqlc.FailUnsentWithdrawalParams{
 			ID: cmd.ID, FailCode: string(code), CompletedAt: h.d.Clock.Now(),
 		})
 		if err != nil || moved == 0 {
