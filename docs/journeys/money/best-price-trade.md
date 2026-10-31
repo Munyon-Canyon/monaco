@@ -1,7 +1,7 @@
 ---
 id: money/best-price-trade
 title: Buy at the best price
-version: 3
+version: 4
 milestone: M24
 requires: [auth/sign-in]
 actors: [A]
@@ -41,7 +41,7 @@ The format of this doc is in [App journeys](../README.md).
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S2.1 | A | tap, tap, type, then tap | `cabal-action-propose`, `propose-kind-buy`, `monaco-search-field`, then the `propose-buy-stock-<symbol>` row for AAPL | `AAPL` | `amount-keypad-screen` shows within 10 s |
+| S2.1 | A | tap, tap, type, then tap | `cabal-action-propose`, `propose-kind-buy`, `monaco-search-field`, then the `propose-buy-stock-<symbol>` row for AAPL | `AAPL` | `propose-amount-screen` shows within 10 s |
 | S2.2 | A | tap, then tap | `amount-keypad-1`, then `amount-keypad-action` | `1` | `propose-review-screen` shows within 10 s with `propose-review-market-order` reading "Buy · market order", the cabal row, `propose-review-thesis` and `propose-review-stats` |
 | S2.3 | A | tap, then tap | `propose-review-send`, then Close | | `propose-review-sent` shows and the flow closes back to the cabal screen within 10 s |
 

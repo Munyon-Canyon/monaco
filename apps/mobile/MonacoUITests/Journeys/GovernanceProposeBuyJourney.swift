@@ -2,7 +2,7 @@ import XCTest
 
 enum GovernanceProposeBuyJourney {
     static let id = "governance/propose-buy"
-    static let version = 10
+    static let version = 11
 
     static let screenTimeout: TimeInterval = 15
     static let checkTimeout: TimeInterval = 10
@@ -174,7 +174,7 @@ enum GovernanceProposeBuyJourney {
             row.waitForExistence(timeout: checkTimeout), "\(step): no \(symbol) row within \(Int(checkTimeout)) s")
         row.tap()
         XCTAssertTrue(
-            app.element("amount-keypad-screen").waitForExistence(timeout: checkTimeout),
+            app.element("propose-amount-screen").waitForExistence(timeout: checkTimeout),
             "\(step): no keypad within \(Int(checkTimeout)) s"
         )
     }
