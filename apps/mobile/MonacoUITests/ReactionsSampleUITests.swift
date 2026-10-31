@@ -47,6 +47,10 @@ nonisolated final class ReactionsSampleUITests: XCTestCase {
         let app = launch("trayOpen")
         let more = first(app, prefix: "reaction-tray-more-")
         XCTAssertTrue(more.waitForExistence(timeout: 15), "the tray shows its plus")
+        let key = more.identifier.replacingOccurrences(of: "reaction-tray-more-", with: "")
+        let eyesChip = "reaction-chip-\(key)-1F440"
+        let before = element(app, eyesChip)
+        let start = before.exists ? Int(before.label.components(separatedBy: ", ")[1].prefix { $0.isNumber }) ?? 0 : 0
         more.tap()
         let picker = element(app, "emoji-picker")
         XCTAssertTrue(picker.waitForExistence(timeout: 10), "the plus opens the picker")
@@ -62,8 +66,11 @@ nonisolated final class ReactionsSampleUITests: XCTestCase {
         eyes.tap()
 
         XCTAssertTrue(picker.waitForNonExistence(timeout: 10), "picking dismisses the sheet")
-        let chip = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'eyes, 3 reactions'")).firstMatch
-        XCTAssertTrue(chip.waitForExistence(timeout: 10), "the eyes chip count goes up")
+        let count = start + 1
+        let expected = "eyes, \(count) \(count == 1 ? "reaction" : "reactions"), yours"
+        let chip = element(app, eyesChip)
+        expectation(for: NSPredicate(format: "label == %@", expected), evaluatedWith: chip)
+        waitForExpectations(timeout: 10)
     }
 
     @MainActor
