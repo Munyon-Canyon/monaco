@@ -230,3 +230,52 @@ func TestNotify_CommentMention_FixtureMatchesTheRenderedPush(t *testing.T) {
 
 	wantFixture(t, "comment_mention.apns", msg)
 }
+
+func topLevelMention(e events.CommentCreated, mentioned ...ids.UserID) events.CommentCreated {
+	e.ParentCommentID, e.ReplyToCommentID, e.ReplyToRootID = nil, nil, nil
+	e.ReplyToAuthorID, e.ReplyToExcerpt, e.ParentAuthorID, e.ReplyToUserID = nil, nil, nil, nil
+	e.MentionedUserIDs = uuidsOf(mentioned...)
+	return e
+}
+
+func TestQA_TopLevelCommentMentionRender(t *testing.T) {
+	t.Parallel()
+	golden := goldenEvent(t, events.TypeCommentCreated).(events.CommentCreated)
+	e := topLevelMention(golden, ids.UserIDFrom(*golden.ItemActorID))
+	kind := app.CommentMention{Users: users{}, Cabals: cabalsOf(e), Blocks: blocks{}}
+
+	msg, err := kind.Render(t.Context(), e, ids.UserID{})
+
+	if err != nil || msg.CollapseID != "comment-"+e.CommentID.String() {
+		t.Errorf("collapse id = %q, %v, want comment-%s", msg.CollapseID, err, e.CommentID)
+	}
+}
+
+func TestQA_TopLevelCommentMentionEndToEnd(t *testing.T) {
+	t.Parallel()
+	r := newPushRig(t)
+	owner, replier := r.follower(t, "ada", "Ada"), r.follower(t, "nora", "Nora")
+	mentioned := r.follower(t, "cleo", "Cleo")
+	r.device(t, owner, token('a'))
+	r.device(t, replier, token('b'))
+	r.device(t, mentioned, token('c'))
+	deps := module.Deps{Pool: r.pool, UoW: r.uow, IDs: r.ids, Clock: r.clock}
+	e := r.reply(t, owner, replier)
+	ownerID := owner.UUID()
+	e.ItemActorID, e.ItemKind, e.ItemNoun, e.ReplyRule = &ownerID, "result", "sale", "anyone"
+	e.Excerpt = "Nice one @cleo"
+	e = topLevelMention(e, mentioned)
+
+	d := r.dispatchTo(t, notify.New(deps, notify.WithSender(r.sender)), userActor(replier), e)
+
+	sent := r.sender.Sent()
+	kinds := map[ids.UserID]string{}
+	for _, p := range sent {
+		kinds[p.UserID] = p.Data["kind"]
+	}
+	if len(sent) != 2 || kinds[owner] != "post_reply" || kinds[mentioned] != "comment_mention" {
+		t.Fatalf("sent %+v, want a post_reply to Ada and a comment_mention to Cleo", sent)
+	}
+	r.wantStates(t, d, map[ids.UserID]string{owner: "delivered", mentioned: "delivered"})
+	r.wantCount(t, "notification rows", 2, `SELECT count(*) FROM notifications`)
+}
