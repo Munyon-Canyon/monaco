@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/netip"
 	"strconv"
 	"strings"
 	"time"
@@ -69,21 +70,51 @@ func (g guard) id(r *http.Request, s scope) (id, keyKind string, ok bool) {
 		}
 		return id, keyKind, ok
 	}
-	return clientIP(r, g.trustProxyHeaders), "ip", true
+	ip, source := clientIP(r, g.trustProxyHeaders)
+	observability.Debug(r.Context(), observability.RateLimitKeySource, slog.String("source", source))
+	return ip, "ip", true
 }
 
-func clientIP(r *http.Request, trustProxyHeaders bool) string {
+const (
+	cloudflareHeader = "CF-Connecting-IP"
+	forwardedHeader  = "X-Forwarded-For"
+	trustedProxyHops = 1
+	sourceCloudflare = "cf-connecting-ip"
+	sourceForwarded  = "x-forwarded-for"
+	sourceRemoteAddr = "remote-addr"
+)
+
+func clientIP(r *http.Request, trustProxyHeaders bool) (ip, source string) {
 	if trustProxyHeaders {
-		entries := strings.Split(strings.Join(r.Header.Values("X-Forwarded-For"), ","), ",")
-		if last := strings.TrimSpace(entries[len(entries)-1]); last != "" {
-			return last
+		if ip, source = proxiedIP(r); ip != "" {
+			return ip, source
 		}
 	}
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
-		return r.RemoteAddr
+		return r.RemoteAddr, sourceRemoteAddr
 	}
-	return host
+	return host, sourceRemoteAddr
+}
+
+func proxiedIP(r *http.Request) (ip, source string) {
+	if v := parsedIP(r.Header.Get(cloudflareHeader)); v != "" {
+		return v, sourceCloudflare
+	}
+	entries := strings.Split(strings.Join(r.Header.Values(forwardedHeader), ","), ",")
+	i := len(entries) - 1 - trustedProxyHops
+	if i < 0 {
+		return "", ""
+	}
+	return parsedIP(entries[i]), sourceForwarded
+}
+
+func parsedIP(v string) string {
+	addr, err := netip.ParseAddr(strings.TrimSpace(v))
+	if err != nil {
+		return ""
+	}
+	return addr.Unmap().String()
 }
 
 func (l *Limiter) failOpen(ctx context.Context, operation string, s scope, keyKind string, err error) {
