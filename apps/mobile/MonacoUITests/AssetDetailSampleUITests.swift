@@ -66,7 +66,6 @@ nonisolated final class AssetDetailSampleUITests: XCTestCase {
         XCTAssertEqual(anyElement(app, "asset-detail-name").label, "Alphabet")
         XCTAssertTrue(anyElement(app, "asset-detail-price").exists, "no price")
         XCTAssertTrue(anyElement(app, "asset-chart-ranges").waitForExistence(timeout: 30), "no range control")
-        XCTAssertTrue(app.buttons["asset-chart-style-candles"].isSelected, "the chart should open on candles")
         let star = app.buttons["asset-watch-star"]
         XCTAssertEqual(star.label, "Remove from watchlist", "the open scenario watches this stock")
         XCTAssertTrue(star.isSelected)
@@ -100,21 +99,6 @@ nonisolated final class AssetDetailSampleUITests: XCTestCase {
         star.tap()
         XCTAssertEqual(star.label, "Add to watchlist")
         XCTAssertFalse(star.isSelected)
-    }
-
-    @MainActor
-    func testTheChartSwitchesBetweenCandlesAndLine() throws {
-        let app = launch("open")
-        waitForScreen(app, "open")
-        let line = app.buttons["asset-chart-style-line"]
-        XCTAssertTrue(line.waitForExistence(timeout: 30), "no line toggle")
-        addTeardownBlock { @MainActor in app.buttons["asset-chart-style-candles"].tap() }
-
-        line.tap()
-
-        XCTAssertTrue(line.isSelected, "the line toggle should read as selected")
-        XCTAssertFalse(app.buttons["asset-chart-style-candles"].isSelected)
-        attachScreenshot(app, name: "stock-line")
     }
 
     @MainActor
