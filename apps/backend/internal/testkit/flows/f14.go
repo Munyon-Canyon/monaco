@@ -24,6 +24,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/testkit/chainfake"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/scenario"
+	"github.com/monaco/monaco/apps/backend/internal/testkit/swaptx"
 )
 
 const (
@@ -398,7 +399,17 @@ func jupiterSells(script string, raised string) scenario.Step {
 	return func(s *scenario.Scenario) {
 		mint := string(f14Stock(script))
 		payer := chain.AddressOf(fakes.FixtureKey("f14-relayer").Public().(ed25519.PublicKey))
-		unsigned := chainfake.Unsigned(payer, chainfake.WalletAddress(treasuryWalletID(s)))
+		unsigned := swaptx.Honest(swaptx.Spec{
+			Payer:  payer,
+			Wallet: chainfake.WalletAddress(treasuryWalletID(s)),
+			In: chain.Mint{
+				Address:  f14Stock(script),
+				Decimals: 8,
+			},
+			Out:       chain.Mint{Address: testkit.USDCMint, Decimals: 6},
+			InAmount:  f14StockUnits,
+			QuotedOut: f14StockQuote,
+		})
 		order, _ := json.Marshal(map[string]any{
 			"requestId": "req-f14-" + script, "inputMint": mint, "outputMint": testkit.USDCMint,
 			"inAmount": strconv.Itoa(f14StockUnits), "outAmount": strconv.Itoa(f14StockQuote),

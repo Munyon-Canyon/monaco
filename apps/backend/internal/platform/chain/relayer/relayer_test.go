@@ -2,6 +2,7 @@ package relayer_test
 
 import (
 	"bytes"
+	"context"
 	"crypto/ed25519"
 	"strconv"
 	"strings"
@@ -15,6 +16,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpclient"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
+	"github.com/monaco/monaco/apps/backend/internal/testkit/swaptx"
 )
 
 func TestCheckFloor_RefusesAtThreshold(t *testing.T) {
@@ -148,5 +150,90 @@ func TestCoSign_addsTheFeePayerSignature(t *testing.T) {
 	signed, err = relayer.WithKey(r, fakes.FixtureKey("stranger")).CoSign(t.Context(), build(payer, other))
 	if signed != nil || errs.CodeOf(err) != errs.CodeInternal {
 		t.Fatalf("CoSign with a key that cannot sign = %x, %v; want no bytes and internal", signed, err)
+	}
+}
+
+type tablesRPC struct {
+	relayer.RPC
+	tables chain.LookupTables
+	err    error
+	calls  int
+}
+
+func (r *tablesRPC) LookupTables(context.Context, []chain.SolanaAddress) (chain.LookupTables, error) {
+	r.calls++
+	return r.tables, r.err
+}
+
+func TestCoSign_refusesAnythingOutsideTheSwapPrograms(t *testing.T) {
+	t.Parallel()
+	cfg := keyConfig("relayer")
+	probe, _ := relayer.New(cfg, solana.New(cfg, clock.Real{}))
+	spec := swaptx.Spec{
+		Payer: probe.Address(), Wallet: swaptx.Address("treasury"), In: usdc(),
+		Out: chain.Mint{Address: feeMint, Decimals: 8}, InAmount: 25_000_000, QuotedOut: 11_000_000, SlippageBps: 50,
+	}
+	honest := swaptx.HonestTx(spec)
+	with := func(ix swaptx.Ix) swaptx.Tx {
+		tx := honest
+		tx.Ixs = append(append([]swaptx.Ix(nil), honest.Ixs...), ix)
+		return tx
+	}
+	token := func(tag byte) swaptx.Ix {
+		return swaptx.Ix{Program: chain.SPLProgram, Data: []byte{tag}, Accounts: []chain.SolanaAddress{spec.Wallet}}
+	}
+	rpc := &tablesRPC{}
+	r, _ := relayer.New(cfg, rpc)
+	signed, err := r.CoSign(t.Context(), honest.Bytes())
+	if tx, _ := chain.DecodeTransaction(signed); err != nil || !tx.Signed(0) || rpc.calls != 0 {
+		t.Fatalf("CoSign of an honest swap = %v, %d table reads", err, rpc.calls)
+	}
+	for name, tx := range map[string]swaptx.Tx{
+		"unknown program": with(swaptx.Ix{Program: swaptx.Address("drainer"), Data: []byte{1}}),
+		"set authority":   with(token(6)),
+		"close account":   with(token(9)),
+		"transfer":        with(token(3)),
+	} {
+		signed, err := r.CoSign(t.Context(), tx.Bytes())
+		if signed != nil || errs.CodeOf(err) != errs.CodeInvalidInput {
+			t.Fatalf("%s: CoSign = %x, %v; want no bytes and invalid_input", name, signed, err)
+		}
+	}
+}
+
+func TestCoSign_readsTheLookupTablesBeforeJudgingTheInstructions(t *testing.T) {
+	t.Parallel()
+	cfg := keyConfig("relayer")
+	probe, _ := relayer.New(cfg, solana.New(cfg, clock.Real{}))
+	spec := swaptx.Spec{
+		Payer: probe.Address(), Wallet: swaptx.Address("treasury"), In: usdc(),
+		Out: chain.Mint{Address: feeMint, Decimals: 8}, InAmount: 25_000_000, QuotedOut: 11_000_000, SlippageBps: 50,
+	}
+	honest := swaptx.HonestTx(spec)
+	honest.Table, honest.Tabled = swaptx.Address("table"), []chain.SolanaAddress{
+		spec.Out.Address, usdc().Address, swaptx.Address("event-authority"),
+	}
+	rpc := &tablesRPC{tables: honest.Tables()}
+	r, _ := relayer.New(cfg, rpc)
+	if _, err := r.CoSign(t.Context(), honest.Bytes()); err != nil || rpc.calls != 1 {
+		t.Fatalf("CoSign with a table = %v after %d table reads, want one read and success", err, rpc.calls)
+	}
+	rpc = &tablesRPC{err: errs.New(errs.CodeRPCUnavailable, "test")}
+	r, _ = relayer.New(cfg, rpc)
+	if signed, err := r.CoSign(
+		t.Context(),
+		honest.Bytes(),
+	); signed != nil ||
+		errs.CodeOf(err) != errs.CodeRPCUnavailable {
+		t.Fatalf("CoSign when the table cannot be read = %x, %v; want no bytes and rpc_unavailable", signed, err)
+	}
+	rpc = &tablesRPC{tables: chain.LookupTables{honest.Table: nil}}
+	r, _ = relayer.New(cfg, rpc)
+	if signed, err := r.CoSign(
+		t.Context(),
+		honest.Bytes(),
+	); signed != nil ||
+		errs.CodeOf(err) != errs.CodeInvalidInput {
+		t.Fatalf("CoSign with an empty table = %x, %v; want no bytes and invalid_input", signed, err)
 	}
 }

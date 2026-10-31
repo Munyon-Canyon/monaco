@@ -62,6 +62,10 @@ type Signer interface {
 	) (signed []byte, signature chain.Signature, err error)
 }
 
+type LookupTables interface {
+	LookupTables(ctx context.Context, tables []chain.SolanaAddress) (chain.LookupTables, error)
+}
+
 type SigState uint8
 
 const (

@@ -2,6 +2,8 @@ package jupiterfake
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/binary"
 	"encoding/json"
 	"log/slog"
 	"math"
@@ -13,10 +15,12 @@ import (
 	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/jupiter"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
+	"github.com/monaco/monaco/apps/backend/internal/testkit/swaptx"
 )
 
 type pair struct{ in, out string }
@@ -26,6 +30,7 @@ type Venue struct {
 
 	mu       sync.Mutex
 	orders   map[pair]jupiter.Order
+	raw      map[pair]bool
 	quotes   map[pair]jupiter.Quote
 	limits   map[pair]uint64
 	slippage []int64
@@ -50,6 +55,16 @@ func (v *Venue) SetOrder(in, out jupiter.Mint, o jupiter.Order) {
 		v.orders = map[pair]jupiter.Order{}
 	}
 	v.orders[pair{in.Address, out.Address}] = o
+}
+
+func (v *Venue) SetRawOrder(in, out jupiter.Mint, o jupiter.Order) {
+	v.SetOrder(in, out, o)
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	if v.raw == nil {
+		v.raw = map[pair]bool{}
+	}
+	v.raw[pair{in.Address, out.Address}] = true
 }
 
 func (v *Venue) SetQuote(in, out jupiter.Mint, q jupiter.Quote) {
@@ -113,7 +128,30 @@ func (v *Venue) Order(_ context.Context, spec jupiter.OrderSpec) (jupiter.Order,
 	if o.MinOut == (money.BaseUnits{}) {
 		o.MinOut = minOut(o.OutAmount, spec.SlippageBps)
 	}
+	if !v.raw[pair{spec.In.Address, spec.Out.Address}] {
+		o.Transaction = honest(spec, o)
+	}
 	return o, nil
+}
+
+func honest(spec jupiter.OrderSpec, o jupiter.Order) []byte {
+	seed := sha256.Sum256(o.Transaction)
+	out, floor := o.OutAmount.Uint64(), o.MinOut.Uint64()
+	slippage := new(big.Int).Mul(new(big.Int).SetUint64(out-min(floor, out)), big.NewInt(10_000))
+	if out > 0 {
+		slippage.Quo(slippage, new(big.Int).SetUint64(out))
+	}
+	payer := chain.SolanaAddress(spec.Payer)
+	if payer == "" {
+		payer = swaptx.Address("payer")
+	}
+	return swaptx.Honest(swaptx.Spec{
+		Payer: payer, Wallet: chain.SolanaAddress(spec.Taker),
+		In:       chain.Mint{Address: chain.SolanaAddress(spec.In.Address), Decimals: spec.In.Decimals},
+		Out:      chain.Mint{Address: chain.SolanaAddress(spec.Out.Address), Decimals: spec.Out.Decimals},
+		InAmount: spec.Amount.Uint64(), QuotedOut: out, SlippageBps: swaptx.Bps(slippage.Uint64()),
+		Nonce: binary.BigEndian.Uint64(seed[:8]),
+	})
 }
 
 func minOut(out money.BaseUnits, slippageBps int64) money.BaseUnits {

@@ -194,13 +194,24 @@ func (l *Ledger) SignatureStatuses(_ context.Context, sigs []chain.Signature) ([
 	return out, nil
 }
 
-func Relayer() *relayer.Relayer {
+func Relayer() *relayer.Relayer { return RelayerWith(nil) }
+
+func RelayerWith(rpc relayer.RPC) *relayer.Relayer {
 	key := chain.EncodeBase58(fakes.FixtureKey("chainfake-relayer"))
-	r, err := relayer.New(config.Config{Relayer: config.Relayer{PrivateKey: key}}, nil)
+	r, err := relayer.New(config.Config{Relayer: config.Relayer{PrivateKey: key}}, rpc)
 	if err != nil {
 		panic(err)
 	}
 	return r
+}
+
+type Tables struct {
+	relayer.RPC
+	Loaded chain.LookupTables
+}
+
+func (t Tables) LookupTables(context.Context, []chain.SolanaAddress) (chain.LookupTables, error) {
+	return t.Loaded, nil
 }
 
 func RelayerAddress() chain.SolanaAddress { return Relayer().Address() }
