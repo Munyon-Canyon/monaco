@@ -683,3 +683,25 @@ func TestRegistry_startFailsWithoutTheStream(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestRegistry_aMaxDeliveriesLetterCarriesTheEventPayloadSoItOutlivesEvents(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	always := bus.Handle("notify.push", func(context.Context, db.Tx, events.SystemPinged, time.Time) error {
+		return errs.New(errs.CodeUpstreamUnavailable, "apns.Send")
+	})
+	reg := h.registry(t, bus.Consumer{Durable: durable, Handlers: []bus.HandlerSpec{always}, NakDelays: quick()})
+	startRegistry(h.ctx(t), t, reg)
+	id, payload := h.appendPing(t)
+	h.publish(t, id, payload)
+
+	letter := h.waitDeadLetters(t, 1)[0]
+	if letter.Subject != h.bus.Conn.Subject(events.TypeSystemPinged.Subject()) ||
+		!bytes.Equal(letter.Data, compact(t, payload)) {
+		t.Fatalf("letter = %+v, want the ping's subject and payload %s", letter, payload)
+	}
+	if err := h.bus.JS.DeleteStream(t.Context(), h.bus.Events); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _, _ = h.bus.Conn.Apply(context.WithoutCancel(t.Context())) })
+}

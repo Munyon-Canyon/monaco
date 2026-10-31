@@ -159,7 +159,7 @@ func (r *Registry) decode(handlers []HandlerSpec, msg jetstream.Msg) (ids.EventI
 }
 
 func failed(handler string, err error) result {
-	code := errs.CodeOf(err)
+	code := db.CodeOf(err)
 	res := result{handler: handler, outcome: OutcomeTerm, code: string(code), err: err}
 	if errs.VerdictFor(code) == errs.VerdictNak {
 		res.outcome = OutcomeNak

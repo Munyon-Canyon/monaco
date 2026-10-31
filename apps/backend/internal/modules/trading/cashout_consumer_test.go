@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	busevents "github.com/monaco/monaco/apps/backend/internal/events"
@@ -381,6 +382,25 @@ func TestCashOutSell_RetryableFailureBeforeTheLastDelivery_NaksAndRecordsNothing
 			"block and no alert", msg.verdict, b.recordedAs(t, msg, string(errs.CodeJupiterUnavailable)),
 			len(b.blocked(t)), b.legs(t), b.alerts(t))
 	}
+}
+
+func TestCashOutSell_ATransientDatabaseErrorWrappedAsInternalNaksUntilTheLastDelivery(t *testing.T) {
+	t.Parallel()
+	blip := errs.Wrap(&pgconn.PgError{Code: "57014"}, errs.CodeInternal, "test")
+	b := newCashOutBus(t)
+	b.jup.Fail("Quote", blip)
+	msg := b.started(t, 60_000_000)
+	msg.delivered = bus.MaxDeliver - 1
+
+	b.dispatch(t, msg)
+	if msg.verdict != "nak" || len(b.blocked(t)) != 0 || len(b.legs(t)) != 0 || len(b.alerts(t)) != 0 {
+		t.Fatalf("verdict %q, %d blocked, legs %+v, alerts %+v; want a nak with nothing written",
+			msg.verdict, len(b.blocked(t)), b.legs(t), b.alerts(t))
+	}
+	last := b.redeliver(msg)
+	last.delivered = bus.MaxDeliver
+	b.dispatch(t, last)
+	b.assertGaveUp(t, last, errs.CodeDBUnavailable, true)
 }
 
 type racingVenue struct {

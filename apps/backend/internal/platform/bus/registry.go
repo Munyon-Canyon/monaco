@@ -366,6 +366,9 @@ func (r *Registry) forwardAdvisory(ctx context.Context, msg *nats.Msg) {
 	_ = json.Unmarshal(msg.Data, &advisory)
 	letter := DeadLetter{Consumer: consumer, MsgID: consumer + "/" + strconv.FormatUint(advisory.StreamSeq, 10)}
 	letter.Advisory = rawJSON(msg.Data)
+	if event, err := r.conn.EventAt(ctx, advisory.StreamSeq); err == nil {
+		letter.Subject, letter.Data, letter.Headers = event.Subject, rawJSON(event.Data), event.Header
+	}
 	r.deadLetter(ctx, consumer, letter, "advisory")
 }
 

@@ -24,6 +24,14 @@ func TestClassify_mapsEachFailureToOneCode(t *testing.T) {
 		"connection exception":  {&pgconn.PgError{Code: "08006"}, errs.CodeDBUnavailable},
 		"admin shutdown":        {&pgconn.PgError{Code: "57P01"}, errs.CodeDBUnavailable},
 		"constraint violation":  {&pgconn.PgError{Code: "23514"}, errs.CodeInternal},
+		"too many connections":  {&pgconn.PgError{Code: "53300"}, errs.CodeDBUnavailable},
+		"out of memory":         {&pgconn.PgError{Code: "53200"}, errs.CodeDBUnavailable},
+		"disk full":             {&pgconn.PgError{Code: "53100"}, errs.CodeDBUnavailable},
+		"io error":              {&pgconn.PgError{Code: "58030"}, errs.CodeDBUnavailable},
+		"statement timeout":     {&pgconn.PgError{Code: "57014"}, errs.CodeDBUnavailable},
+		"lock timeout":          {&pgconn.PgError{Code: "55P03"}, errs.CodeDBUnavailable},
+		"failover read only":    {&pgconn.PgError{Code: "25006"}, errs.CodeDBUnavailable},
+		"idle in transaction":   {&pgconn.PgError{Code: "25P03"}, errs.CodeDBUnavailable},
 		"network":               {&net.OpError{Op: "dial", Err: io.EOF}, errs.CodeDBUnavailable},
 		"safe to retry":         {beforeSendError{}, errs.CodeDBUnavailable},
 		"plain":                 {io.ErrUnexpectedEOF, errs.CodeInternal},
@@ -34,6 +42,12 @@ func TestClassify_mapsEachFailureToOneCode(t *testing.T) {
 		"internal wrapping a connection exception": {internal(&pgconn.PgError{Code: "08006"}), errs.CodeDBUnavailable},
 		"internal wrapping a serialization failure": {
 			internal(&pgconn.PgError{Code: "40001"}), errs.CodeDBUnavailable,
+		},
+		"internal wrapping a statement timeout": {
+			internal(&pgconn.PgError{Code: "57014"}), errs.CodeDBUnavailable,
+		},
+		"internal wrapping too many connections": {
+			internal(&pgconn.PgError{Code: "53300"}), errs.CodeDBUnavailable,
 		},
 		"internal wrapping a network error": {
 			internal(&net.OpError{Op: "read", Err: io.EOF}), errs.CodeDBUnavailable,

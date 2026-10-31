@@ -16,6 +16,11 @@ const (
 	pgDeadlockDetected     = "40P01"
 	pgConnectionClass      = "08"
 	pgOperatorIntervention = "57P"
+	pgInsufficientResource = "53"
+	pgSystemError          = "58"
+	pgLockNotAvailable     = "55P03"
+	pgReadOnlyTransaction  = "25006"
+	pgIdleInTransaction    = "25P03"
 	pgUndefinedTable       = "42P01"
 	pgUniqueViolation      = "23505"
 )
@@ -41,6 +46,19 @@ func classify(err error, op string) error {
 	return errs.Wrap(err, codeFor(err), op)
 }
 
+func unavailable(sqlState string) bool {
+	switch sqlState {
+	case pgQueryCanceled, pgLockNotAvailable, pgReadOnlyTransaction, pgIdleInTransaction:
+		return true
+	}
+	for _, class := range []string{pgConnectionClass, pgOperatorIntervention, pgInsufficientResource, pgSystemError} {
+		if strings.HasPrefix(sqlState, class) {
+			return true
+		}
+	}
+	return false
+}
+
 func codeFor(err error) errs.Code {
 	var pg *pgconn.PgError
 	var netErr net.Error
@@ -48,7 +66,7 @@ func codeFor(err error) errs.Code {
 	case transient(err):
 		return errs.CodeDBUnavailable
 	case errors.As(err, &pg):
-		if strings.HasPrefix(pg.Code, pgConnectionClass) || strings.HasPrefix(pg.Code, pgOperatorIntervention) {
+		if unavailable(pg.Code) {
 			return errs.CodeDBUnavailable
 		}
 		return errs.CodeInternal
@@ -61,3 +79,11 @@ func codeFor(err error) errs.Code {
 }
 
 func CodeFor(err error) errs.Code { return codeFor(err) }
+
+func CodeOf(err error) errs.Code {
+	code := errs.CodeOf(err)
+	if code == errs.CodeInternal && codeFor(err) == errs.CodeDBUnavailable {
+		return errs.CodeDBUnavailable
+	}
+	return code
+}

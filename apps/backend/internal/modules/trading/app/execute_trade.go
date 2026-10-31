@@ -117,7 +117,7 @@ func failedOutcome(code domain.FailureCode) errs.Code {
 }
 
 func (h *ExecuteTradeHandler) checkFailed(ctx context.Context, d bus.Delivery, cmd ExecuteTrade, err error) error {
-	code := errs.CodeOf(err)
+	code := db.CodeOf(err)
 	if errs.Retryable(code) && !d.Final {
 		return err
 	}

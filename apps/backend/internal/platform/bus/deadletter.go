@@ -153,7 +153,7 @@ func (c *Conn) Redeliver(ctx context.Context, letter DeadLetter, suffix string) 
 		return errs.New(errs.CodeNotFound, op, attrs...)
 	}
 	msg := &nats.Msg{Subject: letter.Subject, Data: letter.Data, Header: letter.Headers}
-	if letter.Advisory != nil {
+	if letter.Advisory != nil && len(letter.Data) == 0 {
 		var advisory struct {
 			StreamSeq uint64 `json:"stream_seq"`
 		}

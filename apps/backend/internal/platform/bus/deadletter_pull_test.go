@@ -1,6 +1,7 @@
 package bus_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -138,5 +139,25 @@ func TestRedeliver_republishesTheEventAnAdvisoryPointsAtUnderItsOriginalEventID(
 	gone := bus.DeadLetter{Seq: 8, Consumer: "notify", Advisory: json.RawMessage(`{"stream_seq":99}`)}
 	if err := h.bus.Conn.Redeliver(t.Context(), gone, "retry"); errs.CodeOf(err) != errs.CodeNotFound {
 		t.Fatalf("Redeliver of a gone event = %v, want not_found", err)
+	}
+}
+
+func TestRedeliver_republishesAnAdvisoryLetterFromItsStoredPayloadAfterEventsExpired(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	id, payload := h.appendPing(t)
+	letter := bus.DeadLetter{
+		Seq: 7, Consumer: "notify", Advisory: json.RawMessage(`{"stream_seq":99}`),
+		Subject: h.bus.Conn.Subject(events.TypeSystemPinged.Subject()), Data: payload,
+		Headers: nats.Header{bus.EventIDHeader: []string{id.String()}},
+	}
+
+	if err := h.bus.Conn.Redeliver(t.Context(), letter, "retry"); err != nil {
+		t.Fatal(err)
+	}
+	again, err := h.bus.Conn.EventAt(t.Context(), 1)
+	if err != nil || again.Header.Get(bus.EventIDHeader) != id.String() || !bytes.Equal(again.Data, payload) ||
+		again.Header.Get(bus.RedrivenHeader) != "notify" {
+		t.Fatalf("EventAt(1) = %+v, %v, want the payload republished for notify", again, err)
 	}
 }
