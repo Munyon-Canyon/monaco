@@ -45,7 +45,7 @@ nonisolated final class CabalPictureRemoveSampleUITests: XCTestCase {
 
         XCTAssertFalse(
             element(app, "cabal-picture-remove-button").exists, "no red button sits under the mark in the hero")
-        XCTAssertEqual(mark.frame.minX, 20, accuracy: 0.5, "the cover starts on the gutter")
+        XCTAssertEqual(mark.frame.minX, 16, accuracy: 0.5, "the cover starts on the 16 pt F gutter")
         screenshot(app, "hero")
 
         askToRemove(app, mark)
@@ -65,17 +65,17 @@ nonisolated final class CabalPictureRemoveSampleUITests: XCTestCase {
     }
 
     @MainActor
-    func testCabalSettingsKeepsItsRemoveButtonAndAsksBeforeUsingIt() {
+    func testEditNameAndPictureKeepsItsRemoveButtonAndAsksBeforeUsingIt() {
         let app = launch("picture")
-        let details = element(app, "cabal-details-button")
-        XCTAssertTrue(details.waitForExistence(timeout: 40), "the toolbar opens Cabal information")
-        details.tap()
-        let edit = element(app, "cabal-rules-edit")
-        app.scrollIntoReach(edit)
-        XCTAssertTrue(edit.waitForExistence(timeout: 15), "the creator can open Cabal settings")
+        let more = element(app, "cabal-more-button")
+        XCTAssertTrue(more.waitForExistence(timeout: 40), "the toolbar has More")
+        more.tap()
+        let edit = element(app, "cabal-more-edit")
+        XCTAssertTrue(edit.waitForExistence(timeout: 5), "More offers Edit name and picture")
         edit.tap()
         let remove = element(app, "cabal-picture-remove-button")
-        XCTAssertTrue(remove.waitForExistence(timeout: 15), "Cabal settings keeps Remove picture under its mark")
+        XCTAssertTrue(
+            remove.waitForExistence(timeout: 15), "Edit name and picture keeps Remove picture under its mark")
         screenshot(app, "settings")
         remove.tap()
         XCTAssertTrue(
