@@ -18,9 +18,9 @@ nonisolated final class AssetChartSampleUITests: XCTestCase {
     }
 
     @MainActor
-    private func launch(holdsSelection: Bool = false, scenario: String = "candles") -> XCUIApplication {
+    private func launch(holdsSelection: Bool = false, scenario: String = "open") -> XCUIApplication {
         let app = XCUIApplication()
-        app.launchArguments = ["-MonacoAssetDetailSample", scenario, "-asset-chart-style", "candles"]
+        app.launchArguments = ["-MonacoAssetDetailSample", scenario]
         if holdsSelection { app.launchArguments.append("-MonacoScrubHolds") }
         app.launch()
         return app
@@ -44,27 +44,25 @@ nonisolated final class AssetChartSampleUITests: XCTestCase {
         let app = launch()
         let chart = element(app, "asset-detail-chart")
         XCTAssertTrue(chart.waitForExistence(timeout: 30), "no chart")
-        XCTAssertTrue(element(app, "asset-chart-interval").exists, "no interval picker")
-        XCTAssertTrue(element(app, "asset-chart-style").exists, "no style toggle")
         XCTAssertFalse(app.buttons["asset-chart-jump"].exists, "the jump button shows at the latest bar")
-        attach(app, "candles-initial")
+        attach(app, "chart-initial")
 
         chart.pinch(withScale: 2.5, velocity: 2)
         XCTAssertTrue(chart.exists)
-        attach(app, "candles-pinched-in")
+        attach(app, "chart-pinched-in")
 
         chart.swipeRight()
         XCTAssertTrue(app.buttons["asset-chart-jump"].waitForExistence(timeout: 10), "no jump button after panning")
-        attach(app, "candles-panned")
+        attach(app, "chart-panned")
 
         app.buttons["asset-chart-jump"].tap()
         let gone = XCTNSPredicateExpectation(
             predicate: NSPredicate(format: "exists == false"), object: app.buttons["asset-chart-jump"])
         XCTAssertEqual(XCTWaiter().wait(for: [gone], timeout: 10), .completed, "the jump button stayed")
-        attach(app, "candles-back-at-latest")
+        attach(app, "chart-back-at-latest")
 
         chart.pinch(withScale: 0.4, velocity: -2)
-        attach(app, "candles-pinched-out")
+        attach(app, "chart-pinched-out")
     }
 
     @MainActor
@@ -77,7 +75,7 @@ nonisolated final class AssetChartSampleUITests: XCTestCase {
         chart.swipeUp()
 
         XCTAssertLessThan(chart.frame.minY, before - 20, "the page did not scroll under a vertical swipe on the chart")
-        attach(app, "candles-page-scrolled")
+        attach(app, "chart-page-scrolled")
     }
 
     @MainActor
@@ -94,21 +92,19 @@ nonisolated final class AssetChartSampleUITests: XCTestCase {
 
         XCTAssertTrue(element(app, "asset-chart-crosshair").waitForExistence(timeout: 5), "no crosshair")
         XCTAssertNotEqual(price.label, before, "the hero price did not follow the crosshair")
-        attach(app, "candles-crosshair")
+        attach(app, "chart-crosshair")
     }
 
     @MainActor
-    func testLineStyleKeepsTheChart() throws {
-        let app = launch()
-        XCTAssertTrue(element(app, "asset-detail-chart").waitForExistence(timeout: 30), "no chart")
-        app.buttons["Line"].tap()
-        XCTAssertTrue(element(app, "asset-detail-chart").exists)
-        attach(app, "line-style")
+    func testUnknownScenarioFailsLoudly() throws {
+        let app = launch(scenario: "noSuchScenario")
+        XCTAssertTrue(
+            element(app, "sample-unknown-scenario").waitForExistence(timeout: 30), "no unknown-scenario screen")
     }
 
     @MainActor
     func testPanHitchesWithThreeHundredBars() throws {
-        try measurePan(scenario: "candles")
+        try measurePan(scenario: "open")
     }
 
     @MainActor
@@ -137,7 +133,7 @@ nonisolated final class AssetChartSampleUITests: XCTestCase {
 
     @MainActor
     func testPageScrollBaseline() throws {
-        try measurePan(scenario: "candles", baseline: true)
+        try measurePan(scenario: "open", baseline: true)
     }
 
     @MainActor
@@ -173,20 +169,16 @@ nonisolated final class AssetChartSampleUITests: XCTestCase {
 
     @MainActor
     func testScenarioScreenshots() throws {
-        let shots: [(name: String, scenario: String, style: String)] = [
-            ("asset-candles", "candles", "candles"),
-            ("asset-open", "open", "candles"),
-            ("asset-candles-line", "candles", "line"),
-            ("asset-candles-long", "candlesLong", "candles"),
-            ("asset-empty-chart", "emptyChart", "candles"),
-            ("asset-chart-failed", "chartFailed", "candles"),
-            ("asset-candles-sparse", "candlesSparse", "candles"),
-            ("asset-candles-sparse-raw", "candlesSparse", "candles"),
+        let shots: [(name: String, scenario: String)] = [
+            ("asset-open", "open"),
+            ("asset-candles-long", "candlesLong"),
+            ("asset-empty-chart", "emptyChart"),
+            ("asset-chart-failed", "chartFailed"),
+            ("asset-candles-sparse", "candlesSparse"),
         ]
         for shot in shots {
             let app = XCUIApplication()
-            app.launchArguments = ["-MonacoAssetDetailSample", shot.scenario, "-asset-chart-style", shot.style]
-            if shot.name.hasSuffix("-raw") { app.launchArguments.append("-MonacoRawCandles") }
+            app.launchArguments = ["-MonacoAssetDetailSample", shot.scenario]
             app.launch()
             XCTAssertTrue(app.staticTexts["asset-detail-name"].waitForExistence(timeout: 30), shot.name)
             _ = XCTWaiter().wait(for: [XCTestExpectation()], timeout: 2)

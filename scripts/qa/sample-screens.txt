@@ -365,6 +365,7 @@ asset-many-closed             -MonacoAssetDetailSample manyClosed
 asset-loss                    -MonacoAssetDetailSample loss
 asset-stats-dashes            -MonacoAssetDetailSample statsDashes
 asset-candles-sparse          -MonacoAssetDetailSample candlesSparse
+asset-candles-long            -MonacoAssetDetailSample candlesLong
 asset-no-holders              -MonacoAssetDetailSample noHolders
 asset-no-proposals            -MonacoAssetDetailSample noProposals
 asset-pre-market              -MonacoAssetDetailSample preMarket

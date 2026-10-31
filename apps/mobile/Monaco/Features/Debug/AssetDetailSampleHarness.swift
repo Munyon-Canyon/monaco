@@ -9,6 +9,7 @@ enum AssetDetailSampleScenario: String, CaseIterable {
     case loss
     case statsDashes
     case candlesSparse
+    case candlesLong
     case noHolders
     case noProposals
     case preMarket
@@ -27,11 +28,9 @@ enum AssetDetailSampleScenario: String, CaseIterable {
     static let launchArgument = "-MonacoAssetDetailSample"
     private static let staleMinutes: TimeInterval = 14
 
-    static func matching(_ arguments: [String]) -> AssetDetailSampleScenario? {
-        guard let flag = arguments.firstIndex(of: launchArgument), arguments.indices.contains(flag + 1) else {
-            return nil
-        }
-        return AssetDetailSampleScenario(rawValue: arguments[flag + 1])
+    static func requestedName(_ arguments: [String]) -> String? {
+        guard let flag = arguments.firstIndex(of: launchArgument) else { return nil }
+        return arguments.indices.contains(flag + 1) ? arguments[flag + 1] : ""
     }
 
     var script: SampleAPIScript {
@@ -42,6 +41,7 @@ enum AssetDetailSampleScenario: String, CaseIterable {
         case .loss: script.makeLoss()
         case .statsDashes: script.show(.nvdaDashes)
         case .candlesSparse: script.sparseCandles = true
+        case .candlesLong: script.candleCount = 2_200
         case .noHolders: script.cabalCount = 0
         case .preMarket: script.asset.session = .preMarket
         case .afterHours: script.asset.session = .afterHours
@@ -130,7 +130,13 @@ extension SampleAPIScript {
 final class AssetDetailSampleHarnessEntry: SampleHarnessEntry {
     @MainActor
     override class func root(arguments: [String], auth: PrivyAuthService) -> AnyView? {
-        guard let scenario = AssetDetailSampleScenario.matching(arguments) else { return nil }
+        guard let name = AssetDetailSampleScenario.requestedName(arguments) else { return nil }
+        guard let scenario = AssetDetailSampleScenario(rawValue: name) else {
+            return AnyView(
+                Text("Unknown sample scenario \(name)")
+                    .font(.body)
+                    .accessibilityIdentifier("sample-unknown-scenario"))
+        }
         let script = scenario.script
         SampleAPIProtocol.install(script)
         MarketsSampleCatalog.install(watched: scenario == .open ? [script.asset.symbol] : [])
