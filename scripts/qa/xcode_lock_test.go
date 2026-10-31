@@ -891,6 +891,55 @@ func TestXcodeLockSameDerivedDataSerializes(t *testing.T) {
 	}
 }
 
+// Lanes pass the relative ".build/DerivedData", so an xcodebuild outside the lock blocks only
+// callers whose own checkout resolves to the same directory.
+func TestXcodeLockMatchesARelativeDerivedDataPathByCheckout(t *testing.T) {
+	t.Parallel()
+	e := newLockEnv(t)
+	busy := filepath.Join(e.dir, "busy")
+	free := filepath.Join(e.dir, "free")
+	for _, dir := range []string{busy, free} {
+		if err := os.MkdirAll(filepath.Join(dir, ".build"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	release := filepath.Join(e.dir, "orphan.release")
+	fake := filepath.Join(e.dir, "bin", "xcodebuild")
+	writeExecutable(t, fake, "#!/bin/sh\nwhile [ ! -e \"$ORPHAN_RELEASE\" ]; do sleep 0.05; done\n")
+	orphan := exec.Command(fake, "-project", "Monaco.xcodeproj", "-derivedDataPath", ".build/DerivedData", "build")
+	orphan.Dir = busy
+	orphan.Env = append(os.Environ(), "ORPHAN_RELEASE="+release)
+	if err := orphan.Start(); err != nil {
+		t.Fatal(err)
+	}
+	orphanDone := make(chan error, 1)
+	go func() { orphanDone <- orphan.Wait() }()
+	t.Cleanup(func() {
+		_ = orphan.Process.Kill()
+		<-orphanDone
+	})
+
+	freeRan := filepath.Join(e.dir, "free.ran")
+	other := e.start(free, nil, "xcode", "sh", "-c", `touch "$1"`, "sh", freeRan, "-derivedDataPath", ".build/DerivedData")
+	eventually(t, "the other checkout's caller to run beside the orphan", func() bool { return exists(freeRan) })
+	if code := other.wait(t); code != 0 {
+		t.Fatalf("other checkout's caller exited %d\n%s", code, other.stderr.String())
+	}
+
+	busyRan := filepath.Join(e.dir, "busy.ran")
+	same := e.start(busy, nil, "xcode", "sh", "-c", `touch "$1"`, "sh", busyRan, "-derivedDataPath", ".build/DerivedData")
+	eventually(t, "the same checkout's caller to wait for the orphan", func() bool {
+		return strings.Contains(same.stderr.String(), "behind pid "+strconv.Itoa(orphan.Process.Pid)+" (an xcodebuild outside this lock)")
+	})
+	if exists(busyRan) {
+		t.Fatal("same checkout's caller ran while the orphan built into its DerivedData")
+	}
+	if err := os.WriteFile(release, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	eventually(t, "the same checkout's caller to run once the orphan exits", func() bool { return exists(busyRan) })
+}
+
 // An xcodebuild left running by a killed wrapper holds no lock dir, yet it still owns the
 // build database. The next caller on its path waits for it to exit.
 func TestXcodeLockWaitsForOrphanXcodebuild(t *testing.T) {
