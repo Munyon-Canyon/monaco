@@ -205,9 +205,14 @@ func (p *WithdrawalPoller) apply(ctx context.Context, tx db.Tx, m withdrawalMove
 	q := sqlc.New(tx.Queries())
 	var n int64
 	var err error
-	if m.to == domain.WithdrawalConfirmed {
+	switch {
+	case m.to == domain.WithdrawalConfirmed:
 		n, err = q.ConfirmWithdrawal(ctx, sqlc.ConfirmWithdrawalParams{ID: m.id, CompletedAt: p.d.Clock.Now()})
-	} else {
+	case m.from == domain.WithdrawalCreated:
+		n, err = q.FailUnsentWithdrawal(ctx, sqlc.FailUnsentWithdrawalParams{
+			ID: m.id, FailCode: m.code, CompletedAt: p.d.Clock.Now(),
+		})
+	default:
 		n, err = q.FailWithdrawal(ctx, sqlc.FailWithdrawalParams{
 			ID: m.id, FailCode: m.code, CompletedAt: p.d.Clock.Now(),
 		})

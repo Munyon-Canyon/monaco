@@ -19,6 +19,11 @@ UPDATE withdrawals
 SET status = 'failed', fail_code = sqlc.arg(fail_code)::text, completed_at = sqlc.arg(completed_at)::timestamptz
 WHERE id = $1 AND status IN ('created', 'submitted');
 
+-- name: FailUnsentWithdrawal :execrows
+UPDATE withdrawals
+SET status = 'failed', fail_code = sqlc.arg(fail_code)::text, completed_at = sqlc.arg(completed_at)::timestamptz
+WHERE id = $1 AND status = 'created';
+
 -- name: GetWithdrawal :one
 SELECT id, user_id, amount_micros::text AS amount_micros, to_address, status,
   COALESCE(tx_signature, '')::text AS tx_signature, COALESCE(fail_code, '')::text AS fail_code,

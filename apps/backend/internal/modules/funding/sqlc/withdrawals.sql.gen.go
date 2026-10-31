@@ -32,6 +32,26 @@ func (q *Queries) ConfirmWithdrawal(ctx context.Context, arg ConfirmWithdrawalPa
 	return result.RowsAffected(), nil
 }
 
+const failUnsentWithdrawal = `-- name: FailUnsentWithdrawal :execrows
+UPDATE withdrawals
+SET status = 'failed', fail_code = $2::text, completed_at = $3::timestamptz
+WHERE id = $1 AND status = 'created'
+`
+
+type FailUnsentWithdrawalParams struct {
+	ID          uuid.UUID
+	FailCode    string
+	CompletedAt time.Time
+}
+
+func (q *Queries) FailUnsentWithdrawal(ctx context.Context, arg FailUnsentWithdrawalParams) (int64, error) {
+	result, err := q.db.Exec(ctx, failUnsentWithdrawal, arg.ID, arg.FailCode, arg.CompletedAt)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const failWithdrawal = `-- name: FailWithdrawal :execrows
 UPDATE withdrawals
 SET status = 'failed', fail_code = $2::text, completed_at = $3::timestamptz
