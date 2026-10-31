@@ -63,23 +63,20 @@ nonisolated final class AssetDetailSampleUITests: XCTestCase {
         waitForScreen(app, "open")
 
         XCTAssertTrue(anyElement(app, "asset-detail-name").waitForExistence(timeout: 30), "no name")
-        XCTAssertEqual(anyElement(app, "asset-detail-name").label, "Alphabet")
+        XCTAssertEqual(anyElement(app, "asset-detail-name").label, "NVIDIA")
         XCTAssertTrue(anyElement(app, "asset-detail-price").exists, "no price")
+        XCTAssertTrue(app.buttons["asset-share"].exists, "no share button")
+        XCTAssertEqual(app.buttons["asset-share"].label, "Share NVIDIA")
         XCTAssertTrue(anyElement(app, "asset-chart-ranges").waitForExistence(timeout: 30), "no range control")
         let star = app.buttons["asset-watch-star"]
         XCTAssertEqual(star.label, "Remove from watchlist", "the open scenario watches this stock")
         XCTAssertTrue(star.isSelected)
         attachScreenshot(app, name: "stock-open-top")
         let buy = app.buttons["asset-detail-propose-buy"]
-        scrollTo(app, buy, "Propose a buy")
-        XCTAssertEqual(buy.label, "Propose a buy")
+        scrollTo(app, buy, "Propose buy")
+        XCTAssertEqual(buy.label, "Propose buy")
         XCTAssertTrue(buy.isEnabled)
-        XCTAssertTrue(app.staticTexts["Your cabal votes before anything is bought or sold"].exists)
-        let sell = app.buttons["asset-detail-propose-sell"]
-        XCTAssertTrue(sell.exists, "a voting cabal holds this stock")
-        XCTAssertEqual(buy.frame.minY, sell.frame.minY, accuracy: 1, "buy and sell should share one row")
-        XCTAssertEqual(buy.frame.width, sell.frame.width, accuracy: 1, "buy and sell should be equal widths")
-        XCTAssertLessThan(buy.frame.maxX, sell.frame.minX, "buy sits left of sell")
+        XCTAssertFalse(app.buttons["asset-detail-propose-sell"].exists, "no cabal holds this stock")
     }
 
     @MainActor
@@ -124,36 +121,56 @@ nonisolated final class AssetDetailSampleUITests: XCTestCase {
             app.staticTexts["Trading paused right now."].waitForExistence(timeout: 30), "no paused notice")
         let buy = app.buttons["asset-detail-propose-buy"]
         scrollTo(app, buy, "the buy button")
-        XCTAssertEqual(buy.label, "Propose a buy")
+        XCTAssertEqual(buy.label, "Propose buy")
         XCTAssertFalse(buy.isEnabled)
     }
 
     @MainActor
-    func testNoHoldersAndNoProposalsSayTheirPiece() throws {
+    func testNoHoldersAndNoProposalsLeaveOutInYourCabals() throws {
         let holders = launch("noHolders")
         waitForScreen(holders, "noHolders")
-        scrollTo(holders, holders.staticTexts["No visible holders"], "the empty holders state")
-        XCTAssertTrue(holders.staticTexts["Private holdings are not shown."].exists)
+        let buy = holders.buttons["asset-detail-propose-buy"]
+        scrollTo(holders, buy, "the buy button")
+        XCTAssertFalse(holders.buttons["asset-detail-propose-sell"].exists, "no cabal holds this stock")
+        XCTAssertFalse(anyElement(holders, "asset-in-your-cabals").exists, "no cabals section without holders")
         attachScreenshot(holders, name: "stock-no-holders")
         holders.terminate()
 
         let proposals = launch("noProposals")
         waitForScreen(proposals, "noProposals")
-        scrollTo(proposals, proposals.staticTexts["No visible proposals for this asset."], "the quiet empty line")
-        XCTAssertTrue(proposals.staticTexts["Proposals by stock open soon."].exists)
+        scrollTo(proposals, proposals.buttons["asset-detail-propose-buy"], "the buy button")
+        let openProposal = proposals.descendants(matching: .any).matching(
+            NSPredicate(format: "identifier BEGINSWITH 'asset-open-proposal-'")
+        ).firstMatch
+        XCTAssertFalse(openProposal.exists, "no open proposal for this stock")
         attachScreenshot(proposals, name: "stock-no-proposals")
     }
 
     @MainActor
-    func testTheStatsSayWhatOpensSoon() throws {
-        let app = launch("open")
-        waitForScreen(app, "open")
+    func testAHeldPreIpoStockListsItsCabalsAndProposals() throws {
+        let app = launch("preIpo")
+        waitForScreen(app, "preIpo")
+        scrollTo(app, anyElement(app, "asset-in-your-cabals"), "In your cabals")
+        XCTAssertTrue(app.buttons["asset-detail-propose-sell"].exists, "a cabal holds this stock")
+        attachScreenshot(app, name: "stock-pre-ipo-in-your-cabals")
+    }
 
-        scrollTo(app, app.staticTexts["Market stats"], "Market stats")
-        scrollTo(app, app.staticTexts["Market cap and supply open soon."], "the opens-soon line")
-        XCTAssertFalse(app.staticTexts["Company profile opens soon."].exists)
-        XCTAssertFalse(anyElement(app, "asset-about").exists)
-        attachScreenshot(app, name: "stock-stats")
+    @MainActor
+    func testNoOpensSoonCopyAppearsOnTheStockPage() throws {
+        for scenario in ["open", "preIpo"] {
+            let app = launch(scenario)
+            waitForScreen(app, scenario)
+            let opensSoon = app.descendants(matching: .any).matching(
+                NSPredicate(format: "label CONTAINS[c] 'open soon' OR label CONTAINS[c] 'opens soon'")
+            ).firstMatch
+            for _ in 0..<10 {
+                XCTAssertFalse(opensSoon.exists, "\(scenario) shows opens-soon copy: \(opensSoon.label)")
+                app.swipeUp()
+            }
+            XCTAssertFalse(opensSoon.exists, "\(scenario) shows opens-soon copy: \(opensSoon.label)")
+            attachScreenshot(app, name: "stock-\(scenario)-bottom")
+            app.terminate()
+        }
     }
 
     @MainActor
