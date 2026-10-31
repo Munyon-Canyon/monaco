@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
@@ -12,6 +14,12 @@ import (
 )
 
 func seedStockListing(t *testing.T) (*StockListings, multichain.StockID) {
+	t.Helper()
+	listings, stock, _ := seedStockListingIn(t)
+	return listings, stock
+}
+
+func seedStockListingIn(t *testing.T) (*StockListings, multichain.StockID, *pgxpool.Pool) {
 	t.Helper()
 	pool := testkit.DB(t)
 	g := testkit.NewIDs(4975)
@@ -41,7 +49,7 @@ func seedStockListing(t *testing.T) (*StockListings, multichain.StockID) {
 		t.Fatal(err)
 	}
 	listings := NewStockListings(pool)
-	return &listings, stock
+	return &listings, stock, pool
 }
 
 func TestStockListingsReturnsOnlyEnabledListingsOfTheStock(t *testing.T) {
@@ -60,5 +68,45 @@ func TestStockListingsReturnsOnlyEnabledListingsOfTheStock(t *testing.T) {
 	cancel()
 	if _, err := listings.EnabledListings(canceled, stock); errs.CodeOf(err) != errs.CodeInternal {
 		t.Fatalf("err = %v, want internal", err)
+	}
+}
+
+func TestStockListingsKeepsSolanaToTheAssetsOwnMint(t *testing.T) {
+	t.Parallel()
+	listings, stock, pool := seedStockListingIn(t)
+	g := testkit.NewIDs(7515)
+	now := clock.Real{}.Now().UTC()
+	own, ondo := g.NewV7(), g.NewV7()
+	rows := []struct {
+		id     any
+		issuer string
+		token  string
+	}{
+		{own, "xstocks", "Xs4kgXGPAy68o3PXqnMyBzmeNnmXwBvq8gqjqNRbFi8"},
+		{ondo, "ondo", "OndoSo1anaMint11111111111111111111111111111"},
+	}
+	for _, row := range rows {
+		if _, err := pool.Exec(t.Context(), `INSERT INTO asset_listings (id, asset_id, issuer, symbol, network,
+			token_address, decimals, shares_per_token, venue, enabled, verified_at, created_at)
+			VALUES ($1, $2, $3, 'LST', 'solana', $4, 8, 1, 'jupiter', true, $5, $5)`,
+			row.id, stock.UUID(), row.issuer, row.token, now); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got, err := listings.EnabledListings(t.Context(), stock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	solana := make([]string, 0, len(got))
+	for _, l := range got {
+		if l.Network == chain.NetworkSolana {
+			solana = append(solana, l.TokenAddress)
+		}
+	}
+	if len(solana) != 1 || solana[0] != "Xs4kgXGPAy68o3PXqnMyBzmeNnmXwBvq8gqjqNRbFi8" {
+		t.Fatalf("solana listings = %v, want only the asset's own mint", solana)
+	}
+	if len(got) != 2 {
+		t.Fatalf("listings = %d, want the ethereum listing and the own solana mint", len(got))
 	}
 }
