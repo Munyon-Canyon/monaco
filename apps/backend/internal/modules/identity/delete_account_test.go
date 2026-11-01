@@ -6,6 +6,8 @@ import (
 	"log/slog"
 	"slices"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -23,6 +25,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
+	dbsqlc "github.com/monaco/monaco/apps/backend/internal/platform/db/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
@@ -36,7 +39,29 @@ type deleteFixture struct {
 	treasury *fakes.Treasury
 	stakes   app.Stakes
 	balances *fakes.Balances
+	checks   *deleteChecks
 	hints    *recordedHints
+}
+
+type deleteChecks struct {
+	arriving atomic.Bool
+	leads    atomic.Bool
+	err      atomic.Pointer[error]
+	leadsErr atomic.Pointer[error]
+}
+
+func (c *deleteChecks) DepositArriving(context.Context, dbsqlc.DBTX, ids.UserID, time.Time) (bool, error) {
+	if err := c.err.Load(); err != nil {
+		return false, *err
+	}
+	return c.arriving.Load(), nil
+}
+
+func (c *deleteChecks) LeadsCabalWithMembers(context.Context, dbsqlc.DBTX, ids.UserID) (bool, error) {
+	if err := c.leadsErr.Load(); err != nil {
+		return false, *err
+	}
+	return c.leads.Load(), nil
 }
 
 func newDeleteFixture(t *testing.T) deleteFixture {
@@ -44,14 +69,15 @@ func newDeleteFixture(t *testing.T) deleteFixture {
 	treasury := fakes.NewTreasury()
 	return deleteFixture{
 		pool: testkit.DB(t), clock: testkit.NewClock(clock.Real{}.Now().UTC().Truncate(time.Microsecond)),
-		treasury: treasury, stakes: treasury, balances: fakes.NewBalances(), hints: &recordedHints{},
+		treasury: treasury, stakes: treasury, balances: fakes.NewBalances(), checks: &deleteChecks{},
+		hints: &recordedHints{},
 	}
 }
 
 func (f deleteFixture) handler(users app.DeletingUsers) *app.DeleteAccount {
 	return app.NewDeleteAccount(app.DeleteAccountDeps{
 		UoW: db.New(f.pool, testkit.NewIDs(642), f.clock), Users: users, Balances: f.balances, Stakes: f.stakes,
-		Clock: f.clock, Hints: f.hints,
+		Arriving: f.checks, Leaders: f.checks, Clock: f.clock, Hints: f.hints,
 	})
 }
 
@@ -223,6 +249,9 @@ func TestDeleteAccount_refusesWhileMoneyIsLeftOrItCannotTell(t *testing.T) {
 		{"balance down", func(f deleteFixture, _ ids.UserID) {
 			f.balances.Fail("Available", errs.New(errs.CodeRPCUnavailable, "funding.fake"))
 		}, errs.CodeRPCUnavailable},
+		{"balance reading stale under the lock", func(f deleteFixture, _ ids.UserID) {
+			f.balances.Fail("AvailableIn", errs.New(errs.CodeRPCUnavailable, "funding.fake"))
+		}, errs.CodeRPCUnavailable},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -365,6 +394,14 @@ type deletingUsers struct {
 	adapters.Users
 	status    domain.AccountStatus
 	deleteErr error
+	lockErr   error
+}
+
+func (u deletingUsers) LockWalletOutflow(ctx context.Context, q sqlc.DBTX, id ids.UserID) error {
+	if u.lockErr != nil {
+		return u.lockErr
+	}
+	return u.Users.LockWalletOutflow(ctx, q, id)
 }
 
 func (u deletingUsers) LockByID(ctx context.Context, q sqlc.DBTX, id ids.UserID) (domain.User, error) {
@@ -400,6 +437,7 @@ func TestDeleteAccount_writesNothingWhenTheTransactionFails(t *testing.T) {
 			errs.CodeAccountStatusTransition,
 		},
 		{"the scrub fails", deletingUsers{deleteErr: scrubFailed}, "", errs.CodeDBUnavailable},
+		{"the wallet lock fails", deletingUsers{lockErr: scrubFailed}, "", errs.CodeDBUnavailable},
 		{
 			"the status moved under the lock",
 			deletingUsers{status: domain.AccountSuspended},
@@ -451,5 +489,145 @@ func TestDeleteAccount_aDeletedAccountIsNotFoundTheSecondTime(t *testing.T) {
 	}
 	if got := f.deletedEvents(t); len(got) != 1 {
 		t.Fatalf("user.deleted events = %d, want 1", len(got))
+	}
+}
+
+func TestDeleteAccount_refusesWhileADepositIsArrivingOrACreatorStillLeads(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name  string
+		given func(c *deleteChecks)
+		code  errs.Code
+	}{
+		{"a deposit is arriving", func(c *deleteChecks) { c.arriving.Store(true) }, errs.CodeAccountHasArrivingDeposit},
+		{
+			"a creator still leads a cabal with members", func(c *deleteChecks) { c.leads.Store(true) },
+			errs.CodeLeaveCreatorWithMembers,
+		},
+		{"the arrival check is down", func(c *deleteChecks) {
+			err := errs.New(errs.CodeDBUnavailable, "funding.fake")
+			c.err.Store(&err)
+		}, errs.CodeDBUnavailable},
+		{"the cabal check is down", func(c *deleteChecks) {
+			err := errs.New(errs.CodeDBUnavailable, "cabal.fake")
+			c.leadsErr.Store(&err)
+		}, errs.CodeDBUnavailable},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			f := newDeleteFixture(t)
+			u := f.seedWithPII(t, "active")
+			tc.given(f.checks)
+			if err := f.handler(adapters.Users{}).Handle(asUser(t, u.ID), u.ID); errs.CodeOf(err) != tc.code {
+				t.Fatalf("DeleteAccount = %v, want %s", err, tc.code)
+			}
+			f.expectUntouched(t, u)
+		})
+	}
+}
+
+func TestDeleteAccount_aStakeBeatsABalanceBeatsAnArrivingDeposit(t *testing.T) {
+	t.Parallel()
+	f := newDeleteFixture(t)
+	u := f.seedWithPII(t, "active")
+	f.checks.arriving.Store(true)
+	f.checks.leads.Store(true)
+	h := f.handler(adapters.Users{})
+	if err := h.Handle(asUser(t, u.ID), u.ID); errs.CodeOf(err) != errs.CodeAccountHasArrivingDeposit {
+		t.Fatalf("DeleteAccount with a deposit arriving and a cabal led = %v, want AccountHasArrivingDeposit", err)
+	}
+	f.balances.Set(u.ID, funding.Balance{OnChainMicros: micros(40), InFlightFundMicros: micros(40)})
+	if err := h.Handle(asUser(t, u.ID), u.ID); errs.CodeOf(err) != errs.CodeAccountHasBalance {
+		t.Fatalf("DeleteAccount with a fund in flight = %v, want AccountHasBalance", err)
+	}
+	f.stakeIn(t, u.ID, "01890a5d-ac96-774b-bcce-b302099a8001")
+	if err := h.Handle(asUser(t, u.ID), u.ID); errs.CodeOf(err) != errs.CodeAccountHasPositions {
+		t.Fatalf("DeleteAccount with a stake = %v, want AccountHasPositions", err)
+	}
+	f.expectUntouched(t, u)
+}
+
+func (f deleteFixture) holdWalletLock(t *testing.T, user ids.UserID) (release func()) {
+	t.Helper()
+	held, letGo, finished := make(chan struct{}), make(chan struct{}), make(chan struct{})
+	var holdErr error
+	var holder sync.WaitGroup
+	uow := db.New(f.pool, testkit.NewIDs(9), f.clock)
+	holder.Go(func() {
+		defer close(finished)
+		holdErr = uow.Do(t.Context(), func(ctx context.Context, tx db.Tx) error {
+			if err := (adapters.Users{}).LockWalletOutflow(ctx, tx.Queries(), user); err != nil {
+				return err
+			}
+			close(held)
+			<-letGo
+			return nil
+		})
+	})
+	select {
+	case <-held:
+	case <-finished:
+		t.Fatalf("holding the wallet lock: %v", holdErr)
+	}
+	return func() {
+		close(letGo)
+		holder.Wait()
+		if holdErr != nil {
+			t.Fatal(holdErr)
+		}
+	}
+}
+
+func (f deleteFixture) waitForWalletLockQueue(t *testing.T) {
+	t.Helper()
+	testkit.Eventually(t, func() bool {
+		var waiting int
+		if err := f.pool.QueryRow(t.Context(), `SELECT count(*) FROM pg_locks l
+			WHERE l.locktype = 'advisory' AND NOT l.granted
+			AND l.database = (SELECT oid FROM pg_database WHERE datname = current_database())`).Scan(&waiting); err != nil {
+			t.Fatal(err)
+		}
+		return waiting > 0
+	}, 10*time.Second)
+}
+
+func TestDeleteAccount_rechecksEveryGuardAfterTheWalletLockIsWon(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name  string
+		racer func(t *testing.T, f deleteFixture, user ids.UserID)
+		code  errs.Code
+	}{
+		{"a fund that was submitted while it waited", func(_ *testing.T, f deleteFixture, user ids.UserID) {
+			f.balances.Set(user, funding.Balance{OnChainMicros: micros(40), InFlightFundMicros: micros(40)})
+		}, errs.CodeAccountHasBalance},
+		{"a stake that landed while it waited", func(t *testing.T, f deleteFixture, user ids.UserID) {
+			t.Helper()
+			f.stakeIn(t, user, "01890a5d-ac96-774b-bcce-b302099a8001")
+		}, errs.CodeAccountHasPositions},
+		{"a deposit that started arriving while it waited", func(_ *testing.T, f deleteFixture, _ ids.UserID) {
+			f.checks.arriving.Store(true)
+		}, errs.CodeAccountHasArrivingDeposit},
+		{"a cabal that gained members while it waited", func(_ *testing.T, f deleteFixture, _ ids.UserID) {
+			f.checks.leads.Store(true)
+		}, errs.CodeLeaveCreatorWithMembers},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			f := newDeleteFixture(t)
+			u := f.seedWithPII(t, "active")
+			release := f.holdWalletLock(t, u.ID)
+			var raced error
+			var deleter sync.WaitGroup
+			deleter.Go(func() { raced = f.handler(adapters.Users{}).Handle(asUser(t, u.ID), u.ID) })
+			f.waitForWalletLockQueue(t)
+			tc.racer(t, f, u.ID)
+			release()
+			deleter.Wait()
+			if err := raced; errs.CodeOf(err) != tc.code {
+				t.Fatalf("DeleteAccount that raced %s = %v, want %s", tc.name, err, tc.code)
+			}
+			f.expectUntouched(t, u)
+		})
 	}
 }

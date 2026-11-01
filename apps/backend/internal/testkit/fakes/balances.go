@@ -43,6 +43,9 @@ func (f *Balances) Observe(_ context.Context, user ids.UserID) (funding.Observat
 }
 
 func (f *Balances) AvailableIn(_ context.Context, _ dbsqlc.DBTX, obs funding.Observation) (funding.Balance, error) {
+	if err := f.Check("AvailableIn"); err != nil {
+		return funding.Balance{}, err
+	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.balances[obs.User], nil

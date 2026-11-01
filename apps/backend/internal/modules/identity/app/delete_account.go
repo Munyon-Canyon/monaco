@@ -7,12 +7,14 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
+	cabalport "github.com/monaco/monaco/apps/backend/internal/modules/cabal/port"
 	fundingport "github.com/monaco/monaco/apps/backend/internal/modules/funding/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity/sqlc"
 	treasuryport "github.com/monaco/monaco/apps/backend/internal/modules/treasury/port"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
+	dbsqlc "github.com/monaco/monaco/apps/backend/internal/platform/db/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
@@ -21,14 +23,20 @@ import (
 const DustCeilingMicros uint64 = 10_000
 
 type Balances interface {
-	Available(ctx context.Context, user ids.UserID) (fundingport.Balance, error)
+	Observe(ctx context.Context, user ids.UserID) (fundingport.Observation, error)
+	AvailableIn(ctx context.Context, q dbsqlc.DBTX, obs fundingport.Observation) (fundingport.Balance, error)
 }
+
+type Arriving = fundingport.DepositsArriving
+
+type Leaders = cabalport.CabalLeaders
 
 type Stakes interface {
 	StakesOf(ctx context.Context, user ids.UserID) ([]treasuryport.Stake, error)
 }
 
 type DeletingUsers interface {
+	LockWalletOutflow(ctx context.Context, q sqlc.DBTX, id ids.UserID) error
 	LockByID(ctx context.Context, q sqlc.DBTX, id ids.UserID) (domain.User, error)
 	Delete(ctx context.Context, q sqlc.DBTX, id ids.UserID, expected domain.AccountStatus, at time.Time) error
 }
@@ -38,6 +46,8 @@ type DeleteAccountDeps struct {
 	Users    DeletingUsers
 	Balances Balances
 	Stakes   Stakes
+	Arriving Arriving
+	Leaders  Leaders
 	Clock    clock.Clock
 	Hints    Hints
 }
@@ -47,11 +57,14 @@ type DeleteAccount struct{ d DeleteAccountDeps }
 func NewDeleteAccount(d DeleteAccountDeps) *DeleteAccount { return &DeleteAccount{d: d} }
 
 func (h *DeleteAccount) Handle(ctx context.Context, id ids.UserID) error {
-	forfeited, err := h.empty(ctx, id)
+	obs, err := h.d.Balances.Observe(ctx, id)
 	if err != nil {
 		return err
 	}
 	return h.d.UoW.Do(ctx, func(ctx context.Context, tx db.Tx) error {
+		if err := h.d.Users.LockWalletOutflow(ctx, tx.Queries(), id); err != nil {
+			return err
+		}
 		user, err := h.d.Users.LockByID(ctx, tx.Queries(), id)
 		if err != nil {
 			return err
@@ -60,6 +73,10 @@ func (h *DeleteAccount) Handle(ctx context.Context, id ids.UserID) error {
 			return err
 		}
 		at := h.d.Clock.Now()
+		forfeited, err := h.empty(ctx, tx, id, obs, at)
+		if err != nil {
+			return err
+		}
 		if err := h.d.Users.Delete(ctx, tx.Queries(), id, user.AccountStatus, at); err != nil {
 			return err
 		}
@@ -98,8 +115,14 @@ func logDeleted(ctx context.Context, id ids.UserID, deleted events.UserDeleted) 
 		slog.String("forfeited_wallet", deleted.ForfeitedWallet))
 }
 
-func (h *DeleteAccount) empty(ctx context.Context, id ids.UserID) (money.Micros, error) {
+func (h *DeleteAccount) empty(
+	ctx context.Context, tx db.Tx, id ids.UserID, obs fundingport.Observation, at time.Time,
+) (money.Micros, error) {
 	const op = "identity.DeleteAccount"
+	balance, err := h.d.Balances.AvailableIn(ctx, tx.Queries(), obs)
+	if err != nil {
+		return money.Micros{}, err
+	}
 	stakes, err := h.d.Stakes.StakesOf(ctx, id)
 	if err != nil {
 		return money.Micros{}, err
@@ -107,13 +130,23 @@ func (h *DeleteAccount) empty(ctx context.Context, id ids.UserID) (money.Micros,
 	if len(stakes) > 0 {
 		return money.Micros{}, errs.New(errs.CodeAccountHasPositions, op, slog.Int("cabal_count", len(stakes)))
 	}
-	balance, err := h.d.Balances.Available(ctx, id)
-	if err != nil {
-		return money.Micros{}, err
-	}
 	if !balance.InFlightFundMicros.IsZero() || !balance.InFlightWithdrawalMicros.IsZero() ||
 		balance.OnChainMicros.Cmp(money.MicrosFromUint64(DustCeilingMicros)) >= 0 {
 		return money.Micros{}, errs.New(errs.CodeAccountHasBalance, op)
+	}
+	arriving, err := h.d.Arriving.DepositArriving(ctx, tx.Queries(), id, at)
+	if err != nil {
+		return money.Micros{}, err
+	}
+	if arriving {
+		return money.Micros{}, errs.New(errs.CodeAccountHasArrivingDeposit, op)
+	}
+	leads, err := h.d.Leaders.LeadsCabalWithMembers(ctx, tx.Queries(), id)
+	if err != nil {
+		return money.Micros{}, err
+	}
+	if leads {
+		return money.Micros{}, errs.New(errs.CodeLeaveCreatorWithMembers, op)
 	}
 	return balance.OnChainMicros, nil
 }

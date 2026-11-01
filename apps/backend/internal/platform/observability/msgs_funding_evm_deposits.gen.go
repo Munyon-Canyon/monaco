@@ -9,5 +9,6 @@ func init() {
 		FundingEVMForwardStuck,
 		FundingEVMForwardArrivingUnavailable,
 		FundingEVMForwardFailed,
+		FundingEVMDepositToDeletedUser,
 	)
 }

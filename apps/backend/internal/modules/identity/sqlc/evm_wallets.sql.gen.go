@@ -14,10 +14,11 @@ import (
 )
 
 const eVMDepositWalletsAfter = `-- name: EVMDepositWalletsAfter :many
-SELECT user_id, evm_privy_wallet_id::text AS evm_privy_wallet_id
-FROM user_wallets
-WHERE evm_privy_wallet_id IS NOT NULL AND user_id > $1
-ORDER BY user_id
+SELECT w.user_id, w.evm_privy_wallet_id::text AS evm_privy_wallet_id, (u.account_status = 'deleted')::boolean AS deleted
+FROM user_wallets w
+JOIN users u ON u.id = w.user_id
+WHERE w.evm_privy_wallet_id IS NOT NULL AND w.user_id > $1
+ORDER BY w.user_id
 LIMIT $2::bigint
 `
 
@@ -29,6 +30,7 @@ type EVMDepositWalletsAfterParams struct {
 type EVMDepositWalletsAfterRow struct {
 	UserID           uuid.UUID
 	EvmPrivyWalletID string
+	Deleted          bool
 }
 
 func (q *Queries) EVMDepositWalletsAfter(ctx context.Context, arg EVMDepositWalletsAfterParams) ([]EVMDepositWalletsAfterRow, error) {
@@ -40,7 +42,7 @@ func (q *Queries) EVMDepositWalletsAfter(ctx context.Context, arg EVMDepositWall
 	var items []EVMDepositWalletsAfterRow
 	for rows.Next() {
 		var i EVMDepositWalletsAfterRow
-		if err := rows.Scan(&i.UserID, &i.EvmPrivyWalletID); err != nil {
+		if err := rows.Scan(&i.UserID, &i.EvmPrivyWalletID, &i.Deleted); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

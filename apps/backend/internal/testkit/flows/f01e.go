@@ -5,6 +5,7 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
+	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
@@ -19,6 +20,8 @@ const (
 	deleteStaked  = "did:privy:qa-del-staked"
 	deleteFunded  = "did:privy:qa-del-funded"
 	deleteCrash   = "did:privy:qa-del-crash"
+	deleteArrives = "did:privy:qa-del-arriving"
+	deleteLeads   = "did:privy:qa-del-leads"
 	deletedHandle = "del_gone"
 )
 
@@ -47,6 +50,27 @@ func F01eDeleteAccountAccountHasPositions(s *scenario.Scenario) {
 
 func F01eDeleteAccountAccountHasBalance(s *scenario.Scenario) {
 	deleteRefused(s, deleteFunded, errs.CodeAccountHasBalance)
+}
+
+func F01eDeleteAccountAccountHasArrivingDeposit(s *scenario.Scenario) {
+	deleteRefused(s, deleteArrives, errs.CodeAccountHasArrivingDeposit, onrampSubmitted)
+}
+
+func F01eDeleteAccountLeaveCreatorWithMembers(s *scenario.Scenario) {
+	deleteRefused(s, deleteLeads, errs.CodeLeaveCreatorWithMembers, leadsCabal)
+}
+
+func onrampSubmitted(s *scenario.Scenario) {
+	id := ids.Real{}.NewV7()
+	if _, err := s.DB().Exec(s.Context(), `INSERT INTO onramp_sessions
+		(id, user_id, token_hash, status, created_at, expires_at, completed_at)
+		VALUES ($1, $2, $3, 'submitted', now(), now(), now())`, id, s.ActorID().UUID(), id[:]); err != nil {
+		s.Fatalf("flows: seed the submitted onramp session: %v", err)
+	}
+}
+
+func leadsCabal(s *scenario.Scenario) {
+	testkit.NewCabal(s, s.DB(), testkit.WithCreator(s.ActorID()), testkit.WithMembers(2))
 }
 
 func staked(s *scenario.Scenario) {

@@ -14,3 +14,5 @@ func (m *Module) Cabals() any { return m.cabals }
 func (m *Module) Returns() any { return m.returns }
 
 func (m *Module) Standings() any { return m.standings }
+
+func (m *Module) DeleteChecks() (arriving, leaders any) { return m.arriving, m.leaders }

@@ -340,3 +340,67 @@ func TestEVMDepositForward_FailuresFailTheTickAndRecordNothing(t *testing.T) {
 		})
 	}
 }
+
+func (f *forwardFixture) deleteUser(t *testing.T) {
+	t.Helper()
+	if _, err := f.pool.Exec(t.Context(),
+		`UPDATE users SET account_status = 'deleted', deleted_at = $2 WHERE id = $1`,
+		f.user.ID.UUID(), f.clock.Now()); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestEVMDepositForward_ADeletedUsersDepositIsAlertedOnceAndNeverForwarded(t *testing.T) {
+	t.Parallel()
+	f := newForwardFixture(t)
+	f.deleteUser(t)
+	f.tick(t, execution("gone", mc.ActionSucceeded), unrouted("zero"))
+	f.tick(t, execution("gone", mc.ActionSucceeded))
+	if got := f.logged(observability.FundingEVMDepositToDeletedUser); got != 1 {
+		t.Fatalf("deleted-user alerts = %d, want 1 for the one execution with an amount", got)
+	}
+	if !bytes.Contains(f.logs.Bytes(), []byte(`"amount_micros":"1000000"`)) {
+		t.Fatalf("logs = %s, want the alert to carry the amount", f.logs.Bytes())
+	}
+	if got := f.count(t, `SELECT count(*) FROM evm_deposit_forwards`); got != 0 || f.forwarded(t) != 0 {
+		t.Fatalf(
+			"forward rows = %d, deposit.evm_forwarded events = %d, want none for a deleted user",
+			got,
+			f.forwarded(t),
+		)
+	}
+}
+
+func TestEVMDepositForward_AForwardRecordedBeforeDeletionIsNotAlerted(t *testing.T) {
+	t.Parallel()
+	f := newForwardFixture(t)
+	f.tick(t, execution("early", mc.ActionSucceeded))
+	f.deleteUser(t)
+	f.tick(t, execution("early", mc.ActionSucceeded))
+	if got := f.logged(observability.FundingEVMDepositToDeletedUser); got != 0 {
+		t.Fatalf("deleted-user alerts = %d, want none for an execution recorded before the deletion", got)
+	}
+}
+
+func TestEVMDepositForward_ADeletedUsersWalletCheckFailureIsReturned(t *testing.T) {
+	t.Parallel()
+	f := newForwardFixture(t)
+	f.deleteUser(t)
+	if _, err := f.pool.Exec(
+		t.Context(),
+		`ALTER TABLE evm_deposit_forwards RENAME TO evm_deposit_forwards_gone`,
+	); err != nil {
+		t.Fatal(err)
+	}
+	err := f.tickErr(t, execution("gone", mc.ActionSucceeded))
+	if _, execErr := f.pool.Exec(t.Context(),
+		`ALTER TABLE evm_deposit_forwards_gone RENAME TO evm_deposit_forwards`); execErr != nil {
+		t.Fatal(execErr)
+	}
+	if err == nil {
+		t.Fatal("tick = nil, want the failed lookup to surface")
+	}
+	if got := f.logged(observability.FundingEVMDepositToDeletedUser); got != 0 {
+		t.Fatalf("deleted-user alerts = %d, want none when the lookup failed", got)
+	}
+}

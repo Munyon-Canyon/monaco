@@ -145,6 +145,13 @@ func (Users) FindByID(ctx context.Context, q sqlc.DBTX, id ids.UserID) (domain.U
 	return userFrom(row)
 }
 
+func (Users) LockWalletOutflow(ctx context.Context, q sqlc.DBTX, id ids.UserID) error {
+	if err := sqlc.New(q).LockWalletOutflow(ctx, id.UUID()); err != nil {
+		return errs.Wrap(err, errs.CodeOf(err), "identity.Users.LockWalletOutflow")
+	}
+	return nil
+}
+
 func (Users) LockByID(ctx context.Context, q sqlc.DBTX, id ids.UserID) (domain.User, error) {
 	row, err := sqlc.New(q).LockUserByID(ctx, id.UUID())
 	if err != nil {

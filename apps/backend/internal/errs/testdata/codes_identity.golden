@@ -1,5 +1,6 @@
 account_banned
 account_deleted
+account_has_arriving_deposit
 account_has_balance
 account_has_positions
 account_status_transition

@@ -238,3 +238,68 @@ func TestModuleEVMDepositWallets_failsSafeWithoutPrivyAndEnsuresThroughPrivy(t *
 		t.Fatalf("stored wallet = %+v, %v, want the ensured address %s", stored, err, got)
 	}
 }
+
+func TestEnrolledEVMWallets_flagsDeletedUsersAndKeepsListingThem(t *testing.T) {
+	t.Parallel()
+	pool := testkit.DB(t)
+	q := sqlc.New(pool)
+	live, gone := seedMember(t, q, true), seedMember(t, q, false)
+	now := clock.Real{}.Now().UTC()
+	if _, err := pool.Exec(t.Context(), `INSERT INTO user_wallets (user_id, privy_wallet_id, address, created_at)
+		VALUES ($1, $2, 'Eq4Xv2vmZbWYhmUq1ur2c7HdtfwDpMQMKnXhvbGjgNWo', $3)`,
+		gone.UUID(), "wallet-"+gone.String(), now); err != nil {
+		t.Fatal(err)
+	}
+	for i, user := range []ids.UserID{live, gone} {
+		address := []string{"0x5aaeb6053f3e94c9b9a09f33669435e7ef1beaed", "0xfb6916095ca1df60bb79ce92ce3ea74c37c5d359"}[i]
+		if _, err := q.SetUserEVMWallet(t.Context(), sqlc.SetUserEVMWalletParams{
+			UserID:           user.UUID(),
+			EvmPrivyWalletID: pgtype.Text{String: "evm-" + user.String(), Valid: true},
+			EvmAddress: pgtype.Text{
+				String: address,
+				Valid:  true,
+			},
+			EvmCreatedAt: pgtype.Timestamptz{Time: now, Valid: true},
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := pool.Exec(t.Context(),
+		`UPDATE users SET account_status = 'deleted', deleted_at = $2 WHERE id = $1`, gone.UUID(), now); err != nil {
+		t.Fatal(err)
+	}
+	got, err := adapters.NewEnrolledEVMWallets(pool).EVMDepositWallets(t.Context(), ids.UserID{}, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	deleted := map[ids.UserID]bool{}
+	for _, w := range got {
+		deleted[w.UserID] = w.Deleted
+	}
+	if len(got) != 2 || deleted[live] || !deleted[gone] {
+		t.Fatalf("wallets = %+v, want both listed with only the deleted user flagged", got)
+	}
+}
+
+func TestEnrolledEVMWallets_surfacesAListFailure(t *testing.T) {
+	t.Parallel()
+	pool := testkit.DB(t)
+	if _, err := pool.Exec(t.Context(), `ALTER TABLE user_wallets RENAME TO user_wallets_gone`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := adapters.NewEnrolledEVMWallets(pool).
+		EVMDepositWallets(t.Context(), ids.UserID{}, 10); errs.CodeOf(
+		err,
+	) != errs.CodeInternal {
+		t.Fatalf("EVMDepositWallets = %v, want internal", err)
+	}
+}
+
+func TestUsersLockWalletOutflow_surfacesAFailedLock(t *testing.T) {
+	t.Parallel()
+	pool := testkit.DB(t)
+	pool.Close()
+	if err := (adapters.Users{}).LockWalletOutflow(t.Context(), pool, ids.UserID{}); err == nil {
+		t.Fatal("LockWalletOutflow on a closed pool = nil, want an error")
+	}
+}
