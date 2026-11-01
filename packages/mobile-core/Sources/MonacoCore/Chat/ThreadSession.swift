@@ -133,6 +133,12 @@ public actor ThreadSession {
         publish()
     }
 
+    func dropBlocked(_ authors: Set<String>) {
+        let before = state.timeline.messages.count
+        state.timeline.removeMessages(by: authors)
+        if state.timeline.messages.count != before { publish() }
+    }
+
     func hide(id: String) -> ChatMessage? {
         let previous: ChatMessage?
         if id == parentID {
@@ -160,9 +166,10 @@ public actor ThreadSession {
         if state.load != .loaded { state.load = .loading }
         publish()
         do {
+            let loaded = Set(state.timeline.messages.map(\.id))
             let thread = try await fetch()
             state.parent = thread.parent
-            state.timeline.mergeNewest(thread.replies, pageSize: ChatSession.pageSize)
+            state.timeline.mergeNewest(thread.replies, pageSize: ChatSession.pageSize, loadedBefore: loaded)
             state.load = .loaded
             state.isClosed = false
             await chat.applyParent(thread.parent)

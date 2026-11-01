@@ -2,7 +2,12 @@ import MonacoAPI
 
 extension ChatSession {
     public func refreshBlocked() async {
-        await blocked?.refresh()
+        guard let blocked else { return }
+        await blocked.refresh()
+        let authors = await blocked.authors
+        state.timeline.removeMessages(by: authors)
+        for thread in attached.values { await thread.dropBlocked(authors) }
+        publish()
     }
 
     func isBlocked(_ message: ChatMessage) async -> Bool {

@@ -223,4 +223,45 @@ final class ChatTimelineTests: XCTestCase {
 
         XCTAssertEqual(timeline.rows[0].message.replyCount, 4)
     }
+
+    func testMergingTheNewestPageDropsALoadedRowTheServerNoLongerReturns() {
+        var timeline = ChatTimeline(viewerID: Fixtures.viewerID)
+        let loaded = (0..<4).map { Fixtures.message("m\($0)", minutes: Double($0)) }
+        timeline.mergeNewest(loaded, pageSize: 50)
+
+        timeline.mergeNewest(
+            [loaded[0], loaded[2], loaded[3]], pageSize: 50, loadedBefore: Set(loaded.map(\.id)))
+
+        XCTAssertEqual(timeline.rows.map(\.id), ["m0", "m2", "m3"])
+    }
+
+    func testMergingAFullNewestPageKeepsRowsOlderThanItsWindow() {
+        var timeline = ChatTimeline(viewerID: Fixtures.viewerID)
+        let loaded = (0..<5).map { Fixtures.message("m\($0)", minutes: Double($0)) }
+        timeline.mergeNewest(loaded, pageSize: 50)
+
+        timeline.mergeNewest([loaded[3], loaded[4]], pageSize: 2, loadedBefore: Set(loaded.map(\.id)))
+
+        XCTAssertEqual(timeline.rows.map(\.id), ["m0", "m1", "m2", "m3", "m4"])
+    }
+
+    func testMergingTheNewestPageKeepsARowThatArrivedAfterTheFetchStarted() {
+        var timeline = ChatTimeline(viewerID: Fixtures.viewerID)
+        timeline.mergeNewest([Fixtures.message("m0", minutes: 0)], pageSize: 50)
+        timeline.insertLive(Fixtures.message("live", minutes: 5))
+
+        timeline.mergeNewest([Fixtures.message("m0", minutes: 0)], pageSize: 50, loadedBefore: ["m0"])
+
+        XCTAssertEqual(timeline.rows.map(\.id), ["m0", "live"])
+    }
+
+    func testRemovingAnAuthorsMessagesLeavesTheOthers() {
+        var timeline = ChatTimeline(viewerID: Fixtures.viewerID)
+        let blocked = (0..<10).map { Fixtures.message("x\($0)", author: "blocked", minutes: Double($0)) }
+        timeline.mergeNewest(blocked + [Fixtures.message("keep", minutes: 20)], pageSize: 50)
+
+        timeline.removeMessages(by: ["blocked"])
+
+        XCTAssertEqual(timeline.rows.map(\.id), ["keep"])
+    }
 }

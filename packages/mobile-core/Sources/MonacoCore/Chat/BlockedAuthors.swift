@@ -8,6 +8,8 @@ public actor BlockedAuthors {
         self.api = api
     }
 
+    public var authors: Set<String> { ids }
+
     public func contains(_ userID: String) -> Bool { ids.contains(userID) }
 
     public func refresh() async {
