@@ -36,7 +36,7 @@ final class WithdrawModelTests: XCTestCase {
         await flush(rig)
 
         XCTAssertEqual(rig.model.state, .typed)
-        XCTAssertEqual(rig.model.line, "≈ 120.00 USDC · fee $0.50")
+        XCTAssertEqual(rig.model.line, "120.00 USDC · fee 0.50 USDC")
         XCTAssertEqual(rig.model.buttonTitle, "Withdraw $120")
         XCTAssertTrue(rig.model.canSubmit)
         let bodies = await previewBodies(rig.transport)
@@ -50,7 +50,7 @@ final class WithdrawModelTests: XCTestCase {
         await flush(rig)
 
         XCTAssertEqual(rig.model.state, .invalid(maxMicros: 499_500_000, overMicros: 150_500_000))
-        XCTAssertEqual(rig.model.line, "≈ 650.00 USDC · fee $0.50")
+        XCTAssertEqual(rig.model.line, "650.00 USDC · fee 0.50 USDC")
         XCTAssertEqual(rig.model.limitSlot, "Up to $499.50")
         XCTAssertNil(rig.model.buttonTitle)
         XCTAssertFalse(rig.model.canSubmit)
@@ -63,7 +63,7 @@ final class WithdrawModelTests: XCTestCase {
         await flush(rig)
 
         XCTAssertEqual(rig.model.state, .typed)
-        XCTAssertEqual(rig.model.line, "≈ 119.50 USDC · fee $0.50")
+        XCTAssertEqual(rig.model.line, "119.50 USDC · fee 0.50 USDC")
     }
 
     func testAnAmountUnderTheMinimumIsBelowMinimum() async {
@@ -380,6 +380,134 @@ extension WithdrawModelTests {
         XCTAssertEqual(rig.model.state, .failed(WithdrawProgress.didNotGoThrough))
         XCTAssertNil(rig.settlements.notice)
     }
+
+    func testABaseAmountWithNoAddressShowsNoEstimateNotZero() async {
+        let rig = rig([previewPath: [quote(fee: "7500", mode: "included", max: "500000000", receive: "0", over: "0")]])
+        rig.model.setNetwork(.base)
+        rig.model.setAmountText("120")
+        await flush(rig)
+
+        XCTAssertEqual(rig.model.state, .needsAddress)
+        XCTAssertNil(rig.model.quote?.receiveMicros)
+        XCTAssertEqual(rig.model.line, "Fee $0.01 · USDC on Base")
+        XCTAssertFalse(rig.model.line?.contains("0.00 USDC") ?? false)
+    }
+
+    func testABaseAmountWithAnAddressShowsTheEstimateWithATilde() async {
+        let reply = quote(fee: "7500", mode: "included", max: "500000000", receive: "119992500", over: "0")
+        let rig = rig([previewPath: [reply]])
+        rig.model.setNetwork(.base)
+        rig.model.setAddress(evm)
+        rig.model.setAmountText("120")
+        await flush(rig)
+
+        XCTAssertEqual(rig.model.line, "≈ 119.99 USDC · fee 0.01 USDC")
+    }
+
+    func testASolanaAmountReadsExactlyInOneUnit() async {
+        let rig = rig([previewPath: [typed]])
+        rig.model.setAddress(solana)
+        rig.model.setAmountText("120")
+        await flush(rig)
+
+        XCTAssertEqual(rig.model.line, "120.00 USDC · fee 0.50 USDC")
+    }
+
+    func testARefusedAddressKeepsWithdrawDisabledUntilTheAddressChanges() async throws {
+        let refusal = try StubTransport.Reply.problem(
+            Components.Schemas.Problem(
+                _type: .about_colon_blank, title: "Unprocessable", status: 422, code: .invalidAddress,
+                message: "Paste a wallet address.", traceId: "4bf92f3577b34da6a3ce929d0e0e4736", retryable: false))
+        let rig = rig(
+            [
+                previewPath: [typed, typed], "/v1/me/withdrawals/authorizations": [granted],
+                "/v1/me/withdrawals": [refusal],
+            ])
+        rig.model.setAddress(solana)
+        rig.model.setAmountText("120")
+        await flush(rig)
+        XCTAssertTrue(rig.model.buttonIsEnabled)
+
+        await rig.model.submit()
+
+        XCTAssertEqual(rig.model.addressProblem, WithdrawCopy.invalidAddress)
+        XCTAssertFalse(rig.model.canSubmit)
+        XCTAssertFalse(rig.model.buttonIsEnabled)
+        await rig.model.submit()
+        let sent = await rig.transport.sent.filter { $0.path == "/v1/me/withdrawals" }
+        XCTAssertEqual(sent.count, 1)
+
+        rig.model.setAddress(solana + " ")
+        XCTAssertNil(rig.model.addressProblem)
+    }
+
+    func testWithdrawIsDisabledWhileANewQuoteLoads() async {
+        let rig = rig([previewPath: [typed, typed]])
+        rig.model.setAddress(solana)
+        rig.model.setAmountText("120")
+        await flush(rig)
+        XCTAssertTrue(rig.model.buttonIsEnabled)
+
+        rig.model.setAmountText("121")
+
+        XCTAssertEqual(rig.model.state, .typed)
+        XCTAssertFalse(rig.model.canSubmit)
+        XCTAssertFalse(rig.model.buttonIsEnabled)
+        await flush(rig)
+        XCTAssertTrue(rig.model.buttonIsEnabled)
+    }
+
+    func testAFailedQuoteKeepsTheButtonLiveToRetry() async {
+        let rig = rig([previewPath: [.failure(URLError(.timedOut)), .failure(URLError(.timedOut))]])
+        rig.model.setAddress(solana)
+        rig.model.setAmountText("120")
+        _ = await rig.clock.state.until { $0.pending >= 1 }
+        rig.clock.advance(by: .milliseconds(250))
+        _ = await rig.clock.state.until { $0.requested.contains(.seconds(2)) }
+        rig.clock.advance(by: .seconds(2))
+        await waitUntil { rig.model.quoteFailed }
+
+        XCTAssertTrue(rig.model.quoteFailed)
+        XCTAssertTrue(rig.model.buttonIsEnabled)
+    }
+
+    func testAZeroXAddressOnSolanaOffersBaseAndSwitchingKeepsTheAddress() async {
+        let rig = rig([previewPath: [empty]])
+        rig.model.setAddress(evm)
+
+        XCTAssertEqual(rig.model.suggestedNetwork, .base)
+        XCTAssertEqual(rig.model.addressProblem, WithdrawCopy.baseAddressOnSolana)
+        XCTAssertFalse(rig.model.addressProblem?.contains("\"0\"") ?? true)
+
+        rig.model.switchToSuggestedNetwork()
+
+        XCTAssertEqual(rig.model.network, .base)
+        XCTAssertEqual(rig.model.address, evm)
+        XCTAssertEqual(rig.model.validAddress, evm)
+        XCTAssertNil(rig.model.suggestedNetwork)
+        XCTAssertNil(rig.model.addressProblem)
+    }
+
+    func testASolanaAddressOnSolanaOffersNothing() {
+        let rig = rig([previewPath: []])
+        rig.model.setAddress(solana)
+        XCTAssertNil(rig.model.suggestedNetwork)
+    }
+
+    func testABalanceHintRequotesSoMaxAndCashAreFresh() async {
+        let rig = rig([previewPath: [empty, quote(max: "299500000")]])
+        rig.model.load()
+        await flush(rig)
+        XCTAssertEqual(rig.model.maxMicros, 499_500_000)
+        let observing = Task { await rig.model.observe() }
+        await rig.hints.waitForSubscribers(1)
+
+        await rig.hints.send(.changed(.user("u"), what: "balance_changed", id: "1"))
+        await flush(rig)
+
+        XCTAssertEqual(rig.model.maxMicros, 299_500_000)
+        observing.cancel()
+    }
 }
 
 extension WithdrawModelTests {
@@ -432,6 +560,7 @@ extension WithdrawModelTests {
         let settlements: SettlementWatcher
         let clock: TestClock
         let transport: StubTransport
+        let hints: FakeHintStream
     }
 
     private func rig(
@@ -448,7 +577,7 @@ extension WithdrawModelTests {
             settlements: settlements,
             ownDepositAddress: ownSolana, clock: clock,
             balance: withBalance ? BalanceSource(api: api, hints: hints) : nil)
-        return Rig(model: model, settlements: settlements, clock: clock, transport: transport)
+        return Rig(model: model, settlements: settlements, clock: clock, transport: transport, hints: hints)
     }
 
     private func waitUntil(_ predicate: @escaping () -> Bool) async {

@@ -33,6 +33,7 @@ struct AmountKeypadAction {
     let title: String
     var settledTitle: String?
     var isWorking = false
+    var isEnabled = true
     var keepsOpen = false
     let perform: () -> Void
 }
@@ -275,7 +276,7 @@ struct AmountKeypadScreen<Source: View, Header: View>: View {
                         SubmitLabel(isWorking: action.isWorking, idle: action.title, working: action.title)
                     }
                     .buttonStyle(.monacoPrimary)
-                    .disabled(action.isWorking)
+                    .disabled(action.isWorking || !action.isEnabled)
                     .accessibilityIdentifier("amount-keypad-action")
                 } else {
                     slotText(emptySlot)

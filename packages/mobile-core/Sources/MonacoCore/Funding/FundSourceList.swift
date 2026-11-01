@@ -51,6 +51,16 @@ public final class FundSourceListModel {
         rows.first { $0.id == id }
     }
 
+    public func name(for id: String, opener: (id: String, name: String?)?) -> String {
+        if let row = row(for: id) { return row.name }
+        if let opener, opener.id == id, let name = opener.name?.trimmingCharacters(in: .whitespacesAndNewlines),
+            !name.isEmpty
+        {
+            return name
+        }
+        return FundSourceCopy.fallbackName
+    }
+
     public func load() async {
         let portfolio = try? await api.read { try await $0.getMyPortfolio().ok.body.json }
         guard !Task.isCancelled else { return }

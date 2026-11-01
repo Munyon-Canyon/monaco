@@ -29,6 +29,18 @@ final class FundSourceListTests: XCTestCase {
         XCTAssertNil(list.row(for: "missing"))
     }
 
+    func testACabalWithoutASnapshotTakesTheNameTheOpeningScreenPassed() async throws {
+        let list = model(StubTransport(scripted: [.json(.ok, try portfolio())]))
+        await list.load()
+
+        XCTAssertEqual(list.name(for: "fresh", opener: ("fresh", "Big Ballers")), "Big Ballers")
+        XCTAssertEqual(list.name(for: "fresh", opener: ("fresh", "  ")), FundSourceCopy.fallbackName)
+        XCTAssertEqual(list.name(for: "fresh", opener: ("other", "Big Ballers")), FundSourceCopy.fallbackName)
+        XCTAssertEqual(list.name(for: "fresh", opener: nil), FundSourceCopy.fallbackName)
+        let known = Components.Schemas.CabalRef.sampleBeta.id
+        XCTAssertEqual(list.name(for: known, opener: (known, "Stale name")), "Sunday Investors")
+    }
+
     func testAFailedReadLeavesNoRowsButIsLoaded() async {
         let list = model(StubTransport(scripted: [.failure(URLError(.notConnectedToInternet))]))
 

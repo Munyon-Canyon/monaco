@@ -100,7 +100,7 @@ public struct WithdrawSource: Sendable {
             feeMicros: try wire.feeMicros.map(AccountBalance.micros), feeKnown: wire.feeKnown,
             feeMode: wire.feeMode == .included ? .included : .onTop,
             maxAmountMicros: try AccountBalance.micros(wire.maxAmountMicros),
-            receiveMicros: amountMicros == nil ? nil : receive,
+            receiveMicros: amountMicros == nil || (network.isEVM && toAddress == nil) ? nil : receive,
             overMicros: try wire.overMicros.map(AccountBalance.micros),
             belowMin: wire.belowMin, minMicros: try AccountBalance.micros(wire.minMicros),
             arrivalSeconds: wire.arrivalSeconds, expiresAt: wire.expiresAt)

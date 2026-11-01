@@ -31,7 +31,10 @@ struct CashOutView: View {
             onReview: { step = .review },
             onBack: { step = .entry },
             onSubmit: { Task { await submit() } },
-            onFund: { environment.navigator.open(FundRoute(cabalID: cabalID), in: environment.navigator.selectedTab) },
+            onFund: {
+                environment.navigator.open(
+                    FundRoute(cabalID: cabalID, cabalName: cabal?.cabalName), in: environment.navigator.selectedTab)
+            },
             onActivity: { environment.navigator.open(AccountActivityRoute(), in: environment.navigator.selectedTab) }
         )
         .analyticsScreen("cash_out", step: .cashOut(.cashOutOpened))
@@ -55,7 +58,8 @@ struct CashOutView: View {
     }
 
     private var settledNotice: CashOutNotice? {
-        guard let startedJob, let notice = environment.cashOuts.notice, notice.jobID == startedJob.id else {
+        let shown = CashOutContent.shownJob(started: startedJob, running: environment.cashOuts.job(for: cabalID))
+        guard let shown, let notice = environment.cashOuts.notice, notice.jobID == shown.id else {
             return nil
         }
         return notice
@@ -95,6 +99,10 @@ struct CashOutContent: View {
 
     private var enteredMicros: Int64 { AmountEntryText.micros(amountText) ?? 0 }
 
+    static func shownJob(started: CashOutJob?, running: CashOutJob?) -> CashOutJob? {
+        started ?? running
+    }
+
     private var state: LoadState<CashOutPreview> {
         if let failure { return .failed(failure) }
         return model?.state ?? .loading
@@ -104,8 +112,8 @@ struct CashOutContent: View {
 
     var body: some View {
         Group {
-            if let startedJob {
-                outcome(startedJob)
+            if let shown = Self.shownJob(started: startedJob, running: runningJob) {
+                outcome(shown)
             } else {
                 form
             }
@@ -294,13 +302,18 @@ struct CashOutContent: View {
     @ViewBuilder
     private func outcome(_ job: CashOutJob) -> some View {
         let rows = { (status: String) in
-            [
+            var rows = [
                 MoneyKeyRow(label: "From", value: .words(cabalName ?? "This cabal")),
                 MoneyKeyRow(label: "To", value: .words("Your cash")),
-                MoneyKeyRow(
-                    label: "Requested value", value: .data(UsdAmountFormatter.format(flooredMicros: job.payoutMicros))),
-                MoneyKeyRow(label: "Status", value: .words(status)),
             ]
+            if job.payoutMicros > 0 {
+                rows.append(
+                    MoneyKeyRow(
+                        label: "Requested value",
+                        value: .data(UsdAmountFormatter.format(flooredMicros: job.payoutMicros))))
+            }
+            rows.append(MoneyKeyRow(label: "Status", value: .words(status)))
+            return rows
         }
         if let settledNotice, let message = settledNotice.partialMessage(requestedMicros: job.payoutMicros),
             let raised = settledNotice.raisedMicros

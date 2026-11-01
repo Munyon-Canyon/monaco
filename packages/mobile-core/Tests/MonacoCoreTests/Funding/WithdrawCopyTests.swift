@@ -21,11 +21,12 @@ final class WithdrawCopyTests: XCTestCase {
 
     func testTheTypedLineForAnOnTopFeeAnIncludedFeeAndAZeroFee() {
         XCTAssertEqual(
-            WithdrawCopy.typedLine(receiveMicros: 120_000_000, feeMicros: 500_000), "≈ 120.00 USDC · fee $0.50")
+            WithdrawCopy.typedLine(receiveMicros: 120_000_000, feeMicros: 500_000), "120.00 USDC · fee 0.50 USDC")
         XCTAssertEqual(
-            WithdrawCopy.typedLine(receiveMicros: 9_992_500, feeMicros: 7_500), "≈ 9.99 USDC · fee $0.01")
-        XCTAssertEqual(WithdrawCopy.typedLine(receiveMicros: 120_000_000, feeMicros: 0), "≈ 120.00 USDC · no fee")
-        XCTAssertEqual(WithdrawCopy.typedLine(receiveMicros: 120_000_000, feeMicros: nil), "≈ 120.00 USDC")
+            WithdrawCopy.typedLine(receiveMicros: 9_992_500, feeMicros: 7_500, isEstimate: true),
+            "≈ 9.99 USDC · fee 0.01 USDC")
+        XCTAssertEqual(WithdrawCopy.typedLine(receiveMicros: 120_000_000, feeMicros: 0), "120.00 USDC · no fee")
+        XCTAssertEqual(WithdrawCopy.typedLine(receiveMicros: 120_000_000, feeMicros: nil), "120.00 USDC")
     }
 
     func testTheLimitLineSlotAndButton() {
@@ -70,7 +71,8 @@ final class WithdrawCopyTests: XCTestCase {
     func testNoStringSaysWallet() {
         var strings = [
             WithdrawCopy.assetLabel, WithdrawCopy.addAddress, WithdrawCopy.feeFailed, WithdrawCopy.invalidAddress,
-            WithdrawCopy.ownDeposit, WithdrawCopy.emptyLine(feeMicros: nil, network: .base),
+            WithdrawCopy.ownDeposit, WithdrawCopy.switchToBase, WithdrawCopy.baseAddressOnSolana,
+            WithdrawCopy.emptyLine(feeMicros: nil, network: .base),
             WithdrawCopy.emptyLine(feeMicros: 0, network: .solana),
             WithdrawCopy.typedLine(receiveMicros: 1, feeMicros: 0),
             WithdrawCopy.limitLine(maxMicros: 1, overMicros: 1), WithdrawCopy.limitSlot(maxMicros: 1),

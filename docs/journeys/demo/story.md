@@ -91,7 +91,7 @@ Beat 21.
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
 | S7.1 | A | open, then tap | `QA story {QA.run}`, then `cabal-treasury-cash-out` | | The title "Cash out" and the 25% / 50% / All keys show within 10 s (beat 21 "Cash out any time"; old app: `CashOutView`; screens.md Cash out) |
-| S7.2 | A | tap, then tap | "25%", then `cash-out-submit` | | A toast starting "Cashing out" within 15 s (screens.md Cash out: "Cashing out $50.03. It lands in your balance in about a minute") |
+| S7.2 | A | tap, then tap | "25%", then `cash-out-submit` | | A toast starting "Cashing out" within 15 s (screens.md Cash out: "Cashing out $50.03. The final amount is known when it settles") |
 
 ### S8 See who's up
 

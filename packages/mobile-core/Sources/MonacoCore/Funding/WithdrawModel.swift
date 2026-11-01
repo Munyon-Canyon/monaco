@@ -106,6 +106,7 @@ public final class WithdrawModel {
 
     public var addressProblem: String? {
         if let refusedAddress { return refusedAddress }
+        if suggestedNetwork != nil { return WithdrawCopy.baseAddressOnSolana }
         let trimmed = address.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty,
             case .failure(let problem) = network.validate(trimmed, ownDepositAddress: ownDepositAddress)
@@ -156,7 +157,7 @@ public final class WithdrawModel {
     }
 
     public var canSubmit: Bool {
-        guard validAddress != nil, !quoteFailed else { return false }
+        guard validAddress != nil, refusedAddress == nil, !quoteFailed else { return false }
         switch state {
         case .typed, .failed: return freshQuote != nil
         default: return false
@@ -170,9 +171,11 @@ public final class WithdrawModel {
             return WithdrawCopy.emptyLine(feeMicros: quote?.feeMicros, network: network)
         case .typed, .needsAddress, .failed, .invalid:
             if quoteFailed { return WithdrawCopy.feeFailed }
-            guard let fresh = freshQuote, let receive = (fresh.overMicros ?? 0) > 0 ? amountMicros : fresh.receiveMicros
-            else { return nil }
-            return WithdrawCopy.typedLine(receiveMicros: receive, feeMicros: fresh.feeMicros)
+            guard let fresh = freshQuote else { return nil }
+            guard let receive = (fresh.overMicros ?? 0) > 0 ? amountMicros : fresh.receiveMicros else {
+                return WithdrawCopy.emptyLine(feeMicros: fresh.feeMicros, network: network)
+            }
+            return WithdrawCopy.typedLine(receiveMicros: receive, feeMicros: fresh.feeMicros, isEstimate: network.isEVM)
         case .belowMinimum(let min): return WithdrawCopy.belowMinimum(minMicros: min)
         case .settled(_, _, let network, let arrival, _):
             return WithdrawCopy.settledLine(network: network, arrivalSeconds: arrival)
@@ -271,6 +274,32 @@ public final class WithdrawModel {
 }
 
 extension WithdrawModel {
+    public var suggestedNetwork: WithdrawNetwork? {
+        guard network == .solana, networks.contains(.base),
+            case .success = EVMAddress.validate(address.trimmingCharacters(in: .whitespacesAndNewlines))
+        else { return nil }
+        return .base
+    }
+
+    public func switchToSuggestedNetwork() {
+        guard let suggestedNetwork else { return }
+        setNetwork(suggestedNetwork)
+    }
+
+    public var buttonIsEnabled: Bool {
+        switch state {
+        case .typed, .failed: canSubmit || quoteFailed
+        default: true
+        }
+    }
+
+    public func observe() async {
+        for await _ in hints.hints(matching: .user(what: BalanceSource.refreshingHint)) {
+            guard !closed, !isLocked else { continue }
+            retryQuote()
+        }
+    }
+
     private func scheduleQuote() {
         let key = currentKey
         guard key != requestedKey else { return }
