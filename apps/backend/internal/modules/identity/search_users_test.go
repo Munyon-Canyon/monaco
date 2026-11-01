@@ -55,6 +55,31 @@ func TestSearchUsers_Excludes(t *testing.T) {
 	}
 }
 
+func TestSearchUsers_hidesBlockedUsersInEitherDirection(t *testing.T) {
+	t.Parallel()
+	f := newPortFixture(t)
+	caller := f.seed(t, portSeed{handle: "caller"})
+	blockedByMe := f.seed(t, portSeed{handle: "blockedbyme", name: "Maya"})
+	blockedMe := f.seed(t, portSeed{handle: "blockedme", name: "Maya"})
+	visible := f.seed(t, portSeed{handle: "visible", name: "Maya"})
+	f.block(t, caller.ID, blockedByMe.ID)
+	f.block(t, blockedMe.ID, caller.ID)
+	users, err := app.SearchUsers(t.Context(), f.pool, f.socialModule().FollowCounts(), caller.ID, "maya")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(users) != 1 || users[0].ID != visible.ID {
+		t.Fatalf("users = %#v, want only %s", users, visible.ID)
+	}
+	other, err := app.SearchUsers(t.Context(), f.pool, f.socialModule().FollowCounts(), visible.ID, "maya")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(other) != 2 {
+		t.Fatalf("an unrelated caller sees %d users, want 2", len(other))
+	}
+}
+
 func TestSearchUsers_AtAndCase(t *testing.T) {
 	t.Parallel()
 	f := newPortFixture(t)

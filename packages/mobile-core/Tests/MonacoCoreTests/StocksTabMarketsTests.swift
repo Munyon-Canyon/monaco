@@ -329,3 +329,23 @@ private final class PrefixTransport: ClientTransport, Sendable {
         return (response, HTTPBody(Data(match.body.utf8)))
     }
 }
+
+extension StocksTabMarketsTests {
+    func testStarringOneStockQuotesOnlyThatStock() async throws {
+        let transport = PrefixTransport([
+            ("/v1/assets/", try Self.detailBody("NVDAx")), ("/v1/me/market-facts", Self.factsBody),
+        ])
+        let watchlist = WatchlistModel(userID: "u1", store: InMemoryWatchlistStore(["u1": ["NVDAx", "AAPLx"]]))
+        let model = makeModel(transport, watchlist: watchlist)
+        await model.watchlistChanged()
+        let before = transport.sent.filter { $0.hasPrefix("/v1/assets/") }.count
+
+        watchlist.toggle("MSFTx")
+        await model.watchlistChanged()
+
+        let quoted = transport.sent.filter { $0.hasPrefix("/v1/assets/") }
+        XCTAssertEqual(before, 2)
+        XCTAssertEqual(quoted.count, 3)
+        XCTAssertTrue(quoted[2].hasPrefix("/v1/assets/MSFTx"), quoted[2])
+    }
+}

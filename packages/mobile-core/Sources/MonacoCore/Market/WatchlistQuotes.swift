@@ -41,8 +41,13 @@ public final class WatchlistQuotes {
         }
     }
 
-    public func load() async {
-        let symbols = watchlist.symbols
+    public func load() async { await fetch(watchlist.symbols) }
+
+    public func loadMissing() async {
+        await fetch(watchlist.symbols.filter { quotes[$0] == nil })
+    }
+
+    private func fetch(_ symbols: [String]) async {
         let api = api
         let reads = await withTaskGroup(of: (String, Read).self) { group in
             for symbol in symbols { group.addTask { (symbol, await Self.read(api, symbol)) } }

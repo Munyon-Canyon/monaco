@@ -174,7 +174,7 @@ public final class StocksTabModel {
         defer { replacementGenerations.remove(issued) }
         async let moving: Void = isMarkets ? loadMovers() : ()
         await refresh(activeSection, issued: issued)
-        await watchlistChanged()
+        await refreshWatchlist()
         await moving
     }
     private func replace(_ section: Section?, issued: Int) async {
@@ -253,6 +253,7 @@ public final class StocksTabModel {
     }
     private var currentSection: Section { activeSection }
     func loadQuotes() async { await quotes?.load() }
+    func loadMissingQuotes() async { await quotes?.loadMissing() }
     private static func trimmed(_ text: String) -> String { text.trimmingCharacters(in: .whitespacesAndNewlines) }
 }
 private final class ReloadHook { var run: (@MainActor () async -> Void)? }
