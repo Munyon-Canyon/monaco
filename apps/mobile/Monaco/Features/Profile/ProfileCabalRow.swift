@@ -2,7 +2,7 @@ import MonacoCore
 import SwiftUI
 
 enum ProfileCabalRowTrailing: Equatable {
-    case figures(value: String, returnText: String?, tone: ProfileReturnTone?)
+    case figures(value: String, returnText: String?, tone: ProfileReturnTone?, note: StakeValueNote?)
     case text(String)
     case none
 }
@@ -23,7 +23,9 @@ struct ProfileCabalRowView: View {
         name = row.name
         pictureURL = row.pictureURL
         subtitle = row.subtitle
-        trailing = row.value.map { .figures(value: $0, returnText: row.returnText, tone: row.returnTone) } ?? .none
+        trailing =
+            row.value.map { .figures(value: $0, returnText: row.returnText, tone: row.returnTone, note: row.note) }
+            ?? .none
         identifier = "profile-cabal-row-\(row.id)"
         self.isLast = isLast
     }
@@ -89,7 +91,7 @@ struct ProfileCabalRowView: View {
 
     @ViewBuilder private var trailingView: some View {
         switch trailing {
-        case .figures(let value, let returnText, let tone):
+        case .figures(let value, let returnText, let tone, let note):
             VStack(alignment: dynamicTypeSize.isAccessibilitySize ? .leading : .trailing, spacing: MonacoTheme.Space.xs)
             {
                 Text(value)
@@ -99,6 +101,12 @@ struct ProfileCabalRowView: View {
                     Text(returnText)
                         .font(MonacoTheme.Typo.caption)
                         .foregroundStyle(Self.color(tone))
+                }
+                if let note {
+                    Text(note.text(now: .now))
+                        .font(MonacoTheme.Typo.caption)
+                        .foregroundStyle(MonacoTheme.secondaryText)
+                        .accessibilityIdentifier("\(identifier)-note")
                 }
             }
         case .text(let text):

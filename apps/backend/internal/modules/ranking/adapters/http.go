@@ -286,7 +286,7 @@ func wirePortfolio(view app.PortfolioView) (api.MyPortfolio, error) {
 		member := view.Members[row.CabalID]
 		rowArriving, stale := row.Arriving.Int64(), row.Stale
 		out.Cabals = append(out.Cabals, api.PortfolioCabal{
-			ArrivingMicros: &rowArriving, Stale: &stale,
+			ArrivingMicros: &rowArriving, Stale: &stale, ValuedAt: row.ValuedAt,
 			Cabal: ref, ValueMicros: int64(value), ShareUnits: int64(shares), NetContributedMicros: row.Net.Int64(),
 			PnlMicros: row.PnL.Int64(), ReturnBps: bpsOf(row.Return), SliceBps: int64(row.SliceBps),
 			OwnershipBps: row.OwnershipBps, Role: api.PortfolioCabalRole(member.Role), CanVote: member.CanVote,

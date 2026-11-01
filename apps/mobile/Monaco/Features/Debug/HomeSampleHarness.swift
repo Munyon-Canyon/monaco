@@ -13,6 +13,8 @@ enum HomeSampleScenario: String, CaseIterable {
     case votes
     case notFunded
     case partlyFunded
+    case staleStake
+    case settlingStake
     case fVotePick
     case fVoteHolding
     case fVoteCommitted
@@ -48,6 +50,8 @@ extension HomeSampleScenario {
                 viewerCanVote: true)
         case .notFunded: HomeSampleData.script(.unfunded, proposals: [])
         case .partlyFunded: HomeSampleData.script(.partlyFunded, proposals: [])
+        case .staleStake: HomeSampleData.stale(HomeSampleData.script(.loss, proposals: []))
+        case .settlingStake: HomeSampleData.settling(HomeSampleData.script(.loss, proposals: []))
         case .fVotePick, .fVoteHolding, .fVoteCommitted: HomeSampleData.script(.loss, proposals: [.fVote])
         case .fVoteRule: HomeSampleData.script(.loss, proposals: [.fRule])
         case .fReady, .fReadyLight, .fScrolled: HomeSampleData.script(.fAccount, proposals: [.fVote])
@@ -93,6 +97,22 @@ enum HomeSampleData {
     private static let cabals: [(id: String, name: String, members: Int32, ownershipBps: Int32)] = [
         (bigBallers, "Big Ballers", 8, 3_500), (techCrew, "Tech Crew", 5, 1_400), (underwater, "Underwater", 9, 650),
     ]
+
+    static func stale(_ script: SampleAPIScript) -> SampleAPIScript {
+        var script = script
+        script.portfolio?.cabals[1].stale = true
+        script.portfolio?.cabals[1].valuedAt = Date.now.addingTimeInterval(-3 * 86_400)
+        return script
+    }
+
+    static func settling(_ script: SampleAPIScript) -> SampleAPIScript {
+        var script = script
+        script.portfolio?.cabals[1].valueMicros = 0
+        script.portfolio?.cabals[1].pnlMicros = 0
+        script.portfolio?.cabals[1].returnBps = nil
+        script.portfolio?.cabals[1].arrivingMicros = 100_000_000
+        return script
+    }
 
     static func feedPreviewScript(_ source: HomeFeedPreviewModel.Source) -> SampleAPIScript {
         var script = SampleAPIScript()

@@ -8,7 +8,9 @@ import Testing
 @MainActor
 struct ProfileTabsTests {
     @Test func theHarnessScenariosResolve() {
-        for name in ["tabsCabals", "tabsUnvalued", "tabsActivity", "tabsEmpty", "tabsError"] {
+        for name in [
+            "tabsCabals", "tabsUnvalued", "tabsStale", "tabsSettling", "tabsActivity", "tabsEmpty", "tabsError",
+        ] {
             #expect(ProfileSampleScenario.matching(["-MonacoProfileSample", name]) != nil, "\(name)")
         }
     }

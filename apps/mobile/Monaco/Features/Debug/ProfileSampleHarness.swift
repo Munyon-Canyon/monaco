@@ -16,6 +16,8 @@ enum ProfileSampleScenario: String, CaseIterable {
     case cabals
     case tabsCabals
     case tabsUnvalued
+    case tabsStale
+    case tabsSettling
     case tabsActivity
     case tabsEmpty
     case tabsError
@@ -115,6 +117,10 @@ struct ProfileTabsSampleScreen: View {
                 ProfileCabalRows.make(
                     cabals: [Self.cabal(.sampleACCapital), Self.cabal(.sampleQuantKids)],
                     portfolio: .sampleWithUnfunded, invites: []))
+        case .tabsStale:
+            .loaded(Self.staleAndSettling(stale: true))
+        case .tabsSettling:
+            .loaded(Self.staleAndSettling(stale: false))
         default:
             .loaded(
                 ProfileCabalRows.make(
@@ -124,6 +130,22 @@ struct ProfileTabsSampleScreen: View {
                     ], portfolio: .sampleOwnProfile,
                     invites: [Self.quantKidsInvite]))
         }
+    }
+
+    private static func staleAndSettling(stale: Bool) -> [ProfileCabalRow] {
+        var portfolio = Components.Schemas.MyPortfolio.sampleOwnProfile
+        if stale {
+            portfolio.cabals[1].stale = true
+            portfolio.cabals[1].valuedAt = Date.now.addingTimeInterval(-3 * 86_400)
+        } else {
+            portfolio.cabals[1].valueMicros = 0
+            portfolio.cabals[1].returnBps = nil
+            portfolio.cabals[1].arrivingMicros = 100_000_000
+        }
+        return ProfileCabalRows.make(
+            cabals: [
+                Self.cabal(.sampleACCapital, role: "creator"), Self.cabal(.sampleTechTitans), Self.cabal(.sampleDegens),
+            ], portfolio: portfolio, invites: [])
     }
 
     private static let activityRows: [MemberActivityRow] = [
@@ -273,7 +295,7 @@ final class ProfileSampleHarnessEntry: SampleHarnessEntry {
         guard let scenario = ProfileSampleScenario.matching(arguments) else { return nil }
         SampleAPIProtocol.install(apiScript(for: scenario))
         switch scenario {
-        case .tabsCabals, .tabsUnvalued, .tabsActivity, .tabsEmpty, .tabsError:
+        case .tabsCabals, .tabsUnvalued, .tabsStale, .tabsSettling, .tabsActivity, .tabsEmpty, .tabsError:
             return AnyView(ProfileTabsSampleScreen(scenario: scenario))
         default:
             break

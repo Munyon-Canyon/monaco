@@ -1,3 +1,4 @@
+import Foundation
 import MonacoAPI
 
 public struct PortfolioSummary: Equatable, Sendable {
@@ -27,6 +28,7 @@ public struct PortfolioSummary: Equatable, Sendable {
         public let value: String
         public let arrivingMicros: Int64
         public let isStale: Bool
+        public let valuedAt: Date?
         public let pnlMicros: Int64
         public let pnl: String
         public let returnText: String
@@ -45,6 +47,7 @@ public struct PortfolioSummary: Equatable, Sendable {
             value = UsdAmountFormatter.format(flooredMicros: cabal.valueMicros)
             arrivingMicros = cabal.arrivingMicros ?? 0
             isStale = cabal.stale ?? false
+            valuedAt = cabal.valuedAt
             pnlMicros = cabal.pnlMicros
             pnl = UsdAmountFormatter.format(signedMicros: cabal.pnlMicros)
             returnText = PortfolioSummary.percent(cabal.returnBps)

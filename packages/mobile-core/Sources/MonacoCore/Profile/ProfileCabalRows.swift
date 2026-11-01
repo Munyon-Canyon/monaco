@@ -17,6 +17,7 @@ public enum ProfileCabalRow: Equatable, Sendable, Identifiable {
         public var valueMicros: Int64?
         public var returnText: String?
         public var returnTone: ProfileReturnTone?
+        public var note: StakeValueNote?
 
         public var subtitle: String {
             ownership.map { "\($0) · \(role)" } ?? role
@@ -87,8 +88,9 @@ public enum ProfileCabalRows {
         let arriving = stake?.arrivingMicros ?? 0
         guard let stake, stake.shareUnits > 0 else {
             if arriving > 0 {
-                row.value = "\(UsdAmountFormatter.format(flooredMicros: arriving)) pending"
+                row.value = UsdAmountFormatter.format(flooredMicros: arriving)
                 row.valueMicros = arriving
+                row.note = .settling
                 return row
             }
             let snapshotted = (stake?.potValueMicros ?? 0) > 0
@@ -102,7 +104,13 @@ public enum ProfileCabalRows {
         if let bps = stake.returnBps {
             row.returnText = PercentFormatter.format(basisPoints: bps, signed: true, fractionDigits: 1)
             row.returnTone = bps > 0 ? .gain : (bps < 0 ? .loss : .flat)
+        } else {
+            row.returnText = "—"
+            row.returnTone = .flat
         }
+        row.note = StakeValueNote.make(
+            valueMicros: stake.valueMicros, arrivingMicros: arriving, isStale: stake.stale ?? false,
+            valuedAt: stake.valuedAt)
         return row
     }
 
