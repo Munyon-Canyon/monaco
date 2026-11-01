@@ -23,7 +23,7 @@ import (
 const parkedActor = "operator:alice"
 
 func (e *routeEnv) resolver() *app.ResolveParkedSwapHandler {
-	return app.NewResolveParkedSwapHandler(e.uow, e.pool, e.clk, e.ids, e.hints)
+	return app.NewResolveParkedSwapHandler(e.uow, e.pool, e.clk, e.ids, e.hints, e.receipts())
 }
 
 func (e *routeEnv) resolveParked(t *testing.T, swap uuid.UUID, action app.ParkedAction) error {

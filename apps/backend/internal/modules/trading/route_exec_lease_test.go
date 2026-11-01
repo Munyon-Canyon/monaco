@@ -106,7 +106,7 @@ func TestForceResolveSwap_closesAParkedRoutedSwapFromItsReceipt(t *testing.T) {
 	t.Parallel()
 	e := newRouteEnv(t)
 	swap := e.parkedWithoutReceipt(t)
-	handler := app.NewForceResolveSwapHandler(e.uow, e.pool, e.clk, e.ids, e.hints, nil)
+	handler := app.NewForceResolveSwapHandler(e.uow, e.pool, e.clk, e.ids, e.hints, nil, e.receipts())
 
 	view, err := handler.Handle(t.Context(), app.ForceResolveSwap{
 		Signature: e.signature(t, swap), To: domain.StatusConfirmed, OutAmount: money.NewBaseUnits(filledOut, 8),
@@ -121,7 +121,7 @@ func TestForceResolveSwap_closesAParkedRoutedSwapFromItsReceipt(t *testing.T) {
 	var action, detail string
 	const audit = `SELECT action, detail::text FROM swap_operator_actions WHERE swap_id = $1`
 	if err := e.pool.QueryRow(t.Context(), audit, swap).Scan(&action, &detail); err != nil ||
-		action != "force_resolve" || !strings.Contains(detail, `"chain_state": "not_checked"`) {
+		action != "force_resolve" || !strings.Contains(detail, `"chain_state": "not_found"`) {
 		t.Fatalf("audit = %q %s, %v", action, detail, err)
 	}
 }
@@ -130,7 +130,7 @@ func TestForceResolveSwap_stillRefusesAnUnparkedRoutedSwap(t *testing.T) {
 	t.Parallel()
 	e := newRouteEnv(t)
 	swap := e.submittedWithoutReceipt(t)
-	handler := app.NewForceResolveSwapHandler(e.uow, e.pool, e.clk, e.ids, e.hints, nil)
+	handler := app.NewForceResolveSwapHandler(e.uow, e.pool, e.clk, e.ids, e.hints, nil, e.receipts())
 
 	_, err := handler.Handle(t.Context(), app.ForceResolveSwap{
 		Signature: e.signature(t, swap), To: domain.StatusFailed, Reason: "no receipt", Actor: "operator:alice",

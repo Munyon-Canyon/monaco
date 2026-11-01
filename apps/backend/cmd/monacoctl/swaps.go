@@ -72,8 +72,8 @@ func swapsToolWith(environ []string, clk clock.Clock, stdin io.Reader, ports cas
 		return run(map[string]command{
 			"force-resolve":       forceResolve,
 			"parked":              listParked(clk),
-			"unpark":              resolveParked(tradingapp.ParkedUnpark, environ, clk, stdin),
-			"fail-parked":         resolveParked(tradingapp.ParkedFail, environ, clk, stdin),
+			"unpark":              resolveParked(tradingapp.ParkedUnpark, environ, clk, stdin, ports),
+			"fail-parked":         resolveParked(tradingapp.ParkedFail, environ, clk, stdin, ports),
 			"failed-bridge-backs": listFailedBridgeBacks(clk),
 			"retry-bridge-back":   retryBridgeBack(environ, clk, stdin),
 			"return-evm-cash":     returnEVMCash(environ, clk, stdin, ports),
@@ -138,7 +138,10 @@ func resolveSwap(
 		return fail(stderr, err)
 	}
 	uow := db.New(pool, ids.Real{}, clk)
-	handler := tradingapp.NewForceResolveSwapHandler(uow, pool, clk, ids.Real{}, conn, ports(cfg, pool, uow, clk).Chain)
+	adapters := ports(cfg, pool, uow, clk)
+	handler := tradingapp.NewForceResolveSwapHandler(
+		uow, pool, clk, ids.Real{}, conn, adapters.Chain, adapters.Receipts,
+	)
 	after, err := handler.Handle(ctx, tradingapp.ForceResolveSwap{
 		Signature: signature, To: to, OutAmount: units, Reason: req.reason, Actor: req.actor, Override: req.override,
 		IdempotencyKey: "force-resolve:" + string(signature) + ":" + string(to),

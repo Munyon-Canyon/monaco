@@ -63,6 +63,23 @@ func (v *EVMVenue) Fill(
 	return app.EVMFill{State: app.FillSucceeded, Out: received}, nil
 }
 
+func (v *EVMVenue) Inspect(
+	ctx context.Context, network chain.Network, txHash string, out, owner chain.EVMAddress,
+) (app.EVMFill, error) {
+	state, receipt, attrs, err := v.receipt(ctx, network, txHash)
+	if err != nil || state != app.FillSucceeded {
+		return app.EVMFill{State: state}, err
+	}
+	total, err := transferTotal(receipt.Logs, out, owner)
+	if err == nil && !total.IsUint64() {
+		err = errs.New(errs.CodeDecodeFailed, evmVenueFillOp, slog.String("total", total.String()))
+	}
+	if err != nil {
+		return app.EVMFill{}, errs.Wrap(err, errs.CodeDecodeFailed, evmVenueFillOp, attrs...)
+	}
+	return app.EVMFill{State: app.FillSucceeded, Out: total.Uint64()}, nil
+}
+
 func (v *EVMVenue) Receipt(ctx context.Context, network chain.Network, txHash string) (app.EVMFillState, error) {
 	state, _, _, err := v.receipt(ctx, network, txHash)
 	return state, err
@@ -146,6 +163,17 @@ func receiptCall[T any](
 }
 
 func transferredTo(logs []logWire, token, owner chain.EVMAddress) (uint64, error) {
+	total, err := transferTotal(logs, token, owner)
+	if err != nil {
+		return 0, err
+	}
+	if total.Sign() == 0 || !total.IsUint64() {
+		return 0, errs.New(errs.CodeDecodeFailed, "trading.EVMVenue.transfer", slog.String("total", total.String()))
+	}
+	return total.Uint64(), nil
+}
+
+func transferTotal(logs []logWire, token, owner chain.EVMAddress) (*big.Int, error) {
 	recipient := "0x" + strings.Repeat("0", 24) + strings.TrimPrefix(owner.String(), "0x")
 	total := new(big.Int)
 	for _, l := range logs {
@@ -155,12 +183,9 @@ func transferredTo(logs []logWire, token, owner chain.EVMAddress) (uint64, error
 		}
 		amount, err := hexBig(l.Data)
 		if err != nil || len(l.Data) != 66 {
-			return 0, errs.New(errs.CodeDecodeFailed, "trading.EVMVenue.transfer", slog.String("data", l.Data))
+			return nil, errs.New(errs.CodeDecodeFailed, "trading.EVMVenue.transfer", slog.String("data", l.Data))
 		}
 		total.Add(total, amount)
 	}
-	if total.Sign() == 0 || !total.IsUint64() {
-		return 0, errs.New(errs.CodeDecodeFailed, "trading.EVMVenue.transfer", slog.String("total", total.String()))
-	}
-	return total.Uint64(), nil
+	return total, nil
 }

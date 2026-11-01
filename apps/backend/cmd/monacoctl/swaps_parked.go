@@ -29,7 +29,7 @@ func listParked(clk clock.Clock) command {
 		pool, err := db.Open(ctx, cfg.DB)
 		if err == nil {
 			defer pool.Close()
-			parked, err = tradingapp.NewResolveParkedSwapHandler(db.New(pool, ids.Real{}, clk), pool, clk, ids.Real{}, nil).
+			parked, err = tradingapp.NewResolveParkedSwapHandler(db.New(pool, ids.Real{}, clk), pool, clk, ids.Real{}, nil, nil).
 				ListParked(ctx)
 		}
 		if err != nil {
@@ -46,7 +46,7 @@ func listParked(clk clock.Clock) command {
 }
 
 func resolveParked(
-	action tradingapp.ParkedAction, environ []string, clk clock.Clock, stdin io.Reader,
+	action tradingapp.ParkedAction, environ []string, clk clock.Clock, stdin io.Reader, ports cashPorts,
 ) command {
 	return func(cfg config.Config, args []string, stdout, stderr io.Writer) int {
 		fs := flag.NewFlagSet("swaps "+string(action), flag.ContinueOnError)
@@ -66,12 +66,12 @@ func resolveParked(
 		cmd := tradingapp.ResolveParkedSwap{
 			SwapID: ids.SwapIDFrom(id), Action: action, Actor: "operator:" + operatorOf(environ), Reason: *reason,
 		}
-		return runParked(cfg, clk, stdin, cmd, *yes, stdout, stderr)
+		return runParked(cfg, clk, stdin, ports, cmd, *yes, stdout, stderr)
 	}
 }
 
 func runParked(
-	cfg config.Config, clk clock.Clock, stdin io.Reader, cmd tradingapp.ResolveParkedSwap, yes bool,
+	cfg config.Config, clk clock.Clock, stdin io.Reader, ports cashPorts, cmd tradingapp.ResolveParkedSwap, yes bool,
 	stdout, stderr io.Writer,
 ) int {
 	ctx := observability.WithLogger(context.Background(), observability.NewLogger(cfg, stderr))
@@ -85,7 +85,10 @@ func runParked(
 	}
 	if err == nil {
 		defer conn.Close(ctx)
-		handler = tradingapp.NewResolveParkedSwapHandler(db.New(pool, ids.Real{}, clk), pool, clk, ids.Real{}, conn)
+		uow := db.New(pool, ids.Real{}, clk)
+		handler = tradingapp.NewResolveParkedSwapHandler(
+			uow, pool, clk, ids.Real{}, conn, ports(cfg, pool, uow, clk).Receipts,
+		)
 		before, err = handler.Parked(ctx, cmd.SwapID)
 	}
 	if err != nil {

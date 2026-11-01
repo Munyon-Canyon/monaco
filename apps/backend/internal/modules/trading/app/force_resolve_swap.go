@@ -48,6 +48,8 @@ type ForceResolveSwapHandler struct {
 	ids   ids.Generator
 	hints Hints
 	chain ChainReader
+
+	receipts RoutedReceiptReader
 }
 
 func NewForceResolveSwapHandler(
@@ -57,8 +59,11 @@ func NewForceResolveSwapHandler(
 	g ids.Generator,
 	hints Hints,
 	reader ChainReader,
+	receipts RoutedReceiptReader,
 ) *ForceResolveSwapHandler {
-	return &ForceResolveSwapHandler{uow: uow, reads: reads, clock: c, ids: g, hints: hints, chain: reader}
+	return &ForceResolveSwapHandler{
+		uow: uow, reads: reads, clock: c, ids: g, hints: hints, chain: reader, receipts: receipts,
+	}
 }
 
 func (h *ForceResolveSwapHandler) Handle(ctx context.Context, cmd ForceResolveSwap) (SwapView, error) {
@@ -88,12 +93,10 @@ func (h *ForceResolveSwapHandler) verify(ctx context.Context, cmd ForceResolveSw
 	if row.Status != string(domain.StatusSubmitted) {
 		return chainFacts{State: "skipped"}, nil
 	}
-	if row.Routed {
-		return chainFacts{
-			State: "not_checked", Unverified: "a routed swap settles on an EVM chain; its receipt is not read here",
-		}, nil
+	if row.Routed && !row.ReceiptMissing {
+		return chainFacts{State: "skipped"}, nil
 	}
-	facts, err := h.chainFacts(ctx, cmd, row)
+	facts, err := h.facts(ctx, cmd, row)
 	switch {
 	case err == nil && facts.Contradiction != "" && !cmd.Override:
 		return chainFacts{}, fmt.Errorf(
@@ -104,6 +107,40 @@ func (h *ForceResolveSwapHandler) verify(ctx context.Context, cmd ForceResolveSw
 		return chainFacts{State: "unknown", Unverified: err.Error()}, nil
 	}
 	return facts, err
+}
+
+func (h *ForceResolveSwapHandler) facts(
+	ctx context.Context, cmd ForceResolveSwap, row sqlc.SwapForForceResolveRow,
+) (chainFacts, error) {
+	if !row.Routed {
+		return h.chainFacts(ctx, cmd, row)
+	}
+	if h.receipts == nil {
+		return chainFacts{}, notImplemented("RoutedReceiptReader", "#7557")
+	}
+	fill, err := h.receipts.Receipt(ctx, ids.SwapIDFrom(row.ID))
+	if err != nil {
+		return chainFacts{}, err
+	}
+	return h.receiptFacts(cmd, fill), nil
+}
+
+func (h *ForceResolveSwapHandler) receiptFacts(cmd ForceResolveSwap, fill EVMFill) chainFacts {
+	if fill.State == FillReverted {
+		return h.verdict(cmd, chainFacts{State: "failed"}, "its receipt shows it reverted", domain.StatusFailed)
+	}
+	if fill.State != FillSucceeded {
+		return chainFacts{State: "not_found"}
+	}
+	out := fill.Out
+	facts := chainFacts{State: "landed", ChainOut: &out}
+	switch {
+	case cmd.To == domain.StatusFailed:
+		facts.Contradiction = "its receipt shows it landed successfully"
+	case out != cmd.OutAmount.Uint64():
+		facts.Contradiction = fmt.Sprintf("the treasury received %d, not %d", out, cmd.OutAmount.Uint64())
+	}
+	return facts
 }
 
 func (h *ForceResolveSwapHandler) chainFacts(
