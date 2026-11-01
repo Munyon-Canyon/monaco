@@ -52,6 +52,7 @@ func (v Venue) Order(ctx context.Context, spec app.OrderSpec) (app.Order, error)
 	}
 	return app.Order{
 		RequestID: o.RequestID, Transaction: o.Transaction, OutAmount: o.OutAmount.Uint64(), MinOut: o.MinOut.Uint64(),
+		Router: o.Router,
 	}, nil
 }
 
@@ -69,7 +70,9 @@ func (v Venue) ExecuteUntilTerminal(ctx context.Context, requestID string, signe
 	if !ok {
 		return app.ExecuteResult{}, errs.New(errs.CodeDecodeFailed, op, slog.Int("status", int(r.Status)))
 	}
-	return app.ExecuteResult{Status: status, OutAmount: r.OutAmount, ErrorCode: r.ErrorCode}, nil
+	return app.ExecuteResult{
+		Status: status, Signature: platform.Signature(r.Signature), OutAmount: r.OutAmount, ErrorCode: r.ErrorCode,
+	}, nil
 }
 
 func mint(m platform.Mint) jupiter.Mint {

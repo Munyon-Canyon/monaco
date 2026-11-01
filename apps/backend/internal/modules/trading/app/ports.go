@@ -33,6 +33,7 @@ type Order struct {
 	Transaction []byte
 	OutAmount   uint64
 	MinOut      uint64
+	Router      string
 }
 
 type ExecuteStatus uint8
@@ -45,6 +46,7 @@ const (
 
 type ExecuteResult struct {
 	Status    ExecuteStatus
+	Signature chain.Signature
 	OutAmount uint64
 	ErrorCode int
 }
@@ -80,6 +82,11 @@ type SigStatus struct {
 type ChainReader interface {
 	SignatureStatuses(ctx context.Context, sigs []chain.Signature) ([]SigStatus, error)
 	BlockhashValid(ctx context.Context, signed []byte) (bool, error)
+	FindSignature(
+		ctx context.Context,
+		owner chain.SolanaAddress,
+		standIn chain.Signature,
+	) (chain.Signature, bool, error)
 	InboundAmount(
 		ctx context.Context,
 		signature chain.Signature,

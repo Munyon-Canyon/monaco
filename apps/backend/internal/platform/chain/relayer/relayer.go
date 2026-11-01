@@ -6,6 +6,7 @@ import (
 	"crypto/ed25519"
 	"encoding/json"
 	"log/slog"
+	"slices"
 	"strings"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
@@ -116,10 +117,12 @@ func (r *Relayer) CoSign(ctx context.Context, raw []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if tx.Signers[0] != r.address {
-		return nil, errs.New(errs.CodeInvalidInput, op, slog.String("fee_payer", string(tx.Signers[0])))
+	at := slices.Index(tx.Signers, r.address)
+	if at < 0 {
+		return nil, errs.New(errs.CodeInvalidInput, op, slog.String("fee_payer", string(tx.Signers[0])),
+			slog.String("reason", "the relayer is not a required signer"))
 	}
-	spend, err := r.limits.inspect(tx.Message)
+	spend, err := r.limits.inspect(tx.Message, at)
 	if err != nil {
 		return nil, err
 	}

@@ -146,6 +146,11 @@ func (h *ForceResolveSwapHandler) receiptFacts(cmd ForceResolveSwap, fill EVMFil
 func (h *ForceResolveSwapHandler) chainFacts(
 	ctx context.Context, cmd ForceResolveSwap, row sqlc.SwapForForceResolveRow,
 ) (chainFacts, error) {
+	if chain.IsStandInSignature(cmd.Signature) {
+		return chainFacts{
+			State: "unknown", Contradiction: "its real signature is not recorded, so the chain cannot confirm it",
+		}, nil
+	}
 	statuses, err := h.chain.SignatureStatuses(ctx, []chain.Signature{cmd.Signature})
 	if err != nil {
 		return chainFacts{}, err

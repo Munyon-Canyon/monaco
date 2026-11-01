@@ -143,35 +143,6 @@ func TestRecordedUltraTransactions_coverEveryRoleTheRelayerPlays(t *testing.T) {
 	}
 }
 
-func TestCoSign_refusesTheMarketMakerRoutesAsJupiterPaysTheirFee(t *testing.T) {
-	t.Parallel()
-	r := recordedRelayer(t)
-	var seen int
-	for _, o := range loadOrders(t) {
-		if o.Router != "jupiterz" {
-			continue
-		}
-		seen++
-		if o.paidByTheRelayer(t) {
-			t.Fatalf("%s: the market maker accepted the relayer as payer; record it as a signable route", o.Name)
-		}
-		signed, err := r.CoSign(t.Context(), o.raw(t))
-		wantCode(t, err, errs.CodeInvalidInput)
-		if signed != nil {
-			t.Fatal("a refused transaction came back signed")
-		}
-		tx, err := chain.DecodeTransaction(o.asFixtureRelayer(t).encode())
-		if err != nil {
-			t.Fatal(err)
-		}
-		_, err = relayer.Inspect(relayer.DefaultLimits(), tx.Message)
-		wantCode(t, err, errs.CodeInvalidInput)
-	}
-	if seen == 0 {
-		t.Fatal("no recorded market maker orders")
-	}
-}
-
 func TestCoSign_refusesATamperedCopyOfEveryRecordedUltraTransaction(t *testing.T) {
 	t.Parallel()
 	r := recordedRelayer(t)

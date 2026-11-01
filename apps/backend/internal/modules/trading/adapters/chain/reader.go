@@ -3,6 +3,7 @@ package chain
 import (
 	"context"
 	"log/slog"
+	"slices"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/app"
@@ -15,7 +16,11 @@ type Solana interface {
 	SignatureStatuses(context.Context, []platform.Signature) ([]solana.Status, error)
 	Received(context.Context, platform.Signature, platform.SolanaAddress, platform.Mint) (money.BaseUnits, error)
 	BlockhashValid(context.Context, string) (bool, error)
+	SignaturesFor(context.Context, platform.SolanaAddress, solana.SignaturesOpts) ([]solana.SignatureInfo, error)
+	TransactionSignatures(context.Context, platform.Signature) ([]platform.Signature, error)
 }
+
+const findSignatureWindow = 25
 
 type Reader struct {
 	solana Solana
@@ -72,4 +77,30 @@ func (r Reader) InboundAmount(
 			slog.String("reason", "the swap moved nothing into the treasury"))
 	}
 	return got, err
+}
+
+func (r Reader) FindSignature(
+	ctx context.Context, owner platform.SolanaAddress, standIn platform.Signature,
+) (platform.Signature, bool, error) {
+	treasury, ok := platform.StandInTreasurySignature(standIn)
+	if !ok {
+		return "", false, errs.New(errs.CodeInvalidInput, "trading.ChainReader.FindSignature",
+			slog.String("signature", string(standIn)))
+	}
+	recent, err := r.solana.SignaturesFor(ctx, owner, solana.SignaturesOpts{Limit: findSignatureWindow})
+	if err != nil {
+		return "", false, err
+	}
+	for _, info := range recent {
+		signatures, err := r.solana.TransactionSignatures(ctx, info.Signature)
+		switch {
+		case errs.CodeOf(err) == errs.CodeNotFound:
+			continue
+		case err != nil:
+			return "", false, err
+		case slices.Contains(signatures, treasury):
+			return info.Signature, true, nil
+		}
+	}
+	return "", false, nil
 }

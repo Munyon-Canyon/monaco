@@ -5,6 +5,11 @@ var TradingSwapFinished = Msg{
 	Required: []string{"swap_id", "source", "status", "failure_code"},
 }
 
+var TradingSwapSigned = Msg{
+	Name:     "trading.swap.signed",
+	Required: []string{"swap_id", "router", "fee_payer", "signature_known"},
+}
+
 var TradingSwapRefused = Msg{
 	Name:     "trading.swap.refused",
 	Required: []string{"swap_id", "step", "code"},

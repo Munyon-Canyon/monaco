@@ -33,6 +33,12 @@ func (r recoveryReader) SignatureStatuses(context.Context, []platform.Signature)
 	return r.statuses, nil
 }
 
+func (r recoveryReader) FindSignature(
+	context.Context, platform.SolanaAddress, platform.Signature,
+) (platform.Signature, bool, error) {
+	return "", false, nil
+}
+
 func (r recoveryReader) BlockhashValid(context.Context, []byte) (bool, error) { return r.valid, nil }
 
 func (r recoveryReader) InboundAmount(

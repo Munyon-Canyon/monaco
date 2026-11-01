@@ -139,7 +139,16 @@ func TestCoSign_addsTheFeePayerSignature(t *testing.T) {
 	if !tx.Signed(0) || tx.Signed(1) {
 		t.Fatal("CoSign must sign the fee payer slot only")
 	}
-	_, err = r.CoSign(t.Context(), build(other, payer))
+	signed, err = r.CoSign(t.Context(), build(other, payer))
+	if err != nil {
+		t.Fatalf("CoSign with the relayer as a second signer that no instruction uses = %v, want signed", err)
+	}
+	tx, _ = chain.DecodeTransaction(signed)
+	if tx.Signed(0) || !tx.Signed(1) {
+		t.Fatal("CoSign must sign the relayer's own slot only")
+	}
+	stranger := fakes.FixtureKey("stranger").Public().(ed25519.PublicKey)
+	_, err = r.CoSign(t.Context(), build(other, stranger))
 	wantCode(t, err, errs.CodeInvalidInput)
 	_, err = r.CoSign(t.Context(), []byte{9})
 	wantCode(t, err, errs.CodeInvalidInput)
