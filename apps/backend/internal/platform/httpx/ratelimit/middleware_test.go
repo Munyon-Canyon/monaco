@@ -211,9 +211,9 @@ func TestMiddleware_TrustProxyHeaders(t *testing.T) {
 			call{forwarded: []string{"203.0.113.51, 198.51.100.21", "104.23.253.112"}},
 			call{forwarded: []string{"104.23.253.112"}},
 			call{cloudflare: "not an ip", forwarded: []string{"198.51.100.22, 104.23.253.112"}},
-			call{cloudflare: "2001:db8::1"},
-			call{cloudflare: "::ffff:198.51.100.30"},
-			call{cloudflare: "198.51.100.30"},
+			call{cloudflare: "2001:db8::1", forwarded: []string{"104.23.253.112"}},
+			call{cloudflare: "::ffff:198.51.100.30", forwarded: []string{"2606:4700::1"}},
+			call{cloudflare: "198.51.100.30", forwarded: []string{"104.23.253.112"}},
 		)
 		if want := []int{204, 429, 204, 204, 204, 429, 204, 204, 204, 204, 429}; !slices.Equal(got, want) {
 			t.Fatalf("statuses = %v, want %v", got, want)
@@ -258,6 +258,90 @@ func TestMiddleware_TrustProxyHeaders(t *testing.T) {
 			t.Fatalf("bucket keys = %v, want %v", got, want)
 		}
 	})
+}
+
+func TestMiddleware_ForgedCloudflareHeaderFromADirectCallerKeysOnTheSocket(t *testing.T) {
+	t.Parallel()
+	const ip = "{ip: {rate: 1, per: 1m, burst: 1}}"
+	for _, tc := range []struct {
+		name  string
+		calls []call
+		want  []int
+		keys  []string
+	}{
+		{
+			name: "direct caller rotating the header",
+			calls: []call{
+				{remote: "203.0.113.5:4711", cloudflare: "198.51.100.1"},
+				{remote: "203.0.113.5:4711", cloudflare: "198.51.100.2"},
+				{remote: "203.0.113.5:4711", cloudflare: "198.51.100.3"},
+			},
+			want: []int{204, 429, 429},
+			keys: []string{"op:postThing:ip:203.0.113.5"},
+		},
+		{
+			name: "non-Cloudflare last hop ignores the header and earlier entries",
+			calls: []call{
+				{cloudflare: "198.51.100.1", forwarded: []string{"203.0.113.77"}},
+				{cloudflare: "198.51.100.2", forwarded: []string{"198.51.100.5, 203.0.113.77"}},
+				{forwarded: []string{"198.51.100.6, 203.0.113.77"}},
+			},
+			want: []int{204, 429, 429},
+			keys: []string{"op:postThing:ip:192.0.2.1"},
+		},
+		{
+			name: "loopback last hop in the forwarded list is forgeable",
+			calls: []call{
+				{cloudflare: "198.51.100.1", forwarded: []string{"127.0.0.1"}},
+				{cloudflare: "198.51.100.2", forwarded: []string{"::1"}},
+				{cloudflare: "198.51.100.3", forwarded: []string{"198.51.100.9, not an ip"}},
+			},
+			want: []int{204, 429, 429},
+			keys: []string{"op:postThing:ip:192.0.2.1"},
+		},
+		{
+			name: "Cloudflare last hop keys on the header",
+			calls: []call{
+				{cloudflare: "198.51.100.1", forwarded: []string{"104.23.253.112"}},
+				{cloudflare: "198.51.100.1", forwarded: []string{"2606:4700::1"}},
+				{cloudflare: "198.51.100.2", forwarded: []string{"::ffff:104.23.253.112"}},
+			},
+			want: []int{204, 429, 204},
+			keys: []string{"op:postThing:ip:198.51.100.1", "op:postThing:ip:198.51.100.2"},
+		},
+		{
+			name: "loopback socket keys on the header",
+			calls: []call{
+				{remote: "127.0.0.1:5555", cloudflare: "198.51.100.1"},
+				{remote: "[::1]:5555", cloudflare: "198.51.100.1"},
+				{remote: "127.0.0.1", cloudflare: "198.51.100.2"},
+			},
+			want: []int{204, 429, 204},
+			keys: []string{"op:postThing:ip:198.51.100.1", "op:postThing:ip:198.51.100.2"},
+		},
+		{
+			name: "loopback socket with a forwarded entry keys on the header",
+			calls: []call{
+				{remote: "127.0.0.1:5555", cloudflare: "10.1.2.3", forwarded: []string{"10.1.2.3"}},
+				{remote: "127.0.0.1:5555", cloudflare: "10.1.2.3", forwarded: []string{"10.1.2.3"}},
+				{remote: "127.0.0.1:5555", cloudflare: "10.4.5.6", forwarded: []string{"10.4.5.6"}},
+			},
+			want: []int{204, 429, 204},
+			keys: []string{"op:postThing:ip:10.1.2.3", "op:postThing:ip:10.4.5.6"},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			pool := testkit.DB(t)
+			h := newHarness(t, pool, ip, true)
+			if got := h.statuses(t, tc.calls...); !slices.Equal(got, tc.want) {
+				t.Fatalf("statuses = %v, want %v", got, tc.want)
+			}
+			if got := keys(t, pool); !slices.Equal(got, tc.keys) {
+				t.Fatalf("bucket keys = %v, want %v", got, tc.keys)
+			}
+		})
+	}
 }
 
 func TestMiddleware_ActorScopeKeysOnTheActorAndSkipsAnonymousCallers(t *testing.T) {

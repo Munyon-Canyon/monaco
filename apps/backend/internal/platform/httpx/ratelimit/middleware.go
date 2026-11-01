@@ -90,23 +90,41 @@ func clientIP(r *http.Request, trustProxyHeaders bool) (ip, source string) {
 			return ip, source
 		}
 	}
-	host, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil {
-		return r.RemoteAddr, sourceRemoteAddr
-	}
-	return host, sourceRemoteAddr
+	return socketHost(r), sourceRemoteAddr
 }
 
 func proxiedIP(r *http.Request) (ip, source string) {
+	values := r.Header.Values(forwardedHeader)
+	var entries []string
+	if len(values) > 0 {
+		entries = strings.Split(strings.Join(values, ","), ",")
+	}
+	socket := socketHost(r)
+	if !loopbackHost(socket) {
+		peer := socket
+		if len(entries) > 0 {
+			peer = strings.TrimSpace(entries[len(entries)-1])
+		}
+		if !inCloudflare(peer) {
+			return "", ""
+		}
+	}
 	if v := parsedIP(r.Header.Get(cloudflareHeader)); v != "" {
 		return v, sourceCloudflare
 	}
-	entries := strings.Split(strings.Join(r.Header.Values(forwardedHeader), ","), ",")
 	i := len(entries) - 1 - trustedProxyHops
 	if i < 0 {
 		return "", ""
 	}
 	return parsedIP(entries[i]), sourceForwarded
+}
+
+func socketHost(r *http.Request) string {
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return r.RemoteAddr
+	}
+	return host
 }
 
 func parsedIP(v string) string {
