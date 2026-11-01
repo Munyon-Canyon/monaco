@@ -20,6 +20,12 @@ SET status = 'confirmed', out_amount = @out_amount::bigint, fee_micros = @fee_mi
   confirmed_at = @confirmed_at::timestamptz, updated_at = @confirmed_at::timestamptz
 WHERE id = @id AND status = 'submitted';
 
+-- name: FinishConfirmedFeeUnrecorded :execrows
+UPDATE swaps
+SET status = 'confirmed', out_amount = @out_amount::bigint, fee_micros = NULL,
+  confirmed_at = @confirmed_at::timestamptz, updated_at = @confirmed_at::timestamptz
+WHERE id = @id AND status = 'submitted';
+
 -- name: FinishFailed :execrows
 UPDATE swaps
 SET status = 'failed', failure_code = @failure_code::text,

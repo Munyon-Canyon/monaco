@@ -11,6 +11,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/domain"
+	platform "github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/jupiter"
 )
 
@@ -241,7 +242,10 @@ func TestSwapLayer_TerminalWriteLosingTheRaceReturnsTheCurrentRowWithoutAnEvent(
 func TestSwapLayer_RefusesAnOutAmountTheColumnCannotHold(t *testing.T) {
 	t.Parallel()
 	e := newLayerEnv(t)
-	e.stubExecute(func(context.Context, string, []byte) (app.ExecuteResult, error) {
+	e.stubExecute(func(_ context.Context, _ string, signed []byte) (app.ExecuteResult, error) {
+		e.fills.mu.Lock()
+		e.fills.landed[platform.SignatureOf(signed[1:65])] = 1 << 63
+		e.fills.mu.Unlock()
 		return app.ExecuteResult{Status: app.ExecuteSuccess, OutAmount: 1 << 63}, nil
 	})
 	req := e.request(e.source())

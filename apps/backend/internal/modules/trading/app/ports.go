@@ -74,6 +74,7 @@ type SigStatus struct {
 	State       SigState
 	Failed      bool
 	BlockHeight uint64
+	ContextSlot uint64
 }
 
 type ChainReader interface {

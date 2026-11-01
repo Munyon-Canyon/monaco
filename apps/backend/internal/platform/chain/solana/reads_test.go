@@ -176,12 +176,15 @@ func TestSignatureStatuses_mapsFinalizedProcessingAndNotFound(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	const height = 380_000_000
+	const height, context = 380_000_000, 451_000_000
 	want := []solana.Status{
-		{Signature: "a", State: solana.StateFinalized, BlockHeight: height, Slot: 450_999_000},
-		{Signature: "b", State: solana.StateProcessing, BlockHeight: height, Slot: 450_999_990},
-		{Signature: "c", State: solana.StateNotFound, BlockHeight: height},
-		{Signature: "d", State: solana.StateFinalized, Failed: true, BlockHeight: height, Slot: 450_999_100},
+		{Signature: "a", State: solana.StateFinalized, BlockHeight: height, Slot: 450_999_000, ContextSlot: context},
+		{Signature: "b", State: solana.StateProcessing, BlockHeight: height, Slot: 450_999_990, ContextSlot: context},
+		{Signature: "c", State: solana.StateNotFound, BlockHeight: height, ContextSlot: context},
+		{
+			Signature: "d", State: solana.StateFinalized, Failed: true, BlockHeight: height, Slot: 450_999_100,
+			ContextSlot: context,
+		},
 	}
 	if !slices.Equal(got, want) {
 		t.Fatalf("SignatureStatuses = %+v, want %+v", got, want)

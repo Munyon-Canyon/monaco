@@ -7,7 +7,6 @@ import (
 	fundingport "github.com/monaco/monaco/apps/backend/internal/modules/funding/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
-	"github.com/monaco/monaco/apps/backend/internal/platform/chain/solana"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
@@ -34,7 +33,6 @@ type Proposals interface {
 
 type Balances interface {
 	TokenBalance(ctx context.Context, owner chain.SolanaAddress, mint chain.Mint) (money.BaseUnits, error)
-	MintConfig(ctx context.Context, mint chain.SolanaAddress) (solana.MintConfig, error)
 }
 
 type EnginePorts struct {

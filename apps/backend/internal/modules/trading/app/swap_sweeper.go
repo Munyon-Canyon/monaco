@@ -217,7 +217,7 @@ func (p *SwapSweeper) resolveSubmitted(
 	case SigProcessing:
 		return false, nil
 	case SigNotFound:
-		return p.expire(ctx, now, req, row, signature)
+		return p.expire(ctx, now, req, row, signature, status.ContextSlot)
 	case SigFinalized:
 		return p.finalized(ctx, now, req, row, status, signature)
 	default:
@@ -228,6 +228,7 @@ func (p *SwapSweeper) resolveSubmitted(
 
 func (p *SwapSweeper) expire(
 	ctx context.Context, now time.Time, req SwapRequest, row sqlc.ListStaleSubmittedRow, signature chain.Signature,
+	firstSlot uint64,
 ) (bool, error) {
 	valid, err := p.chain.BlockhashValid(ctx, row.SignedTx)
 	if err != nil {
@@ -246,6 +247,9 @@ func (p *SwapSweeper) expire(
 	}
 	if statuses[0].State != SigNotFound {
 		return p.resolveSubmitted(ctx, now, row, statuses[0])
+	}
+	if statuses[0].ContextSlot < firstSlot {
+		return false, nil
 	}
 	return p.move(ctx, now, req, failed(req, row.ID, domain.FailureBlockhashExpired, ""))
 }

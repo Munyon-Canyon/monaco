@@ -74,3 +74,79 @@ func TestSwapLayer_SellWithAnUnreadableDeltaStaysSubmittedAndAlerts(t *testing.T
 		t.Fatalf("alerts = %q, want one %q", alerts, want)
 	}
 }
+
+func TestSwapLayer_BuyFillIsTheTreasurysChainDeltaNotJupitersReport(t *testing.T) {
+	t.Parallel()
+	e := newLayerEnv(t)
+	e.fills.charge(10)
+	e.jup.SetExecute("req-1", jupiter.ExecuteResult{Status: jupiter.StatusSuccess, OutAmount: 105_000_000})
+	got := e.settled(t, e.request(e.source()))
+	if got.Status != domain.StatusConfirmed || got.OutAmount != 104_895_000 {
+		t.Fatalf("view = %+v, want confirmed at the chain's 104895000, not Jupiter's 105000000", got)
+	}
+	p := e.payload(t, got.ID.UUID(), "trade.confirmed")
+	if p["out_amount"] != "104895000" || p["usdc_micros"] != "25000000" {
+		t.Fatalf("trade.confirmed payload = %v, want the chain delta and the USDC that left", p)
+	}
+	if reads := e.fills.mints(); len(reads) != 1 || reads[0] != aaplxToken() {
+		t.Fatalf("chain reads = %+v, want one read of the treasury's bought token", reads)
+	}
+}
+
+func TestSwapLayer_BuyThatReportsZeroTokensStaysSubmittedAndAlerts(t *testing.T) {
+	t.Parallel()
+	e := newLayerEnv(t)
+	e.jup.SetExecute("req-1", jupiter.ExecuteResult{Status: jupiter.StatusSuccess})
+	logs := &testkit.Logs{}
+	ctx := observability.WithLogger(actorContext(t.Context()),
+		observability.NewLogger(config.Config{Env: config.EnvTest}, logs))
+	got, err := e.layer().Run(ctx, e.request(e.source()), nil)
+	if err != nil || got.Status != domain.StatusSubmitted || got.OutAmount != 0 {
+		t.Fatalf("Run = %+v, %v; want the buy left submitted with no fill", got, err)
+	}
+	if events := e.events(t, got.ID.UUID()); !slices.Equal(events, []string{"trade.submitted"}) {
+		t.Fatalf("events = %v, want no trade.confirmed", events)
+	}
+	alerts := logs.Lines(observability.TradingSwapFillUnread.Name, "level", "swap_id", "code")
+	want := "ERROR " + got.ID.String() + " decode_failed"
+	if len(alerts) != 1 || alerts[0] != want {
+		t.Fatalf("alerts = %q, want one %q", alerts, want)
+	}
+}
+
+func TestSwapLayer_ConfirmRefusesAZeroDeltaAReaderLetThrough(t *testing.T) {
+	t.Parallel()
+	e := newLayerEnv(t)
+	e.jup.SetExecute("req-1", jupiter.ExecuteResult{Status: jupiter.StatusSuccess})
+	e.fills.allowZero = true
+	got, err := e.layer().Run(actorContext(t.Context()), e.request(e.source()), nil)
+	if err != nil || got.Status != domain.StatusSubmitted {
+		t.Fatalf("Run = %+v, %v; want the buy left submitted", got, err)
+	}
+}
+
+func TestSwapLayer_ASolanaFillRecordsNoFeeRatherThanAZeroOne(t *testing.T) {
+	t.Parallel()
+	for name, req := range map[string]func(*layerEnv) app.SwapRequest{
+		"buy":  func(e *layerEnv) app.SwapRequest { return e.request(e.source()) },
+		"sell": func(e *layerEnv) app.SwapRequest { return e.sell(4_885_867) },
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			e := newLayerEnv(t)
+			if name == "buy" {
+				e.jup.SetExecute("req-1", jupiter.ExecuteResult{Status: jupiter.StatusSuccess, OutAmount: 105_000_000})
+			}
+			got := e.settled(t, req(e))
+			var unrecorded bool
+			if err := e.pool.QueryRow(t.Context(),
+				`SELECT fee_micros IS NULL FROM swaps WHERE id = $1`, got.ID.UUID()).Scan(&unrecorded); err != nil {
+				t.Fatal(err)
+			}
+			if got.Status != domain.StatusConfirmed || got.FeeMicros != nil || !unrecorded {
+				t.Fatalf("view fee = %v, fee_micros null = %v; want a confirmed swap with no recorded fee",
+					got.FeeMicros, unrecorded)
+			}
+		})
+	}
+}

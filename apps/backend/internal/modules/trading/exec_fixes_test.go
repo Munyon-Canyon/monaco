@@ -3,7 +3,6 @@ package trading_test
 import (
 	"context"
 	"encoding/json"
-	"math"
 	"os"
 	"slices"
 	"strconv"
@@ -17,49 +16,12 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/domain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
-	"github.com/monaco/monaco/apps/backend/internal/platform/chain/jupiter"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
-
-func TestExecuteTrade_feeHeadroomComesFromTheSolanaWinnersMint(t *testing.T) {
-	t.Parallel()
-	for name, c := range map[string]struct {
-		winnerFeeBps uint16
-		blocked      bool
-	}{
-		"winner charges a transfer fee": {winnerFeeBps: 100, blocked: true},
-		"winner charges none":           {winnerFeeBps: 0},
-	} {
-		t.Run(name, func(t *testing.T) {
-			t.Parallel()
-			e := newEngineEnv(t)
-			ondo := chain.Mint{Address: "AAPLonDo1111111111111111111111111111111111111", Decimals: 9}
-			e.ledger.SetTokens(e.wallet.Address, usdcToken(), buyMicros)
-			e.balances.setFee(aaplxMint, 500, math.MaxUint64)
-			e.balances.setFee(ondo.Address, c.winnerFeeBps, math.MaxUint64)
-			e.quote(usdcToken(), ondo, 210_000_000, true)
-			order := jupiter.Order{RequestID: "req-1", Transaction: swapTx()}
-			e.jup.SetOrder(jupiterMint(usdcToken()), jupiterMint(ondo), order)
-			cmd := e.buy()
-			cmd.Route = e.comparison(t, e.solanaWinner(t, ondo, true))
-
-			if err := e.handle(t, e.delivery(t, cmd), cmd); err != nil {
-				t.Fatal(err)
-			}
-			blocked := e.blocked(t, cmd.ProposalID)
-			if len(blocked) == 1 != c.blocked {
-				t.Fatalf("blocked = %v, want blocked %v by the winner's own fee", blocked, c.blocked)
-			}
-			if c.blocked && blocked[0]["need"] != "25250000" {
-				t.Fatalf("need %v, want the trade plus the winner's 1%% fee", blocked[0]["need"])
-			}
-		})
-	}
-}
 
 func TestSellForCashOut_aShortPlanAcrossChainsSellsEverythingAndAlertsOnce(t *testing.T) {
 	t.Parallel()

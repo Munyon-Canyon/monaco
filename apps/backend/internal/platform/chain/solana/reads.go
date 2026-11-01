@@ -27,6 +27,7 @@ type Status struct {
 	Failed      bool
 	BlockHeight uint64
 	Slot        uint64
+	ContextSlot uint64
 }
 
 func (s Status) BlockhashExpired(lastValidBlockHeight uint64) bool {
@@ -336,6 +337,9 @@ func (c *Client) SignatureStatuses(ctx context.Context, sigs []chain.Signature) 
 		return nil, err
 	}
 	var w struct {
+		Context struct {
+			Slot uint64 `json:"slot"`
+		} `json:"context"`
 		Value []*statusWire `json:"value"`
 	}
 	opts := map[string]bool{"searchTransactionHistory": true}
@@ -352,7 +356,7 @@ func (c *Client) SignatureStatuses(ctx context.Context, sigs []chain.Signature) 
 	}
 	out := make([]Status, len(sigs))
 	for i, s := range w.Value {
-		out[i] = Status{Signature: sigs[i], State: StateNotFound, BlockHeight: height}
+		out[i] = Status{Signature: sigs[i], State: StateNotFound, BlockHeight: height, ContextSlot: w.Context.Slot}
 		if s == nil {
 			continue
 		}

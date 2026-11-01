@@ -197,7 +197,7 @@ func (l *SwapLayer) settle(
 	}
 	switch result.Status {
 	case ExecuteSuccess:
-		return l.confirm(ctx, req, id, signature, result)
+		return l.confirm(ctx, req, id, signature)
 	case ExecuteFailed:
 		if mayStillLand(result.ErrorCode) {
 			return nil
@@ -220,24 +220,22 @@ func unfinished(cause error) error {
 	return cause
 }
 
-func (l *SwapLayer) confirm(
-	ctx context.Context, req SwapRequest, id uuid.UUID, signature chain.Signature, result ExecuteResult,
-) error {
-	fill := result.OutAmount
-	if req.Action == domain.ActionSell {
-		received, err := l.d.Chain.InboundAmount(ctx, signature, req.TreasuryWallet.Address, req.OutMint)
-		if err != nil {
-			observability.Alert(ctx, observability.TradingSwapFillUnread,
-				slog.String("swap_id", id.String()), slog.String("code", string(errs.CodeOf(err))))
-			return nil
-		}
-		fill = received.Uint64()
+func (l *SwapLayer) confirm(ctx context.Context, req SwapRequest, id uuid.UUID, signature chain.Signature) error {
+	received, err := l.d.Chain.InboundAmount(ctx, signature, req.TreasuryWallet.Address, req.OutMint)
+	if err == nil && received.IsZero() {
+		err = errs.New(errs.CodeDecodeFailed, "trading.SwapLayer.confirm", slog.String("reason", "zero fill"))
 	}
+	if err != nil {
+		observability.Alert(ctx, observability.TradingSwapFillUnread,
+			slog.String("swap_id", id.String()), slog.String("code", string(errs.CodeOf(err))))
+		return nil
+	}
+	fill := received.Uint64()
 	out, ok := domain.Column(fill)
 	if !ok {
 		return errs.New(errs.CodeDecodeFailed, "trading.SwapLayer.confirm", slog.Uint64("out_amount", fill))
 	}
-	_, err := l.move(ctx, req, id, confirmed(req, id, signature, fill, out))
+	_, err = l.move(ctx, req, id, confirmed(req, id, signature, fill, out))
 	return err
 }
 
@@ -425,7 +423,9 @@ func confirmed(req SwapRequest, id uuid.UUID, signature chain.Signature, outAmou
 		id: id, from: domain.StatusSubmitted,
 		status: domain.StatusConfirmed,
 		apply: func(ctx context.Context, q *sqlc.Queries, at time.Time) (int64, error) {
-			return q.FinishConfirmed(ctx, sqlc.FinishConfirmedParams{ID: id, OutAmount: column, ConfirmedAt: at})
+			return q.FinishConfirmedFeeUnrecorded(
+				ctx, sqlc.FinishConfirmedFeeUnrecordedParams{ID: id, OutAmount: column, ConfirmedAt: at},
+			)
 		},
 		event: func(at time.Time) events.Event {
 			return events.TradeConfirmed{
