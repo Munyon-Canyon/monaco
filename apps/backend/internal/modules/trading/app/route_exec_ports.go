@@ -85,7 +85,7 @@ type EVMArrivals interface {
 		network chain.Network,
 		token, owner chain.EVMAddress,
 		since time.Time,
-		atMost money.Micros,
+		atLeast, atMost money.Micros,
 		exclude []string,
 	) (EVMArrival, bool, error)
 }

@@ -129,7 +129,8 @@ func (*flowChain) InboundAmount(
 }
 
 func (*flowChain) Inbound(
-	_ context.Context, _ platform.Network, _, _ platform.EVMAddress, _ time.Time, atMost money.Micros, exclude []string,
+	_ context.Context, _ platform.Network, _, _ platform.EVMAddress, _ time.Time, _, atMost money.Micros,
+	exclude []string,
 ) (app.EVMArrival, bool, error) {
 	landed := money.MicrosFromUint64(atMost.Uint64() - flows.RoutedBridgeFee)
 	return app.EVMArrival{Amount: landed, TxHash: fmt.Sprintf("0x%064x", len(exclude)+1)}, true, nil

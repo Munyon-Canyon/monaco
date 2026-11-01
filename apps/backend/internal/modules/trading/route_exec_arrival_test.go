@@ -11,6 +11,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/domain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
 const realBridgeFee = bridgeFeeMicros + 1_563
@@ -55,6 +56,10 @@ func TestRouteExec_aBridgeThatLandsLessThanEstimatedSwapsWhatArrived(t *testing.
 	}
 	wantSteps(t, e.steps(t, view.ID.UUID()), "bridge_out:pending:0", "bridge_out:submitted:7500",
 		"bridge_out:succeeded:9063", "swap:pending:0", "swap:submitted:0", "swap:succeeded:0")
+	wantFloor := money.MicrosFromUint64(25_000_000 - bridgeFeeMicros - 100_000 - 250_000)
+	if floors := e.landings.floors; len(floors) != 1 || floors[0] != wantFloor {
+		t.Fatalf("arrival scan floors = %v, want one at the quoted fee less its slack, %v", floors, wantFloor)
+	}
 }
 
 func TestRouteExec_aBridgeNotYetOnChainStaysSubmittedAndResumes(t *testing.T) {
