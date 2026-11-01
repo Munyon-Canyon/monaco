@@ -124,3 +124,27 @@ func TestLockRetryable_waitsForAVoidAndThenRefusesTheTrade(t *testing.T) {
 		t.Fatalf("proposal is %s, want voided", got)
 	}
 }
+
+func TestLockRetryable_refusesWhatItCannotRead(t *testing.T) {
+	t.Parallel()
+	d := newVoteDB(t)
+	reads := app.NewQueries(d.pool)
+	err := d.uow.Do(t.Context(), func(ctx context.Context, tx db.Tx) error {
+		_, err := reads.LockRetryable(ctx, tx, ids.ProposalIDFrom(d.ids.NewV7()))
+		return err
+	})
+	if errs.CodeOf(err) != errs.CodeProposalNotFound {
+		t.Errorf("LockRetryable of an unknown proposal = %v, want proposal_not_found", err)
+	}
+	known := ids.ProposalIDFrom(d.passed(t))
+	err = d.uow.Do(t.Context(), func(ctx context.Context, tx db.Tx) error {
+		if _, err := tx.Queries().Exec(ctx, `SELECT 1/0`); err == nil {
+			t.Error("division by zero did not fail")
+		}
+		_, err := reads.LockRetryable(ctx, tx, known)
+		return err
+	})
+	if errs.CodeOf(err) != errs.CodeInternal {
+		t.Errorf("LockRetryable in an aborted transaction = %v, want internal", err)
+	}
+}

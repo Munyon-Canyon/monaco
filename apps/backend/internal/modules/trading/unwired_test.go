@@ -8,6 +8,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/app"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 )
 
@@ -18,9 +19,13 @@ func TestUnwired_everyPortFailsClosedWithARetryableCode(t *testing.T) {
 	_, slippageErr := app.UnwiredCabals{}.SlippageBps(ctx, cabal)
 	_, walletErr := app.UnwiredCabals{}.TreasuryWallet(ctx, cabal)
 	_, memberErr := app.UnwiredCabals{}.IsMember(ctx, cabal, ids.UserID{})
+	_, rulesErr := app.UnwiredCabals{}.Rules(ctx, cabal)
 	_, pauseErr := app.UnwiredPauses{}.IsPaused(ctx, cabal)
 	_, proposalErr := app.UnwiredProposals{}.Retryable(ctx, proposal)
-	for i, err := range []error{statusErr, slippageErr, walletErr, memberErr, pauseErr, proposalErr} {
+	_, lockErr := app.UnwiredProposals{}.LockRetryable(ctx, db.Tx{}, proposal)
+	for i, err := range []error{
+		statusErr, slippageErr, walletErr, memberErr, rulesErr, pauseErr, proposalErr, lockErr,
+	} {
 		if errs.CodeOf(err) != errs.CodeUpstreamUnavailable || errs.VerdictFor(errs.CodeOf(err)) != errs.VerdictNak {
 			t.Errorf("port %d err = %v, want upstream_unavailable, which naks", i, err)
 		}

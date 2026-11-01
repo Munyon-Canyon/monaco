@@ -229,6 +229,30 @@ func TestExecuteTrade_aBuyWithinTheCapRunsAndASellIgnoresIt(t *testing.T) {
 	}
 }
 
+func TestExecuteTrade_anUnusableCapIsAnInternalErrorNotATrade(t *testing.T) {
+	t.Parallel()
+	for name, arrange := range map[string]func(e *engineEnv){
+		"a negative cap": func(e *engineEnv) { e.capTradesAt(-1) },
+		"a cap that overflows the ledger cash": func(e *engineEnv) {
+			e.capTradesAt(20_000)
+			e.positions.units = math.MaxUint64
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			e := newEngineEnv(t)
+			arrange(e)
+			cmd := e.buy()
+
+			err := e.handle(t, e.delivery(t, cmd), cmd)
+
+			if errs.CodeOf(err) != errs.CodeInternal || len(e.swapsOf(t, cmd.ProposalID)) != 0 {
+				t.Fatalf("err = %v with %d swaps, want internal and no swap", err, len(e.swapsOf(t, cmd.ProposalID)))
+			}
+		})
+	}
+}
+
 func TestExecuteTrade_aBuyNeedsOnlyTheUSDCItSpendsWhateverFeeTheBoughtTokenCharges(t *testing.T) {
 	t.Parallel()
 	e := newEngineEnv(t)
@@ -254,6 +278,11 @@ func TestExecuteTrade_anUpstreamFailureReturnsItsCodeAndWritesNothing(t *testing
 		"balance":       func(e *engineEnv) { e.balances.Fail("TokenBalance", rpc) },
 		"slippage":      func(e *engineEnv) { e.cabals.Fail("SlippageBps", rpc) },
 		"cabal status":  func(e *engineEnv) { e.cabals.Fail("Status", rpc) },
+		"cap rules": func(e *engineEnv) {
+			e.capTradesAt(5_000)
+			e.cabals.Fail("Rules", rpc)
+		},
+		"proposal lock": func(e *engineEnv) { e.proposals.Fail("LockRetryable", rpc) },
 		"pause":         func(e *engineEnv) { e.pauses.Fail("IsPaused", rpc) },
 		"order": func(e *engineEnv) {
 			e.jup.Fail("Order", down)

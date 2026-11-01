@@ -456,12 +456,9 @@ func (q *Queries) holdsLiveTokens(ctx context.Context, rows []sqlc.CabalValueRow
 		if domain.PlaceAsset(row.Asset.String, q.usdc).Place != domain.SolanaToken {
 			return true, nil
 		}
-		position, err := q.position(ctx, row.Asset.String, row.Units, row.CostBasisMicros, assets)
-		switch code := errs.CodeOf(err); {
-		case code == errs.CodePriceUnavailable || code == errs.CodeDecodeFailed:
+		position, ok := q.knownPosition(ctx, row, assets)
+		if !ok {
 			return true, nil
-		case err != nil:
-			return false, err
 		}
 		tokens = append(tokens, position)
 	}
@@ -472,6 +469,13 @@ func (q *Queries) holdsLiveTokens(ctx context.Context, rows []sqlc.CabalValueRow
 	return !dust, err
 }
 
+func (q *Queries) knownPosition(
+	ctx context.Context, row sqlc.CabalValueRowsRow, assets map[chain.SolanaAddress]app.Asset,
+) (port.Position, bool) {
+	position, err := q.position(ctx, row.Asset.String, row.Units, row.CostBasisMicros, assets)
+	return position, err == nil
+}
+
 func (q *Queries) onlyDust(
 	ctx context.Context, positions []port.Position, assets map[chain.SolanaAddress]app.Asset,
 ) (bool, error) {
@@ -480,9 +484,8 @@ func (q *Queries) onlyDust(
 		return false, errs.Wrap(err, errs.CodeOf(err), "treasury.Queries.HoldsLiveAssets")
 	}
 	for _, position := range positions {
-		dust, err := q.isDust(ctx, position, prices, assets)
-		if err != nil || !dust {
-			return false, err
+		if !q.isDust(ctx, position, prices, assets) {
+			return false, nil
 		}
 	}
 	return true, nil
@@ -493,22 +496,12 @@ func (q *Queries) isDust(
 	position port.Position,
 	prices map[uuid.UUID]app.Price,
 	assets map[chain.SolanaAddress]app.Asset,
-) (bool, error) {
-	asset, err := q.assetByAddress(ctx, position.Mint, assets)
-	if err != nil {
-		return false, errs.Wrap(err, errs.CodeOf(err), "treasury.Queries.isDust")
-	}
-	if _, priced := prices[asset.ID]; !priced {
-		return position.Units.Uint64() < money.OneWhole(position.Units.Decimals())/unpricedDustDivisor, nil
+) bool {
+	if _, priced := prices[assets[position.Mint].ID]; !priced {
+		return position.Units.Uint64() < money.OneWhole(position.Units.Decimals())/unpricedDustDivisor
 	}
 	value, err := q.positionValue(ctx, position, prices, assets)
-	switch {
-	case errs.CodeOf(err) == errs.CodePriceUnavailable:
-		return false, nil
-	case err != nil:
-		return false, err
-	}
-	return value.Uint64() < dustMicros, nil
+	return err == nil && value.Uint64() < dustMicros
 }
 
 func (q *Queries) TotalShares(ctx context.Context, cabalID ids.CabalID) (money.SharesUnits, error) {
