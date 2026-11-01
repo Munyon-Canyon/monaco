@@ -66,7 +66,7 @@ func newFundLeaveRace(t *testing.T) *fundLeaveRace {
 	fund := app.NewFundCabalHandler(app.FundCabalDeps{
 		UoW: f.uow, IDs: f.ids, Clock: f.clock, Cabals: b, Wallets: stubs, Balances: stubs,
 		Pauses: func(db.Tx) fundingport.Pauses { return stubs }, Pot: stubs, Transfers: stubs,
-		Hints: &hints{}, USDC: chain.Mint{Address: usdc, Decimals: 6},
+		Hints: &hints{}, USDC: chain.Mint{Address: usdc, Decimals: 6}, SendWindow: fundSendWindow,
 	})
 	return &fundLeaveRace{
 		fixture: f, cabal: c, user: c.Members[1].ID, fund: fund, barrier: b,

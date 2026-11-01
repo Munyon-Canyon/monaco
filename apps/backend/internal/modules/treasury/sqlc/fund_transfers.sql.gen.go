@@ -12,6 +12,25 @@ import (
 	"github.com/google/uuid"
 )
 
+const claimFundSigning = `-- name: ClaimFundSigning :execrows
+UPDATE fund_transfers SET signing_until = $2::timestamptz
+WHERE id = $1 AND status = 'created' AND (signing_until IS NULL OR signing_until < $3::timestamptz)
+`
+
+type ClaimFundSigningParams struct {
+	ID    uuid.UUID
+	Until time.Time
+	Now   time.Time
+}
+
+func (q *Queries) ClaimFundSigning(ctx context.Context, arg ClaimFundSigningParams) (int64, error) {
+	result, err := q.db.Exec(ctx, claimFundSigning, arg.ID, arg.Until, arg.Now)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const expireCreatedFundTransfers = `-- name: ExpireCreatedFundTransfers :many
 UPDATE fund_transfers SET status = 'failed', fail_code = 'fund_not_sent'
 WHERE status = 'created' AND created_at < $1::timestamptz
@@ -146,8 +165,9 @@ func (q *Queries) InFlightFundMicros(ctx context.Context, userID uuid.UUID) (str
 }
 
 const insertFundTransfer = `-- name: InsertFundTransfer :exec
-INSERT INTO fund_transfers (id, user_id, cabal_id, amount_micros, from_address, to_address, status, created_at)
-VALUES ($1, $2, $3, $7::text::numeric, $4, $5, 'created', $6)
+INSERT INTO fund_transfers (id, user_id, cabal_id, amount_micros, from_address, to_address, status, created_at,
+  signing_until)
+VALUES ($1, $2, $3, $7::text::numeric, $4, $5, 'created', $6, $8::timestamptz)
 `
 
 type InsertFundTransferParams struct {
@@ -158,6 +178,7 @@ type InsertFundTransferParams struct {
 	ToAddress    string
 	CreatedAt    time.Time
 	AmountMicros string
+	SigningUntil time.Time
 }
 
 func (q *Queries) InsertFundTransfer(ctx context.Context, arg InsertFundTransferParams) error {
@@ -169,6 +190,7 @@ func (q *Queries) InsertFundTransfer(ctx context.Context, arg InsertFundTransfer
 		arg.ToAddress,
 		arg.CreatedAt,
 		arg.AmountMicros,
+		arg.SigningUntil,
 	)
 	return err
 }

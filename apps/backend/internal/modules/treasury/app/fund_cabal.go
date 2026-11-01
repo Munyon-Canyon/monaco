@@ -3,7 +3,9 @@ package app
 import (
 	"context"
 	"log/slog"
+	"slices"
 	"strconv"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -63,17 +65,18 @@ type FundTransfers interface {
 }
 
 type FundCabalDeps struct {
-	UoW       *db.UnitOfWork
-	IDs       ids.Generator
-	Clock     clock.Clock
-	Cabals    FundCabals
-	Wallets   FundWallets
-	Balances  fundingport.Balances
-	Pauses    func(db.Tx) fundingport.Pauses
-	Pot       FundPot
-	Transfers FundTransfers
-	Hints     HintPublisher
-	USDC      chain.Mint
+	UoW        *db.UnitOfWork
+	IDs        ids.Generator
+	Clock      clock.Clock
+	Cabals     FundCabals
+	Wallets    FundWallets
+	Balances   fundingport.Balances
+	Pauses     func(db.Tx) fundingport.Pauses
+	Pot        FundPot
+	Transfers  FundTransfers
+	Hints      HintPublisher
+	USDC       chain.Mint
+	SendWindow time.Duration
 }
 
 type FundCabalHandler struct{ d FundCabalDeps }
@@ -112,6 +115,13 @@ func (h *FundCabalHandler) Handle(ctx context.Context, cmd FundCabal) (uuid.UUID
 			return prior.ID, nil
 		}
 		id = prior.ID
+		held, err := h.claimSigning(ctx, id)
+		if err != nil {
+			return uuid.Nil, err
+		}
+		if !held {
+			return id, nil
+		}
 	}
 	signed, err := h.d.Transfers.Build(ctx, relayer.TransferSpec{
 		FromWallet: route.from, To: route.to, Mint: h.d.USDC,
@@ -122,10 +132,16 @@ func (h *FundCabalHandler) Handle(ctx context.Context, cmd FundCabal) (uuid.UUID
 		return uuid.Nil, err
 	}
 	faultpoint.Hit(ctx, faultpoint.AfterSign)
+	sent := false
 	if err := h.d.UoW.Do(ctx, func(ctx context.Context, tx db.Tx) error {
-		return h.submit(ctx, tx, id, cmd, signed)
+		var err error
+		sent, err = h.submit(ctx, tx, id, cmd, signed)
+		return err
 	}); err != nil {
 		return uuid.Nil, err
+	}
+	if !sent {
+		return id, nil
 	}
 	observability.Info(
 		ctx,
@@ -145,6 +161,19 @@ func (h *FundCabalHandler) Handle(ctx context.Context, cmd FundCabal) (uuid.UUID
 	}
 	faultpoint.Hit(ctx, faultpoint.AfterBroadcast)
 	return id, nil
+}
+
+func (h *FundCabalHandler) claimSigning(ctx context.Context, id uuid.UUID) (bool, error) {
+	held := false
+	err := h.d.UoW.Do(ctx, func(ctx context.Context, tx db.Tx) error {
+		now := h.d.Clock.Now()
+		moved, err := sqlc.New(tx.Queries()).ClaimFundSigning(ctx, sqlc.ClaimFundSigningParams{
+			ID: id, Until: now.Add(h.d.SendWindow), Now: now,
+		})
+		held = moved > 0
+		return err
+	})
+	return held && err == nil, err
 }
 
 func (h *FundCabalHandler) admit(ctx context.Context, cmd FundCabal) (fundRoute, error) {
@@ -251,6 +280,7 @@ func (h *FundCabalHandler) insert(
 	return q.InsertFundTransfer(ctx, sqlc.InsertFundTransferParams{
 		ID: id, UserID: cmd.UserID.UUID(), CabalID: cmd.CabalID.UUID(), AmountMicros: cmd.Amount.String(),
 		FromAddress: string(route.from.Address), ToAddress: string(route.to), CreatedAt: h.d.Clock.Now(),
+		SigningUntil: h.d.Clock.Now().Add(h.d.SendWindow),
 	})
 }
 
@@ -283,28 +313,41 @@ func refuseUnpriceableFund(ctx context.Context, reads FundPotReads, cabalID ids.
 
 func (h *FundCabalHandler) submit(
 	ctx context.Context, tx db.Tx, id uuid.UUID, cmd FundCabal, signed relayer.SignedTx,
-) error {
-	n, err := sqlc.New(tx.Queries()).SubmitFundTransfer(ctx, sqlc.SubmitFundTransferParams{
+) (bool, error) {
+	q := sqlc.New(tx.Queries())
+	n, err := q.SubmitFundTransfer(ctx, sqlc.SubmitFundTransferParams{
 		ID: id, SignedTx: signed.Bytes, TxSignature: string(signed.Signature),
 		LastValidBlockHeight: strconv.FormatUint(signed.LastValidBlockHeight, 10), SubmittedAt: h.d.Clock.Now(),
 	})
 	if err != nil {
-		return err
+		return false, err
 	}
 	if n == 0 {
-		return errs.New(errs.CodeFundNotSent, "treasury.FundCabal", slog.String("transfer_id", id.String()),
-			slog.String("reason", "failed while signing"))
+		return false, h.lostSubmit(ctx, q, id)
 	}
 	if err := tx.Events.Append(ctx, events.FundSubmitted{
 		V: 1, TransferID: id, CabalID: cmd.CabalID.UUID(), UserID: cmd.UserID.UUID(), AmountMicros: cmd.Amount,
 		TxSignature: signed.Signature,
 	}); err != nil {
-		return err
+		return false, err
 	}
 	tx.AfterCommit(func(ctx context.Context) {
 		h.d.Hints.PublishHint(ctx, events.UserBalanceChangedHint(cmd.UserID), nil)
 	})
-	return nil
+	return true, nil
+}
+
+func (h *FundCabalHandler) lostSubmit(ctx context.Context, q *sqlc.Queries, id uuid.UUID) error {
+	row, err := q.GetFundTransfer(ctx, id)
+	if err != nil {
+		return err
+	}
+	if slices.Contains([]domain.FundStatus{domain.FundSubmitted, domain.FundLanded, domain.FundSettled},
+		domain.FundStatus(row.Status)) {
+		return nil
+	}
+	return errs.New(errs.CodeFundNotSent, "treasury.FundCabal", slog.String("transfer_id", id.String()),
+		slog.String("reason", "failed while signing"))
 }
 
 func (h *FundCabalHandler) failUnsent(ctx context.Context, id uuid.UUID, cause error) {
