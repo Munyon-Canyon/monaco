@@ -288,6 +288,7 @@ func (s *Scenario) send(req request) {
 	req.setHeaders(r)
 	if s.app.clientIP != "" {
 		r.Header.Set("X-Forwarded-For", s.app.clientIP)
+		r.Header.Set("CF-Connecting-IP", s.app.clientIP)
 	}
 	if s.app.flow != "" && matchesTrigger(s.app.trigger, req.method, req.path) {
 		r.Header.Set(httpx.FlowHeader, s.app.flow)
