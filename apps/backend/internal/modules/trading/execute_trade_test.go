@@ -12,6 +12,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal"
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/app"
+	treasuryport "github.com/monaco/monaco/apps/backend/internal/modules/treasury/port"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/jupiter"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/marketfake"
@@ -94,6 +95,17 @@ func refusalCases() []refusalCase {
 		{"buy while reservations exceed the ledger cash", func(e *engineEnv, _ *app.ExecuteTrade) {
 			e.positions.reserved = 200_000_000
 		}, errs.CodeInsufficientFunds, "0", "25000000"},
+		{"buy over the cap on the ledger cash", func(e *engineEnv, _ *app.ExecuteTrade) {
+			e.capTradesAt(1_000)
+		}, errs.CodeOverTradeCap, "10000000", "25000000"},
+		{"buy over the cap after the pot shrank since the proposal", func(e *engineEnv, _ *app.ExecuteTrade) {
+			e.capTradesAt(5_000)
+			e.positions.units = 30_000_000
+		}, errs.CodeOverTradeCap, "15000000", "25000000"},
+		{"buy over the cap on the cash left after a cash-out reservation", func(e *engineEnv, _ *app.ExecuteTrade) {
+			e.capTradesAt(5_000)
+			e.positions.reserved = 60_000_000
+		}, errs.CodeOverTradeCap, "20000000", "25000000"},
 		{"sell short of the token amount", func(e *engineEnv, cmd *app.ExecuteTrade) {
 			*cmd = e.sell(50_000_000)
 			e.ledger.SetTokens(e.wallet.Address, aaplxToken(), 49_999_999)
@@ -197,6 +209,80 @@ func TestExecuteTrade_eachRefusalBlocksOnceRecordsTheDeliveryAndNeverSwaps(t *te
 	}
 }
 
+func TestExecuteTrade_aBuyWithinTheCapRunsAndASellIgnoresIt(t *testing.T) {
+	t.Parallel()
+	e := newEngineEnv(t)
+	e.capTradesAt(2_500)
+	cmd := e.buy()
+	if err := e.handle(t, e.delivery(t, cmd), cmd); err != nil || len(e.blocked(t, cmd.ProposalID)) != 0 ||
+		len(e.swapsOf(t, cmd.ProposalID)) != 1 {
+		t.Fatalf("err %v, %d blocked, %d swaps; want a buy of exactly the cap to run",
+			err, len(e.blocked(t, cmd.ProposalID)), len(e.swapsOf(t, cmd.ProposalID)))
+	}
+	e.capTradesAt(1)
+	e.ledger.SetTokens(e.wallet.Address, aaplxToken(), 50_000_000)
+	e.quote(aaplxToken(), usdcToken(), quotedOut, true)
+	sell := e.sell(50_000_000)
+	if err := e.handle(t, e.delivery(t, sell), sell); err != nil || len(e.blocked(t, sell.ProposalID)) != 0 ||
+		len(e.swapsOf(t, sell.ProposalID)) != 1 {
+		t.Fatalf("err %v, %d blocked, %d swaps; want a sell to ignore the buy cap",
+			err, len(e.blocked(t, sell.ProposalID)), len(e.swapsOf(t, sell.ProposalID)))
+	}
+}
+
+func TestExecuteTrade_anUnusableCapIsAnInternalErrorNotATrade(t *testing.T) {
+	t.Parallel()
+	for name, arrange := range map[string]func(e *engineEnv){
+		"a negative cap": func(e *engineEnv) { e.capTradesAt(-1) },
+		"a cap that overflows the ledger cash": func(e *engineEnv) {
+			e.capTradesAt(20_000)
+			e.positions.units = math.MaxUint64
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			e := newEngineEnv(t)
+			arrange(e)
+			cmd := e.buy()
+
+			err := e.handle(t, e.delivery(t, cmd), cmd)
+
+			if errs.CodeOf(err) != errs.CodeInternal || len(e.swapsOf(t, cmd.ProposalID)) != 0 {
+				t.Fatalf("err = %v with %d swaps, want internal and no swap", err, len(e.swapsOf(t, cmd.ProposalID)))
+			}
+		})
+	}
+}
+
+type secondReadFails struct {
+	app.Positions
+	reads *int
+}
+
+func (p secondReadFails) SolanaPositions(ctx context.Context, id ids.CabalID) ([]treasuryport.Position, error) {
+	*p.reads++
+	if *p.reads > 1 {
+		return nil, errs.New(errs.CodeDBUnavailable, "test.SolanaPositions")
+	}
+	return p.Positions.SolanaPositions(ctx, id)
+}
+
+func TestExecuteTrade_aCapReadThatFailsIsRetriedAndNeverBlocks(t *testing.T) {
+	t.Parallel()
+	e := newEngineEnv(t)
+	e.capTradesAt(5_000)
+	cmd := e.buy()
+	ports := e.ports()
+	ports.Positions = secondReadFails{Positions: ports.Positions, reads: new(int)}
+
+	err := e.handlerWith(ports).Handle(actorContext(t.Context()), e.delivery(t, cmd), cmd, nil)
+
+	if errs.CodeOf(err) != errs.CodeDBUnavailable || len(e.blocked(t, cmd.ProposalID)) != 0 {
+		t.Fatalf("err = %v with %d blocked, want db_unavailable for redelivery and no block",
+			err, len(e.blocked(t, cmd.ProposalID)))
+	}
+}
+
 func TestExecuteTrade_aBuyNeedsOnlyTheUSDCItSpendsWhateverFeeTheBoughtTokenCharges(t *testing.T) {
 	t.Parallel()
 	e := newEngineEnv(t)
@@ -222,6 +308,11 @@ func TestExecuteTrade_anUpstreamFailureReturnsItsCodeAndWritesNothing(t *testing
 		"balance":       func(e *engineEnv) { e.balances.Fail("TokenBalance", rpc) },
 		"slippage":      func(e *engineEnv) { e.cabals.Fail("SlippageBps", rpc) },
 		"cabal status":  func(e *engineEnv) { e.cabals.Fail("Status", rpc) },
+		"cap rules": func(e *engineEnv) {
+			e.capTradesAt(5_000)
+			e.cabals.Fail("Rules", rpc)
+		},
+		"proposal lock": func(e *engineEnv) { e.proposals.Fail("LockRetryable", rpc) },
 		"pause":         func(e *engineEnv) { e.pauses.Fail("IsPaused", rpc) },
 		"order": func(e *engineEnv) {
 			e.jup.Fail("Order", down)

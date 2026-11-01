@@ -48,6 +48,7 @@ type SwapRequest struct {
 	SlippageBps     int64
 	SourceBatchSize int
 	StillWanted     func(ctx context.Context) (bool, error)
+	LockWanted      func(ctx context.Context, tx db.Tx) (bool, error)
 	Route           *multichain.Comparison
 	Pin             chain.Network
 	RouteOf         *ids.SwapID
@@ -80,10 +81,10 @@ func (l *SwapLayer) Run(ctx context.Context, req SwapRequest, heartbeat func()) 
 	if err != nil {
 		return SwapView{}, err
 	}
-	id, owned, err := l.claim(ctx, req, insert)
+	id, owned, locked, err := l.claim(ctx, req, insert)
 	if err == nil && owned {
 		faultpoint.Hit(ctx, faultpoint.AfterCreate)
-		err = l.beating(ctx, heartbeat, func(ctx context.Context) error { return l.start(ctx, req, id) })
+		err = l.beating(ctx, heartbeat, func(ctx context.Context) error { return l.start(ctx, req, id, locked) })
 	}
 	if err != nil {
 		return SwapView{}, err
@@ -93,8 +94,16 @@ func (l *SwapLayer) Run(ctx context.Context, req SwapRequest, heartbeat func()) 
 
 func (l *SwapLayer) claim(
 	ctx context.Context, req SwapRequest, insert sqlc.InsertCreatedParams,
-) (uuid.UUID, bool, error) {
+) (uuid.UUID, bool, bool, error) {
+	locked := true
 	insertErr := l.d.UoW.Do(ctx, func(ctx context.Context, tx db.Tx) error {
+		if req.LockWanted != nil {
+			wanted, err := req.LockWanted(ctx, tx)
+			if err != nil {
+				return err
+			}
+			locked = wanted
+		}
 		if err := sqlc.New(tx.Queries()).InsertCreated(ctx, insert); err != nil {
 			return err
 		}
@@ -105,26 +114,30 @@ func (l *SwapLayer) claim(
 		return nil
 	})
 	if insertErr == nil {
-		return insert.ID, true, nil
+		return insert.ID, true, locked, nil
 	}
 	live, err := sqlc.New(l.d.Reads).ClaimLive(ctx, sqlc.ClaimLiveParams{
-		SourceKind: insert.SourceKind, SourceID: insert.SourceID, InMint: insert.InMint,
+		SourceKind: insert.SourceKind, SourceID: insert.SourceID,
 	})
 	if err != nil {
-		return uuid.Nil, false, insertErr
+		return uuid.Nil, false, false, insertErr
 	}
-	return live.ID, false, nil
+	return live.ID, false, false, nil
 }
 
-func (l *SwapLayer) start(ctx context.Context, req SwapRequest, id uuid.UUID) error {
-	wanted, err := l.wanted(ctx, req, id)
+func (l *SwapLayer) start(ctx context.Context, req SwapRequest, id uuid.UUID, locked bool) error {
+	wanted, err := l.wanted(ctx, req, id, locked)
 	if err != nil || !wanted {
 		return err
 	}
 	return l.drive(ctx, req, id)
 }
 
-func (l *SwapLayer) wanted(ctx context.Context, req SwapRequest, id uuid.UUID) (bool, error) {
+func (l *SwapLayer) wanted(ctx context.Context, req SwapRequest, id uuid.UUID, locked bool) (bool, error) {
+	if !locked {
+		_, err := l.move(ctx, req, id, failed(req, id, domain.FailureSourceCancelled, ""))
+		return false, err
+	}
 	if req.StillWanted == nil {
 		return true, nil
 	}

@@ -113,6 +113,13 @@ RETURNING id, cabal_id, kind, coalesce(symbol, '')::text AS symbol, coalesce(min
 SELECT (status = 'passed' OR (status = 'execution_blocked' AND status_reason = 'swap_failed'))::bool
 FROM proposals WHERE id = @id;
 
+-- name: LockRetryableByID :one
+SELECT (status = 'passed' OR (status = 'execution_blocked' AND status_reason = 'swap_failed'))::bool
+FROM proposals WHERE id = @id FOR UPDATE;
+
+-- name: LockCabalOfProposal :one
+SELECT cabal_id FROM proposals WHERE id = @id FOR UPDATE;
+
 -- name: StatusByID :one
 SELECT status FROM proposals WHERE id = @id;
 

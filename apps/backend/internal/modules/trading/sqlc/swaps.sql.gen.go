@@ -16,7 +16,8 @@ import (
 const claimLive = `-- name: ClaimLive :one
 SELECT id, status
 FROM swaps
-WHERE source_kind = $1 AND source_id = $2 AND in_mint = $3 AND status <> 'failed'
+WHERE source_kind = $1 AND source_id = $2 AND status <> 'failed'
+  AND (source_kind = 'proposal' OR in_mint = $3)
 `
 
 type ClaimLiveParams struct {

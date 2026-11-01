@@ -111,6 +111,7 @@ func TestQueries_retryableIsScopedToTheMintOfTheFailedSwap(t *testing.T) {
 	if err != nil || !got.Retryable {
 		t.Fatalf("Swap of a failure with a later swap on another mint = %+v, %v, want retryable", got, err)
 	}
+	d.fail(t, other.ID, string(domain.FailureNeverSubmitted))
 	retry := d.created(source, aaplxMint)
 	retry.CreatedAt = d.now.Add(2 * time.Minute)
 	d.insert(t, retry)

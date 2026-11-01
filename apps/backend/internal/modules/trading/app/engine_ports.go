@@ -7,6 +7,7 @@ import (
 	fundingport "github.com/monaco/monaco/apps/backend/internal/modules/funding/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
@@ -21,6 +22,7 @@ type Cabals interface {
 	SlippageBps(ctx context.Context, id ids.CabalID) (int32, error)
 	TreasuryWallet(ctx context.Context, id ids.CabalID) (cabalport.TreasuryWallet, error)
 	IsMember(ctx context.Context, id ids.CabalID, user ids.UserID) (bool, error)
+	Rules(ctx context.Context, id ids.CabalID) (cabalport.Rules, error)
 }
 
 type Pauses interface {
@@ -29,6 +31,7 @@ type Pauses interface {
 
 type Proposals interface {
 	Retryable(ctx context.Context, id ids.ProposalID) (bool, error)
+	LockRetryable(ctx context.Context, tx db.Tx, id ids.ProposalID) (bool, error)
 }
 
 type Balances interface {

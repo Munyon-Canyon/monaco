@@ -8,6 +8,7 @@ import (
 	cabalport "github.com/monaco/monaco/apps/backend/internal/modules/cabal/port"
 	fundingport "github.com/monaco/monaco/apps/backend/internal/modules/funding/port"
 	treasuryport "github.com/monaco/monaco/apps/backend/internal/modules/treasury/port"
+	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
@@ -34,6 +35,10 @@ func (UnwiredCabals) TreasuryWallet(context.Context, ids.CabalID) (cabalport.Tre
 	return cabalport.TreasuryWallet{}, unwired("Cabals.TreasuryWallet")
 }
 
+func (UnwiredCabals) Rules(context.Context, ids.CabalID) (cabalport.Rules, error) {
+	return cabalport.Rules{}, unwired("Cabals.Rules")
+}
+
 func (UnwiredCabals) IsMember(context.Context, ids.CabalID, ids.UserID) (bool, error) {
 	return false, unwired("Cabals.IsMember")
 }
@@ -44,6 +49,10 @@ func (UnwiredPauses) IsPaused(context.Context, ids.CabalID) (fundingport.Pause, 
 
 func (UnwiredProposals) Retryable(context.Context, ids.ProposalID) (bool, error) {
 	return false, unwired("Proposals.Retryable")
+}
+
+func (UnwiredProposals) LockRetryable(context.Context, db.Tx, ids.ProposalID) (bool, error) {
+	return false, unwired("Proposals.LockRetryable")
 }
 
 type UnwiredPositions struct{}
