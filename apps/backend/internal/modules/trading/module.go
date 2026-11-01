@@ -5,6 +5,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	cabalport "github.com/monaco/monaco/apps/backend/internal/modules/cabal/port"
 	fundingport "github.com/monaco/monaco/apps/backend/internal/modules/funding/port"
@@ -219,6 +221,10 @@ func (m *Module) OwnsSignature(ctx context.Context, sig chain.Signature) (bool, 
 
 func (m *Module) BridgeBacksInFlight(ctx context.Context, cabal ids.CabalID) ([]fundingport.ArrivalBand, error) {
 	return m.Queries().BridgeBacksInFlight(ctx, cabal)
+}
+
+func (m *Module) ClaimArrival(ctx context.Context, band uuid.UUID, sig chain.Signature) (bool, error) {
+	return m.Queries().ClaimArrival(ctx, band, sig)
 }
 
 func (m *Module) build() {

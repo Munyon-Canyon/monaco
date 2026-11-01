@@ -23,9 +23,13 @@ SELECT EXISTS (
 );
 
 -- name: BridgeBacksInFlight :many
-SELECT t.id, t.amount_micros::text AS sent_micros, r.comparison
+SELECT t.id, t.amount_micros::text AS sent_micros, r.comparison, t.arrival_signature
 FROM trade_steps t
 JOIN swaps s ON s.id = t.trade_id
 JOIN trade_routes r ON r.trade_id = t.trade_id
 WHERE s.cabal_id = @cabal_id::uuid AND t.step = 'bridge_back' AND t.status = 'submitted'
 ORDER BY t.created_at, t.id;
+
+-- name: ClaimBridgeBackArrival :execrows
+UPDATE trade_steps SET arrival_signature = @arrival_signature::text
+WHERE id = @id AND step = 'bridge_back' AND (arrival_signature IS NULL OR arrival_signature = @arrival_signature::text);

@@ -657,10 +657,27 @@ func TestTreasuryReconcile_ATokenAccountScanFailureIsCountedNotFatal(t *testing.
 	}
 }
 
-type bridgeBacks []fundingport.ArrivalBand
+type bridgeBacks struct {
+	mu    sync.Mutex
+	bands []fundingport.ArrivalBand
+}
 
-func (b bridgeBacks) BridgeBacksInFlight(context.Context, ids.CabalID) ([]fundingport.ArrivalBand, error) {
-	return b, nil
+func (b *bridgeBacks) BridgeBacksInFlight(context.Context, ids.CabalID) ([]fundingport.ArrivalBand, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return slices.Clone(b.bands), nil
+}
+
+func (b *bridgeBacks) ClaimArrival(_ context.Context, band uuid.UUID, sig chain.Signature) (bool, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	for i := range b.bands {
+		if b.bands[i].ID == band && (b.bands[i].Claimed == "" || b.bands[i].Claimed == sig) {
+			b.bands[i].Claimed = sig
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func bridgeBack() fundingport.ArrivalBand {
@@ -669,10 +686,16 @@ func bridgeBack() fundingport.ArrivalBand {
 	}
 }
 
-func (e *reconcileEnv) expectBridgeBacks(bands ...fundingport.ArrivalBand) {
+func (e *reconcileEnv) expectBridgeBacks(bands ...fundingport.ArrivalBand) *bridgeBacks {
+	shared := &bridgeBacks{bands: bands}
+	e.restartDetector(shared)
+	return shared
+}
+
+func (e *reconcileEnv) restartDetector(arrivals fundingport.ArrivalExpectation) {
 	handler := app.NewDetectExternalDepositHandler(func() app.DetectDeps {
 		deps := e.watchEnv.deps
-		deps.Arrivals = []fundingport.ArrivalExpectation{bridgeBacks(bands)}
+		deps.Arrivals = []fundingport.ArrivalExpectation{arrivals}
 		return deps
 	}())
 	e.deps.Detect = detectorFunc(func(ctx context.Context, cmd app.DetectExternalDeposit) (app.DetectResult, error) {
@@ -752,6 +775,36 @@ func TestTreasuryReconcile_TwoTransfersInOneBandAndOneBridgeBackLeaveOneExternal
 	}
 }
 
+func TestTreasuryReconcile_AClaimOutlivesAHandlerRestart(t *testing.T) {
+	t.Parallel()
+	env := newReconcileEnv(t)
+	treasury := env.cabal.TreasuryAddress
+	shared := env.expectBridgeBacks(bridgeBack())
+	fill := env.inbound(t, env.usdcMint(), 29_500_000, randomAddress(t))
+	env.landed(treasury, fill)
+	env.onChain(treasury, env.usdc, 29_500_000)
+	if changed, err := env.tick(t); err != nil || changed != 0 {
+		t.Fatalf("first tick = %d, %v, want the fill left alone", changed, err)
+	}
+
+	env.restartDetector(shared)
+	second := env.inbound(t, env.usdcMint(), 29_700_000, randomAddress(t))
+	env.landed(treasury, second)
+	env.onChain(treasury, env.usdc, 59_200_000)
+	changed, err := env.tick(t)
+
+	if err != nil || changed != 1 {
+		t.Fatalf("tick after restart = %d, %v, want the second transfer recorded", changed, err)
+	}
+	rows := externalDeposits(t, env.pool)
+	if _, own := rows[string(fill)]; own || rows[string(second)].status != "detected" {
+		t.Fatalf("rows = %+v, want the fill still own and the second detected", rows)
+	}
+	if got := shared.bands[0].Claimed; got != fill {
+		t.Fatalf("claimed = %q, want %q", got, fill)
+	}
+}
+
 func TestTreasuryReconcile_ABridgeBackThatIsNotInFlightDoesNotShieldATransfer(t *testing.T) {
 	t.Parallel()
 	env := newReconcileEnv(t)
@@ -768,8 +821,57 @@ func TestTreasuryReconcile_ABridgeBackThatIsNotInFlightDoesNotShieldATransfer(t 
 
 type brokenArrivals struct{}
 
+func (brokenArrivals) ClaimArrival(context.Context, uuid.UUID, chain.Signature) (bool, error) {
+	return false, errs.New(errs.CodeInternal, "test.ClaimArrival")
+}
+
 func (brokenArrivals) BridgeBacksInFlight(context.Context, ids.CabalID) ([]fundingport.ArrivalBand, error) {
 	return nil, errs.New(errs.CodeInternal, "test.BridgeBackInFlight")
+}
+
+type lostClaim struct{ err error }
+
+func (lostClaim) BridgeBacksInFlight(context.Context, ids.CabalID) ([]fundingport.ArrivalBand, error) {
+	return []fundingport.ArrivalBand{bridgeBack()}, nil
+}
+
+func (l lostClaim) ClaimArrival(context.Context, uuid.UUID, chain.Signature) (bool, error) {
+	return false, l.err
+}
+
+func TestTreasuryReconcile_ABandAnotherProcessTookFirstLeavesTheTransferExternal(t *testing.T) {
+	t.Parallel()
+	env := newReconcileEnv(t)
+	treasury := env.cabal.TreasuryAddress
+	env.restartDetector(lostClaim{})
+	stray := env.inbound(t, env.usdcMint(), 29_500_000, randomAddress(t))
+	env.landed(treasury, stray)
+	env.onChain(treasury, env.usdc, 29_500_000)
+
+	changed, err := env.tick(t)
+
+	if err != nil || changed != 1 {
+		t.Fatalf("tick = %d, %v, want the transfer recorded as external", changed, err)
+	}
+}
+
+func TestTreasuryReconcile_AClaimThatCannotBeWrittenFailsTheScanInsteadOfBouncing(t *testing.T) {
+	t.Parallel()
+	env := newReconcileEnv(t)
+	treasury := env.cabal.TreasuryAddress
+	env.restartDetector(lostClaim{err: errs.New(errs.CodeInternal, "test.ClaimArrival")})
+	stray := env.inbound(t, env.usdcMint(), 29_500_000, randomAddress(t))
+	env.landed(treasury, stray)
+	env.onChain(treasury, env.usdc, 29_500_000)
+
+	report, err := env.tickReport(t)
+
+	if err != nil || attr(report, "failed") != 1 || report.Changed != 0 {
+		t.Fatalf("tick = %+v, %v, want one failed cabal and nothing recorded", report, err)
+	}
+	if rows := externalDeposits(t, env.pool); len(rows) != 0 {
+		t.Fatalf("rows = %+v, want none", rows)
+	}
 }
 
 func TestTreasuryReconcile_AnUnreadableBridgeBackFailsTheScanInsteadOfBouncing(t *testing.T) {

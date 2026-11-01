@@ -1,42 +1,30 @@
 package app
 
 import (
-	"sync"
-
-	"github.com/google/uuid"
+	"context"
 
 	fundingport "github.com/monaco/monaco/apps/backend/internal/modules/funding/port"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
-type bandClaims struct {
-	mu sync.Mutex
-	by map[uuid.UUID]chain.Signature
-}
-
-func (c *bandClaims) claim(bands []fundingport.ArrivalBand, sig chain.Signature, got money.Micros) bool {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	live := make(map[uuid.UUID]bool, len(bands))
+func claimBand(
+	ctx context.Context, from fundingport.ArrivalExpectation, bands []fundingport.ArrivalBand,
+	sig chain.Signature, got money.Micros,
+) (bool, error) {
 	for _, b := range bands {
-		live[b.ID] = true
-	}
-	for id := range c.by {
-		if !live[id] {
-			delete(c.by, id)
+		if b.Claimed == sig && b.Contains(got) {
+			return true, nil
 		}
 	}
 	for _, b := range bands {
-		if c.by[b.ID] == sig && b.Contains(got) {
-			return true
+		if b.Claimed != "" || !b.Contains(got) {
+			continue
+		}
+		claimed, err := from.ClaimArrival(ctx, b.ID, sig)
+		if err != nil || claimed {
+			return claimed, err
 		}
 	}
-	for _, b := range bands {
-		if _, taken := c.by[b.ID]; !taken && b.Contains(got) {
-			c.by[b.ID] = sig
-			return true
-		}
-	}
-	return false
+	return false, nil
 }

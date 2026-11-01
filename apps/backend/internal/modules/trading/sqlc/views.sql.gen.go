@@ -9,10 +9,11 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const bridgeBacksInFlight = `-- name: BridgeBacksInFlight :many
-SELECT t.id, t.amount_micros::text AS sent_micros, r.comparison
+SELECT t.id, t.amount_micros::text AS sent_micros, r.comparison, t.arrival_signature
 FROM trade_steps t
 JOIN swaps s ON s.id = t.trade_id
 JOIN trade_routes r ON r.trade_id = t.trade_id
@@ -21,9 +22,10 @@ ORDER BY t.created_at, t.id
 `
 
 type BridgeBacksInFlightRow struct {
-	ID         uuid.UUID
-	SentMicros string
-	Comparison []byte
+	ID               uuid.UUID
+	SentMicros       string
+	Comparison       []byte
+	ArrivalSignature pgtype.Text
 }
 
 func (q *Queries) BridgeBacksInFlight(ctx context.Context, cabalID uuid.UUID) ([]BridgeBacksInFlightRow, error) {
@@ -35,7 +37,12 @@ func (q *Queries) BridgeBacksInFlight(ctx context.Context, cabalID uuid.UUID) ([
 	var items []BridgeBacksInFlightRow
 	for rows.Next() {
 		var i BridgeBacksInFlightRow
-		if err := rows.Scan(&i.ID, &i.SentMicros, &i.Comparison); err != nil {
+		if err := rows.Scan(
+			&i.ID,
+			&i.SentMicros,
+			&i.Comparison,
+			&i.ArrivalSignature,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -44,6 +51,24 @@ func (q *Queries) BridgeBacksInFlight(ctx context.Context, cabalID uuid.UUID) ([
 		return nil, err
 	}
 	return items, nil
+}
+
+const claimBridgeBackArrival = `-- name: ClaimBridgeBackArrival :execrows
+UPDATE trade_steps SET arrival_signature = $1::text
+WHERE id = $2 AND step = 'bridge_back' AND (arrival_signature IS NULL OR arrival_signature = $1::text)
+`
+
+type ClaimBridgeBackArrivalParams struct {
+	ArrivalSignature string
+	ID               uuid.UUID
+}
+
+func (q *Queries) ClaimBridgeBackArrival(ctx context.Context, arg ClaimBridgeBackArrivalParams) (int64, error) {
+	result, err := q.db.Exec(ctx, claimBridgeBackArrival, arg.ArrivalSignature, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const hasLiveSwap = `-- name: HasLiveSwap :one
