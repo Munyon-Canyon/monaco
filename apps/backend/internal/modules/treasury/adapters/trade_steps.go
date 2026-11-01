@@ -51,10 +51,7 @@ func (h TradeSteps) Handle(ctx context.Context, tx db.Tx, e events.TradeStepChan
 	case "submitted":
 		err = h.sent(ctx, tx, q, ledger, b, at)
 	case "succeeded":
-		if b.SwapID, err = bookedOn(e); err != nil {
-			return err
-		}
-		err = finish(ctx, q, b, func() error { return ledger.BridgeLanded(ctx, tx, b) })
+		err = landed(ctx, tx, q, ledger, b, e)
 	case "failed":
 		if e.PrivyActionID == "" {
 			return nil
@@ -89,6 +86,22 @@ func (TradeSteps) sent(
 	return q.InsertInTransit(ctx, sqlc.InsertInTransitParams{
 		CabalID: b.CabalID.UUID(), TradeID: b.SwapID, Network: string(b.Network), CreatedAt: at,
 		AmountMicros: pgtype.Numeric{Int: new(big.Int).SetUint64(net.Uint64()), Valid: true},
+	})
+}
+
+func landed(
+	ctx context.Context, tx db.Tx, q *sqlc.Queries, ledger app.Ledger, b domain.Bridge, e events.TradeStepChanged,
+) error {
+	var err error
+	if b.SwapID, err = bookedOn(e); err != nil {
+		return err
+	}
+	err = finish(ctx, q, b, func() error { return ledger.BridgeLanded(ctx, tx, b) })
+	if err != nil || b.Direction != domain.BridgeBack {
+		return err
+	}
+	return q.RecordSellBridgeFee(ctx, sqlc.RecordSellBridgeFeeParams{
+		TradeID: e.SwapID, FeeMicros: e.FeeMicros.String(),
 	})
 }
 

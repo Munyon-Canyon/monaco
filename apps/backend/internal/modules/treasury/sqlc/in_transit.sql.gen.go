@@ -55,6 +55,22 @@ func (q *Queries) InsertInTransit(ctx context.Context, arg InsertInTransitParams
 	return err
 }
 
+const recordSellBridgeFee = `-- name: RecordSellBridgeFee :exec
+INSERT INTO sell_bridge_fees (trade_id, fee_micros)
+VALUES ($1::uuid, $2::text::numeric)
+ON CONFLICT (trade_id) DO UPDATE SET fee_micros = excluded.fee_micros
+`
+
+type RecordSellBridgeFeeParams struct {
+	TradeID   uuid.UUID
+	FeeMicros string
+}
+
+func (q *Queries) RecordSellBridgeFee(ctx context.Context, arg RecordSellBridgeFeeParams) error {
+	_, err := q.db.Exec(ctx, recordSellBridgeFee, arg.TradeID, arg.FeeMicros)
+	return err
+}
+
 const setPositionListing = `-- name: SetPositionListing :execrows
 UPDATE cabal_positions SET listing_id = $3
 WHERE cabal_id = $1 AND asset = $2 AND listing_id IS NULL

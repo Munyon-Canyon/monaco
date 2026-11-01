@@ -29,6 +29,8 @@ func TestTradeActivity_readsTheCashAndTheAssetFromTheSideTheActionNames(t *testi
 		"buy":          {domain.Trade{Action: "buy", In: cash, Out: stock}, "buy 60 3"},
 		"sell":         {domain.Trade{Action: "sell", In: stock, Out: cash}, "sell 60 3"},
 		"unfilled buy": {domain.Trade{Action: "buy", In: cash, Out: domain.Leg{Asset: aapl}}, "buy 60 null"},
+		"bridged buy":  {domain.Trade{Action: "buy", In: cash, Out: stock, Fee: 5}, "buy 65 3"},
+		"bridged sell": {domain.Trade{Action: "sell", In: stock, Out: cash, Fee: 5}, "sell 60 3"},
 	}
 	for name, tc := range tests {
 		tc.trade.SwapID = swap

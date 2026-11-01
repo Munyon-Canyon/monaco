@@ -14,3 +14,8 @@ WHERE cabal_id = $1;
 -- name: SetPositionListing :execrows
 UPDATE cabal_positions SET listing_id = $3
 WHERE cabal_id = $1 AND asset = $2 AND listing_id IS NULL;
+
+-- name: RecordSellBridgeFee :exec
+INSERT INTO sell_bridge_fees (trade_id, fee_micros)
+VALUES (sqlc.arg(trade_id)::uuid, sqlc.arg(fee_micros)::text::numeric)
+ON CONFLICT (trade_id) DO UPDATE SET fee_micros = excluded.fee_micros;

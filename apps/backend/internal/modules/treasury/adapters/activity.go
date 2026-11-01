@@ -36,7 +36,8 @@ func (h Activity) Confirmed(ctx context.Context, tx db.Tx, e events.TradeConfirm
 	return h.trade(ctx, tx, e.Source, domain.Trade{
 		SwapID: e.SwapID, CabalID: ids.CabalIDFrom(e.CabalID), Action: e.Action,
 		In:  domain.Leg{Asset: domain.MintAsset(e.InMint), Amount: e.InAmount},
-		Out: domain.Leg{Asset: domain.MintAsset(e.OutMint), Amount: e.OutAmount}, TxSignature: e.TxSignature,
+		Out: domain.Leg{Asset: domain.MintAsset(e.OutMint), Amount: e.OutAmount}, Fee: e.FeeMicros.Uint64(),
+		TxSignature: e.TxSignature,
 	}, domain.ActivityConfirmed, at)
 }
 

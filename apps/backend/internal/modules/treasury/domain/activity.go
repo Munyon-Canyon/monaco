@@ -46,6 +46,7 @@ type Trade struct {
 	Action      string
 	In          Leg
 	Out         Leg
+	Fee         uint64
 	TxSignature chain.Signature
 }
 
@@ -55,6 +56,7 @@ func TradeActivity(t Trade, status ActivityStatus) (Activity, error) {
 	switch t.Action {
 	case string(ActivityBuy):
 		a.Kind = ActivityBuy
+		cash.Amount += t.Fee
 	case string(ActivitySell):
 		a.Kind = ActivitySell
 		cash, asset = t.Out, t.In
