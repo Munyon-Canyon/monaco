@@ -2,6 +2,7 @@ import Foundation
 import MonacoCore
 import MonacoReferrals
 import SwiftUI
+import Synchronization
 import Testing
 
 @testable import Monaco
@@ -22,6 +23,22 @@ struct DeepLinkRouterTests {
         for tab in MainTab.allCases where tab != .cabals {
             #expect(navigator.path(for: tab).isEmpty)
         }
+    }
+
+    @Test func theLinkIsReadOnlyAfterTheSessionRestores() async {
+        let navigator = AppNavigator()
+        RestoreGatedDeepLink.restored.withLock { $0 = false }
+
+        await DeepLinkRouter.handle(
+            URL(string: "monaco://gated")!,
+            navigator: navigator,
+            handlers: [RestoreGatedDeepLink.self],
+            sessionRestored: { RestoreGatedDeepLink.restored.withLock { $0 = true } },
+            dismissPresented: {}
+        )
+
+        #expect(navigator.path(for: .cabals).count == 1)
+        #expect(navigator.signedOutLanding == nil)
     }
 
     @Test func matchingURLClosesOpenSheetsBeforeItsRouteOpens() async {
@@ -261,6 +278,18 @@ private enum ProbeDeepLink: DeepLinkHandler {
     static func action(for url: URL) -> DeepLinkAction? {
         guard url.host == "match" else { return nil }
         return .open(ProbeRoute(marker: "matched"), in: .cabals)
+    }
+}
+
+private enum RestoreGatedDeepLink: DeepLinkHandler {
+    static let restored = Mutex(false)
+
+    static func action(for url: URL) -> DeepLinkAction? {
+        guard restored.withLock({ $0 }) else {
+            guard let code = ReferralCode("k7m4qx2p") else { return nil }
+            return .signedOutLanding(InviteLandingRoute(code: code, cabalID: "c1"))
+        }
+        return .open(ProbeRoute(marker: "restored"), in: .cabals)
     }
 }
 

@@ -136,6 +136,17 @@ class PrivyAuthService: ObservableObject {
         }
     }
 
+    func waitForRestore(timeout: Duration = .seconds(10)) async {
+        let deadline = ContinuousClock.now.advanced(by: timeout)
+        while phase == .restoring, ContinuousClock.now < deadline {
+            do {
+                try await Task.sleep(for: .milliseconds(50))
+            } catch {
+                return
+            }
+        }
+    }
+
     func shouldInvalidateBackendSession(serverUserId: String) -> Bool {
         sessionStore.shouldInvalidateSession(serverUserId: serverUserId)
     }

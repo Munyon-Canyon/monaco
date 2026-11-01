@@ -32,12 +32,12 @@ final class PushRegistrationTests: XCTestCase {
         }
     }
 
-    func testOnlyASignedInAuthorizedMemberRegisters() {
+    func testOnlyASignedInMemberWhoAllowedPushesRegisters() {
         let registers: [PushAuthorizationStatus: Bool] = [
             .notDetermined: false,
             .denied: false,
             .authorized: true,
-            .provisional: false,
+            .provisional: true,
             .ephemeral: false,
         ]
 

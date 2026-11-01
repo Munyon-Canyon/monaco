@@ -174,6 +174,44 @@ final class CardDepositTests: XCTestCase {
         XCTAssertEqual(paths, ["/v1/onramp/sessions", "/v1/onramp/sessions/\(id)"])
     }
 
+    func testARedirectForASessionTheAppNeverStartedChangesNothing() async {
+        let transport = StubTransport(scripted: [.json(.ok, session("confirmed"))])
+        let deposit = CardDeposit(source: OnrampSource(api: api(transport)), hints: FakeHintStream(), now: clock.now)
+
+        await deposit.redirected(sessionID: id)
+
+        XCTAssertEqual(deposit.state, .idle)
+        XCTAssertFalse(deposit.isProcessing)
+        let sent = await transport.sent.count
+        XCTAssertEqual(sent, 0)
+    }
+
+    func testARedirectForAnotherSessionLeavesTheLiveOneAlone() async {
+        let transport = StubTransport(scripted: [.json(.created, created)])
+        let deposit = CardDeposit(source: OnrampSource(api: api(transport)), hints: FakeHintStream(), now: clock.now)
+        await deposit.start(suggestedMicros: nil, cabalID: nil)
+
+        await deposit.redirected(sessionID: "01890a5d-ac96-774b-bcce-b302099a8099")
+
+        XCTAssertEqual(deposit.state, .browsing(sessionID: id))
+        XCTAssertNotNil(deposit.page)
+        let sent = await transport.sent.count
+        XCTAssertEqual(sent, 1)
+    }
+
+    func testAResetForgetsTheSessionsTheAppStarted() async {
+        let transport = StubTransport(scripted: [.json(.created, created)])
+        let deposit = CardDeposit(source: OnrampSource(api: api(transport)), hints: FakeHintStream(), now: clock.now)
+        await deposit.start(suggestedMicros: nil, cabalID: nil)
+        deposit.reset()
+
+        await deposit.redirected(sessionID: id)
+
+        XCTAssertEqual(deposit.state, .idle)
+        let sent = await transport.sent.count
+        XCTAssertEqual(sent, 1)
+    }
+
     func testACancelledRedirectToasts() async {
         let transport = StubTransport(scripted: [.json(.created, created), .json(.ok, session("cancelled"))])
         let deposit = CardDeposit(source: OnrampSource(api: api(transport)), hints: FakeHintStream(), now: clock.now)
