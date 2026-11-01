@@ -313,6 +313,43 @@ func (f adminFixture) expectBanOutcome(t *testing.T, rec *httptest.ResponseRecor
 	}
 }
 
+func (f adminFixture) banAs(ctx context.Context, t *testing.T, user ids.UserID) error {
+	t.Helper()
+	status := app.NewAdminAccountStatus(app.AdminAccountStatusDeps{
+		UoW: db.New(f.pool, f.ids, f.clock), IDs: f.ids, Clock: f.clock, Hints: &recordedHints{},
+	})
+	reason, _ := events.NewReason("fraud")
+	return status.Ban(ctx, app.BanUser{UserID: user, Reason: reason})
+}
+
+func TestAdminBanUser_AnActorWithoutARoleCannotBanAnAdmin(t *testing.T) {
+	t.Parallel()
+	f := newAdminFixture(t)
+	user := f.seed(t, portSeed{handle: "opsadmin"})
+	f.grantAdmin(t, user.ID, "viewer", false)
+	if err := f.banAs(adminCtx(t), t, user.ID); errs.CodeOf(err) != errs.CodeForbidden {
+		t.Fatalf("Ban by an admin with no role = %v, want %s", err, errs.CodeForbidden)
+	}
+	if got := f.status(t, user.ID); got != "active" {
+		t.Fatalf("account_status = %s, want active", got)
+	}
+}
+
+func TestAdminBanUser_AnUnreadableAdminsTableIsInternal(t *testing.T) {
+	t.Parallel()
+	f := newAdminFixture(t)
+	user := f.seed(t, portSeed{handle: "opsadmin"})
+	if _, err := f.pool.Exec(t.Context(), `ALTER TABLE admins RENAME COLUMN role TO grade`); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.banAs(adminCtx(t), t, user.ID); errs.CodeOf(err) != errs.CodeInternal {
+		t.Fatalf("Ban on an unreadable admins table = %v, want %s", err, errs.CodeInternal)
+	}
+	if got := f.status(t, user.ID); got != "active" {
+		t.Fatalf("account_status = %s, want active", got)
+	}
+}
+
 func TestAdminBanUser_Refusals(t *testing.T) {
 	t.Parallel()
 	f := newAdminFixture(t)
