@@ -212,7 +212,7 @@ func wantSteps(t *testing.T, got []string, want ...string) {
 }
 
 func bridged() []string {
-	return []string{"bridge_out:pending:0", "bridge_out:submitted:0", "bridge_out:succeeded:7500"}
+	return []string{"bridge_out:pending:0", "bridge_out:submitted:7500", "bridge_out:succeeded:7500"}
 }
 
 func (e *routeEnv) wantEVMRow(t *testing.T, swap uuid.UUID, hash string) {
@@ -331,7 +331,7 @@ func TestRouteExec_aBridgeFailedWithNothingBroadcastFailsTheSwapNeverSubmitted(t
 				t.Fatalf("failure = %s, want never_submitted", code)
 			}
 			wantSteps(t, e.steps(t, view.ID.UUID()),
-				"bridge_out:pending:0", "bridge_out:submitted:0", "bridge_out:failed:0")
+				"bridge_out:pending:0", "bridge_out:submitted:7500", "bridge_out:failed:0")
 		})
 	}
 }
@@ -360,7 +360,7 @@ func TestRouteExec_aBridgeFailedAfterItBroadcastParksTheSwapAndBooksNoReturn(t *
 	if code != "bridge_outcome_unknown" {
 		t.Fatalf("parked code = %q, want bridge_outcome_unknown", code)
 	}
-	wantSteps(t, e.steps(t, view.ID.UUID()), "bridge_out:pending:0", "bridge_out:submitted:0")
+	wantSteps(t, e.steps(t, view.ID.UUID()), "bridge_out:pending:0", "bridge_out:submitted:7500")
 	for _, want := range []string{"trading.bridge.outcome_unknown", "trading.routed_swap.parked"} {
 		if !strings.Contains(logs.String(), want) {
 			t.Fatalf("logs = %s, want %s", logs.String(), want)
@@ -595,7 +595,7 @@ func TestRouteExec_aResumeThatCannotResolveTheRouteChangesNothing(t *testing.T) 
 	if err := e.exec().Resume(actorContext(t.Context()), view.ID); errs.CodeOf(err) != errs.CodeDecodeFailed {
 		t.Fatalf("Resume of a corrupt row err = %v, want decode_failed", err)
 	}
-	wantSteps(t, e.steps(t, view.ID.UUID()), "bridge_out:pending:0", "bridge_out:submitted:0")
+	wantSteps(t, e.steps(t, view.ID.UUID()), "bridge_out:pending:0", "bridge_out:submitted:7500")
 }
 
 func TestRouteExec_aFillItCannotReadLeavesTheSubmittedSwapForAHuman(t *testing.T) {

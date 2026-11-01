@@ -17,6 +17,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
 const (
@@ -78,9 +79,16 @@ func (TradeSteps) sent(
 	if err != nil || !posted {
 		return err
 	}
+	net, err := b.Sent.Sub(b.Fee)
+	if err != nil {
+		net = money.Micros{}
+	}
+	if net.IsZero() {
+		return nil
+	}
 	return q.InsertInTransit(ctx, sqlc.InsertInTransitParams{
 		CabalID: b.CabalID.UUID(), TradeID: b.SwapID, Network: string(b.Network), CreatedAt: at,
-		AmountMicros: pgtype.Numeric{Int: new(big.Int).SetUint64(b.Sent.Uint64()), Valid: true},
+		AmountMicros: pgtype.Numeric{Int: new(big.Int).SetUint64(net.Uint64()), Valid: true},
 	})
 }
 

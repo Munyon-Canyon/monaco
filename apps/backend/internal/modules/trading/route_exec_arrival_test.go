@@ -53,7 +53,7 @@ func TestRouteExec_aBridgeThatLandsLessThanEstimatedSwapsWhatArrived(t *testing.
 	if arrived, tx, _ := e.arrival(t, view.ID.UUID()); arrived != 24_990_937 || tx == "" {
 		t.Fatalf("bridge_out arrival = %d %q, want the 24990937 transfer recorded", arrived, tx)
 	}
-	wantSteps(t, e.steps(t, view.ID.UUID()), "bridge_out:pending:0", "bridge_out:submitted:0",
+	wantSteps(t, e.steps(t, view.ID.UUID()), "bridge_out:pending:0", "bridge_out:submitted:7500",
 		"bridge_out:succeeded:9063", "swap:pending:0", "swap:submitted:0", "swap:succeeded:0")
 }
 

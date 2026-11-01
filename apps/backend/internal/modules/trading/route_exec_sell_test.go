@@ -93,7 +93,7 @@ func TestRouteExec_aSellSwapsToEVMCashConfirmsAndBridgesTheProceedsBack(t *testi
 		t.Fatalf("transfers = %+v, want the proceeds bridged back", calls)
 	}
 	wantSteps(t, e.steps(t, view.ID.UUID()), "swap:pending:0", "swap:submitted:0", "swap:succeeded:0",
-		"bridge_back:pending:0", "bridge_back:submitted:0", "bridge_back:succeeded:7500")
+		"bridge_back:pending:0", "bridge_back:submitted:7500", "bridge_back:succeeded:7500")
 }
 
 func TestRouteExec_aSellsPendingBridgeBackIsFinishedByThePoller(t *testing.T) {

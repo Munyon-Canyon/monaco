@@ -83,5 +83,5 @@ func TestEVMTrades_aBridgeBackCrashedAfterItsTransferFinishesWithOneAction(t *te
 			status, action, e.privy.actions())
 	}
 	got := e.steps(t, swap)
-	wantSteps(t, got[len(got)-3:], "bridge_back:pending:0", "bridge_back:submitted:0", "bridge_back:succeeded:7500")
+	wantSteps(t, got[len(got)-3:], "bridge_back:pending:0", "bridge_back:submitted:7500", "bridge_back:succeeded:7500")
 }

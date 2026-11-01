@@ -322,7 +322,7 @@ func TestEVMSwap_aRunThatFindsTheHashAlreadyStoredReadsTheFill(t *testing.T) {
 	e := newEVMSwapEnv(t)
 	e.evm.afterSend[e.key()] = func() {
 		ctx := actorContext(t.Context())
-		if _, err := e.journal.Submitted(ctx, e.ref, swapHash); err != nil {
+		if _, err := e.journal.Submitted(ctx, e.ref, swapHash, money.Micros{}); err != nil {
 			t.Error(err)
 		}
 		if _, err := e.q.MarkSubmittedEVM(ctx, sqlc.MarkSubmittedEVMParams{

@@ -52,7 +52,7 @@ func TestBridgeBack_strandedCashOfAProposalNoLongerRetryableReturnsToSolana(t *t
 		t.Fatalf("transfers = %+v, want the landed cash bridged back from the EVM treasury", calls)
 	}
 	got := e.steps(t, swap)
-	wantSteps(t, got[len(got)-3:], "bridge_back:pending:0", "bridge_back:submitted:0", "bridge_back:succeeded:7500")
+	wantSteps(t, got[len(got)-3:], "bridge_back:pending:0", "bridge_back:submitted:7500", "bridge_back:succeeded:7500")
 }
 
 func TestBridgeBack_aStartedReturnIsResumedEvenIfTheProposalIsRetryableAgain(t *testing.T) {
@@ -329,5 +329,5 @@ func TestBridgeBack_aReturnWhoseSolanaLegIsExternalSettlesOnWhatPrivyDelivered(t
 	e.mustTick(t, 1, 1)
 
 	got := e.steps(t, swap)
-	wantSteps(t, got[len(got)-3:], "bridge_back:pending:0", "bridge_back:submitted:0", "bridge_back:succeeded:21282")
+	wantSteps(t, got[len(got)-3:], "bridge_back:pending:0", "bridge_back:submitted:7500", "bridge_back:succeeded:21282")
 }
