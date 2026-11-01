@@ -41,7 +41,7 @@ enum SettingsRow: CaseIterable, Identifiable {
         case .activity: "Transfers and receipts"
         case .withdraw: "Send cash to an external wallet"
         case .blockedPeople: "People you've blocked"
-        case .advanced: "Choose where transaction links open"
+        case .advanced: "Open transactions on a block explorer"
         case .contactSupport: SettingsCopy.supportEmail
         case .signOut: "Return to sign-in"
         case .deleteAccount: "Cash out and withdraw first, then close your account"
@@ -224,6 +224,13 @@ struct SettingsList: View {
                     ForEach(SettingsRow.accountRows.filter { $0 != .viewAsOthers || viewerID != nil }) { row in
                         link(for: row)
                     }
+                }
+            }
+            VStack(alignment: .leading, spacing: 0) {
+                MonacoSectionHeader("Privacy")
+                    .padding(.horizontal, MonacoTheme.Space.gutter)
+                MonacoGroupedList {
+                    AnalyticsToggleRow()
                 }
             }
             MonacoGroupedList {

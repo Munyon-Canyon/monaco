@@ -36,6 +36,21 @@ struct SettingsCopyTests {
         #expect(SettingsCopy.supportURL.absoluteString == "mailto:support@monacolabs.xyz?subject=Monaco%20support")
     }
 
+    @Test func theBlockExplorersRowDescribesWhatTheScreenHolds() {
+        #expect(SettingsRow.advanced.subtitle == "Open transactions on a block explorer")
+    }
+
+    @Test func analyticsSharingIsOnUntilTheMemberTurnsItOff() throws {
+        let suite = "analytics-consent-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        #expect(AnalyticsConsent.isSharing(in: defaults))
+        defaults.set(false, forKey: AnalyticsConsent.key)
+        #expect(!AnalyticsConsent.isSharing(in: defaults))
+        defaults.set(true, forKey: AnalyticsConsent.key)
+        #expect(AnalyticsConsent.isSharing(in: defaults))
+    }
+
     @Test func theAccountGroupEndsWithSignOutAndDeleteStandsApart() {
         #expect(SettingsRow.accountRows.last == .signOut)
         #expect(!SettingsRow.accountRows.contains(.deleteAccount))

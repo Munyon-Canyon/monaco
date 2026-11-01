@@ -99,6 +99,7 @@ final class MonacoAPIClient {
         return try JSONDecoder().decode(AssetSocialDTO.self, from: data)
     }
 
+    #if DEBUG
     func devBuy(accessToken: String, groupId: String, symbol: String, usdc: Int64) async throws -> DevBuyResponse {
         let url = baseURL.appending(path: "v1/dev/groups/\(groupId)/buy")
         var request = URLRequest(url: url)
@@ -107,7 +108,6 @@ final class MonacoAPIClient {
         try applyAuthorizationHeader(accessToken: accessToken, to: &request)
         request.httpBody = try JSONEncoder().encode(DevBuyRequest(symbol: symbol, usdc: usdc))
 
-        // Buys the stock inside the request, so it gets the money budget, not the read one.
         let (data, response) = try await session.data(for: request, timeout: MonacoRequestTimeout.moneyWrite)
         guard let http = response as? HTTPURLResponse else {
             throw MonacoAPIError.invalidResponse
@@ -117,7 +117,7 @@ final class MonacoAPIClient {
         }
         return try JSONDecoder().decode(DevBuyResponse.self, from: data)
     }
-
+    #endif
 }
 
 extension MonacoAPIClient {

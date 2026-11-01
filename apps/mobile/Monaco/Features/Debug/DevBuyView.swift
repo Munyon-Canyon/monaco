@@ -1,13 +1,12 @@
 import SwiftUI
 
-/// M3 debug control: POST /v1/dev/groups/{id}/buy for stub AAPLx buy (backend-only Jupiter).
+#if DEBUG
 struct DevBuyView: View {
     @ObservedObject var auth: PrivyAuthService
     let groupId: String
 
     private let apiClient = MonacoAPIClient()
 
-    /// 0.20 USDC in micro-units — above Jupiter taker min (~0.18 for AAPLx).
     private static let devBuyUSDCMicro: Int64 = 200_000
 
     @State private var result: DevBuyResponse?
@@ -114,3 +113,18 @@ struct DevBuyView: View {
         DevBuyView(auth: PrivyAuthService(), groupId: "00000000-0000-0000-0000-000000000001")
     }
 }
+
+struct DevBuyRequest: Encodable {
+    let symbol: String
+    let usdc: Int64
+}
+
+struct DevBuyResponse: Decodable {
+    let transactionId: String
+    let groupId: String
+    let symbol: String
+    let status: String
+    let txSignature: String?
+    let created: Bool
+}
+#endif

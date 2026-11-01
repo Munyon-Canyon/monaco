@@ -174,7 +174,7 @@ Notes:
   lookup for five minutes, and the Vercel adapter lets Vercel's CDN keep the rendered page for the
   same time. A lookup that fails renders the generic page with `Cache-Control: no-store`.
 - `/.well-known/apple-app-site-association` has to be served as `application/json` with no
-  redirect, on `monacolabs.xyz` and on `www.monacolabs.xyz`. The appID `8Q2V9WHNNT.xyz.monacolabs.app`
+  redirect, on `monacolabs.xyz`. `www.monacolabs.xyz` answers 308 to the apex, and Apple's CDN does not follow a redirect for this file, so the app's `applinks` entitlement lists only the apex. The appID `8Q2V9WHNNT.xyz.monacolabs.app`
   is the `DEVELOPMENT_TEAM` plus the bundle id in `apps/mobile`; it must match the team of the
   Apple account the app ships under. Apple fetches the file through its CDN, so check
   `https://app-site-association.cdn-apple.com/a/v1/monacolabs.xyz` after a deploy.

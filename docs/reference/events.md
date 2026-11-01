@@ -1036,6 +1036,8 @@ Subject `events.user.deleted`, version 1.
 | `v` | `int` |
 | `user_id` | `uuid.UUID` |
 | `at` | `time.Time` |
+| `forfeited_micros` | `*money.Micros` |
+| `forfeited_wallet` | `string` |
 
 ## `user.nudge_due`
 

@@ -6,6 +6,7 @@ import XCTest
 import FoundationNetworking
 #endif
 
+#if DEBUG
 final class DevBuyAPITests: XCTestCase {
     private let forbiddenHosts = ["jupiter", "xstocks"]
 
@@ -108,3 +109,4 @@ final class DevBuyAPITests: XCTestCase {
         return data.isEmpty ? nil : data
     }
 }
+#endif

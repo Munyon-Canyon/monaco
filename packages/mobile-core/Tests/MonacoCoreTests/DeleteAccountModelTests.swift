@@ -50,6 +50,50 @@ final class DeleteAccountModelTests: XCTestCase {
         XCTAssertTrue(checklist.isWithdrawn)
     }
 
+    func testDustUnderACentCountsAsWithdrawnAndIsForfeited() async throws {
+        let transport = RoutedTransport([
+            "getMyBalance": [.json(.ok, Self.balance(available: "3000"))],
+            "getMyCabals": [.json(.ok, "[]")],
+        ])
+        let model = makeModel(transport)
+
+        await model.load()
+
+        let checklist = try XCTUnwrap(model.checklist)
+        XCTAssertTrue(checklist.isWithdrawn)
+        XCTAssertEqual(checklist.forfeitedMicros, 3_000)
+        XCTAssertEqual(AccountCopy.confirmDust(micros: 3_000), "Your remaining $0.003 will be lost.")
+        XCTAssertEqual(AccountCopy.dustLeft(micros: 9_999), "$0.009999 left. It is lost when you delete.")
+    }
+
+    func testAFullCentOrMoneyInFlightKeepsTheWithdrawStepOpen() async throws {
+        for (available, inFlight) in [("10000", "0"), ("3000", "1")] {
+            let transport = RoutedTransport([
+                "getMyBalance": [.json(.ok, Self.balance(available: available, inFlight: inFlight))],
+                "getMyCabals": [.json(.ok, "[]")],
+            ])
+            let model = makeModel(transport)
+
+            await model.load()
+
+            let checklist = try XCTUnwrap(model.checklist)
+            XCTAssertFalse(checklist.isWithdrawn, "\(available) with \(inFlight) in flight")
+            XCTAssertEqual(checklist.forfeitedMicros, 0)
+        }
+    }
+
+    func testAZeroBalanceForfeitsNothing() async throws {
+        let transport = RoutedTransport([
+            "getMyBalance": [.json(.ok, Self.balance(available: "0"))],
+            "getMyCabals": [.json(.ok, "[]")],
+        ])
+        let model = makeModel(transport)
+
+        await model.load()
+
+        XCTAssertEqual(try XCTUnwrap(model.checklist).forfeitedMicros, 0)
+    }
+
     func testAFailedPotReadFailsTheLoad() async {
         let transport = RoutedTransport([
             "getMyBalance": [.json(.ok, Self.balance(available: "0"))],

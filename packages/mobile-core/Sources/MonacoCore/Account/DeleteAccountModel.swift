@@ -22,8 +22,11 @@ public struct DeleteAccountChecklist: Equatable, Sendable {
         self.slices = slices
     }
 
+    public static let dustCeilingMicros: Int64 = 10_000
+
     public var isCashedOut: Bool { slices.isEmpty }
-    public var isWithdrawn: Bool { balance.availableMicros == 0 && balance.inFlightMicros == 0 }
+    public var isWithdrawn: Bool { balance.onChainMicros < Self.dustCeilingMicros && balance.inFlightMicros == 0 }
+    public var forfeitedMicros: Int64 { isWithdrawn ? balance.onChainMicros : 0 }
 
     public func isDone(_ step: DeleteAccountBlocker) -> Bool {
         switch step {

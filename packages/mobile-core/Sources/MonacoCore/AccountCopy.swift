@@ -18,9 +18,19 @@ public enum AccountCopy {
     public static let deleted = "Your account was deleted."
     public static let cashOutFirst = "Cash out of every cabal first."
     public static let withdrawFirst = "Withdraw your balance first."
+    public static func dustLeft(micros: Int64) -> String { "\(dust(micros)) left. It is lost when you delete." }
+    public static func confirmDust(micros: Int64) -> String { "Your remaining \(dust(micros)) will be lost." }
+
+    static func dust(_ micros: Int64) -> String {
+        var digits = String(micros % 1_000_000)
+        digits = String(repeating: "0", count: 6 - digits.count) + digits
+        while digits.count > 2, digits.hasSuffix("0") { digits.removeLast() }
+        return "$\(micros / 1_000_000).\(digits)"
+    }
 
     public static let auditedStrings = [
         deleteTitle, explainer, cashOutStep, yourSlice("$0.00"), noCabalMoney, withdrawStep, accountBalance, done,
-        confirmTitle, confirmDelete, cancel, deleting, deleted, cashOutFirst, withdrawFirst,
+        confirmTitle, confirmDelete, cancel, deleting, deleted, cashOutFirst, withdrawFirst, dustLeft(micros: 3_000),
+        confirmDust(micros: 3_000),
     ]
 }

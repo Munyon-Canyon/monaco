@@ -10,9 +10,12 @@ public struct AppFeatures: Equatable, Sendable {
         self.connectX = connectX
     }
 
-    public init(infoDictionary: [String: Any], arguments: [String]) {
-        if let index = arguments.firstIndex(of: Self.connectXArgument), arguments.indices.contains(index + 1),
-            let value = Self.flag(arguments[index + 1])
+    public init(
+        infoDictionary: [String: Any], arguments: [String],
+        honorsLaunchArguments: Bool = MonacoBuildKind.current == .debug
+    ) {
+        if honorsLaunchArguments, let index = arguments.firstIndex(of: Self.connectXArgument),
+            arguments.indices.contains(index + 1), let value = Self.flag(arguments[index + 1])
         {
             connectX = value
         } else {

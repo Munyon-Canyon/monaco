@@ -29,10 +29,14 @@ func (s stakedEveryone) StakesOf(ctx context.Context, user ids.UserID) ([]treasu
 	return s.Treasury.StakesOf(ctx, user)
 }
 
-type fundedEveryone struct{ *fakes.Balances }
+type fundedEveryone struct {
+	*fakes.Balances
+	micros uint64
+}
 
 func (b fundedEveryone) Available(ctx context.Context, user ids.UserID) (funding.Balance, error) {
-	b.Set(user, funding.Balance{OnChainMicros: money.MicrosFromUint64(1), AvailableMicros: money.MicrosFromUint64(1)})
+	left := money.MicrosFromUint64(b.micros)
+	b.Set(user, funding.Balance{OnChainMicros: left, AvailableMicros: left})
 	return b.Balances.Available(ctx, user)
 }
 
@@ -86,6 +90,21 @@ func TestFlow01e_DeleteAccount_AccountHasPositions(t *testing.T) {
 func TestFlow01e_DeleteAccount_AccountHasBalance(t *testing.T) {
 	t.Parallel()
 	flows.F01eDeleteAccountAccountHasBalance(
-		deleteScenario(t, fakes.NewTreasury(), fundedEveryone{fakes.NewBalances()}),
+		deleteScenario(t, fakes.NewTreasury(), fundedEveryone{Balances: fakes.NewBalances(), micros: 10_000}),
 	)
+}
+
+func TestDeleteAccountOverHTTP_dustUnderACentIsForfeited(t *testing.T) {
+	t.Parallel()
+	s := deleteScenario(t, fakes.NewTreasury(), fundedEveryone{Balances: fakes.NewBalances(), micros: 3_000})
+	flows.F01eDeleteAccountOK(s)
+	var forfeited, wallet string
+	if err := s.DB().QueryRow(t.Context(), `SELECT payload->>'forfeited_micros', payload->>'forfeited_wallet'
+		FROM events WHERE type = 'user.deleted'`).Scan(&forfeited, &wallet); err != nil {
+		t.Fatal(err)
+	}
+	if forfeited != "3000" || len(wallet) != len("abcd...wxyz") {
+		t.Fatalf("user.deleted forfeited_micros = %q, forfeited_wallet = %q, want 3000 and a masked address",
+			forfeited, wallet)
+	}
 }
