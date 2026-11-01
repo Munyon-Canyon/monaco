@@ -1,10 +1,8 @@
 package domain
 
 import (
-	"log/slog"
 	"math/big"
 
-	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
@@ -43,9 +41,6 @@ func rangeReturn(op string, first, last PnLPoint, deposited *big.Int) (money.Sig
 	}
 	q := new(big.Int).Mul(gain, big.NewInt(bpsScale))
 	q.Quo(q, base)
-	if !q.IsInt64() {
-		return money.SignedMicros{}, 0, errs.New(errs.CodeInvalidInput, op, slog.String("return_bps", q.String()))
-	}
 	return pnl, Bps(q.Int64()), nil
 }
 
