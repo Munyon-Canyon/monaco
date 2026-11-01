@@ -9,5 +9,6 @@ func init() {
 		GovernanceProposalComparisonUnlisted,
 		GovernanceStatsOverflow,
 		GovernancePassedPriceUnavailable,
+		GovernanceBlockedTradeRetried,
 	)
 }

@@ -193,6 +193,7 @@ type ProposalReopened struct {
 	ProposalID uuid.UUID `json:"proposal_id"`
 	CabalID    uuid.UUID `json:"cabal_id"`
 	SwapID     uuid.UUID `json:"swap_id"`
+	Reason     string    `json:"reason,omitempty"`
 }
 
 func (ProposalReopened) Type() Type { return TypeProposalReopened }

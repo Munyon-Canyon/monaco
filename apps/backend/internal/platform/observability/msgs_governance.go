@@ -19,3 +19,7 @@ var GovernanceStatsOverflow = Msg{
 var GovernancePassedPriceUnavailable = Msg{
 	Name: "governance.passed_price.unavailable", Required: []string{"proposal_id", "code"},
 }
+
+var GovernanceBlockedTradeRetried = Msg{
+	Name: "governance.blocked_trade.retried", Required: []string{"proposal_id", "cabal_id", "reason"},
+}

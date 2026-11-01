@@ -101,6 +101,14 @@ UPDATE proposals
 SET status = 'passed', status_reason = NULL, updated_at = @at::timestamptz
 WHERE id = @id AND status = 'execution_blocked' AND status_reason = 'swap_failed';
 
+-- name: ReopenUnstarted :one
+UPDATE proposals
+SET status = 'passed', status_reason = NULL, updated_at = @at::timestamptz
+WHERE id = @id AND status = 'execution_blocked' AND status_reason = 'trade_not_started'
+RETURNING id, cabal_id, kind, coalesce(symbol, '')::text AS symbol, coalesce(mint, '')::text AS mint,
+  coalesce(usdc_micros, 0)::bigint AS usdc_micros, coalesce(token_amount, 0)::bigint AS token_amount,
+  coalesce(quote_out_amount, 0)::bigint AS quote_out_amount, coalesce(network, '')::text AS network;
+
 -- name: RetryableByID :one
 SELECT (status = 'passed' OR (status = 'execution_blocked' AND status_reason = 'swap_failed'))::bool
 FROM proposals WHERE id = @id;
