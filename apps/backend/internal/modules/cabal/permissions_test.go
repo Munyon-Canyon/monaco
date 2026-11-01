@@ -107,18 +107,47 @@ func TestCanDecide_anAdminDecidesRequestsAndTheInviteeDecidesTheirInvite(t *test
 	wantCode(t, "an unknown direction", domain.CanDecide(member(c.creator), cabal, unknown), errs.CodeInternal)
 }
 
-func TestCanRevoke_theRequesterWithdrawsAndTheInviterOrCreatorRevokes(t *testing.T) {
+func TestCanInviteUser_refusesABlockedPairAsAnUnknownUserAfterTheOtherChecks(t *testing.T) {
 	t.Parallel()
 	c := newCast(t)
 	cabal := c.cabal(t, "open")
+	banned := cabal
+	banned.Banned = true
+	for _, tt := range []struct {
+		name    string
+		cabal   domain.Cabal
+		invitee domain.Actor
+		blocked bool
+		want    errs.Code
+	}{
+		{"an unblocked outsider", cabal, nobody(c.invitee), false, ""},
+		{"a blocked outsider", cabal, nobody(c.invitee), true, errs.CodeUserNotFound},
+		{"a blocked member", cabal, member(c.member), true, errs.CodeAlreadyMember},
+		{"a blocked outsider in a banned cabal", banned, nobody(c.invitee), true, errs.CodeCabalBanned},
+	} {
+		err := domain.CanInviteUser(member(c.creator), tt.invitee, tt.cabal, tt.blocked)
+		if tt.want == "" && err != nil || tt.want != "" && errs.CodeOf(err) != tt.want {
+			t.Errorf("%s: %v, want %q", tt.name, err, tt.want)
+		}
+	}
+	wantCode(t, "a non-admin inviter", domain.CanInviteUser(member(c.member), nobody(c.invitee), cabal, false),
+		errs.CodeNotCabalAdmin)
+}
+
+func TestCanRevoke_theRequesterWithdrawsAndACurrentAdminRevokes(t *testing.T) {
+	t.Parallel()
+	c := newCast(t)
+	cabal := c.cabal(t, "open")
+	cabal.Admins = []ids.UserID{c.inviter}
 	runPermissionCases(t, []permissionCase{
 		{"the requester", nobody(c.applicant), ""},
 		{"the creator", member(c.creator), errs.CodeCannotRevokeAccess},
 		{"a member", member(c.member), errs.CodeCannotRevokeAccess},
 	}, func(a domain.Actor) error { return domain.CanRevoke(a, cabal, c.request()) })
 	runPermissionCases(t, []permissionCase{
-		{"the inviter", member(c.inviter), ""},
+		{"the inviter, still an admin", member(c.inviter), ""},
 		{"the creator", member(c.creator), ""},
+		{"an inviter who left", nobody(c.inviter), errs.CodeCannotRevokeAccess},
 		{"the invitee", nobody(c.invitee), errs.CodeCannotRevokeAccess},
 		{"another member", member(c.member), errs.CodeCannotRevokeAccess},
 		{"a stranger", nobody(c.outsider), errs.CodeCannotRevokeAccess},
@@ -223,15 +252,18 @@ func TestCanRequest_refusesABannedCabalThenAMemberThenAnOpenCabal(t *testing.T) 
 	}
 }
 
-func TestCanAdmit_refusesABannedCabalAndAnExpiredInvite(t *testing.T) {
+func TestCanAdmit_refusesABannedCabalAnExpiredInviteAndAnInviteTheInviterCannotStandBehind(t *testing.T) {
 	t.Parallel()
 	c := newCast(t)
 	now := time.Date(2026, 10, 3, 12, 0, 0, 0, time.UTC)
 	active := c.cabal(t, "request")
+	active.Admins = []ids.UserID{c.inviter}
 	banned := active
 	banned.Banned = true
-	fresh, stale := c.invite(), c.invite()
+	fresh, stale, blocked, demoted := c.invite(), c.invite(), c.invite(), c.invite()
 	fresh.ExpiresAt, stale.ExpiresAt = now.Add(time.Hour), now.Add(-time.Second)
+	blocked.ExpiresAt, blocked.Blocked = now.Add(time.Hour), true
+	demoted.ExpiresAt, demoted.InvitedBy = now.Add(time.Hour), c.member
 	for _, tt := range []struct {
 		name  string
 		cabal domain.Cabal
@@ -242,6 +274,8 @@ func TestCanAdmit_refusesABannedCabalAndAnExpiredInvite(t *testing.T) {
 		{"a fresh invite", active, fresh, ""},
 		{"an expired invite", active, stale, errs.CodeInviteExpired},
 		{"a banned cabal", banned, c.request(), errs.CodeCabalBanned},
+		{"an invite from an inviter who is no longer an admin", active, demoted, errs.CodeAccessRequestNotPending},
+		{"an invite where the pair is blocked", active, blocked, errs.CodeAccessRequestNotPending},
 	} {
 		err := domain.CanAdmit(tt.cabal, tt.req, now)
 		if tt.want == "" && err != nil || tt.want != "" && errs.CodeOf(err) != tt.want {

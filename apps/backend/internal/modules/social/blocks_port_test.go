@@ -4,6 +4,9 @@ import (
 	"testing"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
+	"github.com/monaco/monaco/apps/backend/internal/modules/social"
+	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 )
 
 func TestFollowsPort_BlockedByMe(t *testing.T) {
@@ -40,4 +43,24 @@ func TestFollowsPort_BlockedByMeFailsWhenTheStoreFails(t *testing.T) {
 	}
 	_, err := f.port().BlockedByMe(t.Context(), f.alice, f.bob)
 	wantCode(t, err, errs.CodeInternal)
+}
+
+func TestBlocksPort_BlockedEitherWayWhicheverSideBlocked(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	blocks := social.New(module.Deps{Pool: f.pool}, social.WithUsers(f.users)).Blocks()
+	want := func(blocked bool, label string) {
+		t.Helper()
+		for _, pair := range [][2]ids.UserID{{f.alice, f.bob}, {f.bob, f.alice}} {
+			got, err := blocks.BlockedEitherWay(t.Context(), pair[0], pair[1])
+			if err != nil || got != blocked {
+				t.Fatalf("%s: BlockedEitherWay = %v, %v; want %v", label, got, err, blocked)
+			}
+		}
+	}
+	want(false, "before any block")
+	if err := f.block(t, f.alice, f.bob); err != nil {
+		t.Fatal(err)
+	}
+	want(true, "after alice blocks bob")
 }

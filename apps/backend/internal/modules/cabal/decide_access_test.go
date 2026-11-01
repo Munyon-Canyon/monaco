@@ -19,7 +19,7 @@ import (
 func (f accessFixture) decide(
 	ctx context.Context, user ids.UserID, c ids.CabalID, id uuid.UUID, decision app.Decision,
 ) (app.Access, error) {
-	return app.NewDecideAccessHandler(f.uow, f.clock).Handle(as(ctx, user), app.DecideAccess{
+	return app.NewDecideAccessHandler(f.uow, f.blocks(), f.clock).Handle(as(ctx, user), app.DecideAccess{
 		ActorID: user, CabalID: c, RequestID: ids.AccessRequestIDFrom(id), Decision: decision,
 	})
 }
@@ -159,6 +159,82 @@ func TestDecideAccess_refusesWithoutDecidingAnything(t *testing.T) {
 	}
 }
 
+func TestDecideAccess_anInviteStopsBeingAcceptableWhenItsInviterLeftWasDemotedOrIsBlocked(t *testing.T) {
+	t.Parallel()
+	f := newAccess(t)
+	c := testkit.NewCabal(t, f.pool, testkit.WithJoinMode("request"), testkit.WithMembers(4))
+	left, demoted, blocked, standing := c.Members[1].ID, c.Members[2].ID, c.Members[3].ID, c.Creator.ID
+	f.makeAdmin(t, c.ID, left)
+	f.makeAdmin(t, c.ID, demoted)
+	f.makeAdmin(t, c.ID, blocked)
+	cases := map[string]ids.UserID{"left": left, "demoted": demoted, "blocked": blocked, "standing": standing}
+	invites := map[string]uuid.UUID{}
+	invitees := map[string]ids.UserID{}
+	for name, inviter := range cases {
+		invitees[name] = f.user(t)
+		invites[name] = f.invite(t, c.ID, invitees[name], inviter)
+	}
+	f.exec(t, `DELETE FROM cabal_members WHERE cabal_id = $1 AND user_id = $2`, c.ID.UUID(), left.UUID())
+	f.exec(t, `UPDATE cabal_members SET role = 'member' WHERE cabal_id = $1 AND user_id = $2`,
+		c.ID.UUID(), demoted.UUID())
+	f.block(t, invitees["blocked"], blocked)
+	for _, name := range []string{"left", "demoted", "blocked"} {
+		_, err := f.decide(t.Context(), invitees[name], c.ID, invites[name], app.Approve)
+		if errs.CodeOf(err) != errs.CodeAccessRequestNotPending {
+			t.Errorf("%s inviter: err = %v, want %s", name, err, errs.CodeAccessRequestNotPending)
+		}
+		if _, ok := f.membership(t, c.ID, invitees[name]); ok {
+			t.Errorf("%s inviter: the invitee joined", name)
+		}
+		if got := f.accessRow(t, invites[name]).status; got != "pending" {
+			t.Errorf("%s inviter: status = %s, want pending", name, got)
+		}
+	}
+	declined, err := f.decide(t.Context(), invitees["left"], c.ID, invites["left"], app.Deny)
+	if err != nil || declined.Status != "denied" {
+		t.Fatalf("declining an invite from a departed inviter = %+v, %v; want it denied", declined, err)
+	}
+	if _, err := f.decide(t.Context(), invitees["standing"], c.ID, invites["standing"], app.Approve); err != nil {
+		t.Fatalf("accepting an invite from a standing admin: %v", err)
+	}
+}
+
+func TestDecideAccess_failsInternalWhenTheBlockListCannotBeReadForAnInvite(t *testing.T) {
+	t.Parallel()
+	f := newAccess(t)
+	c := testkit.NewCabal(t, f.pool, testkit.WithJoinMode("request"))
+	invitee := f.user(t)
+	invite := f.invite(t, c.ID, invitee, c.Creator.ID)
+	_, err := app.NewDecideAccessHandler(f.uow, failingBlocks{}, f.clock).Handle(as(t.Context(), invitee),
+		app.DecideAccess{
+			ActorID: invitee, CabalID: c.ID, RequestID: ids.AccessRequestIDFrom(invite), Decision: app.Approve,
+		})
+	wantErr(t, err, errs.CodeInternal)
+	if got := f.accessRow(t, invite).status; got != "pending" {
+		t.Fatalf("invite status = %s, want it still pending", got)
+	}
+}
+
+func TestDecideAccess_approvingTheRequestOfSomeoneWhoAlreadyJoinedClosesItAsApprovedWithoutAJoin(t *testing.T) {
+	t.Parallel()
+	f := newAccess(t)
+	c := testkit.NewCabal(t, f.pool, testkit.WithJoinMode("request"))
+	asker := f.user(t)
+	id := f.filed(t, asker, c.ID)
+	f.exec(t, `INSERT INTO cabal_members (cabal_id, user_id, role, can_vote, joined_at)
+		VALUES ($1, $2, 'member', true, now())`, c.ID.UUID(), asker.UUID())
+	got, err := f.decide(t.Context(), c.Creator.ID, c.ID, id, app.Approve)
+	if err != nil || got != (app.Access{ID: id, Direction: "request", Status: "approved"}) {
+		t.Fatalf("DecideAccess = %+v, %v; want the request approved", got, err)
+	}
+	if row := f.accessRow(t, id); row.status != "approved" || *row.decidedBy != c.Creator.ID.String() {
+		t.Fatalf("row = %+v, want approved by the creator", row)
+	}
+	if joins := f.joins(t); len(joins) != 0 {
+		t.Fatalf("member_joined = %+v, want none for a member who was already in", joins)
+	}
+}
+
 func TestDecideAccess_refusesToAdmitIntoABannedCabalOrOnAnExpiredInvite(t *testing.T) {
 	t.Parallel()
 	f := newAccess(t)
@@ -238,7 +314,7 @@ func TestPostCabalAccessDecision_wiresTheDecision(t *testing.T) {
 	wantErr(t, err, errs.CodeAccessRequestNotPending)
 }
 
-func TestDecideAccess_reportsAnApprovalThatLostTheRaceToAConcurrentInsertAsAlreadyMember(t *testing.T) {
+func TestDecideAccess_closesAnApprovalThatLostTheRaceToAConcurrentInsertAsApprovedWithoutASecondJoin(t *testing.T) {
 	t.Parallel()
 	f := newAccess(t)
 	c := testkit.NewCabal(t, f.pool, testkit.WithJoinMode("request"))
@@ -255,9 +331,11 @@ func TestDecideAccess_reportsAnApprovalThatLostTheRaceToAConcurrentInsertAsAlrea
 	})
 	f.waitForALockWaiter(t)
 	commit()
-	wantErr(t, <-done, errs.CodeAlreadyMember)
-	if row := f.accessRow(t, id); row.status != "pending" {
-		t.Fatalf("request status = %s, want the losing approval rolled back", row.status)
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	if row := f.accessRow(t, id); row.status != "approved" {
+		t.Fatalf("request status = %s, want the losing approval closed as approved", row.status)
 	}
 	if joins := f.joins(t); len(joins) != 0 {
 		t.Fatalf("member_joined events = %+v, want none from the losing approval", joins)

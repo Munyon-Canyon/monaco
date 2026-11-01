@@ -10,16 +10,21 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
+	"github.com/monaco/monaco/apps/backend/internal/modules/cabal"
+	"github.com/monaco/monaco/apps/backend/internal/modules/cabal/adapters"
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
+	"github.com/monaco/monaco/apps/backend/internal/modules/social"
 	api "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/cabalapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
+	"github.com/monaco/monaco/apps/backend/internal/testkit/chainfake"
 )
 
 func (f accessFixture) inviteHandler() *app.InviteMemberHandler {
-	return app.NewInviteMemberHandler(f.uow, identity.New(module.Deps{Pool: f.pool}).Queries(), f.ids, f.clock)
+	users := identity.New(module.Deps{Pool: f.pool}).Queries()
+	return app.NewInviteMemberHandler(f.uow, users, f.blocks(), f.ids, f.clock)
 }
 
 func (f accessFixture) sendInvite(
@@ -137,6 +142,28 @@ func TestInviteMember_refusesWithoutFilingAnything(t *testing.T) {
 	}
 }
 
+func TestInviteMember_refusesAPairWithABlockInEitherDirectionAsAnUnknownUser(t *testing.T) {
+	t.Parallel()
+	f := newAccess(t)
+	c := testkit.NewCabal(t, f.pool, testkit.WithMembers(2))
+	admin := c.Creator.ID
+	blocker, blockerHandle := f.handled(t)
+	blocked, blockedHandle := f.handled(t)
+	f.block(t, blocker, admin)
+	f.block(t, admin, blocked)
+	for _, handle := range []string{blockerHandle, blockedHandle} {
+		_, err := f.sendInvite(t.Context(), admin, c.ID, handle)
+		wantErr(t, err, errs.CodeUserNotFound)
+	}
+	if got := decoded[events.CabalAccessRequested](t, f, events.TypeCabalAccessRequested); len(got) != 0 {
+		t.Fatalf("access_requested events = %d, want none for a blocked pair", len(got))
+	}
+	_, other := f.handled(t)
+	if _, err := f.sendInvite(t.Context(), admin, c.ID, other); err != nil {
+		t.Fatalf("an unblocked invitee: %v", err)
+	}
+}
+
 func TestInviteMember_wrapsStoreFailuresAsInternal(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
@@ -181,5 +208,37 @@ func TestPostCabalInvite_needsACallerAndAHandleAndReturnsThePendingInvite(t *tes
 	sent, ok := res.(api.PostCabalInvite201JSONResponse)
 	if err != nil || !ok || sent.Direction != "invite" || sent.Status != "pending" {
 		t.Fatalf("PostCabalInvite = %+v, %v; want a pending invite", res, err)
+	}
+}
+
+func TestInviteMember_failsInternalWhenTheBlockListCannotBeRead(t *testing.T) {
+	t.Parallel()
+	f := newAccess(t)
+	c := testkit.NewCabal(t, f.pool)
+	_, handle := f.handled(t)
+	users := identity.New(module.Deps{Pool: f.pool}).Queries()
+	handler := app.NewInviteMemberHandler(f.uow, users, failingBlocks{}, f.ids, f.clock)
+	_, err := handler.Handle(as(t.Context(), c.Creator.ID),
+		app.InviteMember{ActorID: c.Creator.ID, CabalID: c.ID, Handle: handle})
+	wantErr(t, err, errs.CodeInternal)
+}
+
+func TestModuleWire_takesTheBlockListFromTheSocialModuleSoABlockedInviteIsRefused(t *testing.T) {
+	t.Parallel()
+	f := newAccess(t)
+	c := testkit.NewCabal(t, f.pool)
+	blocked, handle := f.handled(t)
+	f.block(t, blocked, c.Creator.ID)
+	deps := module.Deps{Pool: f.pool, UoW: f.uow, IDs: f.ids, Clock: f.clock}
+	invite := func(m *cabal.Module) error {
+		_, err := cabal.HTTPOf(m).PostCabalInvite(as(t.Context(), c.Creator.ID),
+			api.PostCabalInviteRequestObject{Id: c.ID.UUID(), Body: &api.InviteMemberRequest{Handle: handle}})
+		return err
+	}
+	wired := cabal.New(deps, cabal.WithTreasuryWallets(adapters.AppWallets{Client: &chainfake.Wallets{}}))
+	wired.Wire(module.NewSet(social.New(deps)))
+	wantErr(t, invite(wired), errs.CodeUserNotFound)
+	if _, ok := f.membership(t, c.ID, blocked); ok {
+		t.Fatal("a refused invite added a member")
 	}
 }

@@ -58,7 +58,7 @@ func TestAdminRole_anAdminInvitesAndRevokesTheirOwnAndTheCreatorsInvite(t *testi
 	}
 }
 
-func TestAdminRole_aPlainMemberIsRefusedTheDoorButRevokesTheInviteTheySent(t *testing.T) {
+func TestAdminRole_aPlainMemberIsRefusedTheDoorAndCannotRevokeAnyInvite(t *testing.T) {
 	t.Parallel()
 	f := newAccess(t)
 	c := testkit.NewCabal(t, f.pool, testkit.WithJoinMode("request"), testkit.WithMembers(3))
@@ -77,9 +77,8 @@ func TestAdminRole_aPlainMemberIsRefusedTheDoorButRevokesTheInviteTheySent(t *te
 	theirs := f.invite(t, c.ID, f.user(t), c.Creator.ID)
 	_, err = f.revoke(t.Context(), member, c.ID, theirs)
 	wantErr(t, err, errs.CodeCannotRevokeAccess)
-	if revoked, err := f.revoke(t.Context(), member, c.ID, own); err != nil || revoked.Status != "revoked" {
-		t.Fatalf("a member revoking the invite they sent = %+v, %v; want it revoked", revoked, err)
-	}
+	_, err = f.revoke(t.Context(), member, c.ID, own)
+	wantErr(t, err, errs.CodeCannotRevokeAccess)
 }
 
 func TestAdminRole_anAdminSeesTheRequestCountOnMyCabals(t *testing.T) {

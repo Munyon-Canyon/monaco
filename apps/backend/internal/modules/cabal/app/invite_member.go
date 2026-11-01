@@ -28,12 +28,15 @@ type InviteMember struct {
 type InviteMemberHandler struct {
 	uow     *db.UnitOfWork
 	handles Handles
+	blocks  Blocks
 	ids     ids.Generator
 	clock   clock.Clock
 }
 
-func NewInviteMemberHandler(uow *db.UnitOfWork, handles Handles, g ids.Generator, c clock.Clock) *InviteMemberHandler {
-	return &InviteMemberHandler{uow: uow, handles: handles, ids: g, clock: c}
+func NewInviteMemberHandler(
+	uow *db.UnitOfWork, handles Handles, blocks Blocks, g ids.Generator, c clock.Clock,
+) *InviteMemberHandler {
+	return &InviteMemberHandler{uow: uow, handles: handles, blocks: blocks, ids: g, clock: c}
 }
 
 func (h *InviteMemberHandler) Handle(ctx context.Context, cmd InviteMember) (Access, error) {
@@ -61,7 +64,11 @@ func (h *InviteMemberHandler) invite(
 	if err != nil {
 		return Access{}, err
 	}
-	if err := domain.CanInviteUser(actors[0], actors[1], cabal); err != nil {
+	blocked, err := h.blocks.BlockedEitherWay(ctx, cmd.ActorID, inviteeID)
+	if err != nil {
+		return Access{}, errs.Wrap(err, errs.CodeInternal, inviteMemberOp)
+	}
+	if err := domain.CanInviteUser(actors[0], actors[1], cabal, blocked); err != nil {
 		return Access{}, err
 	}
 	id := h.ids.NewV7()

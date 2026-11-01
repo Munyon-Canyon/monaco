@@ -53,6 +53,7 @@ type AccessRequest struct {
 	UserID    ids.UserID
 	InvitedBy ids.UserID
 	ExpiresAt time.Time
+	Blocked   bool
 }
 
 func require(ok bool, code errs.Code, op string) error {
@@ -70,7 +71,7 @@ func CanInvite(actor Actor, cabal Cabal) error {
 	return require(cabal.IsAdmin(actor.UserID), errs.CodeNotCabalAdmin, op)
 }
 
-func CanInviteUser(inviter, invitee Actor, cabal Cabal) error {
+func CanInviteUser(inviter, invitee Actor, cabal Cabal, blocked bool) error {
 	const op = "cabal.CanInviteUser"
 	if err := CanInvite(inviter, cabal); err != nil {
 		return err
@@ -80,6 +81,8 @@ func CanInviteUser(inviter, invitee Actor, cabal Cabal) error {
 		return errs.New(errs.CodeCabalBanned, op)
 	case invitee.Member:
 		return errs.New(errs.CodeAlreadyMember, op)
+	case blocked:
+		return errs.New(errs.CodeUserNotFound, op)
 	}
 	return nil
 }
@@ -122,8 +125,12 @@ func CanDecide(actor Actor, cabal Cabal, req AccessRequest) error {
 }
 
 func CanAdmit(cabal Cabal, req AccessRequest, now time.Time) error {
+	const op = "cabal.CanAdmit"
 	if cabal.Banned {
-		return errs.New(errs.CodeCabalBanned, "cabal.CanAdmit")
+		return errs.New(errs.CodeCabalBanned, op)
+	}
+	if req.Direction == DirectionInvite && (req.Blocked || !cabal.IsAdmin(req.InvitedBy)) {
+		return errs.New(errs.CodeAccessRequestNotPending, op)
 	}
 	return req.CheckNotExpired(now)
 }
@@ -134,7 +141,7 @@ func CanRevoke(actor Actor, cabal Cabal, req AccessRequest) error {
 	case DirectionRequest:
 		return require(actor.UserID == req.UserID, errs.CodeCannotRevokeAccess, op)
 	case DirectionInvite:
-		return require(actor.UserID == req.InvitedBy || cabal.IsAdmin(actor.UserID), errs.CodeCannotRevokeAccess, op)
+		return require(actor.Member && cabal.IsAdmin(actor.UserID), errs.CodeCannotRevokeAccess, op)
 	}
 	return errs.New(errs.CodeInternal, op, slog.String("direction", string(req.Direction)))
 }

@@ -48,6 +48,7 @@ type Module struct {
 	votes      app.OpenVotes
 	codes      app.CodeResolver
 	calls      app.MemberCalls
+	blocks     app.Blocks
 }
 
 type liveReads struct {
@@ -129,6 +130,9 @@ func (m *Module) Wire(set module.Set) {
 		if provider, ok := mod.(interface{ Calls() rankingport.Calls }); ok {
 			m.calls = provider.Calls()
 		}
+		if provider, ok := mod.(interface{ Blocks() app.Blocks }); ok {
+			m.blocks = provider.Blocks()
+		}
 		if provider, ok := mod.(interface{ Queries() governanceport.Queries }); ok {
 			if votes, ok := provider.Queries().(app.OpenVotes); ok {
 				m.votes = votes
@@ -155,6 +159,10 @@ func (m *Module) http() adapters.HTTP {
 	if calls == nil {
 		calls = app.NoCalls{}
 	}
+	var blocks app.Blocks = app.NoBlocks{}
+	if m.blocks != nil {
+		blocks = m.blocks
+	}
 	var ownership app.MemberOwnership = app.NoOwnership{}
 	if reads, ok := m.treasury.(app.MemberOwnership); ok {
 		ownership = reads
@@ -165,12 +173,12 @@ func (m *Module) http() adapters.HTTP {
 		Join:    app.NewJoinCabalHandler(m.deps.UoW, m.deps.Clock),
 		Request: app.NewRequestAccessHandler(m.deps.UoW, m.deps.IDs, m.deps.Clock, m.codes),
 		Revoke:  app.NewRevokeAccessHandler(m.deps.UoW, m.deps.Clock),
-		Decide:  app.NewDecideAccessHandler(m.deps.UoW, m.deps.Clock),
+		Decide:  app.NewDecideAccessHandler(m.deps.UoW, blocks, m.deps.Clock),
 		Update:  app.NewUpdateCabalHandler(m.deps.UoW, m.deps.Clock),
 		Picture: app.NewSetCabalPictureHandler(m.deps.UoW, m.deps.Pool, m.deps.IDs, m.deps.Clock, m.deps.Photos),
 		Leave:   m.LeaveCabalHandler(),
 		Reorder: app.NewReorderCabalsHandler(m.deps.UoW),
-		Invite:  app.NewInviteMemberHandler(m.deps.UoW, users, m.deps.IDs, m.deps.Clock),
+		Invite:  app.NewInviteMemberHandler(m.deps.UoW, users, blocks, m.deps.IDs, m.deps.Clock),
 		DB:      m.deps.Pool, Users: users, Unread: unread, Votes: votes, Clock: m.deps.Clock,
 	}
 }

@@ -40,12 +40,13 @@ type DecideAccess struct {
 }
 
 type DecideAccessHandler struct {
-	uow   *db.UnitOfWork
-	clock clock.Clock
+	uow    *db.UnitOfWork
+	blocks Blocks
+	clock  clock.Clock
 }
 
-func NewDecideAccessHandler(uow *db.UnitOfWork, c clock.Clock) *DecideAccessHandler {
-	return &DecideAccessHandler{uow: uow, clock: c}
+func NewDecideAccessHandler(uow *db.UnitOfWork, blocks Blocks, c clock.Clock) *DecideAccessHandler {
+	return &DecideAccessHandler{uow: uow, blocks: blocks, clock: c}
 }
 
 func (h *DecideAccessHandler) Handle(ctx context.Context, cmd DecideAccess) (Access, error) {
@@ -84,6 +85,13 @@ func (h *DecideAccessHandler) decide(
 	if err := domain.CanDecide(actor, cabal, req); err != nil {
 		return Access{}, false, err
 	}
+	if event == domain.AccessApprove && req.Direction == domain.DirectionInvite {
+		blocked, err := h.blocks.BlockedEitherWay(ctx, req.UserID, req.InvitedBy)
+		if err != nil {
+			return Access{}, false, errs.Wrap(err, errs.CodeInternal, decideAccessOp)
+		}
+		req.Blocked = blocked
+	}
 	now := h.clock.Now()
 	if req.PastDue(now) && domain.AccessStatus(row.Status) == domain.AccessPending {
 		_, err := expireInvite(ctx, tx, dueInvite{id: row.ID, cabalID: row.CabalID, userID: row.UserID}, now,
@@ -108,8 +116,12 @@ func (h *DecideAccessHandler) settle(
 	if err != nil || event != domain.AccessApprove {
 		return decided, err
 	}
-	return decided, addMember(ctx, tx, newMember{
+	err = addMember(ctx, tx, newMember{
 		cabalID: cmd.CabalID, userID: req.UserID, rules: cabal.Rules, via: Via(req.Direction),
 		requestID: row.ID, at: now,
 	}, decideAccessOp)
+	if req.Direction == domain.DirectionRequest && errs.CodeOf(err) == errs.CodeAlreadyMember {
+		return decided, nil
+	}
+	return decided, err
 }

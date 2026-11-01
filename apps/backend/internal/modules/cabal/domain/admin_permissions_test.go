@@ -70,7 +70,7 @@ func TestAdminPermissions_everyDoorPermissionAcrossTheCast(t *testing.T) {
 		{"revoke an invite", func(a domain.Actor) error { return domain.CanRevoke(a, cabal, invite) }, []doorCase{
 			{"creator", inCabal(c.creator), ""},
 			{"admin", inCabal(c.admin), ""},
-			{"member inviter", inCabal(c.inviter), ""},
+			{"member inviter", inCabal(c.inviter), errs.CodeCannotRevokeAccess},
 			{"unrelated member", inCabal(c.member), errs.CodeCannotRevokeAccess},
 			{"non-member", outside(c.outsider), errs.CodeCannotRevokeAccess},
 		}},
