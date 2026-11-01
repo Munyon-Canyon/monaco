@@ -119,6 +119,15 @@ The creator hands the cabal over with a `creator` rule proposal that names a cur
 - The `cabal.hints` consumer publishes `hint.cabal.<id>.members`, `hint.user.<id>.cabals` and `hint.user.<id>.cabal_access`. The last one rescopes the leaver's SSE connections, so they stop receiving the cabal's hints.
 - The last member leaving an empty pot, the creator included, leaves a cabal with no members. The cabal row and its treasury wallet stay.
 
+### Deleted and banned members
+
+The `cabal_standing` consumer keeps both out of every electorate, so a cabal's votes never wait on someone who cannot act.
+
+- `user.deleted` deletes the user's memberships and emits `cabal.member_left` for each. Deleting an account already requires no shares and no cabal led with other members.
+- `user.account_status_changed` to `banned` sets `suspended` on the user's memberships, makes them `member` and clears `can_vote`. The row and any shares stay, so the member can still cash out and leave. A suspended member never returns to a voter list: `SetMemberVoters`, `SetAllMembersVote` and `SetMemberRole` skip `suspended` rows. A change from `banned` to another status clears `suspended`, restores `can_vote` when the cabal's `voter_mode` is `all`, and does not restore a lost role.
+- When a cabal then has no `creator` or `admin`, the longest-standing member who is not suspended becomes `admin` (`joined_at`, then `user_id`) and `cabal.updated` carries them in `admin_ids`. A cabal with no such member stays without one.
+- Proposals already open keep the electorate they were created with.
+
 ### Treasury wallet
 
 - `CreateCabal` creates the treasury synchronously through `platform/chain`, as an app-owned Privy wallet ([backend-platform.md](backend-platform.md#table-ownership)).

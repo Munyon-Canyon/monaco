@@ -375,7 +375,7 @@ func (q *Queries) LockMyMemberships(ctx context.Context, userID uuid.UUID) ([]uu
 
 const setAllMembersVote = `-- name: SetAllMembersVote :exec
 UPDATE cabal_members SET can_vote = true
-WHERE cabal_id = $1
+WHERE cabal_id = $1 AND NOT suspended
 `
 
 func (q *Queries) SetAllMembersVote(ctx context.Context, cabalID uuid.UUID) error {
@@ -385,7 +385,7 @@ func (q *Queries) SetAllMembersVote(ctx context.Context, cabalID uuid.UUID) erro
 
 const setMemberRole = `-- name: SetMemberRole :execrows
 UPDATE cabal_members SET role = $1, can_vote = $2
-WHERE cabal_id = $3 AND user_id = $4
+WHERE cabal_id = $3 AND user_id = $4 AND NOT suspended
 `
 
 type SetMemberRoleParams struct {
@@ -409,7 +409,7 @@ func (q *Queries) SetMemberRole(ctx context.Context, arg SetMemberRoleParams) (i
 }
 
 const setMemberVoters = `-- name: SetMemberVoters :exec
-UPDATE cabal_members SET can_vote = (
+UPDATE cabal_members SET can_vote = NOT suspended AND (
   role IN ('creator', 'admin') OR user_id = ANY(coalesce($1::uuid[], '{}'))
 )
 WHERE cabal_id = $2

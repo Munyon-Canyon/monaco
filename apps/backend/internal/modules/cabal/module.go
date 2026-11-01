@@ -186,6 +186,7 @@ func (m *Module) http() adapters.HTTP {
 
 func (m *Module) Consumers() []bus.Consumer {
 	hints := adapters.Hints{Publish: m.deps.Bus}
+	standing := adapters.Standing{}
 	evm := adapters.TreasuryEVMWalletOnCreate{Wallets: m.TreasuryEVMWallets(), UoW: m.deps.UoW}
 	return []bus.Consumer{{
 		Durable:  "cabal_rule_passed",
@@ -193,6 +194,12 @@ func (m *Module) Consumers() []bus.Consumer {
 	}, {
 		Durable:  "cabal_ban",
 		Handlers: []bus.HandlerSpec{bus.Handle("cabal.ban", adapters.Ban{IDs: m.deps.IDs}.Handle)},
+	}, {
+		Durable: "cabal_standing",
+		Handlers: []bus.HandlerSpec{
+			bus.Handle("cabal.standing.deleted", standing.Deleted),
+			bus.Handle("cabal.standing.status_changed", standing.StatusChanged),
+		},
 	}, {
 		Durable: "cabal_hints",
 		Handlers: []bus.HandlerSpec{
