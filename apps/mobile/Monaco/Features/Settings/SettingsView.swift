@@ -94,16 +94,16 @@ enum SettingsCopy {
     static let signOutTitle = "Sign out of Monaco?"
     static let signOutMessage =
         "You can sign back in with your existing account. This does not withdraw funds or leave your cabals."
-    static let signOutEverywhere = "Sign out of all devices"
-    static let signOutEverywhereTitle = "Sign out of all devices?"
-    static let signOutEverywhereMessage =
-        "This ends every session on your account, including a lost phone. "
-        + "You can sign back in with your existing account. This does not withdraw funds or leave your cabals."
     static let stayLabel = "Stay signed in"
     static let saving = "Saving…"
     static let errorTitle = "Couldn't load this view"
     static let errorMessage =
         "Your existing information hasn't been changed. Try again when your connection is available."
+    static let signOutEverywhere = "Sign out of all devices"
+    static let signOutEverywhereTitle = "Sign out of all devices?"
+    static let signOutEverywhereMessage =
+        "This ends every session on your account, including a lost phone. "
+        + "You can sign back in with your existing account. This does not withdraw funds or leave your cabals."
 
     static func version(info: [String: Any]) -> String {
         let release = info["CFBundleShortVersionString"] as? String ?? ""
