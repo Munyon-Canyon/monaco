@@ -35,6 +35,10 @@ func (a Asset) UIMultiplierAt(at time.Time) (int64, int64) {
 	return a.UIMultiplierNum, a.UIMultiplierDen
 }
 
+func (a Asset) SplitSince(sampleAt, now time.Time) bool {
+	return a.NextUIMultiplierDen != 0 && !now.Before(a.NextUIMultiplierAt) && sampleAt.Before(a.NextUIMultiplierAt)
+}
+
 type Price struct {
 	Micros     money.Micros
 	ObservedAt time.Time

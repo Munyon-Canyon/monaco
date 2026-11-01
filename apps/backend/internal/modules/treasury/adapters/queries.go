@@ -50,6 +50,7 @@ type Queries struct {
 	holders   holdersStore
 	catalog   app.MintResolver
 	prices    app.PriceReader
+	fresh     app.PriceReader
 	listings  app.ListingReader
 	snapshot  func(context.Context, func(context.Context, sqlc.DBTX) error) error
 	clock     clock.Clock
@@ -103,6 +104,8 @@ type walletLedgerStore interface {
 	WalletLedgerMicros(context.Context, sqlc.WalletLedgerMicrosParams) (sqlc.WalletLedgerMicrosRow, error)
 }
 
+const pricesStaleAfter = 5 * time.Minute
+
 var _ port.Queries = (*Queries)(nil)
 
 func NewQueries(
@@ -123,6 +126,7 @@ func NewQueries(
 		holders:   queries,
 		catalog:   catalog,
 		prices:    prices,
+		fresh:     prices,
 		clock:     c,
 		usdc:      usdc,
 	}
@@ -134,6 +138,17 @@ func (q *Queries) On(db sqlc.DBTX) *Queries {
 	on.q, on.pot, on.history, on.flows, on.funds = queries, queries, queries, queries, queries
 	on.reserved, on.signature, on.wallet, on.transit, on.holders = queries, queries, queries, queries, queries
 	return &on
+}
+
+func (q *Queries) WithFreshPrices(fresh app.PriceReader) *Queries {
+	q.fresh = fresh
+	return q
+}
+
+func (q *Queries) Strict() *Queries {
+	strict := *q
+	strict.prices = q.fresh
+	return &strict
 }
 
 func (q *Queries) WithListings(listings app.ListingReader) *Queries {
@@ -426,14 +441,15 @@ func (q *Queries) positionValue(
 		return money.Micros{}, priceUnavailable(nil, position.Mint)
 	}
 	price, ok := prices[asset.ID]
-	if !ok || q.clock.Now().Sub(price.ObservedAt) > 5*time.Minute {
+	now := q.clock.Now()
+	if !ok || now.Sub(price.ObservedAt) > pricesStaleAfter || asset.SplitSince(price.ObservedAt, now) {
 		return money.Micros{}, priceUnavailable(nil, position.Mint)
 	}
 	scale, err := power10(position.Units.Decimals())
 	if err != nil {
 		return money.Micros{}, errs.Wrap(err, errs.CodeInvalidInput, "treasury.Queries.positionValue")
 	}
-	multiplierNum, multiplierDen := asset.UIMultiplierAt(q.clock.Now())
+	multiplierNum, multiplierDen := asset.UIMultiplierAt(now)
 	if multiplierNum <= 0 || multiplierDen <= 0 {
 		return money.Micros{}, errs.New(errs.CodeInvalidInput, "treasury.Queries.positionValue")
 	}

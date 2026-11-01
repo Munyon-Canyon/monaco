@@ -56,6 +56,23 @@ func (b *PriceBook) PricesAsOf(
 	return b.accepted(ctx, "market.PriceBook.PricesAsOf", sqlc.RecentPriceSamplesParams{At: at, Ids: assetUUIDs(ids)})
 }
 
+func (b *PriceBook) CurrentPricesAsOf(
+	ctx context.Context, ids []domain.AssetID, at time.Time,
+) (map[domain.AssetID]domain.Sample, error) {
+	recent, err := b.raw(ctx, "market.PriceBook.CurrentPricesAsOf",
+		sqlc.RecentPriceSamplesParams{At: at, Ids: assetUUIDs(ids)})
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[domain.AssetID]domain.Sample, len(recent))
+	for id, newestFirst := range recent {
+		if s, ok := domain.AcceptNewest(newestFirst); ok {
+			out[id] = s
+		}
+	}
+	return out, nil
+}
+
 func (b *PriceBook) Volume24h(ctx context.Context, mint string, now time.Time) (*money.Micros, error) {
 	got, err := volumesOf(ctx, b.q, []string{mint}, now)
 	if err != nil {

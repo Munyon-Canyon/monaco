@@ -29,6 +29,17 @@ func Accept(newestFirst []Sample) (Sample, bool) {
 	return Sample{}, false
 }
 
+func AcceptNewest(newestFirst []Sample) (Sample, bool) {
+	window := newestFirst[:min(len(newestFirst), HoldWindow)]
+	if len(window) == 0 {
+		return Sample{}, false
+	}
+	if len(window) == 1 || withinAFifth(window[0].Micros, window[1].Micros) {
+		return window[0], true
+	}
+	return Sample{}, false
+}
+
 func WithinAFifth(next, prev money.Micros) bool { return withinAFifth(next, prev) }
 
 func withinAFifth(next, prev money.Micros) bool {

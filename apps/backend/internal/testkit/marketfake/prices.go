@@ -7,11 +7,15 @@ import (
 	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/modules/market"
+	"github.com/monaco/monaco/apps/backend/internal/modules/market/domain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
 
-var _ market.Prices = (*PricesFake)(nil)
+var (
+	_ market.Prices        = (*PricesFake)(nil)
+	_ market.CurrentPrices = (*PricesFake)(nil)
+)
 
 type PricesFake struct {
 	testkit.Faults
@@ -57,6 +61,27 @@ func (f *PricesFake) PricesAsOf(
 	out := map[market.AssetID]market.Price{}
 	for _, id := range ids {
 		if p, ok := newest(f.samples[id], func(p market.Price) bool { return !p.ObservedAt.After(at) }); ok {
+			out[id] = p
+		}
+	}
+	return out, nil
+}
+
+func (f *PricesFake) CurrentPricesAsOf(
+	_ context.Context, ids []market.AssetID, at time.Time,
+) (map[market.AssetID]market.Price, error) {
+	if err := f.Check("CurrentPricesAsOf"); err != nil {
+		return nil, err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	out := map[market.AssetID]market.Price{}
+	for _, id := range ids {
+		recent := slices.DeleteFunc(slices.Clone(f.samples[id]), func(p market.Price) bool {
+			return p.ObservedAt.After(at)
+		})
+		slices.SortFunc(recent, func(a, b market.Price) int { return b.ObservedAt.Compare(a.ObservedAt) })
+		if p, ok := domain.AcceptNewest(recent); ok {
 			out[id] = p
 		}
 	}
