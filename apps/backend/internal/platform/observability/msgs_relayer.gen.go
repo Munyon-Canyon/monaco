@@ -6,6 +6,7 @@ func init() {
 	register(
 		RelayerSOLToppedUp,
 		RelayerTopUpUnderfunded,
+		RelayerBootUnderfunded,
 		RelayerTopUpCapped,
 		RelayerCoSigned,
 	)

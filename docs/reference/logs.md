@@ -129,6 +129,7 @@ For a stuck money row, [Money runbook](../how-to/money-runbook.md) maps the sign
 | `referrals.preview_replies_failed` | `proposal_id` |
 | `referrals.qualified` | `referral_id` |
 | `referrals.qualify_skipped` | `reason` |
+| `relayer.boot_underfunded` | `relayer`, `floor_lamports`, `error` |
 | `relayer.cosigned` | `priority_fee_lamports`, `base_fee_lamports`, `ata_creations`, `rent_lamports`, `total_lamports`, `fee_cap_lamports`, `rent_cap_lamports` |
 | `relayer.sol_topped_up` | `wallet`, `lamports`, `signature` |
 | `relayer.topup_capped` | `wallet`, `topups` |
