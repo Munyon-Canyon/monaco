@@ -233,6 +233,43 @@ func TestAssets_anOldPriceHasAnEmptySparkline(t *testing.T) {
 	}
 }
 
+func TestAssets_flagsADaysOldPriceAsStaleAndAFreshOneAsLive(t *testing.T) {
+	t.Parallel()
+	s := newMarketAPI(t, marketWhen())
+	s.seedFixtures(t)
+	s.price(t, marketfake.TSLAx().Mint.String(), -30*time.Hour, 80_000_000)
+	s.price(t, marketfake.AAPLx().Mint.String(), -time.Minute, 220_000_000)
+	stale := pageOf(t, s.get(t, "/v1/assets?q=tesla")).Assets
+	live := pageOf(t, s.get(t, "/v1/assets?q=apple")).Assets
+	if len(stale) != 1 || stale[0].Stale == nil || !*stale[0].Stale || stale[0].PriceAsOf == nil {
+		t.Fatalf("days-old price = %+v, want stale with its own price_as_of", stale)
+	}
+	if len(live) != 1 || live[0].Stale == nil || *live[0].Stale {
+		t.Fatalf("fresh price = %+v, want live", live)
+	}
+	detail := s.get(t, "/v1/assets/TSLAx")
+	if !containsAll(detail.Body.String(), `"stale":true`) {
+		t.Fatalf("detail body = %s", detail.Body)
+	}
+}
+
+func TestAssets_aClosedMarketKeepsItsCloseLiveAndDropsAReferenceOlderThanADay(t *testing.T) {
+	t.Parallel()
+	saturday := time.Date(2026, 3, 7, 15, 0, 0, 0, time.UTC)
+	s := newMarketAPI(t, saturday)
+	s.seedFixtures(t)
+	s.price(t, marketfake.AAPLx().Mint.String(), -18*time.Hour-time.Minute, 220_000_000)
+	s.price(t, marketfake.TSLAx().Mint.String(), -51*time.Hour, 80_000_000)
+	closed := pageOf(t, s.get(t, "/v1/assets?q=apple")).Assets
+	old := pageOf(t, s.get(t, "/v1/assets?q=tesla")).Assets
+	if len(closed) != 1 || closed[0].Stale == nil || *closed[0].Stale {
+		t.Fatalf("close sample = %+v, want live", closed)
+	}
+	if len(old) != 1 || old[0].Stale == nil || !*old[0].Stale || old[0].ChangeBps != nil {
+		t.Fatalf("Thursday sample on Saturday = %+v, want stale with no change", old)
+	}
+}
+
 func TestAssets_omitsTheChangeWhenTheReferenceIsZero(t *testing.T) {
 	t.Parallel()
 	s := newMarketAPI(t, marketWhen())

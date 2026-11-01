@@ -26,7 +26,11 @@ private struct AssetRowFigures: View {
     let asset: MarketAsset
 
     var body: some View {
-        if asset.isPaused { PausedTag() }
+        if asset.isPaused {
+            PausedTag()
+        } else if asset.isDelayed {
+            DelayedTag()
+        }
         HStack(spacing: MonacoTheme.Space.xs) {
             if !asset.session.isRegularSession {
                 Image(systemName: "moon.fill")

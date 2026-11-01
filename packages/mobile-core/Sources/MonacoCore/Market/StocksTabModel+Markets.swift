@@ -41,7 +41,7 @@ extension StocksTabModel {
             let list = try await api.read { client in
                 try await client.getAssets(query: .init(filter: .movers, limit: Self.moversRequested)).ok.body.json
             }
-            movers = MarketMapping.page(list).assets
+            movers = MarketMapping.page(list, now: now()).assets
         } catch {
             return
         }

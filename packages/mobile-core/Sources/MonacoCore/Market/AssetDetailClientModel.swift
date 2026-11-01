@@ -34,11 +34,13 @@ public typealias AssetListingPresentation = MarketListing
 public enum AssetNotice: Equatable, Sendable {
     case unavailable
     case paused
+    case delayed
 
     public var text: String {
         switch self {
         case .unavailable: "This stock is unavailable for new proposals."
         case .paused: "Trading paused right now."
+        case .delayed: "Price delayed. This is the last price we have."
         }
     }
 }
@@ -150,7 +152,7 @@ public final class AssetDetailClientModel {
         refresher = HintRefresher {}
         feedRefresher = HintRefresher {}
         activityRefresher = HintRefresher {}
-        detail = sampleDetail.map(Self.presentation)
+        detail = sampleDetail.map { Self.presentation($0, now: now()) }
         detailPhase = sampleDetail == nil ? .loading : .loaded
         self.chart = chart
         self.selectedRange = selectedRange
@@ -172,7 +174,7 @@ public final class AssetDetailClientModel {
             let response = try await api.read { client in
                 try await client.getAsset(path: .init(symbol: symbol)).ok.body.json
             }
-            detail = Self.presentation(response)
+            detail = Self.presentation(response, now: now())
             detailPhase = .loaded
             lastError = nil
             noteFresh()
@@ -225,7 +227,7 @@ public final class AssetDetailClientModel {
             let response = try await api.read { client in
                 try await client.getAsset(path: .init(symbol: symbol)).ok.body.json
             }
-            detail = Self.presentation(response)
+            detail = Self.presentation(response, now: now())
             detailPhase = .loaded
             lastError = nil
             noteFresh()
@@ -247,8 +249,10 @@ public final class AssetDetailClientModel {
         refreshFailed = false
     }
 
-    private static func presentation(_ detail: Components.Schemas.AssetDetail) -> AssetDetailPresentation {
-        let mapped = MarketMapping.detail(detail)
+    private static func presentation(
+        _ detail: Components.Schemas.AssetDetail, now: Date
+    ) -> AssetDetailPresentation {
+        let mapped = MarketMapping.detail(detail, now: now)
         let market = mapped.asset
         return AssetDetailPresentation(
             symbol: market.symbol,

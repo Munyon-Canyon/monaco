@@ -19,7 +19,7 @@ public struct CabalStarter: Equatable, Sendable, Identifiable {
     }
 
     public init(_ summary: Components.Schemas.AssetSummary) {
-        let asset = MarketMapping.asset(summary)
+        let asset = MarketMapping.asset(summary, now: WallClock.now())
         self.asset = asset
         subline = Self.subline(kind: asset.kind, ticker: asset.ticker, cabalCount: summary.cabalCount.map { Int($0) })
     }

@@ -79,7 +79,7 @@ struct StockShareSheet: View {
     }
 
     private func row(_ summary: Components.Schemas.AssetSummary) -> some View {
-        let asset = MarketMapping.asset(summary)
+        let asset = MarketMapping.asset(summary, now: WallClock.now())
         let color = (asset.changeBasisPoints ?? 0) < 0 ? MonacoTheme.loss : MonacoTheme.profit
         return Button {
             onPick(.stock(assetID: summary.id))
@@ -91,6 +91,7 @@ struct StockShareSheet: View {
                     symbol: asset.symbol, displayName: asset.name, assetKind: asset.kind, size: .row,
                     logoURL: asset.logoURL)
             ) {
+                if asset.isDelayed { DelayedTag() }
                 Text(asset.priceText)
                     .moneyFigure(.row)
                     .foregroundStyle(MonacoTheme.ink)

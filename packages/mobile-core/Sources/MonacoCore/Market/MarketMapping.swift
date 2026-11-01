@@ -2,7 +2,9 @@ import Foundation
 import MonacoAPI
 
 public enum MarketMapping {
-    public static func asset(_ summary: Components.Schemas.AssetSummary) -> MarketAsset {
+    public static func asset(
+        _ summary: Components.Schemas.AssetSummary, now: Date = WallClock.now()
+    ) -> MarketAsset {
         let kind = kind(summary.kind)
         let session = session(summary.session)
         let priceMicros = summary.priceMicros
@@ -25,15 +27,22 @@ public enum MarketMapping {
             isTradable: summary.tradable ?? false,
             isQuotable: summary.quotable,
             volume24hMicros: summary.volume24hMicros,
-            estimate: summary.estimate.map { MarketEstimate(priceMicros: $0.priceMicros, asOf: $0.asOf) }
+            estimate: summary.estimate.map { MarketEstimate(priceMicros: $0.priceMicros, asOf: $0.asOf) },
+            isDelayed: priceMicros != nil
+                && MarketStaleness.isDelayed(
+                    serverStale: summary.stale, priceAsOf: summary.priceAsOf, session: session, now: now)
         )
     }
 
-    public static func page(_ list: Components.Schemas.AssetList) -> MarketAssetPage {
-        MarketAssetPage(assets: list.assets.map(asset), nextCursor: list.nextCursor)
+    public static func page(
+        _ list: Components.Schemas.AssetList, now: Date = WallClock.now()
+    ) -> MarketAssetPage {
+        MarketAssetPage(assets: list.assets.map { asset($0, now: now) }, nextCursor: list.nextCursor)
     }
 
-    public static func detail(_ value: Components.Schemas.AssetDetail) -> MarketAssetDetail {
+    public static func detail(
+        _ value: Components.Schemas.AssetDetail, now: Date = WallClock.now()
+    ) -> MarketAssetDetail {
         let kind = kind(value.kind)
         let session = session(value.session)
         let priceMicros = value.priceMicros
@@ -56,7 +65,10 @@ public enum MarketMapping {
             isTradable: value.tradable,
             isQuotable: value.quotable,
             volume24hMicros: value.volume24hMicros,
-            estimate: value.preIpo.map { MarketEstimate(priceMicros: $0.estimate.priceMicros, asOf: $0.estimate.asOf) }
+            estimate: value.preIpo.map { MarketEstimate(priceMicros: $0.estimate.priceMicros, asOf: $0.estimate.asOf) },
+            isDelayed: priceMicros != nil
+                && MarketStaleness.isDelayed(
+                    serverStale: value.stale, priceAsOf: value.priceAsOf, session: session, now: now)
         )
         return MarketAssetDetail(asset: asset, otherListings: value.otherListings.map(listing))
     }

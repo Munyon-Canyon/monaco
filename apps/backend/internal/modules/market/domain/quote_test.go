@@ -151,3 +151,49 @@ func TestLastSparkline_holdsASpikeThatLandsAfterTheQuote(t *testing.T) {
 		t.Fatalf("LastSparkline(small move) = %v", small)
 	}
 }
+
+func TestSampleStale_usesTheWindowWhileTradingAndTheCloseOnceClosed(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, 3, 7, 15, 0, 0, 0, time.UTC)
+	closeAt := time.Date(2026, 3, 6, 21, 0, 0, 0, time.UTC)
+	open := SessionInfo{State: StateOpen}
+	closed := SessionInfo{State: StateClosed, LastClose: closeAt}
+	cases := []struct {
+		name    string
+		session SessionInfo
+		at      time.Time
+		want    bool
+	}{
+		{"fresh while open", open, now.Add(-PriceFreshWindow), false},
+		{"old while open", open, now.Add(-PriceFreshWindow - time.Second), true},
+		{"close sample once closed", closed, closeAt, false},
+		{"a day before the close is still the close", closed, closeAt.Add(-ClosedReferenceWindow), false},
+		{"older than a day before the close", closed, closeAt.Add(-ClosedReferenceWindow - time.Second), true},
+		{
+			"closed with no close time falls back to the window",
+			SessionInfo{State: StateClosed},
+			now.Add(-time.Hour),
+			true,
+		},
+	}
+	for _, c := range cases {
+		if got := (Sample{ObservedAt: c.at}).Stale(c.session, now); got != c.want {
+			t.Errorf("%s: Stale = %v, want %v", c.name, got, c.want)
+		}
+	}
+}
+
+func TestWithinOfClose_dropsSamplesOlderThanADayBeforeTheClose(t *testing.T) {
+	t.Parallel()
+	closeAt := time.Date(2026, 3, 6, 21, 0, 0, 0, time.UTC)
+	fresh := Sample{ObservedAt: closeAt.Add(-time.Hour)}
+	edge := Sample{ObservedAt: closeAt.Add(-ClosedReferenceWindow)}
+	old := Sample{ObservedAt: closeAt.Add(-ClosedReferenceWindow - time.Second)}
+	got := WithinOfClose([]Sample{fresh, edge, old}, closeAt)
+	if len(got) != 2 || got[0] != fresh || got[1] != edge {
+		t.Fatalf("WithinOfClose = %+v, want fresh and edge", got)
+	}
+	if all := WithinOfClose([]Sample{old}, time.Time{}); len(all) != 1 {
+		t.Fatalf("WithinOfClose with no close = %+v, want unchanged", all)
+	}
+}

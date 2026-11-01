@@ -98,7 +98,7 @@ func (l *ListAssets) sparkline(
 	return groupSpark(rows)
 }
 
-func summary(asset domain.Asset, session domain.SessionInfo, book quotes) Summary {
+func summary(asset domain.Asset, session domain.SessionInfo, book quotes, now time.Time) Summary {
 	out := Summary{Asset: asset, Session: session}
 	if v, ok := book.volumes[asset.Mint.String()]; ok {
 		out.Volume = &v
@@ -110,6 +110,7 @@ func summary(asset domain.Asset, session domain.SessionInfo, book quotes) Summar
 	}
 	out.Priced = true
 	out.Price = accepted
+	out.Stale = accepted.Stale(session, now)
 	if ref, known := reference(asset, book); known {
 		if bps, measured := domain.QuoteBps(accepted.Micros, ref); measured {
 			out.Change = &bps
