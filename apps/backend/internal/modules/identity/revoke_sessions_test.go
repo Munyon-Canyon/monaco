@@ -146,8 +146,17 @@ func TestRevokeSessions_signingOutEverywhereRefusesARefreshedTokenOfAKnownSessio
 		t.Fatalf("first open = %v", err)
 	}
 	revoke := app.NewRevokeSessionsHandler(app.RevokeSessionsDeps{UoW: db.New(f.pool, f.ids, f.clock), Clock: f.clock})
-	if err := revoke.Handle(t.Context(), app.RevokeSessions{UserID: me.ID, Scope: app.RevokeAllSessions}); err != nil {
+	if err := revoke.Handle(
+		asUser(t, me.ID),
+		app.RevokeSessions{UserID: me.ID, Scope: app.RevokeAllSessions},
+	); err != nil {
 		t.Fatalf("revoke all = %v", err)
+	}
+	var published int
+	if err := f.pool.QueryRow(t.Context(), `SELECT count(*) FROM events
+		WHERE type = 'user.sessions_revoked' AND aggregate_id = $1 AND payload->>'scope' = 'all_sessions'`,
+		me.ID.UUID()).Scan(&published); err != nil || published != 1 {
+		t.Fatalf("user.sessions_revoked events = %d, %v, want 1", published, err)
 	}
 	var revoked int
 	if err := f.pool.QueryRow(t.Context(), `SELECT count(*) FROM revoked_sessions WHERE privy_session_id = $1`,
@@ -174,6 +183,11 @@ func TestOpenSession_refusesATokenWhoseSessionWasRevoked(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatalf("revoke = %v", err)
+	}
+	var published int
+	if err := f.pool.QueryRow(t.Context(), `SELECT count(*) FROM events WHERE type = 'user.sessions_revoked'`).
+		Scan(&published); err != nil || published != 0 {
+		t.Fatalf("user.sessions_revoked events after this_session = %d, %v, want 0", published, err)
 	}
 	if _, err := f.open(t, alice); errs.CodeOf(err) != errs.CodeUnauthorized {
 		t.Fatalf("open session with a revoked session = %v, want unauthorized", err)

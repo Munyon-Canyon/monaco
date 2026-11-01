@@ -79,6 +79,24 @@ func (q *Queries) DisableToken(ctx context.Context, arg DisableTokenParams) (int
 	return result.RowsAffected(), nil
 }
 
+const disableTokensForUser = `-- name: DisableTokensForUser :execrows
+UPDATE device_tokens SET disabled_at = $1::timestamptz
+WHERE user_id = $2 AND disabled_at IS NULL
+`
+
+type DisableTokensForUserParams struct {
+	DisabledAt time.Time
+	UserID     uuid.UUID
+}
+
+func (q *Queries) DisableTokensForUser(ctx context.Context, arg DisableTokensForUserParams) (int64, error) {
+	result, err := q.db.Exec(ctx, disableTokensForUser, arg.DisabledAt, arg.UserID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const registerToken = `-- name: RegisterToken :exec
 INSERT INTO device_tokens (id, user_id, token, environment, created_at, last_seen_at)
 VALUES ($1, $2, $3, $4, $5, $5)

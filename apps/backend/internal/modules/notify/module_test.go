@@ -59,6 +59,8 @@ func TestModule_servesDevicesConsumesEveryPushKindAndRunsTheFollowDigest(t *test
 			"notify_catch_up notify.catch_up_proposal_withdrawn proposal.withdrawn",
 			"notify_catch_up notify.catch_up_proposal_voided proposal.voided",
 			"notify_catch_up notify.catch_up_access_requested cabal.access_requested",
+			"notify_disable_devices notify.disable_devices_sessions_revoked user.sessions_revoked",
+			"notify_disable_devices notify.disable_devices_user_deleted user.deleted",
 		}) {
 		t.Fatalf("module = %s, handlers %q, pollers %q", m.Name(), handlers, pollers)
 	}
