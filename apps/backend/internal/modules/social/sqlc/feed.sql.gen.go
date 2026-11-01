@@ -115,6 +115,7 @@ LEFT JOIN LATERAL (
 ) tp ON true
 LEFT JOIN feed_objects t ON t.kind = 'proposal' AND t.ref_type = 'proposals' AND t.ref_id = tp.proposal_id
 WHERE f.id = $12
+  AND NOT EXISTS (SELECT 1 FROM feed_cabals fc WHERE fc.cabal_id = f.cabal_id AND fc.hidden_at IS NOT NULL)
 `
 
 type GetFeedItemParams struct {

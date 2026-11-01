@@ -2,7 +2,6 @@ package domain
 
 import (
 	"github.com/monaco/monaco/apps/backend/internal/errs"
-	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 )
 
 type RulesPatch struct {
@@ -43,10 +42,10 @@ func (r Rules) Patch(p RulesPatch) (Rules, error) {
 	return next, nil
 }
 
-func CanEdit(actor ids.UserID, cabal Cabal) error {
+func CanEdit(actor Actor, cabal Cabal) error {
 	const op = "cabal.CanEdit"
 	switch {
-	case !cabal.IsCreator(actor):
+	case !actor.Member || !cabal.IsCreator(actor.UserID):
 		return errs.New(errs.CodeNotCabalCreator, op)
 	case cabal.Banned:
 		return errs.New(errs.CodeCabalBanned, op)

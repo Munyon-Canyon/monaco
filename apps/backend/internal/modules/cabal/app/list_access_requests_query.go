@@ -27,20 +27,15 @@ func ListAccessRequests(
 	ctx context.Context, q sqlc.DBTX, users UserCards, cabalID ids.CabalID, actor ids.UserID,
 ) ([]PendingRequest, error) {
 	dbq := sqlc.New(q)
-	cabal, err := dbq.FindCabal(ctx, cabalID.UUID())
+	_, err := dbq.FindCabal(ctx, cabalID.UUID())
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, errs.New(errs.CodeCabalNotFound, listAccessRequestsOp)
 	}
 	if err != nil {
 		return nil, errs.Wrap(err, errs.CodeInternal, listAccessRequestsOp)
 	}
-	adminRows, err := dbq.ListAdminIDs(ctx, cabalID.UUID())
-	if err != nil {
-		return nil, errs.Wrap(err, errs.CodeInternal, listAccessRequestsOp)
-	}
-	admins := domain.Cabal{CreatorID: ids.UserIDFrom(cabal.CreatorID), Admins: userIDsOf(adminRows)}
-	if !admins.IsAdmin(actor) {
-		return nil, errs.New(errs.CodeNotCabalAdmin, listAccessRequestsOp)
+	if err := requireAdminMember(ctx, dbq, cabalID, actor); err != nil {
+		return nil, err
 	}
 	rows, err := dbq.ListPendingRequestsForCabal(ctx, cabalID.UUID())
 	if err != nil {
@@ -67,4 +62,17 @@ func ListAccessRequests(
 		out = append(out, pending)
 	}
 	return out, nil
+}
+
+func requireAdminMember(ctx context.Context, dbq *sqlc.Queries, cabalID ids.CabalID, actor ids.UserID) error {
+	member, err := dbq.FindMember(ctx, sqlc.FindMemberParams{CabalID: cabalID.UUID(), UserID: actor.UUID()})
+	switch {
+	case errors.Is(err, sql.ErrNoRows):
+		return errs.New(errs.CodeNotCabalAdmin, listAccessRequestsOp)
+	case err != nil:
+		return errs.Wrap(err, errs.CodeInternal, listAccessRequestsOp)
+	case !domain.Role(member.Role).IsAdmin():
+		return errs.New(errs.CodeNotCabalAdmin, listAccessRequestsOp)
+	}
+	return nil
 }

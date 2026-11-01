@@ -128,7 +128,7 @@ What the design guarantees:
 | Money is never credited or paid twice | Every transfer's signature is stored before it is broadcast, so a crash or a retry finishes the first transaction instead of sending a second one. |
 | A retried request never repeats a trade | Every mutating call takes an `Idempotency-Key` header. The server stores the response and replays it. Sign-in (`POST /v1/auth/session`) is the one exception, because finding or creating the user is already idempotent. |
 | A new member cannot take existing gains | Shares are priced at the current pot value. Rounding always favours the pot. |
-| Non-members see nothing | Every cabal route checks membership ([multi-user-verification.md](multi-user-verification.md)). |
+| Non-members cannot act in a cabal | Every cabal is public, so anyone can read it. Every write route checks membership, and the creator's powers need current membership ([multi-user-verification.md](multi-user-verification.md)). |
 | The phone cannot move money on its own | All signing happens on the server through Privy. |
 
 ## Known limits

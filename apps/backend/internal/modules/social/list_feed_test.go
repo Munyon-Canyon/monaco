@@ -159,6 +159,9 @@ func (f feedFixture) wantVisibleExactly(t *testing.T, viewer ids.UserID, filter 
 	t.Helper()
 	for _, id := range all {
 		view, err := app.GetFeedItem(t.Context(), f.pool, viewer, id, filter)
+		if errs.CodeOf(err) == errs.CodeFeedItemNotFound && !slices.Contains(want, id) {
+			continue
+		}
 		if err != nil {
 			t.Fatal(err)
 		}

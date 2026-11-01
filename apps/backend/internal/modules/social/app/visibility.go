@@ -20,3 +20,8 @@ func requireVisibleItem(ctx context.Context, reads sqlc.DBTX, viewer ids.UserID,
 	}
 	return view.Item, nil
 }
+
+func requireNotHidden(ctx context.Context, reads sqlc.DBTX, viewer ids.UserID, id uuid.UUID) error {
+	_, err := GetFeedItem(ctx, reads, viewer, id, FeedFilter{})
+	return err
+}

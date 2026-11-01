@@ -109,6 +109,9 @@ func (h *CreateCommentHandler) Handle(ctx context.Context, cmd CreateComment) (C
 	if err != nil {
 		return Comment{}, err
 	}
+	if err := requireNotHidden(ctx, h.d.Reads, cmd.Author, item.ID); err != nil {
+		return Comment{}, err
+	}
 	allowed, rule, err := CanReply(
 		ctx, h.d.Members, feed.Kind(thread.Kind), ids.CabalIDFrom(thread.CabalID.Bytes), cmd.Author,
 	)
