@@ -56,21 +56,36 @@ public enum BackgroundRefresh {
 
 @MainActor
 public final class HintRefresher {
+    public static let feedInterval: Duration = .seconds(5)
+
     private let refresh: @MainActor () async -> Void
     private let didObserveHint: @MainActor () -> Void
+    private let minInterval: Duration
+    private let now: () -> ContinuousClock.Instant
+    private let pause: (Duration) async -> Void
     private var policy = HintRefreshPolicy()
     private var running = false
+    private var lastStart: ContinuousClock.Instant?
 
-    public init(refresh: @escaping @MainActor () async -> Void) {
+    public init(minInterval: Duration = .zero, refresh: @escaping @MainActor () async -> Void) {
         self.refresh = refresh
+        self.minInterval = minInterval
         didObserveHint = {}
+        now = { ContinuousClock.now }
+        pause = { try? await Task.sleep(for: $0) }
     }
 
     init(
+        minInterval: Duration = .zero,
+        now: @escaping () -> ContinuousClock.Instant = { ContinuousClock.now },
+        pause: @escaping (Duration) async -> Void = { try? await Task.sleep(for: $0) },
         refresh: @escaping @MainActor () async -> Void,
         didObserveHint: @escaping @MainActor () -> Void
     ) {
         self.refresh = refresh
+        self.minInterval = minInterval
+        self.now = now
+        self.pause = pause
         self.didObserveHint = didObserveHint
     }
 
@@ -116,8 +131,16 @@ public final class HintRefresher {
     private func drain() async {
         defer { running = false }
         while true {
+            await waitForInterval()
+            lastStart = now()
             await BackgroundRefresh.$isActive.withValue(true) { await refresh() }
             guard policy.send(.refreshFinished) == .refreshNow else { return }
         }
+    }
+
+    private func waitForInterval() async {
+        guard minInterval > .zero, let last = lastStart else { return }
+        let remaining = minInterval - (now() - last)
+        if remaining > .zero { await pause(remaining) }
     }
 }

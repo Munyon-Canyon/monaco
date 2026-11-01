@@ -53,7 +53,9 @@ public final class CommentsModel {
     let pager: CursorPager<Components.Schemas.CommentThread>
     @ObservationIgnored private let postSubmission = IdempotentSubmission()
     @ObservationIgnored private var deleteSubmissions: [String: IdempotentSubmission] = [:]
-    @ObservationIgnored private lazy var refresher = HintRefresher { [weak self] in await self?.refresh() }
+    @ObservationIgnored private lazy var refresher = HintRefresher(minInterval: HintRefresher.feedInterval) {
+        [weak self] in await self?.refresh()
+    }
 
     public init(
         source: any CommentsSource, hints: any HintSource, clock: any Clock<Duration>,
@@ -119,7 +121,10 @@ public final class CommentsModel {
     }
 
     public func observe() async {
-        await refresher.observe(hints.hints(matching: .global(what: "feed")))
+        await refresher.observe([
+            hints.hints(matching: .global(what: "feed")),
+            hints.hints(matching: .anyCabal(what: "feed_item")),
+        ])
     }
 
     public func setVisible(_ visible: Bool) {

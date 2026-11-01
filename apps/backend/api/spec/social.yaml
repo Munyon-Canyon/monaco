@@ -1069,8 +1069,21 @@ paths:
       tags: [social]
       summary: List the users the caller blocks.
       description: >-
-        Newest block first, at most 500. Banned and deleted users stay in the list so they can be
-        unblocked. A deleted user carries an empty handle, display name and photo.
+        Newest block first. limit defaults to 500 and cannot exceed 500. Follow next_cursor until it
+        is null to read every block. A cursor the server did not write is invalid_input. Banned and
+        deleted users stay in the list so they can be unblocked. A deleted user carries an empty
+        handle, display name and photo.
+      parameters:
+        - name: cursor
+          in: query
+          required: false
+          description: The next_cursor from the previous page. Absent reads the first page.
+          schema: {type: string, maxLength: 128}
+        - name: limit
+          in: query
+          required: false
+          description: Page size. Defaults to 500 and cannot exceed 500.
+          schema: {type: integer, minimum: 1, maximum: 500, default: 500}
       responses:
         "200":
           description: The blocked users.
@@ -1081,6 +1094,7 @@ paths:
               example:
                 users:
                   - {user_id: "7f0c2f6e-4c1b-4a8e-9a53-2d6f0b1c9e11", handle: maya, display_name: Maya Angelou, photo_url: null}
+                next_cursor: null
         default:
           $ref: "#/components/responses/Problem"
   /v1/reports:
@@ -1271,15 +1285,19 @@ components:
         photo_url: {type: [string, "null"], examples: ["https://img.example/maya.png"]}
     BlockedUsers:
       type: object
-      description: The users the caller blocks, newest block first.
+      description: One page of the users the caller blocks, newest block first.
       additionalProperties: false
-      required: [users]
+      required: [users, next_cursor]
       properties:
         users:
           type: array
           examples: [[]]
           items:
             $ref: "#/components/schemas/BlockedUser"
+        next_cursor:
+          type: [string, "null"]
+          description: The cursor for the next page. Null on the last page.
+          examples: [null]
     ContactMatchRequest:
       type: object
       description: Lowercase SHA-256 hex hashes of E.164 phone numbers.

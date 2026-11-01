@@ -27,6 +27,15 @@ type blocks struct {
 	err   error
 }
 
+type comments struct {
+	deleted map[uuid.UUID]bool
+	err     error
+}
+
+func (c comments) CommentDeleted(_ context.Context, id uuid.UUID) (bool, error) {
+	return c.deleted[id], c.err
+}
+
 func (b blocks) BlockedByMe(_ context.Context, viewer, user ids.UserID) (bool, error) {
 	return b.pairs[[2]ids.UserID{viewer, user}], b.err
 }
@@ -153,7 +162,14 @@ func TestNotify_PostReply_Recipients(t *testing.T) {
 		tc.edit(&e)
 		_ = answered
 
-		got, err := app.PostReply{Cabals: cabalsOf(e), Blocks: tc.blocks}.Recipients(t.Context(), e)
+		got, err := app.PostReply{
+			Cabals:   cabalsOf(e),
+			Blocks:   tc.blocks,
+			Comments: comments{},
+		}.Recipients(
+			t.Context(),
+			e,
+		)
 
 		if !errors.Is(err, tc.err) || !slices.Equal(got, tc.want) {
 			t.Errorf("%s: Recipients = %v, %v, want %v, %v", name, got, err, tc.want, tc.err)
@@ -198,7 +214,7 @@ func TestNotify_PostReply_Render(t *testing.T) {
 	} {
 		e := golden
 		tc.edit(&e)
-		kind := app.PostReply{Users: users{cards: cards}, Cabals: cabalsOf(e), Blocks: blocks{}}
+		kind := app.PostReply{Users: users{cards: cards}, Cabals: cabalsOf(e), Blocks: blocks{}, Comments: comments{}}
 
 		msg, err := kind.Render(t.Context(), e, ids.UserID{})
 
@@ -252,8 +268,8 @@ func TestNotify_PostReply_AReplyOnYourSalePushesYouOnce(t *testing.T) {
 	d := r.emitReply(t, e)
 
 	err := handleKinds(t, r, r.sender, d, e,
-		app.CommentReply{Users: r.users, Cabals: cabalsOf(e), Blocks: blocks{}},
-		app.PostReply{Users: r.users, Cabals: cabalsOf(e), Blocks: blocks{}})
+		app.CommentReply{Users: r.users, Cabals: cabalsOf(e), Blocks: blocks{}, Comments: comments{}},
+		app.PostReply{Users: r.users, Cabals: cabalsOf(e), Blocks: blocks{}, Comments: comments{}})
 
 	wantVerdict(t, err, "", errs.VerdictAck)
 	sent := r.sender.Sent()
@@ -338,7 +354,7 @@ func TestNotify_ReplyFixturesMatchTheRenderedPush(t *testing.T) {
 		kind := app.CommentReply{
 			Users:  users{cards: cards},
 			Cabals: fakes.NewCabal([]fakes.CabalSeed{{View: titans}}, nil),
-			Blocks: blocks{},
+			Blocks: blocks{}, Comments: comments{},
 		}
 
 		msg, err := kind.Render(t.Context(), tc.e, andres)
@@ -450,8 +466,22 @@ func TestNotify_Replies_NothingForAMemberWhoLeft(t *testing.T) {
 		tc.edit(&e)
 		cabals := tc.cabals(e, tc.gone)
 
-		comment, commentErr := app.CommentReply{Cabals: cabals, Blocks: blocks{}}.Recipients(t.Context(), e)
-		post, postErr := app.PostReply{Cabals: cabals, Blocks: blocks{}}.Recipients(t.Context(), e)
+		comment, commentErr := app.CommentReply{
+			Cabals:   cabals,
+			Blocks:   blocks{},
+			Comments: comments{},
+		}.Recipients(
+			t.Context(),
+			e,
+		)
+		post, postErr := app.PostReply{
+			Cabals:   cabals,
+			Blocks:   blocks{},
+			Comments: comments{},
+		}.Recipients(
+			t.Context(),
+			e,
+		)
 
 		if !errors.Is(commentErr, tc.err) || !slices.Equal(comment, tc.comment) {
 			t.Errorf("%s: CommentReply.Recipients = %v, %v, want %v, %v", name, comment, commentErr, tc.comment, tc.err)

@@ -28,6 +28,23 @@ final class BlockedPeopleModelTests: XCTestCase {
         XCTAssertEqual(sent.map(\.path), ["/v1/me/blocks"])
     }
 
+    func testEveryPageOfBlocksIsListed() async {
+        let (model, transport) = model(
+            .json(
+                .ok,
+                #"{"users":[{"user_id":"u-1","handle":"a","display_name":"A","photo_url":null}],"next_cursor":"c1"}"#),
+            .json(
+                .ok,
+                #"{"users":[{"user_id":"u-2","handle":"b","display_name":"B","photo_url":null}],"next_cursor":null}"#))
+
+        await model.load()
+
+        guard case .loaded(let people) = model.state else { return XCTFail("want rows, got \(model.state)") }
+        XCTAssertEqual(people.map(\.id), ["u-1", "u-2"])
+        let sent = await transport.sent
+        XCTAssertEqual(sent.map(\.path), ["/v1/me/blocks", "/v1/me/blocks?cursor=c1"])
+    }
+
     func testNoOneBlockedIsAnEmptyList() async {
         let (model, _) = model(.json(.ok, #"{"users":[]}"#))
 

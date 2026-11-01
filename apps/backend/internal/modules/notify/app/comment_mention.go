@@ -10,9 +10,10 @@ import (
 )
 
 type CommentMention struct {
-	Users  Users
-	Cabals Cabals
-	Blocks Blocks
+	Users    Users
+	Cabals   Cabals
+	Blocks   Blocks
+	Comments Comments
 }
 
 func (CommentMention) Name() string { return "comment_mention" }
@@ -20,7 +21,7 @@ func (CommentMention) Name() string { return "comment_mention" }
 func (k CommentMention) Recipients(ctx context.Context, e events.CommentCreated) ([]ids.UserID, error) {
 	out := make([]ids.UserID, 0, len(e.MentionedUserIDs))
 	for _, mentioned := range e.MentionedUserIDs {
-		to, err := unblocked(ctx, k.Blocks, e, ids.UserIDFrom(mentioned))
+		to, err := unblocked(ctx, k.Blocks, k.Comments, e, ids.UserIDFrom(mentioned))
 		if err != nil {
 			return nil, err
 		}

@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/app"
+	"github.com/monaco/monaco/apps/backend/internal/modules/social/domain"
 	api "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/socialapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 )
@@ -43,18 +44,33 @@ func (h HTTP) DeleteUserBlock(
 }
 
 func (h HTTP) GetMeBlocks(
-	ctx context.Context, _ api.GetMeBlocksRequestObject,
+	ctx context.Context, req api.GetMeBlocksRequestObject,
 ) (api.GetMeBlocksResponseObject, error) {
 	me, err := caller(ctx)
 	if err != nil {
 		return nil, err
 	}
-	blocked, err := app.ListBlocks(ctx, h.Reads, h.Users, me)
+	q := app.BlocksQuery{Viewer: me, Limit: app.BlocksPageMax}
+	if req.Params.Limit != nil {
+		q.Limit = *req.Params.Limit
+	}
+	if req.Params.Cursor != nil {
+		after, err := domain.ParseKeyset(*req.Params.Cursor)
+		if err != nil {
+			return nil, err
+		}
+		q.After = &after
+	}
+	page, err := app.ListBlocks(ctx, h.Reads, h.Users, q)
 	if err != nil {
 		return nil, err
 	}
-	body := api.BlockedUsers{Users: make([]api.BlockedUser, len(blocked))}
-	for i, b := range blocked {
+	body := api.BlockedUsers{Users: make([]api.BlockedUser, len(page.Items))}
+	if page.Next != nil {
+		next := page.Next.Encode()
+		body.NextCursor = &next
+	}
+	for i, b := range page.Items {
 		user := api.BlockedUser{UserId: b.ID.UUID()}
 		if !b.Card.Deleted {
 			user.Handle, user.DisplayName, user.PhotoUrl = b.Card.Handle, b.Card.DisplayName, optionalWireText(

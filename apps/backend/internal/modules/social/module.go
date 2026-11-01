@@ -271,6 +271,8 @@ func (m *Module) TopReply(
 	return &top, nil
 }
 
+func (m *Module) CommentLiveness() app.CommentLiveness { return app.NewCommentLiveness(m.deps.Pool) }
+
 func (m *Module) Follows() app.Follows { return app.NewFollows(m.deps.Pool) }
 
 func (m *Module) FollowCounts() interface {

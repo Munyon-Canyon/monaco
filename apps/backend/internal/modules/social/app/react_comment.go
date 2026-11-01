@@ -66,7 +66,7 @@ func (h *ReactCommentHandler) Handle(ctx context.Context, cmd ReactComment) (Rea
 		if held > domain.MaxReactionsPerUser {
 			return errs.New(errs.CodeInvalidInput, op, slog.String("reason", "reaction_limit"))
 		}
-		tx.AfterCommit(func(ctx context.Context) { h.d.Hints.PublishHint(ctx, FeedHint, nil) })
+		tx.AfterCommit(func(ctx context.Context) { h.d.Hints.PublishHint(ctx, itemChangedKey(item.CabalID), nil) })
 		return tx.Events.Append(ctx, events.ReactionAdded{
 			V: 1, FeedObjectID: ref.FeedObjectID, CommentID: &cmd.CommentID, UserID: cmd.Viewer.UUID(),
 			Emoji: emoji.String(), ItemActorID: parentOf(item.ActorID.UUID()), CabalID: parentOf(item.CabalID.UUID()),
@@ -109,7 +109,7 @@ func (h *UnreactCommentHandler) Handle(ctx context.Context, cmd UnreactComment) 
 		if rows == 0 {
 			return nil
 		}
-		tx.AfterCommit(func(ctx context.Context) { h.d.Hints.PublishHint(ctx, FeedHint, nil) })
+		tx.AfterCommit(func(ctx context.Context) { h.d.Hints.PublishHint(ctx, itemChangedKey(item.CabalID), nil) })
 		return tx.Events.Append(ctx, events.ReactionRemoved{
 			V: 1, FeedObjectID: ref.FeedObjectID, CommentID: &cmd.CommentID, UserID: cmd.Viewer.UUID(),
 			Emoji: emoji.String(), ItemActorID: parentOf(item.ActorID.UUID()), CabalID: parentOf(item.CabalID.UUID()),

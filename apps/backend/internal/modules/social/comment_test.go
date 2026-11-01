@@ -373,6 +373,15 @@ func TestCreateComment_hintsTheFeedOnlyAfterTheCommit(t *testing.T) {
 		t.Fatalf("hints after a refusal = %v, want none", got)
 	}
 	f.mustComment(t, f.item(t, feed.KindTrade), f.outsider, "hi", uuid.Nil)
+	if got, want := f.hints.seen(), []string{events.CabalFeedItemChangedHint(f.cabal.ID)}; !slices.Equal(got, want) {
+		t.Fatalf("hints = %v, want %v", got, want)
+	}
+}
+
+func TestCreateComment_aCommentOnAProposalHintsTheGlobalFeedBecauseItAddsAReplyRow(t *testing.T) {
+	t.Parallel()
+	f := newCommentFixture(t)
+	f.mustComment(t, f.item(t, feed.KindProposal), f.cabal.Members[0].ID, "hi", uuid.Nil)
 	if got := f.hints.seen(); !slices.Equal(got, []string{"global.feed"}) {
 		t.Fatalf("hints = %v, want [global.feed]", got)
 	}

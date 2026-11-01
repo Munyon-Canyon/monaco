@@ -12,8 +12,7 @@ public actor BlockedAuthors {
 
     public func contains(_ userID: String) -> Bool { ids.contains(userID) }
 
-    public func refresh() async {
-        guard let page = try? await api.read({ try await $0.getMeBlocks().ok.body.json }) else { return }
-        ids = Set(page.users.map(\.userId))
+    public func refresh() async throws {
+        ids = Set(try await api.readAllBlockedUsers().map(\.userId))
     }
 }

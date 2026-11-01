@@ -712,15 +712,21 @@ func copyCases(
 		},
 		"comment_reply": {
 			events.TypeCommentCreated,
-			renderer[events.CommentCreated](app.CommentReply{Users: users, Cabals: cabals, Blocks: blocks{}}),
+			renderer[events.CommentCreated](
+				app.CommentReply{Users: users, Cabals: cabals, Blocks: blocks{}, Comments: comments{}},
+			),
 		},
 		"post_reply": {
 			events.TypeCommentCreated,
-			renderer[events.CommentCreated](app.PostReply{Users: users, Cabals: cabals, Blocks: blocks{}}),
+			renderer[events.CommentCreated](
+				app.PostReply{Users: users, Cabals: cabals, Blocks: blocks{}, Comments: comments{}},
+			),
 		},
 		"comment_mention": {
 			events.TypeCommentCreated,
-			renderer[events.CommentCreated](app.CommentMention{Users: users, Cabals: cabals, Blocks: blocks{}}),
+			renderer[events.CommentCreated](
+				app.CommentMention{Users: users, Cabals: cabals, Blocks: blocks{}, Comments: comments{}},
+			),
 		},
 		"chat_mention": {
 			events.TypeChatMessagePosted,

@@ -6,10 +6,13 @@ SELECT COALESCE(CASE sqlc.arg(target_type)::text
   WHEN 'item' THEN f.title
 END, '')::text AS label
 FROM feed_objects f
-WHERE (sqlc.arg(target_type)::text = 'cabal' AND f.cabal_id = sqlc.arg(target_id)::uuid)
-   OR (sqlc.arg(target_type)::text = 'asset' AND f.asset_id = sqlc.arg(target_id)::uuid)
-   OR (sqlc.arg(target_type)::text = 'user' AND f.actor_id = sqlc.arg(target_id)::uuid)
-   OR (sqlc.arg(target_type)::text = 'item' AND f.id = sqlc.arg(target_id)::uuid)
+WHERE NOT EXISTS (SELECT 1 FROM feed_cabals fc WHERE fc.cabal_id = f.cabal_id AND fc.hidden_at IS NOT NULL)
+  AND (
+    (sqlc.arg(target_type)::text = 'cabal' AND f.cabal_id = sqlc.arg(target_id)::uuid)
+    OR (sqlc.arg(target_type)::text = 'asset' AND f.asset_id = sqlc.arg(target_id)::uuid)
+    OR (sqlc.arg(target_type)::text = 'user' AND f.actor_id = sqlc.arg(target_id)::uuid)
+    OR (sqlc.arg(target_type)::text = 'item' AND f.id = sqlc.arg(target_id)::uuid)
+  )
 ORDER BY f.created_at DESC, f.id DESC
 LIMIT 1;
 

@@ -140,10 +140,58 @@ final class HintRefresherTests: XCTestCase {
         XCTAssertEqual(flags.seen, [true, false])
     }
 
+    func testAHintInsideTheIntervalWaitsOutTheRestOfIt() async {
+        let gate = RefreshGate()
+        let clockwork = Clockwork()
+        let refresher = HintRefresher(
+            minInterval: .seconds(5),
+            now: { clockwork.now },
+            pause: { clockwork.sleep($0) },
+            refresh: { await gate.enter() },
+            didObserveHint: { gate.observeHint() }
+        )
+        let (stream, continuation) = AsyncStream<Hint>.makeStream()
+        let observing = Task { await refresher.observe(stream) }
+
+        continuation.yield(Self.hint(1))
+        await gate.waitForRefreshes(1)
+        gate.releaseOne()
+        await gate.waitForFinishes(1)
+        clockwork.advance(.seconds(1))
+        continuation.yield(Self.hint(2))
+        await gate.waitForRefreshes(2)
+        gate.releaseOne()
+        await gate.waitForFinishes(2)
+        clockwork.advance(.seconds(6))
+        continuation.yield(Self.hint(3))
+        await gate.waitForRefreshes(3)
+        gate.releaseOne()
+        continuation.finish()
+        await observing.value
+
+        XCTAssertEqual(clockwork.pauses, [.seconds(4)])
+    }
+
     private static func hint(_ id: Int) -> Hint {
         Hint(key: "global", what: "feed", id: "\(id)") ?? .resync
     }
 
+}
+
+@MainActor
+private final class Clockwork {
+    private let start = ContinuousClock.now
+    private var offset: Duration = .zero
+    private(set) var pauses: [Duration] = []
+
+    var now: ContinuousClock.Instant { start.advanced(by: offset) }
+
+    func advance(_ by: Duration) { offset += by }
+
+    func sleep(_ by: Duration) {
+        pauses.append(by)
+        offset += by
+    }
 }
 
 @MainActor

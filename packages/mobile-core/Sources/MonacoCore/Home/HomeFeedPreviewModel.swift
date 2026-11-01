@@ -29,7 +29,9 @@ public final class HomeFeedPreviewModel {
 
     private let api: APIClient
     private let hints: any HintSource
-    @ObservationIgnored private lazy var refresher = HintRefresher { [weak self] in await self?.load() }
+    @ObservationIgnored private lazy var refresher = HintRefresher(minInterval: HintRefresher.feedInterval) {
+        [weak self] in await self?.load()
+    }
 
     public init(api: APIClient, hints: any HintSource, clock: any Clock<Duration>, source: Source) {
         self.api = api

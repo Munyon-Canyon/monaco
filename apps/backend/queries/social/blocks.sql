@@ -10,10 +10,14 @@ WHERE blocker_id = $1 AND blocked_id = $2
 RETURNING id;
 
 -- name: ListUserBlocks :many
-SELECT blocked_id FROM user_blocks
-WHERE blocker_id = $1
+SELECT id, blocked_id, created_at FROM user_blocks
+WHERE blocker_id = sqlc.arg(blocker_id)::uuid
+  AND (
+    NOT sqlc.arg(has_cursor)::boolean
+    OR (created_at, id) < (sqlc.arg(after_at)::timestamptz, sqlc.arg(after_id)::uuid)
+  )
 ORDER BY created_at DESC, id DESC
-LIMIT 500;
+LIMIT sqlc.arg(row_limit)::int;
 
 -- name: IsBlockedEitherWay :one
 SELECT EXISTS (

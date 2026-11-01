@@ -44,7 +44,7 @@ func TestNotify_CommentMention_Recipients(t *testing.T) {
 		e := golden
 		e.MentionedUserIDs = uuidsOf(tc.mentioned...)
 
-		got, err := app.CommentMention{Blocks: tc.blocks}.Recipients(t.Context(), e)
+		got, err := app.CommentMention{Blocks: tc.blocks, Comments: comments{}}.Recipients(t.Context(), e)
 
 		if !errors.Is(err, tc.err) || (err == nil && !slices.Equal(got, tc.want)) {
 			t.Errorf("%s: Recipients = %v, %v, want %v, %v", name, got, err, tc.want, tc.err)
@@ -58,11 +58,18 @@ func TestNotify_CommentMention_TheMentionedAreLeftOutOfTheReplyKinds(t *testing.
 	e := golden
 	e.MentionedUserIDs = []uuid.UUID{*golden.ItemActorID, *golden.ReplyToAuthorID}
 
-	post, err := app.PostReply{Cabals: cabalsOf(e), Blocks: blocks{}}.Recipients(t.Context(), e)
+	post, err := app.PostReply{Cabals: cabalsOf(e), Blocks: blocks{}, Comments: comments{}}.Recipients(t.Context(), e)
 	if err != nil || post != nil {
 		t.Errorf("PostReply Recipients = %v, %v, want none", post, err)
 	}
-	reply, err := app.CommentReply{Cabals: cabalsOf(e), Blocks: blocks{}}.Recipients(t.Context(), e)
+	reply, err := app.CommentReply{
+		Cabals:   cabalsOf(e),
+		Blocks:   blocks{},
+		Comments: comments{},
+	}.Recipients(
+		t.Context(),
+		e,
+	)
 	if err != nil || reply != nil {
 		t.Errorf("CommentReply Recipients = %v, %v, want none", reply, err)
 	}
@@ -94,7 +101,12 @@ func TestNotify_CommentMention_Render(t *testing.T) {
 	} {
 		e := golden
 		tc.edit(&e)
-		kind := app.CommentMention{Users: users{cards: cards}, Cabals: cabalsOf(e), Blocks: blocks{}}
+		kind := app.CommentMention{
+			Users:    users{cards: cards},
+			Cabals:   cabalsOf(e),
+			Blocks:   blocks{},
+			Comments: comments{},
+		}
 
 		msg, err := kind.Render(t.Context(), e, ids.UserID{})
 
@@ -173,7 +185,7 @@ func TestNotify_CommentMention_ARedeliveredEventPushesOnce(t *testing.T) {
 	e.ReplyToAuthorID, e.ParentAuthorID = nil, nil
 	e.MentionedUserIDs = uuidsOf(mentioned)
 	d := r.emitReply(t, e)
-	kind := app.CommentMention{Users: r.users, Cabals: cabalsOf(e), Blocks: blocks{}}
+	kind := app.CommentMention{Users: r.users, Cabals: cabalsOf(e), Blocks: blocks{}, Comments: comments{}}
 
 	first := handleKinds(t, r, r.sender, d, e, kind)
 	second := handleKinds(t, r, r.sender, d, e, kind)
@@ -220,7 +232,12 @@ func TestNotify_CommentMention_FixtureMatchesTheRenderedPush(t *testing.T) {
 		author: {ID: author, DisplayName: "Mia", PhotoURL: avatars + "mia.png"},
 	}
 	kind := app.CommentMention{
-		Users: users{cards: cards}, Cabals: fakes.NewCabal([]fakes.CabalSeed{{View: titans}}, nil), Blocks: blocks{},
+		Users: users{
+			cards: cards,
+		},
+		Cabals:   fakes.NewCabal([]fakes.CabalSeed{{View: titans}}, nil),
+		Blocks:   blocks{},
+		Comments: comments{},
 	}
 
 	msg, err := kind.Render(t.Context(), e, ids.UserIDFrom(fixtureUUID(t, "b02")))
@@ -242,7 +259,7 @@ func TestQA_TopLevelCommentMentionRender(t *testing.T) {
 	t.Parallel()
 	golden := goldenEvent(t, events.TypeCommentCreated).(events.CommentCreated)
 	e := topLevelMention(golden, ids.UserIDFrom(*golden.ItemActorID))
-	kind := app.CommentMention{Users: users{}, Cabals: cabalsOf(e), Blocks: blocks{}}
+	kind := app.CommentMention{Users: users{}, Cabals: cabalsOf(e), Blocks: blocks{}, Comments: comments{}}
 
 	msg, err := kind.Render(t.Context(), e, ids.UserID{})
 
