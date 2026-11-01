@@ -1,7 +1,7 @@
 ---
 id: profile/overview
 title: Your profile
-version: 11
+version: 12
 milestone: M9
 requires: [auth/sign-in]
 actors: [A]
@@ -81,7 +81,9 @@ Starts signed in (auth/sign-in).
 | --- | --- | --- | --- | --- | --- |
 | S6.1 | tap, tap, then scroll to and tap | the Profile tab, `profile-settings-row`, then `profileSignOutButton` in Settings | | Within 5 s the confirm panel shows "Sign out of Monaco?" and "You can sign back in with your existing account. This does not withdraw funds or leave your cabals." | `profile-sign-out`, with "Sign out of Monaco?" |
 | S6.2 | tap | `profile-sign-out-cancel` ("Stay signed in") | | The confirm panel closes within 5 s, and the "Settings" screen still shows | "Cancel" |
-| S6.3 | tap, then tap | `profileSignOutButton`, then `profile-sign-out-confirm` | | Within 15 s the tab bar is gone. The invite gate (`invite-paste-screen`) shows first and is skipped with `invite-skip-button`, then the login form shows | `profile-sign-out-confirm` |
+| S6.3 | tap | `settings-sign-out-everywhere` ("Sign out of all devices", the row above Sign out) | | Within 5 s the confirm panel shows "Sign out of all devices?" (`profile-sign-out-everywhere-title`) and "This ends every session on your account, including a lost phone. You can sign back in with your existing account. This does not withdraw funds or leave your cabals.", with `profile-sign-out-everywhere-confirm` reading "Sign out of all devices" and `profile-sign-out-everywhere-cancel` reading "Stay signed in" | None, new in spec |
+| S6.4 | tap | `profile-sign-out-everywhere-cancel` ("Stay signed in") | | The confirm panel closes within 5 s, and the "Settings" screen still shows | None, new in spec |
+| S6.5 | tap, then tap | `profileSignOutButton`, then `profile-sign-out-confirm` | | Within 15 s the tab bar is gone. The invite gate (`invite-paste-screen`) shows first and is skipped with `invite-skip-button`, then the login form shows | `profile-sign-out-confirm` |
 
 ### S7 Totals and pot values
 

@@ -2,7 +2,7 @@ import XCTest
 
 enum ProfileOverviewJourney {
     static let id = "profile/overview"
-    static let version = 11
+    static let version = 12
 
     static let signOutTitle = "Sign out of Monaco?"
     static let signOutMessage =
@@ -30,41 +30,6 @@ enum ProfileOverviewJourney {
         app.popToRoot()
         XCTAssertTrue(
             app.element("profile-card").waitForExistence(timeout: 15), "\(step): the Profile card did not show")
-    }
-
-    static func row(_ app: XCUIApplication, _ cabal: Cabal) -> XCUIElement {
-        app.element("profile-cabal-row-\(cabal.id)")
-    }
-
-    static func reachCabal(_ app: XCUIApplication, _ target: XCUIElement) {
-        let screen = app.windows.firstMatch.frame
-        var attempts = 0
-        while attempts < 40 {
-            let inside = target.exists && screen.contains(target.frame.insetBy(dx: 4, dy: 4))
-            if inside && app.isAboveTabBar(target) { break }
-            app.swipeUp()
-            attempts += 1
-        }
-    }
-
-    static func tapCabalsTab(_ app: XCUIApplication) {
-        let tab = app.element("profile-tab-cabals")
-        var swipes = 0
-        while !(tab.exists && tab.isHittable && app.isAboveTabBar(tab)) && swipes < 8 {
-            app.swipeUp()
-            swipes += 1
-        }
-        tab.tap()
-    }
-
-    static func positionsFigure(_ app: XCUIApplication) -> String {
-        let texts = app.element("profile-positions").staticTexts.allElementsBoundByIndex
-        return texts.map(\.label).first { $0.hasPrefix("$") } ?? ""
-    }
-
-    static func cabalsCount(_ app: XCUIApplication) -> Int? {
-        let label = app.element("profile-stat-cabals").label
-        return label.split(whereSeparator: { !$0.isNumber }).first.flatMap { Int($0) }
     }
 
     static func sections(_ app: XCUIApplication, cabal: Cabal, recorder: JourneyRecorder) {
@@ -223,6 +188,9 @@ enum ProfileOverviewJourney {
         let button = app.buttons["profileSignOutButton"]
         let confirm = app.buttons["profile-sign-out-confirm"]
         let stay = app.buttons["profile-sign-out-cancel"]
+        let everywhere = app.buttons["settings-sign-out-everywhere"]
+        let everywhereConfirm = app.buttons["profile-sign-out-everywhere-confirm"]
+        let everywhereStay = app.buttons["profile-sign-out-everywhere-cancel"]
 
         recorder.step("S6.1", "ask to sign out") {
             openProfile(app, step: "S6.1")
@@ -244,16 +212,39 @@ enum ProfileOverviewJourney {
                 app.navigationBars["Settings"].exists, "S6.2: Settings is gone after the confirm closed")
         }
 
-        recorder.step("S6.3", "sign out") {
+        recorder.step("S6.3", "ask to sign out of all devices") {
+            app.scrollIntoReach(everywhere)
+            XCTAssertTrue(everywhere.waitForExistence(timeout: 5), "S6.3: no 'Sign out of all devices' row in Settings")
+            everywhere.tap()
+            XCTAssertTrue(everywhereConfirm.waitForExistence(timeout: 5), "S6.3: the row did not ask to confirm")
+            XCTAssertTrue(
+                app.staticTexts[signOutEverywhereTitle].exists,
+                "S6.3: the confirm does not read '\(signOutEverywhereTitle)'")
+            XCTAssertTrue(
+                app.staticTexts.matching(NSPredicate(format: "label == %@", signOutEverywhereMessage))
+                    .firstMatch.exists,
+                "S6.3: the confirm does not read '\(signOutEverywhereMessage)'")
+            XCTAssertTrue(everywhereStay.exists, "S6.3: the confirm has no 'Stay signed in' button")
+        }
+
+        recorder.step("S6.4", "stay signed in") {
+            everywhereStay.tap()
+            XCTAssertTrue(
+                everywhereConfirm.waitForNonExistence(timeout: 5), "S6.4: 'Stay signed in' did not close the confirm")
+            XCTAssertTrue(
+                app.navigationBars["Settings"].exists, "S6.4: Settings is gone after the confirm closed")
+        }
+
+        recorder.step("S6.5", "sign out") {
             app.scrollIntoReach(button)
             button.tap()
-            XCTAssertTrue(confirm.waitForExistence(timeout: 5), "S6.3: Sign out did not ask to confirm")
+            XCTAssertTrue(confirm.waitForExistence(timeout: 5), "S6.5: Sign out did not ask to confirm")
             confirm.tap()
-            XCTAssertTrue(app.tab("Home").waitForNonExistence(timeout: 15), "S6.3: the tab bar stayed after sign-out")
+            XCTAssertTrue(app.tab("Home").waitForNonExistence(timeout: 15), "S6.5: the tab bar stayed after sign-out")
             if SignInJourney.currentScreen(app) == .invite {
                 app.buttons["invite-skip-button"].tap()
             }
-            XCTAssertEqual(SignInJourney.currentScreen(app), .login, "S6.3: the login form did not show")
+            XCTAssertEqual(SignInJourney.currentScreen(app), .login, "S6.5: the login form did not show")
         }
     }
 

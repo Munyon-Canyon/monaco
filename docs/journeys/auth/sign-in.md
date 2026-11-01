@@ -1,7 +1,7 @@
 ---
 id: auth/sign-in
 title: Sign in
-version: 9
+version: 10
 milestone: M9
 requires: []
 actors: [A]
@@ -50,7 +50,7 @@ Starts signed in (S1).
 
 ### S3 Sign out
 
-Starts signed in (S1).
+Starts signed in (S1). S3.5 signs in again, because S3.4 left the app signed out, and ends every session of A.
 
 | Step | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- |
@@ -58,6 +58,8 @@ Starts signed in (S1).
 | S3.2 | tap | `profileSignOutButton` | | The dialog "Sign out of Monaco?" shows within 5 s |
 | S3.3 | tap | `profile-sign-out-confirm` | | The login form shows within 30 s and the tab bar is gone |
 | S3.4 | relaunch | the app | | The login form shows within 30 s |
+| S3.5 | sign in as in S1, tap, tap, then tap | the Profile tab, `profile-settings-row`, then `settings-sign-out-everywhere` ("Sign out of all devices") | `{A.phone}`, `{A.code}` | The tab bar shows within 30 s of the code. The "Settings" screen shows within 10 s, and within 5 s of the row the dialog "Sign out of all devices?" shows with `profile-sign-out-everywhere-confirm` |
+| S3.6 | tap | `profile-sign-out-everywhere-confirm` | | The login form shows within 30 s and the tab bar is gone |
 
 ## Ground truth
 

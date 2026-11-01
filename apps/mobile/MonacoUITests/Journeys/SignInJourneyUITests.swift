@@ -40,6 +40,9 @@ nonisolated final class SignInJourneyUITests: XCTestCase {
                     "S3.4: a relaunch after sign-out did not show the login form")
             }
             attachScreenshot(of: app, named: "S3-signed-out")
+            try session.act(as: "A")
+            SignInJourney.signOutEverywhere(app, recorder: recorder)
+            attachScreenshot(of: app, named: "S3-signed-out-everywhere")
         }
     }
 }
