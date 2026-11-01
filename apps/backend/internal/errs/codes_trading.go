@@ -11,6 +11,7 @@ const (
 	CodeTradeNotStarted  Code = "trade_not_started"
 	CodeSwapNotSent      Code = "swap_not_sent"
 	CodeCabalSharesShort Code = "cabal_shares_short"
+	CodeTradeTooLarge    Code = "trade_too_large"
 
 	CodePinnedChainUnavailable Code = "pinned_chain_unavailable"
 	CodeChainTradingOff        Code = "chain_trading_off"
@@ -48,6 +49,10 @@ func (codeFiles) Trading() map[Code]Row {
 		},
 		CodeCabalSharesShort: {
 			Name: "CabalSharesShort", Kind: KindBlocked, Message: "The cabal doesn't hold that many shares.",
+		},
+		CodeTradeTooLarge: {
+			Name: "TradeTooLarge", Kind: KindBlocked,
+			Message: "This trade is too large to settle. Lower the amount.",
 		},
 		CodePinnedChainUnavailable: {
 			Name: "PinnedChainUnavailable", Kind: KindBlocked,

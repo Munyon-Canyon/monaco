@@ -263,7 +263,7 @@ func (h *ProposeTradeHandler) assess(ctx context.Context, cmd ProposeTrade) (ass
 	if err != nil {
 		return assessment{}, err
 	}
-	priced, err := pinned(comparison, cmd.Trade.Network)
+	priced, err := pricedOn(comparison, cmd.Trade.Network)
 	return assessment{
 		pot: pot, potKnown: true, asset: asset, decimals: asset.Decimals, routed: routed, comparison: comparison,
 		priced: priced, network: cmd.Trade.Network,

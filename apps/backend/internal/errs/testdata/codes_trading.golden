@@ -10,3 +10,4 @@ swap_not_retryable
 swap_not_sent
 swap_not_stuck
 trade_not_started
+trade_too_large
