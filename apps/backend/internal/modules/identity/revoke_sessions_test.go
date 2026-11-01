@@ -137,6 +137,29 @@ func TestRevokeSessions_signingOutEverywhereRefusesEveryEarlierTokenButNotALater
 	f.expectStatus(t, f.token("session-new-login", f.clock.Now()), http.StatusOK)
 }
 
+func TestRevokeSessions_signingOutEverywhereRefusesARefreshedTokenOfAKnownSession(t *testing.T) {
+	t.Parallel()
+	f := newSessionFixture(t)
+	f.privy.Seed(alicePhone())
+	me, err := f.open(t, alice)
+	if err != nil {
+		t.Fatalf("first open = %v", err)
+	}
+	revoke := app.NewRevokeSessionsHandler(app.RevokeSessionsDeps{UoW: db.New(f.pool, f.ids, f.clock), Clock: f.clock})
+	if err := revoke.Handle(t.Context(), app.RevokeSessions{UserID: me.ID, Scope: app.RevokeAllSessions}); err != nil {
+		t.Fatalf("revoke all = %v", err)
+	}
+	var revoked int
+	if err := f.pool.QueryRow(t.Context(), `SELECT count(*) FROM revoked_sessions WHERE privy_session_id = $1`,
+		"session-"+string(alice)).Scan(&revoked); err != nil || revoked != 1 {
+		t.Fatalf("revoked_sessions rows for the known session = %d, %v, want 1", revoked, err)
+	}
+	f.clock.Advance(2 * time.Hour)
+	if _, err := f.open(t, alice); errs.CodeOf(err) != errs.CodeUnauthorized {
+		t.Fatalf("open with a refreshed token of a known session = %v, want unauthorized", err)
+	}
+}
+
 func TestOpenSession_refusesATokenWhoseSessionWasRevoked(t *testing.T) {
 	t.Parallel()
 	f := newSessionFixture(t)
@@ -203,8 +226,8 @@ func TestRevokeSessions_endingASessionTwiceChangesNothingTheSecondTime(t *testin
 	}
 	var sessions int
 	if err := f.pool.QueryRow(t.Context(), `SELECT count(*) FROM revoked_sessions WHERE user_id = $1`,
-		f.user.ID.UUID()).Scan(&sessions); err != nil || sessions != 1 {
-		t.Fatalf("revoked_sessions rows = %d, %v, want 1", sessions, err)
+		f.user.ID.UUID()).Scan(&sessions); err != nil || sessions != 2 {
+		t.Fatalf("revoked_sessions rows = %d, %v, want 2", sessions, err)
 	}
 }
 
@@ -269,5 +292,62 @@ func TestOpenSession_aDatabaseFailureCheckingTheSessionIsUnavailableNotUnauthori
 func apiRevoke(scope string) identityapi.RevokeSessionsRequestObject {
 	return identityapi.RevokeSessionsRequestObject{
 		Body: &identityapi.RevokeSessionsJSONRequestBody{Scope: identityapi.RevokeSessionsRequestScope(scope)},
+	}
+}
+
+func failOn(t *testing.T, f *sessionFixture, table, event string) {
+	t.Helper()
+	ddl := `CREATE FUNCTION boom_` + table + `() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'boom'; END $$;
+CREATE TRIGGER boom BEFORE ` + event + ` ON ` + table + ` FOR EACH ROW EXECUTE FUNCTION boom_` + table + `()`
+	if _, err := f.pool.Exec(t.Context(), ddl); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestRevokeSessions_aDatabaseFailureInAnyStepIsReturned(t *testing.T) {
+	t.Parallel()
+	for name, tc := range map[string]struct {
+		table, event string
+		known        bool
+		session      string
+	}{
+		"moving the cutoff":     {table: "users", event: "UPDATE", known: true},
+		"revoking known":        {table: "revoked_sessions", event: "INSERT", known: true},
+		"revoking the caller's": {table: "revoked_sessions", event: "INSERT", session: "session-phone"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			f := newSessionFixture(t)
+			f.privy.Seed(alicePhone())
+			me, err := f.open(t, alice)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !tc.known {
+				if _, err := f.pool.Exec(t.Context(), `DELETE FROM user_sessions`); err != nil {
+					t.Fatal(err)
+				}
+			}
+			failOn(t, f, tc.table, tc.event)
+			revoke := app.NewRevokeSessionsHandler(
+				app.RevokeSessionsDeps{UoW: db.New(f.pool, f.ids, f.clock), Clock: f.clock},
+			)
+			err = revoke.Handle(t.Context(), app.RevokeSessions{
+				UserID: me.ID, SessionID: tc.session, Scope: app.RevokeAllSessions,
+			})
+			if err == nil {
+				t.Fatal("Handle = nil, want the database error")
+			}
+		})
+	}
+}
+
+func TestOpenSession_aDatabaseFailureRecordingTheSessionIsReturned(t *testing.T) {
+	t.Parallel()
+	f := newSessionFixture(t)
+	f.privy.Seed(alicePhone())
+	failOn(t, f, "user_sessions", "INSERT")
+	if _, err := f.open(t, alice); err == nil {
+		t.Fatal("open session = nil, want the database error")
 	}
 }

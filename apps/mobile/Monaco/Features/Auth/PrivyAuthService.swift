@@ -5,6 +5,7 @@ import Intents
 import MonacoAPI
 import MonacoCore
 import PrivySDK
+import UserNotifications
 import os
 
 /// Wraps Privy SDK init, session restore, SMS/email OTP login and access-token refresh.
@@ -27,9 +28,16 @@ class PrivyAuthService: ObservableObject {
     var revokeSession: @Sendable (String) async -> Void = { token in
         await SessionRevoker(serverURL: Config.api.baseURL).revoke(token: token)
     }
+    var revokeEverywhere: @Sendable (String) async -> Bool = { token in
+        await SessionRevoker(serverURL: Config.api.baseURL).revoke(token: token, scope: .allSessions)
+    }
     var deleteDonatedInteractions: @Sendable () async -> Void = {
         try? await INInteraction.deleteAll()
     }
+    var clearDeliveredNotifications: @MainActor () -> Void = {
+        UNUserNotificationCenter.current().removeAllDeliveredNotifications()
+    }
+    private var serverSessionsEnded = false
     private var isRestoreInFlight = false
     /// The access tokens this sign-in has used. A 401 for a token that is not in here
     /// belongs to a session that has already ended, so it must neither mint a token nor
@@ -203,6 +211,7 @@ class PrivyAuthService: ObservableObject {
     }
 
     private func adoptAccessToken(_ token: String) {
+        serverSessionsEnded = false
         accessToken = token
         sessionTokens.adopt(token)
     }
@@ -283,8 +292,15 @@ class PrivyAuthService: ObservableObject {
     // MARK: Sign out
 
     func logout(reason: String? = nil) async {
+        await performLogout(reason: reason)
+    }
+
+    func endAllSessions() async -> Bool {
+        guard !isSigningOut, let token = accessToken else { return false }
         await unregisterPushToken()
-        performLogout(reason: reason)
+        guard await revokeEverywhere(token) else { return false }
+        serverSessionsEnded = true
+        return true
     }
 
     private func unregisterPushToken() async {
@@ -304,7 +320,7 @@ class PrivyAuthService: ObservableObject {
     /// sign-out goes through `logout()`. Leaving this reachable is what let a stale 401 end
     /// the wrong session.
     private func signOut(reason: String) async {
-        performLogout(reason: reason)
+        await performLogout(reason: reason)
     }
 
     /// A 401 answering a request made with `rejectedToken`, ending the session with a
@@ -356,12 +372,15 @@ class PrivyAuthService: ObservableObject {
     /// Sign-out is local-first: the session is gone before Privy is told, so the login
     /// screen comes back immediately even offline, polling loops lose their token at once,
     /// and a second tap has nothing left to do.
-    private func performLogout(reason: String?) {
+    private func performLogout(reason: String?) async {
         guard !isSigningOut else { return }
         isSigningOut = true
-        let tokenToRevoke = reason == nil ? accessToken : nil
+        await unregisterPushToken()
+        let tokenToRevoke = reason == nil && !serverSessionsEnded ? accessToken : nil
+        serverSessionsEnded = false
         endSession(reason: reason)
         onSessionEnded?()
+        clearDeliveredNotifications()
         Task { await SafariPrivyLogin.clearOnSignOut() }
 
         let privy = self.privy
