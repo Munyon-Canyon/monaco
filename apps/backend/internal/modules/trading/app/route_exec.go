@@ -101,13 +101,45 @@ func (r *RouteExec) Trade(
 func (r *RouteExec) Resume(ctx context.Context, id ids.SwapID) error { return r.resume(ctx, id.UUID()) }
 
 func (r *RouteExec) resume(ctx context.Context, id uuid.UUID) error {
+	l := r.d.Layer
+	holder := l.d.IDs.NewV7()
+	leased, err := r.lease(ctx, id, holder)
+	if err == nil && !leased {
+		_, err = r.loadRow(ctx, id)
+	}
+	if err != nil || !leased {
+		return err
+	}
+	defer r.unlease(ctx, id, holder)
+	return l.beating(ctx, func() { _, _ = r.lease(ctx, id, holder) }, func(ctx context.Context) error {
+		return r.drive(ctx, id)
+	})
+}
+
+func (r *RouteExec) lease(ctx context.Context, id, holder uuid.UUID) (bool, error) {
+	now := r.d.Layer.d.Clock.Now()
+	n, err := sqlc.New(r.d.Layer.d.Reads).LeaseRouted(ctx, sqlc.LeaseRoutedParams{
+		ID: id, Holder: holder, Until: now.Add(routeLeaseTTL), Now: now,
+	})
+	if err != nil {
+		return false, errs.Wrap(err, errs.CodeInternal, routeExecOp, slog.String("swap_id", id.String()))
+	}
+	return n > 0, nil
+}
+
+func (r *RouteExec) unlease(ctx context.Context, id, holder uuid.UUID) {
+	_, _ = sqlc.New(r.d.Layer.d.Reads).ReleaseRouted(context.WithoutCancel(ctx), sqlc.ReleaseRoutedParams{
+		ID: id, Holder: holder,
+	})
+}
+
+func (r *RouteExec) drive(ctx context.Context, id uuid.UUID) error {
 	b, err := r.load(ctx, id)
 	if err != nil || b.status != domain.StatusCreated && b.status != domain.StatusSubmitted {
 		return err
 	}
 	if b.req.Action == domain.ActionSell {
-		result, err := r.swap().Run(ctx, b.sellLeg())
-		return r.settle(ctx, b, money.Micros{}, result, err)
+		return r.swapOnce(ctx, b, money.Micros{}, b.sellLeg())
 	}
 	var requote swapQuote
 	if b.status == domain.StatusCreated {
@@ -116,8 +148,33 @@ func (r *RouteExec) resume(ctx context.Context, id uuid.UUID) error {
 			return err
 		}
 	}
-	result, err := r.swap().Run(ctx, b.swapLeg(b.landed, requote))
-	return r.settle(ctx, b, b.landed, result, err)
+	return r.swapOnce(ctx, b, b.landed, b.swapLeg(b.landed, requote))
+}
+
+func (r *RouteExec) swapOnce(ctx context.Context, b routedBuy, landed money.Micros, leg EVMSwapLeg) error {
+	held, err := r.lockTreasury(ctx, b)
+	if err != nil || !held {
+		return err
+	}
+	result, err := r.swap().Run(ctx, leg)
+	return r.settle(ctx, b, landed, result, err)
+}
+
+func (r *RouteExec) lockTreasury(ctx context.Context, b routedBuy) (bool, error) {
+	l := r.d.Layer
+	held := false
+	err := r.d.Poll.until(ctx, r.d.Journal.Clock, func() (bool, error) {
+		now := r.d.Journal.Clock.Now()
+		n, err := sqlc.New(l.d.Reads).LockEVMSwaps(ctx, sqlc.LockEVMSwapsParams{
+			CabalID: b.req.CabalID.UUID(), SwapID: b.id, ExpiresAt: now.Add(evmTreasuryLockTTL), Now: now,
+		})
+		if err != nil {
+			return false, errs.Wrap(err, errs.CodeInternal, routeExecOp, slog.String("swap_id", b.id.String()))
+		}
+		held = n > 0
+		return held, nil
+	})
+	return held, err
 }
 
 func (r *RouteExec) bridge() Bridge {
@@ -126,28 +183,44 @@ func (r *RouteExec) bridge() Bridge {
 	}
 }
 
-const parkedBridgeOutcomeUnknown = "bridge_outcome_unknown"
+const (
+	parkedBridgeOutcomeUnknown = "bridge_outcome_unknown"
+	ParkedSwapReceiptMissing   = "swap_receipt_missing"
+	swapReceiptWait            = 10 * time.Minute
+	routeLeaseTTL              = 2 * time.Minute
+	evmTreasuryLockTTL         = 15 * time.Minute
+)
 
 func (r *RouteExec) parkUnknown(ctx context.Context, leg BridgeLeg, _ multichain.ActionID) error {
 	if leg.Ref.Step != domain.StepBridgeOut {
 		return nil
 	}
+	return r.park(ctx, leg.Ref.SwapID.UUID(), parkedBridgeOutcomeUnknown)
+}
+
+func (r *RouteExec) park(ctx context.Context, id uuid.UUID, code string) error {
 	l := r.d.Layer
 	now := l.d.Clock.Now()
 	return l.d.UoW.Do(ctx, func(ctx context.Context, tx db.Tx) error {
-		row, err := sqlc.New(tx.Queries()).ParkRouted(ctx, sqlc.ParkRoutedParams{
-			At: now, Code: parkedBridgeOutcomeUnknown, ID: leg.Ref.SwapID.UUID(),
-		})
+		row, err := sqlc.New(tx.Queries()).ParkRouted(ctx, sqlc.ParkRoutedParams{At: now, Code: code, ID: id})
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil
 		}
 		tx.AfterCommit(func(ctx context.Context) {
 			observability.Alert(ctx, observability.TradingRoutedSwapParked,
-				slog.String("swap_id", leg.Ref.SwapID.String()), slog.String("cabal_id", row.CabalID.String()),
-				slog.String("code", parkedBridgeOutcomeUnknown), slog.String("step", row.Step))
+				slog.String("swap_id", id.String()), slog.String("cabal_id", row.CabalID.String()),
+				slog.String("code", code), slog.String("step", row.Step))
 		})
 		return err
 	})
+}
+
+func (r *RouteExec) parkUnconfirmed(ctx context.Context, b routedBuy) error {
+	step, started, err := r.d.Journal.Step(ctx, ids.SwapIDFrom(b.id), domain.StepSwap)
+	if err != nil || !started || r.d.Layer.d.Clock.Now().Sub(step.UpdatedAt) < swapReceiptWait {
+		return err
+	}
+	return r.park(ctx, b.id, ParkedSwapReceiptMissing)
 }
 
 func (r *RouteExec) swap() EVMSwap {
@@ -229,7 +302,7 @@ func (r *RouteExec) settle(
 	case result.State == FillReverted:
 		return r.finish(ctx, b, failed(b.req, b.id, domain.FailureSwapReverted, ""), string(domain.FailureSwapReverted))
 	}
-	return nil
+	return r.parkUnconfirmed(ctx, b)
 }
 
 func (r *RouteExec) finish(
