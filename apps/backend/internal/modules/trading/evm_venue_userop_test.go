@@ -3,6 +3,7 @@ package trading_test
 import (
 	"testing"
 
+	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/app"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 )
@@ -43,5 +44,24 @@ func TestEVMVenue_fillResolvesAUserOperationHashToItsReceipt(t *testing.T) {
 				t.Fatalf("rpc calls = %+v, want the transaction receipt and then the user operation receipt", calls)
 			}
 		})
+	}
+}
+
+func TestEVMVenue_fillRefusesAUserOperationReceiptWithAnUnknownStatus(t *testing.T) {
+	t.Parallel()
+	e := newVenueEnv(t)
+	e.rpc.replies["/rpc"] = []string{
+		`{"jsonrpc":"2.0","id":1,"result":null}`,
+		userOperationReply("true", `{"status":"0x2","logs":[]}`),
+	}
+	_, err := e.venue.Fill(
+		t.Context(),
+		chain.NetworkBase,
+		venueHash,
+		evmAddress(t, venueToken),
+		evmAddress(t, venueOwner),
+	)
+	if errs.CodeOf(err) != errs.CodeDecodeFailed {
+		t.Fatalf("Fill err = %v, want decode_failed", err)
 	}
 }

@@ -1,6 +1,7 @@
 package trading_test
 
 import (
+	"context"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -8,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/sqlc"
@@ -296,5 +298,29 @@ func TestLockEVMSwaps_aSecondSwapWaitsForTheFirstUntilItEndsOrTheLockLapses(t *t
 		second.ID.UUID(), now.Add(14*time.Minute))
 	if lock(first.ID, now.Add(14*time.Minute)) != 1 {
 		t.Fatal("a swap must take the lock once the holder has ended")
+	}
+}
+
+func TestRouteExec_reportsADatabaseErrorFromTheLeaseAndFromTheCabalLock(t *testing.T) {
+	t.Parallel()
+	e := newRouteEnv(t)
+	view := e.mustBuy(t, e.request(), domain.StatusCreated)
+	cancelled, cancel := context.WithCancel(t.Context())
+	cancel()
+	if err := e.exec().
+		Resume(actorContext(cancelled), ids.SwapIDFrom(view.ID.UUID())); errs.CodeOf(
+		err,
+	) != errs.CodeInternal {
+		t.Fatalf("Resume on a cancelled context err = %v, want internal", err)
+	}
+
+	e.mustExec(t, `ALTER TABLE evm_swap_locks RENAME TO evm_swap_locks_gone`)
+	e.privy.script(multichain.ActionSucceeded)
+	e.requote()
+	if err := e.exec().
+		Resume(actorContext(t.Context()), ids.SwapIDFrom(view.ID.UUID())); errs.CodeOf(
+		err,
+	) != errs.CodeInternal {
+		t.Fatalf("Resume without the lock table err = %v, want internal", err)
 	}
 }
