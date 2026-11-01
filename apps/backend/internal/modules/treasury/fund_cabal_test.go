@@ -214,7 +214,7 @@ func newFundHarnessOn(t *testing.T, f fixture, sent *hints) *fundHarness {
 	h := app.NewFundCabalHandler(app.FundCabalDeps{
 		UoW: f.uow, IDs: f.ids, Clock: f.clock, Cabals: s, Wallets: s, Balances: s,
 		Pauses: func(db.Tx) fundingport.Pauses { return s }, Pot: s, Transfers: s,
-		Hints: sent, USDC: chain.Mint{Address: usdcAddress, Decimals: 6}, SendWindow: fundSendWindow,
+		Hints: sent, USDC: chain.Mint{Address: usdcAddress, Decimals: 6}, SigningLease: fundSigningLease,
 	})
 	return &fundHarness{fixture: f, stubs: s, handler: h, user: f.user(t), cabal: f.cabal(t)}
 }

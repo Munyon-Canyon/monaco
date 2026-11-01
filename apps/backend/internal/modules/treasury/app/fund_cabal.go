@@ -65,18 +65,18 @@ type FundTransfers interface {
 }
 
 type FundCabalDeps struct {
-	UoW        *db.UnitOfWork
-	IDs        ids.Generator
-	Clock      clock.Clock
-	Cabals     FundCabals
-	Wallets    FundWallets
-	Balances   fundingport.Balances
-	Pauses     func(db.Tx) fundingport.Pauses
-	Pot        FundPot
-	Transfers  FundTransfers
-	Hints      HintPublisher
-	USDC       chain.Mint
-	SendWindow time.Duration
+	UoW          *db.UnitOfWork
+	IDs          ids.Generator
+	Clock        clock.Clock
+	Cabals       FundCabals
+	Wallets      FundWallets
+	Balances     fundingport.Balances
+	Pauses       func(db.Tx) fundingport.Pauses
+	Pot          FundPot
+	Transfers    FundTransfers
+	Hints        HintPublisher
+	USDC         chain.Mint
+	SigningLease time.Duration
 }
 
 type FundCabalHandler struct{ d FundCabalDeps }
@@ -168,7 +168,7 @@ func (h *FundCabalHandler) claimSigning(ctx context.Context, id uuid.UUID) (bool
 	err := h.d.UoW.Do(ctx, func(ctx context.Context, tx db.Tx) error {
 		now := h.d.Clock.Now()
 		moved, err := sqlc.New(tx.Queries()).ClaimFundSigning(ctx, sqlc.ClaimFundSigningParams{
-			ID: id, Until: now.Add(h.d.SendWindow), Now: now,
+			ID: id, Until: now.Add(h.d.SigningLease), Now: now,
 		})
 		held = moved > 0
 		return err
@@ -280,7 +280,7 @@ func (h *FundCabalHandler) insert(
 	return q.InsertFundTransfer(ctx, sqlc.InsertFundTransferParams{
 		ID: id, UserID: cmd.UserID.UUID(), CabalID: cmd.CabalID.UUID(), AmountMicros: cmd.Amount.String(),
 		FromAddress: string(route.from.Address), ToAddress: string(route.to), CreatedAt: h.d.Clock.Now(),
-		SigningUntil: h.d.Clock.Now().Add(h.d.SendWindow),
+		SigningUntil: h.d.Clock.Now().Add(h.d.SigningLease),
 	})
 }
 

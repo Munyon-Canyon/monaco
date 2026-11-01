@@ -43,7 +43,7 @@ func TestFundCabal_aRequestThatLosesTheSubmitToAnAlreadySentRowReturnsItsIdAndBr
 	var retryErr error
 	h.stubs.onBuild = func() {
 		h.stubs.onBuild = nil
-		h.clock.Advance(fundSendWindow + time.Second)
+		h.clock.Advance(fundSigningLease + time.Second)
 		_, retryErr = h.fundKeyed(h.actorCtx(), "h1", 5_000_000)
 		h.stubs.mu.Lock()
 		defer h.stubs.mu.Unlock()
@@ -71,7 +71,7 @@ func TestFundCabal_aReplayInsideTheLeaseAfterACrashReturnsTheIdAndLeavesTheRowCr
 		_, _ = h.fundKeyed(h.actorCtx(), "h1", 5_000_000)
 	}()
 	h.stubs.onBuild = nil
-	h.clock.Advance(fundSendWindow - time.Second)
+	h.clock.Advance(fundSigningLease - time.Second)
 	id, err := h.fundKeyed(h.actorCtx(), "h1", 5_000_000)
 	if err != nil || h.stubs.builds != 1 || h.stubs.sent != 0 ||
 		h.transfer(t, id).Status != string(domain.FundCreated) {
@@ -95,7 +95,7 @@ CREATE TRIGGER refuse_lease BEFORE UPDATE OF signing_until ON fund_transfers
 FOR EACH ROW EXECUTE FUNCTION refuse_lease()`); err != nil {
 		t.Fatal(err)
 	}
-	h.clock.Advance(fundSendWindow + time.Second)
+	h.clock.Advance(fundSigningLease + time.Second)
 	_, err := h.fundKeyed(h.actorCtx(), "h1", 5_000_000)
 	if err == nil || h.stubs.builds != 1 || h.stubs.sent != 0 {
 		t.Fatalf("replay = %v builds = %d sent = %d, want an error and no new sign", err, h.stubs.builds, h.stubs.sent)
@@ -113,5 +113,31 @@ func TestFundCabal_aSubmitThatCannotReadTheRowAfterLosingReturnsTheError(t *test
 	_, err := h.fundKeyed(h.actorCtx(), "h1", 5_000_000)
 	if err == nil || errs.CodeOf(err) == errs.CodeFundNotSent || h.stubs.sent != 0 {
 		t.Fatalf("fund = %v sent = %d, want the read error and no broadcast", err, h.stubs.sent)
+	}
+}
+
+func TestFundCabal_aReplayAfterTheLeaseAndBeforeTheSendWindowSignsAndSendsTheCrashedRowOnce(t *testing.T) {
+	t.Parallel()
+	h := newSettleHarness(t)
+	h.stubs.onBuild = func() { panic("killed while signing") }
+	func() {
+		defer func() { _ = recover() }()
+		_, _ = h.fundKeyed(h.actorCtx(), "h1", 5_000_000)
+	}()
+	h.stubs.onBuild = nil
+	if fundSigningLease >= fundSendWindow {
+		t.Fatalf("lease %v is not shorter than the send window %v", fundSigningLease, fundSendWindow)
+	}
+	h.clock.Advance(fundSigningLease + time.Second)
+	id, err := h.fundKeyed(h.actorCtx(), "h1", 5_000_000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.tick(t)
+	got := h.transfer(t, id)
+	if got.Status == string(domain.FundFailed) || got.FailCode != "" || h.transferRows(t) != 1 ||
+		h.stubs.sent != 1 || h.stubs.builds != 2 {
+		t.Fatalf("row = %s/%q rows = %d sent = %d builds = %d, want one row sent once by the replay",
+			got.Status, got.FailCode, h.transferRows(t), h.stubs.sent, h.stubs.builds)
 	}
 }

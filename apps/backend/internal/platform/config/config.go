@@ -126,6 +126,7 @@ type HTTP struct {
 type Worker struct {
 	HealthAddr          string
 	FundSendWindow      time.Duration
+	FundSigningLease    time.Duration
 	WithdrawalUnsentAge time.Duration
 	PollerBackoffMax    time.Duration
 }
@@ -315,6 +316,7 @@ func Load(environ []string) (Config, error) {
 	}
 	bad.checkAPNs(cfg)
 	bad.checkTrade(cfg)
+	bad.checkFund(cfg)
 	bad.missing = append(bad.missing, missingIn(cfg)...)
 	for k := range vars {
 		if strings.HasPrefix(k, "MONACO_") && !known[k] && !isIOSBuildKey(k) {
@@ -411,6 +413,7 @@ func (f field) secret() field {
 func fields() []field {
 	return slices.Concat(
 		platformFields(),
+		fundSendFields(),
 		dbTimeoutFields(),
 		pollerFields(),
 		marketFields(),
@@ -500,6 +503,14 @@ func dbTimeoutFields() []field {
 	}
 }
 
+func fundSendFields() []field {
+	return []field{
+		duration("FUND_SEND_WINDOW", 2*time.Minute, func(c *Config) *time.Duration { return &c.Worker.FundSendWindow }),
+		duration("FUND_SIGNING_LEASE", 30*time.Second,
+			func(c *Config) *time.Duration { return &c.Worker.FundSigningLease }),
+	}
+}
+
 func platformFields() []field {
 	return []field{
 		environment("MONACO_ENV", func(c *Config) *Env { return &c.Env }).required(),
@@ -507,7 +518,6 @@ func platformFields() []field {
 		count("MONACO_HTTP_MAX_BODY_BYTES", 1<<20, func(c *Config) *int32 { return &c.HTTP.MaxBodyBytes }),
 		boolean("TRUST_PROXY_HEADERS", func(c *Config) *bool { return &c.HTTP.TrustProxyHeaders }),
 		text("MONACO_WORKER_HEALTH_ADDR", ":8081", func(c *Config) *string { return &c.Worker.HealthAddr }),
-		duration("FUND_SEND_WINDOW", 2*time.Minute, func(c *Config) *time.Duration { return &c.Worker.FundSendWindow }),
 		duration("WITHDRAWAL_UNSENT_AGE", 2*time.Minute,
 			func(c *Config) *time.Duration { return &c.Worker.WithdrawalUnsentAge }),
 		text("DATABASE_URL", "", func(c *Config) *string { return &c.DB.URL }).required().secret(),
@@ -690,6 +700,12 @@ func tradeFields() []field {
 func (e *keysError) checkTrade(c Config) {
 	if c.Trade.Engine == TradeEngineStub && !c.LocalDev() {
 		e.invalid = append(e.invalid, "TRADE_ENGINE (stub runs only in local dev)")
+	}
+}
+
+func (e *keysError) checkFund(c Config) {
+	if c.Worker.FundSigningLease >= c.Worker.FundSendWindow {
+		e.invalid = append(e.invalid, "FUND_SIGNING_LEASE (shorter than FUND_SEND_WINDOW)")
 	}
 }
 

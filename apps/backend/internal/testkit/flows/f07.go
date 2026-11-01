@@ -140,6 +140,7 @@ func F07FundCabalCrashAfterSign(s *scenario.Scenario) {
 	s.Given(scenario.AsSeededUser("member", f.member.ID)).
 		When(
 			scenario.Post(f.path(), fundBody),
+			signingLeaseLapsed(f.cabal.ID.String()),
 			scenario.Retry(),
 			scenario.ExpectStatus(http.StatusAccepted),
 			scenario.Remember("transfer_id", "transfer"),
@@ -169,6 +170,18 @@ func F07FundCabalCrashAfterBroadcast(s *scenario.Scenario) {
 			OnlyRow("fund_transfers", "cabal_id", f.cabal.ID.String()),
 		).
 		Then(scenario.ExpectEvents(events.TypeFundSubmitted, 1), scenario.ExpectEvents(events.TypeFundFailed, 0))
+}
+
+func signingLeaseLapsed(cabalID string) scenario.Step {
+	return scenario.Eventually("the crashed fund's signing lease to lapse", func(s *scenario.Scenario) bool {
+		var lapsed int
+		err := s.DB().QueryRow(s.Context(), `SELECT count(*) FROM fund_transfers
+			WHERE cabal_id = $1 AND status = 'created' AND signing_until < now()`, cabalID).Scan(&lapsed)
+		if err != nil {
+			s.Fatalf("flows: read the fund's signing lease: %v", err)
+		}
+		return lapsed == 1
+	})
 }
 
 func OnlyRow(table, key, id string) scenario.Step {

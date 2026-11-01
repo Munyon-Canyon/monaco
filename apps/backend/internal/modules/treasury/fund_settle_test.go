@@ -114,7 +114,10 @@ type settleHarness struct {
 	settler *app.FundSettler
 }
 
-const fundSendWindow = 2 * time.Minute
+const (
+	fundSendWindow   = 2 * time.Minute
+	fundSigningLease = 30 * time.Second
+)
 
 func newSettleHarness(t *testing.T) *settleHarness {
 	t.Helper()

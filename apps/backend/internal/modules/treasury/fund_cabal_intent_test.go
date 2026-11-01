@@ -73,7 +73,7 @@ func TestFundCabal_aReplayAfterACrashBeforeTheSignedBytesResumesTheSameRow(t *te
 		_, _ = h.fundKeyed(h.actorCtx(), "h1", 5_000_000)
 	}()
 	h.stubs.onBuild = nil
-	h.clock.Advance(fundSendWindow + time.Second)
+	h.clock.Advance(fundSigningLease + time.Second)
 	if h.transferRows(t) != 1 || h.stubs.sent != 0 {
 		t.Fatalf("after the crash rows = %d sent = %d, want 1 and 0", h.transferRows(t), h.stubs.sent)
 	}
@@ -132,7 +132,7 @@ func (h *settleHarness) retryFailingAfterTheFirstSubmits(t *testing.T) (uuid.UUI
 	var retry keyedResult
 	h.stubs.onBuild = func() {
 		if calls.Add(1) == 1 {
-			h.clock.Advance(fundSendWindow + time.Second)
+			h.clock.Advance(fundSigningLease + time.Second)
 			wg.Go(func() {
 				id, err := h.fundKeyed(h.actorCtx(), "h1", 5_000_000)
 				retry = keyedResult{id, err}
