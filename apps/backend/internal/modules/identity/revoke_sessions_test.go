@@ -190,7 +190,7 @@ func TestRevokeSessions_refusesAScopeItDoesNotKnow(t *testing.T) {
 	f.expectStatus(t, token, http.StatusOK)
 }
 
-func TestRevokeSessions_aDevTokenHasNoSessionToEnd(t *testing.T) {
+func TestRevokeSessions_aDevTokenKeepsWorkingAfterItsSessionEnds(t *testing.T) {
 	t.Parallel()
 	f := newRevokeFixture(t, "active")
 	dev := f.devToken(t, f.user.ID.String())
@@ -198,12 +198,6 @@ func TestRevokeSessions_aDevTokenHasNoSessionToEnd(t *testing.T) {
 		t.Fatalf("revoke this_session with a dev token = %d %s, want 204", rec.Code, rec.Body)
 	}
 	f.expectStatus(t, dev, http.StatusOK)
-	var rows int
-	if err := f.pool.QueryRow(t.Context(), `SELECT count(*) FROM revoked_sessions`).
-		Scan(&rows); err != nil ||
-		rows != 0 {
-		t.Fatalf("revoked_sessions rows = %d, %v, want 0", rows, err)
-	}
 }
 
 func TestRevokeSessions_endingASessionTwiceChangesNothingTheSecondTime(t *testing.T) {

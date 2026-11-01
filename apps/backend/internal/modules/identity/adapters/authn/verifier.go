@@ -29,10 +29,14 @@ type Verifier struct {
 	routes  map[string]route
 
 	unknownDevSubjects bool
+	markDevTokens      bool
 }
 
 func New(cfg config.Config, clk clock.Clock, privy app.PrivyUsers, db sqlc.DBTX) (*Verifier, error) {
-	v := &Verifier{privy: privy, queries: sqlc.New(db), unknownDevSubjects: cfg.Env == config.EnvTest}
+	v := &Verifier{
+		privy: privy, queries: sqlc.New(db), unknownDevSubjects: cfg.Env == config.EnvTest,
+		markDevTokens: cfg.Env.Deployed(),
+	}
 	v.routes = map[string]route{"ES256": v.privyActor}
 	if cfg.Env != config.EnvProduction {
 		dev, err := auth.NewDevVerifier(cfg, clk)
@@ -99,7 +103,7 @@ func (v *Verifier) devActor(ctx context.Context, dev *auth.DevVerifier, raw stri
 	}
 	row, err := v.queries.ActorByID(ctx, id.UUID())
 	if errors.Is(err, pgx.ErrNoRows) && v.unknownDevSubjects {
-		return auth.Actor{Kind: auth.ActorUser, ID: id.String(), Standing: auth.StandingActive}, nil
+		return v.devUser(dev, id.String(), auth.StandingActive), nil
 	}
 	if errors.Is(err, pgx.ErrNoRows) {
 		return auth.Actor{}, errs.New(errs.CodeSessionRequired, op)
@@ -107,7 +111,15 @@ func (v *Verifier) devActor(ctx context.Context, dev *auth.DevVerifier, raw stri
 	if err != nil {
 		return auth.Actor{}, errs.Wrap(err, errs.CodeDBUnavailable, op)
 	}
-	return auth.Actor{Kind: auth.ActorUser, ID: row.ID.String(), Standing: auth.Standing(row.AccountStatus)}, nil
+	return v.devUser(dev, row.ID.String(), auth.Standing(row.AccountStatus)), nil
+}
+
+func (v *Verifier) devUser(dev *auth.DevVerifier, id string, standing auth.Standing) auth.Actor {
+	actor := auth.Actor{Kind: auth.ActorUser, ID: id, Standing: standing, DevToken: v.markDevTokens}
+	if !v.markDevTokens {
+		actor.SessionID, actor.IssuedAt = dev.Session(id)
+	}
+	return actor
 }
 
 func algorithm(raw string) (string, bool) {

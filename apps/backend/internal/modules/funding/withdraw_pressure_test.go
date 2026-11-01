@@ -62,6 +62,7 @@ type withdrawPressure struct {
 	guard   *db.NestedReadGuard
 	handler *app.WithdrawHandler
 	confirm *app.AuthorizeWithdrawalHandler
+	clock   clock.Clock
 	holders []testkit.SeededUser
 }
 
@@ -93,7 +94,7 @@ func newWithdrawPressure(t *testing.T) withdrawPressure {
 		Hints:      quietHints{}, Clock: clk, USDC: usdc, TopUp: &topUpFake{},
 	})
 	return withdrawPressure{
-		pool: pool, guard: guard, handler: handler, confirm: app.NewAuthorizeWithdrawalHandler(uow, clk),
+		pool: pool, guard: guard, handler: handler, confirm: app.NewAuthorizeWithdrawalHandler(uow, clk), clock: clk,
 		holders: []testkit.SeededUser{
 			testkit.SeedUser(t, pool, testkit.UserOpts{WithWallet: true}),
 			testkit.SeedUser(t, pool, testkit.UserOpts{WithWallet: true}),
@@ -106,13 +107,13 @@ func (p withdrawPressure) withdraw(ctx context.Context, holder testkit.SeededUse
 		ctx := observability.WithActor(ctx, "user:"+holder.ID.String())
 		request := domain.WithdrawalRequest{Amount: money.MicrosFromUint64(withdrawMicros), To: withdrawTo}
 		granted, err := p.confirm.Handle(ctx, app.AuthorizeWithdrawal{
-			ID: ids.Real{}.NewV7(), UserID: holder.ID, Request: request,
+			ID: ids.Real{}.NewV7(), UserID: holder.ID, SessionID: phoneSID, IssuedAt: p.clock.Now(), Request: request,
 		})
 		if err != nil {
 			return err
 		}
 		_, err = p.handler.Handle(ctx, app.Withdraw{
-			ID: ids.Real{}.NewV7(), UserID: holder.ID, Request: request, Authorization: granted.ID,
+			ID: ids.Real{}.NewV7(), UserID: holder.ID, Request: request, SessionID: phoneSID, Authorization: granted.ID,
 		})
 		return err
 	}

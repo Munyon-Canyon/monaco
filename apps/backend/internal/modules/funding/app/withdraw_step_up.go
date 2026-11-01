@@ -45,7 +45,10 @@ func (h *AuthorizeWithdrawalHandler) Handle(
 ) (WithdrawalAuthorization, error) {
 	const op = "funding.AuthorizeWithdrawal.Handle"
 	now := h.clock.Now()
-	if cmd.SessionID != "" && now.Sub(cmd.IssuedAt) > domain.StepUpFreshness {
+	if cmd.SessionID == "" {
+		return WithdrawalAuthorization{}, errs.New(errs.CodeSessionRequired, op)
+	}
+	if now.Sub(cmd.IssuedAt) > domain.StepUpFreshness {
 		return WithdrawalAuthorization{}, errs.New(errs.CodeReauthRequired, op,
 			slog.Duration("token_age", now.Sub(cmd.IssuedAt).Truncate(time.Second)))
 	}

@@ -67,7 +67,12 @@ func (v *DevVerifier) Verify(ctx context.Context, raw string) (Actor, error) {
 	if err != nil {
 		return Actor{}, err
 	}
-	return Actor{Kind: ActorUser, ID: subject, Standing: StandingActive}, nil
+	sessionID, issuedAt := v.Session(subject)
+	return Actor{Kind: ActorUser, ID: subject, Standing: StandingActive, SessionID: sessionID, IssuedAt: issuedAt}, nil
+}
+
+func (v *DevVerifier) Session(subject string) (string, int64) {
+	return "dev-" + subject, v.clock.Now().Unix()
 }
 
 func (v *DevVerifier) Subject(_ context.Context, raw string) (string, error) {

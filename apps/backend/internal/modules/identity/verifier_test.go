@@ -148,16 +148,26 @@ func TestVerifier_routesEachTokenByAlgorithmAndLooksTheUserUpOnce(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
+	devSession := func(a auth.Actor) auth.Actor {
+		a.SessionID, a.IssuedAt = "dev-"+a.ID, f.clock.Now().Unix()
+		return a
+	}
 	known := auth.Actor{Kind: auth.ActorUser, ID: user.ID.String(), Standing: auth.StandingActive}
-	signedIn := verdict{actor: known, queries: 1}
+	signedIn := verdict{actor: devSession(known), queries: 1}
 	privySignedIn := verdict{actor: f.privyActor(user, auth.StandingActive), queries: 1}
 	strangerID := testkit.NewIDs(1).NewV7().String()
-	stranger := verdict{actor: auth.Actor{Kind: auth.ActorUser, ID: strangerID, Standing: auth.StandingActive}}
+	stranger := verdict{actor: devSession(auth.Actor{
+		Kind: auth.ActorUser, ID: strangerID, Standing: auth.StandingActive,
+	})}
 	suspended := testkit.SeedUser(t, f.pool, testkit.UserOpts{AccountStatus: "suspended"})
 	banned := testkit.SeedUser(t, f.pool, testkit.UserOpts{AccountStatus: "banned"})
 	deleted := testkit.SeedUser(t, f.pool, testkit.UserOpts{AccountStatus: "deleted"})
 	standing := func(u testkit.SeededUser, s auth.Standing) verdict {
-		return verdict{actor: auth.Actor{Kind: auth.ActorUser, ID: u.ID.String(), Standing: s}, queries: 1}
+		return verdict{actor: devSession(auth.Actor{Kind: auth.ActorUser, ID: u.ID.String(), Standing: s}), queries: 1}
+	}
+	marked := func(v verdict) verdict {
+		v.actor.DevToken, v.actor.SessionID, v.actor.IssuedAt = true, "", 0
+		return v
 	}
 	noSession := verdict{code: errs.CodeSessionRequired, queries: 1}
 	refused := verdict{code: errs.CodeUnauthorized}
@@ -182,9 +192,9 @@ func TestVerifier_routesEachTokenByAlgorithmAndLooksTheUserUpOnce(t *testing.T) 
 		"not a jwt":                                   {dev, "opaque-token", refused},
 		"dev token for a known user":                  {dev, f.devToken(t, user.ID.String()), signedIn},
 		"dev token for a known user in test":          {test, f.devToken(t, user.ID.String()), signedIn},
-		"dev token for a known user in staging":       {staging, f.devToken(t, user.ID.String()), signedIn},
+		"dev token for a known user in staging":       {staging, f.devToken(t, user.ID.String()), marked(signedIn)},
 		"dev token for a suspended user":              {dev, f.devToken(t, suspended.ID.String()), standing(suspended, auth.StandingSuspended)},
-		"dev token for a banned user":                 {staging, f.devToken(t, banned.ID.String()), standing(banned, auth.StandingBanned)},
+		"dev token for a banned user":                 {staging, f.devToken(t, banned.ID.String()), marked(standing(banned, auth.StandingBanned))},
 		"dev token for a deleted user":                {test, f.devToken(t, deleted.ID.String()), standing(deleted, auth.StandingDeleted)},
 		"dev token for an unknown user":               {dev, f.devToken(t, strangerID), noSession},
 		"dev token for an unknown user in staging":    {staging, f.devToken(t, strangerID), noSession},
@@ -366,7 +376,10 @@ func TestVerifier_behindTheAuthMiddlewarePutsTheStandingInContextAndLogsNoToken(
 	}
 	want := []auth.Actor{
 		f.privyActor(banned, auth.StandingBanned),
-		{Kind: auth.ActorUser, ID: active.ID.String(), Standing: auth.StandingActive},
+		{
+			Kind: auth.ActorUser, ID: active.ID.String(), Standing: auth.StandingActive,
+			SessionID: "dev-" + active.ID.String(), IssuedAt: f.clock.Now().Unix(),
+		},
 	}
 	if !reflect.DeepEqual(probe.seen, want) {
 		t.Fatalf("handler saw actors %+v, want %+v", probe.seen, want)

@@ -287,11 +287,12 @@ func TestAuthorizeWithdrawal_needsATokenIssuedRecently(t *testing.T) {
 		issued  time.Time
 		want    errs.Code
 	}{
-		"just issued":              {phoneSID, now, ""},
-		"at the freshness limit":   {phoneSID, now.Add(-domain.StepUpFreshness), ""},
-		"a copied older token":     {phoneSID, now.Add(-domain.StepUpFreshness - time.Second), errs.CodeReauthRequired},
-		"an hour old":              {phoneSID, now.Add(-time.Hour), errs.CodeReauthRequired},
-		"a dev token has no clock": {"", now.Add(-time.Hour), ""},
+		"just issued":            {phoneSID, now, ""},
+		"at the freshness limit": {phoneSID, now.Add(-domain.StepUpFreshness), ""},
+		"a copied older token":   {phoneSID, now.Add(-domain.StepUpFreshness - time.Second), errs.CodeReauthRequired},
+		"an hour old":            {phoneSID, now.Add(-time.Hour), errs.CodeReauthRequired},
+		"no session":             {"", now, errs.CodeSessionRequired},
+		"no session and old":     {"", now.Add(-time.Hour), errs.CodeSessionRequired},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
