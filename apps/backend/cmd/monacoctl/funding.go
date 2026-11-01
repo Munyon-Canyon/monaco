@@ -33,10 +33,17 @@ usage: monacoctl funding bounce list [status ...]
   lists external deposits by status, oldest first: id, cabal, status, amount, mint, return address, attempts,
   detected at. The default is detected, bouncing and bounce_failed.
 
-usage: monacoctl funding withdrawal resolve <withdrawal-id> --to confirmed|failed --reason <text> [--override]
-  settles an EVM withdrawal stuck in submitted after its Privy action failed past a broadcast step. failed releases the
-  member's hold, so it is refused when the chain shows the funds left (Solana step landed or processing, EVM step landed
-  or pending, action succeeded); confirmed is refused when the chain shows it failed or never landed. --override books
+usage: monacoctl funding withdrawal list-support
+  lists every EVM withdrawal in submitted whose Privy action failed past a broadcast step: id, user, amount, age,
+  source signature, action id. It reads the database and Privy, so it survives a restart.
+
+usage: monacoctl funding withdrawal resolve <withdrawal-id> --to confirmed|failed --reason <text>
+    [--refund-signature <signature>] [--override]
+  settles an EVM withdrawal stuck in submitted after its Privy action failed past a broadcast step. confirmed means
+  support confirmed the funds reached the destination. failed releases the member's hold, so it is refused when the
+  chain shows the funds left (Solana step landed or processing, EVM step landed or pending, action succeeded) unless
+  --refund-signature names the finalized transaction that returned the USDC to the member's wallet. confirmed is
+  refused when the chain shows it failed or never landed. Both need the source signature on the row. --override books
   it anyway. The operator, reason and chain facts are logged as funding.withdrawal.support_resolved.
 
 usage: monacoctl funding deposit rescan <wallet> [--from <signature>]
@@ -48,6 +55,7 @@ func toolFunding(env toolEnv) tool { return fundingTool(env.environ, clock.Real{
 
 type withdrawalResolver interface {
 	Handle(context.Context, fundingapp.ResolveEVMWithdrawal) (fundingapp.EVMWithdrawalResolution, error)
+	ListSupport(context.Context) ([]fundingapp.EVMSupportWithdrawal, error)
 }
 
 type withdrawalResolvers func(module.Deps) withdrawalResolver
@@ -227,20 +235,19 @@ func withdrawalCommand(
 	cfg config.Config, clk clock.Clock, resolvers withdrawalResolvers, operator string, args []string,
 	stdout, stderr io.Writer,
 ) int {
-	if firstArg(args) != "resolve" || len(args) < 2 {
+	sub := firstArg(args)
+	if (sub != "resolve" || len(args) < 2) && (sub != "list-support" || len(args) != 1) {
 		_, _ = fmt.Fprintln(stderr, fundingUsage)
 		return 2
 	}
-	id, err := uuid.Parse(args[1])
-	fs := flag.NewFlagSet("funding withdrawal resolve", flag.ContinueOnError)
-	fs.SetOutput(io.Discard)
-	to := fs.String("to", "", "")
-	reason := fs.String("reason", "", "")
-	override := fs.Bool("override", false, "")
-	if err != nil || fs.Parse(args[2:]) != nil || fs.NArg() != 0 || *reason == "" ||
-		(*to != string(domain.WithdrawalConfirmed) && *to != string(domain.WithdrawalFailed)) {
-		_, _ = fmt.Fprintln(stderr, fundingUsage)
-		return 2
+	var cmd fundingapp.ResolveEVMWithdrawal
+	if sub == "resolve" {
+		parsed, ok := parseResolve(args[1:], operator)
+		if !ok {
+			_, _ = fmt.Fprintln(stderr, fundingUsage)
+			return 2
+		}
+		cmd = parsed
 	}
 	ctx := auth.WithActor(context.Background(), auth.Actor{Kind: auth.ActorSystem, ID: "monacoctl"})
 	pool, err := db.Open(ctx, cfg.DB)
@@ -249,13 +256,49 @@ func withdrawalCommand(
 	}
 	defer pool.Close()
 	deps := module.Deps{Config: cfg, Clock: clk, IDs: ids.Real{}, Pool: pool, UoW: db.New(pool, ids.Real{}, clk)}
-	resolved, err := resolvers(deps).Handle(ctx, fundingapp.ResolveEVMWithdrawal{
-		ID: id, To: domain.WithdrawalStatus(*to), Reason: *reason, Actor: "operator:" + operator, Override: *override,
-	})
+	resolver := resolvers(deps)
+	if sub == "list-support" {
+		return listSupport(ctx, resolver, stdout, stderr)
+	}
+	resolved, err := resolver.Handle(ctx, cmd)
 	if err != nil {
 		return fail(stderr, err)
 	}
 	facts, _ := json.Marshal(resolved.Facts)
 	_, _ = fmt.Fprintf(stdout, "resolve %s %s %s\n", resolved.ID, resolved.Status, facts)
+	return 0
+}
+
+func parseResolve(args []string, operator string) (fundingapp.ResolveEVMWithdrawal, bool) {
+	id, err := uuid.Parse(args[0])
+	fs := flag.NewFlagSet("funding withdrawal resolve", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	to := fs.String("to", "", "")
+	reason := fs.String("reason", "", "")
+	refund := fs.String("refund-signature", "", "")
+	override := fs.Bool("override", false, "")
+	if err != nil || fs.Parse(args[1:]) != nil || fs.NArg() != 0 || *reason == "" ||
+		(*to != string(domain.WithdrawalConfirmed) && *to != string(domain.WithdrawalFailed)) {
+		return fundingapp.ResolveEVMWithdrawal{}, false
+	}
+	return fundingapp.ResolveEVMWithdrawal{
+		ID: id, To: domain.WithdrawalStatus(*to), Reason: *reason, Actor: "operator:" + operator,
+		Override: *override, RefundSignature: chain.Signature(*refund),
+	}, true
+}
+
+func listSupport(ctx context.Context, resolver withdrawalResolver, stdout, stderr io.Writer) int {
+	rows, err := resolver.ListSupport(ctx)
+	for _, r := range rows {
+		signature := string(r.SourceSignature)
+		if signature == "" {
+			signature = "-"
+		}
+		_, _ = fmt.Fprintf(stdout, "%s\t%s\t%s\t%s\t%s\t%s\n", r.ID, r.UserID, r.Amount,
+			r.Age.Round(time.Minute), signature, r.ActionID)
+	}
+	if err != nil {
+		return fail(stderr, err)
+	}
 	return 0
 }

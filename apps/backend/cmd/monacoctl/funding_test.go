@@ -5,6 +5,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -15,6 +16,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
 
@@ -266,8 +268,13 @@ func TestFundingBounceList_reportsAFailedRead(t *testing.T) {
 }
 
 type fakeWithdrawalResolver struct {
-	got fundingapp.ResolveEVMWithdrawal
-	err error
+	got    fundingapp.ResolveEVMWithdrawal
+	err    error
+	listed []fundingapp.EVMSupportWithdrawal
+}
+
+func (f *fakeWithdrawalResolver) ListSupport(context.Context) ([]fundingapp.EVMSupportWithdrawal, error) {
+	return f.listed, f.err
 }
 
 func (f *fakeWithdrawalResolver) Handle(
@@ -294,10 +301,10 @@ func TestFundingWithdrawalResolve_passesTheOperatorReasonAndOverride(t *testing.
 	resolver := &fakeWithdrawalResolver{}
 	id := uuid.New()
 	code, stdout, stderr := runOpsTool(t, withdrawalTool(t, resolver), "withdrawal", "resolve", id.String(),
-		"--to", "failed", "--reason", "support refunded the member", "--override")
+		"--to", "failed", "--reason", "support refunded the member", "--override", "--refund-signature", "refund-tx")
 	want := fundingapp.ResolveEVMWithdrawal{
 		ID: id, To: domain.WithdrawalFailed, Reason: "support refunded the member", Actor: "operator:ops-person",
-		Override: true,
+		Override: true, RefundSignature: "refund-tx",
 	}
 	if code != 0 || resolver.got != want || !strings.HasPrefix(stdout, "resolve "+id.String()+" failed ") ||
 		!strings.Contains(stdout, `"solana_chain_state":"failed"`) {
@@ -335,6 +342,7 @@ func TestFundingWithdrawalResolve_printsTheUsageForMalformedArguments(t *testing
 		{"withdrawal", "resolve", id, "--to", "submitted", "--reason", "x"},
 		{"withdrawal", "resolve", id, "--to", "failed", "--reason", "x", "extra"},
 		{"withdrawal", "retry", id},
+		{"withdrawal", "list-support", "extra"},
 	} {
 		if code, _, stderr := runOpsTool(t, tl, args...); code != 2 || !strings.Contains(stderr, fundingUsage) {
 			t.Errorf("funding %v = %d, stderr %q, want 2 and the usage", args, code, stderr)
@@ -372,5 +380,45 @@ func TestFundingWithdrawalResolve_theLiveResolverReportsAnUnknownWithdrawal(t *t
 	)
 	if code != 1 || !strings.Contains(stderr, "not_found") {
 		t.Fatalf("resolve = %d, stderr %q, want 1 and not_found", code, stderr)
+	}
+}
+
+func TestFundingWithdrawalListSupport_printsEachFlaggedWithdrawal(t *testing.T) {
+	t.Parallel()
+	id, user := uuid.New(), uuid.New()
+	resolver := &fakeWithdrawalResolver{listed: []fundingapp.EVMSupportWithdrawal{
+		{
+			ID: id, UserID: user, ActionID: "act-1", Amount: money.MicrosFromUint64(2_000_000),
+			Age: 95 * time.Minute, SourceSignature: "sig-1",
+		},
+		{ID: uuid.New(), UserID: user, ActionID: "act-2", Amount: money.MicrosFromUint64(5_000_000), Age: time.Hour},
+	}}
+	code, stdout, stderr := runOpsTool(t, withdrawalTool(t, resolver), "withdrawal", "list-support")
+	lines := strings.Split(strings.TrimSpace(stdout), "\n")
+	want := id.String() + "\t" + user.String() + "\t2000000\t1h35m0s\tsig-1\tact-1"
+	if code != 0 || len(lines) != 2 || lines[0] != want || !strings.HasSuffix(lines[1], "\t1h0m0s\t-\tact-2") {
+		t.Fatalf("list-support = %d, stdout %q, stderr %q, want %q first", code, stdout, stderr, want)
+	}
+}
+
+func TestFundingWithdrawalListSupport_printsWhatItReadAndReportsTheFailure(t *testing.T) {
+	t.Parallel()
+	resolver := &fakeWithdrawalResolver{
+		err: errs.New(errs.CodeRPCUnavailable, "test"),
+		listed: []fundingapp.EVMSupportWithdrawal{
+			{ID: uuid.New(), Amount: money.MicrosFromUint64(1), SourceSignature: "sig"},
+		},
+	}
+	code, stdout, stderr := runOpsTool(t, withdrawalTool(t, resolver), "withdrawal", "list-support")
+	if code != 1 || !strings.Contains(stdout, "sig") || !strings.Contains(stderr, "rpc_unavailable") {
+		t.Fatalf("list-support = %d, stdout %q, stderr %q, want the row and the failure", code, stdout, stderr)
+	}
+}
+
+func TestFundingWithdrawalListSupport_theLiveResolverListsNothingWhenNothingIsStuck(t *testing.T) {
+	t.Parallel()
+	bounce, _, _ := seededBounce(t)
+	if code, stdout, stderr := runOpsTool(t, bounce, "withdrawal", "list-support"); code != 0 || stdout != "" {
+		t.Fatalf("list-support = %d, stdout %q, stderr %q, want 0 and nothing", code, stdout, stderr)
 	}
 }

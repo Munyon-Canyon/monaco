@@ -13,6 +13,25 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const confirmSupportedEVMWithdrawal = `-- name: ConfirmSupportedEVMWithdrawal :execrows
+UPDATE withdrawals
+SET status = 'confirmed', completed_at = $2::timestamptz
+WHERE id = $1 AND status = 'submitted' AND destination_kind = 'evm' AND tx_signature IS NOT NULL
+`
+
+type ConfirmSupportedEVMWithdrawalParams struct {
+	ID          uuid.UUID
+	CompletedAt time.Time
+}
+
+func (q *Queries) ConfirmSupportedEVMWithdrawal(ctx context.Context, arg ConfirmSupportedEVMWithdrawalParams) (int64, error) {
+	result, err := q.db.Exec(ctx, confirmSupportedEVMWithdrawal, arg.ID, arg.CompletedAt)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const confirmWithdrawal = `-- name: ConfirmWithdrawal :execrows
 UPDATE withdrawals
 SET status = 'confirmed', completed_at = $2::timestamptz
@@ -62,6 +81,26 @@ func (q *Queries) EVMWithdrawalForResolve(ctx context.Context, id uuid.UUID) (EV
 		&i.TxSignature,
 	)
 	return i, err
+}
+
+const failSupportedEVMWithdrawal = `-- name: FailSupportedEVMWithdrawal :execrows
+UPDATE withdrawals
+SET status = 'failed', fail_code = $2::text, completed_at = $3::timestamptz
+WHERE id = $1 AND status = 'submitted' AND destination_kind = 'evm' AND tx_signature IS NOT NULL
+`
+
+type FailSupportedEVMWithdrawalParams struct {
+	ID          uuid.UUID
+	FailCode    string
+	CompletedAt time.Time
+}
+
+func (q *Queries) FailSupportedEVMWithdrawal(ctx context.Context, arg FailSupportedEVMWithdrawalParams) (int64, error) {
+	result, err := q.db.Exec(ctx, failSupportedEVMWithdrawal, arg.ID, arg.FailCode, arg.CompletedAt)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const failUnsentWithdrawal = `-- name: FailUnsentWithdrawal :execrows
@@ -471,6 +510,51 @@ func (q *Queries) ListSubmittedWithdrawals(ctx context.Context, maxRows int32) (
 			&i.SignedTx,
 			&i.TxSignature,
 			&i.LastValidBlockHeight,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSupportCandidateEVMWithdrawals = `-- name: ListSupportCandidateEVMWithdrawals :many
+SELECT id, user_id, amount_micros::text AS amount_micros, privy_action_id::text AS privy_action_id,
+  COALESCE(tx_signature, '')::text AS tx_signature, submitted_at
+FROM withdrawals
+WHERE status = 'submitted' AND destination_kind = 'evm'
+ORDER BY submitted_at, id
+LIMIT $1
+`
+
+type ListSupportCandidateEVMWithdrawalsRow struct {
+	ID            uuid.UUID
+	UserID        uuid.UUID
+	AmountMicros  string
+	PrivyActionID string
+	TxSignature   string
+	SubmittedAt   pgtype.Timestamptz
+}
+
+func (q *Queries) ListSupportCandidateEVMWithdrawals(ctx context.Context, maxRows int32) ([]ListSupportCandidateEVMWithdrawalsRow, error) {
+	rows, err := q.db.Query(ctx, listSupportCandidateEVMWithdrawals, maxRows)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListSupportCandidateEVMWithdrawalsRow
+	for rows.Next() {
+		var i ListSupportCandidateEVMWithdrawalsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.AmountMicros,
+			&i.PrivyActionID,
+			&i.TxSignature,
+			&i.SubmittedAt,
 		); err != nil {
 			return nil, err
 		}
