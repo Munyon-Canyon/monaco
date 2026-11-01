@@ -1842,6 +1842,12 @@ type PutProposalReminderParams struct {
 	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
 }
 
+// PostProposalRetryTradeParams defines parameters for PostProposalRetryTrade.
+type PostProposalRetryTradeParams struct {
+	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
+	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
+}
+
 // DeleteProposalVoteParams defines parameters for DeleteProposalVote.
 type DeleteProposalVoteParams struct {
 	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
@@ -1922,6 +1928,9 @@ type ServerInterface interface {
 	// PutProposalReminder Ask to be reminded shortly before an open proposal closes.
 	// (PUT /v1/proposals/{id}/reminder)
 	PutProposalReminder(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params PutProposalReminderParams)
+	// PostProposalRetryTrade Retry a trade that was blocked before any swap.
+	// (POST /v1/proposals/{id}/retry-trade)
+	PostProposalRetryTrade(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params PostProposalRetryTradeParams)
 	// DeleteProposalVote Undo the caller's ballot on an open proposal.
 	// (DELETE /v1/proposals/{id}/votes)
 	DeleteProposalVote(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params DeleteProposalVoteParams)
@@ -2689,6 +2698,60 @@ func (siw *ServerInterfaceWrapper) PutProposalReminder(w http.ResponseWriter, r 
 	handler.ServeHTTP(w, r)
 }
 
+// PostProposalRetryTrade operation middleware
+func (siw *ServerInterfaceWrapper) PostProposalRetryTrade(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params PostProposalRetryTradeParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey externalRef0.IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostProposalRetryTrade(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // DeleteProposalVote operation middleware
 func (siw *ServerInterfaceWrapper) DeleteProposalVote(w http.ResponseWriter, r *http.Request) {
 
@@ -2987,6 +3050,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/proposals/{id}", wrapper.GetProposal)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/proposals/{id}/reminder", wrapper.DeleteProposalReminder)
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/v1/proposals/{id}/reminder", wrapper.PutProposalReminder)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/proposals/{id}/retry-trade", wrapper.PostProposalRetryTrade)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/proposals/{id}/votes", wrapper.DeleteProposalVote)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/proposals/{id}/votes", wrapper.GetProposalVotes)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/proposals/{id}/votes", wrapper.PostProposalVote)
@@ -3591,6 +3655,46 @@ func (response PutProposalReminderdefaultApplicationProblemPlusJSONResponse) Vis
 	return err
 }
 
+type PostProposalRetryTradeRequestObject struct {
+	Id     openapi_types.UUID `json:"id"`
+	Params PostProposalRetryTradeParams
+}
+
+type PostProposalRetryTradeResponseObject interface {
+	VisitPostProposalRetryTradeResponse(w http.ResponseWriter) error
+}
+
+type PostProposalRetryTrade200JSONResponse ProposalDetail
+
+func (response PostProposalRetryTrade200JSONResponse) VisitPostProposalRetryTradeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostProposalRetryTradedefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response PostProposalRetryTradedefaultApplicationProblemPlusJSONResponse) VisitPostProposalRetryTradeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type DeleteProposalVoteRequestObject struct {
 	Id     openapi_types.UUID `json:"id"`
 	Params DeleteProposalVoteParams
@@ -3759,6 +3863,9 @@ type StrictServerInterface interface {
 	// PutProposalReminder Ask to be reminded shortly before an open proposal closes.
 	// (PUT /v1/proposals/{id}/reminder)
 	PutProposalReminder(ctx context.Context, request PutProposalReminderRequestObject) (PutProposalReminderResponseObject, error)
+	// PostProposalRetryTrade Retry a trade that was blocked before any swap.
+	// (POST /v1/proposals/{id}/retry-trade)
+	PostProposalRetryTrade(ctx context.Context, request PostProposalRetryTradeRequestObject) (PostProposalRetryTradeResponseObject, error)
 	// DeleteProposalVote Undo the caller's ballot on an open proposal.
 	// (DELETE /v1/proposals/{id}/votes)
 	DeleteProposalVote(ctx context.Context, request DeleteProposalVoteRequestObject) (DeleteProposalVoteResponseObject, error)
@@ -4221,6 +4328,33 @@ func (sh *strictHandler) PutProposalReminder(w http.ResponseWriter, r *http.Requ
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(PutProposalReminderResponseObject); ok {
 		if err := validResponse.VisitPutProposalReminderResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PostProposalRetryTrade operation middleware
+func (sh *strictHandler) PostProposalRetryTrade(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params PostProposalRetryTradeParams) {
+	var request PostProposalRetryTradeRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PostProposalRetryTrade(ctx, request.(PostProposalRetryTradeRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PostProposalRetryTrade")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PostProposalRetryTradeResponseObject); ok {
+		if err := validResponse.VisitPostProposalRetryTradeResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

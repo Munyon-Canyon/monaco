@@ -373,28 +373,6 @@ public final class ProposalDetailModel {
 
     public var retriesAtCurrentPrice: Bool { value?.summary.swap?.isPriceMoved == true }
 
-    public func canRetry(viewerID: String?) -> Bool {
-        guard retryableSwapID != nil, let viewerID else { return false }
-        return members.contains { $0.id == viewerID }
-    }
-
-    public func retry() async {
-        guard let swapID = retryableSwapID, !isRetrying else { return }
-        let atCurrentPrice = retriesAtCurrentPrice
-        isRetrying = true
-        didRetry = false
-        defer { isRetrying = false }
-        do {
-            try await repository.retrySwap(id: swapID, atCurrentPrice: atCurrentPrice, submission: retrySubmission)
-            retriedSwapID = swapID
-            didRetry = true
-            errorMessage = nil
-            await load()
-        } catch {
-            errorMessage = ToastCopy.message(for: APIError(error))
-        }
-    }
-
     public func withdraw() async {
         didWithdraw = false
         do {
@@ -435,6 +413,46 @@ public final class ProposalDetailModel {
 }
 
 extension ProposalDetailModel {
+    public var retriesUnstartedTrade: Bool {
+        guard let summary = value?.summary else { return false }
+        return summary.status == .executionBlocked && summary.swap?.id == nil
+            && summary.statusReason == Components.Schemas.ErrorCode.tradeNotStarted.rawValue
+    }
+
+    public func canRetry(viewerID: String?) -> Bool {
+        guard retryableSwapID != nil || retriesUnstartedTrade, let viewerID else { return false }
+        return members.contains { $0.id == viewerID }
+    }
+
+    public func retry() async {
+        guard !isRetrying else { return }
+        if let swapID = retryableSwapID {
+            await submitRetry(swapID: swapID) {
+                try await self.repository.retrySwap(
+                    id: swapID, atCurrentPrice: self.retriesAtCurrentPrice, submission: self.retrySubmission)
+            }
+        } else if retriesUnstartedTrade {
+            await submitRetry(swapID: nil) {
+                try await self.repository.retryTrade(proposalID: self.id, submission: self.retrySubmission)
+            }
+        }
+    }
+
+    private func submitRetry(swapID: String?, _ send: () async throws -> Void) async {
+        isRetrying = true
+        didRetry = false
+        defer { isRetrying = false }
+        do {
+            try await send()
+            retriedSwapID = swapID
+            didRetry = true
+            errorMessage = nil
+            await load()
+        } catch {
+            errorMessage = ToastCopy.message(for: APIError(error))
+        }
+    }
+
     public convenience init(id: String, repository: ProposalsRepository, hints: any HintSource) {
         self.init(id: id, cabalID: nil, repository: repository, hints: hints)
     }

@@ -90,6 +90,7 @@ func (m *Module) Mount(r api.Mount) {
 		RetractVote: app.NewRetractVoteHandler(m.deps.UoW, m.deps.Clock, hints),
 		Reminders:   app.NewReminderHandler(m.deps.UoW, m.deps.Clock),
 		Withdraw:    app.NewWithdrawProposalHandler(m.deps.UoW, m.deps.Clock, hints),
+		RetryTrade:  m.retryBlockedTrade(hints),
 		Void: app.NewVoidProposalHandler(
 			m.deps.UoW, m.deps.IDs, m.deps.Clock, trading.New(m.deps).Queries(), hints,
 		),
@@ -228,15 +229,20 @@ func (m *Module) VoidFromOps(ctx context.Context, id ProposalID, rawReason strin
 }
 
 func (m *Module) RetryBlockedTradeFromOps(ctx context.Context, id ProposalID, reason string) error {
-	retries := app.NewRetryBlockedTradeHandler(
+	return m.retryBlockedTrade(adapters.Hints{Publish: m.deps.Bus}).Handle(
+		ctx, app.RetryBlockedTrade{ProposalID: id, Reason: reason},
+	)
+}
+
+func (m *Module) retryBlockedTrade(hints app.Hints) *app.RetryBlockedTradeHandler {
+	return app.NewRetryBlockedTradeHandler(
 		m.deps.UoW,
 		m.deps.Pool,
 		m.deps.Clock,
 		trading.New(m.deps).Queries(),
-		adapters.Hints{Publish: m.deps.Bus},
+		hints,
 		chain.SolanaAddress(m.deps.Config.Solana.USDCMint),
-	)
-	return retries.Handle(ctx, app.RetryBlockedTrade{ProposalID: id, Reason: reason})
+	).Members(cabal.New(m.deps).Queries())
 }
 
 func (m *Module) voidProposal(hints app.Hints) *app.VoidProposalHandler {

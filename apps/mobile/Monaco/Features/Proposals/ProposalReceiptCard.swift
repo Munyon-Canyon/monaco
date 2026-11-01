@@ -143,8 +143,13 @@ struct ProposalReceiptCard: View {
         }
     }
 
+    private var retryTitle: String {
+        if model.retriesUnstartedTrade { return "Retry trade" }
+        return model.retriesAtCurrentPrice ? "Buy at current price" : "Retry"
+    }
+
     private var retryButton: some View {
-        Button(model.retriesAtCurrentPrice ? "Buy at current price" : "Retry") {
+        Button(retryTitle) {
             Task {
                 await model.retry()
                 if model.didRetry {

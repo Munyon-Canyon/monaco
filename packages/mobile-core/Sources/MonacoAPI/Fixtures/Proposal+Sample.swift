@@ -73,6 +73,12 @@ extension Components.Schemas.ProposalDetail {
         return detail
     }
 
+    public static func blockedBeforeSwap(statusReason: String = "trade_not_started") -> Self {
+        var detail = sample(status: .executionBlocked)
+        detail.statusReason = statusReason
+        return detail
+    }
+
     public static func failedSwap(
         retryable: Bool, failureCode: String = "jupiter_failed",
         failureMessage: String = "The trade did not go through."
