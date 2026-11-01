@@ -131,6 +131,19 @@ type Quote struct {
 	Options     RouteOptions  `json:"route_options,omitzero"`
 }
 
+func (q Quote) Oversize() bool {
+	return q.Network.IsEVM() && q.GrossOutput != nil && !q.GrossOutput.IsInt64()
+}
+
+func (c Comparison) QuoteFor(id ListingID) (Quote, bool) {
+	for _, q := range c.Ranked {
+		if q.ListingID == id {
+			return q, true
+		}
+	}
+	return Quote{}, false
+}
+
 const NoHooks = "V4_NO_HOOKS"
 
 type RouteOptions struct {

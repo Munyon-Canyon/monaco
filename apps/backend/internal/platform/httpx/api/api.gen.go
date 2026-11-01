@@ -171,6 +171,7 @@ const (
 	SwapNotStuck ErrorCode = "swap_not_stuck"
 	TooManyContactHashes ErrorCode = "too_many_contact_hashes"
 	TradeNotStarted ErrorCode = "trade_not_started"
+	TradeTooLarge ErrorCode = "trade_too_large"
 	TxnNotFound ErrorCode = "txn_not_found"
 	Unauthorized ErrorCode = "unauthorized"
 	UndoExpired ErrorCode = "undo_expired"
@@ -511,6 +512,8 @@ func (e ErrorCode) Valid() bool {
 	case TooManyContactHashes:
 		return true
 	case TradeNotStarted:
+		return true
+	case TradeTooLarge:
 		return true
 	case TxnNotFound:
 		return true

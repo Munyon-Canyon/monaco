@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"log/slog"
+	"math"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
@@ -207,9 +208,10 @@ func (h *ExecuteTradeHandler) checks(cmd ExecuteTrade, winner multichain.Listing
 	token := chain.Mint{Address: chain.SolanaAddress(winner.TokenAddress), Decimals: winner.Decimals}
 	switch {
 	case winner.Network.IsEVM() && cmd.Action == domain.ActionSell:
-		return []tradeCheck{h.held(evmAsset(winner.Network, winner.TokenAddress)), h.slippage, h.paused}
+		held := h.held(evmAsset(winner.Network, winner.TokenAddress))
+		return []tradeCheck{settles(winner), held, h.slippage, h.paused}
 	case winner.Network.IsEVM():
-		return []tradeCheck{h.routedFunds, h.slippage, h.paused}
+		return []tradeCheck{settles(winner), h.routedFunds, h.slippage, h.paused}
 	case winner.Network == chain.NetworkSolana && cmd.Action == domain.ActionSell:
 		req.InMint = token
 	case winner.Network == chain.NetworkSolana:
@@ -238,6 +240,20 @@ func (h *ExecuteTradeHandler) tradable(
 		return SwapRequest{}, refusal{}, err
 	}
 	return h.request(cmd, asset, wallet), refusal{}, nil
+}
+
+func settles(winner multichain.Listing) tradeCheck {
+	return func(_ context.Context, cmd ExecuteTrade, req *SwapRequest) (refusal, error) {
+		oversize := cmd.Action == domain.ActionSell && req.InAmount > math.MaxInt64
+		if cmd.Action == domain.ActionBuy && cmd.Route != nil {
+			q, ok := cmd.Route.QuoteFor(winner.ID)
+			oversize = ok && q.Oversize()
+		}
+		if oversize {
+			return refusal{code: errs.CodeTradeTooLarge}, nil
+		}
+		return refusal{}, nil
+	}
 }
 
 func (h *ExecuteTradeHandler) held(asset string) tradeCheck {

@@ -34,6 +34,16 @@ func (h *ProposeTradeHandler) best(
 	return &c, nil
 }
 
+func settles(c *multichain.Comparison) error {
+	if c == nil {
+		return nil
+	}
+	if q, ok := c.QuoteFor(c.Winner); ok && q.Oversize() {
+		return errs.New(errs.CodeTradeTooLarge, "governance.settles", slog.String("listing_id", c.Winner.String()))
+	}
+	return nil
+}
+
 func displayQuote(asset market.Asset, c *multichain.Comparison, routed uint64, now time.Time) uint64 {
 	m := asset.UIMultiplierAt(now)
 	if c == nil || m.Num <= 0 || m.Den <= 0 {
@@ -53,6 +63,14 @@ func displayQuote(asset market.Asset, c *multichain.Comparison, routed uint64, n
 		return routed
 	}
 	return units.Uint64()
+}
+
+func pricedOn(c *multichain.Comparison, n chain.Network) (*multichain.Comparison, error) {
+	priced, err := pinned(c, n)
+	if err == nil {
+		err = settles(priced)
+	}
+	return priced, err
 }
 
 func pinned(c *multichain.Comparison, n chain.Network) (*multichain.Comparison, error) {

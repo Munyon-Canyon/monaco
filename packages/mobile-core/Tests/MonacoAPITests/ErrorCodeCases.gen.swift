@@ -163,6 +163,7 @@ extension Components.Schemas.ErrorCode {
         case .swapNotStuck: true
         case .tooManyContactHashes: true
         case .tradeNotStarted: true
+        case .tradeTooLarge: true
         case .txnNotFound: true
         case .unauthorized: true
         case .undoExpired: true

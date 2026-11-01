@@ -7096,6 +7096,7 @@ components:
         - swap_not_stuck
         - too_many_contact_hashes
         - trade_not_started
+        - trade_too_large
         - txn_not_found
         - unauthorized
         - undo_expired
