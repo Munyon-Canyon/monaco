@@ -17,6 +17,7 @@ func TestFundEvents_areKeyedByTheirTransfer(t *testing.T) {
 		{events.FundSubmitted{TransferID: transfer}, events.TypeFundSubmitted},
 		{events.Funded{TransferID: transfer}, events.TypeFunded},
 		{events.FundFailed{TransferID: transfer}, events.TypeFundFailed},
+		{events.FundRefunded{TransferID: transfer}, events.TypeFundRefunded},
 	} {
 		if tt.event.Type() != tt.want || tt.event.AggregateType() != "fund_transfer" ||
 			tt.event.AggregateID() != transfer {

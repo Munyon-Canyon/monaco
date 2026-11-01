@@ -11,6 +11,7 @@ const (
 	TypeFundSubmitted Type = "cabal.fund_submitted"
 	TypeFunded        Type = "cabal.funded"
 	TypeFundFailed    Type = "cabal.fund_failed"
+	TypeFundRefunded  Type = "cabal.fund_refunded"
 )
 
 type FundSubmitted struct {
@@ -61,3 +62,20 @@ func (FundFailed) Type() Type { return TypeFundFailed }
 func (FundFailed) AggregateType() string { return "fund_transfer" }
 
 func (e FundFailed) AggregateID() uuid.UUID { return e.TransferID }
+
+type FundRefunded struct {
+	V            int             `json:"v"`
+	TransferID   uuid.UUID       `json:"transfer_id"`
+	CabalID      uuid.UUID       `json:"cabal_id"`
+	UserID       uuid.UUID       `json:"user_id"       pii:"true"`
+	AmountMicros money.Micros    `json:"amount_micros"`
+	TxSignature  chain.Signature `json:"tx_signature"`
+	Actor        string          `json:"actor"`
+	Reason       string          `json:"reason"`
+}
+
+func (FundRefunded) Type() Type { return TypeFundRefunded }
+
+func (FundRefunded) AggregateType() string { return "fund_transfer" }
+
+func (e FundRefunded) AggregateID() uuid.UUID { return e.TransferID }

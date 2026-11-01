@@ -1,0 +1,2 @@
+id	flow	module	trigger	command	events	consumers	outcomes	status	doc
+40	Refund landed fund transfer	treasury	ops:RefundFundTransfer	RefundFundTransfer	cabal.fund_refunded		ok;NotFound;FundRefundNotLanded;FundRefundPriceable;FundRefundTreasuryLow;FundRefundRejected;FundRefundExpired;crash:after-sign;crash:after-broadcast;crash:before-commit	planned	docs/architecture/deposits-withdrawals.md#fund

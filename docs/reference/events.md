@@ -206,6 +206,21 @@ Subject `events.cabal.fund_failed`, version 1.
 | `amount_micros` | `money.Micros` |
 | `code` | `string` |
 
+## `cabal.fund_refunded`
+
+Subject `events.cabal.fund_refunded`, version 1.
+
+| Field | Go type |
+| --- | --- |
+| `v` | `int` |
+| `transfer_id` | `uuid.UUID` |
+| `cabal_id` | `uuid.UUID` |
+| `user_id` | `uuid.UUID` |
+| `amount_micros` | `money.Micros` |
+| `tx_signature` | `chain.Signature` |
+| `actor` | `string` |
+| `reason` | `string` |
+
 ## `cabal.fund_submitted`
 
 Subject `events.cabal.fund_submitted`, version 1.

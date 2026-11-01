@@ -77,6 +77,11 @@ const (
 	Forbidden ErrorCode = "forbidden"
 	FundExpired ErrorCode = "fund_expired"
 	FundNotSent ErrorCode = "fund_not_sent"
+	FundRefundExpired ErrorCode = "fund_refund_expired"
+	FundRefundNotLanded ErrorCode = "fund_refund_not_landed"
+	FundRefundPriceable ErrorCode = "fund_refund_priceable"
+	FundRefundRejected ErrorCode = "fund_refund_rejected"
+	FundRefundTreasuryLow ErrorCode = "fund_refund_treasury_low"
 	FundRejected ErrorCode = "fund_rejected"
 	HandleInvalid ErrorCode = "handle_invalid"
 	HandleRequired ErrorCode = "handle_required"
@@ -328,6 +333,16 @@ func (e ErrorCode) Valid() bool {
 	case FundExpired:
 		return true
 	case FundNotSent:
+		return true
+	case FundRefundExpired:
+		return true
+	case FundRefundNotLanded:
+		return true
+	case FundRefundPriceable:
+		return true
+	case FundRefundRejected:
+		return true
+	case FundRefundTreasuryLow:
 		return true
 	case FundRejected:
 		return true

@@ -69,6 +69,11 @@ extension Components.Schemas.ErrorCode {
         case .forbidden: true
         case .fundExpired: true
         case .fundNotSent: true
+        case .fundRefundExpired: true
+        case .fundRefundNotLanded: true
+        case .fundRefundPriceable: true
+        case .fundRefundRejected: true
+        case .fundRefundTreasuryLow: true
         case .fundRejected: true
         case .handleInvalid: true
         case .handleRequired: true

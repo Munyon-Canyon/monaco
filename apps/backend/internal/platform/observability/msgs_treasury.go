@@ -35,6 +35,26 @@ var TreasuryFundSettled = Msg{
 	Required: []string{"transfer_id", "cabal_id", "share_units", "status_before", "status_after"},
 }
 
+var TreasuryFundRefundStored = Msg{
+	Name:     "treasury.fund.refund_stored",
+	Required: []string{"transfer_id", "cabal_id", "amount_micros", "status_before", "status_after"},
+}
+
+var TreasuryFundRefundBroadcastFailed = Msg{
+	Name:     "treasury.fund.refund_broadcast_failed",
+	Required: []string{"transfer_id", "code"},
+}
+
+var TreasuryFundRefundDropped = Msg{
+	Name:     "treasury.fund.refund_dropped",
+	Required: []string{"transfer_id", "code", "status_before", "status_after"},
+}
+
+var TreasuryFundRefunded = Msg{
+	Name:     "treasury.fund.refunded",
+	Required: []string{"transfer_id", "cabal_id", "amount_micros", "status_before", "status_after"},
+}
+
 var TreasuryCashOutSaleSettled = Msg{
 	Name:     "treasury.cashout.sale_settled",
 	Required: []string{"job_id", "cabal_id", "before", "after", "paid_micros", "returned_units"},
