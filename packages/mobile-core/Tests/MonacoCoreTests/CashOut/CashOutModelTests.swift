@@ -135,7 +135,7 @@ final class CashOutModelTests: XCTestCase {
     }
 
     func testAMovedSliceReloadsThePreviewAndShowsTheProductCopy() async throws {
-        for code in [Components.Schemas.ErrorCode.potValueChanged, .insufficientShares, .priceUnavailable] {
+        for code in [Components.Schemas.ErrorCode.potValueChanged, .insufficientShares] {
             let transport = StubTransport(scripted: [
                 try Self.json(.ok, Components.Schemas.CashOutPreview.sample),
                 try problem(code, status: 409, "server copy"),

@@ -114,7 +114,8 @@ public struct CashOutJob: Equatable, Sendable {
             CashOutNotice(
                 jobID: id,
                 message: "Cashed out \(amount), what the sale raised. You keep the shares it didn't cover.",
-                isSuccess: true
+                isSuccess: true,
+                raisedMicros: payoutMicros
             )
         case .failed:
             CashOutNotice(jobID: id, message: Self.failure(resultCode), isSuccess: false)
@@ -135,10 +136,25 @@ public struct CashOutNotice: Equatable, Sendable {
     public let jobID: String
     public let message: String
     public let isSuccess: Bool
+    public let raisedMicros: Int64?
 
-    public init(jobID: String, message: String, isSuccess: Bool) {
+    public init(jobID: String, message: String, isSuccess: Bool, raisedMicros: Int64? = nil) {
         self.jobID = jobID
         self.message = message
         self.isSuccess = isSuccess
+        self.raisedMicros = raisedMicros
+    }
+
+    public var isPartial: Bool { raisedMicros != nil }
+
+    public func partialMessage(requestedMicros: Int64) -> String? {
+        guard let raisedMicros else { return nil }
+        return "Cashed out \(Self.dollars(raisedMicros)) of \(Self.dollars(requestedMicros)). "
+            + "You keep the shares it didn't cover."
+    }
+
+    public static func dollars(_ micros: Int64) -> String {
+        let text = UsdAmountFormatter.format(flooredMicros: micros)
+        return text.hasSuffix(".00") ? String(text.dropLast(3)) : text
     }
 }

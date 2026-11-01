@@ -15,6 +15,7 @@ public final class CashOutModel {
     public static let pauseHint = "pause_changed"
     public static let inProgress = "A cash out is already running for this cabal."
     public static let sliceChanged = "Your slice changed. Check the amount and try again."
+    public static let pricesDelayed = "Prices are delayed. Try again in a minute."
     public static let invalidRequest = "Couldn't cash out. Try again."
 
     public private(set) var state: LoadState<CashOutPreview> = .idle
@@ -25,6 +26,7 @@ public final class CashOutModel {
     private let hints: any HintSource
     private let submission: IdempotentSubmission
     private var generation = 0
+    private var pricesWereDelayed = false
 
     private struct Pending: Codable {
         let enteredMicros: Int64
@@ -88,7 +90,7 @@ public final class CashOutModel {
     public func submit(enteredMicros: Int64) async -> CashOutSubmitResult? {
         guard !isSubmitting, let preview, preview.pause == nil else { return nil }
         let request: Components.Schemas.CashOutRequest
-        if submission.hasPendingKey, let unconfirmed {
+        if submission.hasPendingKey, let unconfirmed, !pricesWereDelayed || unconfirmed.enteredMicros == enteredMicros {
             guard unconfirmed.enteredMicros == enteredMicros else { return .refused(MoneyFlowCopy.unconfirmed.summary) }
             request = unconfirmed.request
         } else {
@@ -115,7 +117,9 @@ public final class CashOutModel {
     }
 
     private func refusal(_ error: APIError) async -> String {
-        switch CashOutRefusal(error) {
+        let refusal = CashOutRefusal(error)
+        pricesWereDelayed = refusal == .pricesDelayed
+        switch refusal {
         case .paused:
             await load()
             return (preview?.pause ?? CabalPause(cause: .ops)).message
@@ -124,6 +128,8 @@ public final class CashOutModel {
         case .sliceChanged:
             await load()
             return Self.sliceChanged
+        case .pricesDelayed:
+            return Self.pricesDelayed
         case .invalidRequest:
             return Self.invalidRequest
         case .unconfirmed:

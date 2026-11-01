@@ -13,6 +13,6 @@ diff --git a/apps/mobile/Monaco/Features/Settings/WithdrawScreen.swift b/apps/mo
                  limitLine: WithdrawCopy.limitLine(maxMicros: max, overMicros: over), slot: model.limitSlot ?? "")
 -        case .settled: .settled(line: model.line ?? "")
 +        case .settled: .typed
-         case .typed, .belowMinimum, .needsAddress, .submitting, .failed: .typed
+         case .typed, .belowMinimum, .needsAddress, .submitting, .processing, .failed: .typed
          }
      }

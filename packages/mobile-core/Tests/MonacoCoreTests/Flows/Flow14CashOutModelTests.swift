@@ -9,7 +9,7 @@ final class Flow14CashOutModelTests: XCTestCase {
             .insufficientShares: .sliceChanged,
             .cashOutInProgress: .inProgress,
             .cabalPaused: .paused,
-            .priceUnavailable: .sliceChanged,
+            .priceUnavailable: .pricesDelayed,
             .potValueChanged: .sliceChanged,
             .privyUnavailable: .message("Server says no."),
             .rPCUnavailable: .message("Server says no."),
@@ -42,7 +42,8 @@ final class Flow14CashOutModelTests: XCTestCase {
             let message: String
             switch scenario {
             case .invalidInput: message = CashOutModel.invalidRequest
-            case .insufficientShares, .priceUnavailable, .potValueChanged: message = CashOutModel.sliceChanged
+            case .insufficientShares, .potValueChanged: message = CashOutModel.sliceChanged
+            case .priceUnavailable: message = CashOutModel.pricesDelayed
             case .cashOutInProgress: message = CashOutModel.inProgress
             case .cabalPaused: message = CabalPause(cause: .ops).message
             case .privyUnavailable: message = "Wallet signing is down. Try again."

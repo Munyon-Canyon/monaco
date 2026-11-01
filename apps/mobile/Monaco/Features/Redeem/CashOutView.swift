@@ -302,7 +302,16 @@ struct CashOutContent: View {
                 MoneyKeyRow(label: "Status", value: .words(status)),
             ]
         }
-        if let settledNotice, settledNotice.isSuccess {
+        if let settledNotice, let message = settledNotice.partialMessage(requestedMicros: job.payoutMicros),
+            let raised = settledNotice.raisedMicros
+        {
+            MoneyOutcome(
+                tone: .pending, title: "Cash-out partly done", message: message,
+                rows: partialRows(job, raisedMicros: raised), identifier: "cash-out-progress"
+            ) {
+                Button("View activity", action: onActivity).buttonStyle(.monacoPrimary)
+            }
+        } else if let settledNotice, settledNotice.isSuccess {
             MoneyOutcome(
                 tone: .done, title: "Cash-out complete",
                 message: "Settled proceeds are now in your cash balance.", rows: rows("Completed"),
@@ -328,6 +337,19 @@ struct CashOutContent: View {
                 Button("View activity", action: onActivity).buttonStyle(.monacoPrimary)
             }
         }
+    }
+}
+
+extension CashOutContent {
+    private func partialRows(_ job: CashOutJob, raisedMicros: Int64) -> [MoneyKeyRow] {
+        [
+            MoneyKeyRow(label: "From", value: .words(cabalName ?? "This cabal")),
+            MoneyKeyRow(label: "To", value: .words("Your cash")),
+            MoneyKeyRow(
+                label: "Requested value", value: .data(UsdAmountFormatter.format(flooredMicros: job.payoutMicros))),
+            MoneyKeyRow(label: "Cashed out", value: .data(UsdAmountFormatter.format(flooredMicros: raisedMicros))),
+            MoneyKeyRow(label: "Status", value: .words("Partly done")),
+        ]
     }
 }
 

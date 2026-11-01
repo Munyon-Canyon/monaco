@@ -320,6 +320,22 @@ extension FundCabalModelTests {
         XCTAssertEqual(rig.watcher.notice?.ticket.resourceID, transferID)
     }
 
+    func testAFailureAfterClosingBeforeTheAcceptReachesTheWatchersNotice() async {
+        let rig = await typedRig([.gate, .json(.ok, transfer("failed"))])
+        let sending = Task { await rig.model.submit() }
+        _ = await waitUntil { await rig.transport.sent.count == 3 }
+
+        rig.model.dismiss()
+        await rig.transport.releaseGate(.json(.accepted, accepted))
+        await sending.value
+
+        _ = await waitUntil { rig.watcher.notice != nil }
+        guard case .fund(.failed) = rig.watcher.notice?.outcome else {
+            return XCTFail("\(String(describing: rig.watcher.notice))")
+        }
+        XCTAssertEqual(rig.watcher.notice?.ticket.resourceID, transferID)
+    }
+
     func testARelaunchedWatcherResumesTheJournaledTicket() async {
         let journal = PendingIntentJournal()
         let first = rig(

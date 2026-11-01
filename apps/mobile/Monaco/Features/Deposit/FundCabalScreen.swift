@@ -134,7 +134,8 @@ struct FundCabalKeypadView: View {
             return AmountKeypadAction(title: check, settledTitle: check, perform: {})
         }
         if case .submitting = model.state {
-            return AmountKeypadAction(title: model.line, isWorking: true, perform: {})
+            return AmountKeypadAction(
+                title: model.line, isWorking: true, keepsOpen: model.watchedTransferID == nil, perform: {})
         }
         guard let title = model.buttonTitle else { return nil }
         return AmountKeypadAction(title: title) { Task { await model.submit() } }

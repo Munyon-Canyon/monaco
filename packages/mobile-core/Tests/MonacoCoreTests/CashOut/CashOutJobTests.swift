@@ -3,8 +3,10 @@ import MonacoCore
 import XCTest
 
 final class CashOutJobTests: XCTestCase {
-    private func job(_ status: CashOutJob.Status, resultCode: String? = nil) -> CashOutJob {
-        CashOutJob(id: "j", cabalID: "c", status: status, payoutMicros: 1_000_000, resultCode: resultCode)
+    private func job(
+        _ status: CashOutJob.Status, resultCode: String? = nil, payoutMicros: Int64 = 1_000_000
+    ) -> CashOutJob {
+        CashOutJob(id: "j", cabalID: "c", status: status, payoutMicros: payoutMicros, resultCode: resultCode)
     }
 
     func testEveryRunningStatusShowsProgressAndNoOutcome() {
@@ -25,7 +27,7 @@ final class CashOutJobTests: XCTestCase {
             job(.partial).outcome,
             CashOutNotice(
                 jobID: "j", message: "Cashed out $1.00, what the sale raised. You keep the shares it didn't cover.",
-                isSuccess: true))
+                isSuccess: true, raisedMicros: 1_000_000))
         XCTAssertEqual(
             job(.failed, resultCode: "sale_short").outcome,
             CashOutNotice(
@@ -38,6 +40,17 @@ final class CashOutJobTests: XCTestCase {
             XCTAssertFalse(job(status).isRunning)
             XCTAssertNil(job(status).progress)
         }
+    }
+
+    func testAPartialNoticeNamesWhatTheSaleRaisedAndWhatWasRequested() throws {
+        let notice = try XCTUnwrap(job(.partial, payoutMicros: 180_000_000).outcome)
+
+        XCTAssertTrue(notice.isPartial)
+        XCTAssertEqual(
+            notice.partialMessage(requestedMicros: 250_000_000),
+            "Cashed out $180 of $250. You keep the shares it didn't cover.")
+        XCTAssertFalse(try XCTUnwrap(job(.completed).outcome).isPartial)
+        XCTAssertNil(try XCTUnwrap(job(.completed).outcome).partialMessage(requestedMicros: 250_000_000))
     }
 
     func testTheStartedToastNamesTheJobsAmount() {

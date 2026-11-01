@@ -116,8 +116,16 @@ public final class SettlementWatcher {
             guard !Task.isCancelled, let outcome else { return }
             self.tasks[ticket.slot] = nil
             if let account { self.journal.remove(accountID: account, slot: ticket.slot) }
-            if case .fund(.failed) = outcome, self.onScreen.contains(ticket.resourceID) { return }
+            if self.isShownOnScreen(outcome, ticket: ticket) { return }
             self.notice = SettlementNotice(ticket: ticket, outcome: outcome)
+        }
+    }
+
+    private func isShownOnScreen(_ outcome: SettlementNotice.Outcome, ticket: SettlementTicket) -> Bool {
+        guard onScreen.contains(ticket.resourceID) else { return false }
+        switch outcome {
+        case .fund(.failed), .withdraw(.failed): return true
+        case .fund, .withdraw: return false
         }
     }
 

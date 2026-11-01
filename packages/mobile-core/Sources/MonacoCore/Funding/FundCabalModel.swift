@@ -31,6 +31,7 @@ public final class FundCabalModel {
     private var cashAfterMicros: Int64 = 0
     private var isFirstFund = false
     private var presented = false
+    private var closed = false
     private var generation = 0
     private var pendingPreview: Task<Void, Never>?
 
@@ -163,8 +164,10 @@ public final class FundCabalModel {
             settlements.watch(
                 SettlementTicket(
                     kind: .fund, resourceID: transfer.transferID, cabalID: cabalID, cabalName: cabalName))
-            settlements.present(transfer.transferID)
-            presented = true
+            if !closed {
+                settlements.present(transfer.transferID)
+                presented = true
+            }
             watchedTransferID = transfer.transferID
         case .refused(let failure):
             switch failure {
@@ -176,6 +179,7 @@ public final class FundCabalModel {
     }
 
     public func dismiss() {
+        closed = true
         guard presented, let id = watchedTransferID else { return }
         presented = false
         settlements.dismiss(id)

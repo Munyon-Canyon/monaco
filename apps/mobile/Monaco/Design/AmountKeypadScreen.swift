@@ -33,6 +33,7 @@ struct AmountKeypadAction {
     let title: String
     var settledTitle: String?
     var isWorking = false
+    var keepsOpen = false
     let perform: () -> Void
 }
 
@@ -91,7 +92,7 @@ struct AmountKeypadScreen<Source: View, Header: View>: View {
             hairline
             presetsOrLimit
             AmountKeypad(amountText: $amountText)
-                .disabled(state.isSettled)
+                .disabled(state.isSettled || isWorking)
                 .padding(.horizontal, MonacoTheme.Space.gutter)
             foot
         }
@@ -108,6 +109,8 @@ struct AmountKeypadScreen<Source: View, Header: View>: View {
         .accessibilityIdentifier("amount-keypad-screen")
     }
 
+    private var isWorking: Bool { action?.isWorking == true }
+
     private var navRow: some View {
         ZStack {
             sourcePill
@@ -115,6 +118,7 @@ struct AmountKeypadScreen<Source: View, Header: View>: View {
             HStack {
                 Spacer(minLength: 0)
                 MonacoGlassButton(systemImage: "xmark", accessibilityLabel: "Close", action: onClose)
+                    .disabled(action?.keepsOpen == true)
                     .accessibilityIdentifier("amount-keypad-close")
             }
         }
@@ -202,16 +206,6 @@ struct AmountKeypadScreen<Source: View, Header: View>: View {
         }
     }
 
-    private func lineText(_ text: String) -> some View {
-        Text(text)
-            .font(MonacoTheme.Typo.subhead)
-            .foregroundStyle(MonacoTheme.secondaryText)
-            .multilineTextAlignment(.center)
-            .fixedSize(horizontal: false, vertical: true)
-            .monacoPrivateFigure()
-            .accessibilityIdentifier("amount-keypad-line")
-    }
-
     private var hairline: some View {
         Rectangle()
             .fill(MonacoTheme.hairline)
@@ -263,7 +257,7 @@ struct AmountKeypadScreen<Source: View, Header: View>: View {
             Text(preset.label).monacoChipLabel(isSelected: false, isPreset: true, fillsWidth: true)
         }
         .buttonStyle(.plain)
-        .disabled(state.isSettled || next == nil)
+        .disabled(state.isSettled || isWorking || next == nil)
         .accessibilityIdentifier("amount-keypad-preset-\(preset.label)")
     }
 
@@ -302,6 +296,18 @@ struct AmountKeypadScreen<Source: View, Header: View>: View {
 
     private var settledButton: some View {
         AmountKeypadSettledButton(title: action?.settledTitle ?? action?.title ?? "")
+    }
+}
+
+extension AmountKeypadScreen {
+    private func lineText(_ text: String) -> some View {
+        Text(text)
+            .font(MonacoTheme.Typo.subhead)
+            .foregroundStyle(MonacoTheme.secondaryText)
+            .multilineTextAlignment(.center)
+            .fixedSize(horizontal: false, vertical: true)
+            .monacoPrivateFigure()
+            .accessibilityIdentifier("amount-keypad-line")
     }
 }
 

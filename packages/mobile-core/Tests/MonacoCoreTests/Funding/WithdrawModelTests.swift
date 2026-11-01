@@ -13,6 +13,7 @@ final class WithdrawModelTests: XCTestCase {
     private let evm = "0x5aaeb6053f3e94c9b9a09f33669435e7ef1beaed"
     private let withdrawalID = "01890a5d-ac96-774b-bcce-b302099a8057"
     let previewPath = "/v1/me/withdrawals/preview"
+    private var withdrawalPath: String { "/v1/me/withdrawals/\(withdrawalID)" }
 
     func testTheEmptyStateReadsTheFeeAndTheServersMaxNotTheBalance() async {
         let rig = rig([previewPath: [empty]])
@@ -203,29 +204,6 @@ final class WithdrawModelTests: XCTestCase {
         XCTAssertEqual(rig.model.amountMicros, 499_500_000)
     }
 
-    func testSettledOnlyOnceTheServerSaysSubmittedAndTheBalanceReloads() async {
-        let rig = rig(
-            [
-                previewPath: [typed],
-                "/v1/me/withdrawals/authorizations": [granted],
-                "/v1/me/withdrawals": [accepted],
-                "/v1/me/balance": [balance("379500000")],
-            ], withBalance: true)
-        rig.model.setAddress(solana)
-        rig.model.setAmountText("120")
-        await flush(rig)
-
-        await rig.model.submit()
-
-        XCTAssertEqual(
-            rig.model.state,
-            .settled(
-                amountMicros: 120_000_000, to: solana, network: .solana, arrivalSeconds: 60,
-                cashAfterMicros: 379_500_000))
-        XCTAssertEqual(rig.model.line, "Sent just now · arrives on Solana in about a minute")
-        XCTAssertEqual(rig.model.checkLine, "$120 to 9xQe…4H6P")
-    }
-
     func testARefusedSubmitDoesNotSettle() async throws {
         let refusal = try StubTransport.Reply.problem(
             Components.Schemas.Problem(
@@ -251,6 +229,7 @@ final class WithdrawModelTests: XCTestCase {
                 previewPath: [typed],
                 "/v1/me/withdrawals/authorizations": [granted, granted],
                 "/v1/me/withdrawals": [.failure(URLError(.timedOut)), accepted],
+                withdrawalPath: [read("submitted")],
             ])
         rig.model.setAddress(solana)
         rig.model.setAmountText("120")
@@ -261,10 +240,145 @@ final class WithdrawModelTests: XCTestCase {
         XCTAssertTrue(rig.model.canSubmit)
         await rig.model.submit()
 
-        guard case .settled = rig.model.state else { return XCTFail("\(rig.model.state) is not settled") }
+        guard case .processing = rig.model.state else { return XCTFail("\(rig.model.state) is not processing") }
         let key = try XCTUnwrap(HTTPField.Name(IdempotentSubmission.keyHeader))
         let keys = await rig.transport.sent.filter { $0.path == "/v1/me/withdrawals" }.map { $0.headerFields[key] }
         XCTAssertEqual(keys, ["key-1", "key-1"])
+    }
+}
+
+extension WithdrawModelTests {
+    func testAnAcceptedWithdrawalShowsProcessingNotSuccessUntilTheWatcherConfirms() async {
+        let rig = rig(
+            [
+                previewPath: [typed],
+                "/v1/me/withdrawals/authorizations": [granted],
+                "/v1/me/withdrawals": [accepted],
+                "/v1/me/balance": [balance("379500000")],
+                withdrawalPath: [read("submitted")],
+            ], withBalance: true)
+        rig.model.setAddress(solana)
+        rig.model.setAmountText("120")
+        await flush(rig)
+
+        await rig.model.submit()
+
+        XCTAssertEqual(
+            rig.model.state, .processing(amountMicros: 120_000_000, to: solana, network: .solana, arrivalSeconds: 60))
+        XCTAssertEqual(rig.model.buttonTitle, "Withdrawal processing · Pending")
+        XCTAssertEqual(rig.model.line, "Arrives on Solana in about a minute.")
+        XCTAssertNil(rig.model.checkLine)
+    }
+
+    func testTheWatcherConfirmingTurnsProcessingIntoSentWithTheBalanceAfter() async {
+        let rig = rig(
+            [
+                previewPath: [typed],
+                "/v1/me/withdrawals/authorizations": [granted],
+                "/v1/me/withdrawals": [accepted],
+                "/v1/me/balance": [balance("379500000")],
+                withdrawalPath: [read("confirmed")],
+            ], withBalance: true)
+        rig.model.setAddress(solana)
+        rig.model.setAmountText("120")
+        await flush(rig)
+
+        await rig.model.submit()
+        await waitUntil { if case .settled = rig.model.state { true } else { false } }
+
+        XCTAssertEqual(
+            rig.model.state,
+            .settled(
+                amountMicros: 120_000_000, to: solana, network: .solana, arrivalSeconds: 60,
+                cashAfterMicros: 379_500_000))
+        XCTAssertEqual(rig.model.line, "Sent just now · arrives on Solana in about a minute")
+        XCTAssertEqual(rig.model.checkLine, "$120 to 9xQe…4H6P")
+    }
+
+    func testAWithdrawalThatFailsAfterTheAcceptKeepsNoSuccessAndCanBeSentAgain() async throws {
+        let rig = rig(
+            [
+                previewPath: [typed],
+                "/v1/me/withdrawals/authorizations": [granted, granted],
+                "/v1/me/withdrawals": [accepted, accepted],
+                withdrawalPath: [read("failed")],
+            ])
+        rig.model.setAddress(solana)
+        rig.model.setAmountText("120")
+        await flush(rig)
+
+        await rig.model.submit()
+        await waitUntil { if case .failed = rig.model.state { true } else { false } }
+
+        XCTAssertEqual(rig.model.state, .failed(WithdrawProgress.didNotGoThrough))
+        XCTAssertNil(rig.model.checkLine)
+        XCTAssertTrue(rig.model.canSubmit)
+        await rig.model.submit()
+        let posts = await rig.transport.sent.filter { $0.path == "/v1/me/withdrawals" }.count
+        XCTAssertEqual(posts, 2)
+    }
+
+    func testTheAmountAndAddressAreLockedWhileTheWithdrawalProcesses() async {
+        let rig = rig(
+            [
+                previewPath: [typed],
+                "/v1/me/withdrawals/authorizations": [granted],
+                "/v1/me/withdrawals": [accepted],
+                withdrawalPath: [read("submitted")],
+            ])
+        rig.model.setAddress(solana)
+        rig.model.setAmountText("120")
+        await flush(rig)
+
+        await rig.model.submit()
+        rig.model.setAmountText("500")
+        rig.model.setAddress(evm)
+        rig.model.setNetwork(.base)
+
+        XCTAssertEqual(rig.model.amountText, "120")
+        XCTAssertEqual(rig.model.address, solana)
+        XCTAssertEqual(rig.model.network, .solana)
+    }
+
+    func testAFailureAfterTheScreenClosedStillReachesTheGlobalNotice() async {
+        let rig = rig(
+            [
+                previewPath: [typed],
+                "/v1/me/withdrawals/authorizations": [granted],
+                "/v1/me/withdrawals": [accepted],
+                withdrawalPath: [read("failed")],
+            ])
+        rig.model.setAddress(solana)
+        rig.model.setAmountText("120")
+        await flush(rig)
+        rig.model.dismiss()
+
+        await rig.model.submit()
+        await waitUntil { rig.settlements.notice != nil }
+
+        guard case .withdraw(.failed) = rig.settlements.notice?.outcome else {
+            return XCTFail("\(String(describing: rig.settlements.notice))")
+        }
+    }
+
+    func testAFailureWhileTheScreenIsOpenIsShownOnTheScreenNotAsAGlobalNotice() async {
+        let rig = rig(
+            [
+                previewPath: [typed],
+                "/v1/me/withdrawals/authorizations": [granted],
+                "/v1/me/withdrawals": [accepted],
+                withdrawalPath: [read("failed")],
+            ])
+        rig.model.setAddress(solana)
+        rig.model.setAmountText("120")
+        await flush(rig)
+
+        await rig.model.submit()
+        await waitUntil { if case .failed = rig.model.state { true } else { false } }
+        await Task.yield()
+
+        XCTAssertEqual(rig.model.state, .failed(WithdrawProgress.didNotGoThrough))
+        XCTAssertNil(rig.settlements.notice)
     }
 }
 
@@ -298,6 +412,14 @@ extension WithdrawModelTests {
         .json(.accepted, #"{"withdrawal_id":"\#(withdrawalID)","status":"submitted","tx_signature":"signature-1"}"#)
     }
 
+    private func read(_ status: String) -> StubTransport.Reply {
+        .json(
+            .ok,
+            #"{"withdrawal_id":"\#(withdrawalID)","status":"\#(status)","amount_micros":"120000000","#
+                + #""to_address":"\#(solana)","tx_signature":"signature-1","fail_code":null,"#
+                + #""created_at":"2026-10-28T12:00:00Z","completed_at":null}"#)
+    }
+
     private func balance(_ available: String) -> StubTransport.Reply {
         .json(
             .ok,
@@ -307,6 +429,7 @@ extension WithdrawModelTests {
 
     private struct Rig {
         let model: WithdrawModel
+        let settlements: SettlementWatcher
         let clock: TestClock
         let transport: StubTransport
     }
@@ -319,12 +442,13 @@ extension WithdrawModelTests {
             serverURL: testServerURL, tokens: StubTokenProvider(token: "token-1"), transport: transport)
         let hints = FakeHintStream()
         let clock = TestClock()
+        let settlements = SettlementWatcher(api: api, hints: hints, journal: PendingIntentJournal())
         let model = WithdrawModel(
             api: api, hints: hints, submission: IdempotentSubmission(makeKey: { "key-1" }),
-            settlements: SettlementWatcher(api: api, hints: hints, journal: PendingIntentJournal()),
+            settlements: settlements,
             ownDepositAddress: ownSolana, clock: clock,
             balance: withBalance ? BalanceSource(api: api, hints: hints) : nil)
-        return Rig(model: model, clock: clock, transport: transport)
+        return Rig(model: model, settlements: settlements, clock: clock, transport: transport)
     }
 
     private func waitUntil(_ predicate: @escaping () -> Bool) async {
