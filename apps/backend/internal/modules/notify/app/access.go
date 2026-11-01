@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/monaco/monaco/apps/backend/internal/events"
+	"github.com/monaco/monaco/apps/backend/internal/modules/cabal"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 )
 
@@ -23,11 +24,16 @@ func (k CabalAccessRequested) Recipients(ctx context.Context, e events.CabalAcce
 	if e.Direction != accessDirectionRequest {
 		return nil, nil
 	}
-	view, err := k.Cabals.Cabal(ctx, ids.CabalIDFrom(e.CabalID))
+	members, err := k.Cabals.Members(ctx, ids.CabalIDFrom(e.CabalID))
 	if err != nil {
 		return nil, err
 	}
-	return []ids.UserID{view.CreatorID}, nil
+	for _, m := range members {
+		if m.Role == cabal.RoleCreator {
+			return []ids.UserID{m.UserID}, nil
+		}
+	}
+	return nil, nil
 }
 
 func (k CabalAccessRequested) Render(

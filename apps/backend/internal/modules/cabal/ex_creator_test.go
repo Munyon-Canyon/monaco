@@ -53,3 +53,38 @@ func TestSetCabalPicture_failsWithInternalWhenTheMembershipCannotBeRead(t *testi
 		t.Errorf("SetCabalPicture with the members table gone: err = %v, want %s", err, errs.CodeInternal)
 	}
 }
+
+func TestExCreator_rejoiningAsAMemberDoesNotRestoreCreatorPowers(t *testing.T) {
+	t.Parallel()
+	f := newAccess(t)
+	c := testkit.NewCabal(t, f.pool, testkit.WithJoinMode("request"), testkit.WithMembers(2))
+	asker := f.user(t)
+	pending := f.filed(t, asker, c.ID)
+	f.exec(t, `DELETE FROM cabal_members WHERE cabal_id = $1 AND user_id = $2`, c.ID.UUID(), c.Creator.ID.UUID())
+	f.exec(
+		t,
+		`INSERT INTO cabal_members (cabal_id, user_id, role, can_vote, joined_at) VALUES ($1, $2, 'member', true, $3)`,
+		c.ID.UUID(),
+		c.Creator.ID.UUID(),
+		f.clock.Now(),
+	)
+
+	name, err := domain.ParseName("Renamed")
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = app.NewUpdateCabalHandler(f.uow, f.clock).Handle(as(t.Context(), c.Creator.ID), app.UpdateCabal{
+		ActorID: c.Creator.ID, CabalID: c.ID, Name: &name,
+	})
+	if errs.CodeOf(err) != errs.CodeNotCabalCreator {
+		t.Errorf("UpdateCabal by the rejoined member: err = %v, want %s", err, errs.CodeNotCabalCreator)
+	}
+	_, err = app.ListAccessRequests(t.Context(), f.pool, f.users, c.ID, c.Creator.ID)
+	if errs.CodeOf(err) != errs.CodeNotCabalAdmin {
+		t.Errorf("ListAccessRequests by the rejoined member: err = %v, want %s", err, errs.CodeNotCabalAdmin)
+	}
+	_, err = f.decide(t.Context(), c.Creator.ID, c.ID, pending, app.Approve)
+	if errs.CodeOf(err) != errs.CodeNotCabalAdmin {
+		t.Errorf("DecideAccess by the rejoined member: err = %v, want %s", err, errs.CodeNotCabalAdmin)
+	}
+}

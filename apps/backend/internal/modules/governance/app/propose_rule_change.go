@@ -11,6 +11,7 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
+	"github.com/monaco/monaco/apps/backend/internal/modules/cabal"
 	cabalport "github.com/monaco/monaco/apps/backend/internal/modules/cabal/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/sqlc"
@@ -21,7 +22,7 @@ import (
 
 type RuleCabals interface {
 	Cabals
-	Cabal(ctx context.Context, id ids.CabalID) (cabalport.CabalView, error)
+	Members(ctx context.Context, id ids.CabalID) ([]cabalport.MemberView, error)
 	Admins(ctx context.Context, id ids.CabalID) ([]ids.UserID, error)
 }
 
@@ -149,11 +150,12 @@ func (h *ProposeRuleChangeHandler) change(
 	if change.Unchanged() != nil {
 		return domain.RuleChange{}, errs.New(errs.CodeRuleUnchanged, "governance.ProposeRuleChange")
 	}
-	view, err := h.cabals.Cabal(ctx, cmd.CabalID)
+	members, err := h.cabals.Members(ctx, cmd.CabalID)
 	if err != nil {
 		return domain.RuleChange{}, err
 	}
-	if err := change.NotCreator(view.CreatorID); err != nil {
+	creator := creatorOf(members)
+	if err := change.NotCreator(creator); err != nil {
 		return domain.RuleChange{}, err
 	}
 	if change.Rule() != domain.RuleAdmin && change.Rule() != domain.RuleCreator {
@@ -164,7 +166,7 @@ func (h *ProposeRuleChangeHandler) change(
 		return domain.RuleChange{}, err
 	}
 	if change.Rule() == domain.RuleCreator {
-		if err := change.ProposedByCreator(cmd.ProposerID, view.CreatorID); err != nil {
+		if err := change.ProposedByCreator(cmd.ProposerID, creator); err != nil {
 			return domain.RuleChange{}, err
 		}
 		return change, change.TargetIsAdmin(admins)
@@ -173,6 +175,15 @@ func (h *ProposeRuleChangeHandler) change(
 		return domain.RuleChange{}, err
 	}
 	return change, change.AdminIsVoter(slices.Contains(voters, *change.UserID()))
+}
+
+func creatorOf(members []cabalport.MemberView) ids.UserID {
+	for _, m := range members {
+		if m.Role == cabal.RoleCreator {
+			return m.UserID
+		}
+	}
+	return ids.UserID{}
 }
 
 func (h *ProposeRuleChangeHandler) build(

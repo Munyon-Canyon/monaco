@@ -17,3 +17,4 @@ Dated record of changes to [cabals.md](../cabals.md). Add one line per change, n
 - 2026-11-01: A passed `creator` rule proposal passes the creator role to an admin and makes the old creator an admin, so the former creator can leave (#7572).
 - 2026-11-01: A creator who left the cabal loses the creator's powers (rename, picture, join requests); they need current membership (#7439).
 - 2026-11-01: Deleted accounts leave their cabals, banned members are suspended out of every electorate, and a cabal left without an admin promotes its longest-standing active member (#7436).
+- 2026-11-01: Creator and admin power is read from the actor's `cabal_members.role` row, never from `cabals.creator_id`; a `forbidigo` rule refuses `CreatorID` reads in cabal-module `domain` and `app` outside creation, the creator card and the creator transfer (#7461).

@@ -122,6 +122,8 @@ linters:
           msg: open transactions through platform/db UnitOfWork
         - pattern: '^http\.(DefaultClient|Get|Post|PostForm|Head)$'
           msg: outbound HTTP goes through platform/httpclient
+        - pattern: 'CreatorID$'
+          msg: creator power comes from the member row role (cabal_members.role), not the stored creator id
     depguard:
       rules:
         domain:
@@ -216,6 +218,16 @@ linters:
       - path: _test\.go$
         linters: [forbidigo]
         text: only main, tests and bus roots create root contexts
+      - path-except: ^internal/modules/[^/]+/(domain|app)/[^/]*\.go$
+        linters: [forbidigo]
+        text: creator power comes from the member row role
+      - path: _test\.go$
+        linters: [forbidigo]
+        text: creator power comes from the member row role
+      # Creation, the creator card and the creator transfer write or show the stored creator id; none of them authorizes (#7461).
+      - path: ^internal/modules/cabal/app/(create_cabal|get_cabal|apply_rule_change)\.go$
+        linters: [forbidigo]
+        text: creator power comes from the member row role
       - path: main_test\.go$
         linters: [gochecknoglobals]
       - path: ^cmd/

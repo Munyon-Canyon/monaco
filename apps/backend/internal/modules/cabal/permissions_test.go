@@ -35,7 +35,7 @@ func (c cast) cabal(t *testing.T, join string) domain.Cabal {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return domain.Cabal{CreatorID: c.creator, Rules: rules}
+	return domain.Cabal{Creators: []ids.UserID{c.creator}, Rules: rules}
 }
 
 func (c cast) request() domain.AccessRequest {
@@ -147,11 +147,17 @@ func TestCanRevoke_theRequesterWithdrawsAndACurrentAdminRevokes(t *testing.T) {
 	runPermissionCases(t, []permissionCase{
 		{"the inviter, still an admin", member(c.inviter), ""},
 		{"the creator", member(c.creator), ""},
-		{"an inviter who left", nobody(c.inviter), errs.CodeCannotRevokeAccess},
 		{"the invitee", nobody(c.invitee), errs.CodeCannotRevokeAccess},
 		{"another member", member(c.member), errs.CodeCannotRevokeAccess},
 		{"a stranger", nobody(c.outsider), errs.CodeCannotRevokeAccess},
 	}, func(a domain.Actor) error { return domain.CanRevoke(a, cabal, c.invite()) })
+	gone := c.cabal(t, "open")
+	wantCode(
+		t,
+		"an inviter who left",
+		domain.CanRevoke(nobody(c.inviter), gone, c.invite()),
+		errs.CodeCannotRevokeAccess,
+	)
 	unknown := domain.AccessRequest{Direction: "ask", UserID: c.applicant}
 	wantCode(t, "an unknown direction", domain.CanRevoke(member(c.creator), cabal, unknown), errs.CodeInternal)
 }
@@ -184,7 +190,7 @@ func TestCabalRoleOf_aReturningCreatorVotesInAListCabal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cabal := domain.Cabal{CreatorID: c.creator, Rules: rules}
+	cabal := domain.Cabal{Creators: []ids.UserID{c.creator}, Rules: rules}
 	if !domain.VoterFor(cabal.Rules, cabal.RoleOf(c.creator)) || domain.VoterFor(cabal.Rules, cabal.RoleOf(c.member)) {
 		t.Fatal("in a list cabal the creator must vote by the role RoleOf gives and a member must not")
 	}
