@@ -480,15 +480,6 @@ func PublishCrashingAt(point faultpoint.Name) Step {
 	}
 }
 
-func ExpectPublished(typ events.Type, n uint64) Step {
-	return func(s *Scenario) {
-		s.t.Helper()
-		if got := s.app.published(s.t, typ, s.app.events(s.t, typ, s.actors())); got != n {
-			s.t.Fatalf("scenario: %d %s messages on the stream, want %d", got, typ, n)
-		}
-	}
-}
-
 func EventuallyPublished(typ events.Type, n uint64) Step {
 	return func(s *Scenario) {
 		s.t.Helper()

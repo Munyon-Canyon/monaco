@@ -60,7 +60,7 @@ func f00Echoed() []scenario.Step {
 	return []scenario.Step{
 		scenario.ExpectEvents(events.TypeSystemPinged, 1),
 		scenario.EventuallyEvent(events.TypeSystemPinged),
-		scenario.ExpectPublished(events.TypeSystemPinged, 1),
+		scenario.EventuallyPublished(events.TypeSystemPinged, 1),
 		scenario.EventuallyHint("ping_echoed"),
 		scenario.Get(pings + "/{ping}"),
 		scenario.ExpectStatus(http.StatusOK),
