@@ -15,8 +15,8 @@ Subject `events.admin.action`, version 1.
 | `target_type` | `events.AdminTargetType` |
 | `target_id` | `string` |
 | `reason` | `string` |
-| `before` | `jsontext.Value` |
-| `after` | `jsontext.Value` |
+| `before` | `json.RawMessage` |
+| `after` | `json.RawMessage` |
 | `approved_by` | `*uuid.UUID` |
 
 ## `admin.approval_requested`
@@ -709,7 +709,7 @@ Subject `events.proposal.rule_passed`, version 1.
 | `proposal_id` | `uuid.UUID` |
 | `cabal_id` | `uuid.UUID` |
 | `proposer_id` | `uuid.UUID` |
-| `change` | `jsontext.Value` |
+| `change` | `json.RawMessage` |
 | `passed_at` | `time.Time` |
 
 ## `proposal.voided`
