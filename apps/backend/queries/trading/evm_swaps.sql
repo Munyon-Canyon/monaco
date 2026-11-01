@@ -15,7 +15,7 @@ WHERE s.id = sqlc.arg(id)::uuid;
 SELECT s.id
 FROM swaps AS s
 WHERE s.status IN ('created', 'submitted') AND s.created_at < sqlc.arg(older_than)::timestamptz
-  AND s.parked_at IS NULL
+  AND s.parked_at IS NULL AND (s.lease_until IS NULL OR s.lease_until <= sqlc.arg(now)::timestamptz)
   AND EXISTS (SELECT 1 FROM trade_steps AS t WHERE t.trade_id = s.id)
 ORDER BY s.updated_at, s.id
 LIMIT sqlc.arg(max_rows);
@@ -124,3 +124,30 @@ FOR UPDATE OF s;
 UPDATE swaps
 SET parked_at = NULL, parked_code = NULL, updated_at = sqlc.arg(at)::timestamptz
 WHERE id = sqlc.arg(id)::uuid AND parked_at IS NOT NULL AND status IN ('created', 'submitted');
+
+-- name: LeaseRouted :execrows
+UPDATE swaps
+SET lease_holder = sqlc.arg(holder)::uuid, lease_until = sqlc.arg(until)::timestamptz
+WHERE id = sqlc.arg(id)::uuid
+  AND (lease_until IS NULL OR lease_until <= sqlc.arg(now)::timestamptz OR lease_holder = sqlc.arg(holder)::uuid);
+
+-- name: ReleaseRouted :execrows
+UPDATE swaps
+SET lease_holder = NULL, lease_until = NULL
+WHERE id = sqlc.arg(id)::uuid AND lease_holder = sqlc.arg(holder)::uuid;
+
+-- name: LockEVMSwaps :execrows
+INSERT INTO evm_swap_locks (cabal_id, swap_id, expires_at)
+VALUES (sqlc.arg(cabal_id)::uuid, sqlc.arg(swap_id)::uuid, sqlc.arg(expires_at)::timestamptz)
+ON CONFLICT (cabal_id) DO UPDATE
+SET swap_id = excluded.swap_id, expires_at = excluded.expires_at
+WHERE evm_swap_locks.swap_id = excluded.swap_id OR evm_swap_locks.expires_at <= sqlc.arg(now)::timestamptz
+  OR NOT EXISTS (
+    SELECT 1 FROM swaps AS s
+    WHERE s.id = evm_swap_locks.swap_id AND s.status IN ('created', 'submitted') AND s.parked_at IS NULL
+  );
+
+-- name: CloseSwapStep :execrows
+UPDATE trade_steps
+SET status = sqlc.arg(status)::text, error = nullif(sqlc.arg(reason)::text, ''), updated_at = sqlc.arg(at)::timestamptz
+WHERE trade_id = sqlc.arg(trade_id)::uuid AND step = 'swap' AND status IN ('pending', 'submitted');

@@ -13,6 +13,59 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const closeSwapStep = `-- name: CloseSwapStep :execrows
+UPDATE trade_steps
+SET status = $1::text, error = nullif($2::text, ''), updated_at = $3::timestamptz
+WHERE trade_id = $4::uuid AND step = 'swap' AND status IN ('pending', 'submitted')
+`
+
+type CloseSwapStepParams struct {
+	Status  string
+	Reason  string
+	At      time.Time
+	TradeID uuid.UUID
+}
+
+func (q *Queries) CloseSwapStep(ctx context.Context, arg CloseSwapStepParams) (int64, error) {
+	result, err := q.db.Exec(ctx, closeSwapStep,
+		arg.Status,
+		arg.Reason,
+		arg.At,
+		arg.TradeID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const leaseRouted = `-- name: LeaseRouted :execrows
+UPDATE swaps
+SET lease_holder = $1::uuid, lease_until = $2::timestamptz
+WHERE id = $3::uuid
+  AND (lease_until IS NULL OR lease_until <= $4::timestamptz OR lease_holder = $1::uuid)
+`
+
+type LeaseRoutedParams struct {
+	Holder uuid.UUID
+	Until  time.Time
+	ID     uuid.UUID
+	Now    time.Time
+}
+
+func (q *Queries) LeaseRouted(ctx context.Context, arg LeaseRoutedParams) (int64, error) {
+	result, err := q.db.Exec(ctx, leaseRouted,
+		arg.Holder,
+		arg.Until,
+		arg.ID,
+		arg.Now,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const listParkedRouted = `-- name: ListParkedRouted :many
 SELECT s.id, s.cabal_id, s.status, s.parked_at::timestamptz AS parked_at, s.parked_code::text AS parked_code,
   coalesce((SELECT t.status FROM trade_steps AS t WHERE t.trade_id = s.id AND t.step = 'bridge_out'), '')::text
@@ -69,19 +122,20 @@ const listRoutedUnfinished = `-- name: ListRoutedUnfinished :many
 SELECT s.id
 FROM swaps AS s
 WHERE s.status IN ('created', 'submitted') AND s.created_at < $1::timestamptz
-  AND s.parked_at IS NULL
+  AND s.parked_at IS NULL AND (s.lease_until IS NULL OR s.lease_until <= $2::timestamptz)
   AND EXISTS (SELECT 1 FROM trade_steps AS t WHERE t.trade_id = s.id)
 ORDER BY s.updated_at, s.id
-LIMIT $2
+LIMIT $3
 `
 
 type ListRoutedUnfinishedParams struct {
 	OlderThan time.Time
+	Now       time.Time
 	MaxRows   int32
 }
 
 func (q *Queries) ListRoutedUnfinished(ctx context.Context, arg ListRoutedUnfinishedParams) ([]uuid.UUID, error) {
-	rows, err := q.db.Query(ctx, listRoutedUnfinished, arg.OlderThan, arg.MaxRows)
+	rows, err := q.db.Query(ctx, listRoutedUnfinished, arg.OlderThan, arg.Now, arg.MaxRows)
 	if err != nil {
 		return nil, err
 	}
@@ -164,6 +218,38 @@ func (q *Queries) ListStrandedCash(ctx context.Context, arg ListStrandedCashPara
 		return nil, err
 	}
 	return items, nil
+}
+
+const lockEVMSwaps = `-- name: LockEVMSwaps :execrows
+INSERT INTO evm_swap_locks (cabal_id, swap_id, expires_at)
+VALUES ($1::uuid, $2::uuid, $3::timestamptz)
+ON CONFLICT (cabal_id) DO UPDATE
+SET swap_id = excluded.swap_id, expires_at = excluded.expires_at
+WHERE evm_swap_locks.swap_id = excluded.swap_id OR evm_swap_locks.expires_at <= $4::timestamptz
+  OR NOT EXISTS (
+    SELECT 1 FROM swaps AS s
+    WHERE s.id = evm_swap_locks.swap_id AND s.status IN ('created', 'submitted') AND s.parked_at IS NULL
+  )
+`
+
+type LockEVMSwapsParams struct {
+	CabalID   uuid.UUID
+	SwapID    uuid.UUID
+	ExpiresAt time.Time
+	Now       time.Time
+}
+
+func (q *Queries) LockEVMSwaps(ctx context.Context, arg LockEVMSwapsParams) (int64, error) {
+	result, err := q.db.Exec(ctx, lockEVMSwaps,
+		arg.CabalID,
+		arg.SwapID,
+		arg.ExpiresAt,
+		arg.Now,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const lockStrandedCash = `-- name: LockStrandedCash :exec
@@ -278,6 +364,25 @@ func (q *Queries) ParkedRoutedForUpdate(ctx context.Context, id uuid.UUID) (Park
 		&i.Reused,
 	)
 	return i, err
+}
+
+const releaseRouted = `-- name: ReleaseRouted :execrows
+UPDATE swaps
+SET lease_holder = NULL, lease_until = NULL
+WHERE id = $1::uuid AND lease_holder = $2::uuid
+`
+
+type ReleaseRoutedParams struct {
+	ID     uuid.UUID
+	Holder uuid.UUID
+}
+
+func (q *Queries) ReleaseRouted(ctx context.Context, arg ReleaseRoutedParams) (int64, error) {
+	result, err := q.db.Exec(ctx, releaseRouted, arg.ID, arg.Holder)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const reuseStrandedCash = `-- name: ReuseStrandedCash :execrows
