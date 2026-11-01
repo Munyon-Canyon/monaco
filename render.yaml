@@ -22,6 +22,7 @@ services:
     runtime: docker
     repo: https://github.com/Munyon-Canyon/monaco
     branch: staging
+    autoDeployTrigger: "off"
     region: virginia
     plan: starter
     dockerfilePath: ./apps/backend/deployments/Dockerfile
@@ -47,6 +48,7 @@ services:
     runtime: docker
     repo: https://github.com/Munyon-Canyon/monaco
     branch: staging
+    autoDeployTrigger: "off"
     region: virginia
     plan: starter
     dockerfilePath: ./apps/backend/deployments/Dockerfile
