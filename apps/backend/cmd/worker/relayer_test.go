@@ -32,3 +32,16 @@ func TestRun_aLowRelayerAlertsAndDoesNotStopTheWorkerBooting(t *testing.T) {
 		t.Fatalf("no relayer.boot_underfunded alert:\n%s", stderr.String())
 	}
 }
+
+func TestRun_refusesToBootWithoutARelayerKey(t *testing.T) {
+	t.Parallel()
+	srv := httptest.NewServer(fakes.New())
+	t.Cleanup(srv.Close)
+	err := run(t.Context(), &bytes.Buffer{}, append(testkit.DeployedEnv(),
+		"MONACO_ENV=production", "DATABASE_URL=postgres://127.0.0.1:1/monaco", "NATS_URL=nats://127.0.0.1:1",
+		"POSTHOG_API_KEY=ph-key", "SOLANA_RPC_URL="+srv.URL+"/rpc/",
+	), noop.NewMeterProvider(), &module.Registry{})
+	if errs.CodeOf(err) != errs.CodeInvalidInput {
+		t.Fatalf("run = %v, want invalid_input from the missing relayer key", err)
+	}
+}
