@@ -31,6 +31,12 @@ extension StocksTabModel {
     }
 
     public func watchlistChanged() async {
+        async let watched: Void = loadMissingQuotes()
+        async let known: Void = loadFacts()
+        _ = await (watched, known)
+    }
+
+    func refreshWatchlist() async {
         async let watched: Void = loadQuotes()
         async let known: Void = loadFacts()
         _ = await (watched, known)

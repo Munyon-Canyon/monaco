@@ -20,6 +20,11 @@ WHERE account_status NOT IN ('banned', 'deleted')
   AND deleted_at IS NULL
   AND handle IS NOT NULL
   AND id <> $2::uuid
+  AND NOT EXISTS (
+    SELECT 1 FROM user_blocks b
+    WHERE (b.blocker_id = $2::uuid AND b.blocked_id = users.id)
+       OR (b.blocker_id = users.id AND b.blocked_id = $2::uuid)
+  )
   AND (
     handle LIKE $1::text ESCAPE '!'
     OR lower(display_name) LIKE $3::text ESCAPE '!'

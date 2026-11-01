@@ -65,4 +65,30 @@ struct WatchlistStoreTests {
         #expect(models.model(for: nil).isWatched("NVDAx"))
         #expect(defaults.dictionaryRepresentation().keys.filter { $0.hasPrefix("markets-watchlist.") }.isEmpty)
     }
+
+    @Test func starsAddedBeforeTheViewerLoadsLandOnTheirList() throws {
+        let defaults = try suite()
+        let models = WatchlistModels(store: UserDefaultsWatchlistStore(defaults: defaults))
+        models.model(for: nil).toggle("NVDAx")
+        models.model(for: nil).toggle("AAPLx")
+
+        let viewer = models.model(for: "u1")
+
+        #expect(viewer.symbols == ["NVDAx", "AAPLx"])
+        #expect(models.model(for: nil).symbols.isEmpty)
+        let relaunched = WatchlistModel(userID: "u1", store: UserDefaultsWatchlistStore(defaults: defaults))
+        #expect(relaunched.symbols == ["NVDAx", "AAPLx"])
+    }
+
+    @Test func aQueuedStarNeverDuplicatesOneTheViewerAlreadyHas() throws {
+        let defaults = try suite()
+        WatchlistModel(userID: "u1", store: UserDefaultsWatchlistStore(defaults: defaults)).toggle("NVDAx")
+        let models = WatchlistModels(store: UserDefaultsWatchlistStore(defaults: defaults))
+        models.model(for: nil).toggle("NVDAx")
+        models.model(for: nil).toggle("MSFTx")
+
+        let viewer = models.model(for: "u1")
+
+        #expect(viewer.symbols == ["NVDAx", "MSFTx"])
+    }
 }

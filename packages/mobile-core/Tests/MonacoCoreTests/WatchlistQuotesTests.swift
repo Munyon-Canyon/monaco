@@ -87,6 +87,22 @@ final class WatchlistQuotesTests: XCTestCase {
         XCTAssertEqual(quotes.rows.map(\.id), ["NVDAx"])
     }
 
+    func testLoadingMissingQuotesAsksOnlyForSymbolsWithNoQuoteYet() async throws {
+        let transport = StubTransport(routes: [
+            "/v1/assets/NVDAx": [try Self.quote("NVDAx", "NVIDIA xStock", 220_000_000)],
+            "/v1/assets/AAPLx": [try Self.quote("AAPLx", "Apple xStock", 240_000_000)],
+        ])
+        let (quotes, watchlist) = makeQuotes(transport, symbols: ["NVDAx"])
+        await quotes.load()
+
+        watchlist.toggle("AAPLx")
+        await quotes.loadMissing()
+
+        XCTAssertEqual(quotes.rows.map(\.id), ["NVDAx", "AAPLx"])
+        let paths = await transport.sent.map { $0.path ?? "" }
+        XCTAssertEqual(paths, ["/v1/assets/NVDAx", "/v1/assets/AAPLx"])
+    }
+
     func testAStarThatComesOffDropsItsQuote() async throws {
         let transport = StubTransport(routes: [
             "/v1/assets/NVDAx": [try Self.quote("NVDAx", "NVIDIA xStock", 220_000_000)],

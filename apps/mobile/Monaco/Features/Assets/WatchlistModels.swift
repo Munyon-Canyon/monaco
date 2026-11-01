@@ -16,8 +16,16 @@ final class WatchlistModels {
         guard let userID, !userID.isEmpty else { return unsignedModel }
         if let model = models[userID] { return model }
         let created = WatchlistModel(userID: userID, store: store)
+        adoptQueuedStars(into: created)
         models[userID] = created
         return created
+    }
+
+    private func adoptQueuedStars(into model: WatchlistModel) {
+        for symbol in unsignedModel.symbols {
+            if !model.isWatched(symbol) { model.toggle(symbol) }
+            unsignedModel.remove(symbol)
+        }
     }
 }
 
