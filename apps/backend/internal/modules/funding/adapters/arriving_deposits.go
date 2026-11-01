@@ -20,7 +20,7 @@ func (ArrivingDeposits) DepositArriving(
 	ctx context.Context, q dbsqlc.DBTX, user ids.UserID, at time.Time,
 ) (bool, error) {
 	arriving, err := sqlc.New(q).UserHasArrivingDeposit(ctx, sqlc.UserHasArrivingDepositParams{
-		Member: user.UUID(), Since: at.Add(-app.OnrampArrivalWindow),
+		Member: user.UUID(), Since: at.Add(-app.OnrampArrivalWindow), OpenedSince: at.Add(-app.OnrampOpenedTTL),
 	})
 	if err != nil {
 		return false, errs.Wrap(err, errs.CodeInternal, "funding.ArrivingDeposits.DepositArriving")

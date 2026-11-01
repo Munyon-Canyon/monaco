@@ -53,11 +53,41 @@ func TestDepositArriving_IsTrueForASubmittedOrConfirmedSessionInsideTheWindowOnl
 	}
 }
 
-func TestDepositArriving_IgnoresSessionsThatAreStillCreatedOrOpenedAndOtherUsers(t *testing.T) {
+func TestDepositArriving_IsTrueForAnOpenedSessionUntilItExpires(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name   string
+		status string
+		age    time.Duration
+		want   bool
+	}{
+		{"opened just now", "opened", 0, true},
+		{"opened a second before the expiry edge", "opened", app.OnrampOpenedTTL - time.Second, true},
+		{"opened exactly at the expiry edge", "opened", app.OnrampOpenedTTL, false},
+		{"opened past the expiry edge", "opened", app.OnrampOpenedTTL + time.Second, false},
+		{"expired after opening", "expired", 0, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			f := newForwardFixture(t)
+			id := ids.Real{}.NewV7()
+			opened := f.clock.Now().Add(-tc.age)
+			f.exec(t, `INSERT INTO onramp_sessions
+				(id, user_id, token_hash, status, created_at, expires_at, opened_at)
+				VALUES ($1, $2, $3, $4, $5, $5, $5)`,
+				id, f.user.ID.UUID(), id[:], tc.status, opened)
+			got, err := adapters.ArrivingDeposits{}.DepositArriving(t.Context(), f.pool, f.user.ID, f.clock.Now())
+			if err != nil || got != tc.want {
+				t.Fatalf("DepositArriving = %t, %v, want %t", got, err, tc.want)
+			}
+		})
+	}
+}
+
+func TestDepositArriving_IgnoresSessionsThatAreStillCreatedAndOtherUsers(t *testing.T) {
 	t.Parallel()
 	f := newForwardFixture(t)
 	seedOnrampSession(t, f, "created", nil)
-	seedOnrampSession(t, f, "opened", nil)
 	other := testkit.SeedUser(t, f.pool, testkit.UserOpts{})
 	id := ids.Real{}.NewV7()
 	now := f.clock.Now()
@@ -100,9 +130,9 @@ func TestDepositArriving_SurfacesAQueryFailure(t *testing.T) {
 	}
 }
 
-func (f *forwardFixture) exec(t *testing.T, sql string) {
+func (f *forwardFixture) exec(t *testing.T, sql string, args ...any) {
 	t.Helper()
-	if _, err := f.pool.Exec(t.Context(), sql); err != nil {
+	if _, err := f.pool.Exec(t.Context(), sql, args...); err != nil {
 		t.Fatal(err)
 	}
 }

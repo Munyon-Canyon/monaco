@@ -526,6 +526,37 @@ func TestDeleteAccount_refusesWhileADepositIsArrivingOrACreatorStillLeads(t *tes
 	}
 }
 
+func TestDeleteAccount_anOpenedCardSessionBlocksDeletionUntilItExpires(t *testing.T) {
+	t.Parallel()
+	f := newDeleteFixture(t)
+	u := f.seedWithPII(t, "active")
+	id := ids.Real{}.NewV7()
+	opened := f.clock.Now()
+	if _, err := f.pool.Exec(t.Context(), `INSERT INTO onramp_sessions
+		(id, user_id, token_hash, status, created_at, expires_at, opened_at)
+		VALUES ($1, $2, $3, 'opened', $4, $4, $4)`, id, u.ID.UUID(), id[:], opened); err != nil {
+		t.Fatal(err)
+	}
+	h := app.NewDeleteAccount(app.DeleteAccountDeps{
+		UoW: db.New(f.pool, testkit.NewIDs(642), f.clock), Users: adapters.Users{}, Balances: f.balances,
+		Stakes: f.stakes, Arriving: funding.New(module.Deps{}), Leaders: f.checks, Clock: f.clock,
+		Hints: f.hints,
+	})
+	const fundingOnrampOpenedTTL = 2 * time.Hour
+	f.clock.Advance(fundingOnrampOpenedTTL - time.Second)
+	if err := h.Handle(asUser(t, u.ID), u.ID); errs.CodeOf(err) != errs.CodeAccountHasArrivingDeposit {
+		t.Fatalf("DeleteAccount with an opened card session = %v, want AccountHasArrivingDeposit", err)
+	}
+	f.expectUntouched(t, u)
+	f.clock.Advance(time.Second)
+	if err := h.Handle(asUser(t, u.ID), u.ID); err != nil {
+		t.Fatalf("DeleteAccount after the opened card session expired = %v, want nil", err)
+	}
+	if got := f.row(t, u.ID); !got.Deleted {
+		t.Fatalf("row after delete = %+v, want deleted", got)
+	}
+}
+
 func TestDeleteAccount_aStakeBeatsABalanceBeatsAnArrivingDeposit(t *testing.T) {
 	t.Parallel()
 	f := newDeleteFixture(t)

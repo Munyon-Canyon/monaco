@@ -20,18 +20,24 @@ SELECT (
       AND s.completed_at >= $2::timestamptz
   )
   OR EXISTS (
+    SELECT 1 FROM onramp_sessions s
+    WHERE s.user_id = $1::uuid AND s.status = 'opened'
+      AND s.opened_at > $3::timestamptz
+  )
+  OR EXISTS (
     SELECT 1 FROM evm_deposit_forwards f WHERE f.user_id = $1::uuid AND f.status = 'pending'
   )
 )::boolean AS arriving
 `
 
 type UserHasArrivingDepositParams struct {
-	Member uuid.UUID
-	Since  time.Time
+	Member      uuid.UUID
+	Since       time.Time
+	OpenedSince time.Time
 }
 
 func (q *Queries) UserHasArrivingDeposit(ctx context.Context, arg UserHasArrivingDepositParams) (bool, error) {
-	row := q.db.QueryRow(ctx, userHasArrivingDeposit, arg.Member, arg.Since)
+	row := q.db.QueryRow(ctx, userHasArrivingDeposit, arg.Member, arg.Since, arg.OpenedSince)
 	var arriving bool
 	err := row.Scan(&arriving)
 	return arriving, err
