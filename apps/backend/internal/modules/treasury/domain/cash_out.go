@@ -85,6 +85,8 @@ type SaleSettlement struct {
 	Unpaid   money.Micros
 	Returned money.SharesUnits
 	Status   CashOutStatus
+
+	PendingFailed bool
 }
 
 func SettleSale(units money.SharesUnits, slice, paid money.Micros) (SaleSettlement, error) {
@@ -119,9 +121,12 @@ func CashOutReturn(h UserTxnHeader, usdc Asset, s SaleSettlement) (UserTxn, erro
 	if err != nil {
 		return UserTxn{}, errs.Wrap(err, errs.CodeOf(err), op)
 	}
-	entries := []UserEntry{
-		{Account: UserCabal, Asset: usdc, Amount: unpaid},
-		{Account: UserWallet, Asset: usdc, Amount: money.SignedMicrosFromInt64(-unpaid.Int64())},
+	var entries []UserEntry
+	if !s.PendingFailed {
+		entries = append(entries,
+			UserEntry{Account: UserCabal, Asset: usdc, Amount: unpaid},
+			UserEntry{Account: UserWallet, Asset: usdc, Amount: money.SignedMicrosFromInt64(-unpaid.Int64())},
+		)
 	}
 	if !s.Returned.IsZero() {
 		returned, err := money.MicrosFromUint64(s.Returned.Uint64()).Delta(money.Micros{})

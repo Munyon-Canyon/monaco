@@ -221,7 +221,7 @@ func TestTransfersBuild_relayerSignFailureReturnsNoBytes(t *testing.T) {
 
 func TestTransfersBuild_skipCreateSendsOnlyTheTransfer(t *testing.T) {
 	t.Parallel()
-	s := overFakes(t, "relayer")
+	s := overDestination(t, true)
 	spec := fund(25_000_000)
 	spec.SkipCreate = true
 	signed, err := s.transfers.Build(t.Context(), spec)

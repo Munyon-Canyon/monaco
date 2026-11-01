@@ -28,6 +28,9 @@ type RPC interface {
 	SOLBalance(ctx context.Context, addr chain.SolanaAddress) (money.BaseUnits, error)
 	LatestBlockhash(ctx context.Context) (solana.Blockhash, error)
 	MintConfig(ctx context.Context, mint chain.SolanaAddress) (solana.MintConfig, error)
+	Accounts(
+		ctx context.Context, addrs []chain.SolanaAddress, minContextSlot uint64,
+	) (uint64, []solana.TokenAccountState, error)
 	SendTransaction(ctx context.Context, tx []byte) (chain.Signature, error)
 }
 
