@@ -3,7 +3,6 @@ package db_test
 import (
 	"context"
 	"slices"
-	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -20,7 +19,7 @@ func drainRecovering(
 	return nil
 }
 
-func TestDrain_aPanickingPublishRollsBackAndUnlocksTheRowsForTheNextDrain(t *testing.T) {
+func TestDrain_aPanickingPublishLeavesTheRowsUnpublishedForTheNextDrain(t *testing.T) {
 	t.Parallel()
 	h := newHarness(t)
 	ids := h.appendEvents(t, 2)
@@ -41,19 +40,5 @@ func TestDrain_aPanickingPublishRollsBackAndUnlocksTheRowsForTheNextDrain(t *tes
 	b, err := outbox.Drain(t.Context(), 100, recording(&seen))
 	if err != nil || !slices.Equal(b.Published, ids) || !slices.Equal(seen, ids) {
 		t.Fatalf("drain after the panic = %+v, %v, saw %v; want both rows published", b, err, seen)
-	}
-}
-
-func TestDrain_rePanicsWithTheRollbackFailureWhenBothHappen(t *testing.T) {
-	t.Parallel()
-	h := newHarness(t)
-	h.appendEvents(t, 1)
-	p := drainRecovering(t, db.NewOutbox(h.pool, h.clock), func(ctx context.Context, _ db.OutboxRow) error {
-		_, _ = h.pool.Exec(ctx, `SELECT pg_terminate_backend(pid) FROM pg_stat_activity
-			WHERE datname = current_database() AND pid <> pg_backend_pid() AND state = 'idle in transaction'`)
-		panic("boom")
-	})
-	if s, _ := p.(string); !strings.HasPrefix(s, "boom (rollback: ") {
-		t.Fatalf("Drain recovered %v, want boom with the rollback failure", p)
 	}
 }

@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -41,7 +42,10 @@ func TestLoadFillsDefaultsFromTheRFC(t *testing.T) {
 			HealthAddr: ":8081", FundSendWindow: 2 * time.Minute, WithdrawalUnsentAge: 2 * time.Minute,
 			PollerBackoffMax: 5 * time.Minute,
 		},
-		DB:   config.DB{URL: "postgres://monaco@localhost:54322/monaco", MaxConns: 11},
+		DB: config.DB{
+			URL: "postgres://monaco@localhost:54322/monaco", MaxConns: 11,
+			StatementTimeout: 15 * time.Second, IdleTxTimeout: 30 * time.Second,
+		},
 		NATS: config.NATS{URL: "nats://localhost:4222"},
 		Bus:  config.Bus{APIRelay: true},
 		OTel: config.OTel{ServiceName: "monaco"},
@@ -126,7 +130,7 @@ func TestLoadFillsDefaultsFromTheRFC(t *testing.T) {
 	}
 }
 
-func deployedMaxConns(t *testing.T) map[string]string {
+func deployedEnv(t *testing.T, key string) map[string]string {
 	t.Helper()
 	raw, err := os.ReadFile(filepath.Join("..", "..", "..", "..", "..", "render.yaml"))
 	if err != nil {
@@ -147,7 +151,7 @@ func deployedMaxConns(t *testing.T) map[string]string {
 	got := map[string]string{}
 	for _, svc := range blueprint.Services {
 		for _, env := range svc.EnvVars {
-			if env.Key == "MONACO_DB_MAX_CONNS" {
+			if env.Key == key {
 				got[svc.Name] = env.Value
 			}
 		}
@@ -167,7 +171,7 @@ func TestDeployedPoolHoldsATransactionAndItsNestedRead(t *testing.T) {
 		t.Fatal("worker pollers no longer lock on their own one-connection pool; " +
 			"MONACO_DB_MAX_CONNS must then also cover every poller's held lock connection")
 	}
-	deployed := deployedMaxConns(t)
+	deployed := deployedEnv(t, "MONACO_DB_MAX_CONNS")
 	for _, service := range []string{"monaco-api", "monaco-worker"} {
 		value, ok := deployed[service]
 		if !ok {
@@ -184,6 +188,49 @@ func TestDeployedPoolHoldsATransactionAndItsNestedRead(t *testing.T) {
 	}
 }
 
+func deployedCount(t *testing.T, key, service string) int {
+	t.Helper()
+	value, ok := deployedEnv(t, key)[service]
+	if !ok {
+		t.Fatalf("render.yaml sets no %s for %s", key, service)
+	}
+	n, err := strconv.Atoi(value)
+	if err != nil {
+		t.Fatalf("%s for %s = %q: %v", key, service, value, err)
+	}
+	return n
+}
+
+func TestDeployedPoolsFitTheSupabasePoolerThroughADeployOverlap(t *testing.T) {
+	t.Parallel()
+	const (
+		poolerSize = 50
+		predeploy  = 3
+		lockConn   = 1
+	)
+	api := deployedCount(t, "MONACO_DB_MAX_CONNS", "monaco-api")
+	worker := deployedCount(t, "MONACO_DB_MAX_CONNS", "monaco-worker")
+	overlap := 2*(api+worker+lockConn) + predeploy
+	if overlap > poolerSize {
+		t.Fatalf("api %d + worker %d (+%d lock) twice over plus %d pre-deploy = %d connections, "+
+			"want at most the pooler's %d: docs/how-to/deploy-staging.md", api, worker, lockConn, predeploy, overlap, poolerSize)
+	}
+}
+
+func TestDeployedJupiterLimitsStayUnderTheFreeKeyWhileBothServicesRun(t *testing.T) {
+	t.Parallel()
+	const (
+		windowsPerMinute = 6
+		keyPerMinute     = 60
+	)
+	api := deployedCount(t, "MONACO_JUPITER_RATE_LIMIT", "monaco-api")
+	worker := deployedCount(t, "MONACO_JUPITER_RATE_LIMIT", "monaco-worker")
+	if sent := (api + worker) * windowsPerMinute; sent > keyPerMinute {
+		t.Fatalf("api %d + worker %d calls per 10 s allow %d a minute, want at most the key's %d: "+
+			"docs/how-to/deploy-staging.md", api, worker, sent, keyPerMinute)
+	}
+}
+
 func TestLoadReadsEveryKey(t *testing.T) {
 	t.Parallel()
 	cfg, err := config.Load([]string{
@@ -197,6 +244,8 @@ func TestLoadReadsEveryKey(t *testing.T) {
 		"MONACO_POLLER_BACKOFF_MAX=7s",
 		"DATABASE_URL=postgres://prod",
 		"MONACO_DB_MAX_CONNS=40",
+		"MONACO_DB_STATEMENT_TIMEOUT=9s",
+		"MONACO_DB_IDLE_TX_TIMEOUT=11s",
 		"NATS_URL=nats://prod:4222",
 		"OTEL_EXPORTER_OTLP_ENDPOINT=https://otlp.example",
 		"OTEL_EXPORTER_OTLP_HEADERS=Authorization=Basic abc",
@@ -307,7 +356,9 @@ func TestLoadReadsEveryKey(t *testing.T) {
 			HealthAddr: "127.0.0.1:9001", FundSendWindow: 5 * time.Second, WithdrawalUnsentAge: 6 * time.Second,
 			PollerBackoffMax: 7 * time.Second,
 		},
-		DB:   config.DB{URL: "postgres://prod", MaxConns: 40},
+		DB: config.DB{
+			URL: "postgres://prod", MaxConns: 40, StatementTimeout: 9 * time.Second, IdleTxTimeout: 11 * time.Second,
+		},
 		NATS: config.NATS{URL: "nats://prod:4222"},
 		Bus:  config.Bus{AckWait: 100 * time.Millisecond},
 		OTel: config.OTel{
@@ -687,6 +738,8 @@ func TestRedactedHidesSecretsAndShowsTheRest(t *testing.T) {
 		{"WITHDRAWAL_UNSENT_AGE", "2m0s"},
 		{"MONACO_POLLER_BACKOFF_MAX", "5m0s"},
 		{"MONACO_DB_MAX_CONNS", "11"},
+		{"MONACO_DB_STATEMENT_TIMEOUT", "15s"},
+		{"MONACO_DB_IDLE_TX_TIMEOUT", "30s"},
 		{"OTEL_EXPORTER_OTLP_ENDPOINT", ""},
 		{"OTEL_SERVICE_NAME", "monaco"},
 		{"MONACO_TIMEOUT_RPC", "5s"},

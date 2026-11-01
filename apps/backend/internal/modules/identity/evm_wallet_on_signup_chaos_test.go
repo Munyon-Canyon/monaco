@@ -15,6 +15,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity/adapters"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity/app"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
@@ -61,6 +62,7 @@ func TestEVMWalletOnSignup_convergesUnderChaosWithADeletedUserAndOneWithoutAWall
 			Forwarding: &privyfake.Forwarding{}, Clock: h.Clock,
 		})
 		deps := module.Deps{Pool: h.Pool, IDs: h.IDs, Clock: h.Clock, Bus: h.Bus, UoW: uow}
+		deps.Config.Funding.EVMDepositNetworks = []chain.Network{chain.NetworkBase}
 		for _, c := range identity.New(deps, identity.WithDepositWallets(wallets)).Consumers() {
 			if c.Durable == "identity_evm_wallet" {
 				return c

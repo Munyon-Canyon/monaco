@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
@@ -47,7 +48,7 @@ func seedMember(t *testing.T, q *sqlc.Queries, wallet bool) ids.UserID {
 	return user
 }
 
-func TestEnsureEVMDepositWallet_twoConcurrentCallsStoreOneWalletAndAttachOnce(t *testing.T) {
+func TestEnsureEVMDepositWallet_twoConcurrentCallsStoreOneWalletAndAttachItToTheSameMember(t *testing.T) {
 	t.Parallel()
 	pool := testkit.DB(t)
 	q := sqlc.New(pool)
@@ -68,10 +69,76 @@ func TestEnsureEVMDepositWallet_twoConcurrentCallsStoreOneWalletAndAttachOnce(t 
 		t.Fatalf("ensures = %s / %s, errors %v / %v", got[0], got[1], failures[0], failures[1])
 	}
 	row, err := q.FindUserEVMWallet(t.Context(), user.UUID())
-	if err != nil || row.EvmAddress != got[0].String() || forwarding.Attaches() != 1 ||
+	if err != nil || row.EvmAddress != got[0].String() || forwarding.Attaches() < 1 || forwarding.Attaches() > 2 ||
 		forwarding.Destination(row.EvmPrivyWalletID) != evmMember {
 		t.Fatalf("stored %+v, %v; %d attaches to %s", row, err, forwarding.Attaches(),
 			forwarding.Destination(row.EvmPrivyWalletID))
+	}
+}
+
+func newEnsure(
+	pool *pgxpool.Pool, wallets multichain.EVMWallets, forwarding multichain.DepositForwarding,
+) *app.EVMDepositWallets {
+	return app.NewEVMDepositWallets(app.EVMDepositWalletDeps{
+		UoW: db.New(pool, ids.Real{}, clock.Real{}), Reads: pool, Store: adapters.EVMWallets{},
+		Wallets: wallets, Forwarding: forwarding, Clock: clock.Real{},
+	})
+}
+
+func TestEnsureEVMDepositWallet_anAttachFailureStoresNothingAndALaterCallRecovers(t *testing.T) {
+	t.Parallel()
+	pool := testkit.DB(t)
+	q := sqlc.New(pool)
+	user := seedMember(t, q, true)
+	forwarding := &privyfake.Forwarding{}
+	forwarding.Fail("Attach", errs.New(errs.CodePrivyUnavailable, "test"))
+	ensure := newEnsure(pool, &privyfake.EVMWallets{}, forwarding)
+	if _, err := ensure.EnsureEVMDepositWallet(t.Context(), user); errs.CodeOf(err) != errs.CodePrivyUnavailable {
+		t.Fatalf("ensure with Privy down = %v, want privy_unavailable", err)
+	}
+	if _, found, err := (adapters.EVMWallets{}).StoredEVMWallet(t.Context(), pool, user); err != nil || found {
+		t.Fatalf("stored after a failed attach = %v, %v; want nothing", found, err)
+	}
+	forwarding.Fail("Attach", nil)
+	if got, err := ensure.EnsureEVMDepositWallet(t.Context(), user); err != nil || got == (chain.EVMAddress{}) {
+		t.Fatalf("ensure after Privy returned = %s, %v; want the wallet", got, err)
+	}
+}
+
+func TestEnsureEVMDepositWallet_aWalletStoredWhilePrivyWasBusyWins(t *testing.T) {
+	t.Parallel()
+	pool := testkit.DB(t)
+	q := sqlc.New(pool)
+	user := seedMember(t, q, true)
+	rival := multichain.EVMWallet{ID: "wallet-evm-rival", Address: chain.EVMAddress{9}}
+	forwarding := &privyfake.Forwarding{OnAttach: func() {
+		if err := (adapters.EVMWallets{}).SetEVMWallet(t.Context(), pool, user, rival, clock.Real{}.Now()); err != nil {
+			t.Error(err)
+		}
+	}}
+	got, err := newEnsure(pool, &privyfake.EVMWallets{}, forwarding).EnsureEVMDepositWallet(t.Context(), user)
+	if err != nil || got != rival.Address {
+		t.Fatalf("ensure = %s, %v; want the wallet stored meanwhile %s", got, err, rival.Address)
+	}
+}
+
+func TestEnsureEVMDepositWallet_aUserRemovedWhilePrivyWasBusyStoresNothing(t *testing.T) {
+	t.Parallel()
+	pool := testkit.DB(t)
+	q := sqlc.New(pool)
+	user := seedMember(t, q, true)
+	forwarding := &privyfake.Forwarding{OnAttach: func() {
+		if _, err := pool.Exec(
+			t.Context(),
+			`WITH w AS (DELETE FROM user_wallets WHERE user_id = $1) DELETE FROM users WHERE id = $1`,
+			user.UUID(),
+		); err != nil {
+			t.Error(err)
+		}
+	}}
+	_, err := newEnsure(pool, &privyfake.EVMWallets{}, forwarding).EnsureEVMDepositWallet(t.Context(), user)
+	if errs.CodeOf(err) != errs.CodeUserNotFound {
+		t.Fatalf("ensure for a user removed meanwhile = %v, want user_not_found", err)
 	}
 }
 

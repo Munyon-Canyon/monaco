@@ -28,7 +28,7 @@ Render's GitHub app must be installed on the Munyon-Canyon org with access to th
 
 The project's `postgres` database holds Supabase's own schemas (`auth`, `storage` and others) and the landing site's `waitlist` table. Atlas refuses to migrate a database that isn't clean, so staging uses its own database, `monaco_staging`, created with `create database monaco_staging`.
 
-## Pooler size
+## Pool size
 
 Each service opens at most this many connections:
 
@@ -36,9 +36,31 @@ Each service opens at most this many connections:
 | --- | --- |
 | api | `MONACO_DB_MAX_CONNS` |
 | worker | `MONACO_DB_MAX_CONNS` + 1. The extra one holds every poller's advisory lock, however many pollers there are. |
-| pre-deploy (`monacoctl migrate apply`, `bus apply`) | a few, only while it runs |
+| pre-deploy (`monacoctl migrate apply`, `bus apply`) | about 3, only while it runs |
 
-`render.yaml` sets `MONACO_DB_MAX_CONNS` to 4, so the api and worker use 9 connections together. A deploy runs the old and new copy of each service side by side for a short time, which doubles that to 18, plus the pre-deploy step. A pool size of 25 covers it; the project is set to 50. When the pool is too small, the worker fails every poller and the api fails boot with `EMAXCONNSESSION max clients reached`. Set the pool size in the Supabase dashboard (Database, Connection pooling) or with `PATCH /v1/projects/<ref>/config/database/pooler` and `default_pool_size`. Postgres allows 60 connections in all.
+A deploy runs the old and new copy of each service side by side for a short time, so the rule is:
+
+    2 x (api + worker + 1) + pre-deploy <= pooler size
+
+`render.yaml` sets the api to 12 and the worker to 8: 2 x (12 + 8 + 1) + 3 = 45, against a pooler of 50. `TestDeployedPoolsFitTheSupabasePoolerThroughADeployOverlap` fails when `render.yaml` breaks the rule, so raise the pooler first when you raise either number. Sources: the pooler size is Supabase's `default_pool_size` for the project (50, set in Database, Connection pooling, or with `PATCH /v1/projects/<ref>/config/database/pooler`), and Postgres allows 60 connections in all. When the pool is too small, the worker fails every poller and the api fails boot with `EMAXCONNSESSION max clients reached`.
+
+Every pooled connection also carries `statement_timeout` (`MONACO_DB_STATEMENT_TIMEOUT`, 15 s) and `idle_in_transaction_session_timeout` (`MONACO_DB_IDLE_TX_TIMEOUT`, 30 s). A hung call made while a transaction is open then frees its connection instead of pinning one of the pool. The poller lock connection sets neither: it is idle between ticks by design.
+
+## Jupiter limit
+
+The api and the worker each hold their own limiter on one shared Jupiter key (`MONACO_JUPITER_RATE_LIMIT`, calls per 10 s), so the key's budget is split between two processes that do not see each other. Their sum times 6 (windows a minute) must stay at or under the key's per-minute limit.
+
+| Key | Limit | api | worker |
+| --- | --- | --- | --- |
+| Free (the only plan documented at [developers.jup.ag/docs/portal/rate-limits](https://developers.jup.ag/docs/portal/rate-limits), read 2026-09-27) | 60 a minute, Price, Swap and Token calls sharing one bucket | 4 | 6 |
+
+The worker needs 6 because its price lane gets the limit minus 2 and the ~1,500 listed mints take 30 calls of 50 within the 105 s fetch window (lane 4: 9 windows x 4 x 50 = 1,800 mints). Trades may use the whole limit and prices only the limit minus 2, so a price tick never blocks a trade. A trade is two calls, the order and the execute. `TestPaceLoad_fiftyTradesAndThreePriceTicksFitTheFreeKeyWithNoQuoteTimeout` replays 50 trades and three price ticks in 5 minutes against those numbers: the busiest minute sends 38 of the key's 60 calls and no trade call waits for the limiter.
+
+Whether the production key is on the free plan is not confirmed (Andres or Logan: check the portal at https://portal.jup.ag). On a paid plan, raise both numbers in the same ratio, keep the worker above 5, and change the 60 in `TestDeployedJupiterLimitsStayUnderTheFreeKeyWhileBothServicesRun`. Render env changes take effect on the next deploy and need Andres's OK.
+
+## Sign-ups
+
+The `user.created` consumer `identity.evm_wallet` creates the user's EVM deposit wallet through Privy, one event at a time. It calls Privy between two short transactions, never inside one. A burst of sign-ups against a slow Privy still queues behind that one consumer, so set `EVM_DEPOSIT_NETWORKS=none` while EVM deposits are not offered: sign-up then records `deferred` and calls Privy not at all.
 
 ## Set up from scratch
 

@@ -130,8 +130,10 @@ type Worker struct {
 }
 
 type DB struct {
-	URL      string
-	MaxConns int32
+	URL              string
+	MaxConns         int32
+	StatementTimeout time.Duration
+	IdleTxTimeout    time.Duration
 }
 
 type NATS struct {
@@ -408,6 +410,7 @@ func (f field) secret() field {
 func fields() []field {
 	return slices.Concat(
 		platformFields(),
+		dbTimeoutFields(),
 		pollerFields(),
 		marketFields(),
 		fundingFields(),
@@ -484,6 +487,15 @@ func pollerFields() []field {
 			30*time.Second,
 			func(c *Config) *time.Duration { return &c.Governance.CloseRemindersInterval },
 		),
+	}
+}
+
+func dbTimeoutFields() []field {
+	return []field{
+		duration("MONACO_DB_STATEMENT_TIMEOUT", 15*time.Second,
+			func(c *Config) *time.Duration { return &c.DB.StatementTimeout }),
+		duration("MONACO_DB_IDLE_TX_TIMEOUT", 30*time.Second,
+			func(c *Config) *time.Duration { return &c.DB.IdleTxTimeout }),
 	}
 }
 

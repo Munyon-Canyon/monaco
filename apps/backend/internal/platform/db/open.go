@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"strconv"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -25,6 +27,7 @@ func Open(ctx context.Context, cfg config.DB) (*pgxpool.Pool, error) {
 		return nil, errs.Wrap(err, errs.CodeInternal, op)
 	}
 	poolCfg.MaxConns = cfg.MaxConns
+	poolCfg.AfterConnect = sessionTimeouts(cfg)
 	pool, err := pgxpool.NewWithConfig(ctx, poolCfg)
 	if err != nil {
 		return nil, errs.Wrap(err, errs.CodeInternal, op)
@@ -38,6 +41,24 @@ func Open(ctx context.Context, cfg config.DB) (*pgxpool.Pool, error) {
 		return nil, err
 	}
 	return pool, nil
+}
+
+func sessionTimeouts(cfg config.DB) func(context.Context, *pgx.Conn) error {
+	return func(ctx context.Context, conn *pgx.Conn) error {
+		for name, d := range map[string]time.Duration{
+			"statement_timeout":                   cfg.StatementTimeout,
+			"idle_in_transaction_session_timeout": cfg.IdleTxTimeout,
+		} {
+			if d <= 0 {
+				continue
+			}
+			ms := strconv.FormatInt(d.Milliseconds(), 10)
+			if _, err := conn.Exec(ctx, "SELECT set_config($1, $2, false)", name, ms); err != nil {
+				return errs.Wrap(err, errs.CodeDBUnavailable, "db.Open")
+			}
+		}
+		return nil
+	}
 }
 
 func checkRevision(ctx context.Context, pool *pgxpool.Pool) error {

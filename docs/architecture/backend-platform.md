@@ -119,7 +119,7 @@ Each table has one module that writes it. Other modules read it through that mod
 
 | Pattern | Where | Shape |
 | --- | --- | --- |
-| **Unit of Work** | Every write that emits an event. Required by the events-as-outbox rule. | `uow.Do(ctx, func(ctx context.Context, tx Tx) error)`. `Tx` exposes the module's repos and `Events.Append`. Commit wakes the relay in the same process. No `Begin/Commit` anywhere else (lint: `forbidigo` on `pgx.Tx.Commit` outside `platform/db`). A closure reads through `tx.Queries()` only: Render runs each service with `MONACO_DB_MAX_CONNS: "4"`, and a read through the pool waits for a slot that four peers can all hold at once, which Postgres cannot see. Read a slow input such as an RPC balance or a price before `uow.Do` and check it again inside; `db.NestedReadGuard` records a query that runs on another connection while a `Tx` is open. |
+| **Unit of Work** | Every write that emits an event. Required by the events-as-outbox rule. | `uow.Do(ctx, func(ctx context.Context, tx Tx) error)`. `Tx` exposes the module's repos and `Events.Append`. Commit wakes the relay in the same process. No `Begin/Commit` anywhere else (lint: `forbidigo` on `pgx.Tx.Commit` outside `platform/db`). A closure reads through `tx.Queries()` only: Render runs the api with `MONACO_DB_MAX_CONNS: "12"` and the worker with `"8"`, and a read through the pool waits for a slot that its peers can all hold at once, which Postgres cannot see. Read a slow input such as an RPC balance or a price before `uow.Do` and check it again inside; `db.NestedReadGuard` records a query that runs on another connection while a `Tx` is open. |
 | **Command** | Every user intent: `ProposeTrade`, `CastVote`, `FundCabal`, `CashOut`, `Withdraw`, `CreateCabal`. | Typed struct with `IdempotencyKey`, one `Handle(ctx, cmd) (Result, error)` per command. HTTP handler parses → builds command → calls handler. Same command can come from HTTP or `monacoctl`. |
 | **Query (CQRS-lite)** | Every screen read. | Reads hit projections (`cabal_positions`, `leaderboard_entries`, feed) directly via sqlc, bypassing domain. Writes go through commands. No shared "service" object doing both. |
 | **Strategy** | Asset issuers (xStocks, Tessera, PreStocks) and swap venue (Jupiter today). | `type AssetProvider interface { Catalog(ctx); Quote(ctx, Asset, Micros) (Quote, error) }`. Best-price buy runs every provider that lists the asset (fan-out, below) and picks the min. `Venue` interface for execution. |
@@ -155,7 +155,7 @@ Where concurrency pays in Monaco, and the pattern for each:
 | Leaderboard valuation per cabal | Pipeline: load holdings → value (needs prices) → write snapshot, each stage a goroutine, buffered channels | buffer 64, workers per stage 4 |
 | Notification fan-out to device tokens | Worker pool, APNs HTTP/2 client shared | 32 |
 | Best-price quote across issuers | Fan-out, first-error cancels, collect all | number of providers |
-| Relay publish batch | Sequential (order and ack matter); parallelism comes from multiple processes and `SKIP LOCKED`. api and worker each run a relay. | 1 |
+| Relay publish batch | Sequential (order and ack matter), each row under a 2 s deadline and with no database connection held: the relay reads the batch, publishes, then marks the acked rows. api and worker each run a relay, so a row can be published by both; `Nats-Msg-Id` makes the stream keep one copy and consumers dedupe through `event_deliveries`. | 1 |
 
 Hard rules:
 

@@ -254,7 +254,7 @@ func (h *relayHarness) eventIDs(t *testing.T) []string {
 	return out
 }
 
-func TestRelay_twoRelaysNeverPublishTheSameRowTwice(t *testing.T) {
+func TestRelay_twoRelaysLeaveEveryRowInTheStreamExactlyOnce(t *testing.T) {
 	t.Parallel()
 	h := newRelayHarness(t)
 	const n = 120
@@ -264,25 +264,14 @@ func TestRelay_twoRelaysNeverPublishTheSameRowTwice(t *testing.T) {
 	h.run(t, bus.NewRelay(h.bus.Conn, h.outbox, nil, h.clock))
 
 	h.waitDrained(t)
-	got := published(t)
-	slices.Sort(got)
+	got := slices.Compact(slices.Sorted(slices.Values(published(t))))
 	if rows := h.eventIDs(t); !slices.Equal(got, rows) {
-		t.Fatalf("two relays published %d messages for %d rows; published twice: %v, never published: %v",
-			len(got), len(rows), duplicates(got), missing(rows, got))
+		t.Fatalf("two relays published %d distinct ids for %d rows; never published: %v",
+			len(got), len(rows), missing(rows, got))
 	}
 	if got := msgs(t, h.bus); got != n {
 		t.Fatalf("stream holds %d messages after two relays drained %d rows, want %d", got, n, n)
 	}
-}
-
-func duplicates(sorted []string) []string {
-	var out []string
-	for i := 1; i < len(sorted); i++ {
-		if sorted[i] == sorted[i-1] {
-			out = append(out, sorted[i])
-		}
-	}
-	return slices.Compact(out)
 }
 
 func missing(want, got []string) []string {

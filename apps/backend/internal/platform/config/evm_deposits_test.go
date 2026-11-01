@@ -51,9 +51,23 @@ func TestLoad_refusesADepositNetworkThatIsNotAUSDCEVMChainOrRepeats(t *testing.T
 	for _, bad := range []string{"solana", "robinhood", "polygon", "base,", ",base", "base,base", "base, arbitrum"} {
 		_, err := config.Load(append(required(), "EVM_DEPOSIT_NETWORKS="+bad))
 		want := "config.Load: invalid_input: invalid EVM_DEPOSIT_NETWORKS " +
-			"(comma-separated distinct EVM networks taking USDC: base, arbitrum or ethereum)"
+			"(comma-separated distinct EVM networks taking USDC: base, arbitrum or ethereum, or none)"
 		if err == nil || err.Error() != want {
 			t.Errorf("EVM_DEPOSIT_NETWORKS=%s: Load error = %v, want %q", bad, err, want)
 		}
+	}
+}
+
+func TestLoad_evmDepositNetworksNoneOffersNoEVMDeposit(t *testing.T) {
+	t.Parallel()
+	cfg, err := config.Load(append(required(), "EVM_DEPOSIT_NETWORKS=none"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cfg.Funding.EVMDepositNetworks) != 0 {
+		t.Fatalf("EVMDepositNetworks = %v, want none", cfg.Funding.EVMDepositNetworks)
+	}
+	if got := cfg.Redacted()["EVM_DEPOSIT_NETWORKS"]; got != "none" {
+		t.Fatalf("Redacted EVM_DEPOSIT_NETWORKS = %q, want none", got)
 	}
 }
