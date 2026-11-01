@@ -280,6 +280,29 @@ func TestNotify_ProposalCreated_RecipientsFollowThePortOrderAndSkipRules(t *test
 	}
 }
 
+func TestNotify_ProposalCreated_GroupsThousandsInTheAmount(t *testing.T) {
+	t.Parallel()
+	r := newPushRig(t)
+	refs, ports := goldenProposal(t)
+	kind := ports.created(r)
+	kind.Users = users{cards: map[ids.UserID]identity.UserCard{refs.proposer: {DisplayName: "Dana"}}}
+	for micros, want := range map[uint64]string{
+		12_000_000_000:    "Dana proposed Buy AAPL $12,000",
+		1_500_500_000:     "Dana proposed Buy AAPL $1,500.50",
+		999_000_000:       "Dana proposed Buy AAPL $999",
+		1_234_567_000_000: "Dana proposed Buy AAPL $1,234,567",
+	} {
+		e := r.createdEvent(t, refs, buyKind, "AAPLx")
+		e.USDCMicros = money.MicrosFromUint64(micros)
+
+		msg, err := kind.Render(t.Context(), e, refs.proposer)
+
+		if err != nil || msg.Title != want {
+			t.Errorf("%d micros: title %q, %v, want %q", micros, msg.Title, err, want)
+		}
+	}
+}
+
 func TestNotify_ProposalCreated_NamesTheProposerOrSomeone(t *testing.T) {
 	t.Parallel()
 	for name, tc := range map[string]struct {

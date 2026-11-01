@@ -137,6 +137,22 @@ func TestEveryRowHasAKindAndAMessage(t *testing.T) {
 	}
 }
 
+func TestNoMessageUsesInternalWords(t *testing.T) {
+	t.Parallel()
+	for code, row := range table() {
+		for _, word := range []string{"idempotency", "provider", "venue", "hash"} {
+			if strings.Contains(strings.ToLower(row.Message), word) {
+				t.Errorf(
+					"%q: Message %q uses the internal word %q, which a member sees as a toast",
+					code,
+					row.Message,
+					word,
+				)
+			}
+		}
+	}
+}
+
 func TestAllIsSortedAndListsEveryRow(t *testing.T) {
 	t.Parallel()
 	all := All()

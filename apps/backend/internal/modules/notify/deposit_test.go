@@ -48,8 +48,10 @@ func TestNotify_DepositCredited_BodyShowsTruncatedDollars(t *testing.T) {
 		27_500_000:     "$27.50 is in your account balance.",
 		25_009_999:     "$25.00 is in your account balance.",
 		10_000:         "$0.01 is in your account balance.",
-		1_234_560_000:  "$1234.56 is in your account balance.",
-		math.MaxUint64: "$18446744073709.55 is in your account balance.",
+		12_000_000_000: "$12,000.00 is in your account balance.",
+		999_990_000:    "$999.99 is in your account balance.",
+		1_234_560_000:  "$1,234.56 is in your account balance.",
+		math.MaxUint64: "$18,446,744,073,709.55 is in your account balance.",
 	} {
 		e := events.DepositCredited{V: 1, AmountMicros: money.MicrosFromUint64(micros)}
 		msg, err := app.DepositCredited{}.Render(t.Context(), e, ids.UserID{})

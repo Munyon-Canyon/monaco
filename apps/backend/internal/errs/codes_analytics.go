@@ -10,7 +10,7 @@ func (codeFiles) Analytics() map[Code]Row {
 	return map[Code]Row{
 		CodePostHogUnavailable: {
 			Name: "PostHogUnavailable", Kind: KindUnavailable, Retryable: true,
-			Message: "The analytics provider is unavailable. Try again shortly.",
+			Message: "Analytics is busy. Try again in a minute.",
 		},
 		CodePostHogRejected: {
 			Name: "PostHogRejected", Kind: KindInternal, Alert: true, Message: "Something went wrong.",

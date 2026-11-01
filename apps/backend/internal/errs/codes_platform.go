@@ -41,11 +41,11 @@ func (codeFiles) Platform() map[Code]Row {
 		CodeNotFound:     {Name: "NotFound", Kind: KindNotFound, Message: "Not found."},
 		CodeIdempotencyMismatch: {
 			Name: "IdempotencyMismatch", Kind: KindConflict,
-			Message: "This idempotency key was already used for a different request.",
+			Message: "That request was already sent with different details. Start again.",
 		},
 		CodeIdempotencyInFlight: {
 			Name: "IdempotencyInFlight", Kind: KindConflict,
-			Message: "A request with this idempotency key is still in progress.",
+			Message: "Still sending your last request.",
 		},
 		CodeVersionConflict: {
 			Name: "VersionConflict", Kind: KindConflict,
@@ -57,23 +57,23 @@ func (codeFiles) Platform() map[Code]Row {
 		},
 		CodeUpstreamUnavailable: {
 			Name: "UpstreamUnavailable", Kind: KindUnavailable, Retryable: true,
-			Message: "A provider is unavailable. Try again shortly.",
+			Message: "Monaco is busy right now. Try again in a minute.",
 		},
 		CodeUpstreamTimeout: {
 			Name: "UpstreamTimeout", Kind: KindUnavailable, Retryable: true,
-			Message: "A provider timed out. Try again shortly.",
+			Message: "That took too long. Try again in a minute.",
 		},
 		CodeJupiterUnavailable: {
 			Name: "JupiterUnavailable", Kind: KindUnavailable, Retryable: true,
-			Message: "The swap venue is unavailable. Try again shortly.",
+			Message: "Trading is busy. Try again in a minute.",
 		},
 		CodeJupiterRejected: {
 			Name: "JupiterRejected", Kind: KindBlocked,
-			Message: "The swap venue refused this trade.",
+			Message: "That trade can't go through right now. Try again in a minute.",
 		},
 		CodePrivyUnavailable: {
 			Name: "PrivyUnavailable", Kind: KindUnavailable, Retryable: true,
-			Message: "The wallet provider is unavailable. Try again shortly.",
+			Message: "Your wallet is busy. Try again in a minute.",
 		},
 		CodeRPCUnavailable: {
 			Name: "RPCUnavailable", Kind: KindUnavailable, Retryable: true,

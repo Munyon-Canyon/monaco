@@ -110,9 +110,12 @@ func (k CommentReply) Render(ctx context.Context, e events.CommentCreated, to id
 	if body != "" {
 		body += " "
 	}
-	if e.ItemActorID != nil && ids.UserIDFrom(*e.ItemActorID) == to {
+	switch {
+	case e.ItemActorID != nil && ids.UserIDFrom(*e.ItemActorID) == to:
 		body += "On your " + e.ItemLabel + "."
-	} else {
+	case e.ItemActorName == "":
+		body += "On the " + e.ItemLabel + "."
+	default:
 		body += "On " + e.ItemActorName + "'s " + e.ItemLabel + "."
 	}
 	return Message{

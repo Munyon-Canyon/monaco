@@ -1,6 +1,7 @@
 import AuthenticationServices
 import Combine
 import Foundation
+import Intents
 import MonacoAPI
 import MonacoCore
 import PrivySDK
@@ -25,6 +26,9 @@ class PrivyAuthService: ObservableObject {
     private let freshTokenRefresh = SingleFlight<String?>()
     var revokeSession: @Sendable (String) async -> Void = { token in
         await SessionRevoker(serverURL: Config.api.baseURL).revoke(token: token)
+    }
+    var deleteDonatedInteractions: @Sendable () async -> Void = {
+        try? await INInteraction.deleteAll()
     }
     private var isRestoreInFlight = false
     /// The access tokens this sign-in has used. A 401 for a token that is not in here
@@ -352,7 +356,9 @@ class PrivyAuthService: ObservableObject {
         let privy = self.privy
         let epoch = signInEpoch
         let revokeSession = self.revokeSession
+        let deleteDonatedInteractions = self.deleteDonatedInteractions
         pendingRevoke.start { [self] in
+            await deleteDonatedInteractions()
             if let tokenToRevoke { await revokeSession(tokenToRevoke) }
             // Someone has signed in since this revoke was scheduled: the session it was told
             // to end is no longer the one Privy holds, and revoking now would tear down the
