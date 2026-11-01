@@ -4977,7 +4977,6 @@ paths:
     post:
       operationId: postSystemPing
       tags: [system]
-      x-rate-limit: {actor: {rate: 60, per: 1m, burst: 20}}
       x-idempotent: true
       summary: Record a ping for the caller.
       description: >-
