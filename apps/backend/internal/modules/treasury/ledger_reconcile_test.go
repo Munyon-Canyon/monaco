@@ -1,13 +1,17 @@
 package treasury_test
 
 import (
+	"context"
 	"slices"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 
+	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/adapters"
+	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 )
@@ -23,7 +27,7 @@ func (f fixture) swapRow(t *testing.T, cabal ids.CabalID, swap uuid.UUID, status
 	}
 }
 
-func (f fixture) bridgeStepRow(t *testing.T, swap uuid.UUID, step, status, action string, at time.Time) {
+func (f fixture) bridgeStepRow(t *testing.T, swap uuid.UUID, status, action string, at time.Time) {
 	t.Helper()
 	var privy, failure any
 	if action != "" {
@@ -33,8 +37,8 @@ func (f fixture) bridgeStepRow(t *testing.T, swap uuid.UUID, step, status, actio
 		failure = "bridge refused"
 	}
 	if _, err := f.pool.Exec(t.Context(), `INSERT INTO trade_steps (id, trade_id, step, network, privy_action_id,
-		amount_micros, status, error, created_at, updated_at) VALUES ($1, $2, $3, 'base', $4, 10000000, $5, $6, $7, $7)`,
-		f.ids.NewV7(), swap, step, privy, status, failure, at); err != nil {
+		amount_micros, status, error, created_at, updated_at) VALUES ($1, $2, 'bridge_out', 'base', $3, 10000000, $4, $5, $6, $6)`,
+		f.ids.NewV7(), swap, privy, status, failure, at); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -90,9 +94,9 @@ func TestLedgerReconcile_alertsOnABridgeStepWhoseLandingOrReturnIsUnbooked(t *te
 	for _, run := range []bridgeRun{landed, returned, noAction} {
 		f.swapRow(t, cabal, run.swap, "created", aged)
 	}
-	f.bridgeStepRow(t, landed.swap, "bridge_out", "succeeded", "privy-landed", aged)
-	f.bridgeStepRow(t, returned.swap, "bridge_out", "failed", "privy-returned", aged)
-	f.bridgeStepRow(t, noAction.swap, "bridge_out", "failed", "", aged)
+	f.bridgeStepRow(t, landed.swap, "succeeded", "privy-landed", aged)
+	f.bridgeStepRow(t, returned.swap, "failed", "privy-returned", aged)
+	f.bridgeStepRow(t, noAction.swap, "failed", "", aged)
 
 	if got := f.reconcile(t); got != 2 {
 		t.Fatalf("unbooked = %d, want the succeeded landing and the failed return, not the failure with no action", got)
@@ -112,5 +116,62 @@ func TestLedgerReconcile_alertsOnABridgeStepWhoseLandingOrReturnIsUnbooked(t *te
 	returned.handle(t, returned.event("failed", "privy-returned", 10_000_000, 0))
 	if got := f.reconcile(t); got != 0 {
 		t.Fatalf("unbooked = %d after both steps are booked, want none", got)
+	}
+}
+
+type failingReads struct {
+	sqlc.DBTX
+	okQueries int
+}
+
+func (r *failingReads) Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error) {
+	if r.okQueries == 0 {
+		return nil, errs.New(errs.CodeDBUnavailable, "test.reads")
+	}
+	r.okQueries--
+	return r.DBTX.Query(ctx, sql, args...)
+}
+
+func TestLedgerReconcile_failsTheTickWhenAReadFails(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	cabal := f.funded(t)
+	aged := f.clock.Now().Add(-11 * time.Minute)
+	run := newBridgeRun(t, f, cabal, "bridge_out")
+	f.swapRow(t, cabal, run.swap, "created", aged)
+	f.bridgeStepRow(t, run.swap, "succeeded", "privy-out", aged)
+	for ok := range 3 {
+		reads := &failingReads{DBTX: f.pool, okQueries: ok}
+		if _, err := (adapters.LedgerReconcile{Reads: reads, Clock: f.clock}).Tick(f.ctx()); err == nil {
+			t.Errorf("tick after %d good reads = nil, want the read error", ok)
+		}
+	}
+}
+
+func TestLedgerReconcile_failsTheTickOnALandingBookedOnAnUnreadableSwap(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	cabal := f.funded(t)
+	aged := f.clock.Now().Add(-11 * time.Minute)
+	run := newBridgeRun(t, f, cabal, "bridge_out")
+	f.swapRow(t, cabal, run.swap, "created", aged)
+	f.bridgeStepRow(t, run.swap, "succeeded", "reused:not-a-swap", aged)
+	if _, err := (adapters.LedgerReconcile{Reads: f.pool, Clock: f.clock}).Tick(f.ctx()); err == nil {
+		t.Fatal("tick = nil, want an error for a reused landing that names no swap")
+	}
+}
+
+func TestLedgerReconcile_alertsOnlyOnTheFirstTwentyUnbookedAndCountsTheRest(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	cabal := f.funded(t)
+	for range 21 {
+		f.swapRow(t, cabal, f.ids.NewV7(), "confirmed", f.clock.Now().Add(-11*time.Minute))
+	}
+	if got := f.reconcile(t); got != 21 {
+		t.Fatalf("unbooked = %d, want 21", got)
+	}
+	if lines := f.logs.Lines(observability.TreasuryLedgerUnbooked.Name, "unbooked_total"); len(lines) != 20 {
+		t.Fatalf("alerts = %d, want 20", len(lines))
 	}
 }

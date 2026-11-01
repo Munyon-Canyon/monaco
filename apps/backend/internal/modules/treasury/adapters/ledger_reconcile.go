@@ -120,13 +120,10 @@ func bridgeTxnID(s sqlc.SettledBridgeStepsRow) (uuid.UUID, bool, error) {
 		SwapID: s.TradeID, CabalID: ids.CabalIDFrom(s.CabalID), Direction: domain.BridgeDirection(s.Step),
 		Network: chain.Network(s.Network), Attempt: int(s.Attempt),
 	}
-	switch s.Status {
-	case "succeeded":
-		swap, err := bookedOn(events.TradeStepChanged{SwapID: s.TradeID, PrivyActionID: s.PrivyActionID})
-		b.SwapID = swap
-		return b.TxnID(s.Status), err == nil, err
-	case "failed":
+	if s.Status == "failed" {
 		return b.TxnID(s.Status), s.PrivyActionID != "", nil
 	}
-	return uuid.UUID{}, false, nil
+	swap, err := bookedOn(events.TradeStepChanged{SwapID: s.TradeID, PrivyActionID: s.PrivyActionID})
+	b.SwapID = swap
+	return b.TxnID(s.Status), err == nil, err
 }
