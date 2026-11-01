@@ -151,23 +151,36 @@ func (c *Client) priceBatch(ctx context.Context, batch []Mint) (map[Mint]Price, 
 		if !found || string(raw) == "null" {
 			continue
 		}
-		var w priceWire
-		usd, ok := money.Micros{}, json.Unmarshal(raw, &w) == nil
-		if ok {
-			usd, ok = parsePrice(w.price())
-		}
+		w, usd, ok := decodePrice(raw)
 		if !ok {
-			var stock wireNumber
-			if w.StockData != nil {
-				stock = w.StockData.Price
-			}
-			boundary.Warn(ctx, observability.JupiterPriceSkipped, slog.String("mint", m.Address),
-				slog.String("usd_price", string(w.USDPrice)), slog.String("stock_price", string(stock)))
+			c.skipPrice(ctx, m, w, observed)
 			continue
 		}
+		c.skipped.priced(m.Address)
 		out[m] = Price{Mint: m, USDMicros: usd, ObservedAt: observed}
 	}
 	return out, nil
+}
+
+func decodePrice(raw json.RawMessage) (priceWire, money.Micros, bool) {
+	var w priceWire
+	if json.Unmarshal(raw, &w) != nil {
+		return w, money.Micros{}, false
+	}
+	usd, ok := parsePrice(w.price())
+	return w, usd, ok
+}
+
+func (c *Client) skipPrice(ctx context.Context, m Mint, w priceWire, observed time.Time) {
+	if !c.skipped.due(m.Address, observed) {
+		return
+	}
+	var stock wireNumber
+	if w.StockData != nil {
+		stock = w.StockData.Price
+	}
+	boundary.Warn(ctx, observability.JupiterPriceSkipped, slog.String("mint", m.Address),
+		slog.String("usd_price", string(w.USDPrice)), slog.String("stock_price", string(stock)))
 }
 
 func parsePrice(n json.Number) (money.Micros, bool) {

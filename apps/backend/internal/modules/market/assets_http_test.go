@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -1085,5 +1086,50 @@ func TestAssetDetail_priceSourceComesFromTheStoredSample(t *testing.T) {
 	stale := detailOf(t, s.get(t, "/v1/assets/AAPLx"))
 	if stale.PriceAsOf == nil || !stale.PriceAsOf.Equal(s.when.Add(-time.Minute)) {
 		t.Fatalf("stale price_as_of = %v, want the old sample's time", stale.PriceAsOf)
+	}
+}
+
+func TestAssets_aNeverPricedAssetIsOutOfTheListsAndSearchButReachableBySymbol(t *testing.T) {
+	t.Parallel()
+	s := newMarketAPI(t, marketWhen())
+	s.seedFixtures(t)
+	if _, err := s.pool.Exec(t.Context(),
+		`UPDATE assets SET last_quoted_at = NULL WHERE mint = $1`, marketfake.AAPLx().Mint.String()); err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range []string{
+		"/v1/assets?q=apple", "/v1/assets?q=aap", "/v1/assets?sort=name&q=apple", "/v1/assets?filter=popular&q=apple",
+	} {
+		if page := pageOf(t, s.get(t, path)); len(page.Assets) != 0 {
+			t.Fatalf("%s = %+v, want nothing for an asset Jupiter never priced", path, page.Assets)
+		}
+	}
+	for _, a := range pageOf(t, s.get(t, "/v1/assets")).Assets {
+		if a.Symbol == "AAPLx" {
+			t.Fatal("the plain list offers AAPLx, which Jupiter never priced")
+		}
+	}
+	if got := detailOf(t, s.get(t, "/v1/assets/AAPLx")); got.Symbol != "AAPLx" {
+		t.Fatalf("detail by symbol = %+v, want AAPLx still reachable for links", got)
+	}
+}
+
+func TestCatalog_ListTradableLeavesOutAnAssetNeverPriced(t *testing.T) {
+	t.Parallel()
+	catalog, pool, _ := seededCatalog(t)
+	if _, err := pool.Exec(t.Context(), `UPDATE assets SET last_quoted_at = NULL WHERE symbol = 'AAPLx'`); err != nil {
+		t.Fatal(err)
+	}
+	for name, list := range map[string]func(context.Context) ([]market.Asset, error){
+		"ListTradable": catalog.ListTradable, "ListPriceable": catalog.ListPriceable,
+	} {
+		got, err := list(t.Context())
+		if err != nil {
+			t.Fatal(err)
+		}
+		listed := slices.ContainsFunc(got, func(a market.Asset) bool { return a.Symbol == "AAPLx" })
+		if want := name == "ListPriceable"; listed != want {
+			t.Fatalf("%s lists AAPLx = %v, want %v: the poller must keep pricing it", name, listed, want)
+		}
 	}
 }

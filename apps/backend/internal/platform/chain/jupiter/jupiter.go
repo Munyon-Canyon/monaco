@@ -88,6 +88,7 @@ type Client struct {
 	clock   clock.Clock
 	window  time.Duration
 	pace    *pace
+	skipped *skippedMints
 }
 
 func New(cfg config.Config, clk clock.Clock, opts ...httpclient.Option) *Client {
@@ -106,6 +107,7 @@ func New(cfg config.Config, clk clock.Clock, opts ...httpclient.Option) *Client 
 		clock:   clk,
 		window:  cfg.Timeouts.JupiterExecute,
 		pace:    newPace(clk, int(cfg.Jupiter.RateLimit)),
+		skipped: newSkippedMints(),
 	}
 }
 

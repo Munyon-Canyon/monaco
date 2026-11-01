@@ -70,6 +70,7 @@ func (q *Queries) FirstSamplesSince(ctx context.Context, arg FirstSamplesSincePa
 const listAssetsByName = `-- name: ListAssetsByName :many
 SELECT id, symbol, mint, decimals, issuer, kind, display_name, logo_url, ui_multiplier_num, ui_multiplier_den, issuer_tradable, tradable_override, popular_rank, company_key, first_seen_at, updated_at, chain_checked_at, ui_multiplier_next_num, ui_multiplier_next_den, ui_multiplier_next_at, last_quoted_at FROM assets
 WHERE chain_checked_at IS NOT NULL
+  AND last_quoted_at IS NOT NULL
   AND coalesce(tradable_override, issuer_tradable)
   AND ($1::text = '' OR kind = $1::text)
   AND (
@@ -150,6 +151,7 @@ func (q *Queries) ListAssetsByName(ctx context.Context, arg ListAssetsByNamePara
 const listAssetsByRank = `-- name: ListAssetsByRank :many
 SELECT id, symbol, mint, decimals, issuer, kind, display_name, logo_url, ui_multiplier_num, ui_multiplier_den, issuer_tradable, tradable_override, popular_rank, company_key, first_seen_at, updated_at, chain_checked_at, ui_multiplier_next_num, ui_multiplier_next_den, ui_multiplier_next_at, last_quoted_at FROM assets
 WHERE chain_checked_at IS NOT NULL
+  AND last_quoted_at IS NOT NULL
   AND coalesce(tradable_override, issuer_tradable)
   AND popular_rank IS NOT NULL
   AND (
@@ -228,6 +230,7 @@ func (q *Queries) ListAssetsByRank(ctx context.Context, arg ListAssetsByRankPara
 const listAssetsBySymbol = `-- name: ListAssetsBySymbol :many
 SELECT id, symbol, mint, decimals, issuer, kind, display_name, logo_url, ui_multiplier_num, ui_multiplier_den, issuer_tradable, tradable_override, popular_rank, company_key, first_seen_at, updated_at, chain_checked_at, ui_multiplier_next_num, ui_multiplier_next_den, ui_multiplier_next_at, last_quoted_at FROM assets
 WHERE chain_checked_at IS NOT NULL
+  AND last_quoted_at IS NOT NULL
   AND coalesce(tradable_override, issuer_tradable)
   AND ($1::text = '' OR kind = $1::text)
   AND (

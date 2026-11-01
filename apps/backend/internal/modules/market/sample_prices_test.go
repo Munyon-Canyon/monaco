@@ -144,12 +144,12 @@ func seedAssets(t *testing.T, pool *pgxpool.Pool, at time.Time, assets ...market
 		}
 		rows[i] = []any{
 			a.ID.UUID(), a.Symbol, a.Mint.String(), int16(a.Decimals), string(a.Issuer), string(a.Kind),
-			a.DisplayName, a.IssuerTradable, a.CompanyKey, at, at, at, rank,
+			a.DisplayName, a.IssuerTradable, a.CompanyKey, at, at, at, at.Add(-24 * time.Hour), rank,
 		}
 	}
 	columns := []string{
 		"id", "symbol", "mint", "decimals", "issuer", "kind", "display_name", "issuer_tradable", "company_key",
-		"first_seen_at", "updated_at", "chain_checked_at", "popular_rank",
+		"first_seen_at", "updated_at", "chain_checked_at", "last_quoted_at", "popular_rank",
 	}
 	if _, err := pool.CopyFrom(t.Context(), pgx.Identifier{"assets"}, columns, pgx.CopyFromRows(rows)); err != nil {
 		t.Fatal(err)
