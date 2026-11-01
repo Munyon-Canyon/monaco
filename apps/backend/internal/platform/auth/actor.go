@@ -32,6 +32,8 @@ type Actor struct {
 
 	SessionID string
 	IssuedAt  int64
+
+	DevToken bool
 }
 
 func (a Actor) Key() string { return string(a.Kind) + ":" + a.ID }

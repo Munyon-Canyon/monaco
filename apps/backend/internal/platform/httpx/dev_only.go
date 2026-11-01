@@ -16,7 +16,7 @@ func devOnly(extensions map[string]any) bool {
 
 func refuseDevOnly(env config.Env) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
-		if env != config.EnvProduction {
+		if env == config.EnvLocal || env == config.EnvTest {
 			return next
 		}
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

@@ -37,7 +37,9 @@ func TestHTTPWithdrawThenRead(t *testing.T) {
 		Withdrawals: f.handler, Authorize: app.NewAuthorizeWithdrawalHandler(f.uow, f.clock), Reads: f.pool,
 		IDs: testkit.NewIDs(11),
 	}
-	ctx := auth.WithActor(t.Context(), auth.Actor{Kind: auth.ActorUser, ID: f.user.ID.String()})
+	ctx := auth.WithActor(t.Context(), auth.Actor{
+		Kind: auth.ActorUser, ID: f.user.ID.String(), SessionID: phoneSID, IssuedAt: f.clock.Now().Unix(),
+	})
 	resp, err := h.Withdraw(ctx, authorized(ctx, t, h,
 		api.WithdrawJSONRequestBody{AmountMicros: "2000000", ToAddress: string(withdrawTo)}))
 	accepted, ok := resp.(api.Withdraw202JSONResponse)
@@ -73,7 +75,9 @@ func TestHTTPReadFailedWithdrawal(t *testing.T) {
 		Withdrawals: f.handler, Authorize: app.NewAuthorizeWithdrawalHandler(f.uow, f.clock), Reads: f.pool,
 		IDs: testkit.NewIDs(12),
 	}
-	ctx := auth.WithActor(t.Context(), auth.Actor{Kind: auth.ActorUser, ID: f.user.ID.String()})
+	ctx := auth.WithActor(t.Context(), auth.Actor{
+		Kind: auth.ActorUser, ID: f.user.ID.String(), SessionID: phoneSID, IssuedAt: f.clock.Now().Unix(),
+	})
 	_, err := h.Withdraw(ctx, authorized(ctx, t, h,
 		api.WithdrawJSONRequestBody{AmountMicros: "2000000", ToAddress: string(withdrawTo)}))
 	if errs.CodeOf(err) != errs.CodePrivyUnavailable {
@@ -131,6 +135,20 @@ func TestHTTPWithdrawRefusals(t *testing.T) {
 	}
 }
 
+func TestHTTPWithdraw_refusesADevToken(t *testing.T) {
+	t.Parallel()
+	f := newWithdrawFixture(t, 5_000_000)
+	h := adapters.HTTP{Withdrawals: f.handler, IDs: testkit.NewIDs(15)}
+	ctx := auth.WithActor(t.Context(), auth.Actor{Kind: auth.ActorUser, ID: f.user.ID.String(), DevToken: true})
+	_, err := h.Withdraw(ctx, api.WithdrawRequestObject{
+		Body: &api.WithdrawJSONRequestBody{AmountMicros: "2000000", ToAddress: string(withdrawTo)},
+	})
+	if errs.CodeOf(err) != errs.CodeSessionRequired || len(f.transfers.builds) != 0 {
+		t.Fatalf("Withdraw with a dev token = %v, builds = %d, want session_required and no transfer",
+			err, len(f.transfers.builds))
+	}
+}
+
 func TestHTTPAuthorizeWithdrawalRefusals(t *testing.T) {
 	t.Parallel()
 	f := newWithdrawFixture(t, 5_000_000)
@@ -149,6 +167,21 @@ func TestHTTPAuthorizeWithdrawalRefusals(t *testing.T) {
 		errs.CodeInvalidInput {
 		t.Fatalf("below the minimum err = %v, want invalid_input", err)
 	}
+	if _, err := h.AuthorizeWithdrawal(user, body("2000000", string(withdrawTo))); errs.CodeOf(err) !=
+		errs.CodeSessionRequired {
+		t.Fatalf("without a session err = %v, want session_required", err)
+	}
+	devToken := auth.WithActor(t.Context(), auth.Actor{
+		Kind:      auth.ActorUser,
+		ID:        f.user.ID.String(),
+		SessionID: phoneSID,
+		IssuedAt:  f.clock.Now().Unix(),
+		DevToken:  true,
+	})
+	if _, err := h.AuthorizeWithdrawal(devToken, body("2000000", string(withdrawTo))); errs.CodeOf(err) !=
+		errs.CodeSessionRequired {
+		t.Fatalf("a dev token err = %v, want session_required", err)
+	}
 	stale := auth.WithActor(t.Context(), auth.Actor{
 		Kind: auth.ActorUser, ID: f.user.ID.String(), SessionID: phoneSID,
 		IssuedAt: f.clock.Now().Add(-time.Hour).Unix(),
@@ -163,7 +196,10 @@ func TestHTTPAuthorizeWithdrawalRefusals(t *testing.T) {
 	); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := h.AuthorizeWithdrawal(user, body("2000000", string(withdrawTo))); err == nil {
+	signedIn := auth.WithActor(t.Context(), auth.Actor{
+		Kind: auth.ActorUser, ID: f.user.ID.String(), SessionID: phoneSID, IssuedAt: f.clock.Now().Unix(),
+	})
+	if _, err := h.AuthorizeWithdrawal(signedIn, body("2000000", string(withdrawTo))); err == nil {
 		t.Fatal("a broken table = nil, want the database error")
 	}
 }

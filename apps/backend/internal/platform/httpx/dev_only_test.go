@@ -56,30 +56,32 @@ func TestDevOnlyRoutes(t *testing.T) {
 	if !slices.Equal(ops, want) {
 		t.Fatalf("x-dev-only operations = %v, want %v", ops, want)
 	}
-	h := newHarness(t)
-	h.deps.Env = config.EnvProduction
-	handler := mustIdentityHandler(t, h.deps)
-	header := http.Header{"Authorization": {"Bearer token"}, "Idempotency-Key": {"k1"}}
-	for _, op := range ops {
-		resp := h.do(t, handler, op.method, op.path, header)
-		if p := decodeProblem(t, resp); resp.Code != http.StatusNotFound || p.Code != "not_found" {
-			t.Fatalf("%s %s under production = %d %+v, want 404 not_found", op.method, op.path, resp.Code, p)
+	for _, env := range []config.Env{config.EnvStaging, config.EnvProduction} {
+		h := newHarness(t)
+		h.deps.Env = env
+		handler := mustIdentityHandler(t, h.deps)
+		header := http.Header{"Authorization": {"Bearer token"}, "Idempotency-Key": {"k1"}}
+		for _, op := range ops {
+			resp := h.do(t, handler, op.method, op.path, header)
+			if p := decodeProblem(t, resp); resp.Code != http.StatusNotFound || p.Code != "not_found" {
+				t.Fatalf("%s %s under %s = %d %+v, want 404 not_found", op.method, op.path, env, resp.Code, p)
+			}
 		}
-	}
-	refused := linesNamed(h.logs.lines(t), "http.problem")
-	if len(refused) != len(ops) {
-		t.Fatalf("got %d http.problem lines, want %d", len(refused), len(ops))
-	}
-	for _, line := range refused {
-		if line["err"] != "httpx.refuseDevOnly: not_found" {
-			t.Fatalf("problem line = %v, want the production guard to answer before auth", line)
+		refused := linesNamed(h.logs.lines(t), "http.problem")
+		if len(refused) != len(ops) {
+			t.Fatalf("%s: got %d http.problem lines, want %d", env, len(refused), len(ops))
+		}
+		for _, line := range refused {
+			if line["err"] != "httpx.refuseDevOnly: not_found" {
+				t.Fatalf("%s: problem line = %v, want the guard to answer before auth", env, line)
+			}
 		}
 	}
 }
 
-func TestDevOnlyRoutes_reachAuthOutsideProduction(t *testing.T) {
+func TestDevOnlyRoutes_reachAuthOnlyLocallyAndInTest(t *testing.T) {
 	t.Parallel()
-	for _, env := range []config.Env{config.EnvLocal, config.EnvTest, config.EnvStaging} {
+	for _, env := range []config.Env{config.EnvLocal, config.EnvTest} {
 		h := newHarness(t)
 		h.deps.Env = env
 		handler := mustIdentityHandler(t, h.deps)

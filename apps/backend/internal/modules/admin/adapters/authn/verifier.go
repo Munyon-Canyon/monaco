@@ -30,7 +30,7 @@ func (v *AdminVerifier) Verify(ctx context.Context, raw string) (auth.Actor, err
 	if err != nil {
 		return auth.Actor{}, err
 	}
-	if actor.Standing != auth.StandingActive {
+	if actor.DevToken || actor.Standing != auth.StandingActive {
 		return auth.Actor{}, errs.New(errs.CodeAdminForbidden, "admin.AdminVerifier.Verify")
 	}
 	id, err := ids.ParseUserID(actor.ID)

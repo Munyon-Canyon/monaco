@@ -161,8 +161,12 @@ func (f *withdrawFixture) withdraw(t *testing.T) (app.WithdrawResult, error) {
 
 func (f *withdrawFixture) send(ctx context.Context, cmd app.Withdraw) (app.WithdrawResult, error) {
 	if cmd.Authorization == uuid.Nil {
+		if cmd.SessionID == "" {
+			cmd.SessionID = phoneSID
+		}
 		granted, err := app.NewAuthorizeWithdrawalHandler(f.uow, f.clock).Handle(ctx, app.AuthorizeWithdrawal{
-			ID: ids.Real{}.NewV7(), UserID: cmd.UserID, Request: cmd.Request,
+			ID: ids.Real{}.NewV7(), UserID: cmd.UserID, SessionID: cmd.SessionID, IssuedAt: f.clock.Now(),
+			Request: cmd.Request,
 		})
 		if err != nil {
 			return app.WithdrawResult{}, err

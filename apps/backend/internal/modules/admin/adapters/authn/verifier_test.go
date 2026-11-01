@@ -45,6 +45,7 @@ func TestAdminVerifier(t *testing.T) {
 	if _, err := verifier.Verify(t.Context(), "token"); errs.CodeOf(err) != errs.CodeAdminForbidden {
 		t.Fatalf("revoked = %v", err)
 	}
+	assertDevTokenRefused(t, pool, verifier, user.ID.String())
 	assertBanned(t, pool, user.ID.String())
 	badID := NewAdminVerifier(verifierStub{actor: auth.Actor{ID: "not-a-user-id", Standing: auth.StandingActive}}, pool)
 	if _, err := badID.Verify(t.Context(), "token"); errs.CodeOf(err) != errs.CodeAdminForbidden {
@@ -56,6 +57,22 @@ func TestAdminVerifier(t *testing.T) {
 	}
 	if _, err := verifier.Verify(t.Context(), "token"); errs.CodeOf(err) != errs.CodeDBUnavailable {
 		t.Fatalf("db error = %v", err)
+	}
+}
+
+func assertDevTokenRefused(t *testing.T, pool *pgxpool.Pool, granted *AdminVerifier, userID string) {
+	t.Helper()
+	devToken := NewAdminVerifier(verifierStub{actor: auth.Actor{
+		Kind: auth.ActorUser, ID: userID, Standing: auth.StandingActive, DevToken: true,
+	}}, pool)
+	if _, err := pool.Exec(t.Context(), `UPDATE admins SET revoked_at = NULL WHERE user_id = $1`, userID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := devToken.Verify(t.Context(), "token"); errs.CodeOf(err) != errs.CodeAdminForbidden {
+		t.Fatalf("dev token for a granted admin = %v, want admin_forbidden", err)
+	}
+	if _, err := granted.Verify(t.Context(), "token"); err != nil {
+		t.Fatalf("the same admin with a real token = %v", err)
 	}
 }
 

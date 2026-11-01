@@ -119,7 +119,7 @@ func assertDevTokenVerifies(t *testing.T, cfg config.Config, token, id string) {
 		t.Fatal(err)
 	}
 	actor, err := verifier.Verify(t.Context(), token)
-	if err != nil || actor != (auth.Actor{Kind: auth.ActorUser, ID: id, Standing: auth.StandingActive}) {
+	if err != nil || actor.Kind != auth.ActorUser || actor.ID != id || actor.Standing != auth.StandingActive {
 		t.Fatalf("Verify = %+v, %v", actor, err)
 	}
 }

@@ -50,6 +50,9 @@ func (h HTTP) Withdraw(ctx context.Context, req api.WithdrawRequestObject) (api.
 		return nil, err
 	}
 	actor, _ := auth.ActorFrom(ctx)
+	if actor.DevToken {
+		return nil, errs.New(errs.CodeSessionRequired, "funding.HTTP.Withdraw")
+	}
 	cmd := app.Withdraw{
 		ID: h.IDs.NewV7(), UserID: user, Request: request, Intent: httpx.IntentKey(ctx, app.WithdrawOperation),
 		SessionID: actor.SessionID,
@@ -78,6 +81,9 @@ func (h HTTP) AuthorizeWithdrawal(
 		return nil, err
 	}
 	actor, _ := auth.ActorFrom(ctx)
+	if actor.DevToken {
+		return nil, errs.New(errs.CodeSessionRequired, "funding.HTTP.AuthorizeWithdrawal")
+	}
 	got, err := h.Authorize.Handle(ctx, app.AuthorizeWithdrawal{
 		ID: h.IDs.NewV7(), UserID: user, SessionID: actor.SessionID, IssuedAt: time.Unix(actor.IssuedAt, 0),
 		Request: request,
