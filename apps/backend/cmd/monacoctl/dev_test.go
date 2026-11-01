@@ -35,7 +35,7 @@ func TestDevToken_mintsATokenTheDevVerifierAccepts(t *testing.T) {
 		t.Fatal(err)
 	}
 	actor, err := verifier.Verify(t.Context(), strings.TrimSuffix(stdout.String(), "\n"))
-	if err != nil || actor != (auth.Actor{Kind: auth.ActorUser, ID: devUserV7, Standing: auth.StandingActive}) {
+	if err != nil || actor.Kind != auth.ActorUser || actor.ID != devUserV7 || actor.Standing != auth.StandingActive {
 		t.Fatalf("Verify = %+v, %v", actor, err)
 	}
 	wrongKey, err := auth.NewDevVerifier(config.Config{Env: config.EnvLocal, Auth: config.Auth{DevTokenKey: "other"}},
@@ -127,7 +127,7 @@ func TestDevToken_newUserPrintsTheTokenThenTheID(t *testing.T) {
 		t.Fatal(err)
 	}
 	actor, err := verifier.Verify(t.Context(), lines[0])
-	if err != nil || actor != (auth.Actor{Kind: auth.ActorUser, ID: lines[1], Standing: auth.StandingActive}) {
+	if err != nil || actor.Kind != auth.ActorUser || actor.ID != lines[1] || actor.Standing != auth.StandingActive {
 		t.Fatalf("Verify = %+v, %v", actor, err)
 	}
 }
