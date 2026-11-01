@@ -80,7 +80,7 @@ struct AccountBalanceHost: ViewModifier {
                 guard let current, let change = BalanceChange.detect(previous: previous, current: current) else {
                     return
                 }
-                environment.cardDeposit.balanceChanged(change)
+                Task { await environment.cardDeposit.balanceChanged(change) }
                 toasts.show(success: change.message)
             }
             .onChange(of: environment.balance.failureTick) { _, _ in

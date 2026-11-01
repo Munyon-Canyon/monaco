@@ -6,8 +6,10 @@ import {
   failureFromProblem,
   fundOptions,
   initialState,
+  loadSession,
   microsToDollars,
   readToken,
+  saveSession,
   statusFromError,
   statusFromResult,
   transition,
@@ -55,9 +57,63 @@ describe("status mapping", () => {
     expect(statusFromError(new Error("User cancelled funding"))).toBe("cancelled");
   });
 
+  it("treats Privy giving up on its status polling as submitted, never failed", () => {
+    expect(statusFromError(new Error("Could not confirm payment status yet."))).toBe("submitted");
+    expect(statusFromError(new Error("Unable to check payment status"))).toBe("submitted");
+  });
+
   it("maps any other error to failed", () => {
     expect(statusFromError(new Error("Something went wrong setting up checkout. Please try again."))).toBe("failed");
     expect(statusFromError("boom")).toBe("failed");
+  });
+});
+
+describe("reload", () => {
+  const memory = () => {
+    const items = new Map<string, string>();
+    return { getItem: (k: string) => items.get(k) ?? null, setItem: (k: string, v: string) => void items.set(k, v) };
+  };
+
+  it("resumes an exchanged session after the token is gone", () => {
+    const storage = memory();
+    saveSession(storage, session, false, 1_000);
+    expect(initialState("", loadSession(storage, 2_000))).toEqual({ step: "open", session });
+  });
+
+  it("goes back to the app when the status was already reported", () => {
+    const storage = memory();
+    saveSession(storage, session, true, 1_000);
+    expect(initialState("", loadSession(storage, 2_000))).toEqual({ step: "redirect", session });
+  });
+
+  it("prefers a fresh token over a saved session", () => {
+    const storage = memory();
+    saveSession(storage, session, true, 1_000);
+    expect(initialState("?s=abc", loadSession(storage, 2_000))).toEqual({ step: "exchanging", token: "abc" });
+  });
+
+  it("forgets a stale, future or broken entry and falls back to the neutral copy", () => {
+    const storage = memory();
+    saveSession(storage, session, false, 1_000);
+    expect(loadSession(storage, 1_000 + 31 * 60 * 1000)).toBeNull();
+    expect(loadSession(storage, 500)).toBeNull();
+    storage.setItem("monaco.fund.session", "{not json");
+    expect(loadSession(storage, 2_000)).toBeNull();
+    expect(initialState("", null)).toEqual({ step: "error", failure: "link_expired", retry: null });
+    expect(errorCopy.link_expired).not.toMatch(/expired|failed|didn't go through/i);
+  });
+
+  it("survives storage that throws", () => {
+    const broken = {
+      getItem: () => {
+        throw new Error("blocked");
+      },
+      setItem: () => {
+        throw new Error("blocked");
+      },
+    };
+    expect(() => saveSession(broken, session, false, 1)).not.toThrow();
+    expect(loadSession(broken, 2)).toBeNull();
   });
 });
 
@@ -65,7 +121,7 @@ describe("error copy", () => {
   it("maps link codes to the expired copy", () => {
     expect(failureFromProblem(410, "onramp_link_expired")).toBe("link_expired");
     expect(failureFromProblem(404, "onramp_link_invalid")).toBe("link_expired");
-    expect(errorCopy.link_expired).toBe("This link has expired. Go back to Monaco and tap Deposit again.");
+    expect(errorCopy.link_expired).toBe("Check Monaco for your deposit. If it isn't there, tap Deposit again.");
   });
 
   it("maps 403 to the wrong-account copy", () => {

@@ -2,10 +2,10 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { PrivyProvider } from "@privy-io/react-auth";
 import { App } from "./App";
-import { initialState } from "./lib";
+import { initialState, loadSession } from "./lib";
 
 // Read the one-time token, then drop it from the address bar so it is never bookmarked or shared.
-const initial = initialState(location.search);
+const initial = initialState(location.search, loadSession(sessionStorage, Date.now()));
 history.replaceState(null, "", location.pathname);
 
 createRoot(document.getElementById("root")!).render(

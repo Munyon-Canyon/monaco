@@ -34,9 +34,40 @@ export type Auth = { ready: boolean; authenticated: boolean };
 
 export type View = "loading" | "exchanging" | "login" | "ready" | "funding" | "reporting" | "redirect" | "error";
 
-export function initialState(search: string): State {
+export function initialState(search: string, saved: SavedSession | null = null): State {
   const token = readToken(search);
-  return token ? { step: "exchanging", token } : { step: "error", failure: "link_expired", retry: null };
+  if (token) return { step: "exchanging", token };
+  if (saved) return saved.reported ? { step: "redirect", session: saved.session } : { step: "open", session: saved.session };
+  return { step: "error", failure: "link_expired", retry: null };
+}
+
+export type SavedSession = { session: Session; reported: boolean; at: number };
+
+const savedKey = "monaco.fund.session";
+const savedLifetimeMs = 30 * 60 * 1000;
+
+// The one-time token is spent by the exchange, so a reload would land on "expired". Keeping the
+// exchanged session for the tab lets a reload pick the same deposit up again, or go back to the app.
+export function saveSession(storage: Pick<Storage, "setItem">, session: Session, reported: boolean, now: number): void {
+  try {
+    storage.setItem(savedKey, JSON.stringify({ session, reported, at: now } satisfies SavedSession));
+  } catch {
+    return;
+  }
+}
+
+export function loadSession(storage: Pick<Storage, "getItem">, now: number): SavedSession | null {
+  try {
+    const raw = storage.getItem(savedKey);
+    if (!raw) return null;
+    const saved = JSON.parse(raw) as Partial<SavedSession>;
+    const session = saved.session;
+    if (!session || typeof session.session_id !== "string" || typeof session.wallet_address !== "string") return null;
+    if (typeof saved.at !== "number" || now - saved.at > savedLifetimeMs || saved.at > now) return null;
+    return { session, reported: saved.reported === true, at: saved.at };
+  } catch {
+    return null;
+  }
 }
 
 export function readToken(search: string): string | null {
@@ -99,9 +130,13 @@ export function statusFromResult(result: { status: "confirmed" | "submitted" }):
 
 // Privy rejects fund() with a plain Error when the user closes the flow ("User exited flow") or
 // backs out of it ("User cancelled funding"). It carries no code, so the message is the signal.
+// Privy also rejects when its status polling gives up ("Could not confirm payment status yet.",
+// "Unable to check payment status"). The purchase may still complete, so that is submitted, never failed.
 export function statusFromError(error: unknown): ReportStatus {
   const message = error instanceof Error ? error.message : String(error);
-  return /exited flow|cancel/i.test(message) ? "cancelled" : "failed";
+  if (/exited flow|cancel/i.test(message)) return "cancelled";
+  if (/confirm payment status|check payment status/i.test(message)) return "submitted";
+  return "failed";
 }
 
 export function failureFromProblem(httpStatus: number, code: string | undefined): Failure {
@@ -112,7 +147,7 @@ export function failureFromProblem(httpStatus: number, code: string | undefined)
 }
 
 export const errorCopy: Record<Failure, string> = {
-  link_expired: "This link has expired. Go back to Monaco and tap Deposit again.",
+  link_expired: "Check Monaco for your deposit. If it isn't there, tap Deposit again.",
   wrong_account: "Sign in with the account you use in the Monaco app.",
   network: "We couldn't reach Monaco. Check your connection and try again.",
   unexpected: "Something went wrong. Go back to Monaco and tap Deposit again.",

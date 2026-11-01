@@ -1,7 +1,7 @@
 import { useEffect, useReducer, useRef } from "react";
 import { useFiatOnramp, useLogout, usePrivy } from "@privy-io/react-auth";
 import { exchangeToken, FundError, reportStatus } from "./api";
-import { accountDecision, completeURL, errorCopy, fundOptions, statusFromError, statusFromResult, transition, view, type State } from "./lib";
+import { accountDecision, completeURL, errorCopy, fundOptions, saveSession, statusFromError, statusFromResult, transition, view, type State } from "./lib";
 
 const api = import.meta.env.VITE_MONACO_API_URL;
 const environment = import.meta.env.VITE_PRIVY_ENV === "production" ? "production" : "sandbox";
@@ -26,7 +26,10 @@ export function App({ initial }: { initial: State }) {
         if (state.step !== "exchanging") return;
         started.current = { state, step };
         exchangeToken(api, state.token).then(
-          (session) => dispatch({ type: "exchanged", session }),
+          (session) => {
+            saveSession(sessionStorage, session, false, Date.now());
+            dispatch({ type: "exchanged", session });
+          },
           (error) => dispatch({ type: "failed", failure: failureOf(error) }),
         );
         return;
@@ -59,7 +62,10 @@ export function App({ initial }: { initial: State }) {
             return reportStatus(api, state.session.session_id, state.report, token);
           })
           .then(
-            () => dispatch({ type: "reported" }),
+            () => {
+              saveSession(sessionStorage, state.session, true, Date.now());
+              dispatch({ type: "reported" });
+            },
             (error) => dispatch({ type: "failed", failure: failureOf(error) }),
           );
         return;

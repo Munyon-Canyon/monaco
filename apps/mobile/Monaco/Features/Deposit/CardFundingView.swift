@@ -40,7 +40,7 @@ struct CardFundingView: View {
             if baseline == nil { baseline = deposit.state }
         }
         .fullScreenCover(
-            item: Binding(get: { deposit.page }, set: { if $0 == nil { deposit.browserClosed() } })
+            item: Binding(get: { deposit.page }, set: { if $0 == nil { Task { await deposit.browserClosed() } } })
         ) { page in
             SafariView(url: page.url)
                 .ignoresSafeArea()
@@ -70,7 +70,7 @@ struct CardFundingContent: View {
                 handoff(working: working)
             case .checking:
                 MoneyOutcome(
-                    tone: .pending, title: "Checking your deposit", message: Self.checkingMessage,
+                    tone: .pending, title: "Your purchase is being confirmed", message: Self.checkingMessage,
                     identifier: "card-funding-returned"
                 ) {
                     viewCash
