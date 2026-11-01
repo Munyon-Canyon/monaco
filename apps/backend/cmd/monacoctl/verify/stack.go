@@ -170,6 +170,7 @@ func (s *Stack) processes(ctx context.Context) error {
 		"PRIVY_AUTHORIZATION_PRIVATE_KEY="+upstreams.PrivyAuthorizationKeyConfig(),
 		"RELAYER_PRIVATE_KEY="+chain.EncodeBase58(upstreams.FixtureKey("verify-relayer")),
 		"APNS_BASE_URL=http://"+fakes.addr+"/apns",
+		"APP_STORE_URL=https://apps.apple.com/app/id6820853661",
 	)
 	s.env = append(s.env, testkit.APNsEnv()...)
 	s.Fakes = "http://" + fakes.addr

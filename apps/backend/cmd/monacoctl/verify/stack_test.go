@@ -501,3 +501,19 @@ func TestUp_anUnarmedWorkerThatExitsFailsWithItsLogsNotTheBudget(t *testing.T) {
 		t.Fatalf("Up = %v, want the worker's exit to fail it, not a budget or the hang ceiling", err)
 	}
 }
+
+func TestUp_givesTheBinariesARealStoreURL(t *testing.T) {
+	t.Parallel()
+	o := testOptions(t, "ok")
+	o.CoverDir = t.TempDir()
+	s, err := Up(t.Context(), o)
+	if err != nil {
+		t.Fatalf("Up: %v", err)
+	}
+	t.Cleanup(func() { _ = s.Down(context.WithoutCancel(t.Context())) })
+	if !slices.Contains(s.env, "APP_STORE_URL=https://apps.apple.com/app/id6820853661") {
+		t.Fatalf(
+			"child env has no real APP_STORE_URL; want one, or flow 39 sees an empty store_url and the upgrade gate stays off",
+		)
+	}
+}
