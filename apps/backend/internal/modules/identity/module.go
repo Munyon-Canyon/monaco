@@ -267,7 +267,9 @@ func (m *Module) openSession() *app.OpenSessionHandler {
 }
 
 func (m *Module) Consumers() []bus.Consumer {
-	evm := adapters.EVMWalletOnSignup{Wallets: m.multichain.depositWallets, UoW: m.deps.UoW}
+	evm := adapters.EVMWalletOnSignup{
+		Wallets: m.multichain.depositWallets, UoW: m.deps.UoW, Networks: m.deps.Config.Funding.EVMDepositNetworks,
+	}
 	return []bus.Consumer{
 		{
 			Durable: "identity_first_deposit",

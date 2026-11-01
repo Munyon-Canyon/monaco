@@ -155,7 +155,7 @@ Where concurrency pays in Monaco, and the pattern for each:
 | Leaderboard valuation per cabal | Pipeline: load holdings → value (needs prices) → write snapshot, each stage a goroutine, buffered channels | buffer 64, workers per stage 4 |
 | Notification fan-out to device tokens | Worker pool, APNs HTTP/2 client shared | 32 |
 | Best-price quote across issuers | Fan-out, first-error cancels, collect all | number of providers |
-| Relay publish batch | Sequential (order and ack matter); parallelism comes from multiple processes and `SKIP LOCKED`. api and worker each run a relay. | 1 |
+| Relay publish batch | Sequential (order and ack matter), each row under a 2 s deadline and with no database connection held: the relay reads the batch, publishes, then marks the acked rows. api and worker each run a relay, so a row can be published by both; `Nats-Msg-Id` makes the stream keep one copy and consumers dedupe through `event_deliveries`. | 1 |
 
 Hard rules:
 

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"slices"
-	"sync"
 	"testing"
 	"time"
 
@@ -218,45 +217,60 @@ func TestDrain_reportsACommitRejectedByADeferredConstraint(t *testing.T) {
 	}
 }
 
-func TestDrain_twoDrainsSkipEachOthersLockedRows(t *testing.T) {
+func TestDrain_holdsNoPoolConnectionWhileARowIsBeingPublished(t *testing.T) {
 	t.Parallel()
 	h := newHarness(t)
-	ids := h.appendEvents(t, 3)
-	outbox := db.NewOutbox(h.pool, h.clock)
-	holding, release := make(chan struct{}), make(chan struct{})
-	first := make(chan db.Batch, 1)
-	var hold sync.Once
-	go func() {
-		b, err := outbox.Drain(t.Context(), 2, func(context.Context, db.OutboxRow) error {
-			hold.Do(func() {
-				holding <- struct{}{}
-				<-release
-			})
-			return nil
-		})
-		if err != nil {
-			t.Error(err)
-		}
-		first <- b
-	}()
-	select {
-	case <-holding:
-	case b := <-first:
-		t.Fatalf("first drain returned %v without publishing a row", b.Published)
-	case <-time.After(time.Minute):
-		t.Fatal("first drain never reached its publish")
+	ids := h.appendEvents(t, 2)
+	var held []int32
+	b, err := db.NewOutbox(h.pool, h.clock).Drain(t.Context(), 100, func(context.Context, db.OutboxRow) error {
+		held = append(held, h.pool.Stat().AcquiredConns())
+		return nil
+	})
+	if err != nil || !slices.Equal(b.Published, ids) || !slices.Equal(held, []int32{0, 0}) {
+		t.Fatalf("drain = %+v, %v with %v connections held during the publishes; want both rows and none held",
+			b, err, held)
 	}
+}
 
-	second, err := outbox.Drain(t.Context(), 100, func(context.Context, db.OutboxRow) error { return nil })
-	if err != nil {
-		t.Fatal(err)
+func TestDrain_givesEachPublishAShortDeadline(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	h.appendEvents(t, 2)
+	var left []time.Duration
+	_, err := db.NewOutbox(h.pool, h.clock).Drain(t.Context(), 100, func(ctx context.Context, _ db.OutboxRow) error {
+		deadline, ok := ctx.Deadline()
+		if !ok {
+			t.Error("a publish ran without a deadline")
+		}
+		left = append(left, time.Until(deadline))
+		return nil
+	})
+	if err != nil || len(left) != 2 {
+		t.Fatalf("drain = %v, publishes %d; want 2", err, len(left))
 	}
-	close(release)
-	if got := <-first; !slices.Equal(got.Published, ids[:2]) || !slices.Equal(second.Published, ids[2:]) {
-		t.Fatalf("first drain %v, second %v; want %v and %v", got.Published, second.Published, ids[:2], ids[2:])
+	for _, d := range left {
+		if d <= 0 || d > 2*time.Second {
+			t.Fatalf("a publish had %v left, want at most 2s", d)
+		}
 	}
-	if left := h.unpublished(t); len(left) != 0 {
-		t.Fatalf("%d rows unpublished after both drains", len(left))
+}
+
+func TestDrain_aSlowPublishFailsTheRowAfterItsDeadlineAndKeepsItUnpublished(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	ids := h.appendEvents(t, 2)
+	b, err := db.NewOutbox(h.pool, h.clock).Drain(t.Context(), 100, func(ctx context.Context, row db.OutboxRow) error {
+		if row.ID == ids[1] {
+			<-ctx.Done()
+			return ctx.Err()
+		}
+		return nil
+	})
+	if err != nil || !slices.Equal(b.Published, ids[:1]) || !errors.Is(b.Failed, context.DeadlineExceeded) {
+		t.Fatalf("drain = %+v, %v; want the first row published and a deadline failure on the second", b, err)
+	}
+	if left := h.unpublished(t); !slices.Equal(left, ids[1:]) {
+		t.Fatalf("unpublished = %v, want %v", left, ids[1:])
 	}
 }
 

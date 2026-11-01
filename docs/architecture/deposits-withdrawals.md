@@ -120,7 +120,7 @@ Privy's deposit accounts would create this wallet for us, but they need a destin
 1. One app automation, created once with `CreateAutomation`: trigger, a USDC deposit on Base, Arbitrum or Ethereum; action, swap to USDC on Solana.
 2. Each deposit wallet is attached to it with `Attach(evmWalletID, solanaDest)`, where `params.destination_address` is the user's Solana member wallet. Our key signs the attach as owner.
 
-`GET /v1/me/deposit-addresses` (`identity`) returns the Solana member wallet first, then one item per enabled EVM network, all with the deposit wallet's address. Enabled networks come from `EVM_DEPOSIT_NETWORKS`. Unset, it enables every EVM network that takes USDC, in the order `base,arbitrum,ethereum`; an operator sets it only to narrow that list. If creating or reading the EVM wallet fails, the response still returns the Solana item and never a 5xx.
+`GET /v1/me/deposit-addresses` (`identity`) returns the Solana member wallet first, then one item per enabled EVM network, all with the deposit wallet's address. Enabled networks come from `EVM_DEPOSIT_NETWORKS`. Unset, it enables every EVM network that takes USDC, in the order `base,arbitrum,ethereum`; an operator sets it only to narrow that list, or to `none` to offer no EVM network. With `none`, the `user.created` consumer `identity.evm_wallet` records `deferred` and creates nothing at sign-up, and the response holds the Solana item alone. With networks offered, the wallet is created at sign-up or, failing that, on the first request; Privy is called outside any database transaction, between a short read and a short write. If creating or reading the EVM wallet fails, the response still returns the Solana item and never a 5xx.
 
 ### Forwarding and arrival
 

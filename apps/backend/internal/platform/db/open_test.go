@@ -5,7 +5,9 @@ import (
 	"errors"
 	"log/slog"
 	"testing"
+	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -51,6 +53,62 @@ func TestOpen_returnsAPingedPoolSizedFromConfig(t *testing.T) {
 	}
 	if pool.Config().MaxConns != 2 {
 		t.Fatalf("MaxConns = %d, want 2", pool.Config().MaxConns)
+	}
+}
+
+func TestOpen_setsStatementAndIdleTransactionTimeoutsOnEveryConnection(t *testing.T) {
+	t.Parallel()
+	cfg := dbConfig(testkit.DB(t))
+	cfg.StatementTimeout, cfg.IdleTxTimeout = 300*time.Millisecond, 45*time.Second
+	pool, err := db.Open(t.Context(), cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer pool.Close()
+	var statement, idle string
+	err = pool.QueryRow(t.Context(),
+		`SELECT current_setting('statement_timeout'), current_setting('idle_in_transaction_session_timeout')`).
+		Scan(&statement, &idle)
+	if err != nil || statement != "300ms" || idle != "45s" {
+		t.Fatalf("session timeouts = %q and %q, %v; want 300ms and 45s", statement, idle, err)
+	}
+	_, err = pool.Exec(t.Context(), `SELECT pg_sleep(5)`)
+	var pg *pgconn.PgError
+	if !errors.As(err, &pg) || pg.Code != "57014" {
+		t.Fatalf("a 5 s statement = %v, want query_canceled 57014", err)
+	}
+}
+
+func TestOpen_aConnectionThatCannotTakeTheTimeoutsIsRefused(t *testing.T) {
+	t.Parallel()
+	cfg := dbConfig(testkit.DB(t))
+	cfg.StatementTimeout = time.Second
+	pool, err := db.Open(t.Context(), cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer pool.Close()
+	conn, err := pgx.ConnectConfig(t.Context(), pool.Config().ConnConfig)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := conn.Close(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	codedError(t, pool.Config().AfterConnect(t.Context(), conn), errs.CodeDBUnavailable)
+}
+
+func TestOpen_leavesTimeoutsOffWhenConfiguredZero(t *testing.T) {
+	t.Parallel()
+	pool, err := db.Open(t.Context(), dbConfig(testkit.DB(t)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer pool.Close()
+	var statement string
+	if err := pool.QueryRow(t.Context(), `SELECT current_setting('statement_timeout')`).Scan(&statement); err != nil ||
+		statement != "0" {
+		t.Fatalf("statement_timeout = %q, %v; want 0", statement, err)
 	}
 }
 

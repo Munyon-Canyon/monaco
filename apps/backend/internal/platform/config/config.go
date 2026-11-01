@@ -130,8 +130,10 @@ type Worker struct {
 }
 
 type DB struct {
-	URL      string
-	MaxConns int32
+	URL              string
+	MaxConns         int32
+	StatementTimeout time.Duration
+	IdleTxTimeout    time.Duration
 }
 
 type NATS struct {
@@ -408,6 +410,7 @@ func (f field) secret() field {
 func fields() []field {
 	return slices.Concat(
 		platformFields(),
+		dbTimeoutFields(),
 		pollerFields(),
 		marketFields(),
 		fundingFields(),
@@ -484,6 +487,15 @@ func pollerFields() []field {
 			30*time.Second,
 			func(c *Config) *time.Duration { return &c.Governance.CloseRemindersInterval },
 		),
+	}
+}
+
+func dbTimeoutFields() []field {
+	return []field{
+		offDuration("MONACO_DB_STATEMENT_TIMEOUT",
+			func(c *Config) *time.Duration { return &c.DB.StatementTimeout }),
+		offDuration("MONACO_DB_IDLE_TX_TIMEOUT",
+			func(c *Config) *time.Duration { return &c.DB.IdleTxTimeout }),
 	}
 }
 
@@ -793,6 +805,20 @@ func deployedByDefault(key string, at func(*Config) *bool) field {
 			return err == nil
 		},
 		get: func(c *Config) string { return strconv.FormatBool(*at(c)) },
+	}
+}
+
+func offDuration(key string, at func(*Config) *time.Duration) field {
+	return field{
+		key:      key,
+		fallback: "0s",
+		want:     "duration like 15s, or 0s for none",
+		set: func(c *Config, v string) bool {
+			d, err := time.ParseDuration(v)
+			*at(c) = d
+			return err == nil && d >= 0
+		},
+		get: func(c *Config) string { return at(c).String() },
 	}
 }
 

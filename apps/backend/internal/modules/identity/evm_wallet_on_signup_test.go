@@ -15,6 +15,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity/adapters"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity/app"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
@@ -33,16 +34,28 @@ type evmSignup struct {
 
 func newEVMSignup(t *testing.T, evm multichain.EVMWallets) evmSignup {
 	t.Helper()
+	return newEVMSignupWith(t, evm, &privyfake.Forwarding{})
+}
+
+func newEVMSignupWith(t *testing.T, evm multichain.EVMWallets, forwarding multichain.DepositForwarding) evmSignup {
+	t.Helper()
 	pool := testkit.DB(t)
 	clk := testkit.NewClock(time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC))
 	uow := db.New(pool, testkit.NewIDs(5431), clk)
 	wallets, _ := evm.(*privyfake.EVMWallets)
 	return evmSignup{
-		pool: pool, uow: uow, wallets: wallets, at: clk.Now(),
-		handler: adapters.EVMWalletOnSignup{UoW: uow, Wallets: app.NewEVMDepositWallets(app.EVMDepositWalletDeps{
-			UoW: uow, Reads: pool, Store: adapters.EVMWallets{}, Wallets: evm, Forwarding: &privyfake.Forwarding{},
-			Clock: clk,
-		})},
+		pool:    pool,
+		uow:     uow,
+		wallets: wallets,
+		at:      clk.Now(),
+		handler: adapters.EVMWalletOnSignup{
+			UoW:      uow,
+			Networks: []chain.Network{chain.NetworkBase},
+			Wallets: app.NewEVMDepositWallets(app.EVMDepositWalletDeps{
+				UoW: uow, Reads: pool, Store: adapters.EVMWallets{}, Wallets: evm, Forwarding: forwarding,
+				Clock: clk,
+			}),
+		},
 	}
 }
 
@@ -151,5 +164,34 @@ func TestEVMWalletOnSignup_acksWhatItCannotEnsure(t *testing.T) {
 				t.Fatalf("handle = %v, recorded %q; want %s", err, s.recorded(t, up.delivery), tc.want)
 			}
 		})
+	}
+}
+
+func TestEVMWalletOnSignup_defersTheWalletWhenNoEVMNetworkIsOffered(t *testing.T) {
+	t.Parallel()
+	s := newEVMSignup(t, &privyfake.EVMWallets{})
+	s.handler.Networks = nil
+	user := testkit.SeedUser(t, s.pool, testkit.UserOpts{WithWallet: true}).ID
+	up := s.signUp(t, user)
+	if err := s.deliver(t, up); err != nil || s.recorded(t, up.delivery) != "deferred" ||
+		s.evmAddress(t, user) != "" || s.wallets.Creates() != 0 {
+		t.Fatalf("handle = %v, recorded %q, address %q, %d creates; want deferred with no Privy call",
+			err, s.recorded(t, up.delivery), s.evmAddress(t, user), s.wallets.Creates())
+	}
+}
+
+func TestEnsureEVMDepositWallet_holdsNoConnectionAcrossThePrivyCalls(t *testing.T) {
+	t.Parallel()
+	var s evmSignup
+	var held []int32
+	forwarding := &privyfake.Forwarding{OnAttach: func() { held = append(held, s.pool.Stat().AcquiredConns()) }}
+	s = newEVMSignupWith(t, &privyfake.EVMWallets{}, forwarding)
+	user := testkit.SeedUser(t, s.pool, testkit.UserOpts{WithWallet: true}).ID
+	up := s.signUp(t, user)
+	if err := s.deliver(t, up); err != nil || s.evmAddress(t, user) == "" {
+		t.Fatalf("handle = %v, address %q; want a stored wallet", err, s.evmAddress(t, user))
+	}
+	if len(held) != 1 || held[0] != 0 {
+		t.Fatalf("connections held while attaching = %v, want one attach with none held", held)
 	}
 }
