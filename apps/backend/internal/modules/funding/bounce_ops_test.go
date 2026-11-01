@@ -7,6 +7,8 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding/domain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
+	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
 
 func TestBounceOps_HoldResolvesTheRowWithoutABounce(t *testing.T) {
@@ -82,6 +84,27 @@ func TestBounceOps_SetReturnAddressValidatesTheAddress(t *testing.T) {
 
 	if errs.CodeOf(err) != errs.CodeInvalidAddress {
 		t.Fatalf("SetReturnAddress = %v, want invalid_address", err)
+	}
+}
+
+func TestBounceOps_SetReturnAddressRefusesAnOffCurveAddress(t *testing.T) {
+	t.Parallel()
+	f := newBounceFixture(t)
+	id := f.detected(t, flow08USDCSig)
+	tokenAccount, err := chain.AssociatedTokenAccount(withdrawTo, testkit.USDCMint, chain.SPLProgram)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = f.bouncer.SetReturnAddress(bounceCtx(t), id, string(tokenAccount), "ops")
+
+	if errs.CodeOf(err) != errs.CodeInvalidAddress {
+		t.Fatalf("SetReturnAddress to a token account = %v, want invalid_address", err)
+	}
+	var stored *string
+	row := f.pool.QueryRow(t.Context(), `SELECT return_address FROM external_deposits WHERE id = $1`, id)
+	if err := row.Scan(&stored); err != nil || stored != nil {
+		t.Fatalf("return_address = %v, %v, want it left unset", stored, err)
 	}
 }
 

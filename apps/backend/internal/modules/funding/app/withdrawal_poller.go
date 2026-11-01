@@ -220,6 +220,11 @@ func (p *WithdrawalPoller) apply(ctx context.Context, tx db.Tx, m withdrawalMove
 	if err != nil || n == 0 {
 		return 0, err
 	}
+	if m.from == domain.WithdrawalCreated {
+		if err := (relayer.SponsorBudgets{}).Release(ctx, tx.Queries(), m.id, p.d.Clock.Now()); err != nil {
+			return 0, err
+		}
+	}
 	tx.AfterCommit(func(ctx context.Context) {
 		p.d.Hints.PublishHint(ctx, events.UserBalanceChangedHint(m.user), nil)
 		observability.Info(ctx, observability.FundingWithdrawalMoved,
