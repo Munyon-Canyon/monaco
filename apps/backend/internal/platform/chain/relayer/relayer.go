@@ -30,9 +30,14 @@ type Relayer struct {
 	key     ed25519.PrivateKey
 	address chain.SolanaAddress
 	rpc     RPC
+	limits  Limits
 }
 
-func New(cfg config.Config, rpc RPC) (*Relayer, error) {
+type Option func(*Relayer)
+
+func WithLimits(l Limits) Option { return func(r *Relayer) { r.limits = l } }
+
+func New(cfg config.Config, rpc RPC, opts ...Option) (*Relayer, error) {
 	raw, ok := decodeKey(cfg.Relayer.PrivateKey)
 	if !ok {
 		return nil, errs.New(
@@ -49,7 +54,16 @@ func New(cfg config.Config, rpc RPC) (*Relayer, error) {
 			slog.String("reason", "RELAYER_PRIVATE_KEY public half does not match"),
 		)
 	}
-	return &Relayer{key: key, address: chain.AddressOf(key.Public().(ed25519.PublicKey)), rpc: rpc}, nil
+	r := &Relayer{
+		key:     key,
+		address: chain.AddressOf(key.Public().(ed25519.PublicKey)),
+		rpc:     rpc,
+		limits:  DefaultLimits(),
+	}
+	for _, opt := range opts {
+		opt(r)
+	}
+	return r, nil
 }
 
 func decodeKey(value string) ([]byte, bool) {
@@ -96,7 +110,7 @@ func CheckBoot(ctx context.Context, cfg config.Config, opts ...httpclient.Option
 	return r.CheckFloor(ctx)
 }
 
-func (r *Relayer) CoSign(_ context.Context, raw []byte) ([]byte, error) {
+func (r *Relayer) CoSign(ctx context.Context, raw []byte) ([]byte, error) {
 	const op = "relayer.CoSign"
 	tx, err := chain.DecodeTransaction(raw)
 	if err != nil {
@@ -105,8 +119,13 @@ func (r *Relayer) CoSign(_ context.Context, raw []byte) ([]byte, error) {
 	if tx.Signers[0] != r.address {
 		return nil, errs.New(errs.CodeInvalidInput, op, slog.String("fee_payer", string(tx.Signers[0])))
 	}
+	spend, err := r.limits.inspect(tx.Message)
+	if err != nil {
+		return nil, err
+	}
 	if err := tx.Sign(r.key); err != nil {
 		return nil, errs.Wrap(err, errs.CodeInternal, op)
 	}
+	logSpend(ctx, spend, r.limits)
 	return tx.Encode(), nil
 }

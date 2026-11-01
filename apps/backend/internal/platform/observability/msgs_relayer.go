@@ -7,4 +7,11 @@ var (
 		Required: []string{"relayer", "wallet", "relayer_lamports", "lamports", "floor_lamports"},
 	}
 	RelayerTopUpCapped = Msg{Name: "relayer.topup_capped", Required: []string{"wallet", "topups"}}
+	RelayerCoSigned    = Msg{
+		Name: "relayer.cosigned",
+		Required: []string{
+			"priority_fee_lamports", "base_fee_lamports", "ata_creations", "rent_lamports", "total_lamports",
+			"fee_cap_lamports", "rent_cap_lamports",
+		},
+	}
 )
