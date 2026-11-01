@@ -79,10 +79,31 @@ final class CardDepositStateTests: XCTestCase {
         XCTAssertEqual(CardDepositState.creating.applying(.deposited), .creating)
     }
 
-    func testADepositHintBeforeTheRedirectStaysDone() {
-        let landed = CardDepositState.browsing(sessionID: id).applying(.deposited)
-        XCTAssertEqual(landed, .done(sessionID: id))
-        XCTAssertEqual(landed.applying(.redirected(sessionID: id)), .done(sessionID: id))
+    func testADepositNeverClosesTheSheet() {
+        XCTAssertEqual(CardDepositState.browsing(sessionID: id).applying(.deposited), .browsing(sessionID: id))
+    }
+
+    func testADepositEndsAFailedSession() {
+        let failed = CardDepositState.failed(sessionID: id, message: "Card purchase didn't go through.")
+        XCTAssertEqual(failed.applying(.deposited), .done(sessionID: id))
+        XCTAssertEqual(
+            CardDepositState.failed(sessionID: nil, message: "x").applying(.deposited),
+            .failed(sessionID: nil, message: "x"))
+    }
+
+    func testClosingTheSheetReadsTheStatus() {
+        let browsing = CardDepositState.browsing(sessionID: id)
+        XCTAssertEqual(browsing.applying(.closed(sessionID: id, .created)), browsing)
+        for status: OnrampStatus in [.opened, .confirmed, .submitted] {
+            XCTAssertEqual(browsing.applying(.closed(sessionID: id, status)), .processing(sessionID: id))
+        }
+        for status: OnrampStatus in [.cancelled, .failed, .expired] {
+            XCTAssertEqual(
+                browsing.applying(.closed(sessionID: id, status)),
+                .failed(sessionID: id, message: "Card purchase didn't go through."))
+        }
+        XCTAssertEqual(browsing.applying(.closed(sessionID: other, .opened)), browsing)
+        XCTAssertEqual(CardDepositState.idle.applying(.closed(sessionID: id, .opened)), .idle)
     }
 
     func testAFailureHintBeforeTheRedirectStaysFailed() {
@@ -164,21 +185,6 @@ final class CardDepositTests: XCTestCase {
         XCTAssertEqual(deposit.message, "Card purchase didn't go through.")
     }
 
-    func testClosingTheBrowserReadsTheSessionOnceOnForeground() async {
-        let transport = StubTransport(scripted: [.json(.created, created), .json(.ok, session("opened"))])
-        let deposit = CardDeposit(source: OnrampSource(api: api(transport)), hints: FakeHintStream(), now: clock.now)
-        await deposit.start(suggestedMicros: nil, cabalID: nil)
-
-        deposit.browserClosed()
-        await deposit.foregrounded()
-        await deposit.foregrounded()
-
-        XCTAssertEqual(deposit.state, .browsing(sessionID: id))
-        XCTAssertNil(deposit.message)
-        let count = await transport.sent.count
-        XCTAssertEqual(count, 2)
-    }
-
     func testAnOnrampHintReadsTheLiveSession() async {
         let transport = StubTransport(scripted: [.json(.created, created), .json(.ok, session("submitted"))])
         let hints = FakeHintStream()
@@ -193,19 +199,6 @@ final class CardDepositTests: XCTestCase {
         let processing = await eventArrives(within: 60) { await Self.becomes { deposit.isProcessing } }
         XCTAssertTrue(processing)
         XCTAssertNil(deposit.page)
-    }
-
-    func testADepositEndsProcessing() async {
-        let transport = StubTransport(scripted: [.json(.created, created), .json(.ok, session("confirmed"))])
-        let deposit = CardDeposit(source: OnrampSource(api: api(transport)), hints: FakeHintStream(), now: clock.now)
-        await deposit.start(suggestedMicros: nil, cabalID: nil)
-        await deposit.redirected(sessionID: id)
-
-        deposit.balanceChanged(nil)
-        XCTAssertTrue(deposit.isProcessing)
-        deposit.balanceChanged(.deposited(25_000_000))
-
-        XCTAssertEqual(deposit.state, .done(sessionID: id))
     }
 
     func testADepositRowNewerThanTheRedirectEndsProcessing() async {
@@ -357,6 +350,136 @@ final class CardDepositTests: XCTestCase {
             await Task.yield()
         }
         return await predicate()
+    }
+}
+
+@MainActor
+extension CardDepositTests {
+    func testClosingTheSheetAfterPayingShowsProcessingAtOnce() async {
+        let transport = StubTransport(scripted: [.json(.created, created), .json(.ok, session("opened"))])
+        let deposit = CardDeposit(source: OnrampSource(api: api(transport)), hints: FakeHintStream(), now: clock.now)
+        await deposit.start(suggestedMicros: nil, cabalID: nil)
+
+        await deposit.browserClosed()
+
+        XCTAssertNil(deposit.page)
+        XCTAssertEqual(deposit.state, .processing(sessionID: id))
+        XCTAssertTrue(deposit.isProcessing)
+        XCTAssertNil(deposit.message)
+        let paths = await transport.sent.map(\.path)
+        XCTAssertEqual(paths, ["/v1/onramp/sessions", "/v1/onramp/sessions/\(id)"])
+    }
+
+    func testClosingTheSheetBeforeAnythingOpenedStaysOnTheHandoff() async {
+        let transport = StubTransport(scripted: [.json(.created, created), .json(.ok, session("created"))])
+        let deposit = CardDeposit(source: OnrampSource(api: api(transport)), hints: FakeHintStream(), now: clock.now)
+        await deposit.start(suggestedMicros: nil, cabalID: nil)
+
+        await deposit.browserClosed()
+        await deposit.foregrounded()
+
+        XCTAssertEqual(deposit.state, .browsing(sessionID: id))
+        XCTAssertNil(deposit.message)
+        let count = await transport.sent.count
+        XCTAssertEqual(count, 2)
+    }
+
+    func testClosingTheSheetOfflineReadsTheSessionOnForeground() async {
+        let replies: [StubTransport.Reply] = [
+            .json(.created, created), .failure(URLError(.notConnectedToInternet)), .json(.ok, session("submitted")),
+        ]
+        let transport = StubTransport(scripted: replies)
+        let deposit = CardDeposit(source: OnrampSource(api: api(transport)), hints: FakeHintStream(), now: clock.now)
+        await deposit.start(suggestedMicros: nil, cabalID: nil)
+
+        await deposit.browserClosed()
+        XCTAssertEqual(deposit.state, .browsing(sessionID: id))
+        await deposit.foregrounded()
+
+        XCTAssertEqual(deposit.state, .processing(sessionID: id))
+        let count = await transport.sent.count
+        XCTAssertEqual(count, 3)
+    }
+
+    func testABalanceRiseWithoutADepositRowDoesNotEndProcessing() async {
+        let cashOut = fundRow(at: 60)
+        let transport = StubTransport(scripted: processingScript(txns: [cashOut]))
+        let deposit = CardDeposit(source: OnrampSource(api: api(transport)), hints: FakeHintStream(), now: clock.now)
+        await deposit.start(suggestedMicros: nil, cabalID: nil)
+        await deposit.redirected(sessionID: id)
+
+        await deposit.balanceChanged(nil)
+        await deposit.balanceChanged(.deposited(25_000_000))
+
+        XCTAssertEqual(deposit.state, .processing(sessionID: id))
+    }
+
+    func testABalanceRiseNeverClosesTheSheet() async {
+        let transport = StubTransport(scripted: [.json(.created, created)])
+        let deposit = CardDeposit(source: OnrampSource(api: api(transport)), hints: FakeHintStream(), now: clock.now)
+        await deposit.start(suggestedMicros: nil, cabalID: nil)
+
+        await deposit.balanceChanged(.deposited(25_000_000))
+
+        XCTAssertEqual(deposit.state, .browsing(sessionID: id))
+        XCTAssertNotNil(deposit.page)
+        let count = await transport.sent.count
+        XCTAssertEqual(count, 1)
+    }
+
+    func testADepositRowAfterABalanceRiseEndsProcessing() async {
+        let transport = StubTransport(scripted: processingScript(txns: [depositRow(at: 60)]))
+        let deposit = CardDeposit(source: OnrampSource(api: api(transport)), hints: FakeHintStream(), now: clock.now)
+        await deposit.start(suggestedMicros: nil, cabalID: nil)
+        await deposit.redirected(sessionID: id)
+
+        await deposit.balanceChanged(.deposited(25_000_000))
+
+        XCTAssertEqual(deposit.state, .done(sessionID: id))
+    }
+
+    func testASlowConfirmationThatLandsAfterAFailureEndsAsDone() async {
+        let replies: [StubTransport.Reply] = [
+            .json(.created, created), .json(.ok, session("failed")), .json(.ok, txnsPage([depositRow(at: 60)])),
+        ]
+        let transport = StubTransport(scripted: replies)
+        let deposit = CardDeposit(source: OnrampSource(api: api(transport)), hints: FakeHintStream(), now: clock.now)
+        await deposit.start(suggestedMicros: nil, cabalID: nil)
+        await deposit.redirected(sessionID: id)
+        XCTAssertEqual(deposit.state, .failed(sessionID: id, message: "Card purchase didn't go through."))
+
+        await deposit.foregrounded()
+
+        XCTAssertEqual(deposit.state, .done(sessionID: id))
+    }
+
+    func testAFailedSessionStaysFailedWithoutADepositRow() async {
+        let replies: [StubTransport.Reply] = [
+            .json(.created, created), .json(.ok, session("failed")), .json(.ok, txnsPage([depositRow(at: -60)])),
+        ]
+        let transport = StubTransport(scripted: replies)
+        let deposit = CardDeposit(source: OnrampSource(api: api(transport)), hints: FakeHintStream(), now: clock.now)
+        await deposit.start(suggestedMicros: nil, cabalID: nil)
+        await deposit.redirected(sessionID: id)
+
+        await deposit.foregrounded()
+
+        XCTAssertEqual(deposit.state, .failed(sessionID: id, message: "Card purchase didn't go through."))
+    }
+
+    func testADepositThatLandedBeforeTheSheetClosedStillEndsProcessing() async {
+        let replies: [StubTransport.Reply] = [
+            .json(.created, created), .json(.ok, session("opened")), .json(.ok, txnsPage([depositRow(at: 30)])),
+        ]
+        let transport = StubTransport(scripted: replies)
+        let deposit = CardDeposit(source: OnrampSource(api: api(transport)), hints: FakeHintStream(), now: clock.now)
+        await deposit.start(suggestedMicros: nil, cabalID: nil)
+        clock.advance(by: 120)
+        await deposit.browserClosed()
+
+        await deposit.foregrounded()
+
+        XCTAssertEqual(deposit.state, .done(sessionID: id))
     }
 }
 

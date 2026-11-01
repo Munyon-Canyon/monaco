@@ -16,6 +16,7 @@ public enum CardDepositState: Equatable, Sendable {
         case createFailed(message: String)
         case redirected(sessionID: String)
         case status(sessionID: String, OnrampStatus)
+        case closed(sessionID: String, OnrampStatus)
         case deposited
     }
 
@@ -46,15 +47,24 @@ public enum CardDepositState: Equatable, Sendable {
             .processing(sessionID: id)
         case (.browsing(let id), .status(let read, let status)) where id == read,
             (.processing(let id), .status(let read, let status)) where id == read:
-            switch status {
-            case .created, .opened: self
-            case .confirmed, .submitted: .processing(sessionID: id)
-            case .cancelled, .failed, .expired: .failed(sessionID: id, message: Self.didNotGoThrough)
-            }
-        case (.browsing(let id), .deposited), (.processing(let id), .deposited):
+            reading(status, of: id, opened: false)
+        case (.browsing(let id), .closed(let read, let status)) where id == read:
+            reading(status, of: id, opened: true)
+        case (.processing(let id), .deposited), (.failed(.some(let id), _), .deposited):
             .done(sessionID: id)
         default:
             self
+        }
+    }
+}
+
+extension CardDepositState {
+    fileprivate func reading(_ status: OnrampStatus, of id: String, opened: Bool) -> CardDepositState {
+        switch status {
+        case .created: self
+        case .opened: opened ? .processing(sessionID: id) : self
+        case .confirmed, .submitted: .processing(sessionID: id)
+        case .cancelled, .failed, .expired: .failed(sessionID: id, message: Self.didNotGoThrough)
         }
     }
 }
@@ -82,6 +92,7 @@ public final class CardDeposit {
     private var submission = IdempotentSubmission()
     private var checkOnForeground = false
     private var processingSince: Date?
+    private var startedAt: Date?
 
     public init(source: OnrampSource, hints: any HintSource, now: @escaping @Sendable () -> Date) {
         self.source = source
@@ -112,10 +123,12 @@ public final class CardDeposit {
         }
     }
 
-    public func browserClosed() {
+    public func browserClosed() async {
         guard page != nil else { return }
         page = nil
-        if case .browsing = state { checkOnForeground = true }
+        guard case .browsing(let id) = state else { return }
+        checkOnForeground = true
+        if await readStatus(of: id, closed: true) { checkOnForeground = false }
     }
 
     public func redirected(sessionID: String) async {
@@ -127,12 +140,12 @@ public final class CardDeposit {
         await checkDeposited()
         guard checkOnForeground, page == nil, case .browsing(let id) = state else { return }
         checkOnForeground = false
-        await readStatus(of: id)
+        await readStatus(of: id, closed: true)
     }
 
-    public func balanceChanged(_ change: BalanceChange?) {
+    public func balanceChanged(_ change: BalanceChange?) async {
         guard case .deposited = change else { return }
-        apply(.deposited)
+        await checkDeposited()
     }
 
     public func observe() async {
@@ -145,6 +158,7 @@ public final class CardDeposit {
     public func reset() {
         state = .idle
         processingSince = nil
+        startedAt = nil
         page = nil
         message = nil
         checkOnForeground = false
@@ -176,26 +190,39 @@ public final class CardDeposit {
     }
 
     private func checkDeposited() async {
-        guard case .processing = state, let since = processingSince else { return }
-        if expired(since) {
-            reset()
+        let since: Date
+        switch state {
+        case .processing:
+            guard let processingSince else { return }
+            if expired(processingSince) {
+                reset()
+                return
+            }
+            since = startedAt ?? processingSince
+        case .failed(.some, _):
+            guard let startedAt else { return }
+            since = startedAt
+        default:
             return
         }
-        guard let landed = try? await source.latestDepositAt(), landed >= since, processingSince == since else {
-            return
-        }
+        let before = state
+        guard let landed = try? await source.latestDepositAt(), landed >= since, state == before else { return }
         apply(.deposited)
     }
 
-    private func readStatus(of id: String) async {
-        guard let status = try? await source.session(id: id) else { return }
-        apply(.status(sessionID: id, status))
+    @discardableResult
+    private func readStatus(of id: String, closed: Bool = false) async -> Bool {
+        guard let status = try? await source.session(id: id) else { return false }
+        apply(closed ? .closed(sessionID: id, status) : .status(sessionID: id, status))
+        return true
     }
 
     private func apply(_ event: CardDepositState.Event) {
         let next = state.applying(event)
         guard next != state else { return }
         state = next
+        if case .creating = next { startedAt = nil }
+        if case .browsing = next { startedAt = now() }
         if case .processing = next { processingSince = now() } else { processingSince = nil }
         if case .browsing = next {} else { page = nil }
         if case .failed(_, let text) = next {
