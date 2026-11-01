@@ -100,7 +100,7 @@ func TestLoadFillsDefaultsFromTheRFC(t *testing.T) {
 			Engine: config.TradeEngineLive, SwapSweepInterval: 30 * time.Second, SwapSweepAge: 2 * time.Minute,
 		},
 		Admin: config.Admin{DeadLettersInterval: 10 * time.Second, ApprovalsExpireInterval: 5 * time.Minute},
-		App:   config.App{StoreURL: "https://testflight.apple.com/join/monaco"},
+		App:   config.App{},
 		Solana: config.Solana{
 			RPCURL:   "https://api.mainnet-beta.solana.com",
 			USDCMint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
@@ -279,7 +279,7 @@ func TestLoadReadsEveryKey(t *testing.T) {
 		"TRADE_SWAP_SWEEP_AGE=5s",
 		"ADMIN_DEADLETTERS_INTERVAL=8s",
 		"APP_MIN_IOS_BUILD=120",
-		"APP_STORE_URL=https://testflight.apple.com/join/example",
+		"APP_STORE_URL=https://testflight.apple.com/join/AbCd1234",
 		"ADMIN_APPROVALS_EXPIRE_INTERVAL=7s",
 		"FUNDING_TREASURY_RECONCILE_INTERVAL=3s",
 		"FUNDING_WINDDOWN_INTERVAL=9s",
@@ -430,7 +430,7 @@ func TestLoadReadsEveryKey(t *testing.T) {
 			Engine: config.TradeEngineLive, SwapSweepInterval: 4 * time.Second, SwapSweepAge: 5 * time.Second,
 		},
 		Admin:      config.Admin{DeadLettersInterval: 8 * time.Second, ApprovalsExpireInterval: 7 * time.Second},
-		App:        config.App{MinIOSBuild: 120, StoreURL: "https://testflight.apple.com/join/example"},
+		App:        config.App{MinIOSBuild: 120, StoreURL: "https://testflight.apple.com/join/AbCd1234"},
 		Faultpoint: "before-commit",
 	}
 	if !reflect.DeepEqual(cfg, want) {
@@ -793,7 +793,7 @@ func TestRedactedHidesSecretsAndShowsTheRest(t *testing.T) {
 		{"ADMIN_DEADLETTERS_INTERVAL", "10s"},
 		{"ADMIN_APPROVALS_EXPIRE_INTERVAL", "5m0s"},
 		{"APP_MIN_IOS_BUILD", "0"},
-		{"APP_STORE_URL", "https://testflight.apple.com/join/monaco"},
+		{"APP_STORE_URL", ""},
 		{"TRUST_PROXY_HEADERS", "false"},
 		{"FUND_PAGE_URL", ""},
 		{"WEB_ALLOWED_ORIGINS", ""},
@@ -933,5 +933,64 @@ func TestLoad_dbTimeoutsAreOffUnlessSetAndRefuseNegatives(t *testing.T) {
 	_, err = config.Load(append(required(), "MONACO_DB_STATEMENT_TIMEOUT=-1s"))
 	if err == nil || !strings.Contains(err.Error(), "MONACO_DB_STATEMENT_TIMEOUT (duration like 15s, or 0s for none)") {
 		t.Fatalf("a negative timeout = %v, want it refused", err)
+	}
+}
+
+func TestAppStoreURL_validValueKeepsTheUpgradeGate(t *testing.T) {
+	t.Parallel()
+	for _, u := range []string{
+		"https://apps.apple.com/app/id6820853661",
+		"https://apps.apple.com/us/app/monaco/id6820853661",
+		"https://testflight.apple.com/join/AbCd1234",
+	} {
+		cfg, err := config.Load(append(required(), "APP_MIN_IOS_BUILD=120", "APP_STORE_URL="+u))
+		if err != nil {
+			t.Fatalf("APP_STORE_URL=%q: %v", u, err)
+		}
+		build, store := cfg.App.UpgradeGate()
+		if build != 120 || store != u || cfg.App.StoreURLProblem() != "" {
+			t.Errorf("APP_STORE_URL=%q: gate = %d %q, problem %q, want 120 %q and none",
+				u, build, store, cfg.App.StoreURLProblem(), u)
+		}
+	}
+}
+
+func TestAppStoreURL_missingStillBootsAndTurnsTheGateOff(t *testing.T) {
+	t.Parallel()
+	for _, env := range []config.Env{config.EnvLocal, config.EnvTest} {
+		cfg, err := config.Load(append(required(), "MONACO_ENV="+string(env), "APP_MIN_IOS_BUILD=120"))
+		if err != nil {
+			t.Fatalf("MONACO_ENV=%s without APP_STORE_URL: %v", env, err)
+		}
+		if build, store := cfg.App.UpgradeGate(); build != 0 || store != "" {
+			t.Errorf("gate = %d %q, want it off", build, store)
+		}
+		if cfg.App.StoreURLProblem() != "APP_STORE_URL is not set" {
+			t.Errorf("problem = %q", cfg.App.StoreURLProblem())
+		}
+	}
+}
+
+func TestAppStoreURL_placeholdersStillBootAndTurnTheGateOff(t *testing.T) {
+	t.Parallel()
+	for _, u := range []string{
+		"https://testflight.apple.com/join/monaco",
+		"https://testflight.apple.com/join/",
+		"https://apps.apple.com/",
+		"http://apps.apple.com/app/id6820853661",
+		"https://example.com/app/id6820853661",
+		"https://apps.apple.com.evil.test/app/id6820853661",
+		"not a url",
+	} {
+		cfg, err := config.Load(append(required(), "APP_MIN_IOS_BUILD=120", "APP_STORE_URL="+u))
+		if err != nil {
+			t.Fatalf("APP_STORE_URL=%q: %v, want it to boot", u, err)
+		}
+		if build, store := cfg.App.UpgradeGate(); build != 0 || store != "" {
+			t.Errorf("APP_STORE_URL=%q: gate = %d %q, want it off", u, build, store)
+		}
+		if cfg.App.StoreURLProblem() == "" {
+			t.Errorf("APP_STORE_URL=%q: no problem reported", u)
+		}
 	}
 }

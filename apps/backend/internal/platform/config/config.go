@@ -2,6 +2,7 @@ package config
 
 import (
 	"net/url"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -610,9 +611,43 @@ func adminFields() []field {
 func appFields() []field {
 	return []field{
 		buildFloor("APP_MIN_IOS_BUILD", func(c *Config) *int32 { return &c.App.MinIOSBuild }),
-		text("APP_STORE_URL", "https://testflight.apple.com/join/monaco",
-			func(c *Config) *string { return &c.App.StoreURL }),
+		text("APP_STORE_URL", "", func(c *Config) *string { return &c.App.StoreURL }),
 	}
+}
+
+var testFlightCode = regexp.MustCompile(`^/join/[A-Za-z0-9]{8}$`)
+
+func realStoreURL(u string) bool {
+	parsed, err := url.Parse(u)
+	if err != nil || parsed.Scheme != "https" || parsed.RawQuery != "" || parsed.Fragment != "" {
+		return false
+	}
+	switch parsed.Host {
+	case "apps.apple.com":
+		return len(parsed.Path) > 1
+	case "testflight.apple.com":
+		return testFlightCode.MatchString(parsed.Path)
+	}
+	return false
+}
+
+func (a App) StoreURLValid() bool { return realStoreURL(a.StoreURL) }
+
+func (a App) StoreURLProblem() string {
+	switch {
+	case a.StoreURL == "":
+		return "APP_STORE_URL is not set"
+	case !realStoreURL(a.StoreURL):
+		return "APP_STORE_URL is not an https://apps.apple.com/... listing or a TestFlight join link"
+	}
+	return ""
+}
+
+func (a App) UpgradeGate() (minBuild int32, storeURL string) {
+	if !a.StoreURLValid() {
+		return 0, ""
+	}
+	return a.MinIOSBuild, a.StoreURL
 }
 
 func buildFloor(key string, at func(*Config) *int32) field {

@@ -19,9 +19,9 @@ func New(d module.Deps) *Module { return &Module{deps: d} }
 func (*Module) Name() string { return "app" }
 
 func (m *Module) Mount(r api.Mount) {
-	cfg := m.deps.Config.App
+	minBuild, storeURL := m.deps.Config.App.UpgradeGate()
 	appapi.Mount(adapters.HTTP{
-		Config: app.NewGetConfig(app.Config{MinIOSBuild: cfg.MinIOSBuild, StoreURL: cfg.StoreURL}),
+		Config: app.NewGetConfig(app.Config{MinIOSBuild: minBuild, StoreURL: storeURL}),
 	}, r)
 }
 

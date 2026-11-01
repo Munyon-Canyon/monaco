@@ -45,6 +45,10 @@ func load(environ []string) (config.Config, error) {
 
 func preflight(ctx context.Context, cfg config.Config) error {
 	observability.Info(ctx, observability.BootConfig, slog.String("service", "api"), slog.Any("config", cfg.Redacted()))
+	if problem := cfg.App.StoreURLProblem(); problem != "" {
+		observability.Alert(ctx, observability.AppStoreURLInvalid, slog.String("reason", problem),
+			slog.Int("min_ios_build", int(cfg.App.MinIOSBuild)))
+	}
 	if err := privy.CheckBoot(cfg); err != nil {
 		return err
 	}
@@ -167,7 +171,15 @@ func newHandler(deps module.Deps, spec []byte, meters metric.MeterProvider) (htt
 		RateLimit:     ratelimit.Middleware(limiter, policies, httpx.ActorKey, deps.Config.HTTP.TrustProxyHeaders),
 		WebOrigins:    deps.Config.WebAllowedOrigins(),
 		Ready:         deps.Pool,
+		ReadyWarnings: readyWarnings(deps.Config),
 	}, registered.Build(deps).Mount, spec)
+}
+
+func readyWarnings(cfg config.Config) []string {
+	if problem := cfg.App.StoreURLProblem(); problem != "" {
+		return []string{"app.store_url_invalid: " + problem + "; forced upgrade is off"}
+	}
+	return nil
 }
 
 func listen(ctx context.Context, cfg config.Config) (net.Listener, error) {
