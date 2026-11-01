@@ -113,6 +113,17 @@ struct ShareScreenTests {
         #expect(items.count == 2)
     }
 
+    @Test func aShareTitleNeverEndsInADotOrRepeatsTheName() {
+        let portfolio = SharePortfolio(
+            name: "Andres", photoURL: nil, cabalCount: 1, totalValueMicros: 1_000_000, pnl1mMicros: 0,
+            return1mBps: nil, rightCalls: nil, resolvedCalls: nil)
+        let spec = SharePortfolioBuilder.build(
+            portfolio: portfolio, history: [], code: nil, eyes: ShareEyes(), now: Date(timeIntervalSince1970: 0))
+
+        #expect(ShareActions.title(for: spec) == "Andres")
+        #expect(ShareActions.title(for: ShareSampleData.spec()) == "AC Capital \u{00B7} NVDA")
+    }
+
     @Test func aCardWithoutAnInviteLinkSharesTheWebsite() {
         let spec = ShareSampleData.spec()
         let payload = ShareActions.payload(

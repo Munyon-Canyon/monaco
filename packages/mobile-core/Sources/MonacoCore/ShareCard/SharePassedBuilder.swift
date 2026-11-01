@@ -168,19 +168,26 @@ public enum SharePassedBuilder {
         case .filled(let fill):
             guard let bps = proposal.stats.sinceBps, let nowPrice else {
                 return .init(
-                    main: UsdAmountFormatter.format(micros: fill.priceMicros), secondary: nil, context: "filled at",
-                    tone: .gain)
+                    main: UsdAmountFormatter.format(micros: fill.priceMicros), secondary: nil,
+                    context: isSell ? "sold at" : "filled at", tone: .gain)
             }
             let percent = PercentFormatter.format(basisPoints: bps, signed: true, fractionDigits: 1)
-            let tone: ShareFigureTone = bps < 0 ? .loss : .gain
             let change = dollarChange(
                 atomics: proposal.stats.sharesAtomics, decimals: decimals, from: fill.priceMicros, to: nowPrice)
+            var amount = percent
+            var secondary: String?
             if dollars, let change {
-                return .init(
-                    main: UsdAmountFormatter.format(signedMicros: change), secondary: percent,
-                    context: "since the fill", tone: tone)
+                amount = UsdAmountFormatter.format(signedMicros: change)
+                secondary = percent
             }
-            return .init(main: percent, secondary: nil, context: "since the fill", tone: tone)
+            if isSell {
+                let word = bps < 0 ? "Avoided" : "Missed"
+                return .init(
+                    main: bps == 0 ? amount : "\(word) \(amount)", secondary: secondary, context: "since the sale",
+                    tone: bps == 0 ? .neutral : (bps < 0 ? .gain : .loss))
+            }
+            return .init(
+                main: amount, secondary: secondary, context: "since the fill", tone: bps < 0 ? .loss : .gain)
         }
     }
 
@@ -198,10 +205,11 @@ public enum SharePassedBuilder {
     private static func statLines(
         proposal: Components.Schemas.ProposalDetail, fill: Fill?, shares: String?, nowPrice: Int64?
     ) -> [ShareCardSpec.Stat] {
+        let isSell = proposal.kind == .sell
         let now = ShareProposalText.price(nowPrice)
         if let fill {
             return [
-                .init(label: "Bought", value: shares.map { "\($0) sh" } ?? ShareProposalText.missing),
+                .init(label: isSell ? "Sold" : "Bought", value: shares.map { "\($0) sh" } ?? ShareProposalText.missing),
                 .init(label: "At", value: UsdAmountFormatter.format(micros: fill.priceMicros)),
                 .init(label: "Now", value: now),
             ]

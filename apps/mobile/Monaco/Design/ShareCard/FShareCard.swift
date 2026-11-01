@@ -68,6 +68,7 @@ struct FShareCard: View {
                 .foregroundStyle(MonacoTheme.secondaryText)
         }
         .lineLimit(1)
+        .minimumScaleFactor(0.6)
     }
 
     private static func crestCorner(_ scale: CGFloat) -> CGSize {
@@ -109,6 +110,8 @@ struct FShareCard: View {
                     Text(spec.tickerLine.detail).font(.system(size: 14 * scale).monospacedDigit())
                         .foregroundStyle(MonacoTheme.secondaryText)
                 }
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
             }
             HStack(alignment: .lastTextBaseline, spacing: 6 * scale) {
                 Text(spec.figure.main)
@@ -136,6 +139,7 @@ struct FShareCard: View {
                 }
             }
             .lineLimit(1)
+            .minimumScaleFactor(0.6)
         }
     }
 
@@ -152,6 +156,7 @@ struct FShareCard: View {
             }
         }
         .lineLimit(1)
+        .minimumScaleFactor(0.6)
         .padding(.horizontal, 10 * scale)
         .frame(height: 62 * scale)
     }

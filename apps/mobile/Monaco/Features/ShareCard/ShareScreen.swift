@@ -46,10 +46,17 @@ enum ShareReplay {
 @MainActor
 enum ShareActions {
     static let copiedMessage = "Image copied."
+    static let renderFailedMessage = "Couldn\u{2019}t make the image. Try again."
+
+    static func title(for spec: ShareCardSpec) -> String {
+        let symbol = spec.tickerLine.symbol
+        let parts = [spec.header.title, symbol == spec.header.title ? "" : symbol]
+        return parts.filter { !$0.isEmpty }.joined(separator: " \u{00B7} ")
+    }
 
     static func payload(for spec: ShareCardSpec, url: URL?, image: UIImage) -> SharePayload {
         SharePayload(
-            title: "\(spec.header.title) \u{00B7} \(spec.tickerLine.symbol)", url: url ?? SharePayload.fallbackURL,
+            title: title(for: spec), url: url ?? SharePayload.fallbackURL,
             image: image)
     }
 
@@ -134,6 +141,7 @@ struct ShareScreenContent: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(ToastCenter.self) private var toasts: ToastCenter?
     @State private var replayStart: Date?
     @State private var jumped = false
     @State private var rendered: Rendered?
@@ -194,14 +202,20 @@ struct ShareScreenContent: View {
         .safeAreaInset(edge: .bottom, spacing: 0) {
             ShareDock(
                 eyes: $eyes, format: $format, unusedEyes: unusedEyes, isLedger: spec.facts.isLedger,
-                share: { share(spec, current(spec)) }, copyImage: { copyImage(current(spec)) })
+                share: { if let image = current(spec) { share(spec, image) } },
+                copyImage: { if let image = current(spec) { copyImage(image) } })
         }
         .task(id: spec) {
             await ShareImageExporter.warmCache(for: spec)
             epoch += 1
         }
         .task(id: key) {
-            rendered = Rendered(key: key, image: ShareImageExporter.render(spec, format: format, eyes: eyes))
+            guard let image = ShareImageExporter.renderIfPossible(spec, format: format, eyes: eyes) else {
+                rendered = nil
+                toasts?.current = MonacoToast(message: ShareActions.renderFailedMessage)
+                return
+            }
+            rendered = Rendered(key: key, image: image)
         }
         .task(id: replayStart) {
             guard replayStart != nil else { return }
@@ -212,11 +226,13 @@ struct ShareScreenContent: View {
 
     private var showsReplay: Bool { format != .sticker }
 
-    private func current(_ spec: ShareCardSpec) -> UIImage {
+    private func current(_ spec: ShareCardSpec) -> UIImage? {
         if let rendered, rendered.key.spec == spec, rendered.key.format == format, rendered.key.eyes == eyes {
             return rendered.image
         }
-        return ShareImageExporter.render(spec, format: format, eyes: eyes)
+        let image = ShareImageExporter.renderIfPossible(spec, format: format, eyes: eyes)
+        if image == nil { toasts?.current = MonacoToast(message: ShareActions.renderFailedMessage) }
+        return image
     }
 
     @ViewBuilder

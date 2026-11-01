@@ -65,6 +65,13 @@ enum ShareImageExporter {
     }
 
     static func render(_ spec: ShareCardSpec, format: ShareFormat, eyes: ShareEyes = ShareEyes()) -> UIImage {
+        renderIfPossible(spec, format: format, eyes: eyes)
+            ?? blank(pixelSize(format), opaque: format != .sticker)
+    }
+
+    static func renderIfPossible(
+        _ spec: ShareCardSpec, format: ShareFormat, eyes: ShareEyes = ShareEyes()
+    ) -> UIImage? {
         let size = pixelSize(format)
         let opaque = format != .sticker
         let view = ShareExportView(spec: spec, format: format, eyes: eyes, size: size)
@@ -74,7 +81,7 @@ enum ShareImageExporter {
         renderer.proposedSize = ProposedViewSize(size)
         renderer.scale = 1
         renderer.isOpaque = opaque
-        return renderer.uiImage ?? blank(size, opaque: opaque)
+        return renderer.uiImage
     }
 
     static func warmCache(for spec: ShareCardSpec) async {

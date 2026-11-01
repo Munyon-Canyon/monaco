@@ -193,15 +193,73 @@ final class SharePassedBuilderTests: XCTestCase {
         XCTAssertFalse(build(detail).chart.markers.contains { $0.kind == .buy })
     }
 
-    func testASellGivesS() {
+    private func filledSell(nowMicros: Int64, sinceBps: Int64) -> Components.Schemas.ProposalDetail {
         let filled = swap(.confirmed, price: 716_520_000, at: now.addingTimeInterval(-17_940))
         var detail = proposal(swap: filled, kind: .sell)
-        detail.stats.sinceBps = -110
-        let spec = build(detail)
+        detail.stats.priceMicros = nowMicros
+        detail.stats.sinceBps = sinceBps
+        return detail
+    }
+
+    func testASellThatFellAfterTheFillIsAvoidedAndGreen() {
+        let spec = build(filledSell(nowMicros: 680_694_000, sinceBps: -500))
 
         XCTAssertEqual(spec.chart.markers.last?.kind, .sell)
         XCTAssertTrue(spec.header.subtitle.contains("Sell META"))
-        XCTAssertEqual(spec.figure.main, "\u{2212}1.1%")
+        XCTAssertEqual(spec.figure.main, "Avoided \u{2212}5.0%")
+        XCTAssertEqual(spec.figure.context, "since the sale")
+        XCTAssertEqual(spec.figure.tone, .gain)
+        XCTAssertEqual(
+            spec.stats,
+            [
+                .init(label: "Sold", value: "0.42 sh"), .init(label: "At", value: "$716.52"),
+                .init(label: "Now", value: "$680.69"),
+            ])
+        XCTAssertFalse(spec.spoken.contains("Bought"))
+        XCTAssertTrue(spec.spoken.contains("Avoided"), spec.spoken)
+    }
+
+    func testASellThatRoseAfterTheFillIsMissedAndRed() {
+        let spec = build(filledSell(nowMicros: 752_346_000, sinceBps: 500))
+
+        XCTAssertEqual(spec.figure.main, "Missed +5.0%")
+        XCTAssertEqual(spec.figure.context, "since the sale")
+        XCTAssertEqual(spec.figure.tone, .loss)
+        XCTAssertEqual(spec.stats.first, .init(label: "Sold", value: "0.42 sh"))
+    }
+
+    func testAFlatSellIsNeutralWithoutAWord() {
+        let spec = build(filledSell(nowMicros: 716_520_000, sinceBps: 0))
+
+        XCTAssertEqual(spec.figure.main, "0.0%")
+        XCTAssertEqual(spec.figure.tone, .neutral)
+    }
+
+    func testASellWithDollarsOnAvoidsTheDollarChange() {
+        let spec = build(filledSell(nowMicros: 680_694_000, sinceBps: -500), eyes: ShareEyes(pnlDollars: true))
+
+        XCTAssertEqual(spec.figure.main, "Avoided \u{2212}$15.05")
+        XCTAssertEqual(spec.figure.secondary, "\u{2212}5.0%")
+        XCTAssertEqual(spec.figure.tone, .gain)
+    }
+
+    func testASellWithoutALivePriceSaysSoldAt() {
+        var detail = filledSell(nowMicros: 680_694_000, sinceBps: -500)
+        detail.stats.priceMicros = nil
+        let spec = build(detail)
+
+        XCTAssertEqual(spec.figure.main, "$716.52")
+        XCTAssertEqual(spec.figure.context, "sold at")
+    }
+
+    func testABuyKeepsBoughtAndItsSign() {
+        var detail = Components.Schemas.ProposalDetail.meta(now: now)
+        detail.stats.priceMicros = 680_694_000
+        detail.stats.sinceBps = -500
+        let spec = build(detail)
+
+        XCTAssertEqual(spec.stats.first?.label, "Bought")
+        XCTAssertEqual(spec.figure.main, "\u{2212}5.0%")
         XCTAssertEqual(spec.figure.tone, .loss)
     }
 
