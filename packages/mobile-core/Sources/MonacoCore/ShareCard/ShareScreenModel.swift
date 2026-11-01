@@ -220,7 +220,7 @@ public final class ShareScreenModel {
         async let pot = api.read { try await $0.getCabalPot(path: .init(id: cabalID)).ok.body.json }
         async let cabal = api.read { try await $0.getCabal(path: .init(id: cabalID)).ok.body.json }
         async let trades = Self.fetchTrades(api: api, cabalID: cabalID, symbol: symbol, maxPages: maxPages)
-        async let referral = try? api.read { try await $0.getMyReferralCode().ok.body.json }
+        async let referral = Self.fetchReferral(api: api)
         let potValue = try await pot
         guard let holding = potValue.holdings.first(where: { $0.symbol == symbol }) else {
             throw APIError.decoding("no position in \(symbol)")
@@ -255,7 +255,7 @@ public final class ShareScreenModel {
         }
         let (cabalID, now) = (proposal.cabalId, now())
         async let cabal = api.read { try await $0.getCabal(path: .init(id: cabalID)).ok.body.json }
-        async let referral = try? api.read { try await $0.getMyReferralCode().ok.body.json }
+        async let referral = Self.fetchReferral(api: api)
         let chart = try await Self.fetchChart(
             api: api, symbol: symbol, since: isOpen ? now : proposal.createdAt, now: now)
         let cabalValue = try await cabal
@@ -294,7 +294,7 @@ extension ShareScreenModel {
         async let history = api.read {
             try await $0.getMyPnlHistory(query: .init(range: .all, cabalId: cabalID)).ok.body.json
         }
-        async let referral = try? api.read { try await $0.getMyReferralCode().ok.body.json }
+        async let referral = Self.fetchReferral(api: api)
         guard let slice = try await pot.me else { throw APIError.decoding("not a member of \(cabalID)") }
         let cabalValue = try await cabal
         let user = try await me
@@ -317,7 +317,7 @@ extension ShareScreenModel {
         let (api, timeZone) = (api, timeZone)
         async let ledger = api.read { try await $0.getMyLedger(path: .init(week: week)).ok.body.json }
         async let me = api.read { try await $0.getMe().ok.body.json }
-        async let referral = try? api.read { try await $0.getMyReferralCode().ok.body.json }
+        async let referral = Self.fetchReferral(api: api)
         let user = try await me
         let link = await referral.flatMap(Self.link)
         let name = user.displayName.split(separator: " ").first.map(String.init) ?? user.displayName
@@ -333,17 +333,19 @@ extension ShareScreenModel {
         let api = api
         async let portfolio = api.read { try await $0.getMyPortfolio().ok.body.json }
         async let history = api.read { try await $0.getMyPnlHistory(query: .init(range: ._1m)).ok.body.json }
-        async let referral = try? api.read { try await $0.getMyReferralCode().ok.body.json }
+        async let referral = Self.fetchReferral(api: api)
         let id = try await api.read { try await $0.getMe().ok.body.json }.id
         let user = try await api.read { try await $0.getUser(path: .init(id: id)).ok.body.json }
-        guard let pnl = user.pnl1mMicros else { throw APIError.decoding("no one-month P&L for \(id)") }
         let holdings = try await portfolio
         let curve = try await history
+        let hasBoardFigure = user.pnl1mMicros != nil
+        let pnl = user.pnl1mMicros ?? curve.pnlMicros
+        let returnBps = hasBoardFigure ? user.return1mBps : Self.curveReturn(curve)
         let link = await referral.flatMap(Self.link)
         let value = SharePortfolio(
             name: user.displayName, photoURL: user.photoUrl.flatMap(URL.init(string:)),
             cabalCount: holdings.cabals.count, totalValueMicros: holdings.totalValueMicros, pnl1mMicros: pnl,
-            return1mBps: user.return1mBps, rightCalls: user.standing.map { Int($0.right) },
+            return1mBps: returnBps, rightCalls: user.standing.map { Int($0.right) },
             resolvedCalls: user.standing.map { Int($0.resolved) })
         return Loaded(
             content: .portfolio(value), crest: ShareCrest(cabalID: "", name: "", pictureURL: nil),
@@ -353,6 +355,18 @@ extension ShareScreenModel {
 }
 
 extension ShareScreenModel {
+    private nonisolated static func fetchReferral(api: APIClient) async -> Components.Schemas.MyReferralCode? {
+        for _ in 0..<2 {
+            if let code = try? await api.read({ try await $0.getMyReferralCode().ok.body.json }) { return code }
+            if Task.isCancelled { return nil }
+        }
+        return nil
+    }
+
+    private nonisolated static func curveReturn(_ curve: Components.Schemas.MyPnlHistory) -> Int64? {
+        curve.points.count >= 2 && curve.returnBps != 0 ? curve.returnBps : nil
+    }
+
     private nonisolated static func fetchTrades(
         api: APIClient, cabalID: String, symbol: String, maxPages: Int
     ) async throws -> Trades {

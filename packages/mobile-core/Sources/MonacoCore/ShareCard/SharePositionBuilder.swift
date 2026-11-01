@@ -136,15 +136,8 @@ public enum SharePositionBuilder {
     }
 
     private static func figure(for position: SharePosition, dollars: Bool) -> ShareCardSpec.Figure {
-        let bps = percentBasisPoints(position) ?? 0
-        let percent = PercentFormatter.format(basisPoints: bps, signed: true, fractionDigits: 1)
-        let tone: ShareFigureTone = position.pnlMicros < 0 ? .loss : .gain
-        if dollars {
-            return .init(
-                main: UsdAmountFormatter.format(signedMicros: position.pnlMicros), secondary: percent, context: nil,
-                tone: tone)
-        }
-        return .init(main: percent, secondary: nil, context: nil, tone: tone)
+        ShareFigureText.figure(
+            pnlMicros: position.pnlMicros, basisPoints: percentBasisPoints(position), dollars: dollars)
     }
 
     private static func stats(for position: SharePosition, dollars: Bool) -> [ShareCardSpec.Stat] {
@@ -168,18 +161,8 @@ public enum SharePositionBuilder {
     }
 
     private static func spoken(title: String, position: SharePosition, units: String, dollars: Bool) -> String {
-        let direction = position.pnlMicros < 0 ? "down" : "up"
-        let bps = abs(percentBasisPoints(position) ?? 0)
-        let tenths = (bps + 5) / 10
-        let percent = tenths % 10 == 0 ? "\(tenths / 10)" : "\(tenths / 10).\(tenths % 10)"
-        let move = "\(direction) \(percent) percent"
-        let figure = dollars ? "\(direction) \(spokenDollars(abs(position.pnlMicros))), \(percent) percent" : move
+        let figure = ShareFigureText.spoken(
+            pnlMicros: position.pnlMicros, basisPoints: percentBasisPoints(position), dollars: dollars)
         return "\(title), \(position.symbol), long \(units), \(figure)"
-    }
-
-    private static func spokenDollars(_ micros: Int64) -> String {
-        let cents = (micros + 5_000) / 10_000
-        let whole = UsdAmountFormatter.format(micros: cents / 100 * 1_000_000).dropFirst().dropLast(3)
-        return cents % 100 == 0 ? "\(whole) dollars" : "\(whole) dollars \(cents % 100)"
     }
 }

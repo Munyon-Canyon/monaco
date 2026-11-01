@@ -275,12 +275,17 @@ final class ShareScreenModelTests: XCTestCase {
         XCTAssertEqual(model.title, "Week 1")
     }
 
-    func testAPortfolioWithoutAMonthFigureIsTheFailedState() async {
+    func testAPortfolioWithoutABoardRowBuildsFromTheLiveMonthCurve() async throws {
         let model = make(ShareServer(tradePages: [1], noMonth: true), subject: .portfolio)
 
         await model.load()
 
-        guard case .failed = model.state else { return XCTFail("got \(model.state)") }
+        let spec = try XCTUnwrap(model.spec)
+        XCTAssertEqual(spec.figure.main, "+$40.00")
+        XCTAssertEqual(spec.figure.secondary, "\u{2014}")
+        XCTAssertEqual(spec.stats[1].value, "\u{2014}")
+        XCTAssertFalse(spec.spoken.contains("0 percent"), spec.spoken)
+        XCTAssertEqual(spec.chart.points.map(\.priceMicros), [0, 40_000_000])
     }
 
     func testTheStickerFormatTitlesTheScreenAndClearsTheEyesThenRestoresThem() async throws {

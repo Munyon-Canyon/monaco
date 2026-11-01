@@ -43,13 +43,15 @@ enum ShareFigureText {
 
     static func spoken(pnlMicros: Int64, basisPoints: Int64?, dollars: Bool) -> String {
         let direction = pnlMicros < 0 ? "down" : "up"
-        let tenths = (abs(basisPoints ?? 0) + 5) / 10
-        let percent = tenths % 10 == 0 ? "\(tenths / 10)" : "\(tenths / 10).\(tenths % 10)"
-        guard dollars else { return "\(direction) \(percent) percent" }
+        let percent = basisPoints.map { bps -> String in
+            let tenths = (abs(bps) + 5) / 10
+            return tenths % 10 == 0 ? "\(tenths / 10)" : "\(tenths / 10).\(tenths % 10)"
+        }
+        guard dollars else { return percent.map { "\(direction) \($0) percent" } ?? "return not available" }
         let cents = (abs(pnlMicros) + 5_000) / 10_000
         let whole = UsdAmountFormatter.format(micros: cents / 100 * 1_000_000).dropFirst().dropLast(3)
         let amount = cents % 100 == 0 ? "\(whole) dollars" : "\(whole) dollars \(cents % 100)"
-        return "\(direction) \(amount), \(percent) percent"
+        return percent.map { "\(direction) \(amount), \($0) percent" } ?? "\(direction) \(amount)"
     }
 }
 

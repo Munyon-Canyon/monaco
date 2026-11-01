@@ -153,4 +153,21 @@ final class SharePositionBuilderTests: XCTestCase {
         XCTAssertEqual(spec.facts.firstBoughtAt, nil)
         XCTAssertEqual(spec.spoken, "AC Capital, NVDA, long 1 share, down 10 dollars, 10 percent")
     }
+
+    func testAZeroCostBasisShowsADashAndSaysNoPercent() {
+        let free = SharePosition(
+            crest: crest, symbol: "NVDA", logoURL: nil, unitsText: "1.0000", valueMicros: 5_000_000,
+            costBasisMicros: 0, pnlMicros: 5_000_000, avgEntryMicros: nil, priceMicros: 5_000_000,
+            firstBoughtAt: nil)
+
+        let percent = build(position: free, eyes: ShareEyes(pnlDollars: false))
+        XCTAssertEqual(percent.figure.main, "\u{2014}")
+        XCTAssertEqual(percent.spoken, "AC Capital, NVDA, long 1 share, return not available")
+
+        let dollars = build(position: free, eyes: ShareEyes(pnlDollars: true))
+        XCTAssertEqual(dollars.figure.main, "+$5.00")
+        XCTAssertEqual(dollars.figure.secondary, "\u{2014}")
+        XCTAssertEqual(dollars.spoken, "AC Capital, NVDA, long 1 share, up 5 dollars")
+        XCTAssertFalse(dollars.spoken.contains("0 percent"))
+    }
 }
