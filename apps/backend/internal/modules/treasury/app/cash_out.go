@@ -433,10 +433,10 @@ func cashOutAmount(
 		return money.SharesUnits{}, money.Micros{}, errs.New(errs.CodePriceUnavailable, "treasury.CashOut")
 	}
 	if cmd.All {
-		payout, err := domain.PayoutFor(member, total, pot)
-		if err == nil && payout.Cmp(money.MicrosFromUint64(cashOutMinimumMicros)) < 0 {
-			err = errs.New(errs.CodePotValueChanged, "treasury.CashOut")
+		if member.IsZero() {
+			return money.SharesUnits{}, money.Micros{}, errs.New(errs.CodeInsufficientShares, "treasury.CashOut")
 		}
+		payout, err := domain.PayoutFor(member, total, pot)
 		return member, payout, err
 	}
 	if cmd.PayoutMicros.Cmp(money.MicrosFromUint64(cashOutMinimumMicros)) < 0 {

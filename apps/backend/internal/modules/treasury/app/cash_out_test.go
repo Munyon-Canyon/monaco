@@ -20,8 +20,7 @@ func TestCashOutAmount(t *testing.T) {
 		{CashOut{PayoutMicros: micros(99_999)}, shares(100), shares(100), errs.CodeInvalidInput},
 		{CashOut{PayoutMicros: micros(2_000_000)}, shares(100), shares(100), errs.CodeInsufficientShares},
 		{CashOut{PayoutMicros: micros(100_000)}, shares(1), shares(0), errs.CodeInvalidInput},
-		{CashOut{All: true}, shares(1), shares(1_000_000), errs.CodePotValueChanged},
-		{CashOut{All: true}, shares(0), shares(100), errs.CodePotValueChanged},
+		{CashOut{All: true}, shares(0), shares(100), errs.CodeInsufficientShares},
 	} {
 		if _, _, err := cashOutAmount(tt.cmd, tt.member, tt.total, micros(1_000_000)); errs.CodeOf(err) != tt.code {
 			t.Fatalf("code = %q, want %q", errs.CodeOf(err), tt.code)
@@ -31,6 +30,25 @@ func TestCashOutAmount(t *testing.T) {
 		units, payout, err := cashOutAmount(cmd, shares(100), shares(100), micros(1_000_000))
 		if err != nil || units != shares(100) || payout != micros(1_000_000) {
 			t.Fatalf("cashOutAmount = (%v, %v, %v)", units, payout, err)
+		}
+	}
+}
+
+func TestCashOutAmount_allLetsAStakeUnderTheMinimumLeave(t *testing.T) {
+	t.Parallel()
+	shares, micros := money.SharesUnitsFromUint64, money.MicrosFromUint64
+	for _, tt := range []struct {
+		member, total uint64
+		pot, payout   uint64
+	}{
+		{4, 100, 1_000_000, 40_000},
+		{1, 1_000_000, 1_000_000, 1},
+		{1, 3, 1, 0},
+	} {
+		units, payout, err := cashOutAmount(CashOut{All: true}, shares(tt.member), shares(tt.total), micros(tt.pot))
+		if err != nil || units != shares(tt.member) || payout != micros(tt.payout) {
+			t.Fatalf("cashOutAmount(%+v) = (%v, %v, %v), want all %d shares for %d", tt, units, payout, err,
+				tt.member, tt.payout)
 		}
 	}
 }

@@ -76,24 +76,44 @@ func (q *Queries) CashOutLiveJob(ctx context.Context, arg CashOutLiveJobParams) 
 }
 
 const cashOutSaleTally = `-- name: CashOutSaleTally :one
-SELECT count(s.swap_id)::integer AS results, coalesce(max(s.batch_size), 0)::integer AS batch_size,
-  least(j.slice_micros, j.payout_micros - j.sell_usdc_micros + coalesce(sum(s.usdc_out_micros), 0))::text AS paid
-FROM cash_out_jobs AS j
-LEFT JOIN cash_out_sells AS s ON s.job_id = j.id
-WHERE j.id = $1::uuid
-GROUP BY j.id
+WITH raised AS (
+  SELECT j.id, j.cabal_id, j.slice_micros,
+    j.payout_micros - j.sell_usdc_micros + coalesce(sum(s.usdc_out_micros), 0) AS covered,
+    count(s.swap_id)::integer AS results, coalesce(max(s.batch_size), 0)::integer AS batch_size
+  FROM cash_out_jobs AS j
+  LEFT JOIN cash_out_sells AS s ON s.job_id = j.id
+  WHERE j.id = $1::uuid
+  GROUP BY j.id
+), settled AS (
+  SELECT r.id, r.cabal_id, r.slice_micros, r.covered, r.results, r.batch_size, least(r.slice_micros, r.covered) AS paid,
+    CASE WHEN NOT EXISTS (SELECT 1 FROM user_positions AS p WHERE p.cabal_id = r.cabal_id AND p.share_units > 0)
+      AND NOT EXISTS (SELECT 1 FROM cash_out_jobs AS o WHERE o.cabal_id = r.cabal_id AND o.id <> r.id
+        AND o.status IN ('started', 'selling', 'paying'))
+      THEN greatest(r.covered - r.slice_micros, 0) ELSE 0 END AS residual
+  FROM raised AS r
+)
+SELECT results, batch_size, paid::text AS paid, residual::text AS residual, (paid + residual)::text AS payout
+FROM settled
 `
 
 type CashOutSaleTallyRow struct {
 	Results   int32
 	BatchSize int32
 	Paid      string
+	Residual  string
+	Payout    string
 }
 
 func (q *Queries) CashOutSaleTally(ctx context.Context, id uuid.UUID) (CashOutSaleTallyRow, error) {
 	row := q.db.QueryRow(ctx, cashOutSaleTally, id)
 	var i CashOutSaleTallyRow
-	err := row.Scan(&i.Results, &i.BatchSize, &i.Paid)
+	err := row.Scan(
+		&i.Results,
+		&i.BatchSize,
+		&i.Paid,
+		&i.Residual,
+		&i.Payout,
+	)
 	return i, err
 }
 
@@ -268,6 +288,7 @@ const settleCashOutSale = `-- name: SettleCashOutSale :one
 WITH settled AS (
   UPDATE cash_out_jobs SET status = $1::text,
     payout_micros = $2::text::numeric,
+    slice_micros = greatest(slice_micros, $2::text::numeric),
     returned_units = $3::text::numeric, result_code = NULLIF($4::text, ''),
     updated_at = $5::timestamptz
   WHERE id = $6::uuid AND status = 'selling'

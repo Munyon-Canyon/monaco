@@ -309,3 +309,41 @@ func TestCashOut_reservationsAboveThePotArePotValueChanged(t *testing.T) {
 		t.Fatalf("CashOut code = %q, err %v, want %q", errs.CodeOf(err), err, errs.CodePotValueChanged)
 	}
 }
+
+func TestCashOut_allLetsAStakeUnderTheMinimumLeaveForWhatItIsWorth(t *testing.T) {
+	t.Parallel()
+	for _, c := range []struct {
+		name   string
+		pot    uint64
+		payout uint64
+		status string
+	}{
+		{"four cents", 80_000, 40_000, "started"},
+		{"nothing at all", 1, 0, "completed"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			f := newFixture(t)
+			alice, bob, cabal := f.user(t), f.user(t), f.cabal(t)
+			cashOutFund(t, f, alice, cabal, 1_000_000)
+			cashOutFund(t, f, bob, cabal, 1_000_000)
+			h := cashOutHandlerWith(f, cashOutPauses{}, cashOutValues{pot: money.MicrosFromUint64(c.pot)})
+			ctx := observability.WithActor(f.ctx(), "user:"+alice.String())
+			result, err := h.Handle(ctx, app.CashOut{CabalID: cabal, UserID: alice, All: true})
+			if err != nil || result.PayoutMicros != money.MicrosFromUint64(c.payout) ||
+				result.ShareUnits.Uint64() != 100 {
+				t.Fatalf("CashOut = (%#v, %v), want all 100 shares for %d micros", result, err, c.payout)
+			}
+			job, err := h.Job(f.ctx(), cabal, alice, result.ID)
+			if err != nil || string(job.Status) != c.status {
+				t.Fatalf("Job = (%#v, %v), want %s", job, err, c.status)
+			}
+			if shares := f.positionUnits(t, cabal, alice); shares != 0 {
+				t.Fatalf("alice holds %d shares, want none so she can leave and delete the account", shares)
+			}
+			if drift := f.drift(t); len(drift) != 0 {
+				t.Fatalf("ledger drift = %#v", drift)
+			}
+		})
+	}
+}
