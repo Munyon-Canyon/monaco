@@ -101,6 +101,12 @@ func (d outcomeDB) deliver(t *testing.T, m *delivery) bus.Outcome {
 	return m.outcome
 }
 
+func (d outcomeDB) deliverLast(t *testing.T, m *delivery) bus.Outcome {
+	t.Helper()
+	m.seen = bus.MaxDeliver - 1
+	return d.deliver(t, m)
+}
+
 func (d outcomeDB) confirmed(proposal uuid.UUID, kind string) events.TradeConfirmed {
 	return events.TradeConfirmed{
 		V: 1, SwapID: d.ids.NewV7(), CabalID: d.ids.NewV7(), Source: events.TradeSource{Kind: kind, ID: proposal},
@@ -493,7 +499,7 @@ func TestTradeOutcome_TermsWhatItCannotApply(t *testing.T) {
 		"a failed swap the database refuses":     d.failed(failing, "proposal"),
 		"a confirmed trade on a closed proposal": d.confirmed(d.proposal(t, "expired"), "proposal"),
 	} {
-		if got := d.deliver(t, d.publish(t, ev)); got != bus.OutcomeTerm {
+		if got := d.deliverLast(t, d.publish(t, ev)); got != bus.OutcomeTerm {
 			t.Errorf("%s = %s, want term", name, got)
 		}
 	}
@@ -518,11 +524,11 @@ func TestTradeOutcome_TermsWhenAStoreWriteFails(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if got := d.deliver(t, d.publish(t, d.confirmed(fallback, "proposal"))); got != bus.OutcomeTerm {
+	if got := d.deliverLast(t, d.publish(t, d.confirmed(fallback, "proposal"))); got != bus.OutcomeTerm {
 		t.Errorf("trade.confirmed the database refuses = %s, want term", got)
 	}
 	d.wantRow(t, fallback, "execution_blocked", string(errs.CodeSwapFailed))
-	if got := d.deliver(t, d.publish(t, d.retried(appendFails, "proposal"))); got != bus.OutcomeTerm {
+	if got := d.deliverLast(t, d.publish(t, d.retried(appendFails, "proposal"))); got != bus.OutcomeTerm {
 		t.Errorf("trade.retry_requested whose event the database refuses = %s, want term", got)
 	}
 	d.wantRow(t, appendFails, "execution_blocked", string(errs.CodeSwapFailed))
@@ -538,7 +544,7 @@ func TestTradeOutcome_TermsWhenTheReopenIsRefused(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := d.deliver(t, d.publish(t, d.retried(p, "proposal"))); got != bus.OutcomeTerm {
+	if got := d.deliverLast(t, d.publish(t, d.retried(p, "proposal"))); got != bus.OutcomeTerm {
 		t.Errorf("trade.retry_requested the database refuses = %s, want term", got)
 	}
 	d.wantRow(t, p, "execution_blocked", string(errs.CodeSwapFailed))
