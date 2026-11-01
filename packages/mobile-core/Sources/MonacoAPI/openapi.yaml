@@ -2883,6 +2883,36 @@ paths:
                 $ref: "#/components/schemas/AssetList"
         default:
           $ref: "#/components/responses/Problem"
+  /v1/assets/quotes:
+    get:
+      operationId: getAssetQuotes
+      tags: [market]
+      summary: Read the quotes of up to 50 assets at once.
+      x-rate-limit: {actor: {rate: 120, per: 1m, burst: 30}}
+      description: >-
+        Returns the quote of each known asset in `symbols`, tradable or not, in the shape of the
+        list and from the same price store as `getAsset`. A symbol the catalog does not know is left out of
+        the answer, where `getAsset` says `asset_not_found`. Repeated symbols count once. More than 50 symbols,
+        or none, is `invalid_input`.
+      parameters:
+        - name: symbols
+          in: query
+          required: true
+          description: Comma-separated tickers, at most 50.
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 4096
+            examples: ["AAPLx,TSLAx"]
+      responses:
+        "200":
+          description: The quotes of the known assets.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssetQuotes"
+        default:
+          $ref: "#/components/responses/Problem"
   /v1/assets/{symbol}:
     get:
       operationId: getAsset
@@ -9367,6 +9397,39 @@ components:
           type: boolean
           description: True when this listing can be bought.
           examples: [false]
+    AssetQuotes:
+      type: object
+      description: The quotes of the assets that were asked for and are known.
+      examples:
+        - assets:
+            - id: 01890a5d-ac96-774b-bcce-b302099a8070
+              symbol: AAPLx
+              display_name: Apple
+              issuer: xstocks
+              kind: equity
+              logo_url: "https://cdn.example.com/AAPLx.png"
+              price_micros: 110000000
+              price_as_of: "2026-03-04T14:30:00Z"
+              change_bps: 1000
+              sparkline_micros: [100000000, 110000000]
+              volume_24h_micros: 2500000000000
+              volume_24h_as_of: "2026-03-04T05:00:00Z"
+              quotable: true
+              session:
+                state: open
+                continuous: false
+                holiday: ""
+                early_close: false
+                next_state: after_hours
+                next_transition: "2026-03-04T21:00:00Z"
+              tradable: true
+      required: [assets]
+      properties:
+        assets:
+          type: array
+          maxItems: 50
+          items:
+            $ref: "#/components/schemas/AssetSummary"
     AssetSummary:
       type: object
       description: One tradable asset as the list draws it, with the price already chosen.

@@ -217,6 +217,7 @@ func (m *Module) Mount(r api.Mount) {
 	marketapi.Mount(adapters.HTTP{
 		List:      adapters.CacheList(list, cache),
 		Detail:    detail,
+		Quotes:    app.NewBatchQuotes(m.deps.Pool, list),
 		Chart:     parts.chart,
 		BestChain: app.NewBestChains(m.Catalog(), adapters.DeferRouter(m.Router), m.deps.Clock),
 		Clock:     m.deps.Clock,

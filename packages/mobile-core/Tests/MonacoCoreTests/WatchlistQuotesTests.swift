@@ -7,22 +7,39 @@ import XCTest
 @MainActor
 final class WatchlistQuotesTests: XCTestCase {
     func testEveryWatchedSymbolIsQuotedInTheOrderItWasAdded() async throws {
+        let symbols = ["NVDAx", "AAPLx", "MSFTx", "TSLAx"]
         let transport = StubTransport(routes: [
-            "/v1/assets/NVDAx": [try Self.quote("NVDAx", "NVIDIA xStock", 220_000_000)],
-            "/v1/assets/AAPLx": [try Self.quote("AAPLx", "Apple xStock", 240_000_000)],
-            "/v1/assets/MSFTx": [try Self.quote("MSFTx", "Microsoft xStock", 350_000_000)],
-            "/v1/assets/TSLAx": [try Self.quote("TSLAx", "Tesla xStock", 262_500_000)],
+            Self.batchPath(symbols): [
+                try Self.batch([
+                    ("TSLAx", "Tesla xStock", 262_500_000), ("NVDAx", "NVIDIA xStock", 220_000_000),
+                    ("MSFTx", "Microsoft xStock", 350_000_000), ("AAPLx", "Apple xStock", 240_000_000),
+                ])
+            ]
         ])
-        let (quotes, _) = makeQuotes(transport, symbols: ["NVDAx", "AAPLx", "MSFTx", "TSLAx"])
+        let (quotes, _) = makeQuotes(transport, symbols: symbols)
 
         await quotes.load()
 
-        XCTAssertEqual(quotes.rows.map(\.id), ["NVDAx", "AAPLx", "MSFTx", "TSLAx"])
+        XCTAssertEqual(quotes.rows.map(\.id), symbols)
         guard case .quoted(let first) = quotes.rows[0] else { return XCTFail("NVDAx should be quoted") }
         XCTAssertEqual(first.name, "NVIDIA")
         XCTAssertEqual(first.priceText, "$220.00")
         let paths = await transport.sent.map { $0.path ?? "" }
-        XCTAssertEqual(Set(paths), ["/v1/assets/NVDAx", "/v1/assets/AAPLx", "/v1/assets/MSFTx", "/v1/assets/TSLAx"])
+        XCTAssertEqual(paths, [Self.batchPath(symbols)])
+    }
+
+    func testAWatchlistOfTwentyStocksCostsOneRequest() async throws {
+        let symbols = (1...20).map { "S\($0)x" }
+        let transport = StubTransport(routes: [
+            Self.batchPath(symbols): [try Self.batch(symbols.map { ($0, "\($0) xStock", 100_000_000) })]
+        ])
+        let (quotes, _) = makeQuotes(transport, symbols: symbols)
+
+        await quotes.load()
+
+        XCTAssertEqual(quotes.rows.count, 20)
+        let sent = await transport.sent
+        XCTAssertEqual(sent.count, 1)
     }
 
     func testRowsAreLoadingUntilTheFirstAnswerArrives() async {
@@ -42,24 +59,22 @@ final class WatchlistQuotesTests: XCTestCase {
         XCTAssertTrue(sent.isEmpty)
     }
 
-    func testAQuoteThatFailsStillShowsItsRowWithNothingToQuote() async throws {
+    func testABatchThatFailsLeavesEveryRowWithNothingToQuote() async throws {
         let transport = StubTransport(routes: [
-            "/v1/assets/NVDAx": [try Self.quote("NVDAx", "NVIDIA xStock", 220_000_000)],
-            "/v1/assets/AAPLx": [.failure(URLError(.cannotConnectToHost))],
+            Self.batchPath(["NVDAx", "AAPLx"]): [.failure(URLError(.cannotConnectToHost))]
         ])
         let (quotes, watchlist) = makeQuotes(transport, symbols: ["NVDAx", "AAPLx"])
 
         await quotes.load()
 
-        XCTAssertEqual(quotes.rows.map(\.id), ["NVDAx", "AAPLx"])
-        XCTAssertEqual(quotes.rows[1], .unavailable(symbol: "AAPLx"))
+        XCTAssertEqual(quotes.rows, [.unavailable(symbol: "NVDAx"), .unavailable(symbol: "AAPLx")])
         XCTAssertEqual(watchlist.symbols, ["NVDAx", "AAPLx"])
     }
 
     func testAFailedRefreshKeepsTheLastQuote() async throws {
         let transport = StubTransport(routes: [
-            "/v1/assets/NVDAx": [
-                try Self.quote("NVDAx", "NVIDIA xStock", 220_000_000), .failure(URLError(.cannotConnectToHost)),
+            Self.batchPath(["NVDAx"]): [
+                try Self.batch([("NVDAx", "NVIDIA xStock", 220_000_000)]), .failure(URLError(.cannotConnectToHost)),
             ]
         ])
         let (quotes, _) = makeQuotes(transport, symbols: ["NVDAx"])
@@ -71,13 +86,9 @@ final class WatchlistQuotesTests: XCTestCase {
         XCTAssertEqual(asset.priceText, "$220.00")
     }
 
-    func testASymbolTheServerDoesNotKnowIsRemovedFromTheWatchlistSilently() async throws {
-        let gone = Components.Schemas.Problem(
-            _type: .about_colon_blank, title: "Not found", status: 404, code: .assetNotFound,
-            message: "No such asset.", traceId: "4bf92f3577b34da6a3ce929d0e0e4736", retryable: false)
+    func testASymbolTheServerLeavesOutIsRemovedFromTheWatchlistSilently() async throws {
         let transport = StubTransport(routes: [
-            "/v1/assets/NVDAx": [try Self.quote("NVDAx", "NVIDIA xStock", 220_000_000)],
-            "/v1/assets/OLDx": [try .problem(gone)],
+            Self.batchPath(["OLDx", "NVDAx"]): [try Self.batch([("NVDAx", "NVIDIA xStock", 220_000_000)])]
         ])
         let (quotes, watchlist) = makeQuotes(transport, symbols: ["OLDx", "NVDAx"])
 
@@ -89,8 +100,8 @@ final class WatchlistQuotesTests: XCTestCase {
 
     func testLoadingMissingQuotesAsksOnlyForSymbolsWithNoQuoteYet() async throws {
         let transport = StubTransport(routes: [
-            "/v1/assets/NVDAx": [try Self.quote("NVDAx", "NVIDIA xStock", 220_000_000)],
-            "/v1/assets/AAPLx": [try Self.quote("AAPLx", "Apple xStock", 240_000_000)],
+            Self.batchPath(["NVDAx"]): [try Self.batch([("NVDAx", "NVIDIA xStock", 220_000_000)])],
+            Self.batchPath(["AAPLx"]): [try Self.batch([("AAPLx", "Apple xStock", 240_000_000)])],
         ])
         let (quotes, watchlist) = makeQuotes(transport, symbols: ["NVDAx"])
         await quotes.load()
@@ -100,13 +111,14 @@ final class WatchlistQuotesTests: XCTestCase {
 
         XCTAssertEqual(quotes.rows.map(\.id), ["NVDAx", "AAPLx"])
         let paths = await transport.sent.map { $0.path ?? "" }
-        XCTAssertEqual(paths, ["/v1/assets/NVDAx", "/v1/assets/AAPLx"])
+        XCTAssertEqual(paths, [Self.batchPath(["NVDAx"]), Self.batchPath(["AAPLx"])])
     }
 
     func testAStarThatComesOffDropsItsQuote() async throws {
         let transport = StubTransport(routes: [
-            "/v1/assets/NVDAx": [try Self.quote("NVDAx", "NVIDIA xStock", 220_000_000)],
-            "/v1/assets/AAPLx": [try Self.quote("AAPLx", "Apple xStock", 240_000_000)],
+            Self.batchPath(["NVDAx", "AAPLx"]): [
+                try Self.batch([("NVDAx", "NVIDIA xStock", 220_000_000), ("AAPLx", "Apple xStock", 240_000_000)])
+            ]
         ])
         let (quotes, watchlist) = makeQuotes(transport, symbols: ["NVDAx", "AAPLx"])
         await quotes.load()
@@ -116,11 +128,70 @@ final class WatchlistQuotesTests: XCTestCase {
         XCTAssertEqual(quotes.rows.map(\.id), ["AAPLx"])
     }
 
+    func testAnOldServerWithoutTheBatchRouteIsReadOneSymbolAtATime() async throws {
+        let transport = StubTransport(routes: [
+            Self.batchPath(["NVDAx", "AAPLx"]): [try Self.problem(status: 404, code: .assetNotFound)],
+            "/v1/assets/NVDAx": [try Self.quote("NVDAx", "NVIDIA xStock", 220_000_000)],
+            "/v1/assets/AAPLx": [try Self.quote("AAPLx", "Apple xStock", 240_000_000)],
+        ])
+        let (quotes, _) = makeQuotes(transport, symbols: ["NVDAx", "AAPLx"])
+
+        await quotes.load()
+
+        XCTAssertEqual(quotes.rows.map(\.id), ["NVDAx", "AAPLx"])
+        guard case .quoted(let second) = quotes.rows[1] else { return XCTFail("AAPLx should be quoted") }
+        XCTAssertEqual(second.priceText, "$240.00")
+        let paths = await transport.sent.map { $0.path ?? "" }
+        XCTAssertEqual(
+            Set(paths), [Self.batchPath(["NVDAx", "AAPLx"]), "/v1/assets/NVDAx", "/v1/assets/AAPLx"])
+        XCTAssertEqual(paths.count, 3)
+    }
+
+    func testAnOldServerStillDropsASymbolItDoesNotKnow() async throws {
+        let transport = StubTransport(routes: [
+            Self.batchPath(["OLDx", "NVDAx"]): [try Self.problem(status: 404, code: .assetNotFound)],
+            "/v1/assets/NVDAx": [try Self.quote("NVDAx", "NVIDIA xStock", 220_000_000)],
+            "/v1/assets/OLDx": [try Self.problem(status: 404, code: .assetNotFound)],
+        ])
+        let (quotes, watchlist) = makeQuotes(transport, symbols: ["OLDx", "NVDAx"])
+
+        await quotes.load()
+
+        XCTAssertEqual(watchlist.symbols, ["NVDAx"])
+        XCTAssertEqual(quotes.rows.map(\.id), ["NVDAx"])
+    }
+
     private func makeQuotes(_ transport: StubTransport, symbols: [String]) -> (WatchlistQuotes, WatchlistModel) {
         let watchlist = WatchlistModel(userID: "u1", store: InMemoryWatchlistStore(["u1": symbols]))
         let api = APIClient(
             serverURL: testServerURL, tokens: StubTokenProvider(token: "token-1"), transport: transport)
         return (WatchlistQuotes(api: api, watchlist: watchlist), watchlist)
+    }
+
+    private static func batchPath(_ symbols: [String]) -> String {
+        "/v1/assets/quotes?symbols=" + symbols.joined(separator: "%2C")
+    }
+
+    private static func problem(status: Int, code: Components.Schemas.ErrorCode) throws -> StubTransport.Reply {
+        try .problem(
+            Components.Schemas.Problem(
+                _type: .about_colon_blank, title: "Not found", status: status, code: code,
+                message: "No such asset.", traceId: "4bf92f3577b34da6a3ce929d0e0e4736", retryable: false))
+    }
+
+    private static func batch(_ quotes: [(String, String, Int64)]) throws -> StubTransport.Reply {
+        var assets: [Components.Schemas.AssetSummary] = []
+        for (symbol, name, micros) in quotes {
+            var summary = Components.Schemas.AssetSummary.tsla
+            summary.symbol = symbol
+            summary.displayName = name
+            summary.priceMicros = micros
+            assets.append(summary)
+        }
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let body = try encoder.encode(Components.Schemas.AssetQuotes(assets: assets))
+        return .json(.ok, String(decoding: body, as: UTF8.self))
     }
 
     private static func quote(_ symbol: String, _ name: String, _ micros: Int64) throws -> StubTransport.Reply {

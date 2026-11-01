@@ -262,3 +262,51 @@ func TestAsset_wiresTheAssetID(t *testing.T) {
 		t.Fatalf("summary id = %s, want %s", summary.Id, id.UUID())
 	}
 }
+
+type scriptedQuotes struct {
+	items []app.Summary
+	err   error
+	asked [][]string
+}
+
+func (s *scriptedQuotes) Handle(_ context.Context, symbols []string) ([]app.Summary, error) {
+	s.asked = append(s.asked, symbols)
+	return s.items, s.err
+}
+
+func TestGetAssetQuotesRefusesStrangersAndSplitsTheSymbols(t *testing.T) {
+	t.Parallel()
+	fake := &scriptedQuotes{}
+	h := HTTP{Quotes: fake, Clock: testkit.NewClock(time.Date(2026, 10, 28, 14, 0, 0, 0, time.UTC))}
+	req := api.GetAssetQuotesRequestObject{Params: api.GetAssetQuotesParams{Symbols: "AAPLx,TSLAx"}}
+	if _, err := h.GetAssetQuotes(t.Context(), req); errs.CodeOf(err) != errs.CodeUnauthorized {
+		t.Fatalf("anonymous err = %v, want unauthorized", err)
+	}
+	if len(fake.asked) != 0 {
+		t.Fatalf("an anonymous caller reached the query: %v", fake.asked)
+	}
+	user := auth.WithActor(t.Context(), auth.Actor{Kind: auth.ActorUser, ID: testkit.NewIDs(1).NewV7().String()})
+	if _, err := h.GetAssetQuotes(user, req); err != nil {
+		t.Fatal(err)
+	}
+	if len(fake.asked) != 1 || len(fake.asked[0]) != 2 || fake.asked[0][0] != "AAPLx" || fake.asked[0][1] != "TSLAx" {
+		t.Fatalf("asked = %v", fake.asked)
+	}
+}
+
+func TestGetAssetQuotesPassesErrorsThrough(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, 10, 28, 14, 0, 0, 0, time.UTC)
+	user := auth.WithActor(t.Context(), auth.Actor{Kind: auth.ActorUser, ID: testkit.NewIDs(1).NewV7().String()})
+	req := api.GetAssetQuotesRequestObject{Params: api.GetAssetQuotesParams{Symbols: "NVDAx"}}
+	failing := HTTP{Quotes: &scriptedQuotes{err: errs.New(errs.CodeInvalidInput, "test")}, Clock: testkit.NewClock(now)}
+	if _, err := failing.GetAssetQuotes(user, req); errs.CodeOf(err) != errs.CodeInvalidInput {
+		t.Fatalf("err = %v, want invalid_input", err)
+	}
+	huge := pricedView(now, domain.SourceJupiter).Summary
+	huge.Price.Micros = money.MicrosFromUint64(1 << 63)
+	unwritable := HTTP{Quotes: &scriptedQuotes{items: []app.Summary{huge}}, Clock: testkit.NewClock(now)}
+	if _, err := unwritable.GetAssetQuotes(user, req); err == nil {
+		t.Fatal("a price that does not fit the wire was served")
+	}
+}
