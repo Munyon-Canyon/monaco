@@ -14,6 +14,9 @@ const (
 	masked       = "***"
 	keyBytes     = 64
 	maxRedactDep = 8
+	addressHead  = 4
+	addressTail  = 4
+	opsKeyPrefix = "ops"
 )
 
 var (
@@ -22,6 +25,8 @@ var (
 	byteArrayKey    = regexp.MustCompile(`\[\s*\d{1,3}(\s*,\s*\d{1,3}){63}\s*\]`)
 	jwt             = regexp.MustCompile(`eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*`)
 	bearerToken     = regexp.MustCompile(`(?i)\bbearer\s+\S+`)
+	emailAddress    = regexp.MustCompile(`[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+`)
+	e164Phone       = regexp.MustCompile(`(^|[^A-Za-z0-9+/])\+[1-9]\d{6,14}\b`)
 	sensitiveQuery  = regexp.MustCompile(
 		`(?i)([?&](?:[^=&#\s]*(?:phone|email|token|key|seed|signature|secret|authorization|password|mnemonic)` +
 			`[^=&#\s]*|s)=)[^&#\s]*`,
@@ -46,6 +51,41 @@ func sensitiveKey(key string) bool {
 		}
 	}
 	return false
+}
+
+func mentionsAddress(key string) bool {
+	return containsFold(key, "address") || containsFold(key, "wallet") || containsFold(key, "destination")
+}
+
+func containsFold(s, sub string) bool {
+	for i := 0; i+len(sub) <= len(s); i++ {
+		if strings.EqualFold(s[i:i+len(sub)], sub) {
+			return true
+		}
+	}
+	return false
+}
+
+func addressKey(key string) bool {
+	if !mentionsAddress(key) {
+		return false
+	}
+	words := keyWords(key)
+	if len(words) == 0 || words[0] == opsKeyPrefix {
+		return false
+	}
+	switch words[len(words)-1] {
+	case "address", "wallet", "destination":
+		return true
+	}
+	return false
+}
+
+func maskAddress(s string) string {
+	if len(s) <= addressHead+addressTail {
+		return masked
+	}
+	return s[:addressHead] + "..." + s[len(s)-addressTail:]
 }
 
 func evidenceKey(words []string) bool {
@@ -86,6 +126,12 @@ func redactString(s string) string {
 			return masked
 		}
 	}
+	if strings.Contains(s, "@") {
+		s = emailAddress.ReplaceAllString(s, masked)
+	}
+	if strings.Contains(s, "+") {
+		s = e164Phone.ReplaceAllString(s, "${1}"+masked)
+	}
 	return sensitiveQuery.ReplaceAllString(s, "${1}"+masked)
 }
 
@@ -98,6 +144,9 @@ func redactDepth(a slog.Attr, depth int) slog.Attr {
 		return slog.String(a.Key, masked)
 	}
 	v := a.Value.Resolve()
+	if addressKey(a.Key) && (v.Kind() == slog.KindString || v.Kind() == slog.KindAny) {
+		return slog.String(a.Key, maskAddress(fmt.Sprint(v.Any())))
+	}
 	switch v.Kind() {
 	case slog.KindGroup:
 		attrs := v.Group()

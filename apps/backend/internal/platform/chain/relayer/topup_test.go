@@ -406,8 +406,9 @@ func TestTopUpSOL_capsAWalletAtThreeTopUpsADay(t *testing.T) {
 		t.Fatalf("fourth err %v, sends %d, want a retryable refusal after three", err, len(e.rpc.sentList()))
 	}
 	alerts := logs.Lines(observability.RelayerTopUpCapped.Name, "level", "wallet")
-	if len(alerts) != 1 || alerts[0] != "ERROR "+string(memberWallet) {
-		t.Fatalf("cap alerts = %q, want one for the wallet", alerts)
+	masked := string(memberWallet)[:4] + "..." + string(memberWallet)[len(memberWallet)-4:]
+	if len(alerts) != 1 || alerts[0] != "ERROR "+masked {
+		t.Fatalf("cap alerts = %q, want one for the masked wallet", alerts)
 	}
 }
 
