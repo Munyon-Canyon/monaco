@@ -52,10 +52,10 @@ final class FirstRunGateTests: XCTestCase {
     ) -> FirstRunDestination {
         switch (accountStatus, handle, authState, cursor) {
         case (.banned, _, _, _): .restricted(.banned)
+        case (.suspended, _, _, _): .app(restricted: true)
         case (_, nil, _, _): .handle
         case (_, _, .created, _): .phone
         case (_, _, .awaitingSocials, .socials), (_, _, .awaitingPhone, .socials): .socials
-        case (.suspended, _, _, _): .app(restricted: true)
         default: .app(restricted: false)
         }
     }
@@ -98,13 +98,11 @@ final class FirstRunGateTests: XCTestCase {
     func testDestination_noHandle_isOnlyTheHandleStep() {
         XCTAssertEqual(route(handle: nil, .created), .handle)
         XCTAssertEqual(route(handle: nil, .onboardingCompleted), .handle)
-        XCTAssertEqual(route(handle: nil, .awaitingSocials, .suspended, cursor: .socials), .handle)
         XCTAssertEqual(route(handle: nil, .unknown("NEW"), .unknown("frozen")), .handle)
     }
 
     func testDestination_createdWithHandle_resumesAtThePhoneStep() {
         XCTAssertEqual(route(.created), .phone)
-        XCTAssertEqual(route(.created, .suspended), .phone)
         XCTAssertEqual(route(.created, cursor: .socials), .phone)
     }
 
@@ -124,6 +122,12 @@ final class FirstRunGateTests: XCTestCase {
         XCTAssertEqual(route(.onboardingCompleted, .suspended), .app(restricted: true))
         XCTAssertEqual(route(.awaitingPhone, .suspended), .app(restricted: true))
         XCTAssertEqual(route(.unknown("LATER"), .suspended), .app(restricted: true))
+    }
+
+    func testDestination_suspendedOutranksTheHandleAndPhoneSteps() {
+        XCTAssertEqual(route(handle: nil, .created, .suspended), .app(restricted: true))
+        XCTAssertEqual(route(.created, .suspended), .app(restricted: true))
+        XCTAssertEqual(route(.awaitingSocials, .suspended, cursor: .socials), .app(restricted: true))
     }
 
     func testDestination_unknownStatesEnterTheApp() {
