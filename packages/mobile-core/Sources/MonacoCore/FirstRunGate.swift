@@ -43,6 +43,7 @@ public enum FirstRunGate {
     ) -> FirstRunDestination {
         guard let profile else { return .session }
         if profile.accountStatus == .banned { return .restricted(.banned) }
+        if profile.accountStatus == .suspended { return .app(restricted: true) }
         if profile.handle == nil { return .handle }
         if profile.authState == .created { return .phone }
         if onboardingCursor == .socials,
@@ -50,6 +51,6 @@ public enum FirstRunGate {
         {
             return .socials
         }
-        return .app(restricted: profile.accountStatus == .suspended)
+        return .app(restricted: false)
     }
 }
