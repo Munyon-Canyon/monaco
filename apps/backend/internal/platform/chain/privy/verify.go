@@ -15,7 +15,10 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 )
 
-const issuer = "privy.io"
+const (
+	issuer             = "privy.io"
+	clockLeewaySeconds = 30
+)
 
 type claims struct {
 	Iss string   `json:"iss"`
@@ -72,13 +75,13 @@ func (c *Client) VerifySession(_ context.Context, raw string) (Session, error) {
 		reason = "audience"
 	case now >= cl.Exp:
 		reason = "expired"
-	case now < cl.Nbf:
+	case now+clockLeewaySeconds < cl.Nbf:
 		reason = "not yet valid"
 	case cl.Sub == "":
 		reason = "subject"
 	case cl.Sid == "":
 		reason = "session"
-	case cl.Iat <= 0 || cl.Iat > now:
+	case cl.Iat <= 0 || cl.Iat > now+clockLeewaySeconds:
 		reason = "issued_at"
 	default:
 		return Session{UserID: UserID(cl.Sub), ID: cl.Sid, IssuedAt: time.Unix(cl.Iat, 0).UTC()}, nil

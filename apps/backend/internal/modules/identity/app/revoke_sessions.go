@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"log/slog"
+	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity/sqlc"
@@ -48,10 +49,7 @@ func (h *RevokeSessionsHandler) Handle(ctx context.Context, cmd RevokeSessions) 
 	err := h.d.UoW.Do(ctx, func(ctx context.Context, tx db.Tx) error {
 		q := sqlc.New(tx.Queries())
 		if cmd.Scope == RevokeAllSessions {
-			_, err := q.RevokeSessionsIssuedBefore(ctx, sqlc.RevokeSessionsIssuedBeforeParams{
-				UserID: cmd.UserID.UUID(), ValidAfter: now,
-			})
-			return err
+			return revokeAll(ctx, q, cmd, now)
 		}
 		_, err := q.RevokeSession(ctx, sqlc.RevokeSessionParams{
 			PrivySessionID: cmd.SessionID, UserID: cmd.UserID.UUID(), RevokedAt: now,
@@ -64,4 +62,24 @@ func (h *RevokeSessionsHandler) Handle(ctx context.Context, cmd RevokeSessions) 
 	observability.Info(ctx, observability.IdentitySessionsRevoked,
 		slog.String("user_id", cmd.UserID.String()), slog.String("scope", string(cmd.Scope)))
 	return nil
+}
+
+func revokeAll(ctx context.Context, q *sqlc.Queries, cmd RevokeSessions, now time.Time) error {
+	if _, err := q.RevokeSessionsIssuedBefore(ctx, sqlc.RevokeSessionsIssuedBeforeParams{
+		UserID: cmd.UserID.UUID(), ValidAfter: now,
+	}); err != nil {
+		return err
+	}
+	if _, err := q.RevokeKnownSessions(ctx, sqlc.RevokeKnownSessionsParams{
+		UserID: cmd.UserID.UUID(), RevokedAt: now,
+	}); err != nil {
+		return err
+	}
+	if cmd.SessionID == "" {
+		return nil
+	}
+	_, err := q.RevokeSession(ctx, sqlc.RevokeSessionParams{
+		PrivySessionID: cmd.SessionID, UserID: cmd.UserID.UUID(), RevokedAt: now,
+	})
+	return err
 }

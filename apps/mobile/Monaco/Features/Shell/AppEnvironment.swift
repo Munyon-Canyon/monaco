@@ -270,3 +270,15 @@ final class AppEnvironment {
         #endif
     }
 }
+
+extension AppEnvironment {
+    func signOutEverywhere() async -> Bool {
+        guard hasOpenSession else { return false }
+        guard await auth.endAllSessions() else {
+            registerForPush()
+            return false
+        }
+        await signOut()
+        return true
+    }
+}

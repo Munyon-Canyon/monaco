@@ -627,6 +627,7 @@ settings-on                   -settingsHarness on
 settings-saving               -settingsHarness on saving
 settings-error                -settingsHarness on error
 settings-sign-out             -settingsHarness on signOut
+settings-sign-out-everywhere  -settingsHarness on signOutEverywhere
 settings-categories           -settingsHarness on categories
 cash-out-slice                -cashOutHarness slice
 cash-out-deposit              -cashOutHarness deposit
