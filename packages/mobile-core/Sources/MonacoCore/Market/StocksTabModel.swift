@@ -215,7 +215,7 @@ public final class StocksTabModel {
                 query: .init(q: searchQuery, filter: filter, limit: Self.pageLimit, cursor: cursor)
             ).ok.body.json
         }
-        return MarketMapping.page(list)
+        return MarketMapping.page(list, now: now())
     }
     private var browsedSection: Section {
         if isMarkets { return .preIpo }

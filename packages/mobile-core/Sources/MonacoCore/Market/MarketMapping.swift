@@ -2,7 +2,9 @@ import Foundation
 import MonacoAPI
 
 public enum MarketMapping {
-    public static func asset(_ summary: Components.Schemas.AssetSummary, now: Date = Date()) -> MarketAsset {
+    public static func asset(
+        _ summary: Components.Schemas.AssetSummary, now: Date = WallClock.now()
+    ) -> MarketAsset {
         let kind = kind(summary.kind)
         let session = session(summary.session)
         let priceMicros = summary.priceMicros
@@ -32,11 +34,15 @@ public enum MarketMapping {
         )
     }
 
-    public static func page(_ list: Components.Schemas.AssetList, now: Date = Date()) -> MarketAssetPage {
+    public static func page(
+        _ list: Components.Schemas.AssetList, now: Date = WallClock.now()
+    ) -> MarketAssetPage {
         MarketAssetPage(assets: list.assets.map { asset($0, now: now) }, nextCursor: list.nextCursor)
     }
 
-    public static func detail(_ value: Components.Schemas.AssetDetail, now: Date = Date()) -> MarketAssetDetail {
+    public static func detail(
+        _ value: Components.Schemas.AssetDetail, now: Date = WallClock.now()
+    ) -> MarketAssetDetail {
         let kind = kind(value.kind)
         let session = session(value.session)
         let priceMicros = value.priceMicros

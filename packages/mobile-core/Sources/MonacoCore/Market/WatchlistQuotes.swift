@@ -72,7 +72,7 @@ public final class WatchlistQuotes {
     private nonisolated static func read(_ api: APIClient, _ symbol: String) async -> Read {
         do {
             let detail = try await api.read { try await $0.getAsset(path: .init(symbol: symbol)).ok.body.json }
-            return .quote(MarketMapping.detail(detail).asset)
+            return .quote(MarketMapping.detail(detail, now: WallClock.now()).asset)
         } catch {
             switch APIError(error) {
             case .cancelled: return .cancelled
