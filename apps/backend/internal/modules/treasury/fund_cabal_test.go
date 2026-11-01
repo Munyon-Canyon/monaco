@@ -49,6 +49,7 @@ type fundStubs struct {
 	gate        *testkit.Gate
 	owner       *adapters.Queries
 	failOn      string
+	banAtLock   bool
 	onBuild     func()
 	signature   chain.Signature
 	mu          sync.Mutex
@@ -67,6 +68,13 @@ func (s *fundStubs) IsMember(context.Context, ids.CabalID, ids.UserID) (bool, er
 
 func (s *fundStubs) LockMember(_ context.Context, _ dbsqlc.DBTX, _ ids.CabalID, _ ids.UserID) (bool, error) {
 	return s.lockMember, s.err("LockMember")
+}
+
+func (s *fundStubs) LockStatus(context.Context, dbsqlc.DBTX, ids.CabalID) (cabalport.Status, error) {
+	if s.banAtLock {
+		return cabalport.StatusBanned, nil
+	}
+	return s.status, s.err("LockStatus")
 }
 
 func (s *fundStubs) Status(context.Context, ids.CabalID) (cabalport.Status, error) {
@@ -261,6 +269,8 @@ func TestFundCabal_refusals(t *testing.T) {
 	}{
 		{"not a member", 5_000_000, func(s *fundStubs) { s.member = false }, errs.CodeNotCabalMember},
 		{"banned", 5_000_000, func(s *fundStubs) { s.status = cabalport.StatusBanned }, errs.CodeCabalBanned},
+		{"banned after admission", 5_000_000, func(s *fundStubs) { s.banAtLock = true }, errs.CodeCabalBanned},
+		{"status read at the lock fails", 5_000_000, func(s *fundStubs) { s.failOn = "LockStatus" }, errs.CodeInternal},
 		{"paused", 5_000_000, func(s *fundStubs) { s.paused = true }, errs.CodeCabalPaused},
 		{"over balance", 100_000_001, func(*fundStubs) {}, errs.CodeInsufficientFunds},
 		{"pot has shares but no value", 5_000_000, func(s *fundStubs) {

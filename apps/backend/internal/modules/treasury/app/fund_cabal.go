@@ -37,6 +37,7 @@ type FundCabal struct {
 type FundCabals interface {
 	IsMember(ctx context.Context, id ids.CabalID, user ids.UserID) (bool, error)
 	LockMember(ctx context.Context, q dbsqlc.DBTX, id ids.CabalID, user ids.UserID) (bool, error)
+	LockStatus(ctx context.Context, q dbsqlc.DBTX, id ids.CabalID) (cabalport.Status, error)
 	Status(ctx context.Context, id ids.CabalID) (cabalport.Status, error)
 	TreasuryWallet(ctx context.Context, id ids.CabalID) (cabalport.TreasuryWallet, error)
 }
@@ -191,6 +192,14 @@ func (h *FundCabalHandler) create(
 	if !member {
 		return sqlc.GetFundTransferRow{}, false, errs.New(
 			errs.CodeNotCabalMember, op, slog.String("cabal_id", cmd.CabalID.String()))
+	}
+	status, err := h.d.Cabals.LockStatus(ctx, tx.Queries(), cmd.CabalID)
+	if err != nil {
+		return sqlc.GetFundTransferRow{}, false, err
+	}
+	if status == cabalport.StatusBanned {
+		return sqlc.GetFundTransferRow{}, false, errs.New(
+			errs.CodeCabalBanned, op, slog.String("cabal_id", cmd.CabalID.String()))
 	}
 	q := sqlc.New(tx.Queries())
 	var bound uuid.UUID

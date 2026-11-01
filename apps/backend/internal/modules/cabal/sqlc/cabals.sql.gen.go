@@ -424,6 +424,17 @@ func (q *Queries) LockCabalShared(ctx context.Context, id uuid.UUID) (uuid.UUID,
 	return id_2, err
 }
 
+const lockCabalStatus = `-- name: LockCabalStatus :one
+SELECT status FROM cabals WHERE id = $1 FOR SHARE
+`
+
+func (q *Queries) LockCabalStatus(ctx context.Context, id uuid.UUID) (string, error) {
+	row := q.db.QueryRow(ctx, lockCabalStatus, id)
+	var status string
+	err := row.Scan(&status)
+	return status, err
+}
+
 const searchCabals = `-- name: SearchCabals :many
 SELECT c.id, c.name, c.picture_url, c.join_mode, c.created_at,
   (SELECT count(*) FROM cabal_members m WHERE m.cabal_id = c.id)::int AS member_count,

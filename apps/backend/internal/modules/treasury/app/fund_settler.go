@@ -78,8 +78,8 @@ func (s *FundSettler) Tick(ctx context.Context) (FundTick, error) {
 		}
 	}
 	rows, listErr := q.ListOpenFundTransfers(ctx, fundBatch)
-	if err := errors.Join(expireErr, listErr); err != nil {
-		return FundTick{}, err
+	if listErr != nil {
+		return FundTick{}, errors.Join(expireErr, listErr)
 	}
 	tick := FundTick{Scanned: len(rows), Expired: len(expired)}
 	var submitted, landed []openFund
@@ -90,15 +90,14 @@ func (s *FundSettler) Tick(ctx context.Context) (FundTick, error) {
 			landed = append(landed, r)
 		}
 	}
-	if err := s.markAttempted(ctx, submitted); err != nil {
-		return tick, err
+	stampErr := s.markAttempted(ctx, submitted)
+	failed := []error{expireErr, stampErr}
+	var confirmed []openFund
+	if stampErr == nil {
+		var confirmErr error
+		confirmed, tick.Changed, confirmErr = s.confirm(ctx, submitted)
+		failed = append(failed, confirmErr)
 	}
-	confirmed, changed, err := s.confirm(ctx, submitted)
-	tick.Changed = changed
-	if err != nil {
-		return tick, err
-	}
-	var failed []error
 	for _, r := range append(landed, confirmed...) {
 		if ctx.Err() != nil {
 			break
@@ -161,31 +160,48 @@ func (s *FundSettler) confirm(ctx context.Context, rows []openFund) ([]openFund,
 		return nil, 0, err
 	}
 	var landed []openFund
+	var failed []error
 	changed := 0
 	for i, st := range statuses {
-		r := rows[i]
-		switch {
-		case st.Failed:
-			err = s.fail(ctx, r, errs.CodeFundRejected)
-		case st.State == solana.StateFinalized:
-			var moved bool
-			if moved, err = s.land(ctx, r); moved {
-				landed = append(landed, r)
-			}
-		case st.BlockhashExpired(big.NewInt(r.LastValidBlockHeight).Uint64()):
-			err = s.fail(ctx, r, errs.CodeFundExpired)
-		case st.State == solana.StateNotFound:
-			s.rebroadcast(ctx, r)
-			continue
-		default:
-			continue
-		}
+		moved, err := s.apply(ctx, rows[i], st)
 		if err != nil {
-			return landed, changed, err
+			failed = append(failed, err)
+			continue
 		}
-		changed++
+		if moved == movedLanded {
+			landed = append(landed, rows[i])
+		}
+		if moved != movedNone {
+			changed++
+		}
 	}
-	return landed, changed, nil
+	return landed, changed, errors.Join(failed...)
+}
+
+type fundMove int
+
+const (
+	movedNone fundMove = iota
+	movedClosed
+	movedLanded
+)
+
+func (s *FundSettler) apply(ctx context.Context, r openFund, st solana.Status) (fundMove, error) {
+	switch {
+	case st.Failed && st.State == solana.StateFinalized:
+		return movedClosed, s.fail(ctx, r, errs.CodeFundRejected)
+	case st.State == solana.StateFinalized:
+		moved, err := s.land(ctx, r)
+		if moved {
+			return movedLanded, err
+		}
+		return movedClosed, err
+	case st.BlockhashExpired(big.NewInt(r.LastValidBlockHeight).Uint64()):
+		return movedClosed, s.fail(ctx, r, errs.CodeFundExpired)
+	case st.State == solana.StateNotFound:
+		s.rebroadcast(ctx, r)
+	}
+	return movedNone, nil
 }
 
 func (s *FundSettler) land(ctx context.Context, r openFund) (bool, error) {
