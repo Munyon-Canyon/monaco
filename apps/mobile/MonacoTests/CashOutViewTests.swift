@@ -1,6 +1,7 @@
 import MonacoCore
 import SwiftUI
 import Testing
+import UIKit
 
 @testable import Monaco
 
@@ -42,11 +43,44 @@ struct CashOutViewTests {
         #expect(copy.contains("stay in the cabal"))
     }
 
+    @Test func reopeningCashOutShowsTheRunningJobAndAStartedJobWins() {
+        let running = CashOutJob(id: "r", cabalID: "c", status: .selling, payoutMicros: 5_000_000, resultCode: nil)
+        let started = CashOutJob(id: "s", cabalID: "c", status: .started, payoutMicros: 7_000_000, resultCode: nil)
+        #expect(CashOutContent.shownJob(started: nil, running: running)?.id == "r")
+        #expect(CashOutContent.shownJob(started: started, running: running)?.id == "s")
+        #expect(CashOutContent.shownJob(started: nil, running: nil) == nil)
+    }
+
+    @Test(.timeLimit(.minutes(1))) func reopeningDuringARunningCashOutDrawsItsProgressNotAFreshForm() async throws {
+        try AccessibilityTree.setAutomation(enabled: true)
+        defer { try? AccessibilityTree.setAutomation(enabled: false) }
+        let running = CashOutJob(id: "r", cabalID: "c", status: .selling, payoutMicros: 5_000_000, resultCode: nil)
+        let window = try ProposalTestWindow.hosting(RunningCashOutHost(running: running))
+        defer { window.isHidden = true }
+        await ProposalTestWindow.until { AccessibilityTree.labels(in: window).contains("Cash-out requested") }
+        for _ in 0..<100 { await Task.yield() }
+        let labels = AccessibilityTree.labels(in: window)
+        let ids = Set(AccessibilityTree.identifiers(in: window))
+        #expect(labels.contains("Cash-out requested"), "\(labels)")
+        #expect(!ids.contains("cash-out-loading") && !ids.contains("cash-out-amount"), "\(ids)")
+    }
+
     @Test func aPausedCabalOffersNoAmountEntryOrSubmitBar() {
         let pause = CabalPause(cause: .ops)
         let open = CashOutPreview(sliceMicros: 10_500_000, shareUnits: 1, minMicros: 1_000_000, pause: nil)
         let paused = CashOutPreview(sliceMicros: 10_500_000, shareUnits: 1, minMicros: 1_000_000, pause: pause)
         #expect(CashOutContent.canEnterAmount(open))
         #expect(!CashOutContent.canEnterAmount(paused))
+    }
+}
+
+private struct RunningCashOutHost: View {
+    let running: CashOutJob
+    @State private var amountText = ""
+
+    var body: some View {
+        CashOutContent(
+            model: nil, cabalName: "Big Ballers", runningJob: running, amountText: $amountText, onSubmit: {},
+            onFund: {})
     }
 }

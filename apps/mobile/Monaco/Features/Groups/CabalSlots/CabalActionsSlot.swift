@@ -132,7 +132,7 @@ struct CabalActionsRow: View {
         return layout {
             if !accountRestricted {
                 Button {
-                    open(FundRoute(cabalID: cabalID))
+                    open(FundRoute(cabalID: cabalID, cabalName: cabalModel?.cabal?.name))
                 } label: {
                     Label("Fund", systemImage: MonacoIcon.deposit.symbol)
                 }

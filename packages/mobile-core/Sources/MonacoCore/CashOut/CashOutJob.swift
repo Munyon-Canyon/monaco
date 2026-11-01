@@ -101,7 +101,7 @@ public struct CashOutJob: Equatable, Sendable {
     }
 
     public var startedToast: String {
-        "Cashing out \(amount). It lands in your balance in about a minute."
+        "Cashing out \(amount). The final amount is known when it settles."
     }
 
     public var outcome: CashOutNotice? {

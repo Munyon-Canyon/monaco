@@ -16,6 +16,7 @@ struct FirstFundHandOff: Identifiable {
 
 struct FundCabalScreen: View {
     let cabalID: String
+    var cabalName: String?
     var onFirstFund: (() -> Void)?
 
     @Environment(AppEnvironment.self) private var environment
@@ -26,8 +27,9 @@ struct FundCabalScreen: View {
     @State private var firstFund: FirstFundHandOff?
     @State private var leavesAfterFirstFund = false
 
-    init(cabalID: String, onFirstFund: (() -> Void)? = nil) {
+    init(cabalID: String, cabalName: String? = nil, onFirstFund: (() -> Void)? = nil) {
         self.cabalID = cabalID
+        self.cabalName = cabalName
         self.onFirstFund = onFirstFund
         _selectedID = State(initialValue: cabalID)
     }
@@ -80,7 +82,7 @@ struct FundCabalScreen: View {
         model?.dismiss()
         let next = FundCabalModel(
             api: environment.api, hints: environment.hints, cabalID: id,
-            cabalName: list.row(for: id)?.name ?? FundSourceCopy.fallbackName,
+            cabalName: list.name(for: id, opener: (cabalID, cabalName)),
             submission: environment.moneySubmission(slot: Funding.slot(cabalID: id)),
             settlements: environment.settlements, clock: ContinuousClock())
         model = next

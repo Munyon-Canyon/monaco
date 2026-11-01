@@ -38,6 +38,7 @@ struct WithdrawScreen: View {
             clock: ContinuousClock(), balance: environment.balance)
         model = next
         next.load()
+        await next.observe()
     }
 }
 
@@ -100,7 +101,7 @@ struct WithdrawKeypadView: View {
             break
         }
         guard let title = model.buttonTitle else { return nil }
-        return AmountKeypadAction(title: title, perform: perform)
+        return AmountKeypadAction(title: title, isEnabled: model.buttonIsEnabled, perform: perform)
     }
 
     private var max: Decimal? {
@@ -203,6 +204,11 @@ struct WithdrawKeypadView: View {
                     .foregroundStyle(MonacoTheme.loss)
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityIdentifier("withdraw-address-problem")
+            }
+            if let suggested = model.suggestedNetwork {
+                Button(WithdrawCopy.switchToBase) { model.switchToSuggestedNetwork() }
+                    .buttonStyle(.monacoSecondary)
+                    .accessibilityIdentifier("withdraw-switch-\(suggested.id)")
             }
             WithdrawNetworkChips(networks: model.networks, selected: model.network) { model.setNetwork($0) }
                 .allowsHitTesting(!isLocked)

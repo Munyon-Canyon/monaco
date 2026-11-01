@@ -2,7 +2,7 @@ import XCTest
 
 enum MoneyWithdrawJourney {
     static let id = "money/withdraw"
-    static let version = 6
+    static let version = 7
 
     static let screenTimeout: TimeInterval = 15
     static let badAddress = "not a solana address"
@@ -96,8 +96,8 @@ enum MoneyWithdrawJourney {
             let line = app.element("amount-keypad-line")
             XCTAssertTrue(
                 JoinJourney.waitForLabel(line, containing: "USDC", timeout: screenTimeout),
-                "S1.3: the line does not read ≈ … USDC · fee …: \(line.label)")
-            XCTAssertTrue(line.label.hasPrefix("≈"), "S1.3: the line does not start with ≈: \(line.label)")
+                "S1.3: the line does not read … USDC · fee … USDC: \(line.label)")
+            XCTAssertFalse(line.label.contains("≈"), "S1.3: a Solana line carries ≈: \(line.label)")
             XCTAssertNotEqual(
                 app.element("amount-keypad-amount").value as? String, "$0", "S1.3: Max left the amount at $0")
         }
@@ -155,7 +155,7 @@ enum MoneyWithdrawJourney {
             let line = app.element("amount-keypad-line")
             XCTAssertTrue(
                 JoinJourney.waitForLabel(line, containing: "USDC", timeout: screenTimeout),
-                "S2.3: the line does not read ≈ … USDC · fee …: \(line.label)")
+                "S2.3: the line does not read ≈ … USDC · fee … USDC: \(line.label)")
             XCTAssertTrue(line.label.contains("fee"), "S2.3: the line has no fee: \(line.label)")
             XCTAssertTrue(app.buttons["amount-keypad-action"].exists, "S2.3: no Withdraw button")
             JoinJourney.snap(app, "S2-B-base-keypad")

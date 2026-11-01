@@ -98,7 +98,7 @@ struct CabalsGridSection: View {
         switch action.kind {
         case .vote(let proposalID): navigator.presentVoteHold(proposalID: proposalID, pick: nil)
         case .openCabal: navigator.open(CabalRoute(id: tile.id), in: .cabals)
-        case .fund: navigator.open(FundRoute(cabalID: tile.id), in: .cabals)
+        case .fund: navigator.open(FundRoute(cabalID: tile.id, cabalName: tile.name), in: .cabals)
         case .propose: navigator.open(ProposeRoute(cabalID: tile.id), in: .cabals)
         case .invite: inviting = tile
         case .share: navigator.open(ShareRoute(.stake(cabalID: tile.id)), in: .cabals)

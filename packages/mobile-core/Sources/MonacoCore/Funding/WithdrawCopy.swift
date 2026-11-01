@@ -17,6 +17,8 @@ public enum WithdrawCopy {
     public static let feeFailed = "Couldn't get the fee. Try again."
     public static let invalidAddress = "That address can't receive USDC from here."
     public static let processing = "Withdrawal processing · Pending"
+    public static let switchToBase = "Switch to Base"
+    public static let baseAddressOnSolana = "That's a Base address, not a Solana one."
     public static let ownDeposit = "That's your own Monaco deposit address. Paste the address you want to send to."
 
     public static func dollars(_ micros: Int64) -> String {
@@ -34,10 +36,14 @@ public enum WithdrawCopy {
         return "\(lead) · \(assetLabel) on \(network.name)"
     }
 
-    public static func typedLine(receiveMicros: Int64, feeMicros: Int64?) -> String {
-        let receive = "≈ \(UsdAmountFormatter.format(micros: receiveMicros).dropFirst()) \(assetLabel)"
+    public static func typedLine(receiveMicros: Int64, feeMicros: Int64?, isEstimate: Bool = false) -> String {
+        let receive = "\(isEstimate ? "≈ " : "")\(units(receiveMicros))"
         guard let feeMicros else { return receive }
-        return feeMicros == 0 ? "\(receive) · no fee" : "\(receive) · fee \(fee(feeMicros))"
+        return feeMicros == 0 ? "\(receive) · no fee" : "\(receive) · fee \(units(feeMicros))"
+    }
+
+    private static func units(_ micros: Int64) -> String {
+        "\(UsdAmountFormatter.format(micros: micros).dropFirst()) \(assetLabel)"
     }
 
     public static func limitLine(maxMicros: Int64, overMicros: Int64) -> String {

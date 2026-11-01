@@ -1,7 +1,7 @@
 ---
 id: money/withdraw
 title: Withdraw
-version: 6
+version: 7
 milestone: M12
 requires: [auth/sign-in]
 actors: [A, B]
@@ -42,7 +42,7 @@ The format of this doc is in [App journeys](../README.md).
 | --- | --- | --- | --- | --- | --- |
 | S1.1 | A | tap | the Profile tab, `profile-settings-row`, then `settings-withdraw` | | `amount-keypad-source` reads "Cash $…" and not "$0.00" within 15 s; `withdraw-address-field` is empty with `withdraw-paste` and `withdraw-scan`; `withdraw-network-solana` is selected |
 | S1.2 | A | type | `withdraw-address-field` | `not a solana address` | `withdraw-address-problem` shows within 5 s and no `amount-keypad-action` shows |
-| S1.3 | A | clear and type, then tap | `withdraw-address-field`, then `amount-keypad-preset-Max` | `{QA.refund_address}` | `withdraw-address-problem` is gone; `amount-keypad-amount` is above "$0" and `amount-keypad-line` reads "≈ … USDC · fee $…" within 15 s |
+| S1.3 | A | clear and type, then tap | `withdraw-address-field`, then `amount-keypad-preset-Max` | `{QA.refund_address}` | `withdraw-address-problem` is gone; `amount-keypad-amount` is above "$0" and `amount-keypad-line` reads "… USDC · fee … USDC", with no "≈", within 15 s |
 | S1.4 | A | tap | `amount-keypad-action` "Withdraw $…" | | The button reads "Withdrawal processing · Pending" until the backend confirms, then `amount-keypad-settled` reads "✓ $… to" and the short address within 120 s, and `amount-keypad-line` reads "Sent just now · arrives on Solana in about a minute". There is no review step |
 
 ### S2 Check a Base withdrawal, then withdraw on Solana
@@ -53,7 +53,7 @@ S2 never sends on Base: `{QA.base_address}` is `0x000000000000000000000000000000
 | --- | --- | --- | --- | --- | --- |
 | S2.1 | B | tap, tap, tap, then tap | the Profile tab, `profile-settings-row`, `settings-withdraw`, then `withdraw-network-base` | | `amount-keypad-source` reads "Cash $…" within 15 s. After "Base", `amount-keypad-line` names Base ("… USDC on Base") and the address placeholder reads "USDC address on Base" within 5 s |
 | S2.2 | B | type | `withdraw-address-field` | `not a base address` | `withdraw-address-problem` reads "Check the address. It doesn't look like a Base address." within 5 s, and no `amount-keypad-action` shows |
-| S2.3 | B | clear and type, then tap | `withdraw-address-field`, then `amount-keypad-preset-Max` | `{QA.base_address}` | `withdraw-address-problem` is gone and `amount-keypad-line` reads "≈ … USDC · fee $…" within 15 s, and `amount-keypad-action` shows. B does not tap it |
+| S2.3 | B | clear and type, then tap | `withdraw-address-field`, then `amount-keypad-preset-Max` | `{QA.base_address}` | `withdraw-address-problem` is gone and `amount-keypad-line` reads "≈ … USDC · fee … USDC" within 15 s, and `amount-keypad-action` shows. B does not tap it |
 | S2.4 | B | tap, then run | `amount-keypad-close`, then `MoneyWithdrawJourney.withdrawAll` | `{QA.refund_address}` | The steps S1.1, S1.3 and S1.4 pass for B on Solana, ending with the settled button |
 
 ## Ground truth
