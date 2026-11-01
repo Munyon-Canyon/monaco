@@ -211,9 +211,9 @@ func TestMiddleware_TrustProxyHeaders(t *testing.T) {
 			call{forwarded: []string{"203.0.113.51, 198.51.100.21", "104.23.253.112"}},
 			call{forwarded: []string{"104.23.253.112"}},
 			call{cloudflare: "not an ip", forwarded: []string{"198.51.100.22, 104.23.253.112"}},
-			call{cloudflare: "2001:db8::1"},
-			call{cloudflare: "::ffff:198.51.100.30"},
-			call{cloudflare: "198.51.100.30"},
+			call{cloudflare: "2001:db8::1", forwarded: []string{"2001:db8::1, 2606:4700::1111"}},
+			call{cloudflare: "::ffff:198.51.100.30", forwarded: []string{"198.51.100.30, ::ffff:104.23.253.112"}},
+			call{cloudflare: "198.51.100.30", forwarded: []string{"198.51.100.30, 2400:cb00::1"}},
 		)
 		if want := []int{204, 429, 204, 204, 204, 429, 204, 204, 204, 204, 429}; !slices.Equal(got, want) {
 			t.Fatalf("statuses = %v, want %v", got, want)
@@ -241,6 +241,7 @@ func TestMiddleware_TrustProxyHeaders(t *testing.T) {
 			t.Fatalf("key sources = %v, want %v", sources, want)
 		}
 	})
+	t.Run("a peer outside Cloudflare cannot pick its own bucket", forgedPeerStaysOnTheSocket)
 	t.Run("disabled keys on the socket address", func(t *testing.T) {
 		t.Parallel()
 		pool := testkit.DB(t)
@@ -258,6 +259,37 @@ func TestMiddleware_TrustProxyHeaders(t *testing.T) {
 			t.Fatalf("bucket keys = %v, want %v", got, want)
 		}
 	})
+}
+
+func forgedPeerStaysOnTheSocket(t *testing.T) {
+	t.Parallel()
+	const ip = "{ip: {rate: 1, per: 1m, burst: 1}}"
+	pool := testkit.DB(t)
+	h := newHarness(t, pool, ip, true)
+	got := h.statuses(t,
+		call{cloudflare: "198.51.100.40", forwarded: []string{"198.51.100.40, 203.0.113.5"}},
+		call{cloudflare: "198.51.100.41", forwarded: []string{"198.51.100.41, 203.0.113.5"}},
+		call{cloudflare: "198.51.100.42"},
+		call{cloudflare: "2001:db8::5", forwarded: []string{"2001:db8::5, 2001:db8::6"}},
+		call{cloudflare: "198.51.100.43", forwarded: []string{"198.51.100.43, 104.23.253.112, 203.0.113.5"}},
+		call{forwarded: []string{"198.51.100.44, 198.51.100.45, 203.0.113.5"}},
+		call{forwarded: []string{"198.51.100.46, 104.23.253.112", "203.0.113.5"}},
+		call{cloudflare: "198.51.100.47", forwarded: []string{"198.51.100.47, 104.23.253.112, not an ip"}},
+		call{cloudflare: "198.51.100.48", forwarded: []string{"198.51.100.48, 104.15.255.255"}},
+	)
+	if want := []int{204, 429, 429, 429, 429, 429, 429, 429, 429}; !slices.Equal(got, want) {
+		t.Fatalf("statuses = %v, want %v", got, want)
+	}
+	if got, want := keys(t, pool), []string{"op:postThing:ip:192.0.2.1"}; !slices.Equal(got, want) {
+		t.Fatalf("bucket keys = %v, want %v", got, want)
+	}
+	sources := map[string]int{}
+	for _, line := range h.lines(t, "ratelimit.key_source") {
+		sources[line["source"].(string)]++
+	}
+	if want := map[string]int{"remote-addr": 9}; !maps.Equal(sources, want) {
+		t.Fatalf("key sources = %v, want %v", sources, want)
+	}
 }
 
 func TestMiddleware_ActorScopeKeysOnTheActorAndSkipsAnonymousCallers(t *testing.T) {
