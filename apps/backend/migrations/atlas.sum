@@ -1,4 +1,4 @@
-h1:XMjPjK3OospcO9pcFB+ilW3kIHUAspbkyRXBvMol+RA=
+h1:HnFw+ppUQTZAT6f3AzXUauGM8dYfYYo7YSE7lNMBWWA=
 20260927140427_platform.sql h1:dpKT9ALI2RTf1SBI4IzLY9kt47VTa8+JAziYaHsX5Jw=
 20260927185159_idempotency.sql h1:iYIp5Y5kBuPj5UJGcOifMeosr8qf0tj17c+5bmF37zE=
 20260929120000_system.sql h1:m6n0Y3tCc4MlfYNzi6Fh01YnogvlBbpQb1/X4WCtW40=
@@ -151,3 +151,4 @@ h1:XMjPjK3OospcO9pcFB+ilW3kIHUAspbkyRXBvMol+RA=
 20261101054049_trading_swap_lease.sql h1:3AJN3NlwZYSsfZBJ+PBoITJUEsf57HrqBrqnlbPA8L8=
 20261101072325_trading_force_resolve_action.sql h1:MEFaSnZUiWMYZYI3zUq92+/hEOiPR10N1SxArogYu7w=
 20261101090000_swaps_live_per_source.sql h1:GWfXxngpdNuKZbdf+j4ZUZMVPE8RCK/wpP7Ucc09TP0=
+20261101100000_treasury_sell_bridge_fees.sql h1:lrDWQktZY/lKuSfUjkbOfis+Mw46QP78GibbTn6MU/Y=

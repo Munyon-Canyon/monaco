@@ -23,3 +23,4 @@ Dated record of changes to [data-model.md](../data-model.md). Add one line per c
 - 2026-10-11: M24 multichain (#4917, #4974). New tables `asset_listings`, `treasury_evm_wallets`, `evm_deposit_forwards`, `trade_routes`, `trade_steps` and `treasury_in_transit`; `user_wallets` gains the EVM deposit wallet, `cabal_positions` gains `listing_id`, `withdrawals` gains `destination_kind`, `network`, `evm_address` and `privy_action_id`. Wallets table added under Wallets.
 - 2026-10-11: New table `evm_simulation_account` in `market`, the one wallet EVM quotes simulate from (#5336).
 - 2026-10-11: `evm_simulation_account` gains `legacy_network` and a seeded legacy row for the QA treasury on Base, kept until the one-shot replaces it (#5336).
+- 2026-11-01: New table `sell_bridge_fees` in `treasury`: the bridge-back fee of an EVM sell, netted out of realized P&L and average sell (#7449).

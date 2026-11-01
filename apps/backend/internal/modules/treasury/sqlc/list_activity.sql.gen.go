@@ -80,9 +80,11 @@ func (q *Queries) ListActivity(ctx context.Context, arg ListActivityParams) ([]L
 }
 
 const listTradesForPairs = `-- name: ListTradesForPairs :many
-SELECT a.id, a.cabal_id, a.kind, a.asset::text AS asset, a.usdc_micros, a.units, a.occurred_at,
-  a.cashout_sale
+SELECT a.id, a.cabal_id, a.kind, a.asset::text AS asset,
+  CASE WHEN a.kind = 'sell' THEN greatest(a.usdc_micros - coalesce(f.fee_micros, 0), 0) ELSE a.usdc_micros END::numeric AS usdc_micros,
+  a.units, a.occurred_at, a.cashout_sale
 FROM cabal_activity AS a
+LEFT JOIN sell_bridge_fees AS f ON f.trade_id = a.id
 JOIN (
   SELECT c.cabal_id, k.asset
   FROM unnest($1::uuid[]) WITH ORDINALITY AS c(cabal_id, idx)
