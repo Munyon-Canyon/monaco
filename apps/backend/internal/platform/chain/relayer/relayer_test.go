@@ -3,6 +3,7 @@ package relayer_test
 import (
 	"bytes"
 	"crypto/ed25519"
+	"log/slog"
 	"strconv"
 	"strings"
 	"testing"
@@ -14,8 +15,24 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpclient"
+	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
 )
+
+func TestBootAlertLamports_isAboveOneTokenAccountRentAndTheTopUpReserveIsUnchanged(t *testing.T) {
+	t.Parallel()
+	const tokenAccountRent = 2_039_280
+	if relayer.BootAlertLamports <= tokenAccountRent {
+		t.Fatalf(
+			"BootAlertLamports = %d, want above one token-account rent (%d)",
+			relayer.BootAlertLamports,
+			tokenAccountRent,
+		)
+	}
+	if relayer.FloorLamports != 1_000_000 {
+		t.Fatalf("FloorLamports = %d, want the top-up reserve unchanged at 1,000,000", relayer.FloorLamports)
+	}
+}
 
 func TestCheckFloor_RefusesAtThreshold(t *testing.T) {
 	t.Parallel()
@@ -26,29 +43,57 @@ func TestCheckFloor_RefusesAtThreshold(t *testing.T) {
 		t.Fatal("an underfunded relayer alerts and is not retryable")
 	}
 	if err := overFakes(t, "relayer-above-floor").relayer.CheckFloor(t.Context()); err != nil {
-		t.Fatalf("1,000,001 lamports = %v, want boot to pass", err)
+		t.Fatalf("2,500,001 lamports = %v, want the floor to pass", err)
 	}
 	script(t, at.srv, fakes.Step{Route: "/rpc/getBalance", Action: fakes.ActionFail, Status: 400})
 	wantCode(t, at.relayer.CheckFloor(t.Context()), errs.CodeRPCUnavailable)
 }
 
-func TestCheckBoot_onlyStagingAndProductionCheckTheFloor(t *testing.T) {
+func TestCheckBoot_aLowRelayerBootsAndAlerts(t *testing.T) {
 	t.Parallel()
 	srv := fakes.New()
-	for env, want := range map[config.Env]errs.Code{
-		config.EnvLocal: "", config.EnvTest: "",
-		config.EnvStaging: errs.CodeRelayerUnderfunded, config.EnvProduction: errs.CodeRelayerUnderfunded,
+	for env, wantAlert := range map[config.Env]bool{
+		config.EnvLocal: false, config.EnvTest: false, config.EnvStaging: true, config.EnvProduction: true,
 	} {
 		cfg := keyConfig("relayer-at-floor")
 		cfg.Env = env
-		err := relayer.CheckBoot(t.Context(), cfg, httpclient.WithTransport(&recorder{handler: srv}))
-		if want == "" && err != nil || want != "" && errs.CodeOf(err) != want {
-			t.Fatalf("%s: CheckBoot = %v, want %q", env, err, want)
+		var logs bytes.Buffer
+		ctx := observability.WithLogger(t.Context(), slog.New(slog.NewTextHandler(&logs, nil)))
+		if err := relayer.CheckBoot(ctx, cfg, httpclient.WithTransport(&recorder{handler: srv})); err != nil {
+			t.Fatalf("%s: CheckBoot = %v, want the API to boot", env, err)
+		}
+		if got := strings.Contains(logs.String(), "msg=relayer.boot_underfunded"); got != wantAlert {
+			t.Fatalf("%s: alert logged = %v, want %v:\n%s", env, got, wantAlert, logs.String())
+		}
+		if wantAlert && !strings.Contains(logs.String(), "level=ERROR") {
+			t.Fatalf("%s: the low relayer must log at error level so it alerts:\n%s", env, logs.String())
 		}
 	}
 	cfg := keyConfig("relayer")
 	cfg.Relayer.PrivateKey = ""
 	wantCode(t, relayer.CheckBoot(t.Context(), cfg), errs.CodeInvalidInput)
+}
+
+func TestCheckBoot_aFundedRelayerLogsNothingAndAnRPCFailureStillRefuses(t *testing.T) {
+	t.Parallel()
+	srv := fakes.New()
+	var logs bytes.Buffer
+	ctx := observability.WithLogger(t.Context(), slog.New(slog.NewTextHandler(&logs, nil)))
+	cfg := keyConfig("relayer-above-floor")
+	if err := relayer.CheckBoot(
+		ctx,
+		cfg,
+		httpclient.WithTransport(&recorder{handler: srv}),
+	); err != nil ||
+		logs.Len() != 0 {
+		t.Fatalf("funded CheckBoot = %v, logs %q; want nil and no logs", err, logs.String())
+	}
+	script(t, srv, fakes.Step{Route: "/rpc/getBalance", Action: fakes.ActionFail, Status: 400})
+	wantCode(
+		t,
+		relayer.CheckBoot(t.Context(), cfg, httpclient.WithTransport(&recorder{handler: srv})),
+		errs.CodeRPCUnavailable,
+	)
 }
 
 func TestNew_acceptsBase58AndSolanaCLIJSONForTheSameKey(t *testing.T) {

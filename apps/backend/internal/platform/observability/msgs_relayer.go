@@ -6,6 +6,10 @@ var (
 		Name:     "relayer.topup_underfunded",
 		Required: []string{"relayer", "wallet", "relayer_lamports", "lamports", "floor_lamports"},
 	}
+	RelayerBootUnderfunded = Msg{
+		Name:     "relayer.boot_underfunded",
+		Required: []string{"relayer", "floor_lamports", "error"},
+	}
 	RelayerTopUpCapped = Msg{Name: "relayer.topup_capped", Required: []string{"wallet", "topups"}}
 	RelayerCoSigned    = Msg{
 		Name: "relayer.cosigned",

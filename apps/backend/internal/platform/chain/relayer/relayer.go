@@ -16,9 +16,13 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpclient"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
+	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 )
 
-const FloorLamports = 1_000_000
+const (
+	FloorLamports     = 1_000_000
+	BootAlertLamports = 2_500_000
+)
 
 type RPC interface {
 	SOLBalance(ctx context.Context, addr chain.SolanaAddress) (money.BaseUnits, error)
@@ -93,9 +97,9 @@ func (r *Relayer) CheckFloor(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	if balance.Uint64() <= FloorLamports {
+	if balance.Uint64() <= BootAlertLamports {
 		return errs.New(errs.CodeRelayerUnderfunded, op, slog.String("relayer", string(r.address)),
-			slog.Uint64("lamports", balance.Uint64()), slog.Uint64("floor_lamports", FloorLamports))
+			slog.Uint64("lamports", balance.Uint64()), slog.Uint64("floor_lamports", BootAlertLamports))
 	}
 	return nil
 }
@@ -108,7 +112,14 @@ func CheckBoot(ctx context.Context, cfg config.Config, opts ...httpclient.Option
 	if err != nil {
 		return err
 	}
-	return r.CheckFloor(ctx)
+	err = r.CheckFloor(ctx)
+	if errs.CodeOf(err) != errs.CodeRelayerUnderfunded {
+		return err
+	}
+	observability.Alert(ctx, observability.RelayerBootUnderfunded,
+		slog.String("relayer", string(r.address)), slog.Uint64("floor_lamports", BootAlertLamports),
+		slog.String("error", err.Error()))
+	return nil
 }
 
 func (r *Relayer) CoSign(ctx context.Context, raw []byte) ([]byte, error) {
