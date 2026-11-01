@@ -94,6 +94,11 @@ func TestCoSign_signsOnlyTheExpectedSwapShape(t *testing.T) {
 			buildSwap(true, unitLimit(1<<32-1), unitPrice(1<<63), swapIx()),
 			errs.CodeInvalidInput,
 		},
+		{"a loaded accounts data size limit", buildSwap(true, budget(4, 64_000, 4), swapIx()), ""},
+		{
+			"a loaded accounts data size limit with a short payload", buildSwap(true, budget(4, 64_000, 2), swapIx()),
+			errs.CodeInvalidInput,
+		},
 		{"a system transfer", buildSwap(true, swapIx(), transfer), errs.CodeInvalidInput},
 		{"a program that is not the swap", buildSwap(true, ix{chain.SPLProgram, []byte{3}}), errs.CodeInvalidInput},
 		{"three account creations", buildSwap(true, ata, ata, ata, swapIx()), errs.CodeInvalidInput},
@@ -126,6 +131,52 @@ func TestCoSign_signsOnlyTheExpectedSwapShape(t *testing.T) {
 			if signed != nil {
 				t.Fatal("a refused transaction came back signed")
 			}
+		})
+	}
+}
+
+func messageOf(t *testing.T, versioned bool, instructions ...ix) []byte {
+	t.Helper()
+	tx, err := chain.DecodeTransaction(buildSwap(versioned, instructions...))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return tx.Message
+}
+
+func TestInspectMessage_refusesAnyTruncationOfAValidMessage(t *testing.T) {
+	t.Parallel()
+	for _, versioned := range []bool{false, true} {
+		msg := messageOf(t, versioned, unitLimit(200_000), unitPrice(5_000), ix{chain.ATAProgram, nil}, swapIx())
+		if err := relayer.InspectMessage(msg); err != nil {
+			t.Fatalf("whole message: %v", err)
+		}
+		last := len(msg)
+		if versioned {
+			last--
+		}
+		for n := range last {
+			wantCode(t, relayer.InspectMessage(msg[:n]), errs.CodeInvalidInput)
+		}
+	}
+}
+
+func TestInspectMessage_refusesMalformedStructure(t *testing.T) {
+	t.Parallel()
+	valid := messageOf(t, false, swapIx())
+	keysEnd := 3 + 1 + 32*3 + 32
+	head := valid[:keysEnd]
+	cases := map[string][]byte{
+		"a length prefix of four bytes":  append(append([]byte(nil), head...), 0x80, 0x80, 0x80, 0x80),
+		"a program index past the keys":  append(append([]byte(nil), head...), 1, 9, 0, 0),
+		"more accounts than bytes":       append(append([]byte(nil), head...), 1, 50, 0),
+		"more data than bytes":           append(append([]byte(nil), head...), 1, 1, 0, 50, 7),
+		"more keys than the message has": append([]byte{2, 0, 1, 90}, make([]byte, 40)...),
+	}
+	for name, msg := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			wantCode(t, relayer.InspectMessage(msg), errs.CodeInvalidInput)
 		})
 	}
 }
