@@ -40,7 +40,7 @@ func rangeReturn(op string, first, last PnLPoint, deposited *big.Int) (money.Sig
 		return pnl, 0, nil
 	}
 	q := new(big.Int).Mul(gain, big.NewInt(bpsScale))
-	q.Quo(q, base)
+	q.Div(q, base)
 	return pnl, Bps(q.Int64()), nil
 }
 

@@ -62,7 +62,7 @@ func ReturnBps(pnl, net money.SignedMicros) (int32, bool) {
 		return 0, false
 	}
 	q := new(big.Int).Mul(big.NewInt(pnl.Int64()), big.NewInt(fullBps))
-	return saturateInt32(q.Quo(q, big.NewInt(net.Int64()))), true
+	return saturateInt32(q.Div(q, big.NewInt(net.Int64()))), true
 }
 
 func saturateInt32(q *big.Int) int32 {

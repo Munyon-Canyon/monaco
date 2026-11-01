@@ -178,7 +178,7 @@ func TestNewPortfolio_RowsTotalsAndSlices(t *testing.T) {
 	if second := got.Rows[1]; second.CabalID != small || second.SliceBps != 1666 || second.PnL.Int64() != -100 {
 		t.Fatalf("second = %+v", second)
 	}
-	if got.Total.Uint64() != 2_400 || got.PnL.Int64() != 900 || got.Return == nil || *got.Return != 6_000 {
+	if got.Total.Uint64() != 2_400 || got.PnL.Int64() != 1_000 || got.Return == nil || *got.Return != 7_142 {
 		t.Fatalf("totals = %+v", got)
 	}
 }
@@ -224,6 +224,14 @@ func TestNewPortfolio_Failures(t *testing.T) {
 		},
 		"the net contributed overflows": {
 			stakes: []domain.StakePoint{stake(a, now, 1, math.MaxInt64), stake(b, now, 1, math.MaxInt64)},
+			latest: map[ids.CabalID]domain.Snapshot{a: potSnap(now, 1, 1), b: potSnap(now, 1, 1)},
+		},
+		"the exited cabals' net contributed overflows": {
+			stakes: []domain.StakePoint{stake(a, now, 0, math.MaxInt64), stake(b, now, 0, math.MaxInt64)},
+			latest: map[ids.CabalID]domain.Snapshot{a: potSnap(now, 1, 1), b: potSnap(now, 1, 1)},
+		},
+		"the held and exited net contributed overflow together": {
+			stakes: []domain.StakePoint{stake(a, now, 1, math.MaxInt64), stake(b, now, 0, math.MaxInt64)},
 			latest: map[ids.CabalID]domain.Snapshot{a: potSnap(now, 1, 1), b: potSnap(now, 1, 1)},
 		},
 		"the total pnl does not fit": {
@@ -311,5 +319,46 @@ func TestNewPortfolio_AMembershipWithNoStakesIsAZeroRow(t *testing.T) {
 	got, err := domain.NewPortfolio(nil, nil, []ids.CabalID{only, only}, skipNone)
 	if err != nil || len(got.Rows) != 1 || got.Rows[0].CabalID != only || !got.Total.IsZero() || got.Return != nil {
 		t.Fatalf("NewPortfolio = %+v, %v, want one zero row and no return", got, err)
+	}
+}
+
+func TestNewPortfolio_LifetimePnLKeepsAnExitedCabalAndMatchesTheChart(t *testing.T) {
+	t.Parallel()
+	now := bucketNowAt()
+	exited, held := newCabalID(), newCabalID()
+	stakes := []domain.StakePoint{
+		stake(exited, now.Add(-2*time.Hour), 10, 1_000), stake(exited, now.Add(-time.Hour), 0, -500),
+		stake(held, now.Add(-2*time.Hour), 5, 500),
+	}
+	latest := map[ids.CabalID]domain.Snapshot{exited: potSnap(now, 800, 10), held: potSnap(now, 450, 5)}
+	got, err := domain.NewPortfolio(stakes, latest, nil, skipNone)
+	if err != nil || len(got.Rows) != 1 || got.Rows[0].CabalID != held {
+		t.Fatalf("NewPortfolio = %+v, %v, want only the held cabal as a row", got, err)
+	}
+	if got.PnL.Int64() != 450 {
+		t.Fatalf("lifetime PnL = %d, want +500 realized in the exited cabal and -50 in the held one", got.PnL.Int64())
+	}
+	curve, err := domain.PnLCurve(
+		domain.Range1D, now, stakes, map[ids.CabalID][]domain.Snapshot{
+			exited: {potSnap(now, 800, 10)}, held: {potSnap(now, 450, 5)},
+		}, skipNone,
+	)
+	if err != nil || len(curve) == 0 || curve[len(curve)-1].PnL != got.PnL {
+		t.Fatalf("chart = %+v, %v, want its last point to equal the portfolio PnL %d", curve, err, got.PnL.Int64())
+	}
+}
+
+func TestNewPortfolio_AStakeOpenedAfterTheLatestSnapshotIsNotCounted(t *testing.T) {
+	t.Parallel()
+	now := bucketNowAt()
+	cabal := newCabalID()
+	stakes := []domain.StakePoint{stake(cabal, now.Add(time.Hour), 5, 500)}
+	got, err := domain.NewPortfolio(stakes, map[ids.CabalID]domain.Snapshot{cabal: potSnap(now, 400, 5)}, nil, skipNone)
+	if err != nil || len(got.Rows) != 0 || got.PnL.Int64() != 0 {
+		t.Fatalf(
+			"NewPortfolio = %+v, %v, want nothing counted before the first snapshot that includes the stake",
+			got,
+			err,
+		)
 	}
 }

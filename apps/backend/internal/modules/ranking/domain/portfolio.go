@@ -40,27 +40,15 @@ func NewPortfolio(
 		byCabal[s.CabalID] = append(byCabal[s.CabalID], s)
 	}
 	out := Portfolio{Rows: []PortfolioRow{}}
-	for cabal, points := range byCabal {
-		snap, ok := latest[cabal]
-		if !ok {
-			continue
-		}
-		stake := LastAtOrBefore(points, snap.At, func(s StakePoint) time.Time { return s.At })
-		if stake == nil || stake.Shares.IsZero() {
-			continue
-		}
-		row, err := rowOf(*stake, snap)
-		if errors.Is(err, ErrUnusableStart) {
-			skipped(cabal)
-			continue
-		}
-		if err != nil {
-			return Portfolio{}, err
-		}
-		out.Rows = append(out.Rows, row)
+	exited, err := out.collect(byCabal, latest, skipped)
+	if err != nil {
+		return Portfolio{}, err
 	}
 	net, err := out.sum()
 	if err != nil {
+		return Portfolio{}, err
+	}
+	if net, err = addSigned("ranking.NewPortfolio", net, exited); err != nil {
 		return Portfolio{}, err
 	}
 	slices.SortFunc(out.Rows, func(a, b PortfolioRow) int {
@@ -74,6 +62,39 @@ func NewPortfolio(
 	out.Rows = append(out.Rows, unfundedRows(out.Rows, latest, memberships)...)
 	inOrder(out.Rows, memberships)
 	return out, nil
+}
+
+func (p *Portfolio) collect(
+	byCabal map[ids.CabalID][]StakePoint, latest map[ids.CabalID]Snapshot, skipped func(ids.CabalID),
+) (money.SignedMicros, error) {
+	var exited money.SignedMicros
+	for cabal, points := range byCabal {
+		snap, ok := latest[cabal]
+		if !ok {
+			continue
+		}
+		stake := LastAtOrBefore(points, snap.At, func(s StakePoint) time.Time { return s.At })
+		if stake == nil {
+			continue
+		}
+		if stake.Shares.IsZero() {
+			var err error
+			if exited, err = addSigned("ranking.NewPortfolio", exited, stake.Net); err != nil {
+				return money.SignedMicros{}, err
+			}
+			continue
+		}
+		row, err := rowOf(*stake, snap)
+		if errors.Is(err, ErrUnusableStart) {
+			skipped(cabal)
+			continue
+		}
+		if err != nil {
+			return money.SignedMicros{}, err
+		}
+		p.Rows = append(p.Rows, row)
+	}
+	return exited, nil
 }
 
 func unfundedRows(valued []PortfolioRow, latest map[ids.CabalID]Snapshot, memberships []ids.CabalID) []PortfolioRow {
