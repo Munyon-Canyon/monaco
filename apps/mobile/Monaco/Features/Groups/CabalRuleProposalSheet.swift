@@ -71,6 +71,8 @@ struct CabalRuleProposalSheet: View {
             canVote ? Text("Make **\(name(userID))** a voter") : Text("Stop **\(name(userID))** voting")
         case .admin(let userID, let isAdmin):
             isAdmin ? Text("Make **\(name(userID))** an admin") : Text("Remove **\(name(userID))** as admin")
+        case .creator(let userID):
+            Text("Make **\(name(userID))** the creator. You become an admin and can leave.")
         }
     }
 
@@ -98,7 +100,7 @@ struct CabalRuleProposalSheet: View {
             }
             .pickerStyle(.menu)
             .accessibilityIdentifier("cabal-rule-proposal-max-trade")
-        case .showSides, .voter, .admin:
+        case .showSides, .voter, .admin, .creator:
             EmptyView()
         }
     }

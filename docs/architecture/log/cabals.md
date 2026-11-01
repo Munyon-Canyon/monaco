@@ -14,3 +14,4 @@ Dated record of changes to [cabals.md](../cabals.md). Add one line per change, n
 - 2026-10-28: Added the `admin` role (#6424). Admins list and decide access requests, invite and revoke any invite, and always vote. The three door permissions refuse with `NotCabalAdmin`, and `Cabal.IsAdmin` is true for the creator and for `admin` rows.
 - 2026-10-28: `GET /v1/cabals/{id}` names the admins, creator first, in `admins`, and the `cabal.access_requested` push for a request goes to each admin instead of the creator alone (#6424).
 - 2026-10-29: A passed rule proposal now changes a cabal rule through `ApplyRuleChange`, and `PATCH /v1/cabals/{id}` refuses rule fields with `RulesChangeByProposal` (#6510).
+- 2026-11-01: A passed `creator` rule proposal passes the creator role to an admin and makes the old creator an admin, so the former creator can leave (#7572).

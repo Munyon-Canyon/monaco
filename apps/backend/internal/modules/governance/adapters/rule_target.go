@@ -15,7 +15,7 @@ func ruleTarget(c api.RuleChangeRequestChange) (app.RuleTarget, error) {
 	rule := domain.Rule(c.Rule)
 	target := app.RuleTarget{Rule: rule}
 	switch rule {
-	case domain.RuleShowSides, domain.RuleVoter, domain.RuleAdmin:
+	case domain.RuleShowSides, domain.RuleVoter, domain.RuleAdmin, domain.RuleCreator:
 		to, ok := c.To.(bool)
 		if !ok {
 			return target, badRuleValue(rule)

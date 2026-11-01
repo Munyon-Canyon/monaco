@@ -106,6 +106,8 @@ public enum CabalMemberCopy {
         group.votes ? "Propose removing as voter" : "Propose making a voter"
     }
 
+    public static let passCreatorAction = "Pass the creator role"
+
     public static func adminAction(_ group: CabalMemberGroup) -> String {
         group == .admin ? "Propose removing as admin" : "Propose making an admin"
     }

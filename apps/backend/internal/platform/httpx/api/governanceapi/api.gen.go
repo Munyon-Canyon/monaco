@@ -112,6 +112,7 @@ func (e MarketFactKind) Valid() bool {
 // Defines values for PendingVoteRuleChangeRule.
 const (
 	PendingVoteRuleChangeRuleAdmin                 PendingVoteRuleChangeRule = "admin"
+	PendingVoteRuleChangeRuleCreator               PendingVoteRuleChangeRule = "creator"
 	PendingVoteRuleChangeRuleJoinMode              PendingVoteRuleChangeRule = "join_mode"
 	PendingVoteRuleChangeRuleMaxTradeBps           PendingVoteRuleChangeRule = "max_trade_bps"
 	PendingVoteRuleChangeRuleProposalExpirySeconds PendingVoteRuleChangeRule = "proposal_expiry_seconds"
@@ -124,6 +125,8 @@ const (
 func (e PendingVoteRuleChangeRule) Valid() bool {
 	switch e {
 	case PendingVoteRuleChangeRuleAdmin:
+		return true
+	case PendingVoteRuleChangeRuleCreator:
 		return true
 	case PendingVoteRuleChangeRuleJoinMode:
 		return true
@@ -145,6 +148,7 @@ func (e PendingVoteRuleChangeRule) Valid() bool {
 // Defines values for ProposalRuleChangeRule.
 const (
 	ProposalRuleChangeRuleAdmin                 ProposalRuleChangeRule = "admin"
+	ProposalRuleChangeRuleCreator               ProposalRuleChangeRule = "creator"
 	ProposalRuleChangeRuleJoinMode              ProposalRuleChangeRule = "join_mode"
 	ProposalRuleChangeRuleMaxTradeBps           ProposalRuleChangeRule = "max_trade_bps"
 	ProposalRuleChangeRuleProposalExpirySeconds ProposalRuleChangeRule = "proposal_expiry_seconds"
@@ -157,6 +161,8 @@ const (
 func (e ProposalRuleChangeRule) Valid() bool {
 	switch e {
 	case ProposalRuleChangeRuleAdmin:
+		return true
+	case ProposalRuleChangeRuleCreator:
 		return true
 	case ProposalRuleChangeRuleJoinMode:
 		return true
@@ -178,6 +184,7 @@ func (e ProposalRuleChangeRule) Valid() bool {
 // Defines values for ProposalDetailRuleChangeRule.
 const (
 	ProposalDetailRuleChangeRuleAdmin                 ProposalDetailRuleChangeRule = "admin"
+	ProposalDetailRuleChangeRuleCreator               ProposalDetailRuleChangeRule = "creator"
 	ProposalDetailRuleChangeRuleJoinMode              ProposalDetailRuleChangeRule = "join_mode"
 	ProposalDetailRuleChangeRuleMaxTradeBps           ProposalDetailRuleChangeRule = "max_trade_bps"
 	ProposalDetailRuleChangeRuleProposalExpirySeconds ProposalDetailRuleChangeRule = "proposal_expiry_seconds"
@@ -190,6 +197,8 @@ const (
 func (e ProposalDetailRuleChangeRule) Valid() bool {
 	switch e {
 	case ProposalDetailRuleChangeRuleAdmin:
+		return true
+	case ProposalDetailRuleChangeRuleCreator:
 		return true
 	case ProposalDetailRuleChangeRuleJoinMode:
 		return true
@@ -292,6 +301,7 @@ func (e ProposalStatus) Valid() bool {
 // Defines values for RuleChangeRequestChangeRule.
 const (
 	RuleChangeRequestChangeRuleAdmin                 RuleChangeRequestChangeRule = "admin"
+	RuleChangeRequestChangeRuleCreator               RuleChangeRequestChangeRule = "creator"
 	RuleChangeRequestChangeRuleJoinMode              RuleChangeRequestChangeRule = "join_mode"
 	RuleChangeRequestChangeRuleMaxTradeBps           RuleChangeRequestChangeRule = "max_trade_bps"
 	RuleChangeRequestChangeRuleProposalExpirySeconds RuleChangeRequestChangeRule = "proposal_expiry_seconds"
@@ -304,6 +314,8 @@ const (
 func (e RuleChangeRequestChangeRule) Valid() bool {
 	switch e {
 	case RuleChangeRequestChangeRuleAdmin:
+		return true
+	case RuleChangeRequestChangeRuleCreator:
 		return true
 	case RuleChangeRequestChangeRuleJoinMode:
 		return true
@@ -785,7 +797,7 @@ type PendingVote struct {
 // Examples: show_sides
 type PendingVoteRuleChangeRule string
 
-// PendingVoteRuleChangeUser The member a `voter` or `admin` change targets. Null for a cabal-wide rule.
+// PendingVoteRuleChangeUser The member a `voter`, `admin` or `creator` change targets. Null for a cabal-wide rule.
 //
 // Examples: null
 type PendingVoteRuleChangeUser struct {
@@ -827,7 +839,7 @@ type PendingVoteRuleChange struct {
 	// Examples: true
 	To interface{} `json:"to"`
 
-	// User The member a `voter` or `admin` change targets. Null for a cabal-wide rule.
+	// User The member a `voter`, `admin` or `creator` change targets. Null for a cabal-wide rule.
 	//
 	// Examples: null
 	User *PendingVoteRuleChangeUser `json:"user"`
@@ -970,7 +982,7 @@ type Proposal struct {
 // Examples: show_sides
 type ProposalRuleChangeRule string
 
-// ProposalRuleChangeUser The member a `voter` or `admin` change targets. Null for a cabal-wide rule.
+// ProposalRuleChangeUser The member a `voter`, `admin` or `creator` change targets. Null for a cabal-wide rule.
 //
 // Examples: null
 type ProposalRuleChangeUser struct {
@@ -1012,7 +1024,7 @@ type ProposalRuleChange struct {
 	// Examples: true
 	To interface{} `json:"to"`
 
-	// User The member a `voter` or `admin` change targets. Null for a cabal-wide rule.
+	// User The member a `voter`, `admin` or `creator` change targets. Null for a cabal-wide rule.
 	//
 	// Examples: null
 	User *ProposalRuleChangeUser `json:"user"`
@@ -1215,7 +1227,7 @@ type ProposalMyVote struct {
 // Examples: show_sides
 type ProposalDetailRuleChangeRule string
 
-// ProposalDetailRuleChangeUser The member a `voter` or `admin` change targets. Null for a cabal-wide rule.
+// ProposalDetailRuleChangeUser The member a `voter`, `admin` or `creator` change targets. Null for a cabal-wide rule.
 //
 // Examples: null
 type ProposalDetailRuleChangeUser struct {
@@ -1257,7 +1269,7 @@ type ProposalDetailRuleChange struct {
 	// Examples: true
 	To interface{} `json:"to"`
 
-	// User The member a `voter` or `admin` change targets. Null for a cabal-wide rule.
+	// User The member a `voter`, `admin` or `creator` change targets. Null for a cabal-wide rule.
 	//
 	// Examples: null
 	User *ProposalDetailRuleChangeUser `json:"user"`
@@ -1586,7 +1598,7 @@ type RetractVoteResult struct {
 //
 // Examples: {"change":{"rule":"show_sides","to":true},"thesis":"Let everyone see who voted what."}
 type RuleChangeRequest struct {
-	// Change The rule and the value it should take. `to` is a boolean for `show_sides`, `voter` and `admin`, an integer or null for `max_trade_bps`, an integer for `proposal_expiry_seconds` and a string for `threshold` and `join_mode`. `user_id` names the member a `voter` or `admin` change targets.
+	// Change The rule and the value it should take. `to` is a boolean for `show_sides`, `voter` and `admin`, an integer or null for `max_trade_bps`, an integer for `proposal_expiry_seconds` and a string for `threshold` and `join_mode`. `user_id` names the member a `voter`, `admin` or `creator` change targets. A `creator` change takes true.
 	//
 	// Examples: {"rule":"show_sides","to":true}
 	Change RuleChangeRequestChange `json:"change"`
@@ -1602,7 +1614,7 @@ type RuleChangeRequest struct {
 // Examples: show_sides
 type RuleChangeRequestChangeRule string
 
-// RuleChangeRequestChange The rule and the value it should take. `to` is a boolean for `show_sides`, `voter` and `admin`, an integer or null for `max_trade_bps`, an integer for `proposal_expiry_seconds` and a string for `threshold` and `join_mode`. `user_id` names the member a `voter` or `admin` change targets.
+// RuleChangeRequestChange The rule and the value it should take. `to` is a boolean for `show_sides`, `voter` and `admin`, an integer or null for `max_trade_bps`, an integer for `proposal_expiry_seconds` and a string for `threshold` and `join_mode`. `user_id` names the member a `voter`, `admin` or `creator` change targets. A `creator` change takes true.
 //
 // Examples: {"rule":"show_sides","to":true}
 type RuleChangeRequestChange struct {
@@ -1616,7 +1628,7 @@ type RuleChangeRequestChange struct {
 	// Examples: true
 	To interface{} `json:"to"`
 
-	// UserId The member a `voter` or `admin` change targets.
+	// UserId The member a `voter`, `admin` or `creator` change targets.
 	//
 	// Examples: 01890a5d-ac96-774b-bcce-b302099a8058
 	UserId *openapi_types.UUID `json:"user_id,omitempty"`

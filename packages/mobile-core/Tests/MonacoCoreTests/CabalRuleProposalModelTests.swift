@@ -93,6 +93,70 @@ final class CabalRuleProposalModelTests: XCTestCase {
         XCTAssertEqual(json, ["change": ["rule": "admin", "to": false, "user_id": Self.jordanID]])
     }
 
+    private func memberRow(
+        _ role: Components.Schemas.CabalMemberRow.RolePayload
+    ) -> Components.Schemas.CabalMemberRow {
+        .init(
+            userId: Self.jordanID, handle: "jordan", displayName: "Jordan", photoUrl: nil, role: role, canVote: true,
+            joinedAt: Date(timeIntervalSince1970: 1_790_000_000), ownershipBps: 1000,
+            month: .init(right: 0, resolved: 0, voted: 0, eligible: 0), crown: false)
+    }
+
+    func testPassingTheCreatorRoleCarriesTheAdminAndATrueValue() async throws {
+        let (model, transport) = make(.creator(userID: Self.jordanID), replies: [try created()])
+
+        XCTAssertNil(model.refusal)
+        let outcome = await model.propose()
+
+        XCTAssertEqual(outcome, .proposed(proposalID: "rule-1"))
+        let json = try await body(transport)
+        XCTAssertEqual(json, ["change": ["rule": "creator", "to": true, "user_id": Self.jordanID]])
+    }
+
+    func testPassingTheCreatorRoleIsRefusedForEveryOtherCase() async {
+        let creatorID = cabal().creator.userId
+        let refused: [(CabalRuleProposalModel.Change, CabalRuleProposalModel.Refusal)] = [
+            (.creator(userID: creatorID), .targetsCreator),
+            (.creator(userID: "ghost"), .notAMember),
+            (.creator(userID: Self.priyaID), .notAnAdmin),
+        ]
+        for (change, refusal) in refused {
+            let (model, transport) = make(change)
+            XCTAssertEqual(model.refusal, refusal, "\(change)")
+            let outcome = await model.propose()
+            XCTAssertEqual(outcome, .refused(refusal), "\(change)")
+            let count = await transport.sent.count
+            XCTAssertEqual(count, 0, "\(change)")
+        }
+    }
+
+    func testOnlyTheCreatorCanPassTheCreatorRole() async {
+        var asAdmin = cabal()
+        asAdmin.me = .init(role: "admin", canVote: true, canPropose: true)
+        let api = APIClient(
+            serverURL: testServerURL, tokens: StubTokenProvider(token: "token"), transport: StubTransport(scripted: []))
+        let model = CabalRuleProposalModel(cabal: asAdmin, change: .creator(userID: Self.jordanID), api: api)
+
+        XCTAssertEqual(model.refusal, .onlyCreator)
+        XCTAssertEqual(
+            CabalRuleProposalModel.Refusal.onlyCreator.message, "Only the creator can pass the creator role.")
+        XCTAssertEqual(CabalRuleProposalModel.Refusal.notAnAdmin.message, "Make them an admin first.")
+        let outcome = await model.propose()
+        XCTAssertEqual(outcome, .refused(.onlyCreator))
+    }
+
+    func testThePassCreatorMenuItemShowsOnlyToTheCreatorOnAnAdminRow() {
+        let base = cabal()
+        let admin = memberRow(.admin)
+        let member = memberRow(.member)
+        XCTAssertTrue(CabalRuleProposalModel.offersPassCreator(base, to: admin))
+        XCTAssertFalse(CabalRuleProposalModel.offersPassCreator(base, to: member))
+        var asAdmin = base
+        asAdmin.me = .init(role: "admin", canVote: true, canPropose: true)
+        XCTAssertFalse(CabalRuleProposalModel.offersPassCreator(asAdmin, to: admin))
+        XCTAssertFalse(CabalRuleProposalModel.offersPassCreator(cabal(canPropose: false), to: admin))
+    }
+
     func testTheValuedRulesUseTheirWireValues() async throws {
         let cases: [(CabalRuleProposalModel.Change, NSDictionary)] = [
             (.threshold(.unanimous), ["rule": "threshold", "to": "unanimous"]),

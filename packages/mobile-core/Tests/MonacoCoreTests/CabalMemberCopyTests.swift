@@ -91,6 +91,7 @@ final class CabalMemberCopyTests: XCTestCase {
         XCTAssertEqual(CabalMemberCopy.voterAction(.voter), "Propose removing as voter")
         XCTAssertEqual(CabalMemberCopy.adminAction(.voter), "Propose making an admin")
         XCTAssertEqual(CabalMemberCopy.adminAction(.admin), "Propose removing as admin")
+        XCTAssertEqual(CabalMemberCopy.passCreatorAction, "Pass the creator role")
     }
 
     func testTheSmallStringsRead() {

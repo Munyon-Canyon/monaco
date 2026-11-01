@@ -104,7 +104,7 @@ func TestRuleChange_jsonRoundTrip(t *testing.T) {
 	noErr(t, err)
 	for _, change := range []domain.RuleChange{
 		domain.ShowSidesChange(false, true), trade, threshold, expiry, join,
-		domain.VoterChange(user, false, true), domain.AdminChange(user, true, false),
+		domain.VoterChange(user, false, true), domain.AdminChange(user, true, false), domain.CreatorChange(user),
 	} {
 		raw, err := json.Marshal(change)
 		noErr(t, err)
@@ -120,20 +120,22 @@ func TestRuleChange_jsonRoundTrip(t *testing.T) {
 func TestRuleChange_jsonRejectsBadInput(t *testing.T) {
 	t.Parallel()
 	cases := map[string]string{
-		"not json":       `{`,
-		"wrong shape":    `[]`,
-		"wrong version":  `{"v":2,"rule":"show_sides","from":false,"to":true}`,
-		"unknown rule":   `{"v":1,"rule":"nope","from":false,"to":true}`,
-		"bad bool":       `{"v":1,"rule":"show_sides","from":"x","to":true}`,
-		"bad bps":        `{"v":1,"rule":"max_trade_bps","from":null,"to":"x"}`,
-		"out of range":   `{"v":1,"rule":"max_trade_bps","from":null,"to":50}`,
-		"bad expiry":     `{"v":1,"rule":"proposal_expiry_seconds","from":3600,"to":1}`,
-		"bad expiry typ": `{"v":1,"rule":"proposal_expiry_seconds","from":"a","to":1}`,
-		"bad threshold":  `{"v":1,"rule":"threshold","from":"majority","to":"half"}`,
-		"bad join":       `{"v":1,"rule":"join_mode","from":"open","to":"closed"}`,
-		"bad join type":  `{"v":1,"rule":"join_mode","from":1,"to":"open"}`,
-		"voter no user":  `{"v":1,"rule":"voter","from":false,"to":true}`,
-		"admin no user":  `{"v":1,"rule":"admin","from":false,"to":true}`,
+		"not json":        `{`,
+		"wrong shape":     `[]`,
+		"wrong version":   `{"v":2,"rule":"show_sides","from":false,"to":true}`,
+		"unknown rule":    `{"v":1,"rule":"nope","from":false,"to":true}`,
+		"bad bool":        `{"v":1,"rule":"show_sides","from":"x","to":true}`,
+		"bad bps":         `{"v":1,"rule":"max_trade_bps","from":null,"to":"x"}`,
+		"out of range":    `{"v":1,"rule":"max_trade_bps","from":null,"to":50}`,
+		"bad expiry":      `{"v":1,"rule":"proposal_expiry_seconds","from":3600,"to":1}`,
+		"bad expiry typ":  `{"v":1,"rule":"proposal_expiry_seconds","from":"a","to":1}`,
+		"bad threshold":   `{"v":1,"rule":"threshold","from":"majority","to":"half"}`,
+		"bad join":        `{"v":1,"rule":"join_mode","from":"open","to":"closed"}`,
+		"bad join type":   `{"v":1,"rule":"join_mode","from":1,"to":"open"}`,
+		"voter no user":   `{"v":1,"rule":"voter","from":false,"to":true}`,
+		"admin no user":   `{"v":1,"rule":"admin","from":false,"to":true}`,
+		"creator no user": `{"v":1,"rule":"creator","from":false,"to":true}`,
+		"creator off":     `{"v":1,"rule":"creator","from":true,"to":false,"user_id":"00000000-0000-0000-0000-000000000003"}`,
 	}
 	for name, raw := range cases {
 		var change domain.RuleChange
@@ -167,6 +169,22 @@ func TestRuleChange_pureChecks(t *testing.T) {
 	isErr(t, domain.VoterChange(creator, true, false).NotCreator(creator), domain.ErrTargetsCreator)
 	noErr(t, domain.VoterChange(user, true, false).NotCreator(creator))
 	noErr(t, domain.ShowSidesChange(false, true).NotCreator(creator))
+}
+
+func TestRuleChange_passCreatorChecks(t *testing.T) {
+	t.Parallel()
+	creator, admin, member := newUser(1), newUser(2), newUser(3)
+	pass := domain.CreatorChange(admin)
+	eq(t, domain.RuleCreator, pass.Rule())
+	noErr(t, pass.Unchanged())
+	noErr(t, pass.ProposedByCreator(creator, creator))
+	isErr(t, pass.ProposedByCreator(admin, creator), domain.ErrNotCreator)
+	noErr(t, domain.ShowSidesChange(false, true).ProposedByCreator(admin, creator))
+	noErr(t, pass.TargetIsAdmin([]ids.UserID{creator, admin}))
+	isErr(t, pass.TargetIsAdmin([]ids.UserID{creator}), domain.ErrNotAnAdmin)
+	isErr(t, domain.CreatorChange(member).TargetIsAdmin([]ids.UserID{creator, admin}), domain.ErrNotAnAdmin)
+	noErr(t, domain.AdminChange(member, false, true).TargetIsAdmin(nil))
+	isErr(t, domain.CreatorChange(creator).NotCreator(creator), domain.ErrTargetsCreator)
 }
 
 func TestParseKind_rule(t *testing.T) {

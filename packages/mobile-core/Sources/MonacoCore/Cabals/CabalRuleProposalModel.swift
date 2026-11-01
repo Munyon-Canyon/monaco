@@ -15,6 +15,7 @@ public final class CabalRuleProposalModel: Identifiable {
         case maxTrade(Int32?)
         case voter(userID: String, canVote: Bool)
         case admin(userID: String, isAdmin: Bool)
+        case creator(userID: String)
     }
 
     public enum Refusal: Equatable, Sendable {
@@ -22,6 +23,8 @@ public final class CabalRuleProposalModel: Identifiable {
         case targetsCreator
         case notAMember
         case notAVoter
+        case onlyCreator
+        case notAnAdmin
         case lastAdmin
         case adminMustVote
         case unchanged
@@ -32,6 +35,8 @@ public final class CabalRuleProposalModel: Identifiable {
             case .targetsCreator: "The creator's role can't change."
             case .notAMember: "They aren't in the cabal."
             case .notAVoter: "Make them a voter first."
+            case .onlyCreator: "Only the creator can pass the creator role."
+            case .notAnAdmin: "Make them an admin first."
             case .lastAdmin: "A cabal needs an admin."
             case .adminMustVote: "Admins always vote."
             case .unchanged: "That's already the rule."
@@ -78,6 +83,12 @@ public final class CabalRuleProposalModel: Identifiable {
 
     public var canPropose: Bool { cabal.me?.canPropose == true }
 
+    public static func offersPassCreator(
+        _ cabal: Components.Schemas.Cabal, to row: Components.Schemas.CabalMemberRow
+    ) -> Bool {
+        cabal.me?.role == "creator" && cabal.me?.canPropose == true && row.role == .admin
+    }
+
     public var passLine: String {
         "Your cabal votes on it like a trade: \(CabalRulesRows.votesToPass(cabal)) to pass."
     }
@@ -91,6 +102,7 @@ public final class CabalRuleProposalModel: Identifiable {
         case .maxTrade(let bps): return bps == cabal.rules.maxTradeBps ? .unchanged : nil
         case .voter(let userID, let canVote): return voterRefusal(userID, canVote)
         case .admin(let userID, let isAdmin): return adminRefusal(userID, isAdmin)
+        case .creator(let userID): return creatorRefusal(userID)
         }
     }
 
@@ -136,6 +148,7 @@ public final class CabalRuleProposalModel: Identifiable {
             .init(rule: .maxTradeBps, to: bps.map { .init(integerLiteral: Int($0)) } ?? .init(nilLiteral: ()))
         case .voter(let userID, let canVote): .init(rule: .voter, to: .init(booleanLiteral: canVote), userId: userID)
         case .admin(let userID, let isAdmin): .init(rule: .admin, to: .init(booleanLiteral: isAdmin), userId: userID)
+        case .creator(let userID): .init(rule: .creator, to: .init(booleanLiteral: true), userId: userID)
         }
     }
 
@@ -152,6 +165,13 @@ public final class CabalRuleProposalModel: Identifiable {
         if makeAdmin, !member.canVote { return .notAVoter }
         if !makeAdmin, isAdmin(userID), (cabal.admins ?? []).count <= 1 { return .lastAdmin }
         return isAdmin(userID) == makeAdmin ? .unchanged : nil
+    }
+
+    private func creatorRefusal(_ userID: String) -> Refusal? {
+        if cabal.me?.role != "creator" { return .onlyCreator }
+        if userID == cabal.creator.userId { return .targetsCreator }
+        guard cabal.members.contains(where: { $0.userId == userID }) else { return .notAMember }
+        return isAdmin(userID) ? nil : .notAnAdmin
     }
 
     private func isAdmin(_ userID: String) -> Bool {

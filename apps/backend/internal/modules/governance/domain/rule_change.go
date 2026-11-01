@@ -23,6 +23,7 @@ const (
 	RuleJoinMode    Rule = "join_mode"
 	RuleVoter       Rule = "voter"
 	RuleAdmin       Rule = "admin"
+	RuleCreator     Rule = "creator"
 )
 
 var (
@@ -31,6 +32,8 @@ var (
 	ErrAdminNotVoter  = ruleCheck("admin_not_voter")
 	ErrTargetsCreator = ruleCheck("targets_creator")
 	ErrNotMemberRule  = ruleCheck("no_member")
+	ErrNotCreator     = ruleCheck("not_creator")
+	ErrNotAnAdmin     = ruleCheck("not_admin")
 )
 
 func ruleCheck(reason string) error {
@@ -92,6 +95,10 @@ func AdminChange(user ids.UserID, from, to bool) RuleChange {
 	return RuleChange{rule: RuleAdmin, from: from, to: to, user: &user}
 }
 
+func CreatorChange(user ids.UserID) RuleChange {
+	return RuleChange{rule: RuleCreator, from: false, to: true, user: &user}
+}
+
 func optional(v *int32) any {
 	if v == nil {
 		return nil
@@ -136,6 +143,25 @@ func (c RuleChange) AdminIsVoter(isVoter bool) error {
 		return ErrAdminNotVoter
 	}
 	return nil
+}
+
+func (c RuleChange) ProposedByCreator(proposer, creator ids.UserID) error {
+	if c.rule == RuleCreator && proposer != creator {
+		return ErrNotCreator
+	}
+	return nil
+}
+
+func (c RuleChange) TargetIsAdmin(admins []ids.UserID) error {
+	if c.rule != RuleCreator || c.user == nil {
+		return nil
+	}
+	for _, a := range admins {
+		if a == *c.user {
+			return nil
+		}
+	}
+	return ErrNotAnAdmin
 }
 
 func (c RuleChange) NotCreator(creator ids.UserID) error {
@@ -192,7 +218,7 @@ func (c *RuleChange) UnmarshalJSON(raw []byte) error {
 
 func decodeRule(w ruleChangeWire) (RuleChange, error) {
 	switch w.Rule {
-	case RuleShowSides, RuleVoter, RuleAdmin:
+	case RuleShowSides, RuleVoter, RuleAdmin, RuleCreator:
 		return decodeBoolRule(w)
 	case RuleMaxTradeBps:
 		var from, to *int32
@@ -231,6 +257,10 @@ func decodeBoolRule(w ruleChangeWire) (RuleChange, error) {
 		return RuleChange{}, ErrNotMemberRule
 	case w.Rule == RuleVoter:
 		return VoterChange(ids.UserIDFrom(*w.UserID), from, to), nil
+	case w.Rule == RuleCreator && (from || !to):
+		return RuleChange{}, invalidRule(RuleCreator)
+	case w.Rule == RuleCreator:
+		return CreatorChange(ids.UserIDFrom(*w.UserID)), nil
 	}
 	return AdminChange(ids.UserIDFrom(*w.UserID), from, to), nil
 }

@@ -238,6 +238,24 @@ final class LeaveCabalModelTests: XCTestCase {
         XCTAssertEqual(sent.count, 2)
     }
 
+    func testAFormerCreatorCanLeaveOnceTheCabalIsPassedOn() async {
+        let transport = StubTransport(scripted: [
+            myCabals(role: "creator", members: 3), myCabals(role: "admin", members: 3),
+        ])
+        let hints = FakeHintStream()
+        let model = makeModel(transport, hints: hints)
+        await model.load()
+        XCTAssertEqual(model.standing, .loaded(LeaveStanding(cabalName: "QA pot", canLeave: false)))
+        let task = Task { await model.observe() }
+        _ = await waitUntil { await hints.subscriberCount >= 2 }
+
+        await hints.send(.changed(.cabal(cabalID), what: "updated", id: "1"))
+        let reloaded = await waitUntil { model.standing == .loaded(LeaveStanding(cabalName: "QA pot", canLeave: true)) }
+        task.cancel()
+
+        XCTAssertTrue(reloaded)
+    }
+
     private func deleted() -> StubTransport.Reply {
         .response(status: .noContent, contentType: "application/json", body: Data())
     }

@@ -156,12 +156,18 @@ func (h *ProposeRuleChangeHandler) change(
 	if err := change.NotCreator(view.CreatorID); err != nil {
 		return domain.RuleChange{}, err
 	}
-	if change.Rule() != domain.RuleAdmin {
+	if change.Rule() != domain.RuleAdmin && change.Rule() != domain.RuleCreator {
 		return change, nil
 	}
 	admins, err := h.cabals.Admins(ctx, cmd.CabalID)
 	if err != nil {
 		return domain.RuleChange{}, err
+	}
+	if change.Rule() == domain.RuleCreator {
+		if err := change.ProposedByCreator(cmd.ProposerID, view.CreatorID); err != nil {
+			return domain.RuleChange{}, err
+		}
+		return change, change.TargetIsAdmin(admins)
 	}
 	if err := change.KeepsAnAdmin(len(admins)); err != nil {
 		return domain.RuleChange{}, err
@@ -198,6 +204,8 @@ func (h *ProposeRuleChangeHandler) build(
 		return domain.JoinModeChange(string(rules.JoinMode), to)
 	case domain.RuleVoter, domain.RuleAdmin:
 		return h.memberChange(ctx, cmd, voters)
+	case domain.RuleCreator:
+		return creatorChange(t)
 	}
 	return domain.RuleChange{}, missing(t.Rule)
 }
@@ -228,6 +236,17 @@ func (h *ProposeRuleChangeHandler) memberChange(
 		return domain.RuleChange{}, err
 	}
 	return domain.AdminChange(*t.UserID, slices.Contains(admins, *t.UserID), to), nil
+}
+
+func creatorChange(t RuleTarget) (domain.RuleChange, error) {
+	to, err := wantBool(t)
+	if err != nil || !to {
+		return domain.RuleChange{}, missing(t.Rule)
+	}
+	if t.UserID == nil {
+		return domain.RuleChange{}, domain.ErrNotMemberRule
+	}
+	return domain.CreatorChange(*t.UserID), nil
 }
 
 func wantBool(t RuleTarget) (bool, error) {

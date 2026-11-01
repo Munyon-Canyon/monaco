@@ -253,6 +253,7 @@ extension HomeVoteCardModel {
         case "join_mode": "Who can join"
         case "voter": "Who can vote"
         case "admin": "Who can manage"
+        case "creator": "Who leads the cabal"
         default: "Cabal rule"
         }
     }

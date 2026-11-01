@@ -105,7 +105,9 @@ paths:
         so a rule proposal is voted on and settled like a trade. A value the rule already has gets
         `rule_unchanged`. Removing the last admin, making a non-voter an admin and targeting the proposer
         get `invalid_input`. A second open proposal for the same rule, or for the same member's `voter` or
-        `admin` rule, gets `rule_change_open`. A replay with the same Idempotency-Key returns the first
+        `admin` rule, gets `rule_change_open`. A `creator` change passes the creator role to a current admin: only the
+        creator can propose it (`invalid_input`), `user_id` must be an admin, and one `creator` proposal is open
+        at a time. A replay with the same Idempotency-Key returns the first
         response.
       parameters:
         - name: id
@@ -902,7 +904,7 @@ components:
           description: >-
             The rule and the value it should take. `to` is a boolean for `show_sides`, `voter` and `admin`,
             an integer or null for `max_trade_bps`, an integer for `proposal_expiry_seconds` and a string for
-            `threshold` and `join_mode`. `user_id` names the member a `voter` or `admin` change targets.
+            `threshold` and `join_mode`. `user_id` names the member a `voter`, `admin` or `creator` change targets. A `creator` change takes true.
           examples: [{rule: show_sides, to: true}]
           x-go-type-name: RuleChangeRequestChange
           additionalProperties: false
@@ -911,10 +913,10 @@ components:
             rule:
               type: string
               description: Which rule to change.
-              enum: [show_sides, max_trade_bps, threshold, proposal_expiry_seconds, join_mode, voter, admin]
+              enum: [show_sides, max_trade_bps, threshold, proposal_expiry_seconds, join_mode, voter, admin, creator]
               examples: [show_sides]
             to: {description: The value the rule should take., examples: [true]}
-            user_id: {type: string, format: uuid, description: The member a `voter` or `admin` change targets., examples: ["01890a5d-ac96-774b-bcce-b302099a8058"]}
+            user_id: {type: string, format: uuid, description: "The member a `voter`, `admin` or `creator` change targets.", examples: ["01890a5d-ac96-774b-bcce-b302099a8058"]}
         thesis: {type: string, maxLength: 280, description: "The proposer's reason, up to 280 characters.", examples: [Let everyone see who voted what.]}
     ProposalPriceComparison:
       type: object
@@ -1036,13 +1038,13 @@ components:
             rule:
               type: string
               description: Which rule the proposal changes.
-              enum: [show_sides, max_trade_bps, threshold, proposal_expiry_seconds, join_mode, voter, admin]
+              enum: [show_sides, max_trade_bps, threshold, proposal_expiry_seconds, join_mode, voter, admin, creator]
               examples: [show_sides]
             from: {description: The rule's value when the proposal opened., examples: [false]}
             to: {description: The value the proposal asks for., examples: [true]}
             user:
               type: [object, "null"]
-              description: The member a `voter` or `admin` change targets. Null for a cabal-wide rule.
+              description: The member a `voter`, `admin` or `creator` change targets. Null for a cabal-wide rule.
               examples: [null]
               x-go-type-name: ProposalRuleChangeUser
               additionalProperties: false
@@ -1215,13 +1217,13 @@ components:
             rule:
               type: string
               description: Which rule the proposal changes.
-              enum: [show_sides, max_trade_bps, threshold, proposal_expiry_seconds, join_mode, voter, admin]
+              enum: [show_sides, max_trade_bps, threshold, proposal_expiry_seconds, join_mode, voter, admin, creator]
               examples: [show_sides]
             from: {description: The rule's value when the proposal opened., examples: [false]}
             to: {description: The value the proposal asks for., examples: [true]}
             user:
               type: [object, "null"]
-              description: The member a `voter` or `admin` change targets. Null for a cabal-wide rule.
+              description: The member a `voter`, `admin` or `creator` change targets. Null for a cabal-wide rule.
               examples: [null]
               x-go-type-name: ProposalDetailRuleChangeUser
               additionalProperties: false
@@ -1427,13 +1429,13 @@ components:
             rule:
               type: string
               description: Which rule the proposal changes.
-              enum: [show_sides, max_trade_bps, threshold, proposal_expiry_seconds, join_mode, voter, admin]
+              enum: [show_sides, max_trade_bps, threshold, proposal_expiry_seconds, join_mode, voter, admin, creator]
               examples: [show_sides]
             from: {description: The rule's value when the proposal opened., examples: [false]}
             to: {description: The value the proposal asks for., examples: [true]}
             user:
               type: [object, "null"]
-              description: The member a `voter` or `admin` change targets. Null for a cabal-wide rule.
+              description: The member a `voter`, `admin` or `creator` change targets. Null for a cabal-wide rule.
               examples: [null]
               x-go-type-name: PendingVoteRuleChangeUser
               additionalProperties: false
