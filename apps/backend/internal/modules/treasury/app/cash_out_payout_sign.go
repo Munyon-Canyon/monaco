@@ -5,6 +5,8 @@ import (
 	"log/slog"
 	"strconv"
 
+	"github.com/google/uuid"
+
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/sqlc"
@@ -40,8 +42,13 @@ func (p *CashOutPayouts) sign(ctx context.Context, job payoutJob) error {
 	if err != nil {
 		return err
 	}
+	plan, err := p.reserve(ctx, job, to)
+	if err != nil {
+		return err
+	}
 	signed, err := transfers.Build(ctx, relayer.TransferSpec{
 		FromWallet: from, To: to, Mint: p.d.USDC, Amount: money.NewBaseUnits(job.payout.Uint64(), p.d.USDC.Decimals),
+		SkipCreate: !plan.CreateAccount,
 	})
 	if err != nil && errs.Retryable(errs.CodeOf(err)) {
 		return err
@@ -51,6 +58,42 @@ func (p *CashOutPayouts) sign(ctx context.Context, job payoutJob) error {
 	}
 	faultpoint.Hit(ctx, faultpoint.AfterSign)
 	return p.store(ctx, job, signed)
+}
+
+func payoutSponsorRef(job uuid.UUID, attempt int16) uuid.UUID {
+	return uuid.NewSHA1(job, []byte(strconv.Itoa(int(attempt))))
+}
+
+func (p *CashOutPayouts) reserve(
+	ctx context.Context, job payoutJob, to chain.SolanaAddress,
+) (relayer.SponsorPlan, error) {
+	var plan relayer.SponsorPlan
+	err := p.d.UoW.Do(ctx, func(ctx context.Context, tx db.Tx) error {
+		var err error
+		plan, err = p.d.Sponsor.Reserve(ctx, tx.Queries(), relayer.SponsorRequest{
+			Ref: payoutSponsorRef(job.id, job.latest.Number+1), User: job.user, Destination: to, CanCreate: true,
+			Now: p.d.Clock.Now(),
+		})
+		return err
+	})
+	return plan, err
+}
+
+func (p *CashOutPayouts) release(ctx context.Context, tx db.Tx, job payoutJob) error {
+	for _, attempt := range []int16{job.latest.Number, job.latest.Number + 1} {
+		if attempt < 1 {
+			continue
+		}
+		if err := p.d.Sponsor.Release(
+			ctx,
+			tx.Queries(),
+			payoutSponsorRef(job.id, attempt),
+			p.d.Clock.Now(),
+		); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (p *CashOutPayouts) store(ctx context.Context, job payoutJob, signed relayer.SignedTx) error {

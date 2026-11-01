@@ -11,10 +11,7 @@ SELECT EXISTS(SELECT 1 FROM cash_out_jobs
 -- name: CashOutShortfall :one
 SELECT greatest(sqlc.arg(payout_micros)::text::numeric - greatest(coalesce((SELECT units FROM cabal_positions
   WHERE cabal_id = sqlc.arg(cabal_id)::uuid AND asset = sqlc.arg(asset)::text), 0) - coalesce((SELECT
-    sum(CASE WHEN j.status = 'paying' THEN j.payout_micros ELSE least(j.payout_micros,
-      j.payout_micros - j.sell_usdc_micros + coalesce((SELECT sum(s.usdc_out_micros) FROM cash_out_sells AS s
-        WHERE s.job_id = j.id), 0)) END)
-  FROM cash_out_jobs AS j
+    sum(j.payout_micros) FROM cash_out_jobs AS j
   WHERE j.cabal_id = sqlc.arg(cabal_id)::uuid AND j.status IN ('started', 'selling', 'paying')), 0), 0),
   0)::text;
 

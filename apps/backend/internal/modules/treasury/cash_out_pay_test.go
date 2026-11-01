@@ -249,13 +249,17 @@ func TestCashOutPayout_aLandedPayoutSettlesBothLedgersOnce(t *testing.T) {
 func TestCashOutPayout_givesUpOnceEveryAttemptLapsedAndReturnsEveryUnit(t *testing.T) {
 	t.Parallel()
 	r := newPayoutRig(t)
-	r.seed(t, 1, domain.PayoutExpired)
-	r.seed(t, 2, domain.PayoutExpired)
-	r.seed(t, 3, domain.PayoutBroadcast)
-	r.chain.set(seededSig(3), lapsed())
+	want := make([]string, 0, domain.MaxPayoutAttempts)
+	for n := 1; n < domain.MaxPayoutAttempts; n++ {
+		r.seed(t, n, domain.PayoutExpired)
+		want = append(want, fmt.Sprintf("%d:expired", n))
+	}
+	r.seed(t, domain.MaxPayoutAttempts, domain.PayoutBroadcast)
+	r.chain.set(seededSig(domain.MaxPayoutAttempts), lapsed())
 	r.mustAdvance(t)
 	r.wantJob(t, "failed", string(errs.CodePayoutFailed))
-	if got := r.attempts(t); !slices.Equal(got, []string{"1:expired", "2:expired", "3:expired"}) {
+	want = append(want, fmt.Sprintf("%d:expired", domain.MaxPayoutAttempts))
+	if got := r.attempts(t); !slices.Equal(got, want) {
 		t.Fatalf("attempts = %v", got)
 	}
 	if r.shares(t, r.alice) != 100 || r.treasuryUSDC(t) != "100000000" ||
