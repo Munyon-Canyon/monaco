@@ -79,3 +79,8 @@ var FundingReconcileFailed = Msg{
 	Name:     "funding.reconcile.failed",
 	Required: []string{"cabal_id", "code", "err"},
 }
+
+var FundingReconcileDeficit = Msg{
+	Name:     "funding.reconcile.deficit",
+	Required: []string{"cabal_id", "mint", "ledger_units", "chain_units"},
+}

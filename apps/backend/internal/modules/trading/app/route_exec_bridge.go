@@ -2,6 +2,8 @@ package app
 
 import (
 	"context"
+	"log/slog"
+	"slices"
 	"strconv"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
@@ -10,6 +12,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/faultpoint"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
+	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 )
 
 type BridgeLeg struct {
@@ -37,6 +40,24 @@ type Bridge struct {
 	Actions multichain.WalletActions
 	TopUp   SOLTopUp
 	Poll    Poll
+	Unknown func(context.Context, BridgeLeg, multichain.ActionID) error
+}
+
+func actionBroadcast(action multichain.ActionStatus) bool {
+	return slices.ContainsFunc(action.Steps, func(s multichain.ActionStep) bool {
+		return s.TxHash != "" || s.State != multichain.StepFailed || s.Network == ""
+	})
+}
+
+func (b Bridge) outcomeUnknown(ctx context.Context, leg BridgeLeg, id multichain.ActionID) error {
+	observability.Alert(ctx, observability.TradingBridgeOutcomeUnknown,
+		slog.String("swap_id", leg.Ref.SwapID.String()), slog.String("cabal_id", leg.Ref.CabalID.String()),
+		slog.String("step", string(leg.Ref.Step)), slog.String("network", string(leg.Ref.Network)),
+		slog.String("action_id", string(id)))
+	if b.Unknown == nil {
+		return nil
+	}
+	return b.Unknown(ctx, leg, id)
 }
 
 func (b Bridge) Run(ctx context.Context, leg BridgeLeg) (domain.StepStatus, error) {
@@ -86,6 +107,11 @@ func (b Bridge) landedLate(
 			return multichain.ActionID(prior), action.State, err
 		case action.State == multichain.ActionPending:
 			state = action.State
+		case action.State == multichain.ActionFailed && actionBroadcast(action):
+			state = multichain.ActionPending
+			if err = b.outcomeUnknown(ctx, leg, multichain.ActionID(prior)); err != nil {
+				return "", "", err
+			}
 		}
 	}
 	return "", state, nil
@@ -119,25 +145,37 @@ func (b Bridge) await(ctx context.Context, leg BridgeLeg, id multichain.ActionID
 			return false, err
 		}
 		faultpoint.Hit(ctx, faultpoint.AfterExecute)
-		switch action.State {
-		case multichain.ActionSucceeded:
-			fee, arrival := leg.Fee, domain.Arrival{}
-			if leg.Observe != nil {
-				if fee, arrival, err = leg.Observe(ctx, action); err != nil {
-					return false, err
-				}
-			}
-			status = domain.StepSucceeded
-			_, err = b.Journal.Succeeded(ctx, leg.Ref, fee, arrival)
-		case multichain.ActionFailed, multichain.ActionRejected:
-			status = domain.StepFailed
-			_, err = b.Journal.Failed(ctx, leg.Ref, "privy_"+string(action.State))
-		case multichain.ActionPending:
-		}
-		return status != domain.StepSubmitted, err
+		var done bool
+		status, done, err = b.settle(ctx, leg, id, action)
+		return done, err
 	})
 	if err != nil {
 		return "", err
 	}
 	return status, nil
+}
+
+func (b Bridge) settle(
+	ctx context.Context, leg BridgeLeg, id multichain.ActionID, action multichain.ActionStatus,
+) (domain.StepStatus, bool, error) {
+	switch action.State {
+	case multichain.ActionSucceeded:
+		fee, arrival := leg.Fee, domain.Arrival{}
+		if leg.Observe != nil {
+			var err error
+			if fee, arrival, err = leg.Observe(ctx, action); err != nil {
+				return domain.StepSubmitted, false, err
+			}
+		}
+		_, err := b.Journal.Succeeded(ctx, leg.Ref, fee, arrival)
+		return domain.StepSucceeded, true, err
+	case multichain.ActionFailed, multichain.ActionRejected:
+		if action.State == multichain.ActionFailed && actionBroadcast(action) {
+			return domain.StepSubmitted, true, b.outcomeUnknown(ctx, leg, id)
+		}
+		_, err := b.Journal.Failed(ctx, leg.Ref, "privy_"+string(action.State))
+		return domain.StepFailed, true, err
+	case multichain.ActionPending:
+	}
+	return domain.StepSubmitted, false, nil
 }

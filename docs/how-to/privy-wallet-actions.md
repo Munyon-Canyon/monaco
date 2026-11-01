@@ -18,6 +18,8 @@ The client decodes the action strictly. An unknown action status, step status, s
 | `rejected` | `rejected` (nothing happened on chain, safe to retry with a new key) |
 | `failed` | `failed` (a transaction was broadcast; inspect the steps) |
 
+Trading treats `failed` as an unknown outcome when any step has a transaction hash, is confirmed or pending, or is a bridge leg with no hash. It books no return, keeps the trade step `submitted`, alerts with `trading.bridge.outcome_unknown` and parks a `bridge_out` swap for an operator. Only `rejected`, or a `failed` whose steps are all refused with no hash, fails the step and returns the money. What `failed` means on chain 4663 (Robinhood) for `/transfer` is not confirmed with Privy yet (#7490).
+
 | Privy step status | `multichain.StepState` |
 | --- | --- |
 | `preparing`, `queued`, `pending`, `retrying`, `custodian_reviewing` | `pending` |

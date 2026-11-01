@@ -89,3 +89,8 @@ var TradingEVMArrivalsChunk = Msg{
 	Name:     "trading.evm_arrivals.chunk",
 	Required: []string{"network", "owner", "from", "to", "chunk", "rpc_message"},
 }
+
+var TradingBridgeOutcomeUnknown = Msg{
+	Name:     "trading.bridge.outcome_unknown",
+	Required: []string{"swap_id", "cabal_id", "step", "network", "action_id"},
+}

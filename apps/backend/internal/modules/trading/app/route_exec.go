@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"log/slog"
@@ -120,7 +121,33 @@ func (r *RouteExec) resume(ctx context.Context, id uuid.UUID) error {
 }
 
 func (r *RouteExec) bridge() Bridge {
-	return Bridge{Journal: r.d.Journal, Actions: r.d.Actions, TopUp: r.d.TopUp, Poll: r.d.Poll}
+	return Bridge{
+		Journal: r.d.Journal, Actions: r.d.Actions, TopUp: r.d.TopUp, Poll: r.d.Poll, Unknown: r.parkUnknown,
+	}
+}
+
+const parkedBridgeOutcomeUnknown = "bridge_outcome_unknown"
+
+func (r *RouteExec) parkUnknown(ctx context.Context, leg BridgeLeg, _ multichain.ActionID) error {
+	if leg.Ref.Step != domain.StepBridgeOut {
+		return nil
+	}
+	l := r.d.Layer
+	now := l.d.Clock.Now()
+	return l.d.UoW.Do(ctx, func(ctx context.Context, tx db.Tx) error {
+		row, err := sqlc.New(tx.Queries()).ParkRouted(ctx, sqlc.ParkRoutedParams{
+			At: now, Code: parkedBridgeOutcomeUnknown, ID: leg.Ref.SwapID.UUID(),
+		})
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil
+		}
+		tx.AfterCommit(func(ctx context.Context) {
+			observability.Alert(ctx, observability.TradingRoutedSwapParked,
+				slog.String("swap_id", leg.Ref.SwapID.String()), slog.String("cabal_id", row.CabalID.String()),
+				slog.String("code", parkedBridgeOutcomeUnknown), slog.String("step", row.Step))
+		})
+		return err
+	})
 }
 
 func (r *RouteExec) swap() EVMSwap {

@@ -176,7 +176,7 @@ func swapTxn(
 	return txn
 }
 
-func TestTradeSteps_aBridgeOutThatFailsAfterSubmitRestoresTheSolanaUSDCExactly(t *testing.T) {
+func TestTradeSteps_aBridgeOutThatTradingRejectedAfterSubmitRestoresTheSolanaUSDCExactly(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
 	cabal := f.funded(t)
@@ -190,6 +190,42 @@ func TestTradeSteps_aBridgeOutThatFailsAfterSubmitRestoresTheSolanaUSDCExactly(t
 	if drift := f.drift(t); len(drift) != 0 {
 		t.Fatalf("drift = %q", drift)
 	}
+}
+
+func TestTradeSteps_aBridgeWhoseOutcomeIsUnknownStaysInTransitAndBooksNoReturn(t *testing.T) {
+	t.Parallel()
+	t.Run("bridge_out", func(t *testing.T) {
+		t.Parallel()
+		f := newFixture(t)
+		cabal := f.funded(t)
+		out := newBridgeRun(t, f, cabal, "bridge_out")
+
+		out.submitted(t, 33_333_333)
+
+		wantBridgePositions(t, f, position{Asset: usdcMint, Units: "66666667", Cost: "66666667"})
+		wantInTransit(t, f, cabal, inTransit{Swap: out.swap, Network: "base", Micros: "33333333"})
+		if drift := f.drift(t); len(drift) != 0 {
+			t.Fatalf("drift = %q", drift)
+		}
+	})
+	t.Run("bridge_back", func(t *testing.T) {
+		t.Parallel()
+		f := newFixture(t)
+		cabal := f.funded(t)
+		f.bridgedOut(t, cabal, 20_000_000, 0)
+		back := newBridgeRun(t, f, cabal, "bridge_back")
+
+		back.submitted(t, 15_000_000)
+
+		wantBridgePositions(t, f,
+			position{Asset: usdcMint, Units: "80000000", Cost: "80000000"},
+			position{Asset: baseCash, Units: "5000000", Cost: "5000000"},
+		)
+		wantInTransit(t, f, cabal, inTransit{Swap: back.swap, Network: "base", Micros: "15000000"})
+		if drift := f.drift(t); len(drift) != 0 {
+			t.Fatalf("drift = %q", drift)
+		}
+	})
 }
 
 func TestTradeSteps_aBridgeThatFailsBeforeSubmitPostsNothing(t *testing.T) {

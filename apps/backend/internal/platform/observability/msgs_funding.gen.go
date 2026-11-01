@@ -20,5 +20,6 @@ func init() {
 		FundingBounceFailed,
 		FundingBounceOps,
 		FundingReconcileFailed,
+		FundingReconcileDeficit,
 	)
 }
