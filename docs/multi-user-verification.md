@@ -17,7 +17,8 @@ The backend suite covers the same rules as the manual pass:
 - Each member's P&L comes only from their own funding. When only B funds and the pot gains, A's slice, People row, net worth and leaderboard row stay at `+0.00` with a nil percent. B's rows carry the whole gain.
 - A's People board shows B's P&L only from the cabal they share. B's own row adds up all of B's cabals.
 - While B's funding is still pending, none of B's USDC is credited to A. After confirmation the credit goes to B.
-- A non-member gets nothing from any cabal-scoped read or write, even with enough account balance to fund. A refused vote records no ballot, and a refused fund leaves no pending funding.
+- Every cabal is public, so a non-member can read it. A non-member cannot write to it, even with enough account balance to fund. A refused vote records no ballot, and a refused fund leaves no pending funding.
+- A banned cabal's feed items return not found to everyone, for the item, its comments and new comments. A creator who left the cabal can no longer rename it, change its picture or list and decide join requests.
 - A member outside a named voter set cannot vote or propose, and a non-admin cannot list join requests.
 
 In the rewrite, each rule is an acceptance test for its flow ([Flows](architecture/backend-platform.md#flows)).
@@ -58,7 +59,7 @@ To switch accounts on one simulator, use **Settings → Sign out**, then sign in
 8. **Propose as A.** Sign out, then sign in as A. In the cabal, go to Propose → search `AAPL` → get a quote → propose.
 9. **Vote as B.** Sign out, then sign in as B. The proposal appears under Home → Needs your vote and in the cabal's Proposals list. Vote yes and confirm the toast. The proposal detail lists B's ballot, the Vote button disappears, and the proposal leaves Needs your vote. A second vote does not add a ballot.
 10. **Refresh boards.** After the proposal passes and executes, pull to refresh on both accounts. The cabal pot shows the AAPL row. Each account's "You" slice matches its own share. Home "Your cabals", net worth and the Leaderboard (ALL) update. A's and B's dollar P&L split by share, and neither account's row shows the other's funding.
-11. **Outsider (optional, C).** Signed in as C with some account balance, the cabal is not in C's cabals and A and B do not appear on C's Home leaderboard. Pasting the cabal id into Join cabal offers to join. Without joining, C must not see the pot, the member board or the proposals, and cannot fund the cabal.
+11. **Outsider (optional, C).** Signed in as C with some account balance, the cabal is not in C's cabals and A and B do not appear on C's Home leaderboard. Pasting the cabal id into Join cabal offers to join. Every cabal is public, so C can read the pot, the member board and the proposals. Without joining, C cannot fund the cabal, vote or propose.
 12. **Leave with withdraw (optional).** As B, go to Leave cabal → Withdraw and leave. A partial Withdraw without leaving keeps B in the cabal. B's stake returns to B's account balance only. A's slice and account balance do not change.
 
 ## Expected isolation
@@ -68,8 +69,8 @@ To switch accounts on one simulator, use **Settings → Sign out**, then sign in
 | Account balance | the caller | The caller's own account balance and pending funding, never another user's |
 | Home | any member | The cabal list shows every cabal, joined or not, per viewer. People come only from the viewer's cabals, one row per user with their own dollar P&L |
 | Home net worth, Your cabals, Needs your vote, Leaderboard (ALL) | any user | Net worth, cabals and missed proposals belong to the viewer. The leaderboard covers the members of the viewer's cabals |
-| Cabal screen: pot, member board, treasury | members only | The member board lists every member. "You" is the caller's slice |
-| Proposals list | members only | Open and past proposals with their proposer |
+| Cabal screen: pot, member board, treasury | any user | Every cabal is public. The member board lists every member. "You" is the caller's slice, shown to members |
+| Proposals list | any user | Open and past proposals with their proposer |
 | Fund this cabal, asset search, quotes | members only | Any joined member, not only the creator. Funding is capped at the caller's available balance |
 | Propose | eligible proposers only | The proposal is created |
 | Vote | eligible voters only | The ballot shows on the proposal detail |

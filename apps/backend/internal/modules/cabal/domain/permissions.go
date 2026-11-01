@@ -68,7 +68,7 @@ func CanInvite(actor Actor, cabal Cabal) error {
 	if !actor.Member {
 		return errs.New(errs.CodeNotCabalMember, op)
 	}
-	return require(cabal.IsAdmin(actor.UserID), errs.CodeNotCabalAdmin, op)
+	return require(actor.Member && cabal.IsAdmin(actor.UserID), errs.CodeNotCabalAdmin, op)
 }
 
 func CanInviteUser(inviter, invitee Actor, cabal Cabal, blocked bool) error {
@@ -117,7 +117,7 @@ func CanDecide(actor Actor, cabal Cabal, req AccessRequest) error {
 	const op = "cabal.CanDecide"
 	switch req.Direction {
 	case DirectionRequest:
-		return require(cabal.IsAdmin(actor.UserID), errs.CodeNotCabalAdmin, op)
+		return require(actor.Member && cabal.IsAdmin(actor.UserID), errs.CodeNotCabalAdmin, op)
 	case DirectionInvite:
 		return require(actor.UserID == req.UserID, errs.CodeForbidden, op)
 	}

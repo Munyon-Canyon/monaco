@@ -316,6 +316,8 @@ func TestListAccessRequests_refusesAnyoneButAnAdminAndWrapsStoreFailures(t *test
 	wantErr(t, list(failCards{}, c.ID, c.Creator.ID), errs.CodeInternal)
 	f.exec(t, `ALTER TABLE cabal_access_requests RENAME TO requests_gone`)
 	wantErr(t, list(f.users, c.ID, c.Creator.ID), errs.CodeInternal)
+	f.exec(t, `ALTER TABLE cabal_members RENAME COLUMN joined_at TO joined_gone`)
+	wantErr(t, list(f.users, c.ID, c.Creator.ID), errs.CodeInternal)
 	f.exec(t, `ALTER TABLE cabals RENAME TO cabals_gone`)
 	wantErr(t, list(f.users, c.ID, c.Creator.ID), errs.CodeInternal)
 }

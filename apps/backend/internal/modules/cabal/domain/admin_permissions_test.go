@@ -93,10 +93,11 @@ func TestAdminPermissions_everyDoorPermissionAcrossTheCast(t *testing.T) {
 func TestAdminPermissions_adminsEditNeitherNameNorPictureNorLeave(t *testing.T) {
 	t.Parallel()
 	c, cabal := newAdminCast(t)
-	if got := errs.CodeOf(domain.CanEdit(c.admin, cabal)); got != errs.CodeNotCabalCreator {
+	admin := domain.Actor{UserID: c.admin, Member: true}
+	if got := errs.CodeOf(domain.CanEdit(admin, cabal)); got != errs.CodeNotCabalCreator {
 		t.Errorf("CanEdit by an admin = %q, want %q", got, errs.CodeNotCabalCreator)
 	}
-	if err := domain.CanEdit(c.creator, cabal); err != nil {
+	if err := domain.CanEdit(domain.Actor{UserID: c.creator, Member: true}, cabal); err != nil {
 		t.Errorf("CanEdit by the creator = %v, want it allowed", err)
 	}
 }

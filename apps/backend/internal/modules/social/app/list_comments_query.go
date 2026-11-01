@@ -45,7 +45,7 @@ func ListComments(ctx context.Context, db sqlc.DBTX, q CommentsQuery) (CommentsP
 		return CommentsPage{}, errs.New(errs.CodeInvalidInput, op, slog.Int("limit", q.Limit))
 	}
 	queries := sqlc.New(db)
-	_, thread, err := ResolveThread(ctx, queries, q.FeedObjectID)
+	thread, err := visibleThread(ctx, db, q.Viewer, q.FeedObjectID)
 	if err != nil {
 		return CommentsPage{}, err
 	}
@@ -202,4 +202,12 @@ func listedComment(row sqlc.ListCommentThreadsRow) Comment {
 		)
 	}
 	return c
+}
+
+func visibleThread(ctx context.Context, db sqlc.DBTX, viewer ids.UserID, id uuid.UUID) (sqlc.GetCommentItemRow, error) {
+	item, thread, err := ResolveThread(ctx, sqlc.New(db), id)
+	if err != nil {
+		return thread, err
+	}
+	return thread, requireNotHidden(ctx, db, viewer, item.ID)
 }
