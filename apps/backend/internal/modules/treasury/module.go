@@ -209,7 +209,7 @@ func (m *Module) Held() *app.HeldReads { return m.heldReads() }
 
 func (m *Module) cashOutHandler() *app.CashOutHandler {
 	return app.NewCashOutHandler(
-		m.deps.UoW, m.ledger(), m.reads(), m.pauses, m.deps.Clock, m.deps.IDs, m.deps.Pool, m.deps.Bus,
+		m.deps.UoW, m.ledger(), m.strictReads(), m.pauses, m.deps.Clock, m.deps.IDs, m.deps.Pool, m.deps.Bus,
 	)
 }
 
@@ -234,7 +234,7 @@ func (m *Module) fundPreviewHandler() *app.PreviewFundHandler {
 		return nil
 	}
 	return app.NewPreviewFundHandler(app.PreviewFundDeps{
-		Cabals: m.fund.cabals, Balances: m.fund.funding.Balances(), Pauses: m.fund.pauses, Pot: m.reads(),
+		Cabals: m.fund.cabals, Balances: m.fund.funding.Balances(), Pauses: m.fund.pauses, Pot: m.strictReads(),
 		History: adapters.FundHistory{Reads: m.deps.Pool},
 	})
 }
@@ -306,7 +306,7 @@ func (m *Module) Pollers() []poller.Poller {
 		adapters.FundPoller{Settler: app.NewFundSettler(app.FundSettlerDeps{
 			Reads: m.deps.Pool, UoW: m.deps.UoW, IDs: m.deps.IDs, Clock: m.deps.Clock,
 			Chain: adapters.NewStatuses(cfg, m.deps.Clock), Transfers: adapters.NewTransfers(cfg, m.deps.Clock),
-			Pot: m.reads(), PotOn: func(q sqlc.DBTX) app.FundPotReads { return m.reads().On(q) },
+			Pot: m.strictReads(), PotOn: func(q sqlc.DBTX) app.FundPotReads { return m.reads().On(q) },
 			Ledger: m.ledger(), USDC: usdc(cfg), Hints: m.deps.Bus,
 			SendWindow: cfg.Worker.FundSendWindow,
 		})},
@@ -418,8 +418,12 @@ func (m *Module) reads() *adapters.Queries {
 		marketPrices(marketModule.Prices()),
 		m.deps.Clock,
 		chain.SolanaAddress(m.deps.Config.Solana.USDCMint),
-	).WithListings(marketListings(marketModule.Prices())).WithSnapshots(m.deps.Pool, valuationSnapshotTimeout)
+	).WithFreshPrices(marketCurrentPrices(marketModule.Prices())).
+		WithListings(marketListings(marketModule.Prices())).
+		WithSnapshots(m.deps.Pool, valuationSnapshotTimeout)
 }
+
+func (m *Module) strictReads() *adapters.Queries { return m.reads().Strict() }
 
 func positionPrices(source market.PositionPrices) app.PositionPrices {
 	return func(ctx context.Context, symbol, chartRange string) ([]app.PricePoint, error) {
@@ -483,13 +487,21 @@ func marketResolver(catalog market.Catalog) app.MintResolver {
 	}
 }
 
-func marketPrices(reader market.Prices) app.PriceReader {
+func marketPrices(reader market.Prices) app.PriceReader { return priceReaderOf(reader.PricesAsOf) }
+
+func marketCurrentPrices(reader market.CurrentPrices) app.PriceReader {
+	return priceReaderOf(reader.CurrentPricesAsOf)
+}
+
+func priceReaderOf(
+	read func(context.Context, []market.AssetID, time.Time) (map[market.AssetID]market.Price, error),
+) app.PriceReader {
 	return func(ctx context.Context, ids []uuid.UUID, at time.Time) (map[uuid.UUID]app.Price, error) {
 		asked := make([]market.AssetID, len(ids))
 		for i, id := range ids {
 			asked[i] = market.AssetIDFrom(id)
 		}
-		prices, err := reader.PricesAsOf(ctx, asked, at)
+		prices, err := read(ctx, asked, at)
 		if err != nil {
 			return nil, err
 		}

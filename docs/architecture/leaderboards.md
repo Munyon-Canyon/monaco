@@ -45,6 +45,7 @@ What `ranking` needs from `market`'s query port:
 - **One latest price per asset**, with the time it was observed, in one call for every asset. The job calls it once per run.
 - **A price as of a time**, for ranged boards and snapshots.
 - **Validation before a price becomes latest.** A move of more than 20 % from the previous sample is held for one more sample before it is accepted, so a single bad print or a thin-liquidity spike on a tokenized stock cannot reshuffle the board. At a 120 s tick, a held move reaches boards about 2 minutes later. This rule runs in `market`, so every reader gets the same price.
+- **Money paths read stricter.** Fund and cash-out price a holding only from its newest sample, and only when that sample is itself accepted (`CurrentPricesAsOf`): while a move over 20 % is held, they return `price_unavailable` instead of the older sample the boards keep showing. A sample older than a split already in effect is unavailable on every valuation.
 
 Staleness is the board's rule, below: a price older than 5 minutes excludes the cabal from that run. At a 120 s tick that tolerates one missed sample and flags the second.
 
