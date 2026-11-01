@@ -188,6 +188,22 @@ func TestCreateComment_rollsBackWhenTheReplyItemOrTheCardFails(t *testing.T) {
 	}
 }
 
+func TestCreateComment_onAThresholdWhoseProposalPayloadCannotBeReadStoresNothing(t *testing.T) {
+	t.Parallel()
+	f := newCommentFixture(t)
+	proposal := f.item(t, feed.KindProposal)
+	threshold := f.closing(t, feed.KindThreshold, "", f.refOf(t, proposal))
+	if _, err := f.pool.Exec(t.Context(),
+		`UPDATE feed_objects SET payload = '{"action": 5}' WHERE id = $1`, proposal); err != nil {
+		t.Fatal(err)
+	}
+	_, err := f.comment(t, threshold, f.cabal.Members[0].ID, "hi", uuid.Nil)
+	wantCode(t, err, errs.CodeInternal)
+	if stored, counted := f.count(t, proposal); stored != 0 || counted != 0 {
+		t.Fatalf("stored %d, comment_count %d, want 0 and 0", stored, counted)
+	}
+}
+
 func (f commentFixture) like(t *testing.T, item uuid.UUID, user ids.UserID) {
 	t.Helper()
 	if _, err := f.pool.Exec(t.Context(),
