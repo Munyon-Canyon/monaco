@@ -279,7 +279,8 @@ func (r *RouteExec) requote(ctx context.Context, b routedBuy) (swapQuote, bool, 
 		return swapQuote{}, true, siblingErr
 	}
 	if floor == 0 || strayed {
-		return swapQuote{}, true, r.finish(ctx, b, failed(b.req, b.id, domain.FailurePriceMoved, ""), "")
+		return swapQuote{}, true, r.finish(
+			ctx, b, failed(b.req, b.id, domain.FailurePriceMoved, ""), string(domain.FailurePriceMoved))
 	}
 	faultpoint.Hit(ctx, faultpoint.AfterRequote)
 	return swapQuote{floor: floor, route: quote.Options}, false, nil
