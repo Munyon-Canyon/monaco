@@ -274,6 +274,8 @@ func (req request) setHeaders(r *http.Request) {
 	}
 }
 
+const cloudflareEdge = "104.16.0.1"
+
 func (s *Scenario) send(req request) {
 	s.t.Helper()
 	r, err := http.NewRequestWithContext(s.t.Context(), req.method, s.app.baseURL+req.path,
@@ -287,7 +289,7 @@ func (s *Scenario) send(req request) {
 	r.Header.Set("Content-Type", req.contentType)
 	req.setHeaders(r)
 	if s.app.clientIP != "" {
-		r.Header.Set("X-Forwarded-For", s.app.clientIP)
+		r.Header.Set("X-Forwarded-For", s.app.clientIP+", "+cloudflareEdge)
 		r.Header.Set("CF-Connecting-IP", s.app.clientIP)
 	}
 	if s.app.flow != "" && matchesTrigger(s.app.trigger, req.method, req.path) {

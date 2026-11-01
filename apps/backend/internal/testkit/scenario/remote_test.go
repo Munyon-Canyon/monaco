@@ -15,12 +15,16 @@ func TestAgainst_sendsEachScenariosClientIPAsTheForwardedAddress(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 	for _, ip := range []string{"10.1.2.3", "10.4.5.6", ""} {
+		wantForwarded := ip + ", " + cloudflareEdge
+		if ip == "" {
+			wantForwarded = ""
+		}
 		Against(t.Context(), t, Remote{
 			URL: srv.URL, ClientIP: ip, Enter: func(Stage) {}, Exchanged: func(Exchange) {},
 		}).
 			When(Post("/v1/system/pings", "{}"))
-		if got := <-forwarded; got[0] != ip || got[1] != ip {
-			t.Fatalf("X-Forwarded-For, CF-Connecting-IP = %q, %q, want %q for both", got[0], got[1], ip)
+		if got := <-forwarded; got[0] != wantForwarded || got[1] != ip {
+			t.Fatalf("X-Forwarded-For, CF-Connecting-IP = %q, %q, want %q, %q", got[0], got[1], wantForwarded, ip)
 		}
 	}
 }
