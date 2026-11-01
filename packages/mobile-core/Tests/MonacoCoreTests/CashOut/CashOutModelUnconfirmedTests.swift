@@ -70,6 +70,60 @@ extension CashOutModelTests {
         XCTAssertNotEqual(posts[1].key, posts[2].key)
     }
 
+    func testMissingPricesSayPricesAreDelayedAndLetAChangedAmountGoOut() async throws {
+        let transport = StubTransport(scripted: [
+            try Self.json(.ok, Components.Schemas.CashOutPreview.sample),
+            try problem(.priceUnavailable, status: 503, "no prices"),
+            try Self.json(.accepted, Components.Schemas.CashOutJob.sample(status: .started)),
+        ])
+        let model = makeModel(transport)
+        await model.load()
+
+        let first = await model.submit(enteredMicros: 1_000_000)
+        let second = await model.submit(enteredMicros: 2_000_000)
+
+        XCTAssertEqual(first, .refused("Prices are delayed. Try again in a minute."))
+        guard case .started = second else { return XCTFail("expected a job, got \(String(describing: second))") }
+        let posts = try await posts(transport)
+        XCTAssertEqual(posts.map(\.body), ["1000000", "2000000"].map { ["usdc_micros": $0] as NSDictionary })
+        XCTAssertNotEqual(posts[0].key, posts[1].key)
+    }
+
+    func testMissingPricesKeepTheKeyForTheSameAmount() async throws {
+        let transport = StubTransport(scripted: [
+            try Self.json(.ok, Components.Schemas.CashOutPreview.sample),
+            try problem(.priceUnavailable, status: 503, "no prices"),
+            try Self.json(.accepted, Components.Schemas.CashOutJob.sample(status: .started)),
+        ])
+        let model = makeModel(transport)
+        await model.load()
+        _ = await model.submit(enteredMicros: 1_000_000)
+
+        let second = await model.submit(enteredMicros: 1_000_000)
+
+        guard case .started = second else { return XCTFail("expected a job, got \(String(describing: second))") }
+        let posts = try await posts(transport)
+        XCTAssertEqual(posts[0].key, posts[1].key)
+    }
+
+    func testAnUnconfirmedCashOutStillLocksTheAmountAfterAPriceDelay() async throws {
+        let transport = StubTransport(scripted: [
+            try Self.json(.ok, Components.Schemas.CashOutPreview.sample),
+            try problem(.priceUnavailable, status: 503, "no prices"),
+            .failure(URLError(.networkConnectionLost)),
+        ])
+        let model = makeModel(transport)
+        await model.load()
+        _ = await model.submit(enteredMicros: 1_000_000)
+        _ = await model.submit(enteredMicros: 2_000_000)
+
+        let third = await model.submit(enteredMicros: 3_000_000)
+
+        XCTAssertEqual(third, .refused(MoneyFlowCopy.unconfirmed.summary))
+        let count = await transport.sent.filter { $0.method == .post }.count
+        XCTAssertEqual(count, 2)
+    }
+
     func posts(_ transport: StubTransport) async throws -> [(key: String?, body: NSDictionary)] {
         let name = try idempotencyKey()
         let sent = await transport.sent

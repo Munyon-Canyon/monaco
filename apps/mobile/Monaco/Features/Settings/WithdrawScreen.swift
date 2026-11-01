@@ -22,6 +22,7 @@ struct WithdrawScreen: View {
         .toolbar(.hidden, for: .tabBar)
         .toolbar(.hidden, for: .navigationBar)
         .navigationBarBackButtonHidden()
+        .onDisappear { model?.dismiss() }
         .analyticsScreen("withdraw", step: .withdraw(.withdrawOpened))
         .task { await open() }
     }
@@ -61,7 +62,7 @@ struct WithdrawKeypadView: View {
             .invalid(
                 limitLine: WithdrawCopy.limitLine(maxMicros: max, overMicros: over), slot: model.limitSlot ?? "")
         case .settled: .settled(line: model.line ?? "")
-        case .typed, .belowMinimum, .needsAddress, .submitting, .failed: .typed
+        case .typed, .belowMinimum, .needsAddress, .submitting, .processing, .failed: .typed
         }
     }
 
@@ -77,7 +78,7 @@ struct WithdrawKeypadView: View {
 
     private var isLocked: Bool {
         switch model.state {
-        case .settled, .submitting: true
+        case .settled, .submitting, .processing: true
         default: false
         }
     }
@@ -90,8 +91,13 @@ struct WithdrawKeypadView: View {
         if let check = model.checkLine {
             return AmountKeypadAction(title: check, settledTitle: check, perform: {})
         }
-        if case .submitting = model.state {
+        switch model.state {
+        case .submitting:
+            return AmountKeypadAction(title: model.buttonTitle ?? "", isWorking: true, keepsOpen: true, perform: {})
+        case .processing:
             return AmountKeypadAction(title: model.buttonTitle ?? "", isWorking: true, perform: {})
+        default:
+            break
         }
         guard let title = model.buttonTitle else { return nil }
         return AmountKeypadAction(title: title, perform: perform)

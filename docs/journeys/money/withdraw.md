@@ -43,7 +43,7 @@ The format of this doc is in [App journeys](../README.md).
 | S1.1 | A | tap | the Profile tab, `profile-settings-row`, then `settings-withdraw` | | `amount-keypad-source` reads "Cash $…" and not "$0.00" within 15 s; `withdraw-address-field` is empty with `withdraw-paste` and `withdraw-scan`; `withdraw-network-solana` is selected |
 | S1.2 | A | type | `withdraw-address-field` | `not a solana address` | `withdraw-address-problem` shows within 5 s and no `amount-keypad-action` shows |
 | S1.3 | A | clear and type, then tap | `withdraw-address-field`, then `amount-keypad-preset-Max` | `{QA.refund_address}` | `withdraw-address-problem` is gone; `amount-keypad-amount` is above "$0" and `amount-keypad-line` reads "≈ … USDC · fee $…" within 15 s |
-| S1.4 | A | tap | `amount-keypad-action` "Withdraw $…" | | `amount-keypad-settled` reads "✓ $… to" and the short address within 10 s, and `amount-keypad-line` reads "Sent just now · arrives on Solana in about a minute". There is no review step |
+| S1.4 | A | tap | `amount-keypad-action` "Withdraw $…" | | The button reads "Withdrawal processing · Pending" until the backend confirms, then `amount-keypad-settled` reads "✓ $… to" and the short address within 120 s, and `amount-keypad-line` reads "Sent just now · arrives on Solana in about a minute". There is no review step |
 
 ### S2 Check a Base withdrawal, then withdraw on Solana
 

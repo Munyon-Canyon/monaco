@@ -108,7 +108,7 @@ enum MoneyWithdrawJourney {
             XCTAssertTrue(withdraw.label.hasPrefix("Withdraw $"), "S1.4: the button reads \(withdraw.label)")
             withdraw.tap()
             let settled = app.element("amount-keypad-settled")
-            XCTAssertTrue(settled.waitForExistence(timeout: 10), "S1.4: no settled button within 10 s")
+            XCTAssertTrue(settled.waitForExistence(timeout: 120), "S1.4: no settled button within 120 s")
             XCTAssertTrue(settled.label.contains(" to "), "S1.4: the settled button reads \(settled.label)")
             XCTAssertTrue(
                 JoinJourney.waitForLabel(

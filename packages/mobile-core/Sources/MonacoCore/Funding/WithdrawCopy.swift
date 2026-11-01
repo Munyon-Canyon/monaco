@@ -16,6 +16,7 @@ public enum WithdrawCopy {
     public static let addAddress = "Add an address"
     public static let feeFailed = "Couldn't get the fee. Try again."
     public static let invalidAddress = "That address can't receive USDC from here."
+    public static let processing = "Withdrawal processing · Pending"
     public static let ownDeposit = "That's your own Monaco deposit address. Paste the address you want to send to."
 
     public static func dollars(_ micros: Int64) -> String {

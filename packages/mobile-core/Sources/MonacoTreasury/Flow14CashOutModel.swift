@@ -5,6 +5,7 @@ public enum CashOutRefusal: Equatable, Sendable {
     case paused
     case inProgress
     case sliceChanged
+    case pricesDelayed
     case invalidRequest
     case unconfirmed
     case message(String)
@@ -21,7 +22,7 @@ public enum CashOutRefusal: Equatable, Sendable {
         case .insufficientShares:
             self = .sliceChanged
         case .priceUnavailable:
-            self = .sliceChanged
+            self = .pricesDelayed
         case .invalidInput:
             self = .invalidRequest
         case .privyUnavailable:
