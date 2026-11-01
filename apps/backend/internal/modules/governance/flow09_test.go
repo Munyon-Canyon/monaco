@@ -5,6 +5,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
@@ -161,4 +162,13 @@ func (w *tradeWorld) voters() []map[string]any {
 		}
 	}
 	return out
+}
+
+func TestProposeTrade_UnpricedAssetBuyRefused(t *testing.T) {
+	t.Parallel()
+	w := newTradeWorld(t)
+	unpriced := marketfake.AAPLx()
+	unpriced.LastQuotedAt = time.Time{}
+	w.catalog.Put(unpriced)
+	w.refused(t, w.asMember(), buyAAPL, errs.CodePriceUnavailable)
 }

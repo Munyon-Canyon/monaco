@@ -267,6 +267,8 @@ func (h *ExecuteTradeHandler) tradable(
 		return SwapRequest{}, market.Asset{}, refusal{}, err
 	case !asset.Tradable() || asset.Mint.Address() != cmd.Mint && !routedRetry:
 		return SwapRequest{}, market.Asset{}, untradable, nil
+	case cmd.Action == domain.ActionBuy && !asset.Priced():
+		return SwapRequest{}, market.Asset{}, untradable, nil
 	}
 	wallet, err := h.d.Ports.Cabals.TreasuryWallet(ctx, cmd.CabalID)
 	if err != nil {

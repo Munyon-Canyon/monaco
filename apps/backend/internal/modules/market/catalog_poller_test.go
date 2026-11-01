@@ -164,6 +164,7 @@ func TestCatalogPoller_InsertsAndUpdates(t *testing.T) {
 	first := rig.asset(t, "AAPLx")
 	want := marketfake.AAPLx()
 	want.ID, want.FirstSeenAt, want.UpdatedAt = first.ID, first.FirstSeenAt, first.UpdatedAt
+	want.LastQuotedAt = time.Time{}
 	if first != want || !first.FirstSeenAt.Equal(inserted) || !first.UpdatedAt.Equal(inserted) {
 		t.Fatalf("inserted AAPLx = %+v, want %+v stamped %v", first, want, inserted)
 	}
