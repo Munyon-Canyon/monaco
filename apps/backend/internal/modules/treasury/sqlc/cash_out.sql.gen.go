@@ -292,13 +292,9 @@ WITH settled AS (
     returned_units = $3::text::numeric, result_code = NULLIF($4::text, ''),
     updated_at = $5::timestamptz
   WHERE id = $6::uuid AND status = 'selling'
-  RETURNING id, status
-), failed AS (
-  UPDATE user_txns SET status = 'failed'
-  WHERE transfer_id IN (SELECT id FROM settled WHERE status = 'failed') AND kind = 'cash_out' AND status = 'pending'
-  RETURNING 1
+  RETURNING id
 )
-SELECT (SELECT count(*) FROM settled)::bigint AS settled, (SELECT count(*) FROM failed)::bigint AS failed
+SELECT count(*)::bigint AS settled FROM settled
 `
 
 type SettleCashOutSaleParams struct {
@@ -310,12 +306,7 @@ type SettleCashOutSaleParams struct {
 	ID            uuid.UUID
 }
 
-type SettleCashOutSaleRow struct {
-	Settled int64
-	Failed  int64
-}
-
-func (q *Queries) SettleCashOutSale(ctx context.Context, arg SettleCashOutSaleParams) (SettleCashOutSaleRow, error) {
+func (q *Queries) SettleCashOutSale(ctx context.Context, arg SettleCashOutSaleParams) (int64, error) {
 	row := q.db.QueryRow(ctx, settleCashOutSale,
 		arg.ToStatus,
 		arg.PayoutMicros,
@@ -324,7 +315,7 @@ func (q *Queries) SettleCashOutSale(ctx context.Context, arg SettleCashOutSalePa
 		arg.At,
 		arg.ID,
 	)
-	var i SettleCashOutSaleRow
-	err := row.Scan(&i.Settled, &i.Failed)
-	return i, err
+	var settled int64
+	err := row.Scan(&settled)
+	return settled, err
 }

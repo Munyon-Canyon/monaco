@@ -100,29 +100,6 @@ func TestCashOutEnd(t *testing.T) {
 	}
 }
 
-func TestCashOutReturn_aFailedOriginalReturnsOnlyTheUnits(t *testing.T) {
-	t.Parallel()
-	h := domain.UserTxnHeader{
-		ID: uuid.UUID{2}, CabalID: ids.CabalIDFrom(uuid.UUID{1}), Kind: domain.UserCashOut,
-		Status: domain.TxnSettled,
-	}
-	failed := settle(t, 100, 3_000_000, 0)
-	failed.PendingFailed = true
-	txn, err := domain.CashOutReturn(h, usdc, failed)
-	if err != nil || len(txn.Entries()) != 2 {
-		t.Fatalf("entries = %d, %v, want only the share pair", len(txn.Entries()), err)
-	}
-	for _, e := range txn.Entries() {
-		if e.Asset == usdc {
-			t.Fatalf("entry %+v moves USDC, want none", e)
-		}
-	}
-	noUnits := domain.SaleSettlement{Unpaid: money.MicrosFromUint64(1), PendingFailed: true}
-	if _, err := domain.CashOutReturn(h, usdc, noUnits); err == nil {
-		t.Fatal("no legs at all: err = nil")
-	}
-}
-
 func TestCashOutReturn_reCreditsTheUnpaidUSDCAndTheReturnedUnits(t *testing.T) {
 	t.Parallel()
 	cabal := ids.CabalIDFrom(uuid.UUID{1})
@@ -154,5 +131,23 @@ func TestCashOutReturn_reCreditsTheUnpaidUSDCAndTheReturnedUnits(t *testing.T) {
 	}
 	if _, err := domain.CashOutReturn(h, usdc, huge); err == nil {
 		t.Fatal("returned units above int64: err = nil")
+	}
+}
+
+func TestCashOutUndoSale_negatesEveryLegAndRefusesAnUnbalancedSet(t *testing.T) {
+	t.Parallel()
+	cabal := ids.CabalIDFrom(uuid.UUID{1})
+	h := domain.UserTxnHeader{ID: uuid.UUID{2}, CabalID: cabal, Kind: domain.UserCashOut, Status: domain.TxnSettled}
+	legs := []domain.UserEntry{
+		{Account: domain.UserCabal, Asset: usdc, Amount: money.SignedMicrosFromInt64(15)},
+		{Account: domain.UserWallet, Asset: usdc, Amount: money.SignedMicrosFromInt64(-15)},
+	}
+	txn, err := domain.CashOutUndoSale(h, legs)
+	if err != nil || len(txn.Entries()) != 2 || txn.Entries()[0].Amount.Int64() != -15 ||
+		txn.Entries()[1].Amount.Int64() != 15 {
+		t.Fatalf("entries = %+v, %v, want both legs negated", txn.Entries(), err)
+	}
+	if _, err := domain.CashOutUndoSale(h, legs[:1]); err == nil {
+		t.Fatal("an unbalanced set: err = nil")
 	}
 }

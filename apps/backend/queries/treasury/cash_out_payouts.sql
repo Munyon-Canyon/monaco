@@ -47,11 +47,6 @@ SET status = sqlc.arg(to_status)::text, result_code = coalesce(NULLIF(sqlc.arg(r
   updated_at = sqlc.arg(at)::timestamptz
 WHERE id = sqlc.arg(id)::uuid AND status = sqlc.arg(from_status)::text;
 
--- name: FailUnpairedUserTransfer :execrows
-UPDATE user_txns SET status = 'failed'
-WHERE transfer_id = sqlc.arg(transfer_id)::uuid AND status = 'pending'
-  AND NOT EXISTS (SELECT 1 FROM cabal_txns WHERE transfer_id = sqlc.arg(transfer_id)::uuid);
-
 -- name: CashOutSalesStuck :many
 SELECT j.id, j.cabal_id, j.user_id, j.share_units::text AS share_units, j.payout_micros::text AS payout_micros,
   j.sell_usdc_micros::text AS sell_usdc_micros, j.cause, j.created_at

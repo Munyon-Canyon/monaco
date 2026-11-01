@@ -59,9 +59,7 @@ func TestCashOutPayout_aStoreFailureWhileResolvingMovesNoMoney(t *testing.T) {
 		{"rejection refused", refuse("cash_out_payouts", "NEW.status = 'failed'"), refused(), errs.CodeInternal},
 		{"member txn fail refused", refuse("user_txns", "NEW.status = 'failed'"), refused(), errs.CodeInternal},
 		{"member txn already gone", skip("user_txns", "NEW.status = 'failed'"), refused(), errs.CodeInternal},
-		{"return post refused", refuse("user_txns", "NEW.status = 'settled'"), refused(), errs.CodeInternal},
 		{"failed event refused", refuse("events", "NEW.type = 'cashout.failed'"), refused(), errs.CodeInternal},
-		{"refund above int64", hugePayout, refused(), errs.CodeInvalidInput},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
