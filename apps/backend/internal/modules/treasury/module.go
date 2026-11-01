@@ -311,6 +311,7 @@ func (m *Module) Pollers() []poller.Poller {
 		})},
 		adapters.CashOutSweeper{Payouts: m.payouts()},
 		adapters.WindDownPoller{WindDown: m.windDown(), Every: cfg.Funding.WindDownInterval},
+		adapters.LedgerReconcile{Reads: m.deps.Pool, Clock: m.deps.Clock, Every: ledgerReconcileEvery},
 	}
 }
 
@@ -497,7 +498,10 @@ func (m *Module) ledger() app.Ledger {
 	return app.NewLedger(chain.SolanaAddress(m.deps.Config.Solana.USDCMint), m.deps.Clock)
 }
 
-const usdcDecimals = 6
+const (
+	usdcDecimals         = 6
+	ledgerReconcileEvery = time.Minute
+)
 
 func usdc(cfg config.Config) domain.Asset {
 	return domain.MintAsset(chain.SolanaAddress(cfg.Solana.USDCMint))

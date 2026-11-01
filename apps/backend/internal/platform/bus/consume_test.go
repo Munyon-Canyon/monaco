@@ -52,6 +52,7 @@ type deadLetter struct {
 	Error    string          `json:"error"`
 	Data     json.RawMessage `json:"data"`
 	Advisory json.RawMessage `json:"advisory"`
+	Alert    bool            `json:"alert"`
 	subject  string
 }
 
@@ -430,6 +431,7 @@ func TestDispatch_aFailedHoldStillNaksTheSource(t *testing.T) {
 	reg := h.registry(t, bus.Consumer{Durable: durable, Handlers: []bus.HandlerSpec{terminalOwn(h, &runs)}})
 	_, msg := h.pingMsg(t)
 	msg.header = nats.Header{jetstream.MsgIDHeader: []string{h.ids.NewV7().String()}}
+	msg.meta.NumDelivered = bus.MaxDeliver
 	h.breakDeadLetter(t)
 
 	reg.Dispatch(h.ctx(t), durable, msg)

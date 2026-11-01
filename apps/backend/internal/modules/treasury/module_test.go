@@ -37,6 +37,7 @@ func TestModule_pollsFundsAndSweepsCashOuts(t *testing.T) {
 		"treasury.fund-transfers",
 		"treasury.cashout-sweeper",
 		"treasury.winddown",
+		"treasury.ledger-reconcile",
 	}; !slices.Equal(
 		names,
 		want,

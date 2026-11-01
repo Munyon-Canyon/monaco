@@ -18,5 +18,6 @@ func init() {
 		TreasuryWindDownCompleted,
 		TreasuryWindDownStuck,
 		TreasuryWindDownMemberFailed,
+		TreasuryLedgerUnbooked,
 	)
 }

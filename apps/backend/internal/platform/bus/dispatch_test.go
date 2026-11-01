@@ -639,7 +639,7 @@ func TestNewRegistry_panicsOnDuplicateDurableOrHandlerName(t *testing.T) {
 	}
 }
 
-func TestDispatch_eventIDMissingFromTheEventsTableTerms(t *testing.T) {
+func TestDispatch_eventIDMissingFromTheEventsTableNaksUntilTheFinalDeliveryTerms(t *testing.T) {
 	t.Parallel()
 	h := newHarness(t)
 	reg := h.registry(t, bus.Consumer{Durable: durable, Handlers: []bus.HandlerSpec{h.recorder("notify.push")}})
@@ -652,10 +652,17 @@ func TestDispatch_eventIDMissingFromTheEventsTableTerms(t *testing.T) {
 	}
 
 	reg.Dispatch(h.ctx(t), durable, msg)
-	if msg.verdict != "term" {
-		t.Fatalf("verdict = %q for an event id with no events row, want term", msg.verdict)
+	if msg.verdict != "nak" {
+		t.Fatalf("verdict = %q for an event id with no events row, want nak until retries run out", msg.verdict)
 	}
-	h.assertLines(t, "bus.dispatched", map[string]any{"outcome": "term", "code": "internal", "alert": true})
+	last := fromMsg(msg, bus.MaxDeliver)
+	reg.Dispatch(h.ctx(t), durable, last)
+	if last.verdict != "term" {
+		t.Fatalf("verdict = %q on the final delivery, want term", last.verdict)
+	}
+	h.assertLines(t, "bus.dispatched",
+		map[string]any{"outcome": "nak", "code": "internal", "level": "WARN"},
+		map[string]any{"outcome": "term", "code": "internal", "alert": true})
 	if d, hd := h.deliveries(t), h.handled(t); len(d) != 0 || len(hd) != 0 {
 		t.Fatalf("event_deliveries = %v, handled = %v, want neither", d, hd)
 	}

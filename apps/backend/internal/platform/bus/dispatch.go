@@ -47,6 +47,8 @@ type result struct {
 	err     error
 	own     bool
 	id      ids.EventID
+	retried bool
+	alert   bool
 }
 
 func (r *Registry) Dispatch(ctx context.Context, durable string, msg jetstream.Msg) {
@@ -161,8 +163,11 @@ func (r *Registry) decode(handlers []HandlerSpec, msg jetstream.Msg) (ids.EventI
 func failed(handler string, err error) result {
 	code := db.CodeOf(err)
 	res := result{handler: handler, outcome: OutcomeTerm, code: string(code), err: err}
-	if errs.VerdictFor(code) == errs.VerdictNak {
+	switch {
+	case errs.VerdictFor(code) == errs.VerdictNak:
 		res.outcome = OutcomeNak
+	case code == errs.CodeInternal && db.IsIntegrityViolation(err):
+		res.outcome, res.retried = OutcomeNak, true
 	}
 	return res
 }
@@ -363,6 +368,7 @@ type DeadLetter struct {
 	Headers  nats.Header     `json:"headers,omitempty"`
 	Data     json.RawMessage `json:"data,omitempty"`
 	Advisory json.RawMessage `json:"advisory,omitempty"`
+	Alert    bool            `json:"alert,omitempty"`
 }
 
 func (l DeadLetter) EventID() string { return EventIDOf(l.Headers) }
@@ -373,6 +379,9 @@ func (r *Registry) respond(
 	verdict := OutcomeAck
 	code := ""
 	for _, res := range results {
+		if res.retried && delivery >= MaxDeliver {
+			res.outcome, res.alert = OutcomeTerm, true
+		}
 		r.log(ctx, msg.Subject(), res)
 		switch {
 		case res.outcome == OutcomeNak:
@@ -423,7 +432,7 @@ func (r *Registry) termLetter(
 	err := r.storeLetter(ctx, durable, DeadLetter{
 		Consumer: durable, Handler: res.handler, Subject: msg.Subject(),
 		MsgID: msg.Headers().Get(jetstream.MsgIDHeader), Delivery: delivery,
-		Code: res.code, Error: res.err.Error(), Headers: msg.Headers(), Data: rawJSON(msg.Data()),
+		Code: res.code, Error: res.err.Error(), Headers: msg.Headers(), Data: rawJSON(msg.Data()), Alert: res.alert,
 	}, res.handler)
 	if err != nil {
 		r.holdLetter(ctx, durable, res)
