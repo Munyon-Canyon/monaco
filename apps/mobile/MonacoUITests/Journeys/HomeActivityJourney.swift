@@ -19,11 +19,11 @@ enum HomeActivityJourney {
         recorder.step("S1.1", "the bell shows the count and opens Catch up") {
             app.tab("Home").tap()
             XCTAssertTrue(JourneyDiagnostics.wait(for: bell, in: app, timeout: 15), "S1.1: no bell on Home")
-            let counted = NSPredicate(format: "label == %@", "Catch up, 3 new")
+            let counted = NSPredicate(format: "label == %@", "Catch up, 3 to catch up")
             let countedBell = XCTNSPredicateExpectation(predicate: counted, object: bell)
             XCTAssertEqual(
                 XCTWaiter().wait(for: [countedBell], timeout: 15), .completed,
-                "S1.1: the bell reads '\(bell.label)', not 'Catch up, 3 new'")
+                "S1.1: the bell reads '\(bell.label)', not 'Catch up, 3 to catch up'")
             bell.tap()
             XCTAssertTrue(app.navigationBars["Catch up"].waitForExistence(timeout: 15), "S1.1: Catch up did not open")
             XCTAssertTrue(JourneyDiagnostics.wait(for: subline, in: app, timeout: 15), "S1.1: no catch-up-subline")
@@ -108,10 +108,10 @@ enum HomeActivityJourney {
             let two = XCTNSPredicateExpectation(
                 predicate: NSPredicate(
                     format: "label == %@",
-                    "Catch up, 2 new"), object: bell)
+                    "Catch up, 2 to catch up"), object: bell)
             XCTAssertEqual(
                 XCTWaiter().wait(for: [two], timeout: 15), .completed,
-                "S1.5: the bell reads '\(bell.label)', not 'Catch up, 2 new'")
+                "S1.5: the bell reads '\(bell.label)', not 'Catch up, 2 to catch up'")
         }
     }
 }

@@ -16,6 +16,7 @@ public enum CatchUpCopy {
     public static let clearAction = "Clear"
     public static let caughtUpTitle = "You're caught up"
     public static let openFeed = "Open Feed"
+    public static let fillFailedMarker = "didn't go through"
     public static let clearFailedToast = "Couldn't clear that. Try again."
     public static let noCabalsLine = "When a cabal you're in votes, it lands here first."
 
@@ -191,7 +192,8 @@ public enum CatchUpCopy {
         case .failed: verb = "failed"
         case .expired, nil: verb = "closed"
         }
-        return "\(proposalTitle(proposal)) \(verb) \(proposal.yes)–\(proposal.no)"
+        let line = "\(proposalTitle(proposal)) \(verb) \(proposal.yes)–\(proposal.no)"
+        return proposal.outcome == .fillFailed ? "\(line) · \(fillFailedMarker)" : line
     }
 
     public static func resultSubtitle(_ item: Item) -> String {

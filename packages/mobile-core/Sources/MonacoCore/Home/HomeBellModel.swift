@@ -23,7 +23,7 @@ public final class HomeBellModel {
     }
 
     public var accessibilityLabel: String {
-        count > 0 ? "Catch up, \(count) new" : "Catch up"
+        count > 0 ? "Catch up, \(count) to catch up" : "Catch up"
     }
 
     public func load() async {

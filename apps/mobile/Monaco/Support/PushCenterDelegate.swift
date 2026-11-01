@@ -41,15 +41,24 @@ final class PushCenterDelegate: NSObject, @preconcurrency UNUserNotificationCent
     ) async -> UNNotificationPresentationOptions {
         let userInfo = notification.request.content.userInfo
         let shown = (userInfo["proposal_id"] as? String).flatMap { router.isShowing(proposalID: $0) ? $0 : nil }
-        return Self.presentation(for: userInfo, shownProposalID: shown)
+        let shownChat = (userInfo["cabal_id"] as? String).flatMap { router.isShowing(chatCabalID: $0) ? $0 : nil }
+        return Self.presentation(for: userInfo, shownProposalID: shown, shownChatCabalID: shownChat)
     }
+
+    private static let chatKinds: Set<String> = ["chat_mention", "chat_thread_reply"]
 
     static func presentation(
         for userInfo: [AnyHashable: Any],
-        shownProposalID: String? = nil
+        shownProposalID: String? = nil,
+        shownChatCabalID: String? = nil
     ) -> UNNotificationPresentationOptions {
         if userInfo["kind"] as? String == "deposit_credited" { return [] }
         if let shownProposalID, userInfo["proposal_id"] as? String == shownProposalID { return [.list] }
+        if let shownChatCabalID, userInfo["cabal_id"] as? String == shownChatCabalID,
+            let kind = userInfo["kind"] as? String, chatKinds.contains(kind)
+        {
+            return [.list]
+        }
         return [.banner, .list, .sound]
     }
 
