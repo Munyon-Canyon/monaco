@@ -3,6 +3,7 @@ package funding
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel"
@@ -282,6 +283,10 @@ func (m *Module) Pollers() []poller.Poller {
 }
 
 func (m *Module) Balances() port.Balances { return m.balanceReader() }
+
+func (*Module) DepositArriving(ctx context.Context, q dbsqlc.DBTX, user ids.UserID, at time.Time) (bool, error) {
+	return adapters.ArrivingDeposits{}.DepositArriving(ctx, q, user, at)
+}
 
 func (m *Module) balanceReader() *adapters.Balances {
 	if m.balances != nil {

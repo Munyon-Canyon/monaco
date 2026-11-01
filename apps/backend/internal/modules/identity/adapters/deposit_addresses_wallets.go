@@ -11,6 +11,7 @@ import (
 type EVMDepositWallet struct {
 	UserID   ids.UserID
 	WalletID string
+	Deleted  bool
 }
 
 type EnrolledEVMWallets struct{ q *sqlc.Queries }
@@ -30,7 +31,11 @@ func (w EnrolledEVMWallets) EVMDepositWallets(
 	}
 	page := make([]EVMDepositWallet, len(rows))
 	for i, row := range rows {
-		page[i] = EVMDepositWallet{UserID: ids.UserIDFrom(row.UserID), WalletID: row.EvmPrivyWalletID}
+		page[i] = EVMDepositWallet{
+			UserID:   ids.UserIDFrom(row.UserID),
+			WalletID: row.EvmPrivyWalletID,
+			Deleted:  row.Deleted,
+		}
 	}
 	return page, nil
 }

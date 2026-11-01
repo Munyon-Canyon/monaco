@@ -2622,7 +2622,8 @@ paths:
       description: >-
         Deletes the caller's account once nothing is left in it. A stake in any cabal is
         account_has_positions and any platform balance is account_has_balance; cash out and withdraw
-        first. Deletion scrubs the caller's personal fields and keeps the handle, so no one can claim it.
+        first. A card or Base deposit still on its way is account_has_arriving_deposit, and a creator
+        whose cabal still has other members is leave_creator_with_members. Deletion scrubs the caller's personal fields and keeps the handle, so no one can claim it.
         A suspended or banned user may delete too. Every later request with the same token is
         account_deleted.
       parameters:
@@ -7249,6 +7250,7 @@ components:
         - access_request_not_pending
         - account_banned
         - account_deleted
+        - account_has_arriving_deposit
         - account_has_balance
         - account_has_positions
         - account_status_transition

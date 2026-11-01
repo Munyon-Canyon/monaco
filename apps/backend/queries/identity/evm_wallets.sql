@@ -11,8 +11,9 @@ FROM user_wallets
 WHERE user_id = $1 AND evm_privy_wallet_id IS NOT NULL;
 
 -- name: EVMDepositWalletsAfter :many
-SELECT user_id, evm_privy_wallet_id::text AS evm_privy_wallet_id
-FROM user_wallets
-WHERE evm_privy_wallet_id IS NOT NULL AND user_id > sqlc.arg(after)
-ORDER BY user_id
+SELECT w.user_id, w.evm_privy_wallet_id::text AS evm_privy_wallet_id, (u.account_status = 'deleted')::boolean AS deleted
+FROM user_wallets w
+JOIN users u ON u.id = w.user_id
+WHERE w.evm_privy_wallet_id IS NOT NULL AND w.user_id > sqlc.arg(after)
+ORDER BY w.user_id
 LIMIT sqlc.arg(page_size)::bigint;

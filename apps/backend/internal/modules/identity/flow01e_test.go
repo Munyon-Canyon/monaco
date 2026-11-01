@@ -5,11 +5,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/monaco/monaco/apps/backend/internal/modules/cabal"
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
 	privyadapter "github.com/monaco/monaco/apps/backend/internal/modules/identity/adapters/privy"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury"
+	dbsqlc "github.com/monaco/monaco/apps/backend/internal/platform/db/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
@@ -34,10 +36,12 @@ type fundedEveryone struct {
 	micros uint64
 }
 
-func (b fundedEveryone) Available(ctx context.Context, user ids.UserID) (funding.Balance, error) {
+func (b fundedEveryone) AvailableIn(
+	ctx context.Context, q dbsqlc.DBTX, obs funding.Observation,
+) (funding.Balance, error) {
 	left := money.MicrosFromUint64(b.micros)
-	b.Set(user, funding.Balance{OnChainMicros: left, AvailableMicros: left})
-	return b.Balances.Available(ctx, user)
+	b.Set(obs.User, funding.Balance{OnChainMicros: left, AvailableMicros: left})
+	return b.Balances.AvailableIn(ctx, q, obs)
 }
 
 func deleteScenario(
@@ -54,6 +58,7 @@ func deleteScenario(
 			d.Config.Identity.PhotoPurgesInterval = time.Second
 			return identity.New(d,
 				identity.WithPrivy(users, wallets), identity.WithHoldings(stakes, balances),
+				identity.WithDeleteChecks(funding.New(d), cabal.New(d)),
 				identity.WithPhotoStore(&photoStore{}),
 			)
 		}),
@@ -85,6 +90,16 @@ func TestFlow01e_DeleteAccount_AccountHasPositions(t *testing.T) {
 	flows.F01eDeleteAccountAccountHasPositions(
 		deleteScenario(t, stakedEveryone{fakes.NewTreasury()}, fakes.NewBalances()),
 	)
+}
+
+func TestFlow01e_DeleteAccount_AccountHasArrivingDeposit(t *testing.T) {
+	t.Parallel()
+	flows.F01eDeleteAccountAccountHasArrivingDeposit(deleteScenario(t, fakes.NewTreasury(), fakes.NewBalances()))
+}
+
+func TestFlow01e_DeleteAccount_LeaveCreatorWithMembers(t *testing.T) {
+	t.Parallel()
+	flows.F01eDeleteAccountLeaveCreatorWithMembers(deleteScenario(t, fakes.NewTreasury(), fakes.NewBalances()))
 }
 
 func TestFlow01e_DeleteAccount_AccountHasBalance(t *testing.T) {

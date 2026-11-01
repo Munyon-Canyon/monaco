@@ -57,6 +57,8 @@ type Module struct {
 	photos     app.PhotoStore
 	stakes     app.Stakes
 	balances   app.Balances
+	arriving   app.Arriving
+	leaders    app.Leaders
 	follows    app.FollowCounts
 	cabals     app.CabalCounts
 	returns    app.Returns
@@ -82,6 +84,10 @@ func WithPhotoStore(store app.PhotoStore) Option {
 
 func WithHoldings(stakes app.Stakes, balances app.Balances) Option {
 	return func(m *Module) { m.stakes, m.balances = stakes, balances }
+}
+
+func WithDeleteChecks(arriving app.Arriving, leaders app.Leaders) Option {
+	return func(m *Module) { m.arriving, m.leaders = arriving, leaders }
 }
 
 func WithFollowCounts(follows app.FollowCounts) Option {
@@ -112,6 +118,7 @@ func New(d module.Deps, opts ...Option) *Module {
 	m := &Module{
 		multichain: newMultichain(d), deps: d, meters: otel.GetMeterProvider(),
 		stakes: app.UnwiredHoldings{}, balances: app.UnwiredHoldings{}, follows: app.UnwiredFollowCounts{},
+		arriving: app.UnwiredDeleteChecks{}, leaders: app.UnwiredDeleteChecks{},
 		cabals: app.UnwiredCabalCounts{}, returns: app.UnwiredReturns{},
 		standings: app.UnwiredStandings{},
 	}
@@ -131,8 +138,22 @@ func (m *Module) Wire(set module.Set) {
 		if fees, ok := mod.(fundingport.DepositFees); ok && m.multichain.depositFees == nil {
 			m.multichain.depositFees = fees
 		}
+		m.wireDeleteChecks(mod)
 		m.wireProvider(mod)
 		m.wireStandings(mod)
+	}
+}
+
+func (m *Module) wireDeleteChecks(mod module.Module) {
+	if provider, ok := mod.(app.Arriving); ok {
+		if _, unwired := m.arriving.(app.UnwiredDeleteChecks); unwired {
+			m.arriving = provider
+		}
+	}
+	if provider, ok := mod.(app.Leaders); ok {
+		if _, unwired := m.leaders.(app.UnwiredDeleteChecks); unwired {
+			m.leaders = provider
+		}
 	}
 }
 
@@ -212,8 +233,8 @@ func (m *Module) Mount(r api.Mount) {
 			Store: store,
 		},
 		Delete: app.NewDeleteAccount(app.DeleteAccountDeps{
-			UoW: m.deps.UoW, Users: adapters.Users{}, Balances: m.balances, Stakes: m.stakes, Clock: m.deps.Clock,
-			Hints: hints,
+			UoW: m.deps.UoW, Users: adapters.Users{}, Balances: m.balances, Stakes: m.stakes, Arriving: m.arriving,
+			Leaders: m.leaders, Clock: m.deps.Clock, Hints: hints,
 		}),
 		Revoke: app.NewRevokeSessionsHandler(app.RevokeSessionsDeps{UoW: m.deps.UoW, Clock: m.deps.Clock}),
 		DevX:   m.devXLink(),

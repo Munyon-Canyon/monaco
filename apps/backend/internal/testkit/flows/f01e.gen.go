@@ -4,9 +4,11 @@ package flows
 
 func (defined) ScriptsF01e() map[string]Script {
 	return map[string]Script{
-		"F01eDeleteAccountOK":                  F01eDeleteAccountOK,
-		"F01eDeleteAccountAccountHasPositions": F01eDeleteAccountAccountHasPositions,
-		"F01eDeleteAccountAccountHasBalance":   F01eDeleteAccountAccountHasBalance,
-		"F01eDeleteAccountCrashBeforeCommit":   F01eDeleteAccountCrashBeforeCommit,
+		"F01eDeleteAccountOK":                        F01eDeleteAccountOK,
+		"F01eDeleteAccountAccountHasPositions":       F01eDeleteAccountAccountHasPositions,
+		"F01eDeleteAccountAccountHasBalance":         F01eDeleteAccountAccountHasBalance,
+		"F01eDeleteAccountAccountHasArrivingDeposit": F01eDeleteAccountAccountHasArrivingDeposit,
+		"F01eDeleteAccountLeaveCreatorWithMembers":   F01eDeleteAccountLeaveCreatorWithMembers,
+		"F01eDeleteAccountCrashBeforeCommit":         F01eDeleteAccountCrashBeforeCommit,
 	}
 }

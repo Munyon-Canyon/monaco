@@ -43,6 +43,7 @@ For a stuck money row, [Money runbook](../how-to/money-runbook.md) maps the sign
 | `funding.deposit.rescanned` | `wallet_address`, `from_signature`, `accounts` |
 | `funding.deposit.residual` | `wallet_address`, `user_id`, `residual_micros`, `observed_micros`, `ledger_micros` |
 | `funding.evm_forward.arriving_unavailable` | `user_id`, `code` |
+| `funding.evm_forward.deleted_user` | `user_id`, `execution_id`, `network`, `amount_micros` |
 | `funding.evm_forward.failed` | `forward_id`, `user_id`, `network`, `failed_since` |
 | `funding.evm_forward.moved` | `forward_id`, `user_id`, `amount_micros`, `status_before`, `status_after` |
 | `funding.evm_forward.stuck` | `forward_id`, `user_id`, `network`, `pending_since` |

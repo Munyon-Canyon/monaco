@@ -48,7 +48,7 @@ func TestDeleteMe_answers204OrTheCommandsError(t *testing.T) {
 	u := d.seedWithPII(t, "active")
 	h := adapters.HTTP{Delete: app.NewDeleteAccount(app.DeleteAccountDeps{
 		UoW: db.New(d.pool, testkit.NewIDs(7), d.clock), Users: adapters.Users{}, Balances: fakes.NewBalances(),
-		Stakes: d.treasury, Clock: d.clock, Hints: d.hints,
+		Stakes: d.treasury, Arriving: d.checks, Leaders: d.checks, Clock: d.clock, Hints: d.hints,
 	})}
 	if _, err := h.DeleteMe(t.Context(), api.DeleteMeRequestObject{}); errs.CodeOf(err) != errs.CodeUnauthorized {
 		t.Fatalf("DeleteMe without actor = %v, want Unauthorized", err)
@@ -80,6 +80,7 @@ func TestDeleteMe_theSamePrivyTokenIsAccountDeletedOnLaterRequests(t *testing.T)
 		identity.WithPrivy(&privyfake.Users{}, &privyfake.Wallets{}),
 		identity.WithHints(&recordedHints{}),
 		identity.WithHoldings(fakes.NewTreasury(), fakes.NewBalances()),
+		identity.WithDeleteChecks(&deleteChecks{}, &deleteChecks{}),
 	).Mount
 	h, err := httpx.HandlerFor(httpx.Deps{
 		Logger: observability.NewLogger(config.Config{Env: config.EnvTest}, &testkit.Logs{}),

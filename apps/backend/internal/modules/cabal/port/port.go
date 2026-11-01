@@ -103,3 +103,7 @@ type Queries interface {
 	BatchReader
 	TreasuryReader
 }
+
+type CabalLeaders interface {
+	LeadsCabalWithMembers(ctx context.Context, q dbsqlc.DBTX, user ids.UserID) (bool, error)
+}

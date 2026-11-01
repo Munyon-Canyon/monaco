@@ -24,3 +24,8 @@ var FundingEVMForwardFailed = Msg{
 	Name:     "funding.evm_forward.failed",
 	Required: []string{"forward_id", "user_id", "network", "failed_since"},
 }
+
+var FundingEVMDepositToDeletedUser = Msg{
+	Name:     "funding.evm_forward.deleted_user",
+	Required: []string{"user_id", "execution_id", "network", "amount_micros"},
+}

@@ -14,6 +14,7 @@ const (
 	AccessRequestNotPending ErrorCode = "access_request_not_pending"
 	AccountBanned ErrorCode = "account_banned"
 	AccountDeleted ErrorCode = "account_deleted"
+	AccountHasArrivingDeposit ErrorCode = "account_has_arriving_deposit"
 	AccountHasBalance ErrorCode = "account_has_balance"
 	AccountHasPositions ErrorCode = "account_has_positions"
 	AccountStatusTransition ErrorCode = "account_status_transition"
@@ -200,6 +201,8 @@ func (e ErrorCode) Valid() bool {
 	case AccountBanned:
 		return true
 	case AccountDeleted:
+		return true
+	case AccountHasArrivingDeposit:
 		return true
 	case AccountHasBalance:
 		return true

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
+	"github.com/monaco/monaco/apps/backend/internal/modules/cabal"
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity/app"
@@ -98,9 +99,69 @@ func TestModule_holdingsFailClosedWhenFundingAndTreasuryAreNotInTheSet(t *testin
 	if _, err := stakes.(app.Stakes).StakesOf(t.Context(), user); errs.CodeOf(err) != errs.CodeUpstreamUnavailable {
 		t.Fatalf("StakesOf err = %v, want upstream_unavailable", err)
 	}
-	_, err := balances.(app.Balances).Available(t.Context(), user)
+	_, err := balances.(app.Balances).Observe(t.Context(), user)
 	if errs.CodeOf(err) != errs.CodeUpstreamUnavailable {
-		t.Fatalf("Available err = %v, want upstream_unavailable", err)
+		t.Fatalf("Observe err = %v, want upstream_unavailable", err)
+	}
+	if _, err := balances.(app.Balances).AvailableIn(
+		t.Context(),
+		nil,
+		funding.Observation{},
+	); errs.CodeOf(
+		err,
+	) != errs.CodeUpstreamUnavailable {
+		t.Fatalf("AvailableIn err = %v, want upstream_unavailable", err)
+	}
+}
+
+func TestModule_deleteChecksFailClosedWhenFundingAndCabalAreNotInTheSet(t *testing.T) {
+	t.Parallel()
+	id := identity.New(module.Deps{})
+	module.NewSet(id)
+	arriving, leaders := id.DeleteChecks()
+	user := ids.UserID{}
+	if _, err := arriving.(app.Arriving).DepositArriving(
+		t.Context(),
+		nil,
+		user,
+		time.Time{},
+	); errs.CodeOf(
+		err,
+	) != errs.CodeUpstreamUnavailable {
+		t.Fatalf("DepositArriving err = %v, want upstream_unavailable", err)
+	}
+	if _, err := leaders.(app.Leaders).LeadsCabalWithMembers(
+		t.Context(),
+		nil,
+		user,
+	); errs.CodeOf(
+		err,
+	) != errs.CodeUpstreamUnavailable {
+		t.Fatalf("LeadsCabalWithMembers err = %v, want upstream_unavailable", err)
+	}
+}
+
+func TestModule_deleteChecksComeFromTheFundingAndCabalModules(t *testing.T) {
+	t.Parallel()
+	d := module.Deps{}
+	id := identity.New(d)
+	fundingModule, cabalModule := funding.New(d), cabal.New(d)
+	module.NewSet(id, fundingModule, cabalModule)
+	arriving, leaders := id.DeleteChecks()
+	if arriving != any(fundingModule) || leaders != any(cabalModule) {
+		t.Fatalf("delete checks = %T, %T, want the funding and cabal modules", arriving, leaders)
+	}
+}
+
+func TestModule_withDeleteChecksWinsOverWire(t *testing.T) {
+	t.Parallel()
+	d := module.Deps{}
+	injected := &deleteChecks{}
+	id := identity.New(d, identity.WithDeleteChecks(injected, injected))
+	module.NewSet(id, funding.New(d), cabal.New(d))
+	arriving, leaders := id.DeleteChecks()
+	if arriving != any(injected) || leaders != any(injected) {
+		t.Fatalf("delete checks = %T, %T, want the injected fakes", arriving, leaders)
 	}
 }
 

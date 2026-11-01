@@ -26,6 +26,7 @@ import (
 const (
 	EVMDepositForwardStuckAfter = 30 * time.Minute
 	EVMDepositArrivalWindow     = 24 * time.Hour
+	OnrampArrivalWindow         = 24 * time.Hour
 	EVMDepositWalletPage        = 100
 	evmDepositExecutionPages    = 50
 	evmDepositStuckBatch        = 100
@@ -41,6 +42,7 @@ const (
 type EVMDepositWallet struct {
 	UserID   ids.UserID
 	WalletID string
+	Deleted  bool
 }
 
 type EVMDepositWallets interface {
@@ -69,11 +71,13 @@ type EVMDepositForwardPoller struct {
 	alerted       map[uuid.UUID]bool
 	failedAlerted map[uuid.UUID]bool
 	reindexed     map[string]bool
+	deletedSeen   map[string]bool
 }
 
 func NewEVMDepositForwardPoller(d EVMDepositForwardDeps) *EVMDepositForwardPoller {
 	return &EVMDepositForwardPoller{
 		d: d, alerted: map[uuid.UUID]bool{}, failedAlerted: map[uuid.UUID]bool{}, reindexed: map[string]bool{},
+		deletedSeen: map[string]bool{},
 	}
 }
 
@@ -146,6 +150,9 @@ func (p *EVMDepositForwardPoller) record(
 	if err := checkExecution(ex); err != nil {
 		return 0, err
 	}
+	if w.Deleted {
+		return 0, p.holdForDeletedUser(ctx, w, ex)
+	}
 	if isUnrouted(ex) {
 		if err := p.reindexUnrouted(ctx, w, ex); err != nil {
 			return 0, err
@@ -171,6 +178,35 @@ func (p *EVMDepositForwardPoller) record(
 		slog.String("amount_micros", change.amount.String()),
 		slog.String("status_before", change.from), slog.String("status_after", change.to))
 	return 1, nil
+}
+
+func (p *EVMDepositForwardPoller) holdForDeletedUser(
+	ctx context.Context, w EVMDepositWallet, ex multichain.Execution,
+) error {
+	if ex.AmountMicros.IsZero() {
+		return nil
+	}
+	_, err := sqlc.New(p.d.Reads).EVMDepositForwardStatusByExecution(ctx, ex.ID)
+	switch {
+	case err == nil:
+		return nil
+	case !errors.Is(err, sql.ErrNoRows):
+		return errs.Wrap(err, errs.CodeInternal, "funding.EVMDepositForward.deleted")
+	case p.deletedSeenOnce(ex.ID):
+		return nil
+	}
+	observability.Alert(ctx, observability.FundingEVMDepositToDeletedUser,
+		slog.String("user_id", w.UserID.String()), slog.String("execution_id", ex.ID),
+		slog.String("network", string(ex.Network)), slog.String("amount_micros", ex.AmountMicros.String()))
+	return nil
+}
+
+func (p *EVMDepositForwardPoller) deletedSeenOnce(executionID string) bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	seen := p.deletedSeen[executionID]
+	p.deletedSeen[executionID] = true
+	return seen
 }
 
 func isUnrouted(ex multichain.Execution) bool {

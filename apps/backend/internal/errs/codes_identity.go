@@ -1,31 +1,32 @@
 package errs
 
 const (
-	CodeUserNotFound            Code = "user_not_found"
-	CodeSessionRequired         Code = "session_required"
-	CodeAccountSuspended        Code = "account_suspended"
-	CodeAccountBanned           Code = "account_banned"
-	CodeAccountDeleted          Code = "account_deleted"
-	CodeLoginMethodNotAllowed   Code = "login_method_not_allowed"
-	CodeHandleRequired          Code = "handle_required"
-	CodeHandleTaken             Code = "handle_taken"
-	CodeHandleReserved          Code = "handle_reserved"
-	CodeHandleTooSoon           Code = "handle_too_soon"
-	CodePhoneNotLinked          Code = "phone_not_linked"
-	CodePhoneLinkedElsewhere    Code = "phone_linked_elsewhere"
-	CodeXNotLinked              Code = "x_not_linked"
-	CodeXLinkedElsewhere        Code = "x_linked_elsewhere"
-	CodeAccountHasBalance       Code = "account_has_balance"
-	CodeAccountHasPositions     Code = "account_has_positions"
-	CodeAccountStatusTransition Code = "account_status_transition"
-	CodeHandleInvalid           Code = "handle_invalid"
-	CodeDisplayNameInvalid      Code = "display_name_invalid"
-	CodePhotoInvalid            Code = "photo_invalid"
-	CodeAuthStateTransition     Code = "auth_state_transition"
-	CodeWalletMismatch          Code = "wallet_mismatch"
-	CodeAlreadyBanned           Code = "already_banned"
-	CodeNotBanned               Code = "not_banned"
-	CodeUserDeleted             Code = "user_deleted"
+	CodeUserNotFound              Code = "user_not_found"
+	CodeSessionRequired           Code = "session_required"
+	CodeAccountSuspended          Code = "account_suspended"
+	CodeAccountBanned             Code = "account_banned"
+	CodeAccountDeleted            Code = "account_deleted"
+	CodeLoginMethodNotAllowed     Code = "login_method_not_allowed"
+	CodeHandleRequired            Code = "handle_required"
+	CodeHandleTaken               Code = "handle_taken"
+	CodeHandleReserved            Code = "handle_reserved"
+	CodeHandleTooSoon             Code = "handle_too_soon"
+	CodePhoneNotLinked            Code = "phone_not_linked"
+	CodePhoneLinkedElsewhere      Code = "phone_linked_elsewhere"
+	CodeXNotLinked                Code = "x_not_linked"
+	CodeXLinkedElsewhere          Code = "x_linked_elsewhere"
+	CodeAccountHasBalance         Code = "account_has_balance"
+	CodeAccountHasPositions       Code = "account_has_positions"
+	CodeAccountHasArrivingDeposit Code = "account_has_arriving_deposit"
+	CodeAccountStatusTransition   Code = "account_status_transition"
+	CodeHandleInvalid             Code = "handle_invalid"
+	CodeDisplayNameInvalid        Code = "display_name_invalid"
+	CodePhotoInvalid              Code = "photo_invalid"
+	CodeAuthStateTransition       Code = "auth_state_transition"
+	CodeWalletMismatch            Code = "wallet_mismatch"
+	CodeAlreadyBanned             Code = "already_banned"
+	CodeNotBanned                 Code = "not_banned"
+	CodeUserDeleted               Code = "user_deleted"
 )
 
 func (codeFiles) Identity() map[Code]Row {
@@ -67,6 +68,10 @@ func (codeFiles) Identity() map[Code]Row {
 		CodeAccountHasPositions: {
 			Name: "AccountHasPositions", Kind: KindBlocked,
 			Message: "Cash out of every cabal before you delete your account.",
+		},
+		CodeAccountHasArrivingDeposit: {
+			Name: "AccountHasArrivingDeposit", Kind: KindBlocked,
+			Message: "A deposit is still arriving. Try again once it lands.",
 		},
 		CodeAccountStatusTransition: {
 			Name: "AccountStatusTransition", Kind: KindBlocked,

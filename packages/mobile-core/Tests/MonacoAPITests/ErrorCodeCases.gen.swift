@@ -6,6 +6,7 @@ extension Components.Schemas.ErrorCode {
         case .accessRequestNotPending: true
         case .accountBanned: true
         case .accountDeleted: true
+        case .accountHasArrivingDeposit: true
         case .accountHasBalance: true
         case .accountHasPositions: true
         case .accountStatusTransition: true

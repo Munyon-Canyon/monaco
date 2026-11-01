@@ -42,3 +42,7 @@ type Balance struct {
 	UnspendableMicros        money.Micros
 	AsOf                     time.Time
 }
+
+type DepositsArriving interface {
+	DepositArriving(ctx context.Context, q dbsqlc.DBTX, user ids.UserID, at time.Time) (bool, error)
+}
