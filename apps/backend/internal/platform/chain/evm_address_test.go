@@ -2,6 +2,7 @@ package chain_test
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
@@ -75,5 +76,22 @@ func TestEVMAddressJSONIsLowercase(t *testing.T) {
 	}
 	if err := json.Unmarshal([]byte(`{"A":"0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAeD"}`), &got); err == nil {
 		t.Fatal("Unmarshal accepted a bad checksum")
+	}
+}
+
+func TestRejectedAddressesDoNotCarryTheTypedValue(t *testing.T) {
+	t.Parallel()
+	const typed = "0xNotAnAddressTypedByAUser0000000000000000"
+	_, evmErr := chain.ParseEVMAddress(typed)
+	_, solErr := chain.ParseAddress(typed)
+	for name, err := range map[string]error{"evm": evmErr, "solana": solErr} {
+		if errs.CodeOf(err) != errs.CodeInvalidAddress {
+			t.Fatalf("%s err = %v, want invalid_address", name, err)
+		}
+		for _, attr := range errs.Detail(err) {
+			if strings.Contains(attr.Value.String(), typed) || attr.Key == "address" {
+				t.Fatalf("%s detail %v carries the typed address", name, attr)
+			}
+		}
 	}
 }

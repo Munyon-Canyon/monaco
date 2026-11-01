@@ -37,7 +37,7 @@ func ParseAddress(raw string) (SolanaAddress, error) {
 	if b, ok := DecodeBase58(raw); ok && len(b) == ed25519.PublicKeySize {
 		return SolanaAddress(raw), nil
 	}
-	return "", errs.New(errs.CodeInvalidAddress, "chain.ParseAddress", slog.String("address", raw))
+	return "", errs.New(errs.CodeInvalidAddress, "chain.ParseAddress", slog.String("reason", "not a valid address"))
 }
 
 func AddressOf(key []byte) SolanaAddress { return SolanaAddress(EncodeBase58(key)) }

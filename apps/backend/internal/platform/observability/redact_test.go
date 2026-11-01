@@ -19,6 +19,8 @@ const (
 	sampleJWT    = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ1c2VyIn0.c2lnbmF0dXJl"
 	samplePubkey = "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU"
 
+	sampleEVMAddress = "0x52908400098527886E0F7030069857D2E4169EE7"
+
 	sampleFundLinkValue = "q2J9cZQxv0mYb5r8yS3dTt1uVw7xY9zA0bC2dE4fG6h"
 )
 
@@ -87,7 +89,22 @@ func redactionCases() []redactionCase {
 		redactionCase{"with group then attrs", func(h slog.Handler) slog.Handler {
 			return h.WithGroup("privy").WithAttrs([]slog.Attr{slog.String("authorization", "Basic x")})
 		}, []slog.Attr{slog.String("key", "k")}},
-		redactionCase{"kept: wallet address", keep, []slog.Attr{slog.String("wallet", samplePubkey)}},
+		redactionCase{"address keys keep head and tail", keep, []slog.Attr{
+			slog.String("wallet", samplePubkey), slog.String("wallet_address", samplePubkey),
+			slog.String("address", sampleEVMAddress), slog.String("destination", samplePubkey),
+			slog.String("treasury_address", samplePubkey), slog.String("walletAddress", samplePubkey),
+			slog.Group("detail", slog.String("address", samplePubkey)), slog.String("address", "short"),
+		}},
+		redactionCase{"ops key opts in to the full address", keep, []slog.Attr{
+			slog.String("ops_wallet_address", samplePubkey), slog.Int("wallet_count", 3),
+			slog.String("wallet_id", "wallet-legacy"),
+		}},
+		redactionCase{"contact details inside free strings", keep, []slog.Attr{
+			slog.String("privy_error", "no account for ada@example.com or +14155550142"),
+			slog.String("panic", "bad input from grace.h+tag@mail.example.org"),
+			slog.Any("err", errors.New("sms to +442071838750 failed")),
+			slog.String("detail", "plus signs like a+b and 12+34 stay"),
+		}},
 		redactionCase{"kept: ordinary values", keep, []slog.Attr{
 			slog.String("cabal_id", "c1"), slog.Int64("have", 4_000_000), slog.Bool("ok", true),
 			slog.Any("err", errors.New("jupiter unavailable")),
@@ -185,15 +202,33 @@ func TestRedaction_matchesGolden(t *testing.T) {
 		"struct@x.io", "nested@x.io", "ptr@x.io", base64.StdEncoding.EncodeToString(bytes.Repeat([]byte{0xfb}, 64)),
 		"AAAAAAAAAAAA", "[1,2,3", "identity@x.io", "+15550142", "hash-of-the-phone", "aGFzaC1vZi10aGUtcGhvbmU",
 		"x-id-9001", "xhandle_leak", "camel_xhandle",
+		"ada@example.com", "+14155550142", "grace.h", "+442071838750",
 	} {
 		if strings.Contains(buf.String(), secret) {
 			t.Errorf("output leaks %q", secret)
 		}
 	}
-	for _, evidence := range []string{`"idempotency_key":"idem-1"`, `"Idempotency-Key":"idem-2"`, `"api_key":"***"`} {
+	for _, evidence := range []string{
+		`"wallet":"7xKX...gAsU"`, `"address":"0x52...9EE7"`, `"ops_wallet_address":"` + samplePubkey + `"`,
+		`"address":"***"`, `"wallet_count":3`, `"wallet_id":"wallet-legacy"`, `plus signs like a+b and 12+34 stay`,
+		`"idempotency_key":"idem-1"`, `"Idempotency-Key":"idem-2"`, `"api_key":"***"`,
+	} {
 		if !strings.Contains(buf.String(), evidence) {
 			t.Errorf("output lacks %s", evidence)
 		}
+	}
+}
+
+func TestRedaction_aFullAddressSurvivesOnlyUnderAnOpsKey(t *testing.T) {
+	t.Parallel()
+	var buf bytes.Buffer
+	NewLogger(config.Config{}, &buf).InfoContext(t.Context(), "funding.credited",
+		slog.String("wallet_address", samplePubkey), slog.String("user_id", "u1"),
+		slog.String("destination", sampleEVMAddress), slog.String("ops_wallet_address", samplePubkey))
+	got := buf.String()
+	if strings.Count(got, samplePubkey) != 1 || strings.Contains(got, sampleEVMAddress) ||
+		!strings.Contains(got, `"ops_wallet_address":"`+samplePubkey+`"`) {
+		t.Fatalf("line = %s, want the full address only under ops_wallet_address", got)
 	}
 }
 

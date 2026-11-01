@@ -16,20 +16,20 @@ func ParseEVMAddress(raw string) (EVMAddress, error) {
 	var a EVMAddress
 	digits, ok := strings.CutPrefix(raw, "0x")
 	if !ok || len(digits) != 2*len(a) {
-		return EVMAddress{}, invalidEVMAddress(raw)
+		return EVMAddress{}, invalidEVMAddress()
 	}
 	if _, err := hex.Decode(a[:], []byte(digits)); err != nil {
-		return EVMAddress{}, invalidEVMAddress(raw)
+		return EVMAddress{}, invalidEVMAddress()
 	}
 	mixed := digits != strings.ToLower(digits) && digits != strings.ToUpper(digits)
 	if mixed && a.Checksum() != raw {
-		return EVMAddress{}, invalidEVMAddress(raw)
+		return EVMAddress{}, invalidEVMAddress()
 	}
 	return a, nil
 }
 
-func invalidEVMAddress(raw string) error {
-	return errs.New(errs.CodeInvalidAddress, "chain.ParseEVMAddress", slog.String("address", raw))
+func invalidEVMAddress() error {
+	return errs.New(errs.CodeInvalidAddress, "chain.ParseEVMAddress", slog.String("reason", "not a valid address"))
 }
 
 func (a EVMAddress) String() string { return "0x" + hex.EncodeToString(a[:]) }
