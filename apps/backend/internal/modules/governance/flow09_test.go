@@ -164,7 +164,7 @@ func (w *tradeWorld) voters() []map[string]any {
 	return out
 }
 
-func TestFlow09_ProposeTrade_UnpricedAssetBuyRefused(t *testing.T) {
+func TestProposeTrade_UnpricedAssetBuyRefused(t *testing.T) {
 	t.Parallel()
 	w := newTradeWorld(t)
 	unpriced := marketfake.AAPLx()
