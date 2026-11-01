@@ -65,7 +65,7 @@ func TestAdminQueue_OlderThanMustBeADurationUpToADay(t *testing.T) {
 	t.Parallel()
 	f := newLookupFixture(t)
 	for _, query := range []string{"older_than=soon", "older_than=0s", "older_than=-5m", "older_than=25h"} {
-		for _, route := range []string{"stuck-txns", "unpublished-events"} {
+		for _, route := range []string{"stuck-txns", "unpublished-events", "stuck-money"} {
 			path := "/v1/admin/queues/" + route + "?" + query
 			w := adminRequest(t, f.h, path, "viewer")
 			var problem map[string]any

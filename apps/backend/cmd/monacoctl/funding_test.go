@@ -227,3 +227,34 @@ func TestFundingDepositRescan_refusesAnUnwatchedWalletAndBadArguments(t *testing
 		}
 	}
 }
+
+func TestFunding_reportsAnUnreachableDatabase(t *testing.T) {
+	t.Parallel()
+	environ := []string{
+		"MONACO_ENV=test", "DATABASE_URL=postgres://127.0.0.1:1/monaco?connect_timeout=1", "NATS_URL=nats://unused",
+	}
+	tl := fundingTool(environ, testkit.NewClock(clock.Real{}.Now().UTC()))
+	for _, args := range [][]string{
+		{"bounce", "list"},
+		{"deposit", "rescan", string(testkit.SeedUser(t, testkit.DB(t), testkit.UserOpts{WithWallet: true}).Address)},
+	} {
+		if code, _, stderr := runOpsTool(
+			t,
+			tl,
+			args...); code != 1 ||
+			!strings.Contains(stderr, "monacoctl: db.Open: ") {
+			t.Errorf("funding %v with no database = %d, stderr %q, want 1 and db.Open", args, code, stderr)
+		}
+	}
+}
+
+func TestFundingBounceList_reportsAFailedRead(t *testing.T) {
+	t.Parallel()
+	bounce, _, pool := seededBounce(t)
+	if _, err := pool.Exec(t.Context(), `ALTER TABLE external_deposits RENAME TO external_deposits_gone`); err != nil {
+		t.Fatal(err)
+	}
+	if code, _, stderr := runOpsTool(t, bounce, "bounce", "list"); code != 1 || stderr == "" {
+		t.Fatalf("list with the table gone = %d, stderr %q, want 1", code, stderr)
+	}
+}

@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/admin/adapters"
@@ -237,5 +239,38 @@ func TestQueues_PassMoneyReaderFailuresOn(t *testing.T) {
 	h := adapters.HTTP{Queues: q}
 	if _, err := h.GetStuckMoney(ctx, adminapi.GetStuckMoneyRequestObject{}); !isPortDown(err) {
 		t.Errorf("GetStuckMoney = %v", err)
+	}
+}
+
+func moneyGauge(t *testing.T, q app.Queues) (int64, error) {
+	t.Helper()
+	reader := sdkmetric.NewManualReader()
+	app.ObserveMoneyIntents(sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader)).Meter("test"), q)
+	var rm metricdata.ResourceMetrics
+	err := reader.Collect(t.Context(), &rm)
+	var got int64 = -1
+	for _, scope := range rm.ScopeMetrics {
+		for _, m := range scope.Metrics {
+			if g, ok := m.Data.(metricdata.Gauge[int64]); ok &&
+				m.Name == "monaco_oldest_unresolved_money_intent_seconds" && len(g.DataPoints) == 1 {
+				got = g.DataPoints[0].Value
+			}
+		}
+	}
+	return got, err
+}
+
+func TestObserveMoneyIntents_ReportsTheOldestIntentInSeconds(t *testing.T) {
+	t.Parallel()
+	clk := testkit.NewClock(time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC))
+	q := app.Queues{Clock: clk, Money: []money.StuckReader{cannedMoney{
+		{Kind: money.StuckWithdrawal, Count: 1, Oldest: clk.Now().Add(-90 * time.Second)},
+	}}}
+	if got, err := moneyGauge(t, q); err != nil || got != 90 {
+		t.Fatalf("gauge = %d, %v, want 90", got, err)
+	}
+	q.Money = []money.StuckReader{downMoney{}}
+	if _, err := moneyGauge(t, q); err == nil {
+		t.Fatal("gauge with the money readers down reported no error")
 	}
 }
