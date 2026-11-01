@@ -54,9 +54,6 @@ func (b Bridge) outcomeUnknown(ctx context.Context, leg BridgeLeg, id multichain
 		slog.String("swap_id", leg.Ref.SwapID.String()), slog.String("cabal_id", leg.Ref.CabalID.String()),
 		slog.String("step", string(leg.Ref.Step)), slog.String("network", string(leg.Ref.Network)),
 		slog.String("action_id", string(id)))
-	if b.Unknown == nil {
-		return nil
-	}
 	return b.Unknown(ctx, leg, id)
 }
 
