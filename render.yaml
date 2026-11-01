@@ -38,10 +38,7 @@ services:
     envVars:
       - key: PORT
         value: "8080"
-      # Pool and Jupiter sizes: docs/how-to/deploy-staging.md (Pool size, Jupiter limit). A test pins the sums.
       - key: MONACO_DB_MAX_CONNS
-        value: "12"
-      - key: MONACO_JUPITER_RATE_LIMIT
         value: "4"
       - fromGroup: monaco-staging
 
@@ -63,7 +60,5 @@ services:
         - render.yaml
     envVars:
       - key: MONACO_DB_MAX_CONNS
-        value: "8"
-      - key: MONACO_JUPITER_RATE_LIMIT
-        value: "6"
+        value: "4"
       - fromGroup: monaco-staging

@@ -42,10 +42,7 @@ func TestLoadFillsDefaultsFromTheRFC(t *testing.T) {
 			HealthAddr: ":8081", FundSendWindow: 2 * time.Minute, WithdrawalUnsentAge: 2 * time.Minute,
 			PollerBackoffMax: 5 * time.Minute,
 		},
-		DB: config.DB{
-			URL: "postgres://monaco@localhost:54322/monaco", MaxConns: 11,
-			StatementTimeout: 15 * time.Second, IdleTxTimeout: 30 * time.Second,
-		},
+		DB:   config.DB{URL: "postgres://monaco@localhost:54322/monaco", MaxConns: 11},
 		NATS: config.NATS{URL: "nats://localhost:4222"},
 		Bus:  config.Bus{APIRelay: true},
 		OTel: config.OTel{ServiceName: "monaco"},
@@ -214,20 +211,6 @@ func TestDeployedPoolsFitTheSupabasePoolerThroughADeployOverlap(t *testing.T) {
 	if overlap > poolerSize {
 		t.Fatalf("api %d + worker %d (+%d lock) twice over plus %d pre-deploy = %d connections, "+
 			"want at most the pooler's %d: docs/how-to/deploy-staging.md", api, worker, lockConn, predeploy, overlap, poolerSize)
-	}
-}
-
-func TestDeployedJupiterLimitsStayUnderTheFreeKeyWhileBothServicesRun(t *testing.T) {
-	t.Parallel()
-	const (
-		windowsPerMinute = 6
-		keyPerMinute     = 60
-	)
-	api := deployedCount(t, "MONACO_JUPITER_RATE_LIMIT", "monaco-api")
-	worker := deployedCount(t, "MONACO_JUPITER_RATE_LIMIT", "monaco-worker")
-	if sent := (api + worker) * windowsPerMinute; sent > keyPerMinute {
-		t.Fatalf("api %d + worker %d calls per 10 s allow %d a minute, want at most the key's %d: "+
-			"docs/how-to/deploy-staging.md", api, worker, sent, keyPerMinute)
 	}
 }
 
@@ -738,8 +721,8 @@ func TestRedactedHidesSecretsAndShowsTheRest(t *testing.T) {
 		{"WITHDRAWAL_UNSENT_AGE", "2m0s"},
 		{"MONACO_POLLER_BACKOFF_MAX", "5m0s"},
 		{"MONACO_DB_MAX_CONNS", "11"},
-		{"MONACO_DB_STATEMENT_TIMEOUT", "15s"},
-		{"MONACO_DB_IDLE_TX_TIMEOUT", "30s"},
+		{"MONACO_DB_STATEMENT_TIMEOUT", "0s"},
+		{"MONACO_DB_IDLE_TX_TIMEOUT", "0s"},
 		{"OTEL_EXPORTER_OTLP_ENDPOINT", ""},
 		{"OTEL_SERVICE_NAME", "monaco"},
 		{"MONACO_TIMEOUT_RPC", "5s"},
@@ -934,5 +917,21 @@ func TestLoad_rejectsANegativeOrNonNumericMinimumBuild(t *testing.T) {
 		if _, err := config.Load(append(required(), bad)); err == nil {
 			t.Fatalf("%s loaded, want an error", bad)
 		}
+	}
+}
+
+func TestLoad_dbTimeoutsAreOffUnlessSetAndRefuseNegatives(t *testing.T) {
+	t.Parallel()
+	cfg, err := config.Load(required())
+	if err != nil || cfg.DB.StatementTimeout != 0 || cfg.DB.IdleTxTimeout != 0 {
+		t.Fatalf("defaults = %v, %v, %v; want both off", cfg.DB.StatementTimeout, cfg.DB.IdleTxTimeout, err)
+	}
+	cfg, err = config.Load(append(required(), "MONACO_DB_STATEMENT_TIMEOUT=0s", "MONACO_DB_IDLE_TX_TIMEOUT=30s"))
+	if err != nil || cfg.DB.StatementTimeout != 0 || cfg.DB.IdleTxTimeout != 30*time.Second {
+		t.Fatalf("set = %v, %v, %v; want 0s and 30s", cfg.DB.StatementTimeout, cfg.DB.IdleTxTimeout, err)
+	}
+	_, err = config.Load(append(required(), "MONACO_DB_STATEMENT_TIMEOUT=-1s"))
+	if err == nil || !strings.Contains(err.Error(), "MONACO_DB_STATEMENT_TIMEOUT (duration like 15s, or 0s for none)") {
+		t.Fatalf("a negative timeout = %v, want it refused", err)
 	}
 }

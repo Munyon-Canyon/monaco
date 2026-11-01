@@ -492,9 +492,9 @@ func pollerFields() []field {
 
 func dbTimeoutFields() []field {
 	return []field{
-		duration("MONACO_DB_STATEMENT_TIMEOUT", 15*time.Second,
+		offDuration("MONACO_DB_STATEMENT_TIMEOUT",
 			func(c *Config) *time.Duration { return &c.DB.StatementTimeout }),
-		duration("MONACO_DB_IDLE_TX_TIMEOUT", 30*time.Second,
+		offDuration("MONACO_DB_IDLE_TX_TIMEOUT",
 			func(c *Config) *time.Duration { return &c.DB.IdleTxTimeout }),
 	}
 }
@@ -805,6 +805,20 @@ func deployedByDefault(key string, at func(*Config) *bool) field {
 			return err == nil
 		},
 		get: func(c *Config) string { return strconv.FormatBool(*at(c)) },
+	}
+}
+
+func offDuration(key string, at func(*Config) *time.Duration) field {
+	return field{
+		key:      key,
+		fallback: "0s",
+		want:     "duration like 15s, or 0s for none",
+		set: func(c *Config, v string) bool {
+			d, err := time.ParseDuration(v)
+			*at(c) = d
+			return err == nil && d >= 0
+		},
+		get: func(c *Config) string { return at(c).String() },
 	}
 }
 

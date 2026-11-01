@@ -42,21 +42,23 @@ A deploy runs the old and new copy of each service side by side for a short time
 
     2 x (api + worker + 1) + pre-deploy <= pooler size
 
-`render.yaml` sets the api to 12 and the worker to 8: 2 x (12 + 8 + 1) + 3 = 45, against a pooler of 50. `TestDeployedPoolsFitTheSupabasePoolerThroughADeployOverlap` fails when `render.yaml` breaks the rule, so raise the pooler first when you raise either number. Sources: the pooler size is Supabase's `default_pool_size` for the project (50, set in Database, Connection pooling, or with `PATCH /v1/projects/<ref>/config/database/pooler`), and Postgres allows 60 connections in all. When the pool is too small, the worker fails every poller and the api fails boot with `EMAXCONNSESSION max clients reached`.
+`render.yaml` sets `MONACO_DB_MAX_CONNS` to 4 on both: 2 x (4 + 4 + 1) + 3 = 21, against a pooler of 50. `TestDeployedPoolsFitTheSupabasePoolerThroughADeployOverlap` fails when `render.yaml` breaks the rule. Sources: the pooler size is Supabase's `default_pool_size` for the project (50, set in Database, Connection pooling, or with `PATCH /v1/projects/<ref>/config/database/pooler`), and Postgres allows 60 connections in all. When the pool is too small, the worker fails every poller and the api fails boot with `EMAXCONNSESSION max clients reached`.
 
-Every pooled connection also carries `statement_timeout` (`MONACO_DB_STATEMENT_TIMEOUT`, 15 s) and `idle_in_transaction_session_timeout` (`MONACO_DB_IDLE_TX_TIMEOUT`, 30 s). A hung call made while a transaction is open then frees its connection instead of pinning one of the pool. The poller lock connection sets neither: it is idle between ticks by design.
+Recommended for launch day, not yet applied (needs the founder's OK): api 12 and worker 8, which is 2 x (12 + 8 + 1) + 3 = 45, under 50. The api spends several queries per request (rate limit, idempotency claim and complete, auth, handler); the worker's connections are shared by about 20 consumers, 30 pollers and the relay.
+
+Every pooled connection can also carry `statement_timeout` (`MONACO_DB_STATEMENT_TIMEOUT`) and `idle_in_transaction_session_timeout` (`MONACO_DB_IDLE_TX_TIMEOUT`). Both are off when unset. Recommended: 15s and 30s, so a hung call made while a transaction is open frees its connection instead of pinning one of the pool. The poller lock connection sets neither: it is idle between ticks by design.
 
 ## Jupiter limit
 
-The api and the worker each hold their own limiter on one shared Jupiter key (`MONACO_JUPITER_RATE_LIMIT`, calls per 10 s), so the key's budget is split between two processes that do not see each other. Their sum times 6 (windows a minute) must stay at or under the key's per-minute limit.
+The api and the worker each hold their own limiter on one shared Jupiter key (`MONACO_JUPITER_RATE_LIMIT`, calls per 10 s, default 8), so the key's budget is split between two processes that do not see each other. Their sum times 6 (windows a minute) must stay at or under the key's per-minute limit. At the default 8 each, the two can send 96 a minute.
 
-| Key | Limit | api | worker |
+| Key | Limit | Recommended api | Recommended worker |
 | --- | --- | --- | --- |
 | Free (the only plan documented at [developers.jup.ag/docs/portal/rate-limits](https://developers.jup.ag/docs/portal/rate-limits), read 2026-09-27) | 60 a minute, Price, Swap and Token calls sharing one bucket | 4 | 6 |
 
 The worker needs 6 because its price lane gets the limit minus 2 and the ~1,500 listed mints take 30 calls of 50 within the 105 s fetch window (lane 4: 9 windows x 4 x 50 = 1,800 mints). Trades may use the whole limit and prices only the limit minus 2, so a price tick never blocks a trade. A trade is two calls, the order and the execute. `TestPaceLoad_fiftyTradesAndThreePriceTicksFitTheFreeKeyWithNoQuoteTimeout` replays 50 trades and three price ticks in 5 minutes against those numbers: the busiest minute sends 38 of the key's 60 calls and no trade call waits for the limiter.
 
-Whether the production key is on the free plan is not confirmed (Andres or Logan: check the portal at https://portal.jup.ag). On a paid plan, raise both numbers in the same ratio, keep the worker above 5, and change the 60 in `TestDeployedJupiterLimitsStayUnderTheFreeKeyWhileBothServicesRun`. Render env changes take effect on the next deploy and need Andres's OK.
+Whether the production key is on the free plan is not confirmed (check the portal at https://portal.jup.ag). On a paid plan, raise both numbers in the same ratio and keep the worker at 6 or more. Render env changes take effect on the next deploy and need the founder's OK.
 
 ## Sign-ups
 
