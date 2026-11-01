@@ -31,6 +31,26 @@ func (q *Queries) ClaimFundSigning(ctx context.Context, arg ClaimFundSigningPara
 	return result.RowsAffected(), nil
 }
 
+const clearFundRefund = `-- name: ClearFundRefund :execrows
+UPDATE fund_transfers
+SET refund_signed_tx = NULL, refund_signature = NULL, refund_last_valid_block_height = NULL,
+  refund_submitted_at = NULL
+WHERE id = $1 AND status = 'landed' AND refund_signature = $2::text
+`
+
+type ClearFundRefundParams struct {
+	ID        uuid.UUID
+	Signature string
+}
+
+func (q *Queries) ClearFundRefund(ctx context.Context, arg ClearFundRefundParams) (int64, error) {
+	result, err := q.db.Exec(ctx, clearFundRefund, arg.ID, arg.Signature)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const expireCreatedFundTransfers = `-- name: ExpireCreatedFundTransfers :many
 UPDATE fund_transfers SET status = 'failed', fail_code = 'fund_not_sent'
 WHERE status = 'created' AND created_at < $1::timestamptz
@@ -117,6 +137,42 @@ func (q *Queries) FirstFundedAt(ctx context.Context, arg FirstFundedAtParams) (t
 	var first_funded_at time.Time
 	err := row.Scan(&first_funded_at)
 	return first_funded_at, err
+}
+
+const getFundRefund = `-- name: GetFundRefund :one
+SELECT id, user_id, cabal_id, amount_micros::text AS amount_micros, status,
+  COALESCE(refund_signed_tx, ''::bytea)::bytea AS refund_signed_tx,
+  COALESCE(refund_signature, '')::text AS refund_signature,
+  COALESCE(refund_last_valid_block_height, 0)::bigint AS refund_last_valid_block_height
+FROM fund_transfers
+WHERE id = $1
+`
+
+type GetFundRefundRow struct {
+	ID                         uuid.UUID
+	UserID                     uuid.UUID
+	CabalID                    uuid.UUID
+	AmountMicros               string
+	Status                     string
+	RefundSignedTx             []byte
+	RefundSignature            string
+	RefundLastValidBlockHeight int64
+}
+
+func (q *Queries) GetFundRefund(ctx context.Context, id uuid.UUID) (GetFundRefundRow, error) {
+	row := q.db.QueryRow(ctx, getFundRefund, id)
+	var i GetFundRefundRow
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.CabalID,
+		&i.AmountMicros,
+		&i.Status,
+		&i.RefundSignedTx,
+		&i.RefundSignature,
+		&i.RefundLastValidBlockHeight,
+	)
+	return i, err
 }
 
 const getFundTransfer = `-- name: GetFundTransfer :one
@@ -231,7 +287,7 @@ SELECT id, user_id, cabal_id, amount_micros::text AS amount_micros, status,
   COALESCE(signed_tx, ''::bytea)::bytea AS signed_tx, COALESCE(tx_signature, '')::text AS tx_signature,
   COALESCE(last_valid_block_height, 0)::bigint AS last_valid_block_height
 FROM fund_transfers
-WHERE status IN ('submitted', 'landed')
+WHERE status IN ('submitted', 'landed') AND refund_signature IS NULL
 ORDER BY last_attempt_at NULLS FIRST, created_at, id
 LIMIT $1
 `
@@ -300,11 +356,30 @@ func (q *Queries) MarkFundTransfersAttempted(ctx context.Context, arg MarkFundTr
 	return err
 }
 
+const refundFundTransfer = `-- name: RefundFundTransfer :execrows
+UPDATE fund_transfers SET status = 'refunded', refunded_at = $2::timestamptz
+WHERE id = $1 AND status = 'landed' AND refund_signature = $3::text
+`
+
+type RefundFundTransferParams struct {
+	ID         uuid.UUID
+	RefundedAt time.Time
+	Signature  string
+}
+
+func (q *Queries) RefundFundTransfer(ctx context.Context, arg RefundFundTransferParams) (int64, error) {
+	result, err := q.db.Exec(ctx, refundFundTransfer, arg.ID, arg.RefundedAt, arg.Signature)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const settleFundTransfer = `-- name: SettleFundTransfer :execrows
 UPDATE fund_transfers
 SET status = 'settled', share_units = $2::text::numeric,
   settled_at = $3::timestamptz
-WHERE id = $1 AND status = 'landed'
+WHERE id = $1 AND status = 'landed' AND refund_signature IS NULL
 `
 
 type SettleFundTransferParams struct {
@@ -315,6 +390,36 @@ type SettleFundTransferParams struct {
 
 func (q *Queries) SettleFundTransfer(ctx context.Context, arg SettleFundTransferParams) (int64, error) {
 	result, err := q.db.Exec(ctx, settleFundTransfer, arg.ID, arg.ShareUnits, arg.SettledAt)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const storeFundRefund = `-- name: StoreFundRefund :execrows
+UPDATE fund_transfers
+SET refund_signed_tx = $2::bytea, refund_signature = $3::text,
+  refund_last_valid_block_height = $4::text::bigint,
+  refund_submitted_at = $5::timestamptz
+WHERE id = $1 AND status = 'landed' AND refund_signature IS NULL
+`
+
+type StoreFundRefundParams struct {
+	ID                   uuid.UUID
+	SignedTx             []byte
+	Signature            string
+	LastValidBlockHeight string
+	SubmittedAt          time.Time
+}
+
+func (q *Queries) StoreFundRefund(ctx context.Context, arg StoreFundRefundParams) (int64, error) {
+	result, err := q.db.Exec(ctx, storeFundRefund,
+		arg.ID,
+		arg.SignedTx,
+		arg.Signature,
+		arg.LastValidBlockHeight,
+		arg.SubmittedAt,
+	)
 	if err != nil {
 		return 0, err
 	}

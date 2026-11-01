@@ -25,7 +25,7 @@ WHERE id = $1 AND status = 'submitted';
 UPDATE fund_transfers
 SET status = 'settled', share_units = sqlc.arg(share_units)::text::numeric,
   settled_at = sqlc.arg(settled_at)::timestamptz
-WHERE id = $1 AND status = 'landed';
+WHERE id = $1 AND status = 'landed' AND refund_signature IS NULL;
 
 -- name: FailFundTransfer :execrows
 UPDATE fund_transfers SET status = 'failed', fail_code = sqlc.arg(fail_code)::text
@@ -40,6 +40,31 @@ SELECT id, user_id, cabal_id, amount_micros::text AS amount_micros, status,
   COALESCE(share_units, 0)::text AS share_units, COALESCE(fail_code, '')::text AS fail_code
 FROM fund_transfers
 WHERE id = $1;
+
+-- name: GetFundRefund :one
+SELECT id, user_id, cabal_id, amount_micros::text AS amount_micros, status,
+  COALESCE(refund_signed_tx, ''::bytea)::bytea AS refund_signed_tx,
+  COALESCE(refund_signature, '')::text AS refund_signature,
+  COALESCE(refund_last_valid_block_height, 0)::bigint AS refund_last_valid_block_height
+FROM fund_transfers
+WHERE id = $1;
+
+-- name: StoreFundRefund :execrows
+UPDATE fund_transfers
+SET refund_signed_tx = sqlc.arg(signed_tx)::bytea, refund_signature = sqlc.arg(signature)::text,
+  refund_last_valid_block_height = sqlc.arg(last_valid_block_height)::text::bigint,
+  refund_submitted_at = sqlc.arg(submitted_at)::timestamptz
+WHERE id = $1 AND status = 'landed' AND refund_signature IS NULL;
+
+-- name: ClearFundRefund :execrows
+UPDATE fund_transfers
+SET refund_signed_tx = NULL, refund_signature = NULL, refund_last_valid_block_height = NULL,
+  refund_submitted_at = NULL
+WHERE id = $1 AND status = 'landed' AND refund_signature = sqlc.arg(signature)::text;
+
+-- name: RefundFundTransfer :execrows
+UPDATE fund_transfers SET status = 'refunded', refunded_at = sqlc.arg(refunded_at)::timestamptz
+WHERE id = $1 AND status = 'landed' AND refund_signature = sqlc.arg(signature)::text;
 
 -- name: InFlightFundMicros :one
 SELECT COALESCE(SUM(amount_micros), 0)::text AS micros
@@ -66,7 +91,7 @@ SELECT id, user_id, cabal_id, amount_micros::text AS amount_micros, status,
   COALESCE(signed_tx, ''::bytea)::bytea AS signed_tx, COALESCE(tx_signature, '')::text AS tx_signature,
   COALESCE(last_valid_block_height, 0)::bigint AS last_valid_block_height
 FROM fund_transfers
-WHERE status IN ('submitted', 'landed')
+WHERE status IN ('submitted', 'landed') AND refund_signature IS NULL
 ORDER BY last_attempt_at NULLS FIRST, created_at, id
 LIMIT sqlc.arg(row_limit);
 

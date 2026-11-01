@@ -697,7 +697,8 @@ func (q *Queries) OpenFundTransfer(ctx context.Context, arg OpenFundTransferPara
 const ownsSignature = `-- name: OwnsSignature :one
 SELECT EXISTS (SELECT 1 FROM cabal_txns WHERE tx_signature = $1::text)
   OR EXISTS (SELECT 1 FROM user_txns WHERE tx_signature = $1::text)
-  OR EXISTS (SELECT 1 FROM fund_transfers WHERE tx_signature = $1::text)
+  OR EXISTS (SELECT 1 FROM fund_transfers WHERE tx_signature = $1::text
+    OR refund_signature = $1::text)
   OR EXISTS (SELECT 1 FROM cash_out_payouts WHERE signature = $1::text)
 `
 

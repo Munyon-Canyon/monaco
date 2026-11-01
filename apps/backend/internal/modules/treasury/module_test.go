@@ -190,3 +190,16 @@ func TestModule_payoutTransfersNeedPrivyAndRelayerKeys(t *testing.T) {
 		}
 	}
 }
+
+func TestModule_fundRefundsUseTheSiblingWallets(t *testing.T) {
+	t.Parallel()
+	cfg := testkit.Config()
+	cfg.Solana.RPCURL = "http://127.0.0.1/rpc/"
+	cfg.Timeouts = config.Timeouts{Privy: time.Second, RPC: time.Second}
+	d := module.Deps{Config: cfg}
+	m := treasury.New(d)
+	module.NewSet(m, cabal.New(d), identity.New(d))
+	if m.FundRefunds() == nil {
+		t.Fatal("FundRefunds() = nil")
+	}
+}

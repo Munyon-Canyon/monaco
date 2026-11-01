@@ -170,6 +170,10 @@ For a stuck money row, [Money runbook](../how-to/money-runbook.md) maps the sign
 | `treasury.fund.broadcast_failed` | `transfer_id`, `code` |
 | `treasury.fund.failed` | `transfer_id`, `code`, `status_before`, `status_after` |
 | `treasury.fund.mint_waiting` | `transfer_id`, `cabal_id` |
+| `treasury.fund.refund_broadcast_failed` | `transfer_id`, `code` |
+| `treasury.fund.refund_dropped` | `transfer_id`, `code`, `status_before`, `status_after` |
+| `treasury.fund.refund_stored` | `transfer_id`, `cabal_id`, `amount_micros`, `status_before`, `status_after` |
+| `treasury.fund.refunded` | `transfer_id`, `cabal_id`, `amount_micros`, `status_before`, `status_after` |
 | `treasury.fund.settled` | `transfer_id`, `cabal_id`, `share_units`, `status_before`, `status_after` |
 | `treasury.fund.sign_failed` | `transfer_id`, `code`, `status_before`, `status_after` |
 | `treasury.fund.submitted` | `transfer_id`, `cabal_id`, `amount_micros`, `status_before`, `status_after` |
