@@ -3,8 +3,6 @@ package observability
 import (
 	"encoding/json"
 	"os"
-	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
 )
@@ -35,9 +33,7 @@ type alertGroup struct {
 
 func launchDayGroup(t *testing.T) alertGroup {
 	t.Helper()
-	_, here, _, _ := runtime.Caller(0)
-	root := filepath.Join(filepath.Dir(here), "..", "..", "..", "..", "..")
-	repo, err := os.OpenRoot(root)
+	repo, err := os.OpenRoot("../../../../..")
 	if err != nil {
 		t.Fatal(err)
 	}
