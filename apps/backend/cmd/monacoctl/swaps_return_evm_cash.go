@@ -11,7 +11,9 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal"
 	tradingadapters "github.com/monaco/monaco/apps/backend/internal/modules/trading/adapters"
+	tradingchain "github.com/monaco/monaco/apps/backend/internal/modules/trading/adapters/chain"
 	tradingapp "github.com/monaco/monaco/apps/backend/internal/modules/trading/app"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain/solana"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
@@ -24,6 +26,7 @@ import (
 type cashAdapters struct {
 	Wallets tradingapp.TreasuryEVM
 	Cash    tradingapp.EVMCash
+	Chain   tradingapp.ChainReader
 }
 
 type cashPorts func(cfg config.Config, pool *pgxpool.Pool, uow *db.UnitOfWork, clk clock.Clock) cashAdapters
@@ -33,6 +36,7 @@ func liveCashPorts(cfg config.Config, pool *pgxpool.Pool, uow *db.UnitOfWork, cl
 	return cashAdapters{
 		Wallets: cabal.New(deps).TreasuryEVMWallets(),
 		Cash:    tradingadapters.NewEVMCash(tradingadapters.EVMRPC(deps)),
+		Chain:   tradingchain.NewReader(solana.New(cfg, clk)),
 	}
 }
 

@@ -2,6 +2,7 @@ package trading_test
 
 import (
 	"context"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -105,11 +106,11 @@ func TestForceResolveSwap_closesAParkedRoutedSwapFromItsReceipt(t *testing.T) {
 	t.Parallel()
 	e := newRouteEnv(t)
 	swap := e.parkedWithoutReceipt(t)
-	handler := app.NewForceResolveSwapHandler(e.uow, e.pool, e.clk, e.hints)
+	handler := app.NewForceResolveSwapHandler(e.uow, e.pool, e.clk, e.ids, e.hints, nil)
 
 	view, err := handler.Handle(t.Context(), app.ForceResolveSwap{
 		Signature: e.signature(t, swap), To: domain.StatusConfirmed, OutAmount: money.NewBaseUnits(filledOut, 8),
-		Reason: "receipt found on the explorer", Actor: "system:alice", IdempotencyKey: "k1",
+		Reason: "receipt found on the explorer", Actor: "operator:alice", IdempotencyKey: "k1",
 	})
 	if err != nil || view.Status != domain.StatusConfirmed {
 		t.Fatalf("Handle = %+v, %v, want the parked routed swap confirmed", view, err)
@@ -117,16 +118,22 @@ func TestForceResolveSwap_closesAParkedRoutedSwapFromItsReceipt(t *testing.T) {
 	if step := e.swapStep(t, swap); step != "succeeded" {
 		t.Fatalf("swap step is %s, want succeeded", step)
 	}
+	var action, detail string
+	const audit = `SELECT action, detail::text FROM swap_operator_actions WHERE swap_id = $1`
+	if err := e.pool.QueryRow(t.Context(), audit, swap).Scan(&action, &detail); err != nil ||
+		action != "force_resolve" || !strings.Contains(detail, `"chain_state": "not_checked"`) {
+		t.Fatalf("audit = %q %s, %v", action, detail, err)
+	}
 }
 
 func TestForceResolveSwap_stillRefusesAnUnparkedRoutedSwap(t *testing.T) {
 	t.Parallel()
 	e := newRouteEnv(t)
 	swap := e.submittedWithoutReceipt(t)
-	handler := app.NewForceResolveSwapHandler(e.uow, e.pool, e.clk, e.hints)
+	handler := app.NewForceResolveSwapHandler(e.uow, e.pool, e.clk, e.ids, e.hints, nil)
 
 	_, err := handler.Handle(t.Context(), app.ForceResolveSwap{
-		Signature: e.signature(t, swap), To: domain.StatusFailed, Reason: "no receipt", Actor: "system:alice",
+		Signature: e.signature(t, swap), To: domain.StatusFailed, Reason: "no receipt", Actor: "operator:alice",
 		IdempotencyKey: "k1",
 	})
 	if err == nil {
