@@ -2,6 +2,8 @@ package treasury_test
 
 import (
 	"context"
+	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/google/uuid"
@@ -9,6 +11,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/domain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
@@ -111,4 +114,69 @@ func TestFundCabal_aFailureBeforeAnythingWasSentFreesTheKey(t *testing.T) {
 		t.Fatalf("retry = (%v, %v) rows = %d, want a new submitted row beside the failed one",
 			id, err, h.transferRows(t))
 	}
+}
+
+type keyedResult struct {
+	id  uuid.UUID
+	err error
+}
+
+func (h *settleHarness) retryFailingAfterTheFirstSubmits(t *testing.T) (uuid.UUID, keyedResult) {
+	t.Helper()
+	var calls atomic.Int32
+	entered := make(chan struct{})
+	release := make(chan struct{})
+	var wg sync.WaitGroup
+	var retry keyedResult
+	h.stubs.onBuild = func() {
+		if calls.Add(1) == 1 {
+			wg.Go(func() {
+				id, err := h.fundKeyed(h.actorCtx(), "h1", 5_000_000)
+				retry = keyedResult{id, err}
+			})
+			<-entered
+			return
+		}
+		close(entered)
+		<-release
+	}
+	first, err := h.fundKeyed(h.actorCtx(), "h1", 5_000_000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.stubs.buildErr = errs.New(errs.CodePrivyUnavailable, "stub")
+	close(release)
+	wg.Wait()
+	return first, retry
+}
+
+func TestFundCabal_aRetryWhoseBuildFailsAfterTheFirstSubmittedLeavesTheTransferLive(t *testing.T) {
+	t.Parallel()
+	h := newSettleHarness(t)
+	first, retry := h.retryFailingAfterTheFirstSubmits(t)
+	wantCode(t, retry.err, errs.CodePrivyUnavailable)
+	if row := h.transfer(t, first); row.Status != string(domain.FundSubmitted) || row.FailCode != "" {
+		t.Fatalf("transfer = %s/%q after the retry's build failed, want submitted and no fail code",
+			row.Status, row.FailCode)
+	}
+	if h.count(t, "money_intents") != 1 {
+		t.Fatalf("money_intents = %d, want the key still bound", h.count(t, "money_intents"))
+	}
+	h.stubs.buildErr = nil
+	third, err := h.fundKeyed(h.actorCtx(), "h1", 5_000_000)
+	if err != nil || third != first || h.transferRows(t) != 1 || h.stubs.sent != 1 {
+		t.Fatalf("third = (%v, %v) rows = %d sent = %d, want the first transfer %v and one broadcast",
+			third, err, h.transferRows(t), h.stubs.sent, first)
+	}
+	var sig string
+	if err := h.pool.QueryRow(t.Context(), `SELECT tx_signature FROM fund_transfers WHERE id = $1`, first).
+		Scan(&sig); err != nil {
+		t.Fatal(err)
+	}
+	h.finalize(chain.Signature(sig))
+	h.tick(t)
+	if status, units, _ := h.status(t, first); status != "settled" || units != "5000000" {
+		t.Fatalf("status = %s, units = %s, want settled 5000000", status, units)
+	}
+	h.assertMinted(t, first)
 }

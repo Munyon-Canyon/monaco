@@ -61,6 +61,24 @@ func (q *Queries) FailFundTransfer(ctx context.Context, arg FailFundTransferPara
 	return result.RowsAffected(), nil
 }
 
+const failUnsentFundTransfer = `-- name: FailUnsentFundTransfer :execrows
+UPDATE fund_transfers SET status = 'failed', fail_code = $2::text
+WHERE id = $1 AND status = 'created'
+`
+
+type FailUnsentFundTransferParams struct {
+	ID       uuid.UUID
+	FailCode string
+}
+
+func (q *Queries) FailUnsentFundTransfer(ctx context.Context, arg FailUnsentFundTransferParams) (int64, error) {
+	result, err := q.db.Exec(ctx, failUnsentFundTransfer, arg.ID, arg.FailCode)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const firstFundedAt = `-- name: FirstFundedAt :one
 SELECT occurred_at::timestamptz AS first_funded_at
 FROM cabal_activity
