@@ -2,6 +2,7 @@ import Foundation
 import MonacoCore
 import MonacoReferrals
 import SwiftUI
+import Synchronization
 import Testing
 
 @testable import Monaco
@@ -26,13 +27,13 @@ struct DeepLinkRouterTests {
 
     @Test func theLinkIsReadOnlyAfterTheSessionRestores() async {
         let navigator = AppNavigator()
-        RestoreGatedDeepLink.restored = false
+        RestoreGatedDeepLink.restored.withLock { $0 = false }
 
         await DeepLinkRouter.handle(
             URL(string: "monaco://gated")!,
             navigator: navigator,
             handlers: [RestoreGatedDeepLink.self],
-            sessionRestored: { RestoreGatedDeepLink.restored = true },
+            sessionRestored: { RestoreGatedDeepLink.restored.withLock { $0 = true } },
             dismissPresented: {}
         )
 
@@ -281,10 +282,10 @@ private enum ProbeDeepLink: DeepLinkHandler {
 }
 
 private enum RestoreGatedDeepLink: DeepLinkHandler {
-    nonisolated(unsafe) static var restored = false
+    static let restored = Mutex(false)
 
     static func action(for url: URL) -> DeepLinkAction? {
-        guard restored else {
+        guard restored.withLock({ $0 }) else {
             guard let code = ReferralCode("k7m4qx2p") else { return nil }
             return .signedOutLanding(InviteLandingRoute(code: code, cabalID: "c1"))
         }
