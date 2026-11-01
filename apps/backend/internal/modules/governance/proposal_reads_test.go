@@ -50,7 +50,10 @@ func (d readsDB) reads() *app.ProposalReads {
 }
 
 func (d readsDB) votes() *app.PendingVoteReads {
-	return app.NewPendingVoteReads(d.reads(), app.PendingVotePorts{Assets: d.assets, Replies: &replyBook{}})
+	return app.NewPendingVoteReads(
+		d.reads(),
+		app.PendingVotePorts{Assets: d.assets, Replies: &replyBook{}, Cabals: d.roster()},
+	)
 }
 
 func (d readsDB) seed(t *testing.T, at time.Time, voters ...uuid.UUID) uuid.UUID {

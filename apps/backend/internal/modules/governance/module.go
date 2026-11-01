@@ -111,7 +111,7 @@ func (m *Module) proposalReads(ports Ports) *app.ProposalReads {
 
 func (m *Module) pendingReads(reads *app.ProposalReads) *app.PendingVoteReads {
 	return app.NewPendingVoteReads(reads, app.PendingVotePorts{
-		Assets: market.New(m.deps).Catalog(), Replies: social.New(m.deps),
+		Assets: market.New(m.deps).Catalog(), Replies: social.New(m.deps), Cabals: cabal.New(m.deps).Queries(),
 	})
 }
 
@@ -246,7 +246,7 @@ func (m *Module) voidProposal(hints app.Hints) *app.VoidProposalHandler {
 }
 
 func (m *Module) closeReminderPoller() *app.CloseReminderPoller {
-	p := app.NewCloseReminderPoller(m.deps.UoW, m.deps.Pool, m.deps.Clock)
+	p := app.NewCloseReminderPoller(m.deps.UoW, m.deps.Pool, cabal.New(m.deps).Queries(), m.deps.Clock)
 	p.Every = m.deps.Config.Governance.CloseRemindersInterval
 	return p
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"slices"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
@@ -21,8 +22,13 @@ type CloseReminder struct {
 
 func (CloseReminder) Name() string { return "close_reminder" }
 
-func (CloseReminder) Recipients(_ context.Context, e events.ProposalCloseReminderDue) ([]ids.UserID, error) {
-	return []ids.UserID{ids.UserIDFrom(e.UserID)}, nil
+func (k CloseReminder) Recipients(ctx context.Context, e events.ProposalCloseReminderDue) ([]ids.UserID, error) {
+	user := ids.UserIDFrom(e.UserID)
+	members, err := memberIDs(ctx, k.Cabals, &e.CabalID)
+	if err != nil || !slices.Contains(members, user) {
+		return nil, err
+	}
+	return []ids.UserID{user}, nil
 }
 
 func (k CloseReminder) Render(ctx context.Context, e events.ProposalCloseReminderDue, _ ids.UserID) (Message, error) {

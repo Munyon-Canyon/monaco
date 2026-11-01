@@ -10,6 +10,7 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/adapters"
+	"github.com/monaco/monaco/apps/backend/internal/modules/governance/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/domain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
 	api "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/governanceapi"
@@ -113,5 +114,39 @@ func TestHTTP_GetMyPendingVotes(t *testing.T) {
 	if _, err := h.GetMyPendingVotes(cancelled, api.GetMyPendingVotesRequestObject{}); errs.CodeOf(
 		err) != errs.CodeInternal {
 		t.Errorf("GetMyPendingVotes on a cancelled context err = %v, want internal", err)
+	}
+}
+
+func TestMe_PendingVotes_dropsACabalTheCallerLeft(t *testing.T) {
+	t.Parallel()
+	d := newReadsDB(t)
+	stays, left := d.buy(d.caller), d.buy(d.caller)
+	d.insert(t, stays)
+	d.insert(t, left)
+	roster := d.roster()
+	roster.leave(left.CabalID, d.caller)
+	reads := app.NewPendingVoteReads(d.reads(), app.PendingVotePorts{
+		Assets: d.assets, Replies: &replyBook{}, Cabals: roster,
+	})
+
+	got, err := reads.PendingVotes(t.Context(), ids.UserIDFrom(d.caller))
+
+	if err != nil || len(got) != 1 || got[0].ProposalID.UUID() != stays.ID {
+		t.Fatalf("PendingVotes = %+v, %v, want only the proposal %s of the cabal the caller kept", got, err, stays.ID)
+	}
+}
+
+func TestMe_PendingVotes_failsWhenTheMembershipLookupFails(t *testing.T) {
+	t.Parallel()
+	d := newReadsDB(t)
+	d.expiringFor(t, time.Hour, d.caller)
+	roster := d.roster()
+	roster.cabalsErr = errs.New(errs.CodeDBUnavailable, "test.members")
+	reads := app.NewPendingVoteReads(d.reads(), app.PendingVotePorts{
+		Assets: d.assets, Replies: &replyBook{}, Cabals: roster,
+	})
+
+	if _, err := reads.PendingVotes(t.Context(), ids.UserIDFrom(d.caller)); errs.CodeOf(err) != errs.CodeDBUnavailable {
+		t.Errorf("PendingVotes err = %v, want db_unavailable", err)
 	}
 }

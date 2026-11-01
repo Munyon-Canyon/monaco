@@ -34,11 +34,13 @@ func (c afterListClock) Now() time.Time {
 }
 
 func (d voteDB) afterList(run func()) *app.CloseReminderPoller {
-	return app.NewCloseReminderPoller(d.uow, d.pool, afterListClock{Clock: d.clk, calls: new(int), run: run})
+	return app.NewCloseReminderPoller(
+		d.uow, d.pool, d.roster(), afterListClock{Clock: d.clk, calls: new(int), run: run},
+	)
 }
 
 func (d voteDB) closeReminders() *app.CloseReminderPoller {
-	return app.NewCloseReminderPoller(d.uow, d.pool, d.clk)
+	return app.NewCloseReminderPoller(d.uow, d.pool, d.roster(), d.clk)
 }
 
 func (d voteDB) remindersTick(ctx context.Context, p *app.CloseReminderPoller) (poller.Report, error) {
@@ -292,12 +294,41 @@ func TestCloseReminderPoller_aFailedListScansNothing(t *testing.T) {
 
 func TestCloseReminderPoller_intervalFollowsEveryWhenSet(t *testing.T) {
 	t.Parallel()
-	p := app.NewCloseReminderPoller(nil, nil, nil)
+	p := app.NewCloseReminderPoller(nil, nil, nil, nil)
 	if got := p.Interval(); got != app.CloseReminderInterval {
 		t.Fatalf("Interval() = %v, want the default %v", got, app.CloseReminderInterval)
 	}
 	p.Every = time.Second
 	if got := p.Interval(); got != time.Second {
 		t.Fatalf("Interval() with Every = %v, want 1s", got)
+	}
+}
+
+func TestCloseReminderPoller_skipsAMemberWhoLeft(t *testing.T) {
+	t.Parallel()
+	d := newVoteDB(t)
+	p, v := d.dueReminder(t)
+	roster := d.roster()
+	roster.leave(p.CabalID, v[0])
+
+	d.mustRemind(t, app.NewCloseReminderPoller(d.uow, d.pool, roster, d.clk), 1, 0)
+
+	d.wantSentWithoutEvent(t, p, v[0])
+}
+
+func TestCloseReminderPoller_aFailedMembershipCheckLeavesTheReminderUnsent(t *testing.T) {
+	t.Parallel()
+	d := newVoteDB(t)
+	p, v := d.dueReminder(t)
+	roster := d.roster()
+	roster.err = errs.New(errs.CodeDBUnavailable, "test.members")
+
+	got, err := d.remindersTick(t.Context(), app.NewCloseReminderPoller(d.uow, d.pool, roster, d.clk))
+
+	if errs.CodeOf(err) != errs.CodeDBUnavailable || got.Scanned != 1 || got.Changed != 0 {
+		t.Fatalf("Tick = %+v, %v, want scanned 1 changed 0 and the membership error", got, err)
+	}
+	if rows := d.reminderRows(t, p.ID, v[0]); len(rows) != 1 || rows[0].SentAt != nil {
+		t.Fatalf("rows = %+v, want the reminder still unsent", rows)
 	}
 }

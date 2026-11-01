@@ -139,7 +139,7 @@ func TestNotify_CommentReply_Recipients(t *testing.T) {
 		e := golden
 		tc.edit(&e)
 
-		got, err := app.CommentReply{Blocks: blocks{}}.Recipients(t.Context(), e)
+		got, err := app.CommentReply{Cabals: cabalsOf(e), Blocks: blocks{}}.Recipients(t.Context(), e)
 
 		if err != nil || !slices.Equal(got, tc.want) {
 			t.Errorf("%s: Recipients = %v, %v, want %v", name, got, err, tc.want)
@@ -265,7 +265,7 @@ func TestNotify_CommentReply_BlocksDropTheRecipientEitherWay(t *testing.T) {
 		"the replier blocked":     {blocks{pairs: map[[2]ids.UserID]bool{{replier, answered}: true}}, nil, nil},
 		"the block store is down": {blocks{err: down}, nil, down},
 	} {
-		got, err := app.CommentReply{Blocks: tc.blocks}.Recipients(t.Context(), golden)
+		got, err := app.CommentReply{Cabals: cabalsOf(golden), Blocks: tc.blocks}.Recipients(t.Context(), golden)
 
 		if !errors.Is(err, tc.err) || !slices.Equal(got, tc.want) {
 			t.Errorf("%s: Recipients = %v, %v, want %v, %v", name, got, err, tc.want, tc.err)

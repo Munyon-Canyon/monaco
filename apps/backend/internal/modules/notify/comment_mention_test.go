@@ -58,11 +58,11 @@ func TestNotify_CommentMention_TheMentionedAreLeftOutOfTheReplyKinds(t *testing.
 	e := golden
 	e.MentionedUserIDs = []uuid.UUID{*golden.ItemActorID, *golden.ReplyToAuthorID}
 
-	post, err := app.PostReply{Blocks: blocks{}}.Recipients(t.Context(), e)
+	post, err := app.PostReply{Cabals: cabalsOf(e), Blocks: blocks{}}.Recipients(t.Context(), e)
 	if err != nil || post != nil {
 		t.Errorf("PostReply Recipients = %v, %v, want none", post, err)
 	}
-	reply, err := app.CommentReply{Blocks: blocks{}}.Recipients(t.Context(), e)
+	reply, err := app.CommentReply{Cabals: cabalsOf(e), Blocks: blocks{}}.Recipients(t.Context(), e)
 	if err != nil || reply != nil {
 		t.Errorf("CommentReply Recipients = %v, %v, want none", reply, err)
 	}

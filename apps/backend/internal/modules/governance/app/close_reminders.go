@@ -14,6 +14,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
+	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/platform/poller"
 )
@@ -23,15 +24,22 @@ const (
 	CloseReminderBatch    = 100
 )
 
-type CloseReminderPoller struct {
-	uow   *db.UnitOfWork
-	reads sqlc.DBTX
-	clock clock.Clock
-	Every time.Duration
+type ReminderMembers interface {
+	IsMember(ctx context.Context, id ids.CabalID, user ids.UserID) (bool, error)
 }
 
-func NewCloseReminderPoller(uow *db.UnitOfWork, reads sqlc.DBTX, c clock.Clock) *CloseReminderPoller {
-	return &CloseReminderPoller{uow: uow, reads: reads, clock: c}
+type CloseReminderPoller struct {
+	uow     *db.UnitOfWork
+	reads   sqlc.DBTX
+	members ReminderMembers
+	clock   clock.Clock
+	Every   time.Duration
+}
+
+func NewCloseReminderPoller(
+	uow *db.UnitOfWork, reads sqlc.DBTX, members ReminderMembers, c clock.Clock,
+) *CloseReminderPoller {
+	return &CloseReminderPoller{uow: uow, reads: reads, members: members, clock: c}
 }
 
 func (*CloseReminderPoller) Name() string { return "governance.close_reminders" }
@@ -69,7 +77,7 @@ func (p *CloseReminderPoller) remind(ctx context.Context, row sqlc.DueRemindersR
 		if err != nil || !claimed {
 			return err
 		}
-		raised, err = raiseCloseReminder(ctx, tx, prop, row.UserID, now)
+		raised, err = raiseCloseReminder(ctx, tx, p.members, prop, row.UserID, now)
 		return err
 	})
 	if err != nil {
@@ -107,10 +115,17 @@ func claimReminder(
 }
 
 func raiseCloseReminder(
-	ctx context.Context, tx db.Tx, prop sqlc.LockProposalRow, user uuid.UUID, now time.Time,
+	ctx context.Context, tx db.Tx, members ReminderMembers, prop sqlc.LockProposalRow, user uuid.UUID, now time.Time,
 ) (bool, error) {
 	const op = "governance.CloseReminders"
 	if prop.Status != string(domain.StatusOpen) || !now.Before(prop.ExpiresAt) {
+		return false, nil
+	}
+	member, err := members.IsMember(ctx, ids.CabalIDFrom(prop.CabalID), ids.UserIDFrom(user))
+	if err != nil {
+		return false, errs.Wrap(err, errs.CodeOf(err), op)
+	}
+	if !member {
 		return false, nil
 	}
 	q := sqlc.New(tx.Queries())
