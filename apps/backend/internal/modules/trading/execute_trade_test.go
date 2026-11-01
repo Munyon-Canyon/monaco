@@ -12,6 +12,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal"
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/app"
+	treasuryport "github.com/monaco/monaco/apps/backend/internal/modules/treasury/port"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/jupiter"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/marketfake"
@@ -250,6 +251,35 @@ func TestExecuteTrade_anUnusableCapIsAnInternalErrorNotATrade(t *testing.T) {
 				t.Fatalf("err = %v with %d swaps, want internal and no swap", err, len(e.swapsOf(t, cmd.ProposalID)))
 			}
 		})
+	}
+}
+
+type secondReadFails struct {
+	app.Positions
+	reads *int
+}
+
+func (p secondReadFails) SolanaPositions(ctx context.Context, id ids.CabalID) ([]treasuryport.Position, error) {
+	*p.reads++
+	if *p.reads > 1 {
+		return nil, errs.New(errs.CodeDBUnavailable, "test.SolanaPositions")
+	}
+	return p.Positions.SolanaPositions(ctx, id)
+}
+
+func TestExecuteTrade_aCapReadThatFailsIsRetriedAndNeverBlocks(t *testing.T) {
+	t.Parallel()
+	e := newEngineEnv(t)
+	e.capTradesAt(5_000)
+	cmd := e.buy()
+	ports := e.ports()
+	ports.Positions = secondReadFails{Positions: ports.Positions, reads: new(int)}
+
+	err := e.handlerWith(ports).Handle(actorContext(t.Context()), e.delivery(t, cmd), cmd, nil)
+
+	if errs.CodeOf(err) != errs.CodeDBUnavailable || len(e.blocked(t, cmd.ProposalID)) != 0 {
+		t.Fatalf("err = %v with %d blocked, want db_unavailable for redelivery and no block",
+			err, len(e.blocked(t, cmd.ProposalID)))
 	}
 }
 
