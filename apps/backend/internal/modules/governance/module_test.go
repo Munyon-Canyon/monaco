@@ -14,6 +14,7 @@ import (
 	"go.opentelemetry.io/otel/metric/noop"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance"
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/app"
@@ -138,5 +139,13 @@ func TestVoidFromOps_refusesABlankReasonBeforeTouchingAnything(t *testing.T) {
 	err := governance.New(module.Deps{}).VoidFromOps(t.Context(), governance.ProposalID{}, " ")
 	if err == nil {
 		t.Fatalf("VoidFromOps err = %v, want an error", err)
+	}
+}
+
+func TestRetryBlockedTradeFromOps_refusesABlankReasonBeforeTouchingAnything(t *testing.T) {
+	t.Parallel()
+	err := governance.New(module.Deps{}).RetryBlockedTradeFromOps(t.Context(), governance.ProposalID{}, " ")
+	if errs.CodeOf(err) != errs.CodeInvalidInput {
+		t.Fatalf("RetryBlockedTradeFromOps err = %v, want invalid_input", err)
 	}
 }
