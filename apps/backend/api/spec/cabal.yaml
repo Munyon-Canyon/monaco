@@ -231,7 +231,6 @@ paths:
     post:
       operationId: postCabalMember
       tags: [cabal]
-      x-rate-limit: {actor: {rate: 60, per: 1m, burst: 20}}
       x-idempotent: true
       x-rate-limit:
         actor:
@@ -264,7 +263,6 @@ paths:
     delete:
       operationId: deleteCabalMemberMe
       tags: [cabal]
-      x-rate-limit: {actor: {rate: 60, per: 1m, burst: 20}}
       x-idempotent: true
       x-rate-limit:
         actor:
@@ -318,7 +316,6 @@ paths:
     post:
       operationId: postCabalAccessRequest
       tags: [cabal]
-      x-rate-limit: {actor: {rate: 60, per: 1m, burst: 20}}
       x-idempotent: true
       x-rate-limit:
         actor:
@@ -359,7 +356,6 @@ paths:
     delete:
       operationId: deleteCabalAccessRequest
       tags: [cabal]
-      x-rate-limit: {actor: {rate: 60, per: 1m, burst: 20}}
       x-idempotent: true
       x-rate-limit:
         actor:
