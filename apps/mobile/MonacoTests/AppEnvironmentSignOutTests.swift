@@ -121,6 +121,42 @@ struct AppEnvironmentSignOutTests {
         #expect(environment.sessionStore.hasLoaded == false)
     }
 
+    #if DEBUG
+    @Test func signingOutOfAllDevicesEndsTheSessionOnlyAfterTheServerEndedThem() async {
+        var ended: [String] = []
+        let auth = PrivyAuthService.processInstance ?? PrivyAuthService()
+        auth.adoptDevAccessToken("copied-token")
+        auth.revokeEverywhere = { _ in true }
+        let environment = AppEnvironment(
+            auth: auth, hints: FakeHintSource(), isAuthenticated: { true },
+            endAuthSession: { ended.append("member") }, endExpiredSession: { ended.append($0) })
+        environment.viewer = Viewer(userID: "u-1", handle: nil)
+
+        let result = await environment.signOutEverywhere()
+
+        #expect(result)
+        #expect(ended == ["member"])
+        #expect(environment.viewer == nil)
+    }
+
+    @Test func aFailedSignOutOfAllDevicesKeepsTheMemberSignedIn() async {
+        var ended: [String] = []
+        let auth = PrivyAuthService.processInstance ?? PrivyAuthService()
+        auth.adoptDevAccessToken("copied-token")
+        auth.revokeEverywhere = { _ in false }
+        let environment = AppEnvironment(
+            auth: auth, hints: FakeHintSource(), isAuthenticated: { true },
+            endAuthSession: { ended.append("member") }, endExpiredSession: { ended.append($0) })
+        environment.viewer = Viewer(userID: "u-1", handle: nil)
+
+        let result = await environment.signOutEverywhere()
+
+        #expect(!result)
+        #expect(ended.isEmpty)
+        #expect(environment.viewer != nil)
+    }
+    #endif
+
     private func environment(tokens: SessionTokens, ended: @escaping (String) -> Void) -> AppEnvironment {
         AppEnvironment(
             auth: PrivyAuthService.processInstance ?? PrivyAuthService(),

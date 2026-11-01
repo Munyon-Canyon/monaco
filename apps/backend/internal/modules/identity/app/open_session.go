@@ -65,6 +65,7 @@ type session struct {
 	provider domain.LoginProvider
 	wallet   domain.Wallet
 	known    bool
+	sid      string
 }
 
 func (h *OpenSessionHandler) Handle(ctx context.Context, cmd OpenSession) (Me, error) {
@@ -117,7 +118,14 @@ func (h *OpenSessionHandler) introduce(ctx context.Context, token string) (sessi
 	if err != nil {
 		return session{}, err
 	}
-	return session{privyID: privyID, user: user, provider: provider, wallet: wallet, known: known}, nil
+	return session{
+		privyID:  privyID,
+		user:     user,
+		provider: provider,
+		wallet:   wallet,
+		known:    known,
+		sid:      verified.ID,
+	}, nil
 }
 
 func (h *OpenSessionHandler) refuseEnded(ctx context.Context, s PrivySession) error {
@@ -160,6 +168,9 @@ func (h *OpenSessionHandler) settle(ctx context.Context, tx db.Tx, s session) (i
 	if err := h.refresh(ctx, q, row, s, now); err != nil {
 		return ids.UserID{}, false, err
 	}
+	if err := h.recordSession(ctx, q, row.ID, s.sid, now); err != nil {
+		return ids.UserID{}, false, err
+	}
 	changed, err := h.syncLinks(ctx, tx, row, s.user.Links(), now)
 	if err != nil {
 		return ids.UserID{}, false, err
@@ -176,6 +187,15 @@ func (h *OpenSessionHandler) settle(ctx context.Context, tx db.Tx, s session) (i
 		h.announce(tx, row.ID)
 	}
 	return row.ID, created, nil
+}
+
+func (h *OpenSessionHandler) recordSession(
+	ctx context.Context, q sqlc.DBTX, id ids.UserID, sid string, now time.Time,
+) error {
+	_, err := sqlc.New(q).RecordUserSession(ctx, sqlc.RecordUserSessionParams{
+		PrivySessionID: sid, UserID: id.UUID(), FirstSeenAt: now,
+	})
+	return err
 }
 
 func (h *OpenSessionHandler) refresh(

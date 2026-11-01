@@ -102,6 +102,25 @@ func TestVerifyAccessToken_refusals(t *testing.T) {
 	}
 }
 
+func TestVerifySession_allowsThirtySecondsOfClockSkewOnIssuedAtAndNotBefore(t *testing.T) {
+	t.Parallel()
+	clk := testkit.NewClock(clock.Real{}.Now())
+	now := clk.Now()
+	mint := func(skew time.Duration) string {
+		return token(map[string]any{
+			"iss": "privy.io", "aud": appID, "sub": "did:privy:x", "sid": "session-x",
+			"iat": now.Add(skew).Unix(), "nbf": now.Add(skew).Unix(), "exp": now.Add(time.Hour).Unix(),
+		})
+	}
+	c := clientWith(testConfig(), nil, clk)
+	if _, err := c.VerifySession(t.Context(), mint(25*time.Second)); err != nil {
+		t.Fatalf("a token minted 25s ahead = %v, want accepted", err)
+	}
+	if _, err := c.VerifySession(t.Context(), mint(45*time.Second)); errs.CodeOf(err) != errs.CodeUnauthorized {
+		t.Fatalf("a token minted 45s ahead = %v, want unauthorized", err)
+	}
+}
+
 func TestNew_refusesAMissingOrUnusableVerificationKey(t *testing.T) {
 	t.Parallel()
 	edPub, _, _ := ed25519.GenerateKey(rand.Reader)

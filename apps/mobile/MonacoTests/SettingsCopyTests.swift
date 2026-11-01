@@ -13,7 +13,8 @@ struct SettingsCopyTests {
         #expect(
             SettingsRow.allCases.map(\.title) == [
                 "Notifications", "Edit profile", "Find friends", "Invite friends", "View as others",
-                "Account activity", "Withdraw", "Blocked people", "Block explorers", "Contact support", "Sign out",
+                "Account activity", "Withdraw", "Blocked people", "Block explorers", "Contact support",
+                "Sign out of all devices", "Sign out",
                 "Delete account",
             ])
     }

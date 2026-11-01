@@ -55,3 +55,44 @@ func (q *Queries) ActorByPrivyUserID(ctx context.Context, arg ActorByPrivyUserID
 	err := row.Scan(&i.ID, &i.AccountStatus, &i.SessionEnded)
 	return i, err
 }
+
+const recordUserSession = `-- name: RecordUserSession :execrows
+INSERT INTO user_sessions (privy_session_id, user_id, first_seen_at)
+VALUES ($1::text, $2::uuid, $3::timestamptz)
+ON CONFLICT (privy_session_id) DO NOTHING
+`
+
+type RecordUserSessionParams struct {
+	PrivySessionID string
+	UserID         uuid.UUID
+	FirstSeenAt    time.Time
+}
+
+func (q *Queries) RecordUserSession(ctx context.Context, arg RecordUserSessionParams) (int64, error) {
+	result, err := q.db.Exec(ctx, recordUserSession, arg.PrivySessionID, arg.UserID, arg.FirstSeenAt)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const revokeKnownSessions = `-- name: RevokeKnownSessions :execrows
+INSERT INTO revoked_sessions (privy_session_id, user_id, revoked_at)
+SELECT s.privy_session_id, s.user_id, $1::timestamptz
+FROM user_sessions s
+WHERE s.user_id = $2::uuid
+ON CONFLICT (privy_session_id) DO NOTHING
+`
+
+type RevokeKnownSessionsParams struct {
+	RevokedAt time.Time
+	UserID    uuid.UUID
+}
+
+func (q *Queries) RevokeKnownSessions(ctx context.Context, arg RevokeKnownSessionsParams) (int64, error) {
+	result, err := q.db.Exec(ctx, revokeKnownSessions, arg.RevokedAt, arg.UserID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
