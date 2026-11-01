@@ -344,9 +344,10 @@ func TestBridgeBack_theFillIsOwnedOnceTheReturnSucceedsAndExpectedWhileItIsInFli
 
 	e.mustTick(t, 1, 1)
 
-	inFlight, err := e.queries().BridgeBackInFlight(t.Context(), e.cabal)
-	if err != nil || inFlight != money.MicrosFromUint64(landedMicros) {
-		t.Fatalf("in flight = %s, %v, want %d while the return is submitted", inFlight, err, landedMicros)
+	bands, err := e.queries().BridgeBacksInFlight(t.Context(), e.cabal)
+	sent := money.MicrosFromUint64(landedMicros)
+	if err != nil || len(bands) != 1 || bands[0].Max != sent || bands[0].Min.Cmp(sent) >= 0 || bands[0].Min.IsZero() {
+		t.Fatalf("bands = %+v, %v, want one band ending at %d while the return is submitted", bands, err, landedMicros)
 	}
 	_, action := e.bridgeBackOf(t, swap)
 	fill := chain.Signature(arrivalPrefix + action)
@@ -360,7 +361,30 @@ func TestBridgeBack_theFillIsOwnedOnceTheReturnSucceedsAndExpectedWhileItIsInFli
 	if owned, err := e.queries().OwnsSignature(t.Context(), fill); err != nil || !owned {
 		t.Fatalf("OwnsSignature(fill) = %t, %v, want true once the return succeeded", owned, err)
 	}
-	if inFlight, err := e.queries().BridgeBackInFlight(t.Context(), e.cabal); err != nil || !inFlight.IsZero() {
-		t.Fatalf("in flight = %s, %v, want zero once the return succeeded", inFlight, err)
+	if bands, err := e.queries().BridgeBacksInFlight(t.Context(), e.cabal); err != nil || len(bands) != 0 {
+		t.Fatalf("bands = %+v, %v, want none once the return succeeded", bands, err)
+	}
+}
+
+func TestBridgeBack_aRouteTheBandCannotReadFailsInsteadOfGuessing(t *testing.T) {
+	t.Parallel()
+	e := newRouteEnv(t)
+	_, swap := e.strand(t)
+	e.mustTick(t, 1, 0)
+	e.proposals.set(governance.Status("cancelled"))
+	e.privy.script(multichain.ActionPending)
+	e.mustTick(t, 1, 1)
+	if _, err := e.pool.Exec(
+		t.Context(),
+		`UPDATE trade_routes SET comparison = '"unreadable"' WHERE trade_id = $1`,
+		swap,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	bands, err := e.queries().BridgeBacksInFlight(t.Context(), e.cabal)
+
+	if errs.CodeOf(err) != errs.CodeDecodeFailed || len(bands) != 0 {
+		t.Fatalf("bands = %+v, err = %v, want a decode failure and no bands", bands, err)
 	}
 }

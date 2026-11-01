@@ -22,8 +22,10 @@ SELECT EXISTS (
   SELECT 1 FROM trade_steps WHERE step = 'bridge_back' AND arrival_tx = @tx_signature::text
 );
 
--- name: BridgeBackInFlight :one
-SELECT coalesce(sum(t.amount_micros), 0)::text AS in_flight_micros
+-- name: BridgeBacksInFlight :many
+SELECT t.id, t.amount_micros::text AS sent_micros, r.comparison
 FROM trade_steps t
 JOIN swaps s ON s.id = t.trade_id
-WHERE s.cabal_id = @cabal_id::uuid AND t.step = 'bridge_back' AND t.status = 'submitted';
+JOIN trade_routes r ON r.trade_id = t.trade_id
+WHERE s.cabal_id = @cabal_id::uuid AND t.step = 'bridge_back' AND t.status = 'submitted'
+ORDER BY t.created_at, t.id;

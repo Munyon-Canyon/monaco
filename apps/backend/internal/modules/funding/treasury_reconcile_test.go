@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
@@ -656,21 +657,34 @@ func TestTreasuryReconcile_ATokenAccountScanFailureIsCountedNotFatal(t *testing.
 	}
 }
 
-type bridgeBackInFlight money.Micros
+type bridgeBacks []fundingport.ArrivalBand
 
-func (b bridgeBackInFlight) BridgeBackInFlight(context.Context, ids.CabalID) (money.Micros, error) {
-	return money.Micros(b), nil
+func (b bridgeBacks) BridgeBacksInFlight(context.Context, ids.CabalID) ([]fundingport.ArrivalBand, error) {
+	return b, nil
 }
 
-func TestTreasuryReconcile_ABridgeBackFillLandingBeforeBridgeLandedIsNotBounced(t *testing.T) {
+func bridgeBack() fundingport.ArrivalBand {
+	return fundingport.ArrivalBand{
+		ID: uuid.UUID{15: 1}, Min: money.MicrosFromUint64(29_400_000), Max: money.MicrosFromUint64(30_000_000),
+	}
+}
+
+func (e *reconcileEnv) expectBridgeBacks(bands ...fundingport.ArrivalBand) {
+	handler := app.NewDetectExternalDepositHandler(func() app.DetectDeps {
+		deps := e.watchEnv.deps
+		deps.Arrivals = []fundingport.ArrivalExpectation{bridgeBacks(bands)}
+		return deps
+	}())
+	e.deps.Detect = detectorFunc(func(ctx context.Context, cmd app.DetectExternalDeposit) (app.DetectResult, error) {
+		return handler.Handle(ctx, cmd)
+	})
+}
+
+func TestTreasuryReconcile_ABridgeBackFillInsideItsBandIsNotBounced(t *testing.T) {
 	t.Parallel()
 	env := newReconcileEnv(t)
 	treasury := env.cabal.TreasuryAddress
-	env.deps.Detect = detectorFunc(func(ctx context.Context, cmd app.DetectExternalDeposit) (app.DetectResult, error) {
-		deps := env.watchEnv.deps
-		deps.Arrivals = []fundingport.ArrivalExpectation{bridgeBackInFlight(money.MicrosFromUint64(30_000_000))}
-		return app.NewDetectExternalDepositHandler(deps).Handle(ctx, cmd)
-	})
+	env.expectBridgeBacks(bridgeBack())
 	fill := env.inbound(t, env.usdcMint(), 29_400_000, randomAddress(t))
 	env.landed(treasury, fill)
 	env.onChain(treasury, env.usdc, 29_400_000)
@@ -688,26 +702,53 @@ func TestTreasuryReconcile_ABridgeBackFillLandingBeforeBridgeLandedIsNotBounced(
 	}
 }
 
-func TestTreasuryReconcile_ATransferLargerThanTheBridgeBackInFlightIsStillBounced(t *testing.T) {
+func TestTreasuryReconcile_ATransferOutsideEveryBandIsStillBounced(t *testing.T) {
+	t.Parallel()
+	for name, amount := range map[string]uint64{
+		"above the band":       30_000_001,
+		"one micro under it":   29_399_999,
+		"a stray far below it": 5_000_000,
+		"a member deposit":     1_000_000,
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			env := newReconcileEnv(t)
+			treasury := env.cabal.TreasuryAddress
+			env.expectBridgeBacks(bridgeBack())
+			stray := env.inbound(t, env.usdcMint(), amount, randomAddress(t))
+			env.landed(treasury, stray)
+			env.onChain(treasury, env.usdc, amount)
+
+			changed, err := env.tick(t)
+
+			if err != nil || changed != 1 {
+				t.Fatalf("tick = %d, %v, want the transfer recorded", changed, err)
+			}
+			if rows := externalDeposits(t, env.pool); rows[string(stray)].status != "detected" {
+				t.Fatalf("rows = %+v, want the transfer detected", rows)
+			}
+		})
+	}
+}
+
+func TestTreasuryReconcile_TwoTransfersInOneBandAndOneBridgeBackLeaveOneExternal(t *testing.T) {
 	t.Parallel()
 	env := newReconcileEnv(t)
 	treasury := env.cabal.TreasuryAddress
-	env.deps.Detect = detectorFunc(func(ctx context.Context, cmd app.DetectExternalDeposit) (app.DetectResult, error) {
-		deps := env.watchEnv.deps
-		deps.Arrivals = []fundingport.ArrivalExpectation{bridgeBackInFlight(money.MicrosFromUint64(30_000_000))}
-		return app.NewDetectExternalDepositHandler(deps).Handle(ctx, cmd)
-	})
-	stray := env.inbound(t, env.usdcMint(), 30_000_001, randomAddress(t))
-	env.landed(treasury, stray)
-	env.onChain(treasury, env.usdc, 30_000_001)
+	env.expectBridgeBacks(bridgeBack())
+	fill := env.inbound(t, env.usdcMint(), 29_500_000, randomAddress(t))
+	second := env.inbound(t, env.usdcMint(), 29_700_000, randomAddress(t))
+	env.landed(treasury, fill, second)
+	env.onChain(treasury, env.usdc, 59_200_000)
 
 	changed, err := env.tick(t)
 
 	if err != nil || changed != 1 {
-		t.Fatalf("tick = %d, %v, want the oversize transfer recorded", changed, err)
+		t.Fatalf("tick = %d, %v, want only the second transfer recorded", changed, err)
 	}
-	if rows := externalDeposits(t, env.pool); rows[string(stray)].status != "detected" {
-		t.Fatalf("rows = %+v, want the oversize transfer detected", rows)
+	rows := externalDeposits(t, env.pool)
+	if _, claimed := rows[string(fill)]; claimed || rows[string(second)].status != "detected" {
+		t.Fatalf("rows = %+v, want the first transfer own and the second detected", rows)
 	}
 }
 
@@ -715,14 +756,10 @@ func TestTreasuryReconcile_ABridgeBackThatIsNotInFlightDoesNotShieldATransfer(t 
 	t.Parallel()
 	env := newReconcileEnv(t)
 	treasury := env.cabal.TreasuryAddress
-	env.deps.Detect = detectorFunc(func(ctx context.Context, cmd app.DetectExternalDeposit) (app.DetectResult, error) {
-		deps := env.watchEnv.deps
-		deps.Arrivals = []fundingport.ArrivalExpectation{bridgeBackInFlight(money.Micros{})}
-		return app.NewDetectExternalDepositHandler(deps).Handle(ctx, cmd)
-	})
-	stray := env.inbound(t, env.usdcMint(), 5_000_000, randomAddress(t))
+	env.expectBridgeBacks()
+	stray := env.inbound(t, env.usdcMint(), 29_500_000, randomAddress(t))
 	env.landed(treasury, stray)
-	env.onChain(treasury, env.usdc, 5_000_000)
+	env.onChain(treasury, env.usdc, 29_500_000)
 
 	if changed, err := env.tick(t); err != nil || changed != 1 {
 		t.Fatalf("tick = %d, %v, want the stray transfer recorded", changed, err)
@@ -731,8 +768,8 @@ func TestTreasuryReconcile_ABridgeBackThatIsNotInFlightDoesNotShieldATransfer(t 
 
 type brokenArrivals struct{}
 
-func (brokenArrivals) BridgeBackInFlight(context.Context, ids.CabalID) (money.Micros, error) {
-	return money.Micros{}, errs.New(errs.CodeInternal, "test.BridgeBackInFlight")
+func (brokenArrivals) BridgeBacksInFlight(context.Context, ids.CabalID) ([]fundingport.ArrivalBand, error) {
+	return nil, errs.New(errs.CodeInternal, "test.BridgeBackInFlight")
 }
 
 func TestTreasuryReconcile_AnUnreadableBridgeBackFailsTheScanInsteadOfBouncing(t *testing.T) {

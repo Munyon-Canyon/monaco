@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"strings"
@@ -11,9 +12,11 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
+	fundingport "github.com/monaco/monaco/apps/backend/internal/modules/funding/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
@@ -153,16 +156,37 @@ func (s Queries) OwnsSignature(ctx context.Context, sig chain.Signature) (bool, 
 	return owns, nil
 }
 
-func (s Queries) BridgeBackInFlight(ctx context.Context, cabal ids.CabalID) (money.Micros, error) {
-	sum, err := s.q.BridgeBackInFlight(ctx, cabal.UUID())
-	var micros money.Micros
-	if err == nil {
-		micros, err = money.ParseMicros(sum)
-	}
+func (s Queries) BridgeBacksInFlight(ctx context.Context, cabal ids.CabalID) ([]fundingport.ArrivalBand, error) {
+	const op = "trading.BridgeBacksInFlight"
+	rows, err := s.q.BridgeBacksInFlight(ctx, cabal.UUID())
 	if err != nil {
-		return money.Micros{}, errs.Wrap(err, errs.CodeInternal, "trading.BridgeBackInFlight")
+		return nil, errs.Wrap(err, errs.CodeInternal, op)
 	}
-	return micros, nil
+	bands := make([]fundingport.ArrivalBand, 0, len(rows))
+	for _, r := range rows {
+		var comparison multichain.Comparison
+		sent, parseErr := money.ParseMicros(r.SentMicros)
+		if err := errors.Join(parseErr, json.Unmarshal(r.Comparison, &comparison)); err != nil {
+			return nil, errs.Wrap(err, errs.CodeDecodeFailed, op, slog.String("step_id", r.ID.String()))
+		}
+		bands = append(bands, fundingport.ArrivalBand{
+			ID: r.ID, Min: arrivalFloor(sent, bridgeFee(comparison)), Max: sent,
+		})
+	}
+	return bands, nil
+}
+
+const (
+	bandSlackFlat    = 100_000
+	bandSlackDivisor = 100
+)
+
+func arrivalFloor(sent, quotedFee money.Micros) money.Micros {
+	allowed := quotedFee.Uint64() + bandSlackFlat + sent.Uint64()/bandSlackDivisor
+	if allowed < quotedFee.Uint64() || allowed >= sent.Uint64() {
+		return money.MicrosFromUint64(1)
+	}
+	return money.MicrosFromUint64(sent.Uint64() - allowed)
 }
 
 func found(op string, row sqlc.SwapView, err error) (SwapView, error) {

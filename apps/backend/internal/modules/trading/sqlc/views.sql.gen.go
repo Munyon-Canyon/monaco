@@ -11,18 +11,39 @@ import (
 	"github.com/google/uuid"
 )
 
-const bridgeBackInFlight = `-- name: BridgeBackInFlight :one
-SELECT coalesce(sum(t.amount_micros), 0)::text AS in_flight_micros
+const bridgeBacksInFlight = `-- name: BridgeBacksInFlight :many
+SELECT t.id, t.amount_micros::text AS sent_micros, r.comparison
 FROM trade_steps t
 JOIN swaps s ON s.id = t.trade_id
+JOIN trade_routes r ON r.trade_id = t.trade_id
 WHERE s.cabal_id = $1::uuid AND t.step = 'bridge_back' AND t.status = 'submitted'
+ORDER BY t.created_at, t.id
 `
 
-func (q *Queries) BridgeBackInFlight(ctx context.Context, cabalID uuid.UUID) (string, error) {
-	row := q.db.QueryRow(ctx, bridgeBackInFlight, cabalID)
-	var in_flight_micros string
-	err := row.Scan(&in_flight_micros)
-	return in_flight_micros, err
+type BridgeBacksInFlightRow struct {
+	ID         uuid.UUID
+	SentMicros string
+	Comparison []byte
+}
+
+func (q *Queries) BridgeBacksInFlight(ctx context.Context, cabalID uuid.UUID) ([]BridgeBacksInFlightRow, error) {
+	rows, err := q.db.Query(ctx, bridgeBacksInFlight, cabalID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []BridgeBacksInFlightRow
+	for rows.Next() {
+		var i BridgeBacksInFlightRow
+		if err := rows.Scan(&i.ID, &i.SentMicros, &i.Comparison); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const hasLiveSwap = `-- name: HasLiveSwap :one
