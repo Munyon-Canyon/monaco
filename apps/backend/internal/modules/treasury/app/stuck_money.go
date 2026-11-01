@@ -38,16 +38,3 @@ func (s StuckMoney) List(
 	}
 	return out, nil
 }
-
-func (s StuckMoney) Summary(ctx context.Context, olderThan time.Duration) ([]money.StuckSummary, error) {
-	now := s.Clock.Now()
-	rows, err := sqlc.New(s.Reads).SummarizeStuckTreasuryMoney(ctx, now.Add(-olderThan))
-	if err != nil {
-		return nil, errs.Wrap(err, errs.CodeDBUnavailable, "treasury.StuckMoney.Summary")
-	}
-	out := make([]money.StuckSummary, len(rows))
-	for i, r := range rows {
-		out[i] = money.StuckSummary{Kind: r.Kind, Count: int(r.Total), Oldest: r.Oldest}
-	}
-	return out, nil
-}

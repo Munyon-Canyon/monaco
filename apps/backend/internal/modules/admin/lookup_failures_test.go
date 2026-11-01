@@ -22,6 +22,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
 
@@ -321,15 +322,17 @@ func (s stubPorts) CountUnpublished(context.Context, time.Duration) (int, error)
 	return 1, s.err("CountUnpublished")
 }
 
-func (s stubPorts) CountOpen(context.Context) (int, error) { return 1, s.err("CountOpen") }
+func (s stubPorts) Summarize(context.Context, time.Duration) ([]money.StuckSummary, error) {
+	return nil, s.err("Summarize")
+}
 
 func queues(s stubPorts) app.Queues {
-	return app.Queues{Swaps: s, Events: s, Letters: s, Clock: testkit.NewClock(time.Unix(0, 0))}
+	return app.Queues{Swaps: s, Events: s, Summary: s, Clock: testkit.NewClock(time.Unix(0, 0))}
 }
 
 func TestQueues_PassEveryPortFailureOn(t *testing.T) {
 	t.Parallel()
-	for _, method := range []string{"CountStuck", "CountUnpublished", "CountOpen"} {
+	for _, method := range []string{"CountStuck", "CountUnpublished", "Summarize"} {
 		if _, err := queues(newStub(failing(method))).Counts(t.Context()); !isPortDown(err) {
 			t.Errorf("Counts with %s down = %v", method, err)
 		}

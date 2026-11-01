@@ -47,5 +47,4 @@ func IsIntentKind(kind string) bool {
 
 type StuckReader interface {
 	List(ctx context.Context, kind string, olderThan time.Duration, limit int) ([]StuckRow, error)
-	Summary(ctx context.Context, olderThan time.Duration) ([]StuckSummary, error)
 }

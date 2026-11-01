@@ -68,7 +68,7 @@ type StuckMoneyRow struct {
 type Queues struct {
 	Swaps   StuckSwaps
 	Events  EventQueue
-	Letters DeadLetterCounter
+	Summary QueueSummary
 	Money   []money.StuckReader
 	Clock   clock.Clock
 }
@@ -125,18 +125,14 @@ func (q Queues) Counts(ctx context.Context) ([]QueueCount, error) {
 	if err != nil {
 		return nil, err
 	}
-	letters, err := q.Letters.CountOpen(ctx)
+	summaries, err := q.MoneySummaries(ctx, StuckAfter)
 	if err != nil {
 		return nil, err
 	}
 	counts := []QueueCount{
 		{Name: QueueStuckTxns, Count: stuck, Href: "/v1/admin/queues/stuck-txns"},
 		{Name: QueueUnpublishedEvents, Count: unpublished, Href: "/v1/admin/queues/unpublished-events"},
-		{Name: QueueDeadLetters, Count: letters, Href: "/v1/admin/dead-letters"},
-	}
-	summaries, err := q.MoneySummaries(ctx, StuckAfter)
-	if err != nil {
-		return nil, err
+		{Name: QueueDeadLetters, Count: summaries[QueueDeadLetters].Count, Href: "/v1/admin/dead-letters"},
 	}
 	now := q.Clock.Now()
 	for _, kind := range money.StuckKinds() {
@@ -153,15 +149,13 @@ func (q Queues) Counts(ctx context.Context) ([]QueueCount, error) {
 func MoneyHref(kind string) string { return "/v1/admin/queues/stuck-money?kind=" + kind }
 
 func (q Queues) MoneySummaries(ctx context.Context, olderThan time.Duration) (map[string]money.StuckSummary, error) {
-	out := map[string]money.StuckSummary{}
-	for _, reader := range q.Money {
-		rows, err := reader.Summary(ctx, olderThan)
-		if err != nil {
-			return nil, err
-		}
-		for _, row := range rows {
-			out[row.Kind] = row
-		}
+	rows, err := q.Summary.Summarize(ctx, olderThan)
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[string]money.StuckSummary, len(rows))
+	for _, row := range rows {
+		out[row.Kind] = row
 	}
 	return out, nil
 }

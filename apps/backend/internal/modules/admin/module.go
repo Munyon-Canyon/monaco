@@ -82,7 +82,7 @@ func (m *Module) txnLookup() app.TxnLookup {
 func (m *Module) queues() app.Queues {
 	return app.Queues{
 		Swaps: trading.New(m.deps).Queries(), Events: bus.NewEventLog(m.deps.Pool, m.deps.Clock),
-		Letters: adapters.DeadLetterCount{DB: m.deps.Pool}, Clock: m.deps.Clock,
+		Summary: adapters.QueueSummary{DB: m.deps.Pool, Clock: m.deps.Clock}, Clock: m.deps.Clock,
 		Money: []money.StuckReader{funding.New(m.deps).StuckMoney(), treasury.New(m.deps).StuckMoney()},
 	}
 }

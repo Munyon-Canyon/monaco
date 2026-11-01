@@ -17,18 +17,3 @@ FROM (
 WHERE since < sqlc.arg(created_before)::timestamptz AND (sqlc.arg(kind)::text = '' OR kind = sqlc.arg(kind)::text)
 ORDER BY since, ref
 LIMIT sqlc.arg(row_limit)::bigint;
-
--- name: SummarizeStuckTreasuryMoney :many
-SELECT kind::text AS kind, count(*)::bigint AS total, min(since)::timestamptz AS oldest
-FROM (
-  SELECT 'fund_transfer' AS kind, created_at AS since FROM fund_transfers WHERE status IN ('created', 'submitted', 'landed')
-  UNION ALL
-  SELECT 'cash_out_job', updated_at FROM cash_out_jobs WHERE status IN ('started', 'selling', 'paying')
-  UNION ALL
-  SELECT 'cash_out_payout', created_at FROM cash_out_payouts WHERE status IN ('signed', 'broadcast')
-  UNION ALL
-  SELECT 'wind_down', started_at FROM cabal_winddowns WHERE status = 'running'
-) m
-WHERE since < sqlc.arg(created_before)::timestamptz
-GROUP BY kind
-ORDER BY kind;

@@ -24,21 +24,3 @@ FROM (
 WHERE since < sqlc.arg(created_before)::timestamptz AND (sqlc.arg(kind)::text = '' OR kind = sqlc.arg(kind)::text)
 ORDER BY since, ref
 LIMIT sqlc.arg(row_limit)::bigint;
-
--- name: SummarizeStuckFundingMoney :many
-SELECT kind::text AS kind, count(*)::bigint AS total, min(since)::timestamptz AS oldest
-FROM (
-  SELECT 'withdrawal' AS kind, created_at AS since FROM withdrawals WHERE status IN ('created', 'submitted')
-  UNION ALL
-  SELECT 'evm_forward', created_at FROM evm_deposit_forwards WHERE status IN ('pending', 'failed')
-  UNION ALL
-  SELECT 'external_deposit', detected_at FROM external_deposits WHERE status IN ('detected', 'bouncing', 'bounce_failed')
-  UNION ALL
-  SELECT 'onramp_session', created_at FROM onramp_sessions
-  WHERE status IN ('confirmed', 'submitted') OR (status IN ('created', 'opened') AND expires_at < sqlc.arg(now)::timestamptz)
-  UNION ALL
-  SELECT 'deposit_candidate', seen_at FROM deposit_candidates WHERE status = 'pending'
-) m
-WHERE since < sqlc.arg(created_before)::timestamptz
-GROUP BY kind
-ORDER BY kind;

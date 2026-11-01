@@ -2,25 +2,38 @@ package adapters
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/admin/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/admin/sqlc"
+	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	api "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/adminapi"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
 const defaultQueuePage = 50
 
-type DeadLetterCount struct{ DB sqlc.DBTX }
+type QueueSummary struct {
+	DB    sqlc.DBTX
+	Clock clock.Clock
+}
 
-func (c DeadLetterCount) CountOpen(ctx context.Context) (int, error) {
-	n, err := sqlc.New(c.DB).CountOpenDeadLetters(ctx)
+func (s QueueSummary) Summarize(ctx context.Context, olderThan time.Duration) ([]money.StuckSummary, error) {
+	now := s.Clock.Now()
+	rows, err := sqlc.New(s.DB).SummarizeAdminQueues(ctx, sqlc.SummarizeAdminQueuesParams{
+		Now: now, CreatedBefore: now.Add(-olderThan),
+	})
 	if err != nil {
-		return 0, errs.Wrap(err, errs.CodeDBUnavailable, "admin.DeadLetterCount.CountOpen")
+		return nil, errs.Wrap(err, errs.CodeDBUnavailable, "admin.QueueSummary.Summarize")
 	}
-	return int(n), nil
+	out := make([]money.StuckSummary, len(rows))
+	for i, r := range rows {
+		out[i] = money.StuckSummary{Kind: r.Kind, Count: int(r.Total), Oldest: r.Oldest}
+	}
+	return out, nil
 }
 
 func (h HTTP) GetAdminQueues(

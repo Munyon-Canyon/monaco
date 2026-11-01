@@ -58,21 +58,6 @@ func TestStuckMoney_ListsOnlyTheNonFinalTreasuryRows(t *testing.T) {
 	}
 }
 
-func TestStuckMoney_SummarizesTheOldestRowPerKind(t *testing.T) {
-	t.Parallel()
-	pool := testkit.DB(t)
-	cabal := testkit.NewCabal(t, pool)
-	user := testkit.SeedUser(t, pool, testkit.UserOpts{Handle: "dana"}).ID.UUID()
-	clk := testkit.NewClock(time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC))
-	old := clk.Now().Add(-time.Hour)
-	seedFundTransfers(t, pool, cabal.ID.UUID(), user, old)
-	sums, err := app.StuckMoney{Reads: pool, Clock: clk}.Summary(t.Context(), 5*time.Minute)
-	if err != nil || len(sums) != 1 || sums[0].Kind != money.StuckFundTransfer || sums[0].Count != 1 ||
-		!sums[0].Oldest.Equal(old) {
-		t.Fatalf("Summary = %+v, %v, want one fund transfer", sums, err)
-	}
-}
-
 func TestStuckMoney_ReportsAClosedDatabase(t *testing.T) {
 	t.Parallel()
 	open := testkit.DB(t)
@@ -84,8 +69,5 @@ func TestStuckMoney_ReportsAClosedDatabase(t *testing.T) {
 	reader := app.StuckMoney{Reads: closed, Clock: testkit.NewClock(time.Unix(0, 0))}
 	if _, err := reader.List(t.Context(), "", time.Minute, 1); errs.CodeOf(err) != errs.CodeDBUnavailable {
 		t.Fatalf("List = %v, want db_unavailable", err)
-	}
-	if _, err := reader.Summary(t.Context(), time.Minute); errs.CodeOf(err) != errs.CodeDBUnavailable {
-		t.Fatalf("Summary = %v, want db_unavailable", err)
 	}
 }

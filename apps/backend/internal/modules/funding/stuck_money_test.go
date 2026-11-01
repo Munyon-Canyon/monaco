@@ -15,9 +15,6 @@ func TestStuckMoney_ReportsAClosedDatabase(t *testing.T) {
 	if _, err := reader.List(t.Context(), "", time.Minute, 1); errs.CodeOf(err) != errs.CodeDBUnavailable {
 		t.Fatalf("List = %v, want db_unavailable", err)
 	}
-	if _, err := reader.Summary(t.Context(), time.Minute); errs.CodeOf(err) != errs.CodeDBUnavailable {
-		t.Fatalf("Summary = %v, want db_unavailable", err)
-	}
 }
 
 func TestBounceQueue_ReportsAClosedDatabaseFromTheStatusList(t *testing.T) {

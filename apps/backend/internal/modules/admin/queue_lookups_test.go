@@ -150,14 +150,13 @@ func TestAdminQueue_QueryCount(t *testing.T) {
 	}
 }
 
-func TestDeadLetterCount_ReportsDBUnavailableWhenTheDatabaseIsDown(t *testing.T) {
+func TestQueueSummary_ReportsDBUnavailableWhenTheDatabaseIsDown(t *testing.T) {
 	t.Parallel()
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	if _, err := (adapters.DeadLetterCount{DB: testkit.DB(t)}).CountOpen(ctx); errs.CodeOf(
-		err,
-	) != errs.CodeDBUnavailable {
-		t.Fatalf("CountOpen = %v", err)
+	summary := adapters.QueueSummary{DB: testkit.DB(t), Clock: testkit.NewClock(time.Unix(0, 0))}
+	if _, err := summary.Summarize(ctx, time.Minute); errs.CodeOf(err) != errs.CodeDBUnavailable {
+		t.Fatalf("Summarize = %v", err)
 	}
 }
 

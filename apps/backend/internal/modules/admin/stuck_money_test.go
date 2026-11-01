@@ -179,11 +179,7 @@ func TestAdminQueue_CountsCarryEveryMoneyQueueWithItsOldestAge(t *testing.T) {
 
 type cannedMoney []money.StuckSummary
 
-func (cannedMoney) List(context.Context, string, time.Duration, int) ([]money.StuckRow, error) {
-	return nil, nil
-}
-
-func (c cannedMoney) Summary(context.Context, time.Duration) ([]money.StuckSummary, error) {
+func (c cannedMoney) Summarize(context.Context, time.Duration) ([]money.StuckSummary, error) {
 	return c, nil
 }
 
@@ -191,13 +187,13 @@ func TestQueues_OldestMoneyIntentCountsOnlyWithdrawalsTransfersAndCashOuts(t *te
 	t.Parallel()
 	clk := testkit.NewClock(time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC))
 	ago := func(d time.Duration) time.Time { return clk.Now().Add(-d) }
-	q := app.Queues{Clock: clk, Money: []money.StuckReader{cannedMoney{
+	q := app.Queues{Clock: clk, Summary: cannedMoney{
 		{Kind: money.StuckEVMForward, Count: 1, Oldest: ago(5 * time.Hour)},
 		{Kind: money.StuckWindDown, Count: 1, Oldest: ago(4 * time.Hour)},
 		{Kind: money.StuckFundTransfer, Count: 2, Oldest: ago(10 * time.Minute)},
 		{Kind: money.StuckWithdrawal, Count: 1, Oldest: ago(30 * time.Minute)},
 		{Kind: money.StuckCashOutJob, Count: 0, Oldest: ago(9 * time.Hour)},
-	}}}
+	}}
 	age, err := q.OldestMoneyIntent(t.Context())
 	if err != nil || age != 30*time.Minute {
 		t.Fatalf(
@@ -206,7 +202,7 @@ func TestQueues_OldestMoneyIntentCountsOnlyWithdrawalsTransfersAndCashOuts(t *te
 			err,
 		)
 	}
-	q.Money = []money.StuckReader{cannedMoney{{Kind: money.StuckEVMForward, Count: 1, Oldest: ago(time.Hour)}}}
+	q.Summary = cannedMoney{{Kind: money.StuckEVMForward, Count: 1, Oldest: ago(time.Hour)}}
 	if age, err := q.OldestMoneyIntent(t.Context()); err != nil || age != 0 {
 		t.Fatalf("OldestMoneyIntent without intents = %v, %v, want 0", age, err)
 	}
@@ -218,14 +214,17 @@ func (downMoney) List(context.Context, string, time.Duration, int) ([]money.Stuc
 	return nil, errs.New(errs.CodeUpstreamUnavailable, "test.List")
 }
 
-func (downMoney) Summary(context.Context, time.Duration) ([]money.StuckSummary, error) {
-	return nil, errs.New(errs.CodeUpstreamUnavailable, "test.Summary")
+type downSummary struct{}
+
+func (downSummary) Summarize(context.Context, time.Duration) ([]money.StuckSummary, error) {
+	return nil, errs.New(errs.CodeUpstreamUnavailable, "test.Summarize")
 }
 
 func TestQueues_PassMoneyReaderFailuresOn(t *testing.T) {
 	t.Parallel()
 	q := queues(newStub())
 	q.Money = []money.StuckReader{downMoney{}}
+	q.Summary = downSummary{}
 	ctx := t.Context()
 	if _, err := q.Counts(ctx); !isPortDown(err) {
 		t.Errorf("Counts = %v", err)
@@ -263,13 +262,13 @@ func moneyGauge(t *testing.T, q app.Queues) (int64, error) {
 func TestObserveMoneyIntents_ReportsTheOldestIntentInSeconds(t *testing.T) {
 	t.Parallel()
 	clk := testkit.NewClock(time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC))
-	q := app.Queues{Clock: clk, Money: []money.StuckReader{cannedMoney{
+	q := app.Queues{Clock: clk, Summary: cannedMoney{
 		{Kind: money.StuckWithdrawal, Count: 1, Oldest: clk.Now().Add(-90 * time.Second)},
-	}}}
+	}}
 	if got, err := moneyGauge(t, q); err != nil || got != 90 {
 		t.Fatalf("gauge = %d, %v, want 90", got, err)
 	}
-	q.Money = []money.StuckReader{downMoney{}}
+	q.Summary = downSummary{}
 	if _, err := moneyGauge(t, q); err == nil {
 		t.Fatal("gauge with the money readers down reported no error")
 	}
