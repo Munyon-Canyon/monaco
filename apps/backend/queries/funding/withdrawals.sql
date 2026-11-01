@@ -136,3 +136,21 @@ SELECT id, user_id, amount_micros::text AS amount_micros, evm_address::text AS e
   COALESCE(privy_action_id, '')::text AS privy_action_id, COALESCE(tx_signature, '')::text AS tx_signature
 FROM withdrawals
 WHERE id = $1 AND destination_kind = 'evm';
+
+-- name: ConfirmSupportedEVMWithdrawal :execrows
+UPDATE withdrawals
+SET status = 'confirmed', completed_at = sqlc.arg(completed_at)::timestamptz
+WHERE id = $1 AND status = 'submitted' AND destination_kind = 'evm' AND tx_signature IS NOT NULL;
+
+-- name: FailSupportedEVMWithdrawal :execrows
+UPDATE withdrawals
+SET status = 'failed', fail_code = sqlc.arg(fail_code)::text, completed_at = sqlc.arg(completed_at)::timestamptz
+WHERE id = $1 AND status = 'submitted' AND destination_kind = 'evm' AND tx_signature IS NOT NULL;
+
+-- name: ListSupportCandidateEVMWithdrawals :many
+SELECT id, user_id, amount_micros::text AS amount_micros, privy_action_id::text AS privy_action_id,
+  COALESCE(tx_signature, '')::text AS tx_signature, submitted_at
+FROM withdrawals
+WHERE status = 'submitted' AND destination_kind = 'evm'
+ORDER BY submitted_at, id
+LIMIT sqlc.arg(max_rows);

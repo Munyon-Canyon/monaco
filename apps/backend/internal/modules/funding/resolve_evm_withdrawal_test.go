@@ -3,8 +3,10 @@ package funding_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -307,6 +309,14 @@ func (r *resolveRig) with(t *testing.T, mutate func(*app.EVMWithdrawalResolverDe
 	return app.NewEVMWithdrawalResolver(deps)
 }
 
+func (r *resolveRig) recordSignature(t *testing.T) {
+	t.Helper()
+	_, err := r.f.pool.Exec(t.Context(), `UPDATE withdrawals SET tx_signature = $1`, string(evmSourceSig))
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
 func (r *resolveRig) handle(resolver *app.EVMWithdrawalResolver, to domain.WithdrawalStatus, override bool) error {
 	_, err := resolver.Handle(context.Background(), app.ResolveEVMWithdrawal{
 		ID: r.id, To: to, Reason: "why", Actor: "operator:ops", Override: override,
@@ -333,8 +343,12 @@ func TestResolveEVMWithdrawal_AFailedChainReadStopsItUnlessOverridden(t *testing
 			t.Fatalf("%s: row = %+v, want it left submitted", name, row)
 		}
 	}
-	if err := r.handle(r.with(t, func(d *app.EVMWithdrawalResolverDeps) { d.Chain = &resolveHooks{err: boom} }),
-		domain.WithdrawalFailed, true); err != nil {
+	overridden := r.with(t, func(d *app.EVMWithdrawalResolverDeps) { d.Chain = &resolveHooks{err: boom} })
+	if err := r.handle(overridden, domain.WithdrawalFailed, true); errs.CodeOf(err) != errs.CodeInvalidInput {
+		t.Fatalf("override with no recorded signature: %v, want invalid_input", err)
+	}
+	r.recordSignature(t)
+	if err := r.handle(overridden, domain.WithdrawalFailed, true); err != nil {
 		t.Fatalf("override with an unreadable chain: %v", err)
 	}
 	r.f.assertInFlight(t, "0")
@@ -343,13 +357,7 @@ func TestResolveEVMWithdrawal_AFailedChainReadStopsItUnlessOverridden(t *testing
 func TestResolveEVMWithdrawal_UsesTheSignatureTheRowAlreadyHolds(t *testing.T) {
 	t.Parallel()
 	r := stuckEVM(t, nil, multichain.ActionFailed, chainStatus(solana.StateFinalized, true))
-	if _, err := r.f.pool.Exec(
-		t.Context(),
-		`UPDATE withdrawals SET tx_signature = $1`,
-		string(evmSourceSig),
-	); err != nil {
-		t.Fatal(err)
-	}
+	r.recordSignature(t)
 	if _, err := r.resolve(app.ResolveEVMWithdrawal{To: domain.WithdrawalFailed}); err != nil {
 		t.Fatal(err)
 	}
@@ -441,5 +449,258 @@ func TestResolveEVMWithdrawal_AWriteFailureRollsBack(t *testing.T) {
 				t.Fatal("err = nil, want the failed write")
 			}
 		})
+	}
+}
+
+const refundSig chain.Signature = "refund-signature-from-support"
+
+type sigStatuses map[chain.Signature]solana.Status
+
+func (m sigStatuses) SignatureStatuses(_ context.Context, sigs []chain.Signature) ([]solana.Status, error) {
+	out := make([]solana.Status, 0, len(sigs))
+	for _, sig := range sigs {
+		status, ok := m[sig]
+		if !ok {
+			return nil, errs.New(errs.CodeRPCUnavailable, "test")
+		}
+		out = append(out, status)
+	}
+	return out, nil
+}
+
+func (r *resolveRig) landedSolana(
+	t *testing.T, statuses sigStatuses, steps ...multichain.ActionStep,
+) *app.EVMWithdrawalResolver {
+	t.Helper()
+	return r.with(t, func(d *app.EVMWithdrawalResolverDeps) {
+		d.Chain = statuses
+		d.Actions = &privyActions{status: multichain.ActionStatus{State: multichain.ActionFailed, Steps: steps}}
+	})
+}
+
+func (r *resolveRig) refund(
+	resolver *app.EVMWithdrawalResolver, sig chain.Signature,
+) (app.EVMWithdrawalResolution, error) {
+	return resolver.Handle(context.Background(), app.ResolveEVMWithdrawal{
+		ID: r.id, To: domain.WithdrawalFailed, Reason: "support returned the USDC", Actor: "operator:ops-person",
+		RefundSignature: sig,
+	})
+}
+
+func landedRig(t *testing.T) *resolveRig {
+	t.Helper()
+	return stuckEVM(t, []multichain.ActionStep{solStep(multichain.StepConfirmed)}, multichain.ActionFailed,
+		chainStatus(solana.StateFinalized, false))
+}
+
+func TestResolveEVMWithdrawal_RefundedReleasesTheHoldOnceWhenSupportReturnedTheUSDC(t *testing.T) {
+	t.Parallel()
+	r := landedRig(t)
+	resolver := r.landedSolana(t, sigStatuses{
+		evmSourceSig: {State: solana.StateFinalized}, refundSig: {State: solana.StateFinalized},
+	}, solStep(multichain.StepConfirmed))
+	r.f.assertInFlight(t, "2000000")
+	for range 2 {
+		got, err := r.refund(resolver, refundSig)
+		if err != nil || got.Status != domain.WithdrawalFailed {
+			t.Fatalf("refund = %+v, %v", got, err)
+		}
+	}
+	if row := r.f.evmRow(t); row.status != "failed" || row.failCode != domain.WithdrawalSupportResolved ||
+		row.signature != string(evmSourceSig) {
+		t.Fatalf("row = %+v, want failed with %s and the source signature", row, domain.WithdrawalSupportResolved)
+	}
+	r.f.assertInFlight(t, "0")
+	if n := len(r.f.payloads(t, events.TypeWithdrawalFailed)); n != 1 {
+		t.Fatalf("withdrawal.failed = %d, want 1 after resolving twice", n)
+	}
+}
+
+func TestResolveEVMWithdrawal_RefundedRecordsTheRefundSignatureInTheLog(t *testing.T) {
+	t.Parallel()
+	r := landedRig(t)
+	logs := &testkit.Logs{}
+	ctx := observability.WithLogger(t.Context(), observability.NewLogger(config.Config{Env: config.EnvTest}, logs))
+	resolver := r.landedSolana(t, sigStatuses{
+		evmSourceSig: {State: solana.StateFinalized}, refundSig: {State: solana.StateFinalized},
+	}, solStep(multichain.StepConfirmed))
+	got, err := resolver.Handle(ctx, app.ResolveEVMWithdrawal{
+		ID:              r.id,
+		To:              domain.WithdrawalFailed,
+		Reason:          "refunded",
+		Actor:           "operator:ops-person",
+		RefundSignature: refundSig,
+	})
+	if err != nil || got.Facts.RefundSignature != refundSig || got.Facts.RefundChain != "finalized" {
+		t.Fatalf("refund = %+v, %v", got, err)
+	}
+	if logged := string(logs.Bytes()); !strings.Contains(logged, string(refundSig)) {
+		t.Fatalf("log lacks the refund signature:\n%s", logged)
+	}
+}
+
+func TestResolveEVMWithdrawal_RefundedIsRefusedUnlessTheRefundIsFinalizedAndSeparate(t *testing.T) {
+	t.Parallel()
+	cases := map[string]struct {
+		refund   solana.Status
+		sig      chain.Signature
+		wantPart string
+	}{
+		"refund processing": {solana.Status{State: solana.StateProcessing}, refundSig, "not finalized"},
+		"refund not found":  {solana.Status{State: solana.StateNotFound}, refundSig, "not finalized"},
+		"refund failed":     {solana.Status{State: solana.StateFinalized, Failed: true}, refundSig, "not finalized"},
+		"the bridge itself": {solana.Status{State: solana.StateFinalized}, evmSourceSig, "own Solana step"},
+	}
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			r := landedRig(t)
+			resolver := r.landedSolana(t, sigStatuses{
+				evmSourceSig: {State: solana.StateFinalized}, refundSig: c.refund,
+			}, solStep(multichain.StepConfirmed))
+			_, err := r.refund(resolver, c.sig)
+			if errs.CodeOf(err) != errs.CodeInvalidInput || !strings.Contains(err.Error(), c.wantPart) {
+				t.Fatalf("refund err = %v, want invalid_input naming %q", err, c.wantPart)
+			}
+			if row := r.f.evmRow(t); row.status != "submitted" {
+				t.Fatalf("row = %+v, want it left submitted", row)
+			}
+			r.f.assertInFlight(t, "2000000")
+		})
+	}
+}
+
+func TestResolveEVMWithdrawal_ARefundDoesNotOverrideAnEVMStepThatLanded(t *testing.T) {
+	t.Parallel()
+	r := landedRig(t)
+	resolver := r.landedSolana(t, sigStatuses{
+		evmSourceSig: {State: solana.StateFinalized}, refundSig: {State: solana.StateFinalized},
+	}, solStep(multichain.StepConfirmed), baseStep(multichain.StepConfirmed))
+	if _, err := r.refund(resolver, refundSig); errs.CodeOf(err) != errs.CodeInvalidInput {
+		t.Fatalf("refund err = %v, want invalid_input", err)
+	}
+	r.f.assertInFlight(t, "2000000")
+}
+
+func TestResolveEVMWithdrawal_ARefundSignatureTheChainCannotReadStopsIt(t *testing.T) {
+	t.Parallel()
+	r := landedRig(t)
+	resolver := r.landedSolana(t, sigStatuses{evmSourceSig: {State: solana.StateFinalized}},
+		solStep(multichain.StepConfirmed))
+	if _, err := r.refund(resolver, refundSig); errs.CodeOf(err) != errs.CodeRPCUnavailable {
+		t.Fatalf("refund err = %v, want rpc_unavailable", err)
+	}
+	r.f.assertInFlight(t, "2000000")
+}
+
+func TestResolveEVMWithdrawal_ARefundSignatureOnlyBelongsToTheFailedOutcome(t *testing.T) {
+	t.Parallel()
+	r := landedRig(t)
+	_, err := r.raw(app.ResolveEVMWithdrawal{
+		ID:              r.id,
+		To:              domain.WithdrawalConfirmed,
+		Reason:          "delivered",
+		Actor:           "operator:ops",
+		RefundSignature: refundSig,
+	})
+	if errs.CodeOf(err) != errs.CodeInvalidInput {
+		t.Fatalf("err = %v, want invalid_input", err)
+	}
+}
+
+func TestResolveEVMWithdrawal_ARowThatIsNotFlaggedForSupportIsRefused(t *testing.T) {
+	t.Parallel()
+	for to, steps := range map[domain.WithdrawalStatus][]multichain.ActionStep{
+		domain.WithdrawalFailed:    {solStep(multichain.StepFailed)},
+		domain.WithdrawalConfirmed: {solStep(multichain.StepConfirmed), baseStep(multichain.StepConfirmed)},
+	} {
+		t.Run(string(to), func(t *testing.T) {
+			t.Parallel()
+			r := stuckEVM(t, steps, multichain.ActionPending, chainStatus(solana.StateFinalized, true))
+			_, err := r.resolve(app.ResolveEVMWithdrawal{To: to})
+			if errs.CodeOf(err) != errs.CodeInvalidInput || !strings.Contains(err.Error(), "not flagged for support") {
+				t.Fatalf("err = %v, want invalid_input naming the missing flag", err)
+			}
+			if row := r.f.evmRow(t); row.status != "submitted" {
+				t.Fatalf("row = %+v, want it left submitted", row)
+			}
+		})
+	}
+}
+
+func TestResolveEVMWithdrawal_ARowThatIsNotSubmittedIsNotMovedAgain(t *testing.T) {
+	t.Parallel()
+	r := landedRig(t)
+	if _, err := r.f.pool.Exec(
+		t.Context(),
+		`UPDATE withdrawals SET status = 'confirmed', completed_at = now()`,
+	); err != nil {
+		t.Fatal(err)
+	}
+	resolver := r.landedSolana(t, sigStatuses{
+		evmSourceSig: {State: solana.StateFinalized}, refundSig: {State: solana.StateFinalized},
+	}, solStep(multichain.StepConfirmed))
+	if _, err := r.refund(resolver, refundSig); errs.CodeOf(err) != errs.CodeVersionConflict {
+		t.Fatalf("refund of a confirmed row err = %v, want version_conflict", err)
+	}
+	r.f.assertInFlight(t, "0")
+	if n := len(r.f.payloads(t, events.TypeWithdrawalFailed)); n != 0 {
+		t.Fatalf("withdrawal.failed = %d, want 0", n)
+	}
+}
+
+func TestResolveEVMWithdrawal_ListSupportSurvivesARestartAndDropsSettledRows(t *testing.T) {
+	t.Parallel()
+	r := landedRig(t)
+	restarted := func() *app.EVMWithdrawalResolver {
+		return r.landedSolana(t, sigStatuses{
+			evmSourceSig: {State: solana.StateFinalized}, refundSig: {State: solana.StateFinalized},
+		}, solStep(multichain.StepConfirmed))
+	}
+	r.f.clock.Advance(90 * time.Minute)
+	rows, err := restarted().ListSupport(t.Context())
+	if err != nil || len(rows) != 1 {
+		t.Fatalf("list = %+v, %v, want one flagged row", rows, err)
+	}
+	got := rows[0]
+	if got.ID != r.id || got.Amount.String() != "2000000" || got.Age < 90*time.Minute ||
+		got.SourceSignature != evmSourceSig || got.ActionID == "" {
+		t.Fatalf("listed %+v, want the stuck withdrawal with its amount, age and source signature", got)
+	}
+	if _, err := r.refund(restarted(), refundSig); err != nil {
+		t.Fatal(err)
+	}
+	if rows, err := restarted().ListSupport(t.Context()); err != nil || len(rows) != 0 {
+		t.Fatalf("list after the refund = %+v, %v, want none", rows, err)
+	}
+}
+
+func TestResolveEVMWithdrawal_ListSupportSkipsRowsThePollerStillOwns(t *testing.T) {
+	t.Parallel()
+	r := landedRig(t)
+	pending := r.with(t, func(d *app.EVMWithdrawalResolverDeps) {
+		d.Actions = &privyActions{status: multichain.ActionStatus{
+			State: multichain.ActionPending, Steps: []multichain.ActionStep{solStep(multichain.StepPending)},
+		}}
+	})
+	if rows, err := pending.ListSupport(t.Context()); err != nil || len(rows) != 0 {
+		t.Fatalf("list = %+v, %v, want none while the action is pending", rows, err)
+	}
+}
+
+func TestResolveEVMWithdrawal_ListSupportReportsARowItCouldNotReadAndStillListsTheRest(t *testing.T) {
+	t.Parallel()
+	r := landedRig(t)
+	boom := errs.New(errs.CodeRPCUnavailable, "test")
+	broken := r.with(t, func(d *app.EVMWithdrawalResolverDeps) { d.Actions = brokenActions{err: boom} })
+	rows, err := broken.ListSupport(t.Context())
+	if len(rows) != 0 || !errors.Is(err, boom) || !strings.Contains(err.Error(), r.id.String()) {
+		t.Fatalf("list = %+v, %v, want no rows and the failed read naming the withdrawal", rows, err)
+	}
+	if _, err := r.f.pool.Exec(t.Context(), `ALTER TABLE withdrawals RENAME TO withdrawals_down`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := broken.ListSupport(t.Context()); errs.CodeOf(err) != errs.CodeInternal {
+		t.Fatalf("list with the table gone err = %v, want internal", err)
 	}
 }
