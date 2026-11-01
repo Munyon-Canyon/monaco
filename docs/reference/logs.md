@@ -58,6 +58,7 @@ For a stuck money row, [Money runbook](../how-to/money-runbook.md) maps the sign
 | `funding.withdrawal.evm_pending` | `withdrawal_id`, `user_id`, `privy_action_id`, `submitted_at` |
 | `funding.withdrawal.moved` | `withdrawal_id`, `user_id`, `amount_micros`, `status_before`, `status_after` |
 | `funding.withdrawal.needs_support` | `withdrawal_id`, `privy_action_id` |
+| `funding.withdrawal.support_resolved` | `withdrawal_id`, `user_id`, `amount_micros`, `status_before`, `status_after`, `actor`, `reason`, `override`, `action_state`, `steps`, `solana_chain_state`, `contradiction`, `unverified` |
 | `governance.ban_void.skipped` | `proposal_id`, `user_id`, `code` |
 | `governance.blocked_trade.retried` | `proposal_id`, `cabal_id`, `reason` |
 | `governance.passed_price.unavailable` | `proposal_id`, `code` |

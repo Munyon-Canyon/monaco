@@ -192,4 +192,5 @@ const (
 	WithdrawalTransactionFailed = "transaction_failed"
 	WithdrawalTransferRejected  = "transfer_rejected"
 	WithdrawalTransferFailed    = "transfer_failed"
+	WithdrawalSupportResolved   = "support_resolved"
 )

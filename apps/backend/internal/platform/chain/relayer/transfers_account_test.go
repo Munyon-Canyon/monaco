@@ -122,3 +122,28 @@ func TestHasTokenAccount_readsTheAssociatedAccountOfTheOwner(t *testing.T) {
 		}
 	}
 }
+
+func TestHasTokenAccount_surfacesUpstreamFailures(t *testing.T) {
+	t.Parallel()
+	down := overDestinationFailing(t, true, true)
+	if _, err := down.transfers.HasTokenAccount(
+		t.Context(),
+		treasury,
+		usdc(),
+	); errs.CodeOf(
+		err,
+	) != errs.CodeRPCUnavailable {
+		t.Fatalf("accounts down err = %v, want %s", err, errs.CodeRPCUnavailable)
+	}
+	noMint := overDestination(t, true)
+	script(t, noMint.srv, fakes.Step{Route: "/rpc/getAccountInfo", Action: fakes.ActionFail, Status: 400})
+	if _, err := noMint.transfers.HasTokenAccount(
+		t.Context(),
+		treasury,
+		usdc(),
+	); errs.CodeOf(
+		err,
+	) != errs.CodeRPCUnavailable {
+		t.Fatalf("mint down err = %v, want %s", err, errs.CodeRPCUnavailable)
+	}
+}

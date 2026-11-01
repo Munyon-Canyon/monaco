@@ -1,4 +1,5 @@
 withdraw_to_own_wallet
+withdraw_no_usdc_account
 step_up_required
 step_up_mismatch
 reauth_required

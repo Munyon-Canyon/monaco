@@ -230,6 +230,14 @@ func (m *Module) Bouncer() *app.Bouncer {
 	})
 }
 
+func (m *Module) EVMWithdrawalResolver() *app.EVMWithdrawalResolver {
+	return app.NewEVMWithdrawalResolver(app.EVMWithdrawalResolverDeps{
+		UoW: m.deps.UoW, Reads: m.deps.Pool, Clock: m.deps.Clock, Chain: solana.New(m.deps.Config, m.deps.Clock),
+		Wallets: app.WalletReader{Reader: identity.New(m.deps).Queries()}, Actions: m.multichain.walletActions,
+		Hints: m.deps.Bus,
+	})
+}
+
 func (m *Module) Pollers() []poller.Poller {
 	cfg := m.deps.Config
 	meter := otel.GetMeterProvider().Meter("github.com/monaco/monaco/apps/backend/internal/modules/funding")

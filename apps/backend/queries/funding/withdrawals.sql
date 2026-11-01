@@ -130,3 +130,9 @@ SELECT EXISTS (
   WHERE user_id = $1 AND network = sqlc.arg(network)::text AND to_address = sqlc.arg(to_address)::text
     AND status = 'confirmed'
 )::boolean AS known;
+
+-- name: EVMWithdrawalForResolve :one
+SELECT id, user_id, amount_micros::text AS amount_micros, evm_address::text AS evm_address, status,
+  COALESCE(privy_action_id, '')::text AS privy_action_id, COALESCE(tx_signature, '')::text AS tx_signature
+FROM withdrawals
+WHERE id = $1 AND destination_kind = 'evm';

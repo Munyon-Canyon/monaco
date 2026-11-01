@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"encoding/json"
+	"flag"
 	"fmt"
 	"io"
 	"slices"
@@ -12,6 +14,7 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding"
 	fundingapp "github.com/monaco/monaco/apps/backend/internal/modules/funding/app"
+	"github.com/monaco/monaco/apps/backend/internal/modules/funding/domain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
@@ -30,12 +33,24 @@ usage: monacoctl funding bounce list [status ...]
   lists external deposits by status, oldest first: id, cabal, status, amount, mint, return address, attempts,
   detected at. The default is detected, bouncing and bounce_failed.
 
+usage: monacoctl funding withdrawal resolve <withdrawal-id> --to confirmed|failed --reason <text> [--override]
+  settles an EVM withdrawal stuck in submitted after its Privy action failed past a broadcast step. failed releases the
+  member's hold, so it is refused when the chain shows the funds left (Solana step landed or processing, EVM step landed
+  or pending, action succeeded); confirmed is refused when the chain shows it failed or never landed. --override books
+  it anyway. The operator, reason and chain facts are logged as funding.withdrawal.support_resolved.
+
 usage: monacoctl funding deposit rescan <wallet> [--from <signature>]
   scans the wallet again from its first sight, or after <signature>; credits stay idempotent`
 
 const bounceListLimit = 200
 
 func toolFunding(env toolEnv) tool { return fundingTool(env.environ, clock.Real{}) }
+
+type withdrawalResolver interface {
+	Handle(context.Context, fundingapp.ResolveEVMWithdrawal) (fundingapp.EVMWithdrawalResolution, error)
+}
+
+type withdrawalResolvers func(module.Deps) withdrawalResolver
 
 type bounceAction struct {
 	args int
@@ -75,6 +90,12 @@ func operatorOf(environ []string) string {
 }
 
 func fundingTool(environ []string, clk clock.Clock) tool {
+	return fundingToolWith(environ, clk, func(deps module.Deps) withdrawalResolver {
+		return funding.New(deps).EVMWithdrawalResolver()
+	})
+}
+
+func fundingToolWith(environ []string, clk clock.Clock, resolvers withdrawalResolvers) tool {
 	bounce := func(cfg config.Config, args []string, stdout, stderr io.Writer) int {
 		if firstArg(args) == "list" {
 			return listBounces(cfg, args[1:], stdout, stderr)
@@ -110,6 +131,9 @@ func fundingTool(environ []string, clk clock.Clock) tool {
 		return run(
 			map[string]command{
 				"bounce": bounce,
+				"withdrawal": func(cfg config.Config, args []string, stdout, stderr io.Writer) int {
+					return withdrawalCommand(cfg, clk, resolvers, operatorOf(environ), args, stdout, stderr)
+				},
 				"deposit": func(cfg config.Config, args []string, stdout, stderr io.Writer) int {
 					return depositCommand(cfg, clk, args, stdout, stderr)
 				},
@@ -196,5 +220,42 @@ func depositCommand(cfg config.Config, clk clock.Clock, args []string, stdout, s
 		return fail(stderr, err)
 	}
 	_, _ = fmt.Fprintf(stdout, "rescan %s %d\n", wallet, accounts)
+	return 0
+}
+
+func withdrawalCommand(
+	cfg config.Config, clk clock.Clock, resolvers withdrawalResolvers, operator string, args []string,
+	stdout, stderr io.Writer,
+) int {
+	if firstArg(args) != "resolve" || len(args) < 2 {
+		_, _ = fmt.Fprintln(stderr, fundingUsage)
+		return 2
+	}
+	id, err := uuid.Parse(args[1])
+	fs := flag.NewFlagSet("funding withdrawal resolve", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	to := fs.String("to", "", "")
+	reason := fs.String("reason", "", "")
+	override := fs.Bool("override", false, "")
+	if err != nil || fs.Parse(args[2:]) != nil || fs.NArg() != 0 || *reason == "" ||
+		(*to != string(domain.WithdrawalConfirmed) && *to != string(domain.WithdrawalFailed)) {
+		_, _ = fmt.Fprintln(stderr, fundingUsage)
+		return 2
+	}
+	ctx := auth.WithActor(context.Background(), auth.Actor{Kind: auth.ActorSystem, ID: "monacoctl"})
+	pool, err := db.Open(ctx, cfg.DB)
+	if err != nil {
+		return fail(stderr, err)
+	}
+	defer pool.Close()
+	deps := module.Deps{Config: cfg, Clock: clk, IDs: ids.Real{}, Pool: pool, UoW: db.New(pool, ids.Real{}, clk)}
+	resolved, err := resolvers(deps).Handle(ctx, fundingapp.ResolveEVMWithdrawal{
+		ID: id, To: domain.WithdrawalStatus(*to), Reason: *reason, Actor: "operator:" + operator, Override: *override,
+	})
+	if err != nil {
+		return fail(stderr, err)
+	}
+	facts, _ := json.Marshal(resolved.Facts)
+	_, _ = fmt.Fprintf(stdout, "resolve %s %s %s\n", resolved.ID, resolved.Status, facts)
 	return 0
 }

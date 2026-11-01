@@ -24,3 +24,11 @@ var FundingWithdrawalEVMPending = Msg{
 	Name:     "funding.withdrawal.evm_pending",
 	Required: []string{"withdrawal_id", "user_id", "privy_action_id", "submitted_at"},
 }
+
+var FundingWithdrawalSupportResolved = Msg{
+	Name: "funding.withdrawal.support_resolved",
+	Required: []string{
+		"withdrawal_id", "user_id", "amount_micros", "status_before", "status_after", "actor", "reason", "override",
+		"action_state", "steps", "solana_chain_state", "contradiction", "unverified",
+	},
+}
