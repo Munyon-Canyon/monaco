@@ -17,6 +17,7 @@ paths:
     post:
       operationId: createOnrampSession
       tags: [funding]
+      x-rate-limit: {actor: {rate: 10, per: 1m, burst: 5}}
       x-idempotent: true
       summary: Start a card deposit.
       description: >-
@@ -98,6 +99,7 @@ paths:
     patch:
       operationId: reportOnrampStatus
       tags: [funding]
+      x-rate-limit: {actor: {rate: 60, per: 1m, burst: 20}}
       x-idempotent: true
       x-cors: web
       summary: Report how the provider flow ended.
@@ -164,6 +166,7 @@ paths:
     post:
       operationId: authorizeWithdrawal
       tags: [funding]
+      x-rate-limit: {actor: {rate: 10, per: 1m, burst: 5}}
       x-idempotent: false
       x-allow-restricted: true
       summary: Confirm one exact withdrawal before sending it.
@@ -195,6 +198,7 @@ paths:
     post:
       operationId: previewWithdrawal
       tags: [funding]
+      x-rate-limit: {actor: {rate: 30, per: 1m, burst: 10}}
       x-idempotent: false
       x-allow-restricted: true
       summary: Show what a withdrawal would deliver.

@@ -343,7 +343,7 @@ func historyMint(t *testing.T) domain.Mint {
 	return m
 }
 
-func TestHistory_aDayIsCachedForFifteenMinutesAndLongerRangesForAnHour(t *testing.T) {
+func TestHistory_aDayIsCachedForAnHourAndLongerRangesForSixHours(t *testing.T) {
 	t.Parallel()
 	clk := testkit.NewClock(marketWhen())
 	fake := &countingHistory{samples: []app.Sample{{At: marketWhen()}}}
@@ -364,23 +364,23 @@ func TestHistory_aDayIsCachedForFifteenMinutesAndLongerRangesForAnHour(t *testin
 	if fake.calls.Load() != 3 {
 		t.Fatalf("calls = %d, want one per (mint, days)", fake.calls.Load())
 	}
-	clk.Advance(14 * time.Minute)
+	clk.Advance(59 * time.Minute)
 	ask(1)
 	ask(7)
 	if fake.calls.Load() != 3 {
-		t.Fatalf("calls = %d after 14 minutes, want the day still cached", fake.calls.Load())
+		t.Fatalf("calls = %d after 59 minutes, want the day still cached", fake.calls.Load())
 	}
 	clk.Advance(2 * time.Minute)
 	ask(1)
 	ask(7)
 	if fake.calls.Load() != 4 {
-		t.Fatalf("calls = %d after 16 minutes, want only the day refetched", fake.calls.Load())
+		t.Fatalf("calls = %d after 61 minutes, want only the day refetched", fake.calls.Load())
 	}
-	clk.Advance(time.Hour)
+	clk.Advance(6 * time.Hour)
 	ask(7)
 	ask(app.HistoryMaxDays)
 	if fake.calls.Load() != 6 {
-		t.Fatalf("calls = %d after an hour, want 7d and max refetched", fake.calls.Load())
+		t.Fatalf("calls = %d after 6 hours, want 7d and max refetched", fake.calls.Load())
 	}
 }
 
@@ -455,4 +455,34 @@ func TestHistory_concurrentMissesMakeOneCall(t *testing.T) {
 			t.Fatalf("err = %v calls %d", err, fake.calls.Load())
 		}
 	})
+}
+
+type fixedLevel struct{ level app.BudgetLevel }
+
+func (f *fixedLevel) Level(context.Context) app.BudgetLevel { return f.level }
+
+func TestHistory_aSoftBudgetServesNoUpstreamLoadAndCachesNothingUntilItOpens(t *testing.T) {
+	t.Parallel()
+	fake := &countingHistory{samples: []app.Sample{{At: marketWhen()}}}
+	level := &fixedLevel{level: app.BudgetSoft}
+	cached := CacheHistory(fake, NewCache(testkit.NewClock(marketWhen()))).WithBudget(level)
+	mint := historyMint(t)
+	for range 2 {
+		if _, err := cached.MarketChart(t.Context(), mint, 7); errs.CodeOf(err) != errs.CodeNotFound {
+			t.Fatalf("MarketChart under a soft budget = %v, want not_found", err)
+		}
+	}
+	if _, found, err := cached.Peek(t.Context(), mint, 7); found || err != nil {
+		t.Fatalf("Peek under a soft budget = %v, %v, want a quiet miss", found, err)
+	}
+	if fake.calls.Load() != 0 {
+		t.Fatalf("upstream calls = %d under a soft budget, want 0", fake.calls.Load())
+	}
+	level.level = app.BudgetOpen
+	if got, err := cached.MarketChart(t.Context(), mint, 7); err != nil || len(got.Prices) != 1 {
+		t.Fatalf("MarketChart once the budget is open = %v, %v, want the history", got, err)
+	}
+	if fake.calls.Load() != 1 {
+		t.Fatalf("upstream calls = %d once open, want 1: the soft answer was not cached", fake.calls.Load())
+	}
 }

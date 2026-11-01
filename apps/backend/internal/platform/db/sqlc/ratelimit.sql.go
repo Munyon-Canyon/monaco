@@ -11,11 +11,17 @@ import (
 )
 
 const deleteRateLimitBucketsIdleBefore = `-- name: DeleteRateLimitBucketsIdleBefore :execrows
-DELETE FROM rate_limit_buckets WHERE updated_at < $1
+DELETE FROM rate_limit_buckets
+WHERE ctid IN (SELECT ctid FROM rate_limit_buckets WHERE updated_at < $1::timestamptz LIMIT $2)
 `
 
-func (q *Queries) DeleteRateLimitBucketsIdleBefore(ctx context.Context, updatedAt time.Time) (int64, error) {
-	result, err := q.db.Exec(ctx, deleteRateLimitBucketsIdleBefore, updatedAt)
+type DeleteRateLimitBucketsIdleBeforeParams struct {
+	Before time.Time
+	Batch  int32
+}
+
+func (q *Queries) DeleteRateLimitBucketsIdleBefore(ctx context.Context, arg DeleteRateLimitBucketsIdleBeforeParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteRateLimitBucketsIdleBefore, arg.Before, arg.Batch)
 	if err != nil {
 		return 0, err
 	}

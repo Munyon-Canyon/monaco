@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
@@ -71,7 +72,11 @@ func exportsToTheEndpoint(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ctx, span := otel.Tracer("observability_test").Start(t.Context(), "fund")
+	parent := trace.NewSpanContext(trace.SpanContextConfig{
+		TraceID: trace.TraceID{1}, SpanID: trace.SpanID{1}, TraceFlags: trace.FlagsSampled, Remote: true,
+	})
+	ctx, span := otel.Tracer("observability_test").Start(
+		trace.ContextWithRemoteSpanContext(t.Context(), parent), "fund")
 	counter, err := otel.Meter("observability_test").Int64Counter("poller_errors_total")
 	if err != nil {
 		t.Fatal(err)

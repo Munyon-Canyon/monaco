@@ -26,6 +26,7 @@ const (
 	lockTimeout     = 5 * time.Second
 	minBackoff      = 5 * time.Second
 	defaultMaxWait  = 5 * time.Minute
+	moneyMaxWait    = time.Minute
 	maxBackoffShift = 20
 )
 
@@ -97,7 +98,8 @@ func (r *Runner) exportSuccess(meter metric.Meter) error {
 			if last := r.success[name]; !last.IsZero() {
 				at = last.Unix()
 			}
-			o.ObserveInt64(gauge, at, metric.WithAttributes(attribute.String("poller", name)))
+			o.ObserveInt64(gauge, at, metric.WithAttributes(
+				attribute.String("poller", name), attribute.Bool("money", IsMoney(name))))
 		}
 		return nil
 	}, gauge)
@@ -158,9 +160,9 @@ func (r *Runner) loop(ctx context.Context, p Poller, locks *db.Locks) error {
 	for {
 		wait := ticker.C()
 		backedOff := false
-		if r.attempt(ctx, p, locks, r.backoff(p.Interval(), failures+1)) == outcomeFailed {
+		if r.attempt(ctx, p, locks, r.backoff(p, failures+1)) == outcomeFailed {
 			failures++
-			wait = r.clock.After(r.backoff(p.Interval(), failures))
+			wait = r.clock.After(r.backoff(p, failures))
 			backedOff = true
 		} else {
 			failures = 0
@@ -177,12 +179,16 @@ func (r *Runner) loop(ctx context.Context, p Poller, locks *db.Locks) error {
 	}
 }
 
-func (r *Runner) backoff(interval time.Duration, failures int) time.Duration {
-	d := max(interval, minBackoff)
-	for range min(failures-1, maxBackoffShift) {
-		d = min(d*2, r.maxBackoff)
+func (r *Runner) backoff(p Poller, failures int) time.Duration {
+	ceiling := r.maxBackoff
+	if IsMoney(p.Name()) {
+		ceiling = min(ceiling, moneyMaxWait)
 	}
-	return min(d, r.maxBackoff)
+	d := max(p.Interval(), minBackoff)
+	for range min(failures-1, maxBackoffShift) {
+		d = min(d*2, ceiling)
+	}
+	return min(d, ceiling)
 }
 
 func lockKey(p Poller) string { return "poller:" + p.Name() }
@@ -214,7 +220,11 @@ func (r *Runner) attempt(ctx context.Context, p Poller, locks *db.Locks, retryIn
 	}
 	end := r.clock.Now()
 	r.markSuccess(name, end)
-	observability.Info(ctx, observability.PollerTick, slog.String("poller", name),
+	logTick := observability.Info
+	if report.Scanned == 0 && report.Changed == 0 {
+		logTick = observability.Debug
+	}
+	logTick(ctx, observability.PollerTick, slog.String("poller", name),
 		slog.Int("scanned", report.Scanned), slog.Int("changed", report.Changed),
 		slog.Int64("duration_ms", end.Sub(start).Milliseconds()), slog.GroupAttrs("detail", report.Attrs...))
 	return outcomeOK

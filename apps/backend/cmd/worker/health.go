@@ -9,7 +9,9 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"go.opentelemetry.io/otel/metric"
 
+	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/poller"
 )
@@ -156,4 +158,28 @@ func (h health) poller(p poller.Poller) string {
 		return "stale: last tick " + age.Round(time.Second).String() + " ago"
 	}
 	return checkOK
+}
+
+func exportMoneyIntentGauge(meter metric.Meter, reader progressReader) error {
+	_, err := meter.Int64ObservableGauge(
+		"monaco_money_intent_oldest_seconds",
+		metric.WithUnit("s"),
+		metric.WithDescription(
+			"Age of the oldest withdrawal, deposit candidate, cash-out or swap in flight; 0 if none.",
+		),
+		metric.WithInt64Callback(func(ctx context.Context, o metric.Int64Observer) error {
+			ctx, cancel := context.WithTimeout(ctx, pingTimeout)
+			defer cancel()
+			p, err := reader.Progress(ctx)
+			if err != nil {
+				return errs.Wrap(err, errs.CodeInternal, "worker.moneyIntentGauge")
+			}
+			o.Observe(int64(p.MoneyIntentOldest / time.Second))
+			return nil
+		}),
+	)
+	if err != nil {
+		return errs.Wrap(err, errs.CodeInternal, "worker.exportMoneyIntentGauge")
+	}
+	return nil
 }

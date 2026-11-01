@@ -91,6 +91,7 @@ paths:
     put:
       operationId: putMeFeedMutes
       tags: [social]
+      x-rate-limit: {actor: {rate: 60, per: 1m, burst: 20}}
       x-idempotent: true
       summary: Mute a feed target.
       parameters:
@@ -111,6 +112,7 @@ paths:
     delete:
       operationId: deleteMeFeedMutesTargetTypeTargetID
       tags: [social]
+      x-rate-limit: {actor: {rate: 60, per: 1m, burst: 20}}
       x-idempotent: true
       summary: Unmute a feed target.
       parameters:
@@ -604,6 +606,7 @@ paths:
     delete:
       operationId: deleteFeedComment
       tags: [social]
+      x-rate-limit: {actor: {rate: 60, per: 1m, burst: 20}}
       x-idempotent: true
       summary: Delete your comment.
       description: >-
@@ -689,6 +692,7 @@ paths:
     post:
       operationId: postUserFollow
       tags: [social]
+      x-rate-limit: {actor: {rate: 60, per: 1m, burst: 20}}
       x-idempotent: true
       summary: Follow a user.
       description: >-
@@ -720,6 +724,7 @@ paths:
     delete:
       operationId: deleteUserFollow
       tags: [social]
+      x-rate-limit: {actor: {rate: 60, per: 1m, burst: 20}}
       x-idempotent: true
       summary: Unfollow a user.
       description: >-
@@ -826,6 +831,7 @@ paths:
     post:
       operationId: postChatMessage
       tags: [social]
+      x-rate-limit: {actor: {rate: 30, per: 1m, burst: 10}}
       x-idempotent: true
       summary: Post a message to a cabal's chat.
       description: >-
@@ -898,6 +904,7 @@ paths:
     delete:
       operationId: deleteChatMessage
       tags: [social]
+      x-rate-limit: {actor: {rate: 60, per: 1m, burst: 20}}
       x-idempotent: true
       summary: Delete one of the caller's chat messages.
       description: >-
@@ -1024,6 +1031,7 @@ paths:
     post:
       operationId: postUserBlock
       tags: [social]
+      x-rate-limit: {actor: {rate: 60, per: 1m, burst: 20}}
       x-idempotent: true
       summary: Block a user.
       description: >-
@@ -1042,6 +1050,7 @@ paths:
     delete:
       operationId: deleteUserBlock
       tags: [social]
+      x-rate-limit: {actor: {rate: 60, per: 1m, burst: 20}}
       x-idempotent: true
       summary: Unblock a user.
       description: >-

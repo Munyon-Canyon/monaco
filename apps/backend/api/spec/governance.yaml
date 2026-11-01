@@ -56,6 +56,7 @@ paths:
     post:
       operationId: postCabalProposal
       tags: [governance]
+      x-rate-limit: {actor: {rate: 60, per: 1m, burst: 20}}
       x-idempotent: true
       summary: Propose a trade for the cabal to vote on.
       description: >-
@@ -95,6 +96,7 @@ paths:
     post:
       operationId: postCabalRuleProposal
       tags: [governance]
+      x-rate-limit: {actor: {rate: 60, per: 1m, burst: 20}}
       x-idempotent: true
       summary: Propose a change to a cabal rule for the cabal to vote on.
       description: >-
@@ -135,6 +137,7 @@ paths:
     get:
       operationId: getCabalProposalPreview
       tags: [governance]
+      x-rate-limit: {actor: {rate: 120, per: 1m, burst: 30}}
       summary: Preview a trade before proposing it.
       description: >-
         Runs the checks a proposal runs and writes nothing. A trade the checks refuse still answers
@@ -197,6 +200,7 @@ paths:
     get:
       operationId: getCabalProposalPriceComparison
       tags: [governance]
+      x-rate-limit: {actor: {rate: 120, per: 1m, burst: 30}}
       x-allow-restricted: true
       summary: Compare venues for an open buy proposal now.
       description: >-
@@ -263,6 +267,7 @@ paths:
     delete:
       operationId: deleteProposal
       tags: [governance]
+      x-rate-limit: {actor: {rate: 60, per: 1m, burst: 20}}
       x-idempotent: true
       summary: Withdraw the caller's proposal.
       description: >-
@@ -420,6 +425,7 @@ paths:
     post:
       operationId: postProposalVote
       tags: [governance]
+      x-rate-limit: {actor: {rate: 60, per: 1m, burst: 20}}
       x-idempotent: true
       summary: Cast or change the caller's ballot on an open proposal.
       description: >-
@@ -456,6 +462,7 @@ paths:
     delete:
       operationId: deleteProposalVote
       tags: [governance]
+      x-rate-limit: {actor: {rate: 60, per: 1m, burst: 20}}
       x-idempotent: true
       summary: Undo the caller's ballot on an open proposal.
       description: >-
@@ -487,6 +494,7 @@ paths:
     put:
       operationId: putProposalReminder
       tags: [governance]
+      x-rate-limit: {actor: {rate: 60, per: 1m, burst: 20}}
       x-idempotent: true
       summary: Ask to be reminded shortly before an open proposal closes.
       description: >-
@@ -516,6 +524,7 @@ paths:
     delete:
       operationId: deleteProposalReminder
       tags: [governance]
+      x-rate-limit: {actor: {rate: 60, per: 1m, burst: 20}}
       x-idempotent: true
       summary: Drop the caller's reminder for a proposal.
       description: >-

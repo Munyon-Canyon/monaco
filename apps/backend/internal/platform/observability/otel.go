@@ -23,6 +23,8 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 )
 
+const traceSampleRatio = 0.1
+
 func Setup(ctx context.Context, cfg config.Config) (func(context.Context) error, error) {
 	if cfg.OTel.Endpoint == "" {
 		otel.SetTracerProvider(sdktrace.NewTracerProvider())
@@ -41,7 +43,8 @@ func Setup(ctx context.Context, cfg config.Config) (func(context.Context) error,
 		return nil, errs.Wrap(err, errs.CodeInvalidInput, "observability.Setup")
 	}
 	res := resource.NewSchemaless(attribute.String("service.name", cfg.OTel.ServiceName))
-	tp := sdktrace.NewTracerProvider(sdktrace.WithBatcher(traces), sdktrace.WithResource(res))
+	tp := sdktrace.NewTracerProvider(sdktrace.WithBatcher(traces), sdktrace.WithResource(res),
+		sdktrace.WithSampler(sdktrace.ParentBased(sdktrace.TraceIDRatioBased(traceSampleRatio))))
 	mp := sdkmetric.NewMeterProvider(sdkmetric.WithReader(sdkmetric.NewPeriodicReader(metrics)),
 		sdkmetric.WithResource(res))
 	lp := sdklog.NewLoggerProvider(sdklog.WithProcessor(sdklog.NewBatchProcessor(logs)), sdklog.WithResource(res))

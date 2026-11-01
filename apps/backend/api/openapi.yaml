@@ -717,6 +717,7 @@ paths:
     patch:
       operationId: patchCabal
       tags: [cabal]
+      x-rate-limit: {actor: {rate: 60, per: 1m, burst: 20}}
       x-idempotent: true
       summary: Rename a cabal or change its slippage.
       description: >-
@@ -778,6 +779,7 @@ paths:
     post:
       operationId: postCabalAccessRequest
       tags: [cabal]
+      x-rate-limit: {actor: {rate: 60, per: 1m, burst: 20}}
       x-idempotent: true
       summary: Ask to join a request cabal.
       description: >-
@@ -813,6 +815,7 @@ paths:
     delete:
       operationId: deleteCabalAccessRequest
       tags: [cabal]
+      x-rate-limit: {actor: {rate: 60, per: 1m, burst: 20}}
       x-idempotent: true
       summary: Withdraw a pending request or invite.
       description: >-
@@ -844,6 +847,7 @@ paths:
     post:
       operationId: postCabalAccessDecision
       tags: [cabal]
+      x-rate-limit: {actor: {rate: 60, per: 1m, burst: 20}}
       x-idempotent: true
       summary: Approve or deny a pending request or invite.
       description: >-
@@ -995,6 +999,7 @@ paths:
     post:
       operationId: postCabalMember
       tags: [cabal]
+      x-rate-limit: {actor: {rate: 60, per: 1m, burst: 20}}
       x-idempotent: true
       summary: Join an open cabal.
       description: >-
@@ -1022,6 +1027,7 @@ paths:
     delete:
       operationId: deleteCabalMemberMe
       tags: [cabal]
+      x-rate-limit: {actor: {rate: 60, per: 1m, burst: 20}}
       x-idempotent: true
       summary: Leave a cabal.
       description: >-
@@ -1164,6 +1170,7 @@ paths:
     put:
       operationId: putMyCabalOrder
       tags: [cabal]
+      x-rate-limit: {actor: {rate: 60, per: 1m, burst: 20}}
       x-idempotent: true
       summary: Save the order of the caller's cabals.
       description: >-
@@ -1381,6 +1388,7 @@ paths:
     post:
       operationId: authorizeWithdrawal
       tags: [funding]
+      x-rate-limit: {actor: {rate: 10, per: 1m, burst: 5}}
       x-idempotent: false
       x-allow-restricted: true
       summary: Confirm one exact withdrawal before sending it.
@@ -1412,6 +1420,7 @@ paths:
     post:
       operationId: previewWithdrawal
       tags: [funding]
+      x-rate-limit: {actor: {rate: 30, per: 1m, burst: 10}}
       x-idempotent: false
       x-allow-restricted: true
       summary: Show what a withdrawal would deliver.
@@ -1464,6 +1473,7 @@ paths:
     post:
       operationId: createOnrampSession
       tags: [funding]
+      x-rate-limit: {actor: {rate: 10, per: 1m, burst: 5}}
       x-idempotent: true
       summary: Start a card deposit.
       description: >-
@@ -1545,6 +1555,7 @@ paths:
     patch:
       operationId: reportOnrampStatus
       tags: [funding]
+      x-rate-limit: {actor: {rate: 60, per: 1m, burst: 20}}
       x-idempotent: true
       x-cors: web
       summary: Report how the provider flow ended.
@@ -1733,6 +1744,7 @@ paths:
     post:
       operationId: postCabalProposal
       tags: [governance]
+      x-rate-limit: {actor: {rate: 60, per: 1m, burst: 20}}
       x-idempotent: true
       summary: Propose a trade for the cabal to vote on.
       description: >-
@@ -1772,6 +1784,7 @@ paths:
     get:
       operationId: getCabalProposalPreview
       tags: [governance]
+      x-rate-limit: {actor: {rate: 120, per: 1m, burst: 30}}
       summary: Preview a trade before proposing it.
       description: >-
         Runs the checks a proposal runs and writes nothing. A trade the checks refuse still answers
@@ -1834,6 +1847,7 @@ paths:
     get:
       operationId: getCabalProposalPriceComparison
       tags: [governance]
+      x-rate-limit: {actor: {rate: 120, per: 1m, burst: 30}}
       x-allow-restricted: true
       summary: Compare venues for an open buy proposal now.
       description: >-
@@ -1871,6 +1885,7 @@ paths:
     post:
       operationId: postCabalRuleProposal
       tags: [governance]
+      x-rate-limit: {actor: {rate: 60, per: 1m, burst: 20}}
       x-idempotent: true
       summary: Propose a change to a cabal rule for the cabal to vote on.
       description: >-
@@ -2031,6 +2046,7 @@ paths:
     delete:
       operationId: deleteProposal
       tags: [governance]
+      x-rate-limit: {actor: {rate: 60, per: 1m, burst: 20}}
       x-idempotent: true
       summary: Withdraw the caller's proposal.
       description: >-
@@ -2060,6 +2076,7 @@ paths:
     put:
       operationId: putProposalReminder
       tags: [governance]
+      x-rate-limit: {actor: {rate: 60, per: 1m, burst: 20}}
       x-idempotent: true
       summary: Ask to be reminded shortly before an open proposal closes.
       description: >-
@@ -2089,6 +2106,7 @@ paths:
     delete:
       operationId: deleteProposalReminder
       tags: [governance]
+      x-rate-limit: {actor: {rate: 60, per: 1m, burst: 20}}
       x-idempotent: true
       summary: Drop the caller's reminder for a proposal.
       description: >-
@@ -2155,6 +2173,7 @@ paths:
     post:
       operationId: postProposalVote
       tags: [governance]
+      x-rate-limit: {actor: {rate: 60, per: 1m, burst: 20}}
       x-idempotent: true
       summary: Cast or change the caller's ballot on an open proposal.
       description: >-
@@ -2191,6 +2210,7 @@ paths:
     delete:
       operationId: deleteProposalVote
       tags: [governance]
+      x-rate-limit: {actor: {rate: 60, per: 1m, burst: 20}}
       x-idempotent: true
       summary: Undo the caller's ballot on an open proposal.
       description: >-
@@ -2362,6 +2382,7 @@ paths:
     post:
       operationId: postDevXLink
       tags: [identity]
+      x-rate-limit: {actor: {rate: 60, per: 1m, burst: 20}}
       x-idempotent: true
       x-dev-only: true
       summary: Link a fake X account to a dev user.
@@ -2390,6 +2411,7 @@ paths:
     delete:
       operationId: deleteDevXLink
       tags: [identity]
+      x-rate-limit: {actor: {rate: 60, per: 1m, burst: 20}}
       x-idempotent: true
       x-dev-only: true
       summary: Remove a dev user's fake X account.
@@ -2458,6 +2480,7 @@ paths:
       operationId: patchMe
       x-idempotent: true
       tags: [identity]
+      x-rate-limit: {actor: {rate: 60, per: 1m, burst: 20}}
       summary: Update the signed-in user's profile.
       description: Replaces the caller's normalized display name; an unchanged name is a no-op.
       parameters:
@@ -2480,6 +2503,7 @@ paths:
       x-idempotent: true
       x-allow-restricted: true
       tags: [identity]
+      x-rate-limit: {actor: {rate: 60, per: 1m, burst: 20}}
       summary: Delete the signed-in user's account.
       description: >-
         Deletes the caller's account once nothing is left in it. A stake in any cabal is
@@ -2518,6 +2542,7 @@ paths:
     put:
       operationId: putMeHandle
       tags: [identity]
+      x-rate-limit: {actor: {rate: 60, per: 1m, burst: 20}}
       x-idempotent: true
       summary: Set the caller's handle.
       parameters:
@@ -2544,6 +2569,7 @@ paths:
     post:
       operationId: postOnboardingPhone
       tags: [identity]
+      x-rate-limit: {actor: {rate: 60, per: 1m, burst: 20}}
       x-idempotent: true
       summary: Store the phone the caller linked in Privy.
       description: >-
@@ -2565,6 +2591,7 @@ paths:
     post:
       operationId: postOnboardingSkip
       tags: [identity]
+      x-rate-limit: {actor: {rate: 60, per: 1m, burst: 20}}
       x-idempotent: true
       summary: Skip an onboarding step.
       description: >-
@@ -2595,6 +2622,7 @@ paths:
     post:
       operationId: postOnboardingSocials
       tags: [identity]
+      x-rate-limit: {actor: {rate: 60, per: 1m, burst: 20}}
       x-idempotent: true
       summary: Store the X account the caller linked in Privy.
       description: >-
@@ -2644,6 +2672,7 @@ paths:
     post:
       operationId: revokeSessions
       tags: [identity]
+      x-rate-limit: {actor: {rate: 60, per: 1m, burst: 20}}
       x-idempotent: true
       x-allow-restricted: true
       summary: End the caller's session, or every session.
@@ -2867,6 +2896,7 @@ paths:
     get:
       operationId: getAssetChart
       tags: [market]
+      x-rate-limit: {actor: {rate: 120, per: 1m, burst: 30}}
       summary: Read one asset's chart.
       description: >-
         Buckets the asset's stored prices for the requested range. A held spike is left out of the
@@ -2948,6 +2978,7 @@ paths:
     delete:
       operationId: deleteDevice
       tags: [notify]
+      x-rate-limit: {actor: {rate: 60, per: 1m, burst: 20}}
       x-idempotent: true
       summary: Remove one of the caller's device tokens.
       description: >-
@@ -3018,6 +3049,7 @@ paths:
     post:
       operationId: clearCatchUpItem
       tags: [notify]
+      x-rate-limit: {actor: {rate: 60, per: 1m, burst: 20}}
       x-idempotent: true
       summary: Clear one Catch up item.
       description: >-
@@ -3035,6 +3067,7 @@ paths:
     post:
       operationId: keepCatchUpItem
       tags: [notify]
+      x-rate-limit: {actor: {rate: 60, per: 1m, burst: 20}}
       x-idempotent: true
       summary: Keep one Catch up item.
       description: >-
@@ -3052,6 +3085,7 @@ paths:
     post:
       operationId: readCatchUpItem
       tags: [notify]
+      x-rate-limit: {actor: {rate: 60, per: 1m, burst: 20}}
       x-idempotent: true
       summary: Mark one Catch up item read.
       description: >-
@@ -3794,6 +3828,7 @@ paths:
     post:
       operationId: postChatMessage
       tags: [social]
+      x-rate-limit: {actor: {rate: 30, per: 1m, burst: 10}}
       x-idempotent: true
       summary: Post a message to a cabal's chat.
       description: >-
@@ -3866,6 +3901,7 @@ paths:
     delete:
       operationId: deleteChatMessage
       tags: [social]
+      x-rate-limit: {actor: {rate: 60, per: 1m, burst: 20}}
       x-idempotent: true
       summary: Delete one of the caller's chat messages.
       description: >-
@@ -3998,6 +4034,7 @@ paths:
     delete:
       operationId: deleteFeedComment
       tags: [social]
+      x-rate-limit: {actor: {rate: 60, per: 1m, burst: 20}}
       x-idempotent: true
       summary: Delete your comment.
       description: >-
@@ -4513,6 +4550,7 @@ paths:
     put:
       operationId: putMeFeedMutes
       tags: [social]
+      x-rate-limit: {actor: {rate: 60, per: 1m, burst: 20}}
       x-idempotent: true
       summary: Mute a feed target.
       parameters:
@@ -4533,6 +4571,7 @@ paths:
     delete:
       operationId: deleteMeFeedMutesTargetTypeTargetID
       tags: [social]
+      x-rate-limit: {actor: {rate: 60, per: 1m, burst: 20}}
       x-idempotent: true
       summary: Unmute a feed target.
       parameters:
@@ -4713,6 +4752,7 @@ paths:
     post:
       operationId: postUserBlock
       tags: [social]
+      x-rate-limit: {actor: {rate: 60, per: 1m, burst: 20}}
       x-idempotent: true
       summary: Block a user.
       description: >-
@@ -4731,6 +4771,7 @@ paths:
     delete:
       operationId: deleteUserBlock
       tags: [social]
+      x-rate-limit: {actor: {rate: 60, per: 1m, burst: 20}}
       x-idempotent: true
       summary: Unblock a user.
       description: >-
@@ -4747,6 +4788,7 @@ paths:
     post:
       operationId: postUserFollow
       tags: [social]
+      x-rate-limit: {actor: {rate: 60, per: 1m, burst: 20}}
       x-idempotent: true
       summary: Follow a user.
       description: >-
@@ -4778,6 +4820,7 @@ paths:
     delete:
       operationId: deleteUserFollow
       tags: [social]
+      x-rate-limit: {actor: {rate: 60, per: 1m, burst: 20}}
       x-idempotent: true
       summary: Unfollow a user.
       description: >-
@@ -4885,6 +4928,7 @@ paths:
     post:
       operationId: postSystemPing
       tags: [system]
+      x-rate-limit: {actor: {rate: 60, per: 1m, burst: 20}}
       x-idempotent: true
       summary: Record a ping for the caller.
       description: >-
@@ -4968,6 +5012,7 @@ paths:
     post:
       operationId: postSwapRetry
       tags: [trading]
+      x-rate-limit: {actor: {rate: 10, per: 1m, burst: 5}}
       x-idempotent: true
       summary: Retry a failed trade.
       description: >-
@@ -5067,6 +5112,7 @@ paths:
     post:
       operationId: postCashOut
       tags: [treasury]
+      x-rate-limit: {actor: {rate: 10, per: 1m, burst: 5}}
       x-idempotent: true
       x-allow-restricted: true
       summary: Start a cash out to the caller's platform balance.
@@ -5095,6 +5141,7 @@ paths:
     get:
       operationId: getCashOutPreview
       tags: [treasury]
+      x-rate-limit: {actor: {rate: 120, per: 1m, burst: 30}}
       x-allow-restricted: true
       summary: Preview the caller's available cash out.
       parameters:
@@ -5122,6 +5169,7 @@ paths:
     post:
       operationId: fundCabal
       tags: [treasury]
+      x-rate-limit: {actor: {rate: 10, per: 1m, burst: 5}}
       x-idempotent: true
       summary: Fund a cabal from the caller's platform balance.
       description: >-
@@ -5156,6 +5204,7 @@ paths:
     get:
       operationId: getFundPreview
       tags: [treasury]
+      x-rate-limit: {actor: {rate: 120, per: 1m, burst: 30}}
       summary: Preview a fund before it is submitted.
       description: >-
         Returns what the Fund this cabal keypad needs before a submit: the caller's available cash, the

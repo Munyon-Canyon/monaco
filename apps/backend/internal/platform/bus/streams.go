@@ -30,7 +30,7 @@ func Streams() []jetstream.StreamConfig {
 			Storage:    jetstream.FileStorage,
 			Replicas:   1,
 			MaxBytes:   2 << 30,
-			MaxAge:     7 * 24 * time.Hour,
+			MaxAge:     2 * 24 * time.Hour,
 			Discard:    jetstream.DiscardNew,
 			Duplicates: 2 * time.Minute,
 		},

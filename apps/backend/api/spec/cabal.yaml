@@ -89,6 +89,7 @@ paths:
     patch:
       operationId: patchCabal
       tags: [cabal]
+      x-rate-limit: {actor: {rate: 60, per: 1m, burst: 20}}
       x-idempotent: true
       summary: Rename a cabal or change its slippage.
       description: >-
@@ -230,6 +231,7 @@ paths:
     post:
       operationId: postCabalMember
       tags: [cabal]
+      x-rate-limit: {actor: {rate: 60, per: 1m, burst: 20}}
       x-idempotent: true
       summary: Join an open cabal.
       description: >-
@@ -257,6 +259,7 @@ paths:
     delete:
       operationId: deleteCabalMemberMe
       tags: [cabal]
+      x-rate-limit: {actor: {rate: 60, per: 1m, burst: 20}}
       x-idempotent: true
       summary: Leave a cabal.
       description: >-
@@ -305,6 +308,7 @@ paths:
     post:
       operationId: postCabalAccessRequest
       tags: [cabal]
+      x-rate-limit: {actor: {rate: 60, per: 1m, burst: 20}}
       x-idempotent: true
       summary: Ask to join a request cabal.
       description: >-
@@ -340,6 +344,7 @@ paths:
     delete:
       operationId: deleteCabalAccessRequest
       tags: [cabal]
+      x-rate-limit: {actor: {rate: 60, per: 1m, burst: 20}}
       x-idempotent: true
       summary: Withdraw a pending request or invite.
       description: >-
@@ -371,6 +376,7 @@ paths:
     post:
       operationId: postCabalAccessDecision
       tags: [cabal]
+      x-rate-limit: {actor: {rate: 60, per: 1m, burst: 20}}
       x-idempotent: true
       summary: Approve or deny a pending request or invite.
       description: >-
@@ -536,6 +542,7 @@ paths:
     put:
       operationId: putMyCabalOrder
       tags: [cabal]
+      x-rate-limit: {actor: {rate: 60, per: 1m, burst: 20}}
       x-idempotent: true
       summary: Save the order of the caller's cabals.
       description: >-

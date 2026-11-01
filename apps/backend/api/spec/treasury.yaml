@@ -3,6 +3,7 @@ paths:
     post:
       operationId: postCashOut
       tags: [treasury]
+      x-rate-limit: {actor: {rate: 10, per: 1m, burst: 5}}
       x-idempotent: true
       x-allow-restricted: true
       summary: Start a cash out to the caller's platform balance.
@@ -31,6 +32,7 @@ paths:
     get:
       operationId: getCashOutPreview
       tags: [treasury]
+      x-rate-limit: {actor: {rate: 120, per: 1m, burst: 30}}
       x-allow-restricted: true
       summary: Preview the caller's available cash out.
       parameters:
@@ -139,6 +141,7 @@ paths:
     post:
       operationId: fundCabal
       tags: [treasury]
+      x-rate-limit: {actor: {rate: 10, per: 1m, burst: 5}}
       x-idempotent: true
       summary: Fund a cabal from the caller's platform balance.
       description: >-
@@ -173,6 +176,7 @@ paths:
     get:
       operationId: getFundPreview
       tags: [treasury]
+      x-rate-limit: {actor: {rate: 120, per: 1m, burst: 30}}
       summary: Preview a fund before it is submitted.
       description: >-
         Returns what the Fund this cabal keypad needs before a submit: the caller's available cash, the

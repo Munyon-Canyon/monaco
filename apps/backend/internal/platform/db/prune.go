@@ -13,10 +13,37 @@ const pruneBatch = 1000
 
 func PruneDeliveries(ctx context.Context, pool *pgxpool.Pool, before time.Time) (deleted, batches int, err error) {
 	q := sqlc.New(pool)
+	return pruneBatches(func() (int64, error) {
+		return q.DeleteDeliveriesBefore(ctx, sqlc.DeleteDeliveriesBeforeParams{Before: before, Batch: pruneBatch})
+	}, "db.PruneDeliveries")
+}
+
+func PruneIdempotencyKeys(ctx context.Context, pool *pgxpool.Pool, before time.Time) (int, error) {
+	q := sqlc.New(pool)
+	deleted, _, err := pruneBatches(func() (int64, error) {
+		return q.DeleteIdempotencyKeysBefore(
+			ctx,
+			sqlc.DeleteIdempotencyKeysBeforeParams{Before: before, Batch: pruneBatch},
+		)
+	}, "db.PruneIdempotencyKeys")
+	return deleted, err
+}
+
+func PruneRateLimitBuckets(ctx context.Context, pool *pgxpool.Pool, idleBefore time.Time) (int, error) {
+	q := sqlc.New(pool)
+	deleted, _, err := pruneBatches(func() (int64, error) {
+		return q.DeleteRateLimitBucketsIdleBefore(ctx, sqlc.DeleteRateLimitBucketsIdleBeforeParams{
+			Before: idleBefore, Batch: pruneBatch,
+		})
+	}, "db.PruneRateLimitBuckets")
+	return deleted, err
+}
+
+func pruneBatches(next func() (int64, error), op string) (deleted, batches int, err error) {
 	for {
-		n, err := q.DeleteDeliveriesBefore(ctx, sqlc.DeleteDeliveriesBeforeParams{Before: before, Batch: pruneBatch})
+		n, err := next()
 		if err != nil {
-			return deleted, batches, classify(err, "db.PruneDeliveries")
+			return deleted, batches, classify(err, op)
 		}
 		deleted += int(n)
 		batches++
@@ -24,20 +51,4 @@ func PruneDeliveries(ctx context.Context, pool *pgxpool.Pool, before time.Time) 
 			return deleted, batches, nil
 		}
 	}
-}
-
-func PruneIdempotencyKeys(ctx context.Context, pool *pgxpool.Pool, before time.Time) (int, error) {
-	n, err := sqlc.New(pool).DeleteIdempotencyKeysBefore(ctx, before)
-	if err != nil {
-		return 0, classify(err, "db.PruneIdempotencyKeys")
-	}
-	return int(n), nil
-}
-
-func PruneRateLimitBuckets(ctx context.Context, pool *pgxpool.Pool, idleBefore time.Time) (int, error) {
-	n, err := sqlc.New(pool).DeleteRateLimitBucketsIdleBefore(ctx, idleBefore)
-	if err != nil {
-		return 0, classify(err, "db.PruneRateLimitBuckets")
-	}
-	return int(n), nil
 }

@@ -125,7 +125,8 @@ func TestIdempotencyStore_deleteBeforeExpiresOldKeysOnly(t *testing.T) {
 	clk.Advance(25 * time.Hour)
 	mustBegin(t, s, "user:u1", "new", hashA())
 
-	n, err := sqlc.New(pool).DeleteIdempotencyKeysBefore(t.Context(), clk.Now().Add(-24*time.Hour))
+	n, err := sqlc.New(pool).DeleteIdempotencyKeysBefore(t.Context(),
+		sqlc.DeleteIdempotencyKeysBeforeParams{Before: clk.Now().Add(-24 * time.Hour), Batch: 10})
 	if err != nil || n != 1 {
 		t.Fatalf("DeleteIdempotencyKeysBefore = %d, %v, want 1 row", n, err)
 	}
