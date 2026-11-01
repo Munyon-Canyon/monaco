@@ -129,29 +129,11 @@ func (s EVMSwap) Run(ctx context.Context, leg EVMSwapLeg) (EVMSwapResult, error)
 }
 
 func (s EVMSwap) send(ctx context.Context, leg EVMSwapLeg) (string, error) {
-	plan, err := s.Venue.Build(ctx, leg.Spec)
-	if err == nil && len(plan.Candidates) == 0 {
-		err = floorMet(leg.Spec, plan)
-	}
+	swap, err := s.swapTx(ctx, leg)
 	if err != nil {
 		return "", err
 	}
-	key := stepKey(leg.Ref)
-	for i, approval := range plan.Approvals {
-		sent, err := s.Sender.Send(ctx, leg.WalletID, approval, key+":approve:"+strconv.Itoa(i))
-		if err == nil {
-			err = s.approved(ctx, leg, sent)
-		}
-		if err != nil {
-			return "", err
-		}
-	}
-	if len(plan.Candidates) > 0 {
-		if plan, err = s.chosen(ctx, leg.Spec, plan.Candidates); err != nil {
-			return "", err
-		}
-	}
-	hash, err := s.Sender.Send(ctx, leg.WalletID, plan.Swap, key)
+	hash, err := s.Sender.Send(ctx, leg.WalletID, swap, stepKey(leg.Ref))
 	if err != nil {
 		return "", err
 	}
@@ -161,6 +143,35 @@ func (s EVMSwap) send(ctx context.Context, leg EVMSwapLeg) (string, error) {
 	}
 	faultpoint.Hit(ctx, faultpoint.AfterSwapSubmitted)
 	return hash, nil
+}
+
+func (s EVMSwap) swapTx(ctx context.Context, leg EVMSwapLeg) (multichain.EVMTransaction, error) {
+	if stored, ok, err := s.Journal.SentTx(ctx, leg.Ref); err != nil || ok {
+		return stored, err
+	}
+	plan, err := s.Venue.Build(ctx, leg.Spec)
+	if err == nil && len(plan.Candidates) == 0 {
+		err = floorMet(leg.Spec, plan)
+	}
+	if err != nil {
+		return multichain.EVMTransaction{}, err
+	}
+	key := stepKey(leg.Ref)
+	for i, approval := range plan.Approvals {
+		sent, err := s.Sender.Send(ctx, leg.WalletID, approval, key+":approve:"+strconv.Itoa(i))
+		if err == nil {
+			err = s.approved(ctx, leg, sent)
+		}
+		if err != nil {
+			return multichain.EVMTransaction{}, err
+		}
+	}
+	if len(plan.Candidates) > 0 {
+		if plan, err = s.chosen(ctx, leg.Spec, plan.Candidates); err != nil {
+			return multichain.EVMTransaction{}, err
+		}
+	}
+	return plan.Swap, s.Journal.RecordSentTx(ctx, leg.Ref, plan.Swap)
 }
 
 func (s EVMSwap) chosen(ctx context.Context, spec EVMSwapSpec, candidates []EVMSwapCandidate) (EVMSwapPlan, error) {

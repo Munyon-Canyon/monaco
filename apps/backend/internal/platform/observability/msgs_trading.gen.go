@@ -18,6 +18,7 @@ func init() {
 		TradingStepChanged,
 		TradingRoutedSwapParked,
 		TradingBridgeBackRetried,
+		TradingBridgeBackFailed,
 		TradingEVMCashReturnQueued,
 		TradingRoutedSwapResolved,
 		TradingEVMArrivalsChunk,

@@ -49,6 +49,7 @@ type FundWallets interface {
 type FundPotReads interface {
 	TotalShares(ctx context.Context, cabalID ids.CabalID) (money.SharesUnits, error)
 	PotBasis(ctx context.Context, cabalID ids.CabalID) (string, error)
+	HoldsLiveAssets(ctx context.Context, cabalID ids.CabalID) (bool, error)
 }
 
 type FundPot interface {
@@ -255,8 +256,11 @@ func (h *FundCabalHandler) insert(
 
 func (h *FundCabalHandler) checkPot(ctx context.Context, cabalID ids.CabalID) error {
 	total, err := h.d.Pot.TotalShares(ctx, cabalID)
-	if err != nil || total.IsZero() {
+	if err != nil {
 		return err
+	}
+	if total.IsZero() {
+		return refuseUnpriceableFund(ctx, h.d.Pot, cabalID)
 	}
 	pot, err := h.d.Pot.PotValue(ctx, cabalID)
 	if errs.CodeOf(err) == errs.CodePriceUnavailable {
@@ -269,6 +273,15 @@ func (h *FundCabalHandler) checkPot(ctx context.Context, cabalID ids.CabalID) er
 		return errs.New(errs.CodePotValueZero, "treasury.FundCabal", slog.String("cabal_id", cabalID.String()))
 	}
 	return nil
+}
+
+func refuseUnpriceableFund(ctx context.Context, reads FundPotReads, cabalID ids.CabalID) error {
+	holds, err := reads.HoldsLiveAssets(ctx, cabalID)
+	if err != nil || !holds {
+		return err
+	}
+	return errs.New(errs.CodePotValueChanged, "treasury.FundCabal", slog.String("cabal_id", cabalID.String()),
+		slog.String("reason", "no_shares_but_live_holdings"))
 }
 
 func (h *FundCabalHandler) submit(

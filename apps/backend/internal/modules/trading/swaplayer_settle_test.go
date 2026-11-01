@@ -3,6 +3,7 @@ package trading_test
 import (
 	"context"
 	"slices"
+	"strconv"
 	"testing"
 
 	"github.com/google/uuid"
@@ -85,18 +86,44 @@ func TestSwapLayer_SellCountsTheOutAmountAsUSDC(t *testing.T) {
 
 func TestSwapLayer_Failed(t *testing.T) {
 	t.Parallel()
-	e := newLayerEnv(t)
-	e.jup.SetExecute("req-1", jupiter.ExecuteResult{Status: jupiter.StatusFailed, ErrorCode: -1002})
-	got := e.settled(t, e.request(e.source()))
-	if got.Status != domain.StatusFailed || got.FailureCode != domain.FailureJupiterFailed {
-		t.Fatalf("view = %+v", got)
+	for name, tc := range map[string]struct {
+		code int
+		want string
+	}{
+		"a program error that landed":             {6001, "6001"},
+		"a request refused before it was sent on": {-1, "-1"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			e := newLayerEnv(t)
+			e.jup.SetExecute("req-1", jupiter.ExecuteResult{Status: jupiter.StatusFailed, ErrorCode: tc.code})
+			got := e.settled(t, e.request(e.source()))
+			if got.Status != domain.StatusFailed || got.FailureCode != domain.FailureJupiterFailed {
+				t.Fatalf("view = %+v", got)
+			}
+			if want := []string{"trade.submitted", "trade.failed"}; !slices.Equal(e.events(t, got.ID.UUID()), want) {
+				t.Fatalf("events = %v, want %v", e.events(t, got.ID.UUID()), want)
+			}
+			p := e.payload(t, got.ID.UUID(), "trade.failed")
+			if p["failure_code"] != "jupiter_failed" || p["jupiter_code"] != tc.want {
+				t.Fatalf("trade.failed payload = %v", p)
+			}
+		})
 	}
-	if want := []string{"trade.submitted", "trade.failed"}; !slices.Equal(e.events(t, got.ID.UUID()), want) {
-		t.Fatalf("events = %v, want %v", e.events(t, got.ID.UUID()), want)
-	}
-	p := e.payload(t, got.ID.UUID(), "trade.failed")
-	if p["failure_code"] != "jupiter_failed" || p["jupiter_code"] != "-1002" {
-		t.Fatalf("trade.failed payload = %v", p)
+}
+
+func TestSwapLayer_ANegativeJupiterCodeLeavesTheSwapSubmittedForTheExpiryCheck(t *testing.T) {
+	t.Parallel()
+	for _, code := range []int{-1000, -1001, -1002, -1003, -1004, -1005, -1006, -2000, -2001, -2003, -2005} {
+		t.Run(strconv.Itoa(code), func(t *testing.T) {
+			t.Parallel()
+			e := newLayerEnv(t)
+			e.jup.SetExecute("req-1", jupiter.ExecuteResult{Status: jupiter.StatusFailed, ErrorCode: code})
+			got := e.settled(t, e.request(e.source()))
+			if got.Status != domain.StatusSubmitted || e.terminalEvents(t, got.ID.UUID()) != 0 {
+				t.Fatalf("code %d: view = %+v, want submitted with no terminal event", code, got)
+			}
+		})
 	}
 }
 

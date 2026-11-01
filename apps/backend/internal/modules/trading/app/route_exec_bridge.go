@@ -77,11 +77,9 @@ func (b Bridge) Run(ctx context.Context, leg BridgeLeg) (domain.StepStatus, erro
 			id = prior
 			break
 		}
-		if id, err = b.submit(ctx, leg, step.Attempt); err != nil {
-			return "", err
-		}
-		if id == "" {
-			return domain.StepFailed, nil
+		var settled domain.StepStatus
+		if id, settled, err = b.submit(ctx, leg, step.Attempt); err != nil || settled != "" {
+			return settled, err
 		}
 	case domain.StepSucceeded, domain.StepFailed:
 		return step.Status, nil
@@ -114,24 +112,28 @@ func (b Bridge) landedLate(
 	return "", state, nil
 }
 
-func (b Bridge) submit(ctx context.Context, leg BridgeLeg, attempt int) (multichain.ActionID, error) {
+func (b Bridge) submit(
+	ctx context.Context, leg BridgeLeg, attempt int,
+) (multichain.ActionID, domain.StepStatus, error) {
 	if leg.Spec.From == chain.NetworkSolana {
 		if err := b.TopUp.TopUpSOL(ctx, leg.Source); err != nil {
-			return "", err
+			return "", "", err
 		}
 	}
 	id, err := b.Actions.Transfer(ctx, leg.WalletID, leg.Spec, attemptKey(leg.Ref, attempt))
 	code := errs.CodeOf(err)
 	switch {
 	case err != nil && errs.Retryable(code):
-		return "", err
+		return "", "", err
+	case code == errs.CodeDecodeFailed:
+		return "", domain.StepPending, b.outcomeUnknown(ctx, leg, "")
 	case err != nil:
 		_, err = b.Journal.Failed(ctx, leg.Ref, string(code))
-		return "", err
+		return "", domain.StepFailed, err
 	}
 	faultpoint.Hit(ctx, faultpoint.AfterBroadcast)
 	_, err = b.Journal.Submitted(ctx, leg.Ref, string(id))
-	return id, err
+	return id, "", err
 }
 
 func (b Bridge) await(ctx context.Context, leg BridgeLeg, id multichain.ActionID) (domain.StepStatus, error) {

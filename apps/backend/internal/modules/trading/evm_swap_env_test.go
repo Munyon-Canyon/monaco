@@ -16,6 +16,7 @@ type evmFake struct {
 	buildErr     error
 	byKey        map[string]string
 	sends        []string
+	sentTxs      map[string][]multichain.EVMTransaction
 	sendErr      map[string]error
 	fills        []app.EVMFill
 	fillErr      error
@@ -32,7 +33,10 @@ type evmFake struct {
 }
 
 func newEVMFake(plan app.EVMSwapPlan) *evmFake {
-	return &evmFake{plan: plan, byKey: map[string]string{}, sendErr: map[string]error{}, afterSend: map[string]func(){}}
+	return &evmFake{
+		plan: plan, byKey: map[string]string{}, sendErr: map[string]error{}, afterSend: map[string]func(){},
+		sentTxs: map[string][]multichain.EVMTransaction{},
+	}
 }
 
 func (f *evmFake) Build(_ context.Context, spec app.EVMSwapSpec) (app.EVMSwapPlan, error) {
@@ -53,7 +57,7 @@ func (f *evmFake) Choose(
 	return f.chosen, f.chooseErr
 }
 
-func (f *evmFake) Send(_ context.Context, _ string, _ multichain.EVMTransaction, key string) (string, error) {
+func (f *evmFake) Send(_ context.Context, _ string, tx multichain.EVMTransaction, key string) (string, error) {
 	f.mu.Lock()
 	if err := f.sendErr[key]; err != nil {
 		delete(f.sendErr, key)
@@ -61,6 +65,7 @@ func (f *evmFake) Send(_ context.Context, _ string, _ multichain.EVMTransaction,
 		return "", err
 	}
 	f.sends = append(f.sends, key)
+	f.sentTxs[key] = append(f.sentTxs[key], tx)
 	f.trail = append(f.trail, "send:"+key)
 	hash, ok := f.byKey[key]
 	if !ok {
