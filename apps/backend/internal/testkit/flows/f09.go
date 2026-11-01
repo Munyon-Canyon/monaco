@@ -35,7 +35,7 @@ func seedF09(s *scenario.Scenario, holdings ...string) f09Cabal {
 	cabal := testkit.NewCabal(seedT{s}, s.DB(), testkit.WithMembers(3))
 	seedFeedCabal(s, cabal.ID)
 	ensureSamplerCatalog()(s)
-	if _, err := s.DB().Exec(s.Context(), `UPDATE assets SET chain_checked_at = $1,
+	if _, err := s.DB().Exec(s.Context(), `UPDATE assets SET chain_checked_at = $1, last_quoted_at = $1,
 		tradable_override = CASE symbol WHEN 'AAPLx' THEN true ELSE false END
 		WHERE symbol IN ('AAPLx', 'JPSTx')`, time.Now().UTC()); err != nil {
 		s.Fatalf("flows: set flow 09 tradability: %v", err)

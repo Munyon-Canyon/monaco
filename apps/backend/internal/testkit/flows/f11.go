@@ -110,9 +110,10 @@ func ensureTradableAAPLx(s *scenario.Scenario) {
 	a, now := marketfake.AAPLx(), time.Now().UTC()
 	if _, err := s.DB().Exec(s.Context(), `INSERT INTO assets (
 		id, symbol, mint, decimals, issuer, kind, display_name, issuer_tradable, company_key,
-		first_seen_at, updated_at, chain_checked_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, true, $8, $9, $9, $9)
-		ON CONFLICT (mint) DO UPDATE SET chain_checked_at = coalesce(assets.chain_checked_at, $9)`,
+		first_seen_at, updated_at, chain_checked_at, last_quoted_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, true, $8, $9, $9, $9, $9)
+		ON CONFLICT (mint) DO UPDATE SET chain_checked_at = coalesce(assets.chain_checked_at, $9),
+			last_quoted_at = coalesce(assets.last_quoted_at, $9)`,
 		a.ID.UUID(), a.Symbol, a.Mint.String(), int16(a.Decimals), string(a.Issuer), string(a.Kind),
 		a.DisplayName, a.CompanyKey, now,
 	); err != nil {
