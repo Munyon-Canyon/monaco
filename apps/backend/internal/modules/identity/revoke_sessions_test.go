@@ -37,6 +37,11 @@ type revokeFixture struct {
 
 func newRevokeFixture(t *testing.T, status string) *revokeFixture {
 	t.Helper()
+	return newRevokeFixtureIn(t, status, config.EnvTest)
+}
+
+func newRevokeFixtureIn(t *testing.T, status string, env config.Env) *revokeFixture {
+	t.Helper()
 	f := &revokeFixture{verifierFixture: newVerifierFixture(t)}
 	f.user = testkit.SeedUser(t, f.pool, testkit.UserOpts{Handle: "revoker", WithWallet: true, AccountStatus: status})
 	mount := identity.New(
@@ -53,7 +58,7 @@ func newRevokeFixture(t *testing.T, status string) *revokeFixture {
 	h, err := httpx.HandlerFor(httpx.Deps{
 		Logger: observability.NewLogger(config.Config{Env: config.EnvTest}, &testkit.Logs{}),
 		Tracer: tracenoop.NewTracerProvider(), Clock: f.clock, IDs: testkit.NewIDs(11), MaxBodyBytes: 1 << 20,
-		Idempotency: db.NewIdempotencyStore(f.pool, f.clock), Verifier: f.verifier(t, config.EnvTest),
+		Idempotency: db.NewIdempotencyStore(f.pool, f.clock), Verifier: f.verifier(t, env),
 	}, mount, specContract(t))
 	if err != nil {
 		t.Fatal(err)
@@ -210,6 +215,21 @@ func TestRevokeSessions_aDevTokenKeepsWorkingAfterItsSessionEnds(t *testing.T) {
 	dev := f.devToken(t, f.user.ID.String())
 	if rec := f.revoke(t, dev, "this_session"); rec.Code != http.StatusNoContent {
 		t.Fatalf("revoke this_session with a dev token = %d %s, want 204", rec.Code, rec.Body)
+	}
+	f.expectStatus(t, dev, http.StatusOK)
+}
+
+func TestRevokeSessions_aStagingDevTokenHasNoSessionToEnd(t *testing.T) {
+	t.Parallel()
+	f := newRevokeFixtureIn(t, "active", config.EnvStaging)
+	dev := f.devToken(t, f.user.ID.String())
+	if rec := f.revoke(t, dev, "this_session"); rec.Code != http.StatusNoContent {
+		t.Fatalf("revoke this_session with a staging dev token = %d %s, want 204", rec.Code, rec.Body)
+	}
+	var revoked int
+	if err := f.pool.QueryRow(t.Context(), `SELECT count(*) FROM revoked_sessions WHERE user_id = $1`,
+		f.user.ID.UUID()).Scan(&revoked); err != nil || revoked != 0 {
+		t.Fatalf("revoked_sessions rows = %d, %v, want 0", revoked, err)
 	}
 	f.expectStatus(t, dev, http.StatusOK)
 }
