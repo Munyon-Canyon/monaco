@@ -450,7 +450,7 @@ func TestSystemReply_TakesNoReplyReactionOrReport(t *testing.T) {
 	monaco := r.systemReply(t)
 	_, err := r.post(t, r.item, kai, &api.CreateCommentRequest{Body: ptr("hi"), ParentCommentId: &monaco.Id})
 	r.wantRefused(t, "reply", err)
-	handlers := app.ReactionDeps{UoW: r.uow, Reads: r.pool, Clock: r.clock, Hints: r.hints}
+	handlers := app.ReactionDeps{UoW: r.uow, Reads: r.pool, Members: membersOn(r.pool), Clock: r.clock, Hints: r.hints}
 	_, err = app.NewReactCommentHandler(handlers).Handle(
 		asUser(t.Context(), lee), app.ReactComment{CommentID: monaco.Id, Viewer: lee, Emoji: "👍"})
 	r.wantRefused(t, "react", err)
@@ -553,8 +553,8 @@ func TestSystemReply_ABrokenPayloadOrTableFailsWithoutAReply(t *testing.T) {
 func TestSystemReply_ModuleTakesInjectedHoldings(t *testing.T) {
 	t.Parallel()
 	m := social.New(module.Deps{}, social.WithHoldings(brokenHoldings{}))
-	if len(m.Consumers()) != 5 {
-		t.Fatalf("consumers = %d, want 5", len(m.Consumers()))
+	if len(m.Consumers()) != 6 {
+		t.Fatalf("consumers = %d, want 6", len(m.Consumers()))
 	}
 }
 

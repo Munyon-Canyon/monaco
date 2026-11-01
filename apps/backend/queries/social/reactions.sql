@@ -75,3 +75,12 @@ WHERE o.ref_id = ANY(sqlc.arg(proposal_ids)::uuid[])
 GROUP BY c.id, o.ref_id, c.author_id, c.body, c.created_at
 ORDER BY count(*) DESC, c.created_at, c.id
 LIMIT 1;
+
+-- name: DeleteUserItemReactions :exec
+DELETE FROM feed_reactions WHERE user_id = sqlc.arg(user_id);
+
+-- name: DeleteUserItemLikes :exec
+DELETE FROM feed_likes WHERE user_id = sqlc.arg(user_id);
+
+-- name: DeleteUserCommentReactions :exec
+DELETE FROM comment_reactions WHERE user_id = sqlc.arg(user_id);

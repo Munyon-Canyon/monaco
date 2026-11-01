@@ -124,15 +124,29 @@ func TestCanReply_membersOnAProposalAndAnyoneOnTheRest(t *testing.T) {
 	}
 }
 
-func TestCanReact_anyoneWhoCanSeeTheItem(t *testing.T) {
+func TestCanReact_aProposalThreadTakesOnlyMembers(t *testing.T) {
 	t.Parallel()
 	f := newCommentFixture(t)
 	proposal := f.item(t, feed.KindProposal)
-	item, err := app.CanReact(t.Context(), f.pool, f.outsider, proposal)
+	member := f.cabal.Members[0].ID
+	item, err := app.CanReact(t.Context(), f.pool, membersOn(f.pool), member, proposal)
 	if err != nil || item.ID != proposal {
-		t.Errorf("CanReact on a proposal of another cabal = %+v, %v, want the item", item, err)
+		t.Errorf("CanReact on a proposal of the member's cabal = %+v, %v, want the item", item, err)
 	}
-	_, err = app.CanReact(t.Context(), f.pool, f.outsider, f.gen.NewV7())
+	_, err = app.CanReact(t.Context(), f.pool, membersOn(f.pool), f.outsider, proposal)
+	wantCode(t, err, errs.CodeCommentMembersOnly)
+	trade := f.item(t, feed.KindTrade)
+	if item, err := app.CanReact(
+		t.Context(),
+		f.pool,
+		membersOn(f.pool),
+		f.outsider,
+		trade,
+	); err != nil ||
+		item.ID != trade {
+		t.Errorf("CanReact on a trade for an outsider = %+v, %v, want the item", item, err)
+	}
+	_, err = app.CanReact(t.Context(), f.pool, membersOn(f.pool), f.outsider, f.gen.NewV7())
 	wantCode(t, err, errs.CodeFeedItemNotFound)
 }
 

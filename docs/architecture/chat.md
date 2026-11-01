@@ -61,7 +61,7 @@ chat_seen
   PRIMARY KEY (cabal_id, user_id)
 ```
 
-Index: `(cabal_id, last_seen_at)`. The earlier draft put `last_chat_seen_at` on `group_members`. That table belongs to the `cabal` module, and `social` cannot write it. A member who leaves loses their row: the `social` consumer of `cabal.member_left` (flow 4) hard-deletes it. That is fine, since a seen watermark is not user content (decided 2026-09-27).
+Index: `(cabal_id, last_seen_at)`. The earlier draft put `last_chat_seen_at` on `group_members`. That table belongs to the `cabal` module, and `social` cannot write it. A member who leaves loses their row: the `social` consumer of `cabal.member_left` (flow 4) hard-deletes it. That is fine, since a seen watermark is not user content (decided 2026-09-27). A member who joins or rejoins gets a row seeded at their newest message at the time they joined (the `cabal.member_joined` handler on the same durable), so their unread count starts at 0 (2026-11-01).
 
 ### API
 

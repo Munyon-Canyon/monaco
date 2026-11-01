@@ -29,6 +29,15 @@ func (q *Queries) DeleteCommentPollVote(ctx context.Context, arg DeleteCommentPo
 	return result.RowsAffected(), nil
 }
 
+const deleteUserPollVotes = `-- name: DeleteUserPollVotes :exec
+DELETE FROM comment_poll_votes WHERE user_id = $1
+`
+
+func (q *Queries) DeleteUserPollVotes(ctx context.Context, userID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteUserPollVotes, userID)
+	return err
+}
+
 const getCommentPoll = `-- name: GetCommentPoll :one
 SELECT c.feed_object_id, (c.deleted_at IS NOT NULL)::bool AS deleted, a.payload
 FROM feed_comments c

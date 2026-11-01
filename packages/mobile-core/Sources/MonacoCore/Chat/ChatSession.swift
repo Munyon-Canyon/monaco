@@ -30,7 +30,6 @@ public actor ChatSession {
     }
 
     public static let pageSize = 50
-    static let maxCatchUpPages = 10
 
     public nonisolated let cabalID: String
     let api: APIClient
@@ -50,7 +49,7 @@ public actor ChatSession {
     var deletions: [String: IdempotentSubmission] = [:]
     var isOpen = false
     private var noticeSerial = 0
-    private var cursor = CatchUpCursor()
+    var cursor = CatchUpCursor()
     var attachSignal: AsyncStream<Bool>.Continuation?
     var openBuffer: [ChatMessage]?
     var openGeneration = 0
@@ -147,7 +146,7 @@ public actor ChatSession {
         case .messageCreated(let message):
             if bufferWhileOpening(message) { return }
             guard state.timeline.hasLoadedNewest else { return }
-            cursor.advance(with: [message])
+            cursor.noteLive(message)
             guard state.timeline.insertLive(message) else { return }
             publish()
             await onArrival()
@@ -209,30 +208,6 @@ public actor ChatSession {
         publish()
     }
 
-    func catchUp() async {
-        guard var after = cursor.id else {
-            await loadNewest()
-            return
-        }
-        for _ in 0..<Self.maxCatchUpPages {
-            do {
-                let page = try await fetch(after: after)
-                state.timeline.mergeNewer(page)
-                cursor.advance(with: page)
-                adoptSeen(from: page)
-                state.isClosed = false
-                publish()
-                guard page.count >= Self.pageSize, let newest = cursor.id, newest != after
-                else { return await loadNewest() }
-                after = newest
-            } catch {
-                fail(error, firstLoad: false)
-                publish()
-                return
-            }
-        }
-    }
-
     private func deliver(key: String) async {
         guard let send = state.timeline.unsent(key: key), let submission = submissions[key] else { return }
         let cabalID = cabalID
@@ -260,7 +235,7 @@ public actor ChatSession {
         publish()
     }
 
-    private func fail(_ error: any Error, firstLoad: Bool) {
+    func fail(_ error: any Error, firstLoad: Bool) {
         let failure = APIError(error)
         if Self.isClosed(failure) {
             state.isClosed = true

@@ -30,7 +30,7 @@ type commentReactFixture struct {
 func newCommentReactFixture(t *testing.T) commentReactFixture {
 	t.Helper()
 	f := commentReactFixture{commentRoutes: newCommentRoutes(t)}
-	deps := app.ReactionDeps{UoW: f.uow, Reads: f.pool, Clock: f.clock, Hints: f.hints}
+	deps := app.ReactionDeps{UoW: f.uow, Reads: f.pool, Members: membersOn(f.pool), Clock: f.clock, Hints: f.hints}
 	f.react, f.unreact = app.NewReactCommentHandler(deps), app.NewUnreactCommentHandler(deps)
 	return f
 }
@@ -410,9 +410,21 @@ func TestCommentReactions_failWhenAStoreStepFails(t *testing.T) {
 			t.Cleanup(down.Close)
 			uow := db.New(down, f.gen, f.clock)
 			broken := brokenStore{
-				t: t, down: down, item: item, proposal: proposal, kai: kai, lee: lee,
-				reply: reply.Id, start: f.clock.Now().Add(-time.Hour),
-				react: app.ReactionDeps{UoW: uow, Reads: down, Clock: f.clock, Hints: f.hints},
+				t:        t,
+				down:     down,
+				item:     item,
+				proposal: proposal,
+				kai:      kai,
+				lee:      lee,
+				reply:    reply.Id,
+				start:    f.clock.Now().Add(-time.Hour),
+				react: app.ReactionDeps{
+					UoW:     uow,
+					Reads:   down,
+					Members: membersOn(down),
+					Clock:   f.clock,
+					Hints:   f.hints,
+				},
 				comments: app.CommentDeps{
 					UoW: uow, Reads: down, Users: f.users, IDs: f.gen, Clock: f.clock, Hints: f.hints,
 				},

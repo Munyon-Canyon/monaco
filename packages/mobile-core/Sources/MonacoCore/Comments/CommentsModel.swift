@@ -183,7 +183,7 @@ public final class CommentsModel {
         replySheet = nil
         attachmentDraft = nil
         self.draft = CommentDraft.field(self.draft, afterPosting: body ?? "")
-        showPosted(created)
+        await showPosted(created)
         if let rootID = created.parentCommentId { expandedRoots.insert(rootID) }
         if case .post = target {} else { await refresh() }
         lastPostedID = created.id
@@ -208,12 +208,18 @@ public final class CommentsModel {
         await refresh()
     }
 
-    private func showPosted(_ created: Components.Schemas.Comment) {
+    private func showPosted(_ created: Components.Schemas.Comment) async {
         if let threadID = created.parentCommentId {
             pager.update(id: threadID) { thread in
                 if !thread.replies.contains(where: { $0.id == created.id }) { thread.replies.append(created) }
             }
-        } else if pager.phase == .exhausted {
+            return
+        }
+        while pager.phase == .idle, !pager.items.isEmpty, !Task.isCancelled {
+            await pager.loadMore()
+        }
+        noteRefreshFailure()
+        if pager.phase == .exhausted {
             pager.append(Components.Schemas.CommentThread(comment: created, replies: []))
         }
     }

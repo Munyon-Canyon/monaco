@@ -37,7 +37,7 @@ func (h *ReactCommentHandler) Handle(ctx context.Context, cmd ReactComment) (Rea
 	if err := refuseSystemReply(ref.AuthorKind, op, ref.ID); err != nil {
 		return ReactionSummary{}, err
 	}
-	item, err := CanReact(ctx, h.d.Reads, cmd.Viewer, ref.FeedObjectID)
+	item, err := CanReact(ctx, h.d.Reads, h.d.Members, cmd.Viewer, ref.FeedObjectID)
 	if err != nil {
 		return ReactionSummary{}, err
 	}

@@ -21,7 +21,7 @@ type likeFixture struct {
 func newLikeFixture(t *testing.T) likeFixture {
 	t.Helper()
 	f := likeFixture{commentRoutes: newCommentRoutes(t)}
-	deps := app.LikeDeps{UoW: f.uow, Reads: f.pool, Clock: f.clock, Hints: f.hints}
+	deps := app.LikeDeps{UoW: f.uow, Reads: f.pool, Members: membersOn(f.pool), Clock: f.clock, Hints: f.hints}
 	f.like, f.unlike = app.NewLikeFeedItemHandler(deps), app.NewUnlikeFeedItemHandler(deps)
 	return f
 }

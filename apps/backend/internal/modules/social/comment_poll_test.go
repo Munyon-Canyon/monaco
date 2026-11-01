@@ -207,7 +207,7 @@ func TestCommentPoll_aNonMemberCannotPostOneOnAMembersOnlyProposal(t *testing.T)
 func TestCommentPoll_oneVoteEachMovesAndWithdraws(t *testing.T) {
 	t.Parallel()
 	f := newPollThread(t)
-	proposal := f.commentRoutes.item(t, feed.KindProposal)
+	proposal := f.commentRoutes.item(t, feed.KindTrade)
 	poll := f.ask(t, f.author, proposal)
 	zero, one := 0, 1
 	wantPollCounts(t, f.mustVote(t, f.nora, poll.Id, 1), &one, 0, 1)

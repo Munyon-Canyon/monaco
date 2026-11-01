@@ -317,8 +317,12 @@ func (m *Module) http() adapters.HTTP {
 		UoW: m.deps.UoW, Reads: m.deps.Pool, Members: m.members, Users: m.users, IDs: m.deps.IDs,
 		Clock: m.deps.Clock, Hints: m.deps.Bus, Stocks: m.stocks,
 	}
-	likes := app.LikeDeps{UoW: m.deps.UoW, Reads: m.deps.Pool, Clock: m.deps.Clock, Hints: m.deps.Bus}
-	polls := app.PollDeps{UoW: m.deps.UoW, Reads: m.deps.Pool, Clock: m.deps.Clock, Hints: m.deps.Bus}
+	likes := app.LikeDeps{
+		UoW: m.deps.UoW, Reads: m.deps.Pool, Members: m.members, Clock: m.deps.Clock, Hints: m.deps.Bus,
+	}
+	polls := app.PollDeps{
+		UoW: m.deps.UoW, Reads: m.deps.Pool, Members: m.members, Clock: m.deps.Clock, Hints: m.deps.Bus,
+	}
 	return adapters.HTTP{
 		Follow: app.NewFollowHandler(app.FollowDeps{
 			UoW: m.deps.UoW, Users: m.users, IDs: m.deps.IDs, Clock: m.deps.Clock,
@@ -382,7 +386,7 @@ func (m *Module) Consumers() []bus.Consumer {
 	leftSettled := adapters.Settled[events.CabalMemberLeft]
 	standingSettled := adapters.Settled[events.UserAccountStatusChanged]
 	deletedSettled := adapters.Settled[events.UserDeleted]
-	return []bus.Consumer{
+	return append(cleanupConsumers(), []bus.Consumer{
 		{
 			Durable: "social_feed",
 			Handlers: []bus.HandlerSpec{
@@ -417,10 +421,6 @@ func (m *Module) Consumers() []bus.Consumer {
 			},
 		},
 		{
-			Durable:  "social_chat_seen_cleanup",
-			Handlers: []bus.HandlerSpec{bus.Handle("social.chat_seen_cleanup", adapters.ChatSeenCleanup{}.Handle)},
-		},
-		{
 			Durable: "social_realtime_revoke",
 			Handlers: []bus.HandlerSpec{
 				bus.HandleFetched("social.realtime_revoke.left", revoke.Left, leftSettled),
@@ -433,6 +433,22 @@ func (m *Module) Consumers() []bus.Consumer {
 			Handlers: []bus.HandlerSpec{
 				bus.HandleFetched("social.referral_follows", referrals.Fetch, referrals.Apply),
 			},
+		},
+	}...)
+}
+
+func cleanupConsumers() []bus.Consumer {
+	return []bus.Consumer{
+		{
+			Durable: "social_chat_seen_cleanup",
+			Handlers: []bus.HandlerSpec{
+				bus.Handle("social.chat_seen_cleanup", adapters.ChatSeenCleanup{}.Handle),
+				bus.Handle("social.chat_seen_seed", adapters.ChatSeenCleanup{}.Joined),
+			},
+		},
+		{
+			Durable:  "social_deleted_cleanup",
+			Handlers: []bus.HandlerSpec{bus.Handle("social.deleted_cleanup", adapters.DeletedCleanup{}.Handle)},
 		},
 	}
 }
