@@ -554,6 +554,26 @@ func TestCashOutReservationsReadFailures(t *testing.T) {
 	}
 }
 
+func TestValuationInputsAtStopsAtEveryReadFailure(t *testing.T) {
+	t.Parallel()
+	boom := errs.New(errs.CodeInternal, "boom")
+	for name, q := range map[string]*Queries{
+		"positions":    {history: historicalStore{snapshotsErr: boom}, reserved: reservationStoreFake{}, usdc: usdcMint},
+		"stakes":       {history: historicalStore{membersErr: boom}, reserved: reservationStoreFake{}, usdc: usdcMint},
+		"reservations": {history: historicalStore{}, reserved: reservationStoreFake{err: boom}, usdc: usdcMint},
+		"snapshot": {
+			snapshot: func(context.Context, func(context.Context, sqlc.DBTX) error) error { return boom },
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			if _, err := q.ValuationInputsAt(t.Context(), time.Time{}); errs.CodeOf(err) != errs.CodeInternal {
+				t.Fatalf("ValuationInputsAt() error = %v, want %v", err, boom)
+			}
+		})
+	}
+}
+
 func TestValuationInputsAtReadFailures(t *testing.T) {
 	t.Parallel()
 	for name, store := range map[string]reservationStoreFake{

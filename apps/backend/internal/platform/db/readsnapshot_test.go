@@ -61,3 +61,18 @@ func TestReadSnapshot_returnsTheCallbackError(t *testing.T) {
 		t.Fatal("ReadSnapshot() wrote inside a read-only transaction")
 	}
 }
+
+func TestReadSnapshot_failsWhenTheTransactionCannotBegin(t *testing.T) {
+	t.Parallel()
+	pool := testkit.DB(t)
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	called := false
+	err := db.ReadSnapshot(ctx, pool, time.Minute, func(context.Context, sqlc.DBTX) error {
+		called = true
+		return nil
+	})
+	if err == nil || called {
+		t.Fatalf("ReadSnapshot() error = %v, called = %v, want an error before the callback", err, called)
+	}
+}

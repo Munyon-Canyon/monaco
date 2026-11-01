@@ -379,11 +379,7 @@ func (r RunValuation) values(
 			flagged = append(flagged, CabalValue{CabalID: result.Val.cabalID, Flags: result.Val.flags})
 			continue
 		}
-		skip, err := r.unconserved(ctx, result.Val, stakes, skipped)
-		if err != nil {
-			return nil, nil, err
-		}
-		if skip {
+		if r.unconserved(ctx, result.Val, stakes, skipped) {
 			continue
 		}
 		values = append(
@@ -401,19 +397,17 @@ func (r RunValuation) values(
 
 func (RunValuation) unconserved(
 	ctx context.Context, cabal valuedCabal, stakes []treasury.MemberStake, skipped func(ids.CabalID),
-) (bool, error) {
+) bool {
 	err := conservation(cabal.cabalID, cabal.position.TotalShares, stakes, cabal.nav.Value)
 	switch {
 	case err == nil:
-		return false, nil
-	case errs.CodeOf(err) == errs.CodeConservationBroken:
-		logExcluded(ctx, cabal.cabalID, errs.CodeConservationBroken)
-		return true, nil
+		return false
 	case errors.Is(err, domain.ErrUnusableStart):
 		skipped(cabal.cabalID)
-		return true, nil
+	default:
+		logExcluded(ctx, cabal.cabalID, errs.CodeOf(err))
 	}
-	return false, err
+	return true
 }
 
 func (r RunValuation) readUsers(
