@@ -17,7 +17,7 @@ const listActivity = `-- name: ListActivity :many
 SELECT id, kind, status, actor_user_id, asset, usdc_micros, units,
   tx_signature, occurred_at
 FROM cabal_activity
-WHERE cabal_id = $1
+WHERE cabal_id = $1 AND NOT cashout_sale
   AND (NOT $2::bool OR (occurred_at, id) < ($3::timestamptz, $4::uuid))
 ORDER BY occurred_at DESC, id DESC
 LIMIT $5
@@ -80,7 +80,8 @@ func (q *Queries) ListActivity(ctx context.Context, arg ListActivityParams) ([]L
 }
 
 const listTradesForPairs = `-- name: ListTradesForPairs :many
-SELECT a.id, a.cabal_id, a.kind, a.asset::text AS asset, a.usdc_micros, a.units, a.occurred_at
+SELECT a.id, a.cabal_id, a.kind, a.asset::text AS asset, a.usdc_micros, a.units, a.occurred_at,
+  a.cashout_sale
 FROM cabal_activity AS a
 JOIN (
   SELECT c.cabal_id, k.asset
@@ -100,13 +101,14 @@ type ListTradesForPairsParams struct {
 }
 
 type ListTradesForPairsRow struct {
-	ID         uuid.UUID
-	CabalID    uuid.UUID
-	Kind       string
-	Asset      string
-	UsdcMicros pgtype.Numeric
-	Units      pgtype.Numeric
-	OccurredAt time.Time
+	ID          uuid.UUID
+	CabalID     uuid.UUID
+	Kind        string
+	Asset       string
+	UsdcMicros  pgtype.Numeric
+	Units       pgtype.Numeric
+	OccurredAt  time.Time
+	CashoutSale bool
 }
 
 func (q *Queries) ListTradesForPairs(ctx context.Context, arg ListTradesForPairsParams) ([]ListTradesForPairsRow, error) {
@@ -126,6 +128,7 @@ func (q *Queries) ListTradesForPairs(ctx context.Context, arg ListTradesForPairs
 			&i.UsdcMicros,
 			&i.Units,
 			&i.OccurredAt,
+			&i.CashoutSale,
 		); err != nil {
 			return nil, err
 		}

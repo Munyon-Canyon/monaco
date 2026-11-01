@@ -93,6 +93,8 @@ type trade struct {
 	side  string
 	units uint64
 	usdc  uint64
+
+	cashOut bool
 }
 
 func tradeOf(row sqlc.ListTradesForPairsRow) (trade, error) {
@@ -104,6 +106,7 @@ func tradeOf(row sqlc.ListTradesForPairsRow) (trade, error) {
 	}
 	return trade{
 		id: row.ID, at: row.OccurredAt.UTC(), side: row.Kind, units: uint64(units.Int64), usdc: uint64(usdc.Int64),
+		cashOut: row.CashoutSale,
 	}, nil
 }
 
@@ -166,7 +169,9 @@ func replayTrades(trades []trade, name AssetName) ([]port.TradeMark, error) {
 			return nil, err
 		}
 		mark.CycleStart = state.cycle
-		marks = append(marks, mark)
+		if !tr.cashOut {
+			marks = append(marks, mark)
+		}
 	}
 	return marks, nil
 }

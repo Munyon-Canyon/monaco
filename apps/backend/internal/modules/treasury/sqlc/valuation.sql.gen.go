@@ -133,7 +133,7 @@ SELECT a.id, a.kind,
   END::text AS status,
   a.actor_user_id, a.asset, a.usdc_micros, a.units, a.tx_signature, a.occurred_at
 FROM cabal_activity AS a
-WHERE a.cabal_id = $1
+WHERE a.cabal_id = $1 AND NOT a.cashout_sale
   AND (NOT $2::bool OR (a.occurred_at, a.id) < ($3::timestamptz, $4::uuid))
   AND ($5::text[] IS NULL OR (a.asset = ANY($5::text[]) AND a.kind IN ('buy', 'sell')))
 ORDER BY a.occurred_at DESC, a.id DESC

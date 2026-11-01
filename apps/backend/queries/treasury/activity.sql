@@ -1,11 +1,13 @@
 -- name: UpsertActivity :execrows
 INSERT INTO cabal_activity AS a (
-  id, cabal_id, kind, status, actor_user_id, asset, usdc_micros, units, tx_signature, occurred_at, updated_at
+  id, cabal_id, kind, status, actor_user_id, asset, usdc_micros, units, tx_signature, occurred_at, updated_at,
+  cashout_sale
 ) VALUES (
   sqlc.arg(id)::uuid, sqlc.arg(cabal_id)::uuid, sqlc.arg(kind)::text, sqlc.arg(status)::text,
   sqlc.narg(actor_user_id)::uuid,
   sqlc.narg(asset)::text, sqlc.narg(usdc_micros)::text::numeric,
-  sqlc.narg(units)::text::numeric, sqlc.narg(tx_signature)::text, sqlc.arg(at)::timestamptz, sqlc.arg(at)::timestamptz
+  sqlc.narg(units)::text::numeric, sqlc.narg(tx_signature)::text, sqlc.arg(at)::timestamptz, sqlc.arg(at)::timestamptz,
+  sqlc.arg(cashout_sale)::bool
 )
 ON CONFLICT (id) DO UPDATE SET
   status = CASE WHEN a.status = 'pending' THEN excluded.status ELSE a.status END,

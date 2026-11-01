@@ -25,7 +25,7 @@ SELECT a.id, a.kind,
   END::text AS status,
   a.actor_user_id, a.asset, a.usdc_micros, a.units, a.tx_signature, a.occurred_at
 FROM cabal_activity AS a
-WHERE a.cabal_id = @cabal_id
+WHERE a.cabal_id = @cabal_id AND NOT a.cashout_sale
   AND (NOT @has_cursor::bool OR (a.occurred_at, a.id) < (@cursor_at::timestamptz, @cursor_id::uuid))
   AND (sqlc.narg(assets)::text[] IS NULL OR (a.asset = ANY(sqlc.narg(assets)::text[]) AND a.kind IN ('buy', 'sell')))
 ORDER BY a.occurred_at DESC, a.id DESC

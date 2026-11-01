@@ -37,6 +37,7 @@ type Activity struct {
 	USDCMicros  *uint64
 	Units       *uint64
 	TxSignature chain.Signature
+	CashOutSale bool
 }
 
 type Trade struct {
