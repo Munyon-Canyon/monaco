@@ -99,6 +99,12 @@ private struct CabalVotersTabBody: View {
                 propose(.admin(userID: entry.id, isAdmin: group != .admin))
             }
             .accessibilityIdentifier("cabal-voters-propose-admin")
+            if CabalRuleProposalModel.offersPassCreator(cabal, to: entry.row) {
+                Button(CabalMemberCopy.passCreatorAction) {
+                    propose(.creator(userID: entry.id))
+                }
+                .accessibilityIdentifier("cabal-voters-propose-creator")
+            }
         }
     }
 

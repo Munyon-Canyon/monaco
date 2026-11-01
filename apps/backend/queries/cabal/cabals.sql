@@ -98,6 +98,10 @@ UPDATE cabals SET join_mode = sqlc.arg(join_mode), voter_mode = sqlc.arg(voter_m
   max_trade_bps = sqlc.narg(max_trade_bps), updated_at = sqlc.arg(now)
 WHERE id = sqlc.arg(id);
 
+-- name: SetCabalCreator :execrows
+UPDATE cabals SET creator_id = sqlc.arg(creator_id), updated_at = sqlc.arg(now)
+WHERE id = sqlc.arg(id);
+
 -- name: SetCabalPicture :execrows
 UPDATE cabals SET picture_url = NULLIF(sqlc.arg(picture_url)::text, ''), updated_at = sqlc.arg(now)
 WHERE id = sqlc.arg(id);

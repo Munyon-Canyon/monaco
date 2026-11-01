@@ -291,6 +291,38 @@ func TestProposeRuleChange_refusals(t *testing.T) {
 		{"expiry without a value", ruleWorldOpts{}, 1, func(*ruleWorld) app.RuleTarget {
 			return app.RuleTarget{Rule: domain.RuleExpiry}
 		}, errs.CodeInvalidInput},
+		{
+			"admin passes the creator role",
+			ruleWorldOpts{roles: map[int]cabal.Role{1: adminRole, 2: adminRole}},
+			1,
+			func(w *ruleWorld) app.RuleTarget { return w.creatorTarget(2) }, errs.CodeInvalidInput,
+		},
+		{"creator passes the role to a member", ruleWorldOpts{}, 0, func(w *ruleWorld) app.RuleTarget {
+			return w.creatorTarget(2)
+		}, errs.CodeInvalidInput},
+		{
+			"creator passes the role to themselves",
+			ruleWorldOpts{roles: map[int]cabal.Role{1: adminRole}},
+			0,
+			func(w *ruleWorld) app.RuleTarget { return w.creatorTarget(0) }, errs.CodeInvalidInput,
+		},
+		{"creator passes the role to a stranger", ruleWorldOpts{}, 0, func(w *ruleWorld) app.RuleTarget {
+			other := ids.UserIDFrom(w.ids.NewV7())
+			return app.RuleTarget{Rule: domain.RuleCreator, UserID: &other}
+		}, errs.CodeInvalidInput},
+		{"creator rule without a user", ruleWorldOpts{}, 0, func(*ruleWorld) app.RuleTarget {
+			yes := true
+			return app.RuleTarget{Rule: domain.RuleCreator, Bool: &yes}
+		}, errs.CodeInvalidInput},
+		{
+			"creator rule with a false value",
+			ruleWorldOpts{roles: map[int]cabal.Role{1: adminRole}},
+			0,
+			func(w *ruleWorld) app.RuleTarget {
+				no := false
+				return app.RuleTarget{Rule: domain.RuleCreator, Bool: &no, UserID: &w.members[1]}
+			}, errs.CodeInvalidInput,
+		},
 		{"unknown rule", ruleWorldOpts{}, 1, func(*ruleWorld) app.RuleTarget {
 			return app.RuleTarget{Rule: "nope"}
 		}, errs.CodeInvalidInput},
@@ -372,5 +404,32 @@ func TestProposeRuleChange_portFailuresSurface(t *testing.T) {
 				t.Fatalf("propose = %v, want the %s failure", err, tc.op)
 			}
 		})
+	}
+}
+
+func (w *ruleWorld) creatorTarget(who int) app.RuleTarget {
+	yes := true
+	return app.RuleTarget{Rule: domain.RuleCreator, Bool: &yes, UserID: &w.members[who]}
+}
+
+func TestProposeRuleChange_theCreatorProposesPassingTheRoleToAnAdminAndOnlyOneStaysOpen(t *testing.T) {
+	t.Parallel()
+	w := newRuleWorld(t, ruleWorldOpts{roles: map[int]cabal.Role{1: adminRole, 2: adminRole}})
+	id, err := w.propose(0, w.creatorTarget(1))
+	if err != nil {
+		t.Fatalf("propose = %v, want ok", err)
+	}
+	stored := w.stored(t, id)
+	var change domain.RuleChange
+	if err := json.Unmarshal(stored.change, &change); err != nil {
+		t.Fatal(err)
+	}
+	if stored.kind != "rule" || stored.status != "open" || stored.voters != 8 ||
+		change.Rule() != domain.RuleCreator || *change.UserID() != w.members[1] {
+		t.Fatalf("stored = %+v (%v), want an open creator rule naming the admin with the voter snapshot",
+			stored, change)
+	}
+	if _, err := w.propose(0, w.creatorTarget(2)); errs.CodeOf(err) != errs.CodeRuleChangeOpen {
+		t.Fatalf("second creator proposal = %v, want rule_change_open", err)
 	}
 }

@@ -48,7 +48,11 @@ The creator sets these at `CreateCabal`. After that they change only by a passed
 | `admin` | Everything a member can, plus list and decide access requests, invite, and revoke any invite. Always votes. |
 | `member` | Read the cabal, chat, revoke their own invites, leave. Proposing and voting depend on the voter set, not the role. |
 
-There is exactly one creator per cabal, and the role never moves. The creator is an admin, so "is an admin" means `creator` or `admin`, and the reads call the pair "admins", the creator first. A database check keeps every `admin` row voting, and a voter-list edit keeps every admin on the list, as it keeps the creator. Nobody names a co-admin directly: a proposal does ([Open questions](#open-questions)).
+There is exactly one creator per cabal. The role moves only by a passed `creator` rule proposal ([Passing the creator role](#passing-the-creator-role)). The creator is an admin, so "is an admin" means `creator` or `admin`, and the reads call the pair "admins", the creator first. A database check keeps every `admin` row voting, and a voter-list edit keeps every admin on the list, as it keeps the creator. Nobody names a co-admin directly: a proposal does ([Open questions](#open-questions)).
+
+### Passing the creator role
+
+The creator hands the cabal over with a `creator` rule proposal that names a current admin in `user_id`. Only the creator can propose it, the target must be an admin and not the creator, and one `creator` proposal is open per cabal at a time (the cabal-wide unique index covers it). It votes like any rule. `ApplyRuleChange` re-checks under the cabal and member locks: the proposer still holds `creator` and the target is still a member with the `admin` role. If the target left or lost the role it acks without a write and logs `cabal.rule_change.skipped` with `MemberGone` or `NotAnAdmin`. Otherwise one transaction sets the old creator to `admin`, the target to `creator` and `cabals.creator_id` to the target, and `cabal.updated` carries `creator_id`. The former creator is then an ordinary admin, so `CheckLeave` lets them leave.
 
 ### Join and access requests
 
@@ -104,7 +108,7 @@ There is exactly one creator per cabal, and the role never moves. The creator is
 | --- | --- |
 | The leaver holds share units in this cabal. The app routes them to cash out first ([Cash out](deposits-withdrawals.md#cash-out)), so from the user's side they cash out as they leave. | `LeaveHoldsShares` |
 | The leaver is the last member and the pot value is above zero. | `LeaveLastMemberPotNotEmpty` |
-| The leaver is the creator and other members remain. | `LeaveCreatorWithMembers` |
+| The leaver is the creator and other members remain. The creator passes the role to an admin first ([Passing the creator role](#passing-the-creator-role)). | `LeaveCreatorWithMembers` |
 
 - Share units and pot value come from `treasury`'s query port (`PotValue`, [data-model.md](data-model.md#decision)). `cabal` never reads treasury tables.
 - `LeaveCabal` is `DELETE /v1/cabals/{id}/members/me`. A banned user or a banned cabal can still leave.
@@ -134,7 +138,7 @@ Every payload carries `v` ([event-bus.md](event-bus.md)). Timestamps live on the
 | `cabal.access_requested` | `RequestAccess`, `InviteMember` | `request_id`, `cabal_id`, `user_id` (the requester or invitee), `direction` (`request` \| `invite`), `actor_id` (the requester or inviter), `expires_at` for an invite |
 | `cabal.access_decided` | `DecideAccess`, the expiry poller | `request_id`, `cabal_id`, `user_id`, `direction`, `decision` (`approved` \| `denied` \| `revoked` \| `expired`), `actor_id` (absent for `expired`) |
 | `cabal.member_left` | `LeaveCabal` | `cabal_id`, `user_id`, `was_voter` |
-| `cabal.updated` | `UpdateCabal`, `ApplyRuleChange` | `cabal_id`, `actor_id`, `changes`: each changed field with its new value, from `name`, `picture_url`, `join_mode`, `voter_mode`, `voter_ids`, `threshold`, `proposal_expiry_seconds`, `slippage_bps`, `show_sides`, `max_trade_bps`, `max_trade_bps_cleared`, `admin_ids`, `proposal_id` |
+| `cabal.updated` | `UpdateCabal`, `ApplyRuleChange` | `cabal_id`, `actor_id`, `changes`: each changed field with its new value, from `name`, `picture_url`, `join_mode`, `voter_mode`, `voter_ids`, `threshold`, `proposal_expiry_seconds`, `slippage_bps`, `show_sides`, `max_trade_bps`, `max_trade_bps_cleared`, `admin_ids`, `creator_id`, `proposal_id` |
 
 `cabal.member_joined` fires for the creator at create too, so every consumer that tracks membership sees one join per member. The feed skips `via = create`, since `cabal.created` already makes its item.
 

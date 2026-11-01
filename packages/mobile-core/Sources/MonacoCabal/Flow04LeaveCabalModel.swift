@@ -72,9 +72,16 @@ public final class LeaveCabalModel {
     }
 
     public func observe() async {
-        for await _ in hints.hints(matching: .cabal(id: cabalID, what: "members")) {
-            if Task.isCancelled { return }
-            await load()
+        await withTaskGroup(of: Void.self) { group in
+            for what in ["members", "updated"] {
+                let stream = hints.hints(matching: .cabal(id: cabalID, what: what))
+                group.addTask {
+                    for await _ in stream {
+                        if Task.isCancelled { return }
+                        await self.load()
+                    }
+                }
+            }
         }
     }
 

@@ -48,6 +48,7 @@ func TestRuleTarget_refusesTheWrongShape(t *testing.T) {
 	for _, raw := range []string{
 		`{"rule":"show_sides","to":"yes"}`,
 		`{"rule":"admin","to":1}`,
+		`{"rule":"creator","to":"admin"}`,
 		`{"rule":"join_mode","to":true}`,
 		`{"rule":"max_trade_bps","to":"lots"}`,
 		`{"rule":"proposal_expiry_seconds","to":1.5}`,
@@ -60,5 +61,14 @@ func TestRuleTarget_refusesTheWrongShape(t *testing.T) {
 				t.Fatalf("ruleTarget(%s) = %v, want invalid_input", raw, err)
 			}
 		})
+	}
+}
+
+func TestRuleTarget_readsTheCreatorHandoverUser(t *testing.T) {
+	t.Parallel()
+	got, err := ruleTarget(decodeChange(t, `{"rule":"creator","to":true,"user_id":"`+targetUser+`"}`))
+	if err != nil || got.Rule != "creator" || got.Bool == nil || !*got.Bool || got.UserID == nil ||
+		got.UserID.String() != targetUser {
+		t.Fatalf("ruleTarget = %+v, %v, want the creator rule naming the user", got, err)
 	}
 }

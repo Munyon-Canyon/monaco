@@ -28,6 +28,7 @@ const (
 	SkipCabalClosed     ruleSkip = "CabalClosed"
 	SkipMemberGone      ruleSkip = "MemberGone"
 	SkipInvariantBroken ruleSkip = "InvariantBroken"
+	SkipNotAnAdmin      ruleSkip = "NotAnAdmin"
 
 	ruleShowSides   = "show_sides"
 	ruleMaxTradeBps = "max_trade_bps"
@@ -36,6 +37,7 @@ const (
 	ruleJoinMode    = "join_mode"
 	ruleVoter       = "voter"
 	ruleAdmin       = "admin"
+	ruleCreator     = "creator"
 )
 
 type PassedRule struct {
@@ -68,7 +70,7 @@ func ParsePassedRule(raw json.RawMessage) (PassedRule, error) {
 	}
 	var target any
 	switch wire.Rule {
-	case ruleShowSides, ruleVoter, ruleAdmin:
+	case ruleShowSides, ruleVoter, ruleAdmin, ruleCreator:
 		target = &rule.On
 	case ruleThreshold, ruleJoinMode:
 		target = &rule.Text
@@ -144,15 +146,16 @@ func (ApplyRuleChangeHandler) apply(ctx context.Context, tx db.Tx, in ApplyRuleC
 }
 
 type ruleApplication struct {
-	in      ApplyRuleChange
-	current sqlc.FindCabalRow
-	cabal   domain.Cabal
-	members []sqlc.ListMembersRow
-	q       *sqlc.Queries
-	changes events.CabalChanges
-	voters  []uuid.UUID
-	role    *string
-	target  ids.UserID
+	in       ApplyRuleChange
+	current  sqlc.FindCabalRow
+	cabal    domain.Cabal
+	members  []sqlc.ListMembersRow
+	q        *sqlc.Queries
+	changes  events.CabalChanges
+	voters   []uuid.UUID
+	role     *string
+	target   ids.UserID
+	handover *ids.UserID
 }
 
 func (a *ruleApplication) run() ruleSkip {
@@ -164,6 +167,9 @@ func (a *ruleApplication) run() ruleSkip {
 		return a.maxTradeBps()
 	case ruleThreshold, ruleExpiry, ruleJoinMode:
 		return a.plain()
+	}
+	if rule.Rule == ruleCreator {
+		return a.creator()
 	}
 	member, ok := a.member(rule.UserID)
 	switch {
@@ -186,6 +192,23 @@ func (a *ruleApplication) member(user ids.UserID) (sqlc.ListMembersRow, bool) {
 		}
 	}
 	return sqlc.ListMembersRow{}, false
+}
+
+func (a *ruleApplication) creator() ruleSkip {
+	proposer, held := a.member(a.in.ProposerID)
+	next, ok := a.member(a.in.Change.UserID)
+	switch {
+	case !a.in.Change.On, !held, domain.Role(proposer.Role) != domain.RoleCreator:
+		return SkipInvariantBroken
+	case !ok:
+		return SkipMemberGone
+	case domain.Role(next.Role) != domain.RoleAdmin:
+		return SkipNotAnAdmin
+	}
+	a.target, a.handover = a.in.Change.UserID, &a.in.ProposerID
+	a.changes.CreatorID = new(uuid.UUID)
+	*a.changes.CreatorID = a.in.Change.UserID.UUID()
+	return ""
 }
 
 func (a *ruleApplication) showSides() ruleSkip {
@@ -283,6 +306,27 @@ func (a *ruleApplication) voter(member sqlc.ListMembersRow) ruleSkip {
 	return ""
 }
 
+func (a *ruleApplication) handOver(ctx context.Context) error {
+	for _, step := range []struct {
+		user ids.UserID
+		role domain.Role
+	}{{*a.handover, domain.RoleAdmin}, {a.target, domain.RoleCreator}} {
+		n, err := a.q.SetMemberRole(ctx, sqlc.SetMemberRoleParams{
+			Role: string(step.role), CanVote: true, CabalID: a.current.ID, UserID: step.user.UUID(),
+		})
+		if err != nil || n != 1 {
+			return errs.Wrap(err, errs.CodeInternal, applyRuleChangeOp)
+		}
+	}
+	n, err := a.q.SetCabalCreator(ctx, sqlc.SetCabalCreatorParams{
+		CreatorID: a.target.UUID(), Now: a.in.PassedAt, ID: a.current.ID,
+	})
+	if err != nil || n != 1 {
+		return errs.Wrap(err, errs.CodeInternal, applyRuleChangeOp)
+	}
+	return nil
+}
+
 func (a *ruleApplication) write(ctx context.Context, tx db.Tx) error {
 	rules := a.cabal.Rules
 	row := sqlc.UpdateCabalRulesParams{
@@ -302,6 +346,11 @@ func (a *ruleApplication) write(ctx context.Context, tx db.Tx) error {
 	}
 	if a.voters != nil {
 		if err := writeVoters(ctx, a.q, a.current.ID, a.voters); err != nil {
+			return err
+		}
+	}
+	if a.handover != nil {
+		if err := a.handOver(ctx); err != nil {
 			return err
 		}
 	}

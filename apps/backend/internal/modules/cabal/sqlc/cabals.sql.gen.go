@@ -514,6 +514,25 @@ func (q *Queries) SearchCabals(ctx context.Context, arg SearchCabalsParams) ([]S
 	return items, nil
 }
 
+const setCabalCreator = `-- name: SetCabalCreator :execrows
+UPDATE cabals SET creator_id = $1, updated_at = $2
+WHERE id = $3
+`
+
+type SetCabalCreatorParams struct {
+	CreatorID uuid.UUID
+	Now       time.Time
+	ID        uuid.UUID
+}
+
+func (q *Queries) SetCabalCreator(ctx context.Context, arg SetCabalCreatorParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setCabalCreator, arg.CreatorID, arg.Now, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const setCabalPicture = `-- name: SetCabalPicture :execrows
 UPDATE cabals SET picture_url = NULLIF($1::text, ''), updated_at = $2
 WHERE id = $3
