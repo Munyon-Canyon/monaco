@@ -9,6 +9,7 @@ public struct HomeCabalRow: Equatable, Sendable, Identifiable {
     public let valueMicros: Int64
     public let returnBps: Int64?
     public let isFunded: Bool
+    public let note: StakeValueNote?
 
     init(_ row: PortfolioSummary.Row) {
         id = row.id
@@ -18,7 +19,10 @@ public struct HomeCabalRow: Equatable, Sendable, Identifiable {
         ownershipText = PercentFormatter.format(basisPoints: row.ownershipBps, signed: false, fractionDigits: 0)
         valueMicros = max(0, row.valueMicros + row.arrivingMicros)
         isFunded = valueMicros > 0
-        returnBps = isFunded ? row.returnBps : nil
+        note = StakeValueNote.make(
+            valueMicros: row.valueMicros, arrivingMicros: row.arrivingMicros, isStale: row.isStale,
+            valuedAt: row.valuedAt)
+        returnBps = isFunded && note != .settling ? row.returnBps : nil
     }
 
     public var membersText: String { memberCount == 1 ? "1 member" : "\(memberCount) members" }
@@ -29,6 +33,10 @@ public struct HomeCabalRow: Equatable, Sendable, Identifiable {
 
     public func spoken(votesText: String?) -> String {
         subtitle(votesText: votesText).replacingOccurrences(of: " · ", with: ", ")
+    }
+
+    public func noteText(now: Date, calendar: Calendar = .current) -> String? {
+        note?.text(now: now, calendar: calendar)
     }
 }
 

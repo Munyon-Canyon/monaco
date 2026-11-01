@@ -481,6 +481,26 @@ func TestReadPortfolio_FlagsACabalTheLatestRunSkipped(t *testing.T) {
 	}
 }
 
+func TestReadPortfolio_ASkippedCabalCarriesTheTimeOfItsLastValuation(t *testing.T) {
+	t.Parallel()
+	f := newPortfolioFixture()
+	valued := f.latest.values[f.cabal].At
+	f.run.AsOf = valued.Add(time.Hour)
+	got, err := f.read(t, fakeBoards{run: f.run, hasRun: true})
+	if err != nil || len(got.Rows) != 1 || got.Rows[0].ValuedAt == nil || !got.Rows[0].ValuedAt.Equal(valued) {
+		t.Fatalf("Run = %+v, %v, want the stale row to carry %v", got.Rows, err, valued)
+	}
+	f.run.AsOf = valued
+	if got, err = f.read(t, fakeBoards{run: f.run, hasRun: true}); err != nil || got.Rows[0].ValuedAt != nil {
+		t.Fatalf("Run = %+v, %v, want no valuation time on a cabal in the latest run", got.Rows, err)
+	}
+	f.latest.values = map[ids.CabalID]domain.Snapshot{}
+	f.run.AsOf = valued.Add(time.Hour)
+	if got, err = f.read(t, fakeBoards{run: f.run, hasRun: true}); err != nil || got.Rows[0].ValuedAt != nil {
+		t.Fatalf("Run = %+v, %v, want no valuation time on a cabal with no snapshot", got.Rows, err)
+	}
+}
+
 func TestReadPortfolio_RefusesMoneyThatCannotBeAddedUp(t *testing.T) {
 	t.Parallel()
 	at := time.Date(2026, 10, 4, 12, 0, 0, 0, time.UTC)

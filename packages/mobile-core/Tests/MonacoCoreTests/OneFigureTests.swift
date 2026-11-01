@@ -66,7 +66,7 @@ final class OneFigureTests: XCTestCase {
         let rows = ProfileCabalRows.make(cabals: [cabal()], portfolio: fresh, invites: [])
         guard case .member(let row) = rows[0] else { return XCTFail("expected a member row") }
 
-        XCTAssertEqual(row.value, "$100.00 pending")
+        XCTAssertEqual(row.value, "$100.00")
     }
 
     func testAStakeWithMoneyArrivingReadsValuePlusWhatIsArriving() {

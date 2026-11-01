@@ -1844,6 +1844,11 @@ type PortfolioCabal struct {
 	//
 	// Examples: 1000000
 	ValueMicros int64 `json:"value_micros"`
+
+	// ValuedAt When the snapshot `value_micros` is read from was taken. Set only when `stale` is true and the cabal has a snapshot; absent otherwise.
+	//
+	// Examples: 2026-10-04T12:00:00Z
+	ValuedAt *time.Time `json:"valued_at,omitempty"`
 }
 
 // PortfolioCabalRole The caller's role in this cabal. `admin` is the cabal's creator or one of its admins.

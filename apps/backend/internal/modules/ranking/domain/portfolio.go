@@ -26,6 +26,7 @@ type PortfolioRow struct {
 	OwnershipBps int32
 	Arriving     money.SignedMicros
 	Stale        bool
+	ValuedAt     *time.Time
 }
 
 type Portfolio struct {

@@ -160,6 +160,8 @@ home-nudge-sheet              -MonacoHomeSample nudgeX -MonacoNudgeSheetOpen -Mo
 home-push-pre-prompt          -MonacoHomeSample prePrompt
 home-not-funded                -MonacoHomeSample notFunded
 home-partly-funded            -MonacoHomeSample partlyFunded
+home-stale-stake              -MonacoHomeSample staleStake
+home-settling-stake           -MonacoHomeSample settlingStake
 home-votes                    -MonacoHomeSample votes -MonacoSampleScroll 0.35
 home-f-vote-pick              -MonacoHomeSample fVotePick -AppleInterfaceStyle Dark -MonacoSampleScroll 0.35
 home-f-vote-holding           -MonacoHomeSample fVoteHolding -AppleInterfaceStyle Dark -MonacoSampleScroll 0.35
@@ -291,6 +293,8 @@ profile-face-picker           -MonacoProfileSample facePicker
 profile-cabals                -MonacoProfileSample cabals -MonacoSampleScroll bottom
 profile-tabs-cabals           -MonacoProfileSample tabsCabals
 profile-tabs-unvalued         -MonacoProfileSample tabsUnvalued
+profile-tabs-stale            -MonacoProfileSample tabsStale
+profile-tabs-settling         -MonacoProfileSample tabsSettling
 profile-tabs-activity         -MonacoProfileSample tabsActivity
 profile-tabs-empty            -MonacoProfileSample tabsEmpty
 profile-tabs-error            -MonacoProfileSample tabsError

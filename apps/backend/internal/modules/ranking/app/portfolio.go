@@ -121,7 +121,11 @@ func (r ReadPortfolio) Run(ctx context.Context, ports PortfolioPorts) (Portfolio
 
 func (v *PortfolioView) markStale(values map[ids.CabalID]domain.Snapshot, asOf time.Time) {
 	for i, row := range v.Rows {
-		v.Rows[i].Stale = values[row.CabalID].At.Before(asOf)
+		at := values[row.CabalID].At
+		v.Rows[i].Stale = at.Before(asOf)
+		if v.Rows[i].Stale && !at.IsZero() {
+			v.Rows[i].ValuedAt = &at
+		}
 	}
 }
 

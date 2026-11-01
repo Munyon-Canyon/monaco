@@ -16,7 +16,13 @@ struct CabalPortfolioRow: View {
             } trailing: {
                 VStack(alignment: .trailing, spacing: MonacoTheme.Space.xs) {
                     MoneyText(micros: row.valueMicros, style: .row)
-                    if row.isFunded { returnText }
+                    if row.isFunded, row.note != .settling { returnText }
+                    if let note = row.noteText(now: .now) {
+                        Text(note)
+                            .font(MonacoTheme.Typo.caption)
+                            .foregroundStyle(MonacoTheme.secondaryText)
+                            .accessibilityIdentifier("cabal-row-\(row.id)-note")
+                    }
                 }
             }
         }
