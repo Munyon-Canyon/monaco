@@ -221,7 +221,7 @@ WITH RECURSIVE txn_usdc_paid AS (
   SELECT t.cabal_id, sum(e.amount)::text AS share_units
   FROM user_txns AS t
   JOIN user_txn_entries AS e ON e.txn_id = t.id
-  WHERE t.created_at <= sqlc.arg(at)::timestamptz AND e.account = 'holder'
+  WHERE t.created_at <= sqlc.arg(at)::timestamptz AND t.status <> 'failed' AND e.account = 'holder'
     AND e.asset = 'shares:' || t.cabal_id::text
   GROUP BY t.cabal_id
   HAVING sum(e.amount) > 0
@@ -240,7 +240,7 @@ ORDER BY positions.cabal_id, positions.asset;
 SELECT coalesce(sum(e.amount), 0)::text AS share_units
 FROM user_txns AS t
 JOIN user_txn_entries AS e ON e.txn_id = t.id
-WHERE t.created_at <= sqlc.arg(at)::timestamptz AND t.cabal_id = sqlc.arg(cabal_id)::uuid
+WHERE t.created_at <= sqlc.arg(at)::timestamptz AND t.status <> 'failed' AND t.cabal_id = sqlc.arg(cabal_id)::uuid
   AND t.user_id = sqlc.arg(user_id)::uuid AND e.account = 'holder' AND e.asset = 'shares:' || t.cabal_id::text;
 
 -- name: MemberStakesAt :many
@@ -250,7 +250,7 @@ SELECT t.user_id, coalesce(t.cabal_id, '00000000-0000-0000-0000-000000000000'::u
   sum(CASE WHEN e.account = 'cabal' THEN e.amount ELSE 0 END)::text AS net_contributed_micros
 FROM user_txns AS t
 JOIN user_txn_entries AS e ON e.txn_id = t.id
-	WHERE t.created_at <= sqlc.arg(at)::timestamptz AND t.cabal_id IS NOT NULL
+	WHERE t.created_at <= sqlc.arg(at)::timestamptz AND t.status <> 'failed' AND t.cabal_id IS NOT NULL
 	GROUP BY t.user_id, t.cabal_id
 	ORDER BY t.user_id, t.cabal_id;
 
@@ -284,3 +284,48 @@ WITH c AS (
   RETURNING 1
 )
 SELECT (SELECT count(*) FROM c)::bigint AS cabal_rows, (SELECT count(*) FROM u)::bigint AS user_rows;
+
+-- name: FailTransfer :many
+WITH c AS (
+  UPDATE cabal_txns SET status = 'failed'
+  WHERE transfer_id = sqlc.arg(transfer_id)::uuid AND status = 'pending' AND NOT sqlc.arg(user_only)::boolean
+  RETURNING 1
+), u AS (
+  UPDATE user_txns SET status = 'failed'
+  WHERE transfer_id = sqlc.arg(transfer_id)::uuid AND status = 'pending'
+    AND (NOT sqlc.arg(user_only)::boolean
+      OR NOT EXISTS (SELECT 1 FROM cabal_txns WHERE transfer_id = sqlc.arg(transfer_id)::uuid))
+  RETURNING id, user_id, cabal_id
+), delta AS (
+  SELECT u.user_id, u.cabal_id,
+    coalesce(sum(e.amount) FILTER (WHERE e.account = 'holder' AND e.asset = 'shares:' || u.cabal_id::text), 0)
+      AS shares,
+    coalesce(sum(e.amount) FILTER (WHERE e.account = 'cabal' AND e.amount > 0), 0) AS contributed,
+    coalesce(-sum(e.amount) FILTER (WHERE e.account = 'cabal' AND e.amount < 0), 0) AS withdrawn
+  FROM u JOIN user_txn_entries e ON e.txn_id = u.id
+  WHERE u.cabal_id IS NOT NULL
+  GROUP BY u.user_id, u.cabal_id
+), moved AS (
+  UPDATE user_positions AS p SET
+    share_units = p.share_units - d.shares,
+    contributed_micros = p.contributed_micros - d.contributed,
+    withdrawn_micros = p.withdrawn_micros - d.withdrawn,
+    updated_at = sqlc.arg(updated_at)::timestamptz
+  FROM delta d WHERE p.user_id = d.user_id AND p.cabal_id = d.cabal_id
+  RETURNING p.user_id, p.cabal_id, d.shares, (p.share_units + d.shares) AS before_units, p.share_units AS after_units
+)
+SELECT (SELECT count(*) FROM c)::bigint AS cabal_rows, (SELECT count(*) FROM u)::bigint AS user_rows,
+  (SELECT count(*) FROM delta)::bigint AS deltas, (SELECT count(*) FROM moved)::bigint AS reversed,
+  moved.user_id AS moved_user, moved.cabal_id AS moved_cabal, coalesce(moved.shares, 0)::text AS moved_shares,
+  coalesce(moved.before_units, 0)::text AS before_units, coalesce(moved.after_units, 0)::text AS after_units
+FROM (SELECT 1) AS one LEFT JOIN moved ON true;
+
+-- name: CashOutSaleLegs :many
+SELECT e.account, e.asset, sum(e.amount)::bigint AS amount
+FROM cash_out_jobs AS j
+JOIN user_txns AS t ON t.user_id = j.user_id AND t.cabal_id = j.cabal_id AND t.id > j.id
+JOIN user_txn_entries AS e ON e.txn_id = t.id
+WHERE j.id = sqlc.arg(job_id)::uuid AND t.kind = 'cash_out' AND t.status = 'settled' AND t.transfer_id IS NULL
+GROUP BY e.account, e.asset
+HAVING sum(e.amount) <> 0
+ORDER BY e.account, e.asset;

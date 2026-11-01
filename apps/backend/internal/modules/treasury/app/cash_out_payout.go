@@ -263,20 +263,35 @@ func (p *CashOutPayouts) fail(ctx context.Context, job payoutJob, rejected int16
 
 func (p *CashOutPayouts) giveBack(ctx context.Context, tx db.Tx, job payoutJob) error {
 	const op = "treasury.CashOutPayouts.giveBack"
-	failed, err := p.d.Ledger.FailUnpaired(ctx, tx, job.id)
+	failed, err := p.d.Ledger.At(p.d.Clock.Now()).FailUnpaired(ctx, tx, job.id)
+	if err == nil && !failed {
+		err = errs.New(errs.CodeInternal, op, slog.String("job_id", job.id.String()))
+	}
 	if err != nil {
 		return err
 	}
-	if !failed {
-		return errs.New(errs.CodeInternal, op, slog.String("job_id", job.id.String()))
+	return p.undoSale(ctx, tx, job)
+}
+
+func (p *CashOutPayouts) undoSale(ctx context.Context, tx db.Tx, job payoutJob) error {
+	rows, err := sqlc.New(tx.Queries()).CashOutSaleLegs(ctx, job.id)
+	if err != nil || len(rows) == 0 {
+		return err
 	}
-	txn, err := domain.CashOutReturn(domain.UserTxnHeader{
+	legs := make([]domain.UserEntry, len(rows))
+	for i, r := range rows {
+		legs[i] = domain.UserEntry{
+			Account: domain.UserAccount(r.Account), Asset: domain.Asset(r.Asset),
+			Amount: money.SignedMicrosFromInt64(r.Amount),
+		}
+	}
+	txn, err := domain.CashOutUndoSale(domain.UserTxnHeader{
 		ID: p.d.IDs.NewV7(), UserID: job.user, CabalID: job.cabal, Kind: domain.UserCashOut, Status: domain.TxnSettled,
-	}, domain.MintAsset(p.d.USDC.Address), domain.SaleSettlement{Unpaid: job.payout, Returned: job.units, PendingFailed: true})
-	if err != nil {
-		return err
+	}, legs)
+	if err == nil {
+		err = p.d.Ledger.At(p.d.Clock.Now()).PostUserTxn(ctx, tx, txn)
 	}
-	return p.d.Ledger.At(p.d.Clock.Now()).PostUserTxn(ctx, tx, txn)
+	return err
 }
 
 func (p *CashOutPayouts) settleAttempt(

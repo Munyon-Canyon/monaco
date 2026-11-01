@@ -66,6 +66,21 @@ func (m *ledgerModel) Check(t *rapid.T) {
 	if err != nil || len(drift) != 0 {
 		t.Fatalf("ledger drifted: %q, %v", drift, err)
 	}
+	for _, user := range m.users {
+		settled, pending, implied := m.f.settledWallet(
+			m.f.t,
+			user,
+		), m.f.pendingWallet(
+			m.f.t,
+			user,
+		), m.f.positionImpliedWallet(
+			m.f.t,
+			user,
+		)
+		if settled+pending != implied {
+			t.Fatalf("wallet of %s: settled %d + pending %d != position-implied %d", user, settled, pending, implied)
+		}
+	}
 }
 
 func TestLedgerProperty_positionsEqualEntrySumsAndTransfersShareAStatus(t *testing.T) {

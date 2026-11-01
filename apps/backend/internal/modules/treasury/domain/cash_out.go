@@ -87,8 +87,6 @@ type SaleSettlement struct {
 	Payout   money.Micros
 	Returned money.SharesUnits
 	Status   CashOutStatus
-
-	PendingFailed bool
 }
 
 func SettleSale(units money.SharesUnits, slice, paid money.Micros) (SaleSettlement, error) {
@@ -134,12 +132,9 @@ func CashOutReturn(h UserTxnHeader, usdc Asset, s SaleSettlement) (UserTxn, erro
 	if err != nil {
 		return UserTxn{}, errs.Wrap(err, errs.CodeOf(err), op)
 	}
-	var entries []UserEntry
-	if !s.PendingFailed {
-		entries = append(entries,
-			UserEntry{Account: UserCabal, Asset: usdc, Amount: unpaid},
-			UserEntry{Account: UserWallet, Asset: usdc, Amount: money.SignedMicrosFromInt64(-unpaid.Int64())},
-		)
+	entries := []UserEntry{
+		{Account: UserCabal, Asset: usdc, Amount: unpaid},
+		{Account: UserWallet, Asset: usdc, Amount: money.SignedMicrosFromInt64(-unpaid.Int64())},
 	}
 	if !s.Returned.IsZero() {
 		returned, err := money.MicrosFromUint64(s.Returned.Uint64()).Delta(money.Micros{})
@@ -155,4 +150,14 @@ func CashOutReturn(h UserTxnHeader, usdc Asset, s SaleSettlement) (UserTxn, erro
 		)
 	}
 	return NewUserTxn(h, entries)
+}
+
+func CashOutUndoSale(h UserTxnHeader, legs []UserEntry) (UserTxn, error) {
+	undone := make([]UserEntry, len(legs))
+	for i, l := range legs {
+		undone[i] = UserEntry{
+			Account: l.Account, Asset: l.Asset, Amount: money.SignedMicrosFromInt64(-l.Amount.Int64()),
+		}
+	}
+	return NewUserTxn(h, undone)
 }

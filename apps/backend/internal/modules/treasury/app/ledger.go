@@ -144,23 +144,61 @@ func (l Ledger) PostUserTxn(ctx context.Context, tx db.Tx, t domain.UserTxn) err
 	return nil
 }
 
-func (Ledger) SetStatus(ctx context.Context, tx db.Tx, transferID uuid.UUID, from, to domain.TxnStatus) (bool, error) {
+func (l Ledger) SetStatus(
+	ctx context.Context,
+	tx db.Tx,
+	transferID uuid.UUID,
+	from, to domain.TxnStatus,
+) (bool, error) {
 	const op = "treasury.Ledger.SetStatus"
 	if !from.CanMoveTo(to) {
 		return false, errs.New(errs.CodeInvalidInput, op,
 			slog.String("from", string(from)), slog.String("to", string(to)))
 	}
-	row, err := sqlc.New(tx.Queries()).SetTransferStatus(ctx, sqlc.SetTransferStatusParams{
-		ToStatus: string(to), TransferID: transferID, FromStatus: string(from),
+	var cabalRows, userRows int64
+	if to == domain.TxnFailed {
+		row, err := l.failTransfer(ctx, tx, transferID, false)
+		if err != nil {
+			return false, err
+		}
+		cabalRows, userRows = row.CabalRows, row.UserRows
+	} else {
+		row, err := sqlc.New(tx.Queries()).SetTransferStatus(ctx, sqlc.SetTransferStatusParams{
+			ToStatus: string(to), TransferID: transferID, FromStatus: string(from),
+		})
+		if err != nil {
+			return false, err
+		}
+		cabalRows, userRows = row.CabalRows, row.UserRows
+	}
+	if cabalRows != userRows {
+		return false, errs.New(errs.CodeInternal, op, slog.String("transfer_id", transferID.String()),
+			slog.Int64("cabal_rows", cabalRows), slog.Int64("user_rows", userRows))
+	}
+	return cabalRows > 0, nil
+}
+
+func (l Ledger) failTransfer(
+	ctx context.Context, tx db.Tx, transferID uuid.UUID, userOnly bool,
+) (sqlc.FailTransferRow, error) {
+	const op = "treasury.Ledger.failTransfer"
+	rows, err := sqlc.New(tx.Queries()).FailTransfer(ctx, sqlc.FailTransferParams{
+		TransferID: transferID, UserOnly: userOnly, UpdatedAt: l.now(),
 	})
 	if err != nil {
-		return false, err
+		return sqlc.FailTransferRow{}, err
 	}
-	if row.CabalRows != row.UserRows {
-		return false, errs.New(errs.CodeInternal, op, slog.String("transfer_id", transferID.String()),
-			slog.Int64("cabal_rows", row.CabalRows), slog.Int64("user_rows", row.UserRows))
+	head := rows[0]
+	if head.Deltas != head.Reversed {
+		return sqlc.FailTransferRow{}, errs.New(errs.CodeInternal, op, slog.String("transfer_id", transferID.String()),
+			slog.Int64("deltas", head.Deltas), slog.Int64("reversed", head.Reversed))
 	}
-	return row.CabalRows > 0, nil
+	for _, r := range rows {
+		if r.MovedUser.Valid {
+			logUserReversed(tx, r)
+		}
+	}
+	return head, nil
 }
 
 func statusSplit(op string, transferID uuid.UUID, status domain.TxnStatus) error {
@@ -192,5 +230,15 @@ func logUserPosted(tx db.Tx, user ids.UserID, p posting) {
 			slog.String("cabal_id", p.cabal.String()), slog.String("asset", string(p.asset)),
 			slog.String("before", p.before), slog.String("after", p.after), slog.String("delta", p.delta),
 			slog.String("user_id", user.String()))
+	})
+}
+
+func logUserReversed(tx db.Tx, r sqlc.FailTransferRow) {
+	user, cabal := ids.UserIDFrom(r.MovedUser.Bytes), ids.CabalIDFrom(r.MovedCabal.Bytes)
+	tx.AfterCommit(func(ctx context.Context) {
+		observability.Info(ctx, observability.TreasuryLedgerPosted,
+			slog.String("cabal_id", cabal.String()), slog.String("asset", string(domain.SharesAsset(cabal))),
+			slog.String("before", r.BeforeUnits), slog.String("after", r.AfterUnits),
+			slog.String("delta", "-"+r.MovedShares), slog.String("user_id", user.String()))
 	})
 }

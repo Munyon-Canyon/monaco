@@ -227,20 +227,6 @@ func (q *Queries) EndCashOutJob(ctx context.Context, arg EndCashOutJobParams) (i
 	return result.RowsAffected(), nil
 }
 
-const failUnpairedUserTransfer = `-- name: FailUnpairedUserTransfer :execrows
-UPDATE user_txns SET status = 'failed'
-WHERE transfer_id = $1::uuid AND status = 'pending'
-  AND NOT EXISTS (SELECT 1 FROM cabal_txns WHERE transfer_id = $1::uuid)
-`
-
-func (q *Queries) FailUnpairedUserTransfer(ctx context.Context, transferID uuid.UUID) (int64, error) {
-	result, err := q.db.Exec(ctx, failUnpairedUserTransfer, transferID)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
-}
-
 const insertCashOutPayout = `-- name: InsertCashOutPayout :execrows
 INSERT INTO cash_out_payouts (job_id, attempt, signature, signed_tx, last_valid_block_height, status, created_at)
 VALUES ($1::uuid, $2::smallint, $3::text,

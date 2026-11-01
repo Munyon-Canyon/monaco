@@ -74,10 +74,6 @@ WITH settled AS (
     returned_units = sqlc.arg(returned_units)::text::numeric, result_code = NULLIF(sqlc.arg(result_code)::text, ''),
     updated_at = sqlc.arg(at)::timestamptz
   WHERE id = sqlc.arg(id)::uuid AND status = 'selling'
-  RETURNING id, status
-), failed AS (
-  UPDATE user_txns SET status = 'failed'
-  WHERE transfer_id IN (SELECT id FROM settled WHERE status = 'failed') AND kind = 'cash_out' AND status = 'pending'
-  RETURNING 1
+  RETURNING id
 )
-SELECT (SELECT count(*) FROM settled)::bigint AS settled, (SELECT count(*) FROM failed)::bigint AS failed;
+SELECT count(*)::bigint AS settled FROM settled;

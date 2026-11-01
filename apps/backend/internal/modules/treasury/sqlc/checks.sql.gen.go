@@ -123,7 +123,8 @@ func (q *Queries) CabalPositionDrift(ctx context.Context) ([]CabalPositionDriftR
 const depositLedgerBalances = `-- name: DepositLedgerBalances :many
 SELECT ('wallet:' || t.user_id::text)::text AS owner, e.asset, sum(e.amount)::text AS balance
 FROM user_txn_entries e JOIN user_txns t ON t.id = e.txn_id
-WHERE e.account = 'wallet' AND t.kind IN ('deposit', 'withdrawal') AND t.tx_signature IS NOT NULL
+WHERE e.account = 'wallet' AND t.status <> 'failed' AND t.kind IN ('deposit', 'withdrawal')
+  AND t.tx_signature IS NOT NULL
 GROUP BY t.user_id, e.asset
 ORDER BY 1, 2
 `
@@ -157,7 +158,7 @@ func (q *Queries) DepositLedgerBalances(ctx context.Context) ([]DepositLedgerBal
 const ledgerBalances = `-- name: LedgerBalances :many
 SELECT ('wallet:' || t.user_id::text)::text AS owner, e.asset, sum(e.amount)::text AS balance
 FROM user_txn_entries e JOIN user_txns t ON t.id = e.txn_id
-WHERE e.account = 'wallet'
+WHERE e.account = 'wallet' AND t.status <> 'failed'
 GROUP BY t.user_id, e.asset
 UNION ALL
 SELECT 'treasury:' || t.cabal_id::text, e.asset, sum(e.amount)::text
@@ -309,7 +310,7 @@ WITH sums AS (
     coalesce(-sum(e.amount) FILTER (WHERE e.account = 'cabal' AND e.amount < 0), 0)
       AS withdrawn
   FROM user_txn_entries e JOIN user_txns t ON t.id = e.txn_id
-  WHERE t.cabal_id IS NOT NULL
+  WHERE t.cabal_id IS NOT NULL AND t.status <> 'failed'
   GROUP BY t.user_id, t.cabal_id
 )
 SELECT coalesce(s.user_id, p.user_id)::text AS user_id, coalesce(s.cabal_id, p.cabal_id)::text AS cabal_id,
