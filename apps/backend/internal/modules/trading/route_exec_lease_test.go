@@ -1,13 +1,16 @@
 package trading_test
 
 import (
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/domain"
+	"github.com/monaco/monaco/apps/backend/internal/modules/trading/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
@@ -208,5 +211,90 @@ func TestEVMTrades_skipsALeasedSwapUntilTheLeaseExpires(t *testing.T) {
 	}
 	if status, _, _, _ := e.row(t, view.ID.UUID()); status != string(domain.StatusConfirmed) {
 		t.Fatalf("swap is %s, want confirmed", status)
+	}
+}
+
+func TestLeaseRouted_exactlyOneOfManyRunnersWinsAndAnExpiredLeaseIsTakenOver(t *testing.T) {
+	t.Parallel()
+	e := newRouteEnv(t)
+	view := e.mustBuy(t, e.request(), domain.StatusCreated)
+	q := sqlc.New(e.pool)
+	now := e.clk.Now()
+
+	var wins atomic.Int64
+	var group errgroup.Group
+	for range 8 {
+		holder := e.ids.NewV7()
+		group.Go(func() error {
+			n, err := q.LeaseRouted(t.Context(), sqlc.LeaseRoutedParams{
+				ID: view.ID.UUID(), Holder: holder, Until: now.Add(time.Minute), Now: now,
+			})
+			wins.Add(n)
+			return err
+		})
+	}
+	if err := group.Wait(); err != nil {
+		t.Fatal(err)
+	}
+	if wins.Load() != 1 {
+		t.Fatalf("%d runners won the lease, want exactly one", wins.Load())
+	}
+
+	lease := func(holder uuid.UUID, at time.Time) int64 {
+		n, err := q.LeaseRouted(t.Context(), sqlc.LeaseRoutedParams{
+			ID: view.ID.UUID(), Holder: holder, Until: at.Add(time.Minute), Now: at,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+	var winner uuid.UUID
+	if err := e.pool.QueryRow(t.Context(), `SELECT lease_holder FROM swaps WHERE id = $1`, view.ID.UUID()).
+		Scan(&winner); err != nil {
+		t.Fatal(err)
+	}
+	other := e.ids.NewV7()
+	if lease(winner, now.Add(30*time.Second)) != 1 || lease(other, now.Add(45*time.Second)) != 0 {
+		t.Fatal("the holder must renew its lease and another runner must not take a live one")
+	}
+	if lease(other, now.Add(3*time.Minute)) != 1 || lease(winner, now.Add(3*time.Minute+time.Second)) != 0 {
+		t.Fatal("a runner must take over an expired lease and the old holder must then lose it")
+	}
+}
+
+func TestLockEVMSwaps_aSecondSwapWaitsForTheFirstUntilItEndsOrTheLockLapses(t *testing.T) {
+	t.Parallel()
+	e := newRouteEnv(t)
+	first := e.mustBuy(t, e.request(), domain.StatusCreated)
+	second := e.mustBuy(t, e.request(), domain.StatusCreated)
+	q := sqlc.New(e.pool)
+	now := e.clk.Now()
+
+	lock := func(swap ids.SwapID, at time.Time) int64 {
+		n, err := q.LockEVMSwaps(t.Context(), sqlc.LockEVMSwapsParams{
+			CabalID: e.cabal.UUID(), SwapID: swap.UUID(), ExpiresAt: at.Add(10 * time.Minute), Now: at,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+	if lock(first.ID, now) != 1 || lock(first.ID, now.Add(time.Minute)) != 1 {
+		t.Fatal("the first swap must take and renew the cabal's lock")
+	}
+	if lock(second.ID, now.Add(2*time.Minute)) != 0 {
+		t.Fatal("a second swap took the lock while the first was live")
+	}
+	if lock(second.ID, now.Add(12*time.Minute)) != 1 {
+		t.Fatal("a second swap must take the lock once the first one's lapsed")
+	}
+	if lock(first.ID, now.Add(13*time.Minute)) != 0 {
+		t.Fatal("the first swap took the lock back from a live holder")
+	}
+	e.mustExec(t, `UPDATE swaps SET status = 'failed', failure_code = 'never_submitted', failed_at = $2 WHERE id = $1`,
+		second.ID.UUID(), now.Add(14*time.Minute))
+	if lock(first.ID, now.Add(14*time.Minute)) != 1 {
+		t.Fatal("a swap must take the lock once the holder has ended")
 	}
 }
