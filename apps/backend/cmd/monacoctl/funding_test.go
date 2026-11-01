@@ -2,13 +2,19 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"strings"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/monaco/monaco/apps/backend/internal/errs"
+	fundingapp "github.com/monaco/monaco/apps/backend/internal/modules/funding/app"
+	"github.com/monaco/monaco/apps/backend/internal/modules/funding/domain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
 
@@ -256,5 +262,115 @@ func TestFundingBounceList_reportsAFailedRead(t *testing.T) {
 	}
 	if code, _, stderr := runOpsTool(t, bounce, "bounce", "list"); code != 1 || stderr == "" {
 		t.Fatalf("list with the table gone = %d, stderr %q, want 1", code, stderr)
+	}
+}
+
+type fakeWithdrawalResolver struct {
+	got fundingapp.ResolveEVMWithdrawal
+	err error
+}
+
+func (f *fakeWithdrawalResolver) Handle(
+	_ context.Context, cmd fundingapp.ResolveEVMWithdrawal,
+) (fundingapp.EVMWithdrawalResolution, error) {
+	f.got = cmd
+	return fundingapp.EVMWithdrawalResolution{
+		ID: cmd.ID, Status: cmd.To, Facts: fundingapp.EVMWithdrawalFacts{SolanaChain: "failed"},
+	}, f.err
+}
+
+func withdrawalTool(t *testing.T, resolver *fakeWithdrawalResolver) tool {
+	t.Helper()
+	pool := testkit.DB(t)
+	environ := []string{
+		"MONACO_ENV=test", "DATABASE_URL=" + pool.Config().ConnString(), "NATS_URL=nats://unused", "USER=ops-person",
+	}
+	return fundingToolWith(environ, testkit.NewClock(clock.Real{}.Now().UTC()),
+		func(module.Deps) withdrawalResolver { return resolver })
+}
+
+func TestFundingWithdrawalResolve_passesTheOperatorReasonAndOverride(t *testing.T) {
+	t.Parallel()
+	resolver := &fakeWithdrawalResolver{}
+	id := uuid.New()
+	code, stdout, stderr := runOpsTool(t, withdrawalTool(t, resolver), "withdrawal", "resolve", id.String(),
+		"--to", "failed", "--reason", "support refunded the member", "--override")
+	want := fundingapp.ResolveEVMWithdrawal{
+		ID: id, To: domain.WithdrawalFailed, Reason: "support refunded the member", Actor: "operator:ops-person",
+		Override: true,
+	}
+	if code != 0 || resolver.got != want || !strings.HasPrefix(stdout, "resolve "+id.String()+" failed ") ||
+		!strings.Contains(stdout, `"solana_chain_state":"failed"`) {
+		t.Fatalf(
+			"resolve = %d, stdout %q, stderr %q, handler got %+v, want %+v",
+			code,
+			stdout,
+			stderr,
+			resolver.got,
+			want,
+		)
+	}
+}
+
+func TestFundingWithdrawalResolve_reportsAHandlerRefusal(t *testing.T) {
+	t.Parallel()
+	resolver := &fakeWithdrawalResolver{err: errs.New(errs.CodeInvalidInput, "test")}
+	code, _, stderr := runOpsTool(t, withdrawalTool(t, resolver), "withdrawal", "resolve", uuid.NewString(),
+		"--to", "confirmed", "--reason", "landed")
+	if code != 1 || !strings.Contains(stderr, "invalid_input") {
+		t.Fatalf("resolve = %d, stderr %q, want 1 and invalid_input", code, stderr)
+	}
+}
+
+func TestFundingWithdrawalResolve_printsTheUsageForMalformedArguments(t *testing.T) {
+	t.Parallel()
+	tl := withdrawalTool(t, &fakeWithdrawalResolver{})
+	id := uuid.NewString()
+	for _, args := range [][]string{
+		{"withdrawal"},
+		{"withdrawal", "resolve"},
+		{"withdrawal", "resolve", "not-a-uuid", "--to", "failed", "--reason", "x"},
+		{"withdrawal", "resolve", id, "--reason", "x"},
+		{"withdrawal", "resolve", id, "--to", "failed"},
+		{"withdrawal", "resolve", id, "--to", "submitted", "--reason", "x"},
+		{"withdrawal", "resolve", id, "--to", "failed", "--reason", "x", "extra"},
+		{"withdrawal", "retry", id},
+	} {
+		if code, _, stderr := runOpsTool(t, tl, args...); code != 2 || !strings.Contains(stderr, fundingUsage) {
+			t.Errorf("funding %v = %d, stderr %q, want 2 and the usage", args, code, stderr)
+		}
+	}
+}
+
+func TestFundingWithdrawalResolve_reportsAnUnreachableDatabase(t *testing.T) {
+	t.Parallel()
+	environ := []string{
+		"MONACO_ENV=test", "DATABASE_URL=postgres://nobody@127.0.0.1:1/none?sslmode=disable&connect_timeout=1",
+		"NATS_URL=nats://unused", "USER=ops-person",
+	}
+	tl := fundingToolWith(environ, testkit.NewClock(clock.Real{}.Now().UTC()),
+		func(module.Deps) withdrawalResolver { return &fakeWithdrawalResolver{} })
+	if code, _, stderr := runOpsTool(t, tl, "withdrawal", "resolve", uuid.NewString(), "--to", "failed",
+		"--reason", "x"); code != 1 || stderr == "" {
+		t.Fatalf("resolve = %d, stderr %q, want 1 and a message", code, stderr)
+	}
+}
+
+func TestFundingWithdrawalResolve_theLiveResolverReportsAnUnknownWithdrawal(t *testing.T) {
+	t.Parallel()
+	bounce, _, _ := seededBounce(t)
+	code, _, stderr := runOpsTool(
+		t,
+		bounce,
+		"withdrawal",
+		"resolve",
+		uuid.NewString(),
+		"--to",
+		"failed",
+		"--reason",
+		"x",
+	)
+	if code != 1 || !strings.Contains(stderr, "not_found") {
+		t.Fatalf("resolve = %d, stderr %q, want 1 and not_found", code, stderr)
 	}
 }

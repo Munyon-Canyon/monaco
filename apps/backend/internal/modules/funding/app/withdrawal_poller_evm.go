@@ -20,7 +20,11 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 )
 
-const evmItemBudget = 3 * time.Second
+const (
+	evmItemBudget = 3 * time.Second
+
+	EVMWithdrawalSupportRealertAfter = 6 * time.Hour
+)
 
 func (p *WithdrawalPoller) tickEVM(
 	ctx context.Context, created []sqlc.ListStaleCreatedEVMWithdrawalsRow,
@@ -147,10 +151,12 @@ func (p *WithdrawalPoller) flagPending(ctx context.Context, row sqlc.ListSubmitt
 }
 
 func (p *WithdrawalPoller) flagNeedsSupport(ctx context.Context, row sqlc.ListSubmittedEVMWithdrawalsRow) {
-	if _, seen := p.flagged.LoadOrStore(row.ID, struct{}{}); seen {
+	now := p.d.Clock.Now()
+	if last, seen := p.flagged.Load(row.ID); seen && now.Sub(last.(time.Time)) < EVMWithdrawalSupportRealertAfter {
 		return
 	}
-	observability.Degraded(ctx, observability.FundingWithdrawalNeedsSupport,
+	p.flagged.Store(row.ID, now)
+	observability.Alert(ctx, observability.FundingWithdrawalNeedsSupport,
 		slog.String("withdrawal_id", row.ID.String()), slog.String("privy_action_id", row.PrivyActionID))
 }
 

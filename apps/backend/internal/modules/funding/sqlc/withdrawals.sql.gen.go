@@ -32,6 +32,38 @@ func (q *Queries) ConfirmWithdrawal(ctx context.Context, arg ConfirmWithdrawalPa
 	return result.RowsAffected(), nil
 }
 
+const eVMWithdrawalForResolve = `-- name: EVMWithdrawalForResolve :one
+SELECT id, user_id, amount_micros::text AS amount_micros, evm_address::text AS evm_address, status,
+  COALESCE(privy_action_id, '')::text AS privy_action_id, COALESCE(tx_signature, '')::text AS tx_signature
+FROM withdrawals
+WHERE id = $1 AND destination_kind = 'evm'
+`
+
+type EVMWithdrawalForResolveRow struct {
+	ID            uuid.UUID
+	UserID        uuid.UUID
+	AmountMicros  string
+	EvmAddress    string
+	Status        string
+	PrivyActionID string
+	TxSignature   string
+}
+
+func (q *Queries) EVMWithdrawalForResolve(ctx context.Context, id uuid.UUID) (EVMWithdrawalForResolveRow, error) {
+	row := q.db.QueryRow(ctx, eVMWithdrawalForResolve, id)
+	var i EVMWithdrawalForResolveRow
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.AmountMicros,
+		&i.EvmAddress,
+		&i.Status,
+		&i.PrivyActionID,
+		&i.TxSignature,
+	)
+	return i, err
+}
+
 const failUnsentWithdrawal = `-- name: FailUnsentWithdrawal :execrows
 UPDATE withdrawals
 SET status = 'failed', fail_code = $2::text, completed_at = $3::timestamptz
