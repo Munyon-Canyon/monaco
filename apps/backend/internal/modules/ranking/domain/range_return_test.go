@@ -37,9 +37,9 @@ func TestRangeReturn(t *testing.T) {
 			first: pnlPoint(10_000*usd, 0), last: pnlPoint(9_500*usd, -500*usd),
 			pnl: -500 * usd, bps: -500,
 		},
-		"a loss rounds toward zero": {
+		"a loss rounds down to the next basis point": {
 			first: pnlPoint(3*usd, 0), last: pnlPoint(2*usd, -1*usd),
-			pnl: -1 * usd, bps: -3333,
+			pnl: -1 * usd, bps: -3334,
 		},
 		"a zero base": {
 			first: pnlPoint(0, 0), last: pnlPoint(5*usd, 5*usd),
@@ -78,7 +78,7 @@ func TestRangeReturnOfIgnoresCashOuts(t *testing.T) {
 	}{
 		"exiting one of two cabals after a 1% loss": {
 			points: []domain.PnLPoint{pnlPoint(1_100*usd, 0), pnlPoint(100*usd, -10*usd)},
-			pnl:    -10 * usd, bps: -90,
+			pnl:    -10 * usd, bps: -91,
 		},
 		"exiting the only cabal after a 1% loss": {
 			points: []domain.PnLPoint{pnlPoint(1_000*usd, 0), pnlPoint(0, -10*usd)},
