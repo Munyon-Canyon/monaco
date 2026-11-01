@@ -35,6 +35,10 @@ func (k PostReply) Recipients(ctx context.Context, e events.CommentCreated) ([]i
 	if answered, ok := answeredAuthor(e); ok && answered == owner {
 		return nil, nil
 	}
+	stays, err := stillReads(ctx, k.Cabals, e, owner)
+	if err != nil || !stays {
+		return nil, err
+	}
 	return unblocked(ctx, k.Blocks, e, owner)
 }
 

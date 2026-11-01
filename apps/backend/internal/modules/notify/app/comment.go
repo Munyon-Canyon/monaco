@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"slices"
 	"unicode/utf8"
 
 	"github.com/google/uuid"
@@ -48,7 +49,19 @@ func (k CommentReply) Recipients(ctx context.Context, e events.CommentCreated) (
 	if !ok || mentioned(e, to) {
 		return nil, nil
 	}
+	stays, err := stillReads(ctx, k.Cabals, e, to)
+	if err != nil || !stays {
+		return nil, err
+	}
 	return unblocked(ctx, k.Blocks, e, to)
+}
+
+func stillReads(ctx context.Context, cabals Cabals, e events.CommentCreated, user ids.UserID) (bool, error) {
+	if e.ReplyRule != replyRuleMembers || e.CabalID == nil {
+		return true, nil
+	}
+	members, err := memberIDs(ctx, cabals, e.CabalID)
+	return slices.Contains(members, user), err
 }
 
 func unblocked(ctx context.Context, blocks Blocks, e events.CommentCreated, to ids.UserID) ([]ids.UserID, error) {

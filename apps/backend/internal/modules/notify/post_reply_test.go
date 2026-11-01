@@ -48,7 +48,29 @@ func cabalsOf(e events.CommentCreated) *fakes.Cabal {
 	if e.CabalID == nil {
 		return fakes.NewCabal(nil, nil)
 	}
-	return fakes.NewCabal([]fakes.CabalSeed{{View: cabalView(e)}}, nil)
+	return fakes.NewCabal([]fakes.CabalSeed{{View: cabalView(e)}}, membersOf(e, nil))
+}
+
+func membersOf(e events.CommentCreated, gone []uuid.UUID) []fakes.CabalMember {
+	var rows []fakes.CabalMember
+	seen := map[uuid.UUID]bool{}
+	for _, id := range []*uuid.UUID{
+		&e.AuthorID, e.ParentAuthorID, e.ReplyToAuthorID, e.ReplyToUserID, e.ItemActorID,
+	} {
+		if id == nil || seen[*id] || slices.Contains(gone, *id) {
+			continue
+		}
+		seen[*id] = true
+		rows = append(rows, fakes.CabalMember{
+			CabalID: ids.CabalIDFrom(*e.CabalID),
+			Member:  cabal.MemberView{UserID: ids.UserIDFrom(*id), Role: cabal.RoleMember, CanVote: true},
+		})
+	}
+	return rows
+}
+
+func cabalsWithout(e events.CommentCreated, gone ...uuid.UUID) *fakes.Cabal {
+	return fakes.NewCabal([]fakes.CabalSeed{{View: cabalView(e)}}, membersOf(e, gone))
 }
 
 func cabalPres(e events.CommentCreated) app.Presentation {
@@ -131,7 +153,7 @@ func TestNotify_PostReply_Recipients(t *testing.T) {
 		tc.edit(&e)
 		_ = answered
 
-		got, err := app.PostReply{Blocks: tc.blocks}.Recipients(t.Context(), e)
+		got, err := app.PostReply{Cabals: cabalsOf(e), Blocks: tc.blocks}.Recipients(t.Context(), e)
 
 		if !errors.Is(err, tc.err) || !slices.Equal(got, tc.want) {
 			t.Errorf("%s: Recipients = %v, %v, want %v, %v", name, got, err, tc.want, tc.err)
@@ -355,4 +377,94 @@ func wantFixture(t *testing.T, file string, msg app.Message) {
 		t.Errorf("%s: fixture %v %v, rendered %q %q %q %v", file, aps, fixture, msg.Title, msg.Body,
 			msg.Presentation.ThreadID, data)
 	}
+}
+
+type membersDown struct {
+	app.Cabals
+	err error
+}
+
+func (d membersDown) Members(context.Context, ids.CabalID) ([]cabal.MemberView, error) {
+	return nil, d.err
+}
+
+func TestNotify_Replies_NothingForAMemberWhoLeft(t *testing.T) {
+	t.Parallel()
+	golden := goldenEvent(t, events.TypeCommentCreated).(events.CommentCreated)
+	owner, answered := *golden.ItemActorID, *golden.ReplyToAuthorID
+	down := errs.New(errs.CodeDBUnavailable, "test.members")
+	roster := func(e events.CommentCreated, gone []uuid.UUID) app.Cabals { return withoutMembers(e, gone) }
+	for name, tc := range map[string]struct {
+		edit    func(*events.CommentCreated)
+		gone    []uuid.UUID
+		cabals  func(events.CommentCreated, []uuid.UUID) app.Cabals
+		comment []ids.UserID
+		post    []ids.UserID
+		err     error
+	}{
+		"both still in the cabal": {
+			func(*events.CommentCreated) {}, nil, roster,
+			[]ids.UserID{ids.UserIDFrom(answered)},
+			[]ids.UserID{ids.UserIDFrom(owner)},
+			nil,
+		},
+		"the answered author left": {
+			func(*events.CommentCreated) {},
+			[]uuid.UUID{answered},
+			roster,
+			nil,
+			[]ids.UserID{ids.UserIDFrom(owner)},
+			nil,
+		},
+		"the proposer left": {
+			func(*events.CommentCreated) {},
+			[]uuid.UUID{owner},
+			roster,
+			[]ids.UserID{ids.UserIDFrom(answered)},
+			nil, nil,
+		},
+		"both left": {func(*events.CommentCreated) {}, []uuid.UUID{owner, answered}, roster, nil, nil, nil},
+		"the thread is open to anyone": {
+			func(e *events.CommentCreated) { e.ReplyRule = "anyone" },
+			[]uuid.UUID{owner, answered},
+			roster,
+			[]ids.UserID{ids.UserIDFrom(answered)},
+			[]ids.UserID{ids.UserIDFrom(owner)},
+			nil,
+		},
+		"the thread has no cabal": {
+			func(e *events.CommentCreated) { e.CabalID = nil },
+			[]uuid.UUID{owner, answered},
+			roster,
+			[]ids.UserID{ids.UserIDFrom(answered)},
+			[]ids.UserID{ids.UserIDFrom(owner)},
+			nil,
+		},
+		"the member list is down": {
+			func(*events.CommentCreated) {}, nil,
+			func(events.CommentCreated, []uuid.UUID) app.Cabals { return membersDown{err: down} },
+			nil, nil, down,
+		},
+	} {
+		e := golden
+		tc.edit(&e)
+		cabals := tc.cabals(e, tc.gone)
+
+		comment, commentErr := app.CommentReply{Cabals: cabals, Blocks: blocks{}}.Recipients(t.Context(), e)
+		post, postErr := app.PostReply{Cabals: cabals, Blocks: blocks{}}.Recipients(t.Context(), e)
+
+		if !errors.Is(commentErr, tc.err) || !slices.Equal(comment, tc.comment) {
+			t.Errorf("%s: CommentReply.Recipients = %v, %v, want %v, %v", name, comment, commentErr, tc.comment, tc.err)
+		}
+		if !errors.Is(postErr, tc.err) || !slices.Equal(post, tc.post) {
+			t.Errorf("%s: PostReply.Recipients = %v, %v, want %v, %v", name, post, postErr, tc.post, tc.err)
+		}
+	}
+}
+
+func withoutMembers(e events.CommentCreated, gone []uuid.UUID) *fakes.Cabal {
+	if e.CabalID == nil {
+		return fakes.NewCabal(nil, nil)
+	}
+	return cabalsWithout(e, gone...)
 }

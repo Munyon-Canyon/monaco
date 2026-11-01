@@ -17,6 +17,7 @@ CROSS JOIN LATERAL (
   SELECT count(*)::int AS voter_count FROM proposal_voters AS all_voters WHERE all_voters.proposal_id = p.id
 ) AS electorate
 WHERE pv.voter_id = @voter_id
+  AND p.cabal_id = ANY(@cabal_ids::uuid[])
   AND p.status = 'open'
   AND NOT EXISTS (SELECT 1 FROM votes AS v WHERE v.proposal_id = p.id AND v.voter_id = @voter_id)
 ORDER BY p.expires_at, p.id

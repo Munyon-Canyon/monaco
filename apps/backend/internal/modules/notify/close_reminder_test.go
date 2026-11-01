@@ -1,6 +1,7 @@
 package notify_test
 
 import (
+	"errors"
 	"testing"
 	"time"
 
@@ -274,4 +275,34 @@ func closeNow() time.Time { return time.Date(2026, 10, 29, 12, 0, 0, 0, time.UTC
 
 func closeID(label string) uuid.UUID {
 	return uuid.NewSHA1(uuid.NameSpaceOID, []byte("close-reminder:"+label))
+}
+
+func TestCloseReminder_nothingForAMemberWhoLeft(t *testing.T) {
+	t.Parallel()
+	r := newPushRig(t)
+	w := r.voteWorldOf(t, 8, 5)
+	proposal := w.proposeNow(t)
+
+	if err := w.deliverCloseReminder(
+		t, w.closeReminderDue(proposal, w.members[5], "buy", "AAPLx", time.Hour),
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	if sent := r.sender.Sent(); len(sent) != 0 {
+		t.Fatalf("sent %+v, want nothing for a member who left the cabal", sent)
+	}
+}
+
+func TestCloseReminder_recipientsFailWhenTheMemberListIsDown(t *testing.T) {
+	t.Parallel()
+	down := errs.New(errs.CodeDBUnavailable, "test.members")
+	r := newPushRig(t)
+	e := events.ProposalCloseReminderDue{V: 1, ProposalID: r.ids.NewV7(), CabalID: r.ids.NewV7(), UserID: r.ids.NewV7()}
+
+	got, err := app.CloseReminder{Cabals: membersDown{err: down}}.Recipients(t.Context(), e)
+
+	if !errors.Is(err, down) || len(got) != 0 {
+		t.Fatalf("Recipients = %v, %v, want no one and %v", got, err, down)
+	}
 }

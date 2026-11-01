@@ -64,11 +64,17 @@ CROSS JOIN LATERAL (
   SELECT count(*)::int AS voter_count FROM proposal_voters AS all_voters WHERE all_voters.proposal_id = p.id
 ) AS electorate
 WHERE pv.voter_id = $1
+  AND p.cabal_id = ANY($2::uuid[])
   AND p.status = 'open'
   AND NOT EXISTS (SELECT 1 FROM votes AS v WHERE v.proposal_id = p.id AND v.voter_id = $1)
 ORDER BY p.expires_at, p.id
 LIMIT 50
 `
+
+type PendingVotesParams struct {
+	VoterID  uuid.UUID
+	CabalIds []uuid.UUID
+}
 
 type PendingVotesRow struct {
 	ID          uuid.UUID
@@ -89,8 +95,8 @@ type PendingVotesRow struct {
 	VoterCount  int32
 }
 
-func (q *Queries) PendingVotes(ctx context.Context, voterID uuid.UUID) ([]PendingVotesRow, error) {
-	rows, err := q.db.Query(ctx, pendingVotes, voterID)
+func (q *Queries) PendingVotes(ctx context.Context, arg PendingVotesParams) ([]PendingVotesRow, error) {
+	rows, err := q.db.Query(ctx, pendingVotes, arg.VoterID, arg.CabalIds)
 	if err != nil {
 		return nil, err
 	}

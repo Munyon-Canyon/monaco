@@ -253,7 +253,10 @@ func TestRuleProposals_getListAndPendingVotesReadARuleRow(t *testing.T) {
 		t.Fatalf("List item = %+v, want %+v", got, want)
 	}
 
-	pending := app.NewPendingVoteReads(reads, app.PendingVotePorts{Assets: f.assets, Replies: &replyBook{}})
+	pending := app.NewPendingVoteReads(
+		reads,
+		app.PendingVotePorts{Assets: f.assets, Replies: &replyBook{}, Cabals: f.roster()},
+	)
 	votes, err := pending.PendingVotes(t.Context(), ids.UserIDFrom(f.caller))
 	if err != nil || len(votes) != 1 || votes[0].AssetName != "" {
 		t.Fatalf("PendingVotes = %+v, %v, want the one rule proposal without an asset", votes, err)
@@ -327,7 +330,10 @@ type ruleWireRead struct {
 
 func (f ruleFixture) wireReads(t *testing.T, reads *app.ProposalReads) (ruleWireRead, ruleWireRead, ruleWireRead) {
 	t.Helper()
-	pendingReads := app.NewPendingVoteReads(reads, app.PendingVotePorts{Assets: f.assets, Replies: &replyBook{}})
+	pendingReads := app.NewPendingVoteReads(
+		reads,
+		app.PendingVotePorts{Assets: f.assets, Replies: &replyBook{}, Cabals: f.roster()},
+	)
 	h := adapters.HTTP{Reads: reads, Pending: pendingReads}
 	return f.detailWire(t, h), f.listWire(t, h), f.pendingWire(t, h)
 }

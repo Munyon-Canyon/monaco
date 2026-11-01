@@ -20,9 +20,14 @@ type AssetCards interface {
 	ByMints(ctx context.Context, mints []string) ([]market.Asset, error)
 }
 
+type MemberCabals interface {
+	CabalsOf(ctx context.Context, user ids.UserID) ([]ids.CabalID, error)
+}
+
 type PendingVotePorts struct {
 	Assets  AssetCards
 	Replies ReplyCounts
+	Cabals  MemberCabals
 }
 
 type PendingProposer struct {
@@ -61,7 +66,11 @@ func NewPendingVoteReads(reads *ProposalReads, ports PendingVotePorts) *PendingV
 }
 
 func (r *PendingVoteReads) PendingVotes(ctx context.Context, voter ids.UserID) ([]PendingVote, error) {
-	rows, err := r.reads.q.PendingVotes(ctx, voter.UUID())
+	member, err := r.ports.Cabals.CabalsOf(ctx, voter)
+	if err != nil {
+		return nil, errs.Wrap(err, errs.CodeOf(err), "governance.PendingVotes")
+	}
+	rows, err := r.reads.q.PendingVotes(ctx, sqlc.PendingVotesParams{VoterID: voter.UUID(), CabalIds: uuids(member)})
 	if err != nil {
 		return nil, errs.Wrap(err, errs.CodeInternal, "governance.PendingVotes")
 	}
