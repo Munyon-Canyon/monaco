@@ -460,6 +460,63 @@ final class CursorPagerRefreshCursorTests: XCTestCase {
     }
 }
 
+@MainActor
+final class CursorPagerRemovedRowsTests: XCTestCase {
+    func testRefreshFirstPageDropsAnItemTheServerStoppedReturningInsideTheWindow() async {
+        let firstPageCalls = Counter()
+        let pager = CursorPager<PageRow> { cursor in
+            if cursor == "2" {
+                return ([PageRow(id: "d"), PageRow(id: "e")], nil)
+            }
+            if firstPageCalls.bump() == 1 {
+                return ([PageRow(id: "a"), PageRow(id: "b"), PageRow(id: "c")], "2")
+            }
+            return ([PageRow(id: "a"), PageRow(id: "c"), PageRow(id: "d")], "2")
+        }
+
+        await pager.loadFirst()
+        await pager.loadMore()
+        await pager.refreshFirstPage()
+
+        XCTAssertEqual(pager.items.map(\.id), ["a", "c", "d", "e"])
+    }
+
+    func testRefreshFirstPageDropsEveryLoadedItemWhenThePageIsTheWholeList() async {
+        let firstPageCalls = Counter()
+        let pager = CursorPager<PageRow> { cursor in
+            if cursor == "2" {
+                return ([PageRow(id: "c")], nil)
+            }
+            if firstPageCalls.bump() == 1 {
+                return ([PageRow(id: "a"), PageRow(id: "b")], "2")
+            }
+            return ([PageRow(id: "b")], nil)
+        }
+
+        await pager.loadFirst()
+        await pager.loadMore()
+        await pager.refreshFirstPage()
+
+        XCTAssertEqual(pager.items.map(\.id), ["b"])
+        XCTAssertEqual(pager.phase, .exhausted)
+    }
+
+    func testRefreshFirstPageToAnEmptyPageClearsTheList() async {
+        let firstPageCalls = Counter()
+        let pager = CursorPager<PageRow> { _ in
+            if firstPageCalls.bump() == 1 {
+                return ([PageRow(id: "a"), PageRow(id: "b")], nil)
+            }
+            return ([], nil)
+        }
+
+        await pager.loadFirst()
+        await pager.refreshFirstPage()
+
+        XCTAssertEqual(pager.items, [])
+    }
+}
+
 private enum PagerTestError: Error {
     case boom
 }

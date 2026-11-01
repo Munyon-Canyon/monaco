@@ -95,10 +95,21 @@ public struct ChatTimeline: Equatable, Sendable {
     }
 
     @discardableResult
-    public mutating func mergeNewest(_ page: [ChatMessage], pageSize: Int) -> [ChatMessage] {
+    public mutating func mergeNewest(
+        _ page: [ChatMessage], pageSize: Int, loadedBefore: Set<String> = []
+    ) -> [ChatMessage] {
         if !hasLoadedNewest { hasOlder = page.count >= pageSize }
         hasLoadedNewest = true
-        return upsert(page)
+        let dropped = dropMissing(from: page, pageSize: pageSize, among: loadedBefore)
+        let added = upsert(page)
+        if dropped { rebuildRows() }
+        return added
+    }
+
+    public mutating func removeMessages(by authors: Set<String>) {
+        guard !authors.isEmpty, messages.contains(where: { authors.contains($0.author.id) }) else { return }
+        messages.removeAll { authors.contains($0.author.id) }
+        rebuildRows()
     }
 
     @discardableResult
@@ -186,6 +197,21 @@ public struct ChatTimeline: Equatable, Sendable {
             let index = unsent.firstIndex(where: { $0.body == message.body })
         else { return }
         unsent.remove(at: index)
+    }
+
+    private mutating func dropMissing(from page: [ChatMessage], pageSize: Int, among candidates: Set<String>) -> Bool {
+        guard !candidates.isEmpty else { return false }
+        let accepted = page.filter(accepts)
+        let kept = Set(accepted.map(\.id))
+        let floor = accepted.min(by: Self.chronological)
+        if page.count >= pageSize && floor == nil { return false }
+        let before = messages.count
+        messages.removeAll { message in
+            guard candidates.contains(message.id), !kept.contains(message.id) else { return false }
+            guard page.count >= pageSize, let floor else { return true }
+            return !Self.chronological(message, floor)
+        }
+        return messages.count != before
     }
 
     private mutating func upsert(_ incoming: [ChatMessage]) -> [ChatMessage] {

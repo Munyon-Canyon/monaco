@@ -72,7 +72,14 @@ public final class CursorPager<Item: Identifiable & Sendable> {
                 replace(items: page.items, nextCursor: page.nextCursor)
                 return
             }
-            let tail = items.filter { !pageIDs.contains($0.id) }
+            let tail: [Item]
+            if page.nextCursor == nil {
+                tail = []
+            } else if let lastOverlap = items.lastIndex(where: { pageIDs.contains($0.id) }) {
+                tail = Array(items[(lastOverlap + 1)...])
+            } else {
+                tail = []
+            }
             items = page.items + tail
             if tail.isEmpty && !loadingMore {
                 nextCursor = page.nextCursor

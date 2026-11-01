@@ -78,4 +78,38 @@ final class ChatBlockedAuthorsTests: XCTestCase {
             break
         }
     }
+
+    func testBlockingAnAuthorRemovesTheirLoadedMessagesBeforeTheReload() async throws {
+        let loaded = (0..<10).map { Fixtures.message("x\($0)", minutes: Double($0)) }
+        let keep = Fixtures.message("keep", author: "someone-else", minutes: 20)
+        let transport = transport(
+            blocks(), blocks(Fixtures.otherID), then: try Fixtures.page(loaded + [keep]))
+        let session = Fixtures.session(transport, blocked: true)
+        await session.open()
+        let before = await Fixtures.state(session)
+        XCTAssertEqual(Fixtures.ids(before).count, 11)
+
+        await session.refreshBlocked()
+
+        let state = await Fixtures.state(session)
+        XCTAssertEqual(Fixtures.ids(state), ["keep"])
+    }
+
+    func testAMessageDeletedWhileAwayDisappearsOnReload() async throws {
+        let m0 = Fixtures.message("m0", minutes: 0)
+        let m1 = Fixtures.message("m1", minutes: 1)
+        let m2 = Fixtures.message("m2", minutes: 2)
+        let transport = StubTransport(routes: [
+            "/v1/cabals/\(Fixtures.cabalID)/messages?limit=50": [
+                try Fixtures.page([m0, m1, m2]), try Fixtures.page([m0, m2]),
+            ]
+        ])
+        let session = Fixtures.session(transport)
+        await session.open()
+
+        await session.reload()
+
+        let state = await Fixtures.state(session)
+        XCTAssertEqual(Fixtures.ids(state), ["m0", "m2"])
+    }
 }

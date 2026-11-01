@@ -195,9 +195,10 @@ public actor ChatSession {
     func loadNewest() async {
         if state.load != .loaded { state.load = .loading }
         publish()
+        let loaded = Set(state.timeline.messages.map(\.id))
         do {
             let page = try await fetch()
-            state.timeline.mergeNewest(page, pageSize: Self.pageSize)
+            state.timeline.mergeNewest(page, pageSize: Self.pageSize, loadedBefore: loaded)
             cursor.advance(with: page)
             adoptSeen(from: page)
             state.load = .loaded
@@ -221,9 +222,8 @@ public actor ChatSession {
                 adoptSeen(from: page)
                 state.isClosed = false
                 publish()
-                guard page.count >= Self.pageSize, let newest = cursor.id, newest != after else {
-                    return
-                }
+                guard page.count >= Self.pageSize, let newest = cursor.id, newest != after
+                else { return await loadNewest() }
                 after = newest
             } catch {
                 fail(error, firstLoad: false)
