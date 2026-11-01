@@ -25,4 +25,5 @@ RETURNING b.tokens_milli;
 SELECT tokens_milli, updated_at FROM rate_limit_buckets WHERE key = $1;
 
 -- name: DeleteRateLimitBucketsIdleBefore :execrows
-DELETE FROM rate_limit_buckets WHERE updated_at < $1;
+DELETE FROM rate_limit_buckets
+WHERE ctid IN (SELECT ctid FROM rate_limit_buckets WHERE updated_at < @before::timestamptz LIMIT @batch);

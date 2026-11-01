@@ -227,7 +227,8 @@ func TestDeleteRateLimitBucketsIdleBefore_deletesOnlyIdleBuckets(t *testing.T) {
 	take(t, l, "idle", perMinute(), 1)
 	clk.Advance(time.Hour)
 	take(t, l, "active", perMinute(), 1)
-	n, err := sqlc.New(pool).DeleteRateLimitBucketsIdleBefore(t.Context(), epoch().Add(time.Minute))
+	n, err := sqlc.New(pool).DeleteRateLimitBucketsIdleBefore(t.Context(),
+		sqlc.DeleteRateLimitBucketsIdleBeforeParams{Before: epoch().Add(time.Minute), Batch: 10})
 	if err != nil || n != 1 {
 		t.Fatalf("DeleteRateLimitBucketsIdleBefore = %d, %v, want 1", n, err)
 	}

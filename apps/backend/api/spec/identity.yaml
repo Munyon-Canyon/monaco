@@ -132,6 +132,7 @@ paths:
       operationId: patchMe
       x-idempotent: true
       tags: [identity]
+      x-rate-limit: {actor: {rate: 60, per: 1m, burst: 20}}
       summary: Update the signed-in user's profile.
       description: Replaces the caller's normalized display name; an unchanged name is a no-op.
       parameters:
@@ -154,6 +155,7 @@ paths:
       x-idempotent: true
       x-allow-restricted: true
       tags: [identity]
+      x-rate-limit: {actor: {rate: 60, per: 1m, burst: 20}}
       summary: Delete the signed-in user's account.
       description: >-
         Deletes the caller's account once nothing is left in it. A stake in any cabal is
@@ -171,6 +173,7 @@ paths:
     post:
       operationId: revokeSessions
       tags: [identity]
+      x-rate-limit: {actor: {rate: 60, per: 1m, burst: 20}}
       x-idempotent: true
       x-allow-restricted: true
       summary: End the caller's session, or every session.
@@ -259,6 +262,7 @@ paths:
     put:
       operationId: putMeHandle
       tags: [identity]
+      x-rate-limit: {actor: {rate: 60, per: 1m, burst: 20}}
       x-idempotent: true
       summary: Set the caller's handle.
       parameters:
@@ -285,6 +289,7 @@ paths:
     post:
       operationId: postOnboardingPhone
       tags: [identity]
+      x-rate-limit: {actor: {rate: 60, per: 1m, burst: 20}}
       x-idempotent: true
       summary: Store the phone the caller linked in Privy.
       description: >-
@@ -306,6 +311,7 @@ paths:
     post:
       operationId: postOnboardingSocials
       tags: [identity]
+      x-rate-limit: {actor: {rate: 60, per: 1m, burst: 20}}
       x-idempotent: true
       summary: Store the X account the caller linked in Privy.
       description: >-
@@ -327,6 +333,7 @@ paths:
     post:
       operationId: postOnboardingSkip
       tags: [identity]
+      x-rate-limit: {actor: {rate: 60, per: 1m, burst: 20}}
       x-idempotent: true
       summary: Skip an onboarding step.
       description: >-
@@ -357,6 +364,7 @@ paths:
     post:
       operationId: postDevXLink
       tags: [identity]
+      x-rate-limit: {actor: {rate: 60, per: 1m, burst: 20}}
       x-idempotent: true
       x-dev-only: true
       summary: Link a fake X account to a dev user.
@@ -385,6 +393,7 @@ paths:
     delete:
       operationId: deleteDevXLink
       tags: [identity]
+      x-rate-limit: {actor: {rate: 60, per: 1m, burst: 20}}
       x-idempotent: true
       x-dev-only: true
       summary: Remove a dev user's fake X account.

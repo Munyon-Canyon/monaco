@@ -463,7 +463,8 @@ func TestIdempotency_anExpiredKeyRunsTheHandlerAgain(t *testing.T) {
 	handler := idempotent(h, db.NewIdempotencyStore(pool, clk), next)
 	send(t, handler, http.MethodPost, "/v1/things", "k1", `{}`)
 	clk.Advance(25 * time.Hour)
-	if _, err := sqlc.New(pool).DeleteIdempotencyKeysBefore(t.Context(), clk.Now().Add(-24*time.Hour)); err != nil {
+	if _, err := sqlc.New(pool).DeleteIdempotencyKeysBefore(t.Context(),
+		sqlc.DeleteIdempotencyKeysBeforeParams{Before: clk.Now().Add(-24 * time.Hour), Batch: 10}); err != nil {
 		t.Fatal(err)
 	}
 	if rec := send(t, handler, http.MethodPost, "/v1/things", "k1", `{"changed":true}`); rec.Code != 201 ||

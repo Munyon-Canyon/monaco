@@ -662,7 +662,7 @@ Personal plan limits, and what the design spends:
 | Connections | 10 | 2 steady, ~6 in a deploy | One `nats.Connect` per process, in `platform/bus` only (the `forbidigo` pattern in the lint config). `nats.Name("monaco-<api|worker>")` so strays show in the dashboard. Rolling deploys briefly double the count. |
 | Subscriptions per connection | 100 | api: 1. worker: ~15 | SSE hub below; worker has one pull consumer per module plus `price.>` and the delivery-failure advisory. |
 | Streams | 10 | 2 | `EVENTS` and `DEADLETTER`, declared in code and applied by `monacoctl bus apply` in the pre-deploy step. api and worker never create streams. No KV buckets or object stores: each is a stream underneath; that state lives in Postgres. |
-| Storage | 5 GiB | 2.5 GiB cap | `MaxBytes` 2 GiB on `EVENTS`, 512 MiB on `DEADLETTER`. `MaxAge` 7 days on `EVENTS`: Postgres `events` is the source of truth, the stream is transport. |
+| Storage | 5 GiB | 2.5 GiB cap | `MaxBytes` 2 GiB on `EVENTS`, 512 MiB on `DEADLETTER`. `MaxAge` 2 days on `EVENTS`: Postgres `events` is the source of truth, the stream is transport. |
 | Network data | 10 GiB | ~1.5 GiB/month | Price ticks are one batched `price.tick` message per poll carrying every asset, every 120 s (decided 2026-09-27). That is 12 times fewer ticks than the earlier 10 s cadence, so ticks drop from ~3 GiB to ~0.25 GiB a month. Per-asset messages at 5 s would be ~20 GiB/month on their own. Domain events are ~1 GiB. |
 | HA streams | 0 | 0 | `Replicas: 1`. On Starter, `EVENTS` goes to `Replicas: 3`; nothing else changes. |
 
@@ -695,10 +695,10 @@ var streams = []jetstream.StreamConfig{
 - `DiscardNew`, never `DiscardOld`: a full stream rejects the relay's publish and the outbox retries; `DiscardOld` would silently drop events no consumer has read.
 - `Duplicates` only works if `bus.Publish` sets `Nats-Msg-Id` to `events.id` on every publish. The relay does; the `nats-consumer` skill says so.
 - One durable pull consumer per module on `EVENTS` with `FilterSubjects`, `AckExplicit`, `MaxDeliver` 10, `MaxAckPending` 64 (the cross-process concurrency bound from the concurrency rules). A module gets a consumer, never a stream.
-- A module's consumer runs one or more named handlers. `event_deliveries` is keyed by event id and handler name, so each handler dedupes on its own and a redelivery skips only the handlers that already applied it. A daily job deletes `event_deliveries` rows older than 30 days, which outlives both the 7-day `EVENTS` and the 30-day `DEADLETTER` windows.
+- A module's consumer runs one or more named handlers. `event_deliveries` is keyed by event id and handler name, so each handler dedupes on its own and a redelivery skips only the handlers that already applied it. A daily job deletes `event_deliveries` rows older than 30 days, which outlives both the 2-day `EVENTS` and the 30-day `DEADLETTER` windows.
 - A message that exhausts `MaxDeliver` or is termed goes to `DEADLETTER`, and admin's consumer writes a `dead_letters` row that stays open until someone resolves it. `monacoctl deadletter retry` is the one recovery path. No safety-net poller re-scans stuck trades.
 - Boot fails if `nats.Connect` fails. No `RetryOnFailedConnect`: an instance that passes health checks with a dead bus backs the relay up silently.
-- The worker exports `js.AccountInfo` every minute as OTel gauges (storage used vs limit, stream and consumer counts); alert at 80%. Connection count and egress are not in `AccountInfo`; those are read in the Synadia dashboard.
+- The worker exports `js.AccountInfo` every minute as OTel gauges (storage used vs limit, stream and consumer counts); alert at 70% (`ops/grafana/alerts/launch-day.json`, rule `monaco-events-stream-storage-70`). Connection count and egress are not in `AccountInfo`; those are read in the Synadia dashboard.
 
 What a limit hit looks like:
 
@@ -747,7 +747,7 @@ Render runs the two binaries; Synadia runs NATS; Grafana Cloud receives OTLP. No
 | Secrets | One host env var, `DOTENV_PRIVATE_KEY_PRODUCTION`; everything else in encrypted `.env.production` | Same dotenvx flow as local. |
 | Traces, metrics, logs | OTel SDK in `platform/observability`, OTLP over HTTP straight to Grafana Cloud (Tempo, Mimir, Loki), no collector. `otelslog` bridges slog. `OTEL_SERVICE_NAME` is `monaco-api` or `monaco-worker`. | One trace from HTTP request through the NATS header to the consumer (context rule 9). Switching hosts changes one endpoint. |
 | Error reports | Sentry stays for panics and `KindInternal`, fed from the same boundary that logs them | Cheaper to keep than to rebuild alert routing. |
-| Alerts | Grafana alert rules on `poller_errors_total`, dead-letter count, relayer SOL balance, `js.AccountInfo` usage, p95 per route | Replaces the old webhook. |
+| Alerts | Grafana alert rules on `poller_errors_total`, dead-letter count, relayer SOL balance, `js.AccountInfo` usage, p95 per route | Replaces the old webhook. `ops/grafana/alerts/launch-day.json` holds the launch-day set: a money poller with no completed tick for 5 minutes (`poller_last_success_timestamp_seconds{money="true"}`), EVENTS storage over 70%, the oldest money intent over 15 minutes (`monaco_money_intent_oldest_seconds`), relay lag, consumer backlog, open dead letters and absent worker metrics. Synced to Grafana by hand with the provisioning API; routing to a contact point is the founder's. |
 
 Rules the deploy exposes:
 

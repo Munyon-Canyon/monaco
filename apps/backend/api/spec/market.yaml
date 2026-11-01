@@ -97,6 +97,7 @@ paths:
     get:
       operationId: getAssetChart
       tags: [market]
+      x-rate-limit: {actor: {rate: 120, per: 1m, burst: 30}}
       summary: Read one asset's chart.
       description: >-
         Buckets the asset's stored prices for the requested range. A held spike is left out of the

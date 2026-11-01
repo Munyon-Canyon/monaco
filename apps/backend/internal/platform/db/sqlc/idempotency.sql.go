@@ -102,11 +102,17 @@ func (q *Queries) CompleteIdempotencyKey(ctx context.Context, arg CompleteIdempo
 }
 
 const deleteIdempotencyKeysBefore = `-- name: DeleteIdempotencyKeysBefore :execrows
-DELETE FROM idempotency_keys WHERE created_at < $1
+DELETE FROM idempotency_keys
+WHERE ctid IN (SELECT ctid FROM idempotency_keys WHERE created_at < $1::timestamptz LIMIT $2)
 `
 
-func (q *Queries) DeleteIdempotencyKeysBefore(ctx context.Context, createdAt time.Time) (int64, error) {
-	result, err := q.db.Exec(ctx, deleteIdempotencyKeysBefore, createdAt)
+type DeleteIdempotencyKeysBeforeParams struct {
+	Before time.Time
+	Batch  int32
+}
+
+func (q *Queries) DeleteIdempotencyKeysBefore(ctx context.Context, arg DeleteIdempotencyKeysBeforeParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteIdempotencyKeysBefore, arg.Before, arg.Batch)
 	if err != nil {
 		return 0, err
 	}

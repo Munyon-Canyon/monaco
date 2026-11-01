@@ -32,6 +32,7 @@ paths:
     delete:
       operationId: deleteDevice
       tags: [notify]
+      x-rate-limit: {actor: {rate: 60, per: 1m, burst: 20}}
       x-idempotent: true
       summary: Remove one of the caller's device tokens.
       description: >-
@@ -151,6 +152,7 @@ paths:
     post:
       operationId: readCatchUpItem
       tags: [notify]
+      x-rate-limit: {actor: {rate: 60, per: 1m, burst: 20}}
       x-idempotent: true
       summary: Mark one Catch up item read.
       description: >-
@@ -168,6 +170,7 @@ paths:
     post:
       operationId: clearCatchUpItem
       tags: [notify]
+      x-rate-limit: {actor: {rate: 60, per: 1m, burst: 20}}
       x-idempotent: true
       summary: Clear one Catch up item.
       description: >-
@@ -185,6 +188,7 @@ paths:
     post:
       operationId: keepCatchUpItem
       tags: [notify]
+      x-rate-limit: {actor: {rate: 60, per: 1m, burst: 20}}
       x-idempotent: true
       summary: Keep one Catch up item.
       description: >-
