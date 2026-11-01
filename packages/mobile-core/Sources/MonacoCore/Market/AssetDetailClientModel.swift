@@ -14,6 +14,7 @@ public struct AssetDetailPresentation: Equatable, Sendable {
     public let priceMicros: Int64?
     public let priceAsOf: Date?
     public let changeBasisPoints: Int64?
+    public let afterHoursBasisPoints: Int64?
     public let attribution: String
     public let session: MarketSession
     public let market: MarketAsset
@@ -26,6 +27,10 @@ public struct AssetDetailPresentation: Equatable, Sendable {
 
     public var todayMove: AssetTodayMove? {
         AssetTodayMove(priceMicros: priceMicros, basisPoints: changeBasisPoints)
+    }
+
+    public var afterHoursMove: AssetAfterHoursMove? {
+        AssetAfterHoursMove(basisPoints: afterHoursBasisPoints)
     }
 }
 
@@ -262,6 +267,7 @@ public final class AssetDetailClientModel {
             priceMicros: detail.priceMicros,
             priceAsOf: detail.priceAsOf,
             changeBasisPoints: detail.changeBps.map(Int64.init),
+            afterHoursBasisPoints: detail.afterHoursChangeBps.map(Int64.init),
             attribution: detail.attribution,
             session: market.session,
             market: market,

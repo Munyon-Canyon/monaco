@@ -249,19 +249,33 @@ func (c *AssetChart) dayBase(ctx context.Context, asset domain.Asset, now time.T
 }
 
 func (c *AssetChart) until(ctx context.Context, mint string, now time.Time) (time.Time, bool, error) {
+	headline, priced, err := c.headline(ctx, mint, now)
+	return headline.accepted.ObservedAt, priced, err
+}
+
+type chartHeadline struct {
+	accepted domain.Sample
+}
+
+func (c *AssetChart) headline(ctx context.Context, mint string, now time.Time) (chartHeadline, bool, error) {
 	rows, err := c.read.NewestSamples(ctx, sqlc.NewestSamplesParams{Mints: []string{mint}, At: now})
 	if err != nil {
-		return time.Time{}, false, errs.Wrap(err, errs.CodeOf(err), "market.NewestSamples", slog.String("mint", mint))
+		return chartHeadline{}, false, errs.Wrap(
+			err,
+			errs.CodeOf(err),
+			"market.NewestSamples",
+			slog.String("mint", mint),
+		)
 	}
 	samples, err := newestFirst(rows)
 	if err != nil {
-		return time.Time{}, false, err
+		return chartHeadline{}, false, err
 	}
 	_, accepted, ok := domain.DisplayUntil(now, samples)
 	if !ok {
-		return time.Time{}, false, nil
+		return chartHeadline{}, false, nil
 	}
-	return accepted.ObservedAt, true, nil
+	return chartHeadline{accepted: accepted}, true, nil
 }
 
 func (c *AssetChart) since(

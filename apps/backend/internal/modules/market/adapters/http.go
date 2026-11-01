@@ -194,6 +194,7 @@ func wireSummary(item app.Summary, now time.Time) (api.AssetSummary, error) {
 	out.PriceAsOf = &at
 	out.Stale = &item.Stale
 	out.ChangeBps = item.Change
+	out.AfterHoursChangeBps = item.AfterHoursChange
 	out.SparklineMicros = &points
 	return out, nil
 }
@@ -218,28 +219,29 @@ func wireDetail(view app.AssetView, now time.Time, pollInterval time.Duration) (
 		stats = &wired
 	}
 	return api.AssetDetail{
-		Id:              summary.Id,
-		Symbol:          summary.Symbol,
-		DisplayName:     summary.DisplayName,
-		Issuer:          summary.Issuer,
-		Kind:            summary.Kind,
-		LogoUrl:         summary.LogoUrl,
-		PriceMicros:     summary.PriceMicros,
-		PriceAsOf:       summary.PriceAsOf,
-		Stale:           summary.Stale,
-		ChangeBps:       summary.ChangeBps,
-		SparklineMicros: summary.SparklineMicros,
-		Volume24hMicros: summary.Volume24hMicros,
-		Volume24hAsOf:   summary.Volume24hAsOf,
-		Session:         summary.Session,
-		Quotable:        summary.Quotable,
-		Decimals:        int(view.Summary.Asset.Decimals),
-		UiMultiplier:    api.UiMultiplier{Num: multiplier.Num, Den: multiplier.Den},
-		Tradable:        view.Summary.Asset.Tradable(),
-		OtherListings:   wireListings(view.Others),
-		Attribution:     domain.Attribution,
-		PreIpo:          preIPO,
-		Stats:           stats,
+		Id:                  summary.Id,
+		Symbol:              summary.Symbol,
+		DisplayName:         summary.DisplayName,
+		Issuer:              summary.Issuer,
+		Kind:                summary.Kind,
+		LogoUrl:             summary.LogoUrl,
+		PriceMicros:         summary.PriceMicros,
+		PriceAsOf:           summary.PriceAsOf,
+		Stale:               summary.Stale,
+		ChangeBps:           summary.ChangeBps,
+		AfterHoursChangeBps: summary.AfterHoursChangeBps,
+		SparklineMicros:     summary.SparklineMicros,
+		Volume24hMicros:     summary.Volume24hMicros,
+		Volume24hAsOf:       summary.Volume24hAsOf,
+		Session:             summary.Session,
+		Quotable:            summary.Quotable,
+		Decimals:            int(view.Summary.Asset.Decimals),
+		UiMultiplier:        api.UiMultiplier{Num: multiplier.Num, Den: multiplier.Den},
+		Tradable:            view.Summary.Asset.Tradable(),
+		OtherListings:       wireListings(view.Others),
+		Attribution:         domain.Attribution,
+		PreIpo:              preIPO,
+		Stats:               stats,
 
 		PriceSource:              priceSource(view.Summary),
 		PricePollIntervalSeconds: int(pollInterval / time.Second),

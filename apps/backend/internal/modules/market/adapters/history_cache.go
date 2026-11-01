@@ -16,6 +16,8 @@ const (
 	historyShortTTL = time.Hour
 	historyLongTTL  = 6 * time.Hour
 	historyMissTTL  = 24 * time.Hour
+
+	historyShortDays = 5
 )
 
 type historyBox struct {
@@ -110,7 +112,7 @@ func (h *CachedHistory) loader(ctx context.Context, mint domain.Mint, days int) 
 }
 
 func historyTTL(days int) time.Duration {
-	if days == 1 {
+	if days >= 1 && days <= historyShortDays {
 		return historyShortTTL
 	}
 	return historyLongTTL

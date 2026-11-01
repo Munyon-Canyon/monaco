@@ -29,6 +29,8 @@ func Accept(newestFirst []Sample) (Sample, bool) {
 	return Sample{}, false
 }
 
+func WithinAFifth(next, prev money.Micros) bool { return withinAFifth(next, prev) }
+
 func withinAFifth(next, prev money.Micros) bool {
 	n, p := next.Uint64(), prev.Uint64()
 	return max(n, p)-min(n, p) <= p/5

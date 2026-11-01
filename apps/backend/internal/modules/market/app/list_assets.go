@@ -50,14 +50,16 @@ type ListRequest struct {
 }
 
 type Summary struct {
-	Asset     domain.Asset
-	Session   domain.SessionInfo
-	Priced    bool
-	Price     domain.Sample
-	Stale     bool
-	Change    *int32
-	Sparkline []money.Micros
-	Volume    *Volume
+	Asset   domain.Asset
+	Session domain.SessionInfo
+	Priced  bool
+	Price   domain.Sample
+	Stale   bool
+	Change  *int32
+
+	AfterHoursChange *int32
+	Sparkline        []money.Micros
+	Volume           *Volume
 
 	CabalCount *int
 	Profile    *domain.Profile

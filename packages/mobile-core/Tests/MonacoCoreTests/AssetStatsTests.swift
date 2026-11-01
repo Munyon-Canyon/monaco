@@ -69,6 +69,23 @@ final class AssetStatsTests: XCTestCase {
         XCTAssertNil(AssetTodayMove(priceMicros: 100_000_000, basisPoints: -10_000))
     }
 
+    func testAfterHoursMoveReadsAsItsOwnSignedLine() throws {
+        let gain = try XCTUnwrap(AssetAfterHoursMove(basisPoints: 20))
+        let loss = try XCTUnwrap(AssetAfterHoursMove(basisPoints: -50))
+
+        XCTAssertEqual(gain.line, "After hours +0.2%")
+        XCTAssertFalse(gain.isLoss)
+        XCTAssertEqual(gain.speech, "after hours up 0.2 percent")
+        XCTAssertEqual(loss.line, "After hours −0.5%")
+        XCTAssertTrue(loss.isLoss)
+        XCTAssertEqual(loss.speech, "after hours down 0.5 percent")
+    }
+
+    func testAfterHoursMoveNeedsAChange() {
+        XCTAssertNil(AssetAfterHoursMove(basisPoints: nil))
+        XCTAssertNil(AssetAfterHoursMove(basisPoints: -10_000))
+    }
+
     func testTheHeaderReadsForVoiceOver() throws {
         let move = try XCTUnwrap(AssetTodayMove(priceMicros: 220_000_000, basisPoints: 418))
 

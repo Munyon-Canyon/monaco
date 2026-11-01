@@ -9255,9 +9255,18 @@ components:
           type: [integer, "null"]
           format: int32
           description: >-
-            The move in basis points against the last US close for an equity, or against the first
-            sample of the UTC day for a pre-IPO token. Null when that reference does not exist.
+            The move in basis points against the last US close while the market is open, and against
+            the close before the last session from that session's close until the next open, so the
+            headline keeps describing the session's change after 16:00. For a pre-IPO token it is
+            against the first sample of the UTC day. Null when that reference does not exist.
           examples: [1000]
+        after_hours_change_bps:
+          type: [integer, "null"]
+          format: int32
+          description: >-
+            The move in basis points against the last session's close, present for an equity when the
+            market is not open and the close is known. Absent or null otherwise.
+          examples: [20]
         sparkline_micros:
           type: [array, "null"]
           description: The last day of closes in 30-minute buckets, at most 48. Null when unpriced.
@@ -9579,9 +9588,18 @@ components:
           type: [integer, "null"]
           format: int32
           description: >-
-            The move in basis points against the last US close for an equity, or against the first
-            sample of the UTC day for a pre-IPO token. Null when that reference does not exist.
+            The move in basis points against the last US close while the market is open, and against
+            the close before the last session from that session's close until the next open, so the
+            headline keeps describing the session's change after 16:00. For a pre-IPO token it is
+            against the first sample of the UTC day. Null when that reference does not exist.
           examples: [1000]
+        after_hours_change_bps:
+          type: [integer, "null"]
+          format: int32
+          description: >-
+            The move in basis points against the last session's close, present for an equity when the
+            market is not open and the close is known. Absent or null otherwise.
+          examples: [20]
         sparkline_micros:
           type: [array, "null"]
           description: The last day of closes in 30-minute buckets, at most 48. Null when unpriced.

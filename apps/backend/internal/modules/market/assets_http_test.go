@@ -259,14 +259,14 @@ func TestAssets_aClosedMarketKeepsItsCloseLiveAndDropsAReferenceOlderThanADay(t 
 	s := newMarketAPI(t, saturday)
 	s.seedFixtures(t)
 	s.price(t, marketfake.AAPLx().Mint.String(), -18*time.Hour-time.Minute, 220_000_000)
-	s.price(t, marketfake.TSLAx().Mint.String(), -51*time.Hour, 80_000_000)
+	s.price(t, marketfake.TSLAx().Mint.String(), -80*time.Hour, 80_000_000)
 	closed := pageOf(t, s.get(t, "/v1/assets?q=apple")).Assets
 	old := pageOf(t, s.get(t, "/v1/assets?q=tesla")).Assets
 	if len(closed) != 1 || closed[0].Stale == nil || *closed[0].Stale {
 		t.Fatalf("close sample = %+v, want live", closed)
 	}
 	if len(old) != 1 || old[0].Stale == nil || !*old[0].Stale || old[0].ChangeBps != nil {
-		t.Fatalf("Thursday sample on Saturday = %+v, want stale with no change", old)
+		t.Fatalf("Wednesday sample on Saturday = %+v, want stale with no change", old)
 	}
 }
 
