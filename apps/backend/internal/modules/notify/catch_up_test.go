@@ -978,6 +978,37 @@ func TestCatchUp_AFailingPortFailsTheRead(t *testing.T) {
 	}
 }
 
+func TestCatchUp_AFailingProposalCardReadFailsTheRead(t *testing.T) {
+	t.Parallel()
+	w := newCatchUpWorld(t)
+	result := w.proposal(w.cabal("Degens"), "Degens", "META", governanceport.StatusPassed)
+	w.row(t, "proposal_result", "proposal:"+result.ID.String(), map[string]string{"outcome": "filled"},
+		w.now.Add(-time.Minute))
+	w.gov.cardsErr = errs.New(errs.CodeDBUnavailable, "test.cards")
+
+	_, err := w.reads().Read(t.Context(), w.viewer, w.now.Add(-12*time.Hour))
+
+	if errs.CodeOf(err) != errs.CodeDBUnavailable {
+		t.Fatalf("Read error = %v, want %s", err, errs.CodeDBUnavailable)
+	}
+}
+
+func TestCatchUp_AReplyInACabalTheViewerLeftHasNoCabal(t *testing.T) {
+	t.Parallel()
+	w := newCatchUpWorld(t)
+	left := ids.CabalIDFrom(w.r.ids.NewV7())
+	reply := w.comment(w.person("Dana"), "Hi", nil, w.now.Add(-time.Minute))
+	reply.CabalID = &left
+	w.comments.previews[reply.CommentID] = reply
+	w.row(t, "comment_reply", "comment:"+reply.CommentID.String(), map[string]string{}, reply.CreatedAt)
+
+	got, err := w.reads().Read(t.Context(), w.viewer, w.now.Add(-12*time.Hour))
+
+	if err != nil || len(got.Replies) != 1 || got.Replies[0].Cabal != nil {
+		t.Fatalf("got %+v, %v, want one reply without a cabal", got.Replies, err)
+	}
+}
+
 func TestCatchUp_ACabalMissingFromTheViewsIsSkippedAndAnEmptyHoldingMapNamesNothing(t *testing.T) {
 	t.Parallel()
 	w := newCatchUpWorld(t)

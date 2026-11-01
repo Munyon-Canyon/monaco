@@ -215,10 +215,8 @@ func (s sources) rowCandidate(user ids.UserID, row sourceRow) (candidate, bool, 
 		preview, ok := s.previews[commentOf(row)]
 		c.comment = &preview
 		return c, false, ok
-	case strings.HasPrefix(row.key, domain.ItemKeyChatPrefix):
-		return c, false, s.member[row.data["cabal_id"]]
 	}
-	return c, false, true
+	return c, false, s.member[row.data["cabal_id"]]
 }
 
 func (set *catchUpSet) add(states map[string]itemState, c candidate, decided bool) {
