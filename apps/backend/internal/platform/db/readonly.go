@@ -16,6 +16,7 @@ import (
 
 const (
 	opReadOnly         = "db.ReadOnly"
+	opReadSnapshot     = "db.ReadSnapshot"
 	pgQueryCanceled    = "57014"
 	statementTimeoutIn = "statement timeout"
 )
@@ -44,4 +45,15 @@ func readOnlyRun(
 func IsStatementTimeout(err error) bool {
 	var pg *pgconn.PgError
 	return errors.As(err, &pg) && pg.Code == pgQueryCanceled && strings.Contains(pg.Message, statementTimeoutIn)
+}
+
+func ReadSnapshot(
+	ctx context.Context, pool *pgxpool.Pool, timeout time.Duration, fn func(ctx context.Context, q sqlc.DBTX) error,
+) error {
+	tx, err := pool.BeginTx(ctx, pgx.TxOptions{AccessMode: pgx.ReadOnly, IsoLevel: pgx.RepeatableRead})
+	if err != nil {
+		return classify(err, opReadSnapshot)
+	}
+	err = readOnlyRun(ctx, tx, timeout, fn)
+	return withRollback(err, rollback(ctx, tx))
 }

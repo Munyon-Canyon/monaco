@@ -154,7 +154,7 @@ const cabalPositionSnapshotsAt = `-- name: CabalPositionSnapshotsAt :many
 WITH RECURSIVE txn_usdc_paid AS (
   SELECT txn_id, -sum(amount)::numeric AS paid
   FROM cabal_txn_entries
-  WHERE account = 'treasury' AND asset = $1::text
+  WHERE account = 'treasury' AND asset = $2::text
   GROUP BY txn_id
 ), txn_positions AS (
   SELECT t.cabal_id, t.seq, e.asset, sum(e.amount)::numeric AS delta,
@@ -162,7 +162,7 @@ WITH RECURSIVE txn_usdc_paid AS (
   FROM cabal_txns AS t
   JOIN cabal_txn_entries AS e ON e.txn_id = t.id
   LEFT JOIN txn_usdc_paid AS paid ON paid.txn_id = t.id
-  WHERE t.created_at <= $2::timestamptz AND e.account = 'treasury'
+  WHERE t.created_at <= $1::timestamptz AND e.account = 'treasury'
   GROUP BY t.id, t.cabal_id, t.seq, e.asset
   HAVING sum(e.amount) <> 0
 ), ordered_positions AS (
@@ -173,7 +173,7 @@ WITH RECURSIVE txn_usdc_paid AS (
   SELECT cabal_id, asset, ordinal, delta AS units,
     CASE
       WHEN delta < 0 THEN 0::numeric
-      WHEN asset = $1::text THEN delta
+      WHEN asset = $2::text THEN delta
       ELSE greatest(paid, 0)
     END AS cost_basis_micros
   FROM ordered_positions
@@ -185,7 +185,7 @@ WITH RECURSIVE txn_usdc_paid AS (
     CASE
       WHEN next.delta < 0 THEN replayed.cost_basis_micros - div(
         replayed.cost_basis_micros * -next.delta, greatest(replayed.units, 1))
-      WHEN next.asset = $1::text THEN replayed.cost_basis_micros + next.delta
+      WHEN next.asset = $2::text THEN replayed.cost_basis_micros + next.delta
       ELSE replayed.cost_basis_micros + greatest(next.paid, 0)
     END
   FROM replayed_positions AS replayed
@@ -200,7 +200,7 @@ WITH RECURSIVE txn_usdc_paid AS (
   SELECT t.cabal_id, sum(e.amount)::text AS share_units
   FROM user_txns AS t
   JOIN user_txn_entries AS e ON e.txn_id = t.id
-  WHERE t.created_at <= $2::timestamptz AND e.account = 'holder'
+  WHERE t.created_at <= $1::timestamptz AND e.account = 'holder'
     AND e.asset = 'shares:' || t.cabal_id::text
   GROUP BY t.cabal_id
   HAVING sum(e.amount) > 0
@@ -208,7 +208,8 @@ WITH RECURSIVE txn_usdc_paid AS (
 SELECT positions.cabal_id, positions.asset, positions.units::text AS units,
   positions.cost_basis_micros::text AS cost_basis_micros, totals.share_units,
   (SELECT coalesce(sum(transit.amount_micros), 0) FROM treasury_in_transit AS transit
-   WHERE transit.cabal_id = positions.cabal_id)::text AS in_transit_micros
+   WHERE transit.cabal_id = positions.cabal_id
+     AND transit.created_at <= $1::timestamptz)::text AS in_transit_micros
 FROM latest_positions AS positions
 JOIN share_totals AS totals ON totals.cabal_id = positions.cabal_id
 WHERE positions.units > 0
@@ -216,8 +217,8 @@ ORDER BY positions.cabal_id, positions.asset
 `
 
 type CabalPositionSnapshotsAtParams struct {
-	Usdc string
 	At   time.Time
+	Usdc string
 }
 
 type CabalPositionSnapshotsAtRow struct {
@@ -230,7 +231,7 @@ type CabalPositionSnapshotsAtRow struct {
 }
 
 func (q *Queries) CabalPositionSnapshotsAt(ctx context.Context, arg CabalPositionSnapshotsAtParams) ([]CabalPositionSnapshotsAtRow, error) {
-	rows, err := q.db.Query(ctx, cabalPositionSnapshotsAt, arg.Usdc, arg.At)
+	rows, err := q.db.Query(ctx, cabalPositionSnapshotsAt, arg.At, arg.Usdc)
 	if err != nil {
 		return nil, err
 	}

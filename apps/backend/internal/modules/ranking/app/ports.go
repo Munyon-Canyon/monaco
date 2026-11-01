@@ -18,7 +18,6 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
-	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
 type (
@@ -39,10 +38,9 @@ type Market interface {
 }
 
 type Treasury interface {
-	CabalPositionsAt(context.Context, time.Time) ([]treasury.CabalPositions, error)
+	ValuationInputsAt(context.Context, time.Time) (treasury.ValuationInputs, error)
 	MemberStakesAt(context.Context, time.Time) ([]treasury.MemberStake, error)
 	MemberFlowsBetween(context.Context, time.Time, time.Time) ([]treasury.MemberFlow, error)
-	CashOutReservations(context.Context) (map[ids.CabalID]money.Micros, error)
 }
 
 type Funding interface {

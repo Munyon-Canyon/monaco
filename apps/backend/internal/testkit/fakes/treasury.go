@@ -329,6 +329,22 @@ func (f *Treasury) MemberStakesAt(_ context.Context, _ time.Time) ([]treasury.Me
 	return slices.Clone(f.memberStakesAt), nil
 }
 
+func (f *Treasury) ValuationInputsAt(ctx context.Context, at time.Time) (treasury.ValuationInputs, error) {
+	positions, err := f.CabalPositionsAt(ctx, at)
+	if err != nil {
+		return treasury.ValuationInputs{}, err
+	}
+	stakes, err := f.MemberStakesAt(ctx, at)
+	if err != nil {
+		return treasury.ValuationInputs{}, err
+	}
+	reserved, err := f.CashOutReservations(ctx)
+	if err != nil {
+		return treasury.ValuationInputs{}, err
+	}
+	return treasury.ValuationInputs{Positions: positions, Stakes: stakes, Reserved: reserved}, nil
+}
+
 func (f *Treasury) MemberFlowsBetween(_ context.Context, from, to time.Time) ([]treasury.MemberFlow, error) {
 	if err := f.Check("MemberFlowsBetween"); err != nil {
 		return nil, err

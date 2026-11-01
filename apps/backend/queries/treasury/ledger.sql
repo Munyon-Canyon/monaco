@@ -221,7 +221,8 @@ WITH RECURSIVE txn_usdc_paid AS (
 SELECT positions.cabal_id, positions.asset, positions.units::text AS units,
   positions.cost_basis_micros::text AS cost_basis_micros, totals.share_units,
   (SELECT coalesce(sum(transit.amount_micros), 0) FROM treasury_in_transit AS transit
-   WHERE transit.cabal_id = positions.cabal_id)::text AS in_transit_micros
+   WHERE transit.cabal_id = positions.cabal_id
+     AND transit.created_at <= sqlc.arg(at)::timestamptz)::text AS in_transit_micros
 FROM latest_positions AS positions
 JOIN share_totals AS totals ON totals.cabal_id = positions.cabal_id
 WHERE positions.units > 0

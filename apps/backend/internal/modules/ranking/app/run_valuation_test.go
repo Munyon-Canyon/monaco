@@ -429,7 +429,7 @@ func TestRunValuation_rejectsInvalidCashUnits(t *testing.T) {
 	}
 }
 
-func TestRunValuation_excludesUnpricedAndReturnsUnexpectedConservationErrors(t *testing.T) {
+func TestRunValuation_excludesUnpricedAndAnInconsistentCabal(t *testing.T) {
 	t.Parallel()
 	now := valuationTime()
 	stock, err := market.ParseMint("So11111111111111111111111111111111111111112")
@@ -463,8 +463,8 @@ func TestRunValuation_excludesUnpricedAndReturnsUnexpectedConservationErrors(t *
 			if name == "unpriced" && (runErr != nil || got.Excluded != 1) {
 				t.Fatalf("Run() = %#v, %v", got, runErr)
 			}
-			if name == "invalid conservation" && errs.CodeOf(runErr) != errs.CodeInvalidInput {
-				t.Fatalf("Run() = %v", runErr)
+			if name == "invalid conservation" && (runErr != nil || got.Excluded != 1) {
+				t.Fatalf("Run() = %#v, %v", got, runErr)
 			}
 		})
 	}
@@ -681,6 +681,7 @@ type countingPorts struct {
 	listingRows                                                           map[market.ListingKey]market.ListingPrice
 	listingsErr                                                           error
 	listingCalls                                                          int
+	inputsAt                                                              []time.Time
 }
 
 func (f *countingPorts) AllCabals(context.Context) ([]cabal.View, error) {
@@ -693,9 +694,19 @@ func (f *countingPorts) MembersOf(context.Context, []ids.CabalID) (map[ids.Cabal
 	return f.members, f.membersErr
 }
 
-func (f *countingPorts) CabalPositionsAt(context.Context, time.Time) ([]treasury.CabalPositions, error) {
+func (f *countingPorts) ValuationInputsAt(_ context.Context, at time.Time) (treasury.ValuationInputs, error) {
+	f.inputsAt = append(f.inputsAt, at)
 	f.positions++
-	return f.positionRows, f.positionsErr
+	if f.positionsErr != nil {
+		return treasury.ValuationInputs{}, f.positionsErr
+	}
+	f.stakes++
+	if f.stakes > f.stakesErrAfter && f.stakesErr != nil {
+		return treasury.ValuationInputs{}, f.stakesErr
+	}
+	f.reservations++
+	inputs := treasury.ValuationInputs{Positions: f.positionRows, Stakes: f.stakeRows, Reserved: f.reservedRows}
+	return inputs, f.reservedErr
 }
 
 func (f *countingPorts) ListingPrices(
@@ -763,11 +774,6 @@ func (f *countingPorts) UsersByID(context.Context, []ids.UserID) (map[ids.UserID
 	return f.userRows, f.userErr
 }
 
-func (f *countingPorts) CashOutReservations(context.Context) (map[ids.CabalID]money.Micros, error) {
-	f.reservations++
-	return f.reservedRows, f.reservedErr
-}
-
 func (f *countingPorts) PreviousEntriesForCabals(
 	context.Context,
 	sqlc.PreviousEntriesForCabalsParams,
@@ -781,5 +787,61 @@ func wantOneReadPerPort(t *testing.T, f *countingPorts) {
 	once := []int{f.all, f.memberCalls, f.positions, f.paused, f.assets, f.asOf, f.flowCalls, f.snapshotCalls}
 	if slices.ContainsFunc(once, func(n int) bool { return n != 1 }) || f.stakes != 1+len(rangedRanges()) {
 		t.Fatalf("calls = %#v", f)
+	}
+}
+
+func twoCabalPorts(t *testing.T) (*countingPorts, chain.SolanaAddress, [2]ids.CabalID) {
+	t.Helper()
+	usdc, err := chain.ParseAddress("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")
+	if err != nil {
+		t.Fatal(err)
+	}
+	f := &countingPorts{}
+	var cabalIDs [2]ids.CabalID
+	for i := range cabalIDs {
+		id := ids.CabalIDFrom(ids.Real{}.NewV7())
+		cabalIDs[i] = id
+		f.cabals = append(f.cabals, cabal.View{ID: id})
+		f.positionRows = append(f.positionRows, treasury.CabalPositions{
+			CabalID:     id,
+			Holdings:    []treasury.Position{{Mint: usdc, Units: money.NewBaseUnits(1_000_000_000, 6)}},
+			TotalShares: money.SharesUnitsFromUint64(1_000_000_000),
+		})
+		f.stakeRows = append(f.stakeRows, treasury.MemberStake{
+			CabalID: id, UserID: ids.UserIDFrom(ids.Real{}.NewV7()),
+			ShareUnits: money.SharesUnitsFromUint64(1_000_000_000),
+		})
+	}
+	return f, usdc, cabalIDs
+}
+
+func TestRunValuation_oneCabalWithMoreSharesThanTheTotalDoesNotDropTheOthers(t *testing.T) {
+	t.Parallel()
+	f, usdc, cabalIDs := twoCabalPorts(t)
+	f.stakeRows[1].ShareUnits = money.SharesUnitsFromUint64(1_500_000_000)
+	got, err := NewRunValuation(
+		Ports{Market: f, Treasury: f, Funding: f, Cabals: f, Users: f, Previous: f, Snapshots: f},
+		usdc,
+	).Run(t.Context(), valuationTime())
+	if err != nil {
+		t.Fatalf("Run() error = %v, want the inconsistent cabal skipped", err)
+	}
+	if len(got.Cabals) != 1 || got.Cabals[0].CabalID != cabalIDs[0] || got.Excluded != 1 {
+		t.Fatalf("Run() = %#v, want only the consistent cabal valued and one excluded", got)
+	}
+}
+
+func TestRunValuation_readsEveryTreasuryInputAtTheSameInstantInOneCall(t *testing.T) {
+	t.Parallel()
+	f, usdc, _ := twoCabalPorts(t)
+	at := valuationTime()
+	if _, err := NewRunValuation(
+		Ports{Market: f, Treasury: f, Funding: f, Cabals: f, Users: f, Previous: f, Snapshots: f},
+		usdc,
+	).Run(t.Context(), at); err != nil {
+		t.Fatal(err)
+	}
+	if len(f.inputsAt) != 1 || !f.inputsAt[0].Equal(at) {
+		t.Fatalf("ValuationInputsAt instants = %v, want exactly [%v]", f.inputsAt, at)
 	}
 }

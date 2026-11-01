@@ -84,8 +84,15 @@ type StakesReader interface {
 	ShareUnitsAt(ctx context.Context, cabalID ids.CabalID, user ids.UserID, t time.Time) (money.SharesUnits, error)
 }
 
+type ValuationInputs struct {
+	Positions []CabalPositions
+	Stakes    []MemberStake
+	Reserved  map[ids.CabalID]money.Micros
+}
+
 type HistoricalReader interface {
 	CabalPositionsAt(ctx context.Context, t time.Time) ([]CabalPositions, error)
+	ValuationInputsAt(ctx context.Context, t time.Time) (ValuationInputs, error)
 	MemberStakesAt(ctx context.Context, t time.Time) ([]MemberStake, error)
 	MemberFlowsBetween(ctx context.Context, from, to time.Time) ([]MemberFlow, error)
 }
