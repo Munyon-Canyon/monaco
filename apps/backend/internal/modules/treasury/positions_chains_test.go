@@ -48,3 +48,19 @@ func TestEVMPositions_readsOnlyTheEVMTokenRowsOfACabalAndSkipsCash(t *testing.T)
 		t.Fatalf("EVMPositions = %+v, want the two EVM token rows and no Solana or cash row", got)
 	}
 }
+
+func TestEVMCashPositions_sumsTheCashRowsOfACabalPerNetwork(t *testing.T) {
+	t.Parallel()
+	p := newPotCase(t)
+	p.hold(t, marketfake.TSLAx().Mint.String(), 73_000_000, 50_000_000)
+	p.hold(t, "base:"+chain.NetworkBase.Cash().Address, 7_000_000, 7_000_000)
+	p.hold(t, "robinhood:"+chain.NetworkRobinhood.Cash().Address, 3_000_000, 3_000_000)
+	p.hold(t, "base:0xb200000000000000000000000000000000000d04", 500_000_000_000_000_000, 15_000_000)
+
+	got, err := p.q.EVMCashPositions(t.Context(), p.cabal)
+
+	if err != nil || len(got) != 2 || got[chain.NetworkBase].Uint64() != 7_000_000 ||
+		got[chain.NetworkRobinhood].Uint64() != 3_000_000 {
+		t.Fatalf("EVMCashPositions = %v, %v, want the Base and Robinhood cash only", got, err)
+	}
+}

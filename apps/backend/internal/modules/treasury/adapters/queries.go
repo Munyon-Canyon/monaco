@@ -290,6 +290,27 @@ func (q *Queries) EVMPositions(ctx context.Context, cabalID ids.CabalID) ([]port
 	return held.Listings, nil
 }
 
+func (q *Queries) EVMCashPositions(ctx context.Context, cabalID ids.CabalID) (map[chain.Network]money.Micros, error) {
+	const op = "treasury.Queries.EVMCashPositions"
+	rows, err := q.q.CabalPositions(ctx, cabalID.UUID())
+	if err != nil {
+		return nil, errs.Wrap(err, errs.CodeOf(err), op)
+	}
+	held := map[chain.Network]money.Micros{}
+	for _, row := range rows {
+		place := domain.PlaceAsset(row.Asset, q.usdc)
+		if place.Place != domain.EVMCash {
+			continue
+		}
+		cash, err := micros(row.Units)
+		if err != nil {
+			return nil, errs.Wrap(err, errs.CodeOf(err), op)
+		}
+		held[place.Network] = cash
+	}
+	return held, nil
+}
+
 func (q *Queries) PotValue(ctx context.Context, cabalID ids.CabalID) (money.Micros, error) {
 	rows, err := q.transit.CabalValueRows(ctx, cabalID.UUID())
 	if err != nil {

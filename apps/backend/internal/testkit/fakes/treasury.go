@@ -305,6 +305,13 @@ func (f *Treasury) CabalPositionsAt(_ context.Context, _ time.Time) ([]treasury.
 	return cloneCabalPositions(f.cabalPositionsAt), nil
 }
 
+func (f *Treasury) EVMCashPositions(context.Context, ids.CabalID) (map[chain.Network]money.Micros, error) {
+	if err := f.Check("EVMCashPositions"); err != nil {
+		return nil, err
+	}
+	return map[chain.Network]money.Micros{}, nil
+}
+
 func (f *Treasury) EVMPositions(_ context.Context, cabalID ids.CabalID) ([]treasury.ListingPosition, error) {
 	if err := f.Check("EVMPositions"); err != nil {
 		return nil, err

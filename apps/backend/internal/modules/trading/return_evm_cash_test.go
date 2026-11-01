@@ -2,6 +2,7 @@ package trading_test
 
 import (
 	"context"
+	"slices"
 	"strconv"
 	"testing"
 
@@ -11,6 +12,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/app"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
@@ -33,8 +35,22 @@ func (c *cashFake) Balance(_ context.Context, network chain.Network, owner chain
 	return c.balance, c.err
 }
 
+type writeOffsFake struct {
+	offs []app.EVMCashWriteOff
+	err  error
+}
+
+func (w *writeOffsFake) WriteOff(_ context.Context, _ db.Tx, off app.EVMCashWriteOff) error {
+	w.offs = append(w.offs, off)
+	return w.err
+}
+
 func (e *routeEnv) returner(cash app.EVMCash) *app.ReturnEVMCashHandler {
-	return app.NewReturnEVMCashHandler(e.uow, e.pool, e.clk, e.ids, e.treasury, cash)
+	return e.returnerWith(cash, &writeOffsFake{})
+}
+
+func (e *routeEnv) returnerWith(cash app.EVMCash, offs app.EVMCashWriteOffs) *app.ReturnEVMCashHandler {
+	return app.NewReturnEVMCashHandler(e.uow, e.pool, e.clk, e.ids, e.treasury, cash, offs)
 }
 
 func (e *routeEnv) returnCash(t *testing.T, cash app.EVMCash, swap uuid.UUID) (app.EVMCashReturn, error) {
@@ -349,5 +365,74 @@ func TestReturnEVMCash_aBridgeOutWithoutAnObservedArrivalLandsTheSwapStepsAmount
 	e.mustExec(t, `DELETE FROM trade_steps WHERE trade_id = $1 AND step = 'bridge_back'`, swap)
 	if got, err = e.returnCash(t, &cashFake{balance: short}, swap); err != nil || got.Amount != short {
 		t.Fatalf("return = %+v, %v, want the amount capped at the 900000 on chain", got, err)
+	}
+}
+
+func TestReturnEVMCash_aFullyCoveredReturnWritesNothingOff(t *testing.T) {
+	t.Parallel()
+	e := newRouteEnv(t)
+	_, swap := e.strand(t)
+	offs := &writeOffsFake{}
+
+	got, err := e.returnerWith(&cashFake{balance: landedCash()}, offs).Handle(actorContext(t.Context()),
+		app.ReturnEVMCash{SwapID: ids.SwapIDFrom(swap), Actor: "operator:alice", Reason: "stranded"})
+
+	if err != nil || !got.Uncovered.IsZero() || len(offs.offs) != 0 {
+		t.Fatalf("return = %+v, %v with write-offs %+v, want no uncovered cash and no write-off", got, err, offs.offs)
+	}
+}
+
+func TestReturnEVMCash_theCashTheWalletLacksIsWrittenOffWithTheReturn(t *testing.T) {
+	t.Parallel()
+	e := newRouteEnv(t)
+	_, swap := e.strand(t)
+	held := money.MicrosFromUint64(landedMicros - 3_000_000)
+	offs := &writeOffsFake{}
+
+	got, err := e.returnerWith(&cashFake{balance: held}, offs).Handle(actorContext(t.Context()),
+		app.ReturnEVMCash{SwapID: ids.SwapIDFrom(swap), Actor: "operator:alice", Reason: "stranded"})
+
+	want := []app.EVMCashWriteOff{
+		{
+			SwapID: ids.SwapIDFrom(
+				swap,
+			),
+			CabalID: e.cabal,
+			Network: chain.NetworkBase,
+			Amount:  money.MicrosFromUint64(3_000_000),
+		},
+	}
+	if err != nil || got.Amount != held || got.Uncovered != want[0].Amount || !slices.Equal(offs.offs, want) {
+		t.Fatalf("return = %+v, %v with write-offs %+v, want the 3 USDC gap written off once", got, err, offs.offs)
+	}
+	if status, amount := e.returnStepAmount(t, swap); status != "pending" || amount != held.String() {
+		t.Fatalf("bridge_back %s %s, want pending for what the wallet holds", status, amount)
+	}
+	var detail string
+	if err := e.pool.QueryRow(t.Context(), `SELECT detail->>'uncovered_micros' FROM swap_operator_actions
+		WHERE swap_id = $1 AND action = 'return_evm_cash'`, swap).Scan(&detail); err != nil || detail != "3000000" {
+		t.Fatalf("operator action uncovered %q, %v, want 3000000", detail, err)
+	}
+}
+
+func TestReturnEVMCash_aWriteOffThatFailsQueuesNothing(t *testing.T) {
+	t.Parallel()
+	e := newRouteEnv(t)
+	_, swap := e.strand(t)
+	offs := &writeOffsFake{err: errs.New(errs.CodeInsufficientFunds, "test.writeoff")}
+
+	_, err := e.returnerWith(&cashFake{balance: money.MicrosFromUint64(landedMicros - 1)}, offs).
+		Handle(actorContext(t.Context()),
+			app.ReturnEVMCash{SwapID: ids.SwapIDFrom(swap), Actor: "operator:alice", Reason: "stranded"})
+
+	if errs.CodeOf(err) != errs.CodeInsufficientFunds {
+		t.Fatalf("return err = %v, want the write-off failure", err)
+	}
+	if status, _ := e.returnStepAmount(t, swap); status != "" || e.returnActions(t, swap) != 0 {
+		t.Fatalf(
+			"bridge_back %q and %d operator actions after the failure, want neither",
+			status,
+			e.returnActions(t, swap),
+		)
 	}
 }

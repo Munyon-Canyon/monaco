@@ -21,6 +21,7 @@ func init() {
 		TradingBridgeBackRetried,
 		TradingBridgeBackFailed,
 		TradingEVMCashReturnQueued,
+		TradingEVMCashUncovered,
 		TradingRoutedSwapResolved,
 		TradingEVMArrivalsChunk,
 		TradingBridgeOutcomeUnknown,

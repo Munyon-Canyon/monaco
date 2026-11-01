@@ -27,6 +27,9 @@ type cashOutLots struct {
 	sale  app.EVMSale
 	err   error
 	asked []string
+
+	cash    map[chain.Network]money.Micros
+	cashErr error
 }
 
 func (c *cashOutLots) SolanaPositions(context.Context, ids.CabalID) ([]treasuryport.Position, error) {
@@ -42,6 +45,10 @@ func (c *cashOutLots) EVMPositions(context.Context, ids.CabalID) ([]treasuryport
 		{Key: c.token, Units: big.NewInt(soldUnits)},
 		{Key: "base:0x00000000000000000000000000000000000000dd", Units: big.NewInt(0)},
 	}, nil
+}
+
+func (c *cashOutLots) EVMCashPositions(context.Context, ids.CabalID) (map[chain.Network]money.Micros, error) {
+	return c.cash, c.cashErr
 }
 
 func (c *cashOutLots) Sale(_ context.Context, asset string, _ uint64) (app.EVMSale, error) {
@@ -241,6 +248,10 @@ func TestLedgerHoldings_refusesAListingPositionItCannotRead(t *testing.T) {
 	if _, err := (app.UnwiredPositions{}).EVMPositions(t.Context(), ids.CabalID{}); errs.CodeOf(err) !=
 		errs.CodeUpstreamUnavailable {
 		t.Fatalf("EVMPositions err = %v, want upstream_unavailable", err)
+	}
+	if _, err := (app.UnwiredPositions{}).EVMCashPositions(t.Context(), ids.CabalID{}); errs.CodeOf(err) !=
+		errs.CodeUpstreamUnavailable {
+		t.Fatalf("EVMCashPositions err = %v, want upstream_unavailable", err)
 	}
 	if _, err := (app.UnwiredPositions{}).CashOutReservations(t.Context()); errs.CodeOf(err) !=
 		errs.CodeUpstreamUnavailable {

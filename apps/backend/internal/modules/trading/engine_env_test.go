@@ -85,6 +85,10 @@ func (cashLedger) EVMPositions(context.Context, ids.CabalID) ([]treasuryport.Lis
 	return nil, nil
 }
 
+func (cashLedger) EVMCashPositions(context.Context, ids.CabalID) (map[platform.Network]money.Micros, error) {
+	return map[platform.Network]money.Micros{}, nil
+}
+
 func (c cashLedger) CashOutReservations(context.Context) (map[ids.CabalID]money.Micros, error) {
 	if c.failing == "CashOutReservations" {
 		return nil, errs.New(errs.CodeDBUnavailable, "test")

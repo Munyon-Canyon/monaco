@@ -644,6 +644,22 @@ func TestEVMPositionsReadFailures(t *testing.T) {
 	}
 }
 
+func TestEVMCashPositionsReadFailures(t *testing.T) {
+	t.Parallel()
+	prices := app.PriceReader(func(context.Context, []uuid.UUID, time.Time) (map[uuid.UUID]app.Price, error) {
+		return map[uuid.UUID]app.Price{}, nil
+	})
+	failing := stakeStore{positionsErr: errs.New(errs.CodeDBUnavailable, "test")}
+	if _, err := newTestQueries(failing, prices).EVMCashPositions(t.Context(), ids.CabalID{}); err == nil {
+		t.Fatal("EVMCashPositions query error = nil")
+	}
+	cash := "base:" + chain.NetworkBase.Cash().Address
+	bad := stakeStore{positions: []sqlc.CabalPositionsRow{{Asset: cash, Units: "bad", CostBasisMicros: "0"}}}
+	if _, err := newTestQueries(bad, prices).EVMCashPositions(t.Context(), ids.CabalID{}); err == nil {
+		t.Fatal("EVMCashPositions bad units error = nil")
+	}
+}
+
 func TestQueries_SwapPostedPassesTheAnswerAndWrapsFailures(t *testing.T) {
 	t.Parallel()
 	posted, err := newTestQueries(stakeStore{posted: true}, nil).SwapPosted(t.Context(), uuid.Nil)

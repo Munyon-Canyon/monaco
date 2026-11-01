@@ -27,7 +27,7 @@ const (
 	evmArrivalsOp        = "trading.EVMArrivals.Inbound"
 	arrivalLookback      = 2 * time.Minute
 	arrivalChunksPerTick = 30
-	arrivalSettleBlocks  = 2
+	arrivalDefaultDepth  = 32
 	arrivalPace          = 250 * time.Millisecond
 	arrivalBackoffFirst  = 15 * time.Second
 	arrivalBackoffCap    = 60 * time.Second
@@ -35,6 +35,18 @@ const (
 )
 
 var _ app.EVMArrivals = (*EVMArrivals)(nil)
+
+func safeDepth(network chain.Network) int64 {
+	depths := map[chain.Network]int64{
+		chain.NetworkBase:      30,
+		chain.NetworkRobinhood: 240,
+		chain.NetworkArbitrum:  240,
+	}
+	if depth, ok := depths[network]; ok {
+		return depth
+	}
+	return arrivalDefaultDepth
+}
 
 type EVMArrivals struct {
 	rpc       map[chain.Network]*httpclient.Client
@@ -155,7 +167,7 @@ func (a *EVMArrivals) inbound(
 	if err != nil {
 		return app.EVMArrival{}, false, err
 	}
-	got, found, cur, err := s.scan(ctx, cur, int64(head)-arrivalSettleBlocks)
+	got, found, cur, err := s.scan(ctx, cur, int64(head)-safeDepth(s.network))
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if found {

@@ -141,13 +141,37 @@ func (h *ExecuteTradeHandler) claimed(ctx context.Context, d bus.Delivery, cmd E
 	}
 	latest, found, err := NewQueries(h.d.Reads).LatestBySource(ctx, cmd.source())
 	superseded := cmd.Retry != nil && latest.ID != cmd.Retry.Of
-	if err != nil || !found || latest.Status == domain.StatusFailed && !superseded {
+	if err != nil || !found {
 		return false, err
+	}
+	if latest.Status == domain.StatusFailed && !superseded {
+		if cmd.Retry != nil {
+			return false, nil
+		}
+		bridged, err := h.bridged(ctx, latest.ID)
+		if err != nil || !bridged {
+			return false, err
+		}
+		return true, h.d.UoW.Do(ctx, func(ctx context.Context, tx db.Tx) error {
+			_, err := d.RecordAs(ctx, tx, string(failedOutcome(latest.FailureCode)))
+			return err
+		})
 	}
 	return true, h.d.UoW.Do(ctx, func(ctx context.Context, tx db.Tx) error {
 		_, err := d.Record(ctx, tx)
 		return err
 	})
+}
+
+func (h *ExecuteTradeHandler) bridged(ctx context.Context, swap ids.SwapID) (bool, error) {
+	_, err := readStep(ctx, sqlc.New(h.d.Reads), swap, domain.StepBridgeOut)
+	switch {
+	case err == nil:
+		return true, nil
+	case errs.CodeOf(err) == errs.CodeNotFound:
+		return false, nil
+	}
+	return false, errs.Wrap(err, errs.CodeInternal, "trading.ExecuteTrade.bridged")
 }
 
 type tradeCheck func(context.Context, ExecuteTrade, *SwapRequest) (refusal, error)
@@ -188,11 +212,11 @@ func (h *ExecuteTradeHandler) prepare(
 	case err != nil:
 		return SwapRequest{}, multichain.Listing{}, refusal{}, err
 	}
-	req, refused, err := h.tradable(ctx, cmd, winner)
+	req, asset, refused, err := h.tradable(ctx, cmd, winner)
 	if refused.refused() || err != nil {
 		return SwapRequest{}, multichain.Listing{}, refused, err
 	}
-	for _, next := range h.checks(cmd, winner, &req) {
+	for _, next := range h.checks(cmd, winner, asset.ID, &req) {
 		if refused, err := next(ctx, cmd, &req); refused.refused() || err != nil {
 			return SwapRequest{}, multichain.Listing{}, refused, err
 		}
@@ -204,14 +228,23 @@ func pinRefused(code errs.Code) bool {
 	return code == errs.CodePinnedChainUnavailable || code == errs.CodeChainTradingOff
 }
 
-func (h *ExecuteTradeHandler) checks(cmd ExecuteTrade, winner multichain.Listing, req *SwapRequest) []tradeCheck {
+func (h *ExecuteTradeHandler) checks(
+	cmd ExecuteTrade, winner multichain.Listing, asset market.AssetID, req *SwapRequest,
+) []tradeCheck {
 	token := chain.Mint{Address: chain.SolanaAddress(winner.TokenAddress), Decimals: winner.Decimals}
 	switch {
 	case winner.Network.IsEVM() && cmd.Action == domain.ActionSell:
 		held := h.held(evmAsset(winner.Network, winner.TokenAddress))
 		return []tradeCheck{settles(winner), held, h.slippage, h.paused}
 	case winner.Network.IsEVM():
-		return []tradeCheck{settles(winner), h.routedFunds, h.tradeCap, h.slippage, h.paused}
+		return []tradeCheck{
+			settles(winner),
+			h.marketOpen(winner, asset),
+			h.routedFunds,
+			h.tradeCap,
+			h.slippage,
+			h.paused,
+		}
 	case winner.Network == chain.NetworkSolana && cmd.Action == domain.ActionSell:
 		req.InMint = token
 	case winner.Network == chain.NetworkSolana:
@@ -222,24 +255,24 @@ func (h *ExecuteTradeHandler) checks(cmd ExecuteTrade, winner multichain.Listing
 
 func (h *ExecuteTradeHandler) tradable(
 	ctx context.Context, cmd ExecuteTrade, winner multichain.Listing,
-) (SwapRequest, refusal, error) {
+) (SwapRequest, market.Asset, refusal, error) {
 	untradable := refusal{code: errs.CodeAssetUntradable}
 	asset, err := h.d.Ports.Catalog.AssetBySymbol(ctx, cmd.Symbol)
 	routedRetry := winner.Network.IsEVM() &&
 		string(cmd.Mint) == evmAsset(winner.Network, winner.TokenAddress)
 	switch {
 	case errs.CodeOf(err) == errs.CodeAssetNotFound:
-		return SwapRequest{}, untradable, nil
+		return SwapRequest{}, market.Asset{}, untradable, nil
 	case err != nil:
-		return SwapRequest{}, refusal{}, err
+		return SwapRequest{}, market.Asset{}, refusal{}, err
 	case !asset.Tradable() || asset.Mint.Address() != cmd.Mint && !routedRetry:
-		return SwapRequest{}, untradable, nil
+		return SwapRequest{}, market.Asset{}, untradable, nil
 	}
 	wallet, err := h.d.Ports.Cabals.TreasuryWallet(ctx, cmd.CabalID)
 	if err != nil {
-		return SwapRequest{}, refusal{}, err
+		return SwapRequest{}, market.Asset{}, refusal{}, err
 	}
-	return h.request(cmd, asset, wallet), refusal{}, nil
+	return h.request(cmd, asset, wallet), asset, refusal{}, nil
 }
 
 func settles(winner multichain.Listing) tradeCheck {
@@ -253,6 +286,19 @@ func settles(winner multichain.Listing) tradeCheck {
 			return refusal{code: errs.CodeTradeTooLarge}, nil
 		}
 		return refusal{}, nil
+	}
+}
+
+func (h *ExecuteTradeHandler) marketOpen(winner multichain.Listing, asset market.AssetID) tradeCheck {
+	return func(ctx context.Context, _ ExecuteTrade, _ *SwapRequest) (refusal, error) {
+		if winner.Network != chain.NetworkRobinhood || h.d.Ports.Calendar == nil {
+			return refusal{}, nil
+		}
+		session, err := h.d.Ports.Calendar.Session(ctx, asset, h.d.Layer.d.Clock.Now())
+		if err != nil || session.State != market.SessionClosed {
+			return refusal{}, err
+		}
+		return refusal{code: errs.CodeAssetPaused}, nil
 	}
 }
 

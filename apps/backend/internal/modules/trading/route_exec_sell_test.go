@@ -49,6 +49,10 @@ func (h *heldFake) EVMPositions(context.Context, ids.CabalID) ([]treasury.Listin
 	return listings, nil
 }
 
+func (h *heldFake) EVMCashPositions(context.Context, ids.CabalID) (map[chain.Network]money.Micros, error) {
+	return map[chain.Network]money.Micros{}, nil
+}
+
 func (e *routeEnv) selling() app.SwapRequest {
 	e.evm.plan.OutAmount, e.evm.plan.MinOut = quotedSale, saleMinOut
 	e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: proceeds}}

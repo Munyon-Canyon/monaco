@@ -19,6 +19,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/domain"
 	treasuryport "github.com/monaco/monaco/apps/backend/internal/modules/treasury/port"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
@@ -42,6 +43,10 @@ func (p ledgerPositions) SolanaPositions(context.Context, ids.CabalID) ([]treasu
 
 func (ledgerPositions) EVMPositions(context.Context, ids.CabalID) ([]treasuryport.ListingPosition, error) {
 	return nil, nil
+}
+
+func (ledgerPositions) EVMCashPositions(context.Context, ids.CabalID) (map[chain.Network]money.Micros, error) {
+	return map[chain.Network]money.Micros{}, nil
 }
 
 type cashOutBus struct {

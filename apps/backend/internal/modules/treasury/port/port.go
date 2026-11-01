@@ -72,6 +72,7 @@ type StakePoint struct {
 type PositionsReader interface {
 	SolanaPositions(ctx context.Context, cabalID ids.CabalID) ([]Position, error)
 	EVMPositions(ctx context.Context, cabalID ids.CabalID) ([]ListingPosition, error)
+	EVMCashPositions(ctx context.Context, cabalID ids.CabalID) (map[chain.Network]money.Micros, error)
 	PotValue(ctx context.Context, cabalID ids.CabalID) (money.Micros, error)
 	TotalShares(ctx context.Context, cabalID ids.CabalID) (money.SharesUnits, error)
 }

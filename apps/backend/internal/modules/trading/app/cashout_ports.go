@@ -19,6 +19,7 @@ import (
 type Positions interface {
 	SolanaPositions(ctx context.Context, cabal ids.CabalID) ([]treasuryport.Position, error)
 	EVMPositions(ctx context.Context, cabal ids.CabalID) ([]treasuryport.ListingPosition, error)
+	EVMCashPositions(ctx context.Context, cabal ids.CabalID) (map[chain.Network]money.Micros, error)
 	CashOutReservations(ctx context.Context) (map[ids.CabalID]money.Micros, error)
 }
 
@@ -44,10 +45,45 @@ func isEVMAsset(asset string) bool {
 	return found && chain.Network(network).IsEVM()
 }
 
+func evmCashNetwork(asset string) (chain.Network, bool) {
+	network, address, found := strings.Cut(asset, ":")
+	n := chain.Network(network)
+	return n, found && n.IsEVM() && strings.EqualFold(address, n.Cash().Address)
+}
+
 type LedgerHoldings struct {
 	Ledger  Positions
 	Catalog Catalog
 	USDC    chain.Mint
+}
+
+func (h LedgerHoldings) evmHeld(ctx context.Context, cabal ids.CabalID) ([]Holding, error) {
+	evm, err := evmListings(ctx, h.Ledger, cabal)
+	if err != nil {
+		return nil, err
+	}
+	cash, err := h.Ledger.EVMCashPositions(ctx, cabal)
+	if err != nil {
+		return nil, err
+	}
+	held := make([]Holding, 0, len(evm)+len(cash))
+	for _, asset := range slices.Sorted(maps.Keys(evm)) {
+		held = append(held, Holding{Mint: chain.Mint{Address: chain.SolanaAddress(asset)}, Units: evm[asset]})
+	}
+	for _, network := range slices.Sorted(maps.Keys(cash)) {
+		if cash[network].IsZero() || !network.IsEVM() {
+			continue
+		}
+		held = append(held, Holding{
+			Mint: chain.Mint{
+				Address:  chain.SolanaAddress(evmAsset(network, network.Cash().Address)),
+				Decimals: network.Cash().Decimals,
+			},
+			Symbol: network.Cash().Symbol,
+			Units:  cash[network].Uint64(),
+		})
+	}
+	return held, nil
 }
 
 func (h LedgerHoldings) Positions(ctx context.Context, cabal ids.CabalID) ([]Holding, error) {
@@ -55,13 +91,9 @@ func (h LedgerHoldings) Positions(ctx context.Context, cabal ids.CabalID) ([]Hol
 	if err != nil {
 		return nil, err
 	}
-	evm, err := evmListings(ctx, h.Ledger, cabal)
+	held, err := h.evmHeld(ctx, cabal)
 	if err != nil {
 		return nil, err
-	}
-	held := make([]Holding, 0, len(positions)+len(evm))
-	for _, asset := range slices.Sorted(maps.Keys(evm)) {
-		held = append(held, Holding{Mint: chain.Mint{Address: chain.SolanaAddress(asset)}, Units: evm[asset]})
 	}
 	for _, p := range positions {
 		if p.Mint == h.USDC.Address || p.Units.IsZero() || isEVMAsset(string(p.Mint)) {

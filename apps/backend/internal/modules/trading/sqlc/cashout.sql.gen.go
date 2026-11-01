@@ -12,6 +12,28 @@ import (
 	"github.com/google/uuid"
 )
 
+const cashCarrierListing = `-- name: CashCarrierListing :one
+SELECT r.winner_listing_id
+FROM trade_steps AS t
+JOIN swaps AS s ON s.id = t.trade_id
+JOIN trade_routes AS r ON r.trade_id = s.id
+WHERE s.cabal_id = $1 AND t.step = 'bridge_out' AND t.network = $2::text
+ORDER BY t.created_at DESC, t.id DESC
+LIMIT 1
+`
+
+type CashCarrierListingParams struct {
+	CabalID uuid.UUID
+	Network string
+}
+
+func (q *Queries) CashCarrierListing(ctx context.Context, arg CashCarrierListingParams) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, cashCarrierListing, arg.CabalID, arg.Network)
+	var winner_listing_id uuid.UUID
+	err := row.Scan(&winner_listing_id)
+	return winner_listing_id, err
+}
+
 const cashoutSellPlan = `-- name: CashoutSellPlan :one
 SELECT legs::text FROM cashout_sell_plans WHERE job_id = $1
 `

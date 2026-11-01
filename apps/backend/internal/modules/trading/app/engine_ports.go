@@ -45,4 +45,5 @@ type EnginePorts struct {
 	Proposals Proposals
 	Balances  Balances
 	Positions Positions
+	Calendar  market.Calendar
 }

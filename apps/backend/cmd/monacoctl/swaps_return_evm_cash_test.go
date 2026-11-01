@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	tradingapp "github.com/monaco/monaco/apps/backend/internal/modules/trading/app"
+	treasuryapp "github.com/monaco/monaco/apps/backend/internal/modules/treasury/app"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
@@ -39,9 +40,20 @@ func (c *cashBalance) Balance(context.Context, chain.Network, chain.EVMAddress) 
 	return money.MicrosFromUint64(got), nil
 }
 
+type cashWriteOffsFake struct{ offs *[]tradingapp.EVMCashWriteOff }
+
+func (w cashWriteOffsFake) WriteOff(_ context.Context, _ db.Tx, off tradingapp.EVMCashWriteOff) error {
+	*w.offs = append(*w.offs, off)
+	return nil
+}
+
 func fakeCashPorts(cash tradingapp.EVMCash) cashPorts {
 	return func(config.Config, *pgxpool.Pool, *db.UnitOfWork, clock.Clock) cashAdapters {
-		return cashAdapters{Wallets: cashWallets{}, Cash: cash}
+		return cashAdapters{
+			Wallets:   cashWallets{},
+			Cash:      cash,
+			WriteOffs: cashWriteOffsFake{offs: &[]tradingapp.EVMCashWriteOff{}},
+		}
 	}
 }
 
@@ -100,7 +112,7 @@ func TestSwapsReturnEVMCash_queuesTheReturnPrintsThePlanAndRecordsTheOperator(t 
 	wantContains(t, "stderr", stderr, "[y/N]")
 	wantContains(t, "stdout", out,
 		"plan swap="+swap.String()+" requested="+swap.String(),
-		"network=base landed_micros=24992500 on_chain_micros=24000000 amount_micros=24000000",
+		"network=base landed_micros=24992500 on_chain_micros=24000000 amount_micros=24000000 uncovered_micros=992500",
 		"queued swap="+swap.String(), "status=pending",
 	)
 	var step, action string
@@ -208,5 +220,29 @@ func TestSwapsReturnEVMCash_reportsAReturnThatFailsAfterTheConfirmation(t *testi
 
 	if code != 1 || !strings.Contains(stderr, "insufficient_funds") {
 		t.Fatalf("return-evm-cash = %d, stderr %q, want insufficient_funds once the wallet is empty", code, stderr)
+	}
+}
+
+func TestCashWriteOffs_postThroughTheTreasuryLedgerAndRefuseAnOverdraw(t *testing.T) {
+	t.Parallel()
+	_, pool, identifiers, now := returnCashTool(t, "")
+	swap := seededStrandedBuy(t, pool, identifiers, now)
+	var cabal uuid.UUID
+	if err := pool.QueryRow(t.Context(), `SELECT cabal_id FROM swaps WHERE id = $1`, swap).Scan(&cabal); err != nil {
+		t.Fatal(err)
+	}
+	clk := testkit.NewClock(now)
+	uow := db.New(pool, ids.Real{}, clk)
+	writeOffs := cashWriteOffs{ledger: treasuryapp.NewLedger(soldUSDC, clk)}
+
+	err := uow.Do(t.Context(), func(ctx context.Context, tx db.Tx) error {
+		return writeOffs.WriteOff(ctx, tx, tradingapp.EVMCashWriteOff{
+			SwapID: ids.SwapIDFrom(swap), CabalID: ids.CabalIDFrom(cabal), Network: chain.NetworkBase,
+			Amount: money.MicrosFromUint64(1),
+		})
+	})
+
+	if err == nil {
+		t.Fatal("WriteOff err = nil, want a cabal with no EVM cash to refuse the write-off")
 	}
 }

@@ -39,6 +39,18 @@ type EVMCashReturn struct {
 	Landed    money.Micros
 	OnChain   money.Micros
 	Amount    money.Micros
+	Uncovered money.Micros
+}
+
+type EVMCashWriteOff struct {
+	SwapID  ids.SwapID
+	CabalID ids.CabalID
+	Network chain.Network
+	Amount  money.Micros
+}
+
+type EVMCashWriteOffs interface {
+	WriteOff(ctx context.Context, tx db.Tx, w EVMCashWriteOff) error
 }
 
 type ReturnEVMCashHandler struct {
@@ -48,12 +60,14 @@ type ReturnEVMCashHandler struct {
 	ids     ids.Generator
 	wallets TreasuryEVM
 	cash    EVMCash
+	offs    EVMCashWriteOffs
 }
 
 func NewReturnEVMCashHandler(
 	uow *db.UnitOfWork, reads sqlc.DBTX, c clock.Clock, g ids.Generator, wallets TreasuryEVM, cash EVMCash,
+	offs EVMCashWriteOffs,
 ) *ReturnEVMCashHandler {
-	return &ReturnEVMCashHandler{uow: uow, reads: reads, clock: c, ids: g, wallets: wallets, cash: cash}
+	return &ReturnEVMCashHandler{uow: uow, reads: reads, clock: c, ids: g, wallets: wallets, cash: cash, offs: offs}
 }
 
 func (h *ReturnEVMCashHandler) Plan(ctx context.Context, swap ids.SwapID) (EVMCashReturn, error) {
@@ -77,10 +91,13 @@ func (h *ReturnEVMCashHandler) Plan(ctx context.Context, swap ids.SwapID) (EVMCa
 	if err == nil {
 		plan.OnChain, err = h.cash.Balance(ctx, plan.Network, wallet.Address)
 	}
+	if err == nil {
+		plan.Amount = atMost(plan.Landed, plan.OnChain)
+		plan.Uncovered, err = plan.Landed.Sub(plan.Amount)
+	}
 	if err != nil {
 		return EVMCashReturn{}, err
 	}
-	plan.Amount = atMost(plan.Landed, plan.OnChain)
 	if plan.Amount.IsZero() {
 		return EVMCashReturn{}, refuse(errs.CodeInsufficientFunds, row, "evm_balance_zero")
 	}
@@ -106,7 +123,8 @@ func (h *ReturnEVMCashHandler) Handle(ctx context.Context, cmd ReturnEVMCash) (E
 		slog.String("swap_id", plan.Holder.String()), slog.String("requested_swap_id", plan.Requested.String()),
 		slog.String("cabal_id", plan.CabalID.String()), slog.String("network", string(plan.Network)),
 		slog.String("landed_micros", plan.Landed.String()), slog.String("on_chain_micros", plan.OnChain.String()),
-		slog.String("amount_micros", plan.Amount.String()), slog.String("actor", cmd.Actor),
+		slog.String("amount_micros", plan.Amount.String()), slog.String("uncovered_micros", plan.Uncovered.String()),
+		slog.String("actor", cmd.Actor),
 		slog.String("reason", cmd.Reason))
 	return plan, nil
 }
@@ -135,6 +153,19 @@ func (h *ReturnEVMCashHandler) queue(ctx context.Context, tx db.Tx, cmd ReturnEV
 	if err == nil {
 		err = h.record(ctx, q, cmd, plan, h.clock.Now())
 	}
+	if err == nil && !plan.Uncovered.IsZero() {
+		err = h.offs.WriteOff(ctx, tx, EVMCashWriteOff{
+			SwapID: plan.Holder, CabalID: plan.CabalID, Network: plan.Network, Amount: plan.Uncovered,
+		})
+		tx.AfterCommit(func(ctx context.Context) {
+			observability.Alert(ctx, observability.TradingEVMCashUncovered,
+				slog.String("swap_id", plan.Holder.String()), slog.String("cabal_id", plan.CabalID.String()),
+				slog.String("network", string(plan.Network)), slog.String("landed_micros", plan.Landed.String()),
+				slog.String("on_chain_micros", plan.OnChain.String()),
+				slog.String("uncovered_micros", plan.Uncovered.String()), slog.String("actor", cmd.Actor),
+				slog.String("reason", cmd.Reason))
+		})
+	}
 	return err
 }
 
@@ -147,7 +178,11 @@ func (h *ReturnEVMCashHandler) record(
 		Landed    string `json:"landed_micros"`
 		OnChain   string `json:"on_chain_micros"`
 		Amount    string `json:"amount_micros"`
-	}{plan.Requested.String(), string(plan.Network), plan.Landed.String(), plan.OnChain.String(), plan.Amount.String()})
+		Uncovered string `json:"uncovered_micros"`
+	}{
+		plan.Requested.String(), string(plan.Network), plan.Landed.String(), plan.OnChain.String(),
+		plan.Amount.String(), plan.Uncovered.String(),
+	})
 	return errors.Join(err, q.InsertSwapOperatorAction(ctx, sqlc.InsertSwapOperatorActionParams{
 		ID: h.ids.NewV7(), SwapID: plan.Holder.UUID(), Action: actionReturnEVMCash, Actor: cmd.Actor,
 		Reason: cmd.Reason, Detail: detail, CreatedAt: at,
