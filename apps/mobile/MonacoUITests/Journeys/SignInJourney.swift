@@ -2,7 +2,7 @@ import XCTest
 
 enum SignInJourney {
     static let id = "auth/sign-in"
-    static let version = 9
+    static let version = 10
 
     private static let launchTimeout: TimeInterval = 30
     private static let codeSentTimeout: TimeInterval = 20
@@ -167,19 +167,7 @@ enum SignInJourney {
         app.dismissPushPrePromptIfShown()
 
         recorder.step("S3.1", "open Settings") {
-            app.waitForToastGone()
-            app.dismissPushPrePromptIfShown()
-            app.popToRoot()
-            app.dismissKeyboard()
-            app.tab("Profile").tap()
-            if !app.element("profile-card").waitForExistence(timeout: 5) {
-                app.tab("Profile").tap()
-            }
-            let settings = app.element("profile-settings-row")
-            app.scrollIntoReach(settings, maxSwipes: 30)
-            XCTAssertTrue(settings.waitForExistence(timeout: 15), "S3.1: no Settings row on Profile")
-            settings.tap()
-            XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 10), "S3.1: Settings did not open")
+            openSettings(app, step: "S3.1")
             app.scrollIntoReach(signOut)
             XCTAssertTrue(signOut.waitForExistence(timeout: 15), "S3.1: no Sign out row in Settings")
         }
@@ -201,6 +189,49 @@ enum SignInJourney {
             XCTAssertEqual(currentScreen(app), .login, "S3.3: the login form did not come back after sign-out")
             XCTAssertFalse(app.tab("Home").exists, "S3.3: the tab bar is still on screen after sign-out")
         }
+    }
+
+    static func signOutEverywhere(_ app: XCUIApplication, recorder: JourneyRecorder) {
+        let row = app.buttons["settings-sign-out-everywhere"]
+        let confirm = app.buttons["profile-sign-out-everywhere-confirm"].firstMatch
+
+        recorder.step("S3.5", "ask to sign out of all devices") {
+            app.dismissPushPrePromptIfShown()
+            openSettings(app, step: "S3.5")
+            app.scrollIntoReach(row)
+            XCTAssertTrue(row.waitForExistence(timeout: 15), "S3.5: no 'Sign out of all devices' row in Settings")
+            row.tap()
+            XCTAssertTrue(confirm.waitForExistence(timeout: 5), "S3.5: the row did not ask to confirm")
+            XCTAssertTrue(
+                app.staticTexts["Sign out of all devices?"].exists,
+                "S3.5: the confirm does not read 'Sign out of all devices?'")
+        }
+
+        recorder.step("S3.6", "confirm and land on the login form") {
+            confirm.tap()
+            XCTAssertTrue(
+                app.tab("Home").waitForNonExistence(timeout: signedInTimeout),
+                "S3.6: the tab bar remained on screen within \(Int(signedInTimeout)) s after signing out of all devices"
+            )
+            XCTAssertEqual(currentScreen(app), .login, "S3.6: the login form did not come back")
+            XCTAssertFalse(app.tab("Home").exists, "S3.6: the tab bar is still on screen")
+        }
+    }
+
+    private static func openSettings(_ app: XCUIApplication, step: String) {
+        app.waitForToastGone()
+        app.dismissPushPrePromptIfShown()
+        app.popToRoot()
+        app.dismissKeyboard()
+        app.tab("Profile").tap()
+        if !app.element("profile-card").waitForExistence(timeout: 5) {
+            app.tab("Profile").tap()
+        }
+        let settings = app.element("profile-settings-row")
+        app.scrollIntoReach(settings, maxSwipes: 30)
+        XCTAssertTrue(settings.waitForExistence(timeout: 15), "\(step): no Settings row on Profile")
+        settings.tap()
+        XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 10), "\(step): Settings did not open")
     }
 
     static func ensureSignedIn(_ app: XCUIApplication, as account: JourneyAccount) {
