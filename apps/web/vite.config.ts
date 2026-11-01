@@ -5,6 +5,7 @@ import { defineConfig, loadEnv, type Plugin } from "vite";
 import { fundCSP } from "./csp";
 import { waitlistDevApi } from "./dev-api.js";
 import { withEligibility } from "./eligibility.js";
+import { privyEnvProblem } from "./src/fund/lib";
 
 // The API origin differs per deploy, and _headers and vercel.json are static, so the full policy
 // is a meta tag written at build time. The header keeps frame-ancestors, which a meta tag cannot set.
@@ -19,6 +20,18 @@ function fundPolicy(apiURL: string): Plugin {
         if (!ctx.path.startsWith("/fund/")) return html;
         return html.replace("<head>", `<head>\n<meta http-equiv="Content-Security-Policy" content="${fundCSP(apiURL)}">`);
       },
+    },
+  };
+}
+
+// Vercel and Cloudflare Pages set these while building; a plain local or CI build sets neither.
+function privyEnvGuard(env: Record<string, string>): Plugin {
+  return {
+    name: "privy-env-guard",
+    apply: "build",
+    buildStart() {
+      const problem = privyEnvProblem(env.VITE_PRIVY_ENV, Boolean(process.env.VERCEL || process.env.CF_PAGES));
+      if (problem) this.error(problem);
     },
   };
 }
@@ -49,6 +62,7 @@ export default defineConfig(({ mode }) => ({
     fundDevRewrite(),
     waitlistDevApi(loadEnv(mode, import.meta.dirname, "")),
     eligibilityLine(loadEnv(mode, import.meta.dirname, "")),
+    privyEnvGuard(loadEnv(mode, import.meta.dirname)),
     fundPolicy(loadEnv(mode, import.meta.dirname).VITE_MONACO_API_URL || "http://localhost:8080"),
   ],
   // node --test runs test/*.test.js; Vitest takes only the fund page's TypeScript tests.

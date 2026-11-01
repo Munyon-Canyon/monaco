@@ -8,6 +8,8 @@ import {
   initialState,
   loadSession,
   microsToDollars,
+  privyEnvProblem,
+  privyReadyTimeoutMs,
   readToken,
   saveSession,
   statusFromError,
@@ -243,5 +245,38 @@ describe("account decision", () => {
     expect(accountDecision({ ready: false, authenticated: false, userId: undefined }, own)).toBe("wait");
     expect(accountDecision({ ready: false, authenticated: true, userId: own }, own)).toBe("wait");
     expect(accountDecision({ ready: true, authenticated: false, userId: undefined }, own)).toBe("login");
+  });
+});
+
+describe("privy readiness", () => {
+  it("gives up after 20 seconds with copy that sends the member back to Monaco", () => {
+    expect(privyReadyTimeoutMs).toBe(20_000);
+    const open: State = { step: "open", session };
+    const failed = transition(open, { type: "failed", failure: "unavailable" });
+    expect(view(failed, { ready: false, authenticated: false })).toBe("error");
+    expect(errorCopy.unavailable).toBe("Couldn't load the payment page. Go back to Monaco and try again.");
+    expect(transition(failed, { type: "retry" })).toBe(failed);
+  });
+});
+
+describe("privy environment guard", () => {
+  it("accepts production and sandbox", () => {
+    expect(privyEnvProblem("production", true)).toBeNull();
+    expect(privyEnvProblem("sandbox", true)).toBeNull();
+  });
+
+  it("refuses a host build with the value missing or empty", () => {
+    expect(privyEnvProblem(undefined, true)).toMatch(/not set/);
+    expect(privyEnvProblem("", true)).toMatch(/not set/);
+  });
+
+  it("refuses a misspelled value everywhere", () => {
+    for (const onHost of [true, false]) expect(privyEnvProblem("prod", onHost)).toMatch(/"prod"/);
+    expect(privyEnvProblem("Production", false)).toMatch(/"Production"/);
+  });
+
+  it("lets a local or CI build leave it unset", () => {
+    expect(privyEnvProblem(undefined, false)).toBeNull();
+    expect(privyEnvProblem("", false)).toBeNull();
   });
 });

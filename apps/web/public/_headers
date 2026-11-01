@@ -16,11 +16,17 @@
 
 # The fund page. Its full Content-Security-Policy is a meta tag written at build time (see
 # csp.ts), because the API origin differs per deploy; this header adds frame-ancestors, which a
-# meta tag cannot set. The page carries a one-time token, so nothing caches it.
+# meta tag cannot set. The page carries a one-time token, so nothing caches it. The /* rule's camera=()
+# also switches the camera off in every nested frame, so /fund drops it and lets the providers'
+# KYC frames ask for the camera. Keep this list equal to vercel.json's and to the providers in csp.ts.
 /fund
+  ! Permissions-Policy
+  Permissions-Policy: camera=(self "https://*.stripe.com" "https://*.moonpay.com" "https://pay.coinbase.com" "https://*.meld.io" "https://meldcrypto.com"), microphone=(), geolocation=()
   Cache-Control: no-store
   Content-Security-Policy: frame-ancestors 'none'; object-src 'none'; base-uri 'self'
 
 /fund/*
+  ! Permissions-Policy
+  Permissions-Policy: camera=(self "https://*.stripe.com" "https://*.moonpay.com" "https://pay.coinbase.com" "https://*.meld.io" "https://meldcrypto.com"), microphone=(), geolocation=()
   Cache-Control: no-store
   Content-Security-Policy: frame-ancestors 'none'; object-src 'none'; base-uri 'self'
