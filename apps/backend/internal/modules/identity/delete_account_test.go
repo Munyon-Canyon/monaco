@@ -591,7 +591,7 @@ func (f deleteFixture) waitForWalletLockQueue(t *testing.T) {
 	}, 10*time.Second)
 }
 
-func TestDeleteAccount_rechecksEveryGuardAfterTheWalletLockIsWon(t *testing.T) {
+func TestDeleteAccount_rechecksEveryMoneyGuardAfterTheWalletLockIsWon(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		name  string
@@ -608,9 +608,6 @@ func TestDeleteAccount_rechecksEveryGuardAfterTheWalletLockIsWon(t *testing.T) {
 		{"a deposit that started arriving while it waited", func(_ *testing.T, f deleteFixture, _ ids.UserID) {
 			f.checks.arriving.Store(true)
 		}, errs.CodeAccountHasArrivingDeposit},
-		{"a cabal that gained members while it waited", func(_ *testing.T, f deleteFixture, _ ids.UserID) {
-			f.checks.leads.Store(true)
-		}, errs.CodeLeaveCreatorWithMembers},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -629,5 +626,72 @@ func TestDeleteAccount_rechecksEveryGuardAfterTheWalletLockIsWon(t *testing.T) {
 			}
 			f.expectUntouched(t, u)
 		})
+	}
+}
+
+type lockingLeaders struct{}
+
+func (lockingLeaders) LeadsCabalWithMembers(ctx context.Context, q dbsqlc.DBTX, user ids.UserID) (bool, error) {
+	rows, err := q.Query(ctx, `SELECT id FROM cabals WHERE creator_id = $1 ORDER BY id FOR UPDATE`, user.UUID())
+	if err != nil {
+		return false, err
+	}
+	rows.Close()
+	return false, rows.Err()
+}
+
+func shareLockCabal(ctx context.Context, q dbsqlc.DBTX, cabal ids.CabalID) error {
+	var status string
+	return q.QueryRow(ctx, `SELECT status FROM cabals WHERE id = $1 FOR SHARE`, cabal.UUID()).Scan(&status)
+}
+
+func (f deleteFixture) waitForRowLockQueue(t *testing.T) {
+	t.Helper()
+	testkit.Eventually(t, func() bool {
+		var waiting int
+		if err := f.pool.QueryRow(t.Context(), `SELECT count(*) FROM pg_stat_activity
+			WHERE datname = current_database() AND wait_event_type = 'Lock'`).Scan(&waiting); err != nil {
+			t.Fatal(err)
+		}
+		return waiting > 0
+	}, 10*time.Second)
+}
+
+func TestDeleteAccount_locksTheCreatedCabalsBeforeTheWalletLockTheSameOrderFundDoes(t *testing.T) {
+	t.Parallel()
+	f := newDeleteFixture(t)
+	h := app.NewDeleteAccount(app.DeleteAccountDeps{
+		UoW: db.New(f.pool, testkit.NewIDs(642), f.clock), Users: adapters.Users{}, Balances: f.balances,
+		Stakes: f.stakes, Arriving: f.checks, Leaders: lockingLeaders{}, Clock: f.clock, Hints: f.hints,
+	})
+	fundUoW := db.New(f.pool, testkit.NewIDs(9), f.clock)
+	for round := range 5 {
+		cabal := testkit.NewCabal(t, f.pool)
+		cabalLocked, letGo := make(chan struct{}), make(chan struct{})
+		var lockedOnce sync.Once
+		raceCtx, stop := context.WithTimeout(t.Context(), 20*time.Second)
+		var fundErr, deleteErr error
+		var racers sync.WaitGroup
+		racers.Go(func() {
+			fundErr = fundUoW.Do(raceCtx, func(ctx context.Context, tx db.Tx) error {
+				if err := shareLockCabal(ctx, tx.Queries(), cabal.ID); err != nil {
+					return err
+				}
+				lockedOnce.Do(func() { close(cabalLocked) })
+				<-letGo
+				return (adapters.Users{}).LockWalletOutflow(ctx, tx.Queries(), cabal.Creator.ID)
+			})
+		})
+		<-cabalLocked
+		deleteCtx := auth.WithActor(raceCtx, auth.Actor{Kind: auth.ActorUser, ID: cabal.Creator.ID.String()})
+		racers.Go(func() { deleteErr = h.Handle(deleteCtx, cabal.Creator.ID) })
+		f.waitForRowLockQueue(t)
+		close(letGo)
+		racers.Wait()
+		stop()
+		if fundErr != nil || deleteErr != nil {
+			t.Fatalf("round %d: fund = %v, delete = %v, want neither to fail (a deadlock aborts one)",
+				round, fundErr, deleteErr)
+		}
 	}
 }

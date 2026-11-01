@@ -62,6 +62,10 @@ func (h *DeleteAccount) Handle(ctx context.Context, id ids.UserID) error {
 		return err
 	}
 	return h.d.UoW.Do(ctx, func(ctx context.Context, tx db.Tx) error {
+		leads, err := h.d.Leaders.LeadsCabalWithMembers(ctx, tx.Queries(), id)
+		if err != nil {
+			return err
+		}
 		if err := h.d.Users.LockWalletOutflow(ctx, tx.Queries(), id); err != nil {
 			return err
 		}
@@ -73,7 +77,7 @@ func (h *DeleteAccount) Handle(ctx context.Context, id ids.UserID) error {
 			return err
 		}
 		at := h.d.Clock.Now()
-		forfeited, err := h.empty(ctx, tx, id, obs, at)
+		forfeited, err := h.empty(ctx, tx, id, obs, leads, at)
 		if err != nil {
 			return err
 		}
@@ -116,7 +120,7 @@ func logDeleted(ctx context.Context, id ids.UserID, deleted events.UserDeleted) 
 }
 
 func (h *DeleteAccount) empty(
-	ctx context.Context, tx db.Tx, id ids.UserID, obs fundingport.Observation, at time.Time,
+	ctx context.Context, tx db.Tx, id ids.UserID, obs fundingport.Observation, leads bool, at time.Time,
 ) (money.Micros, error) {
 	const op = "identity.DeleteAccount"
 	balance, err := h.d.Balances.AvailableIn(ctx, tx.Queries(), obs)
@@ -140,10 +144,6 @@ func (h *DeleteAccount) empty(
 	}
 	if arriving {
 		return money.Micros{}, errs.New(errs.CodeAccountHasArrivingDeposit, op)
-	}
-	leads, err := h.d.Leaders.LeadsCabalWithMembers(ctx, tx.Queries(), id)
-	if err != nil {
-		return money.Micros{}, err
 	}
 	if leads {
 		return money.Micros{}, errs.New(errs.CodeLeaveCreatorWithMembers, op)
