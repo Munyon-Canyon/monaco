@@ -24,7 +24,21 @@ import (
 const (
 	WindDownMaxAttempts = 10
 	WindDownMaxAge      = 24 * time.Hour
+	WindDownBackoffBase = 4 * time.Minute
+	WindDownBackoffMax  = 6 * time.Hour
+	windDownBackoffCap  = 16
 )
+
+func WindDownBackoff(attempts int) time.Duration {
+	steps := attempts - WindDownMaxAttempts
+	if steps < 0 {
+		return 0
+	}
+	if steps >= windDownBackoffCap {
+		return WindDownBackoffMax
+	}
+	return min(WindDownBackoffBase<<steps, WindDownBackoffMax)
+}
 
 type WindDown struct {
 	uow     *db.UnitOfWork
@@ -81,6 +95,32 @@ func (w *WindDown) Start(ctx context.Context, tx db.Tx, e events.CabalBanned, at
 	return nil
 }
 
+func (w *WindDown) Resume(ctx context.Context, cabal ids.CabalID) (string, error) {
+	const op = "treasury.WindDown.Resume"
+	var state string
+	err := w.uow.Do(ctx, func(ctx context.Context, tx db.Tx) error {
+		q := sqlc.New(tx.Queries())
+		reopened, err := q.ReopenWindDown(ctx, sqlc.ReopenWindDownParams{CabalID: cabal.UUID(), At: w.clock.Now()})
+		if err != nil {
+			return err
+		}
+		if reopened == 1 {
+			state = "reopened"
+			return nil
+		}
+		reset, err := q.ResetWindDownAttempts(ctx, cabal.UUID())
+		if err != nil {
+			return err
+		}
+		if reset == 0 {
+			return errs.New(errs.CodeNotFound, op, slog.String("cabal_id", cabal.String()))
+		}
+		state = "reset"
+		return nil
+	})
+	return state, err
+}
+
 func (w *WindDown) Advance(ctx context.Context) (scanned, changed int, err error) {
 	rows, err := sqlc.New(w.reads).RunningWindDowns(ctx)
 	if err != nil {
@@ -88,7 +128,7 @@ func (w *WindDown) Advance(ctx context.Context) (scanned, changed int, err error
 	}
 	var failed error
 	for _, row := range rows {
-		done, err := w.advance(ctx, ids.CabalIDFrom(row.CabalID), int(row.Attempts), row.StartedAt)
+		done, err := w.advance(ctx, row)
 		if done {
 			changed++
 		}
@@ -99,12 +139,13 @@ func (w *WindDown) Advance(ctx context.Context) (scanned, changed int, err error
 	return len(rows), changed, failed
 }
 
-func (w *WindDown) advance(ctx context.Context, cabal ids.CabalID, attempts int, startedAt time.Time) (bool, error) {
+func (w *WindDown) advance(ctx context.Context, row sqlc.RunningWindDownsRow) (bool, error) {
+	cabal, attempts := ids.CabalIDFrom(row.CabalID), int(row.Attempts)
 	holders, err := sqlc.New(w.reads).WindDownHolders(ctx, cabal.UUID())
 	if err != nil {
 		return false, err
 	}
-	aged := w.clock.Now().Sub(startedAt) > WindDownMaxAge
+	aged := w.clock.Now().Sub(row.StartedAt) > WindDownMaxAge
 	stuck := func() {
 		observability.Alert(ctx, observability.TreasuryWindDownStuck, slog.String("cabal_id", cabal.String()),
 			slog.Int("attempts", attempts), slog.Int("holders", len(holders)))
@@ -117,10 +158,11 @@ func (w *WindDown) advance(ctx context.Context, cabal ids.CabalID, attempts int,
 		return done, err
 	}
 	if attempts >= WindDownMaxAttempts {
+		if w.clock.Now().Sub(row.LastIssuedAt) < WindDownBackoff(attempts) {
+			return false, nil
+		}
 		stuck()
-		return false, errs.New(errs.CodeInternal, "treasury.WindDown.advance", slog.String("cabal_id", cabal.String()))
-	}
-	if aged {
+	} else if aged {
 		stuck()
 	}
 	issued, failed := w.reissue(ctx, cabal, holders)

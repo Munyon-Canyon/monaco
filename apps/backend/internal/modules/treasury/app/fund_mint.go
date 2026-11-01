@@ -109,11 +109,28 @@ func (s *FundSettler) settle(
 	if err := s.post(ctx, tx, m, units); err != nil {
 		return events.Funded{}, false, err
 	}
+	if err := s.reopenWindDown(ctx, tx, m); err != nil {
+		return events.Funded{}, false, err
+	}
 	tx.AfterCommit(func(ctx context.Context) {
 		s.d.Hints.PublishHint(ctx, events.UserBalanceChangedHint(m.user), nil)
 		s.d.Hints.PublishHint(ctx, events.CabalActivityChangedHint(m.cabal), nil)
 	})
 	return funded, true, tx.Events.Append(ctx, funded)
+}
+
+func (s *FundSettler) reopenWindDown(ctx context.Context, tx db.Tx, m fundMint) error {
+	reopened, err := sqlc.New(tx.Queries()).ReopenWindDown(ctx, sqlc.ReopenWindDownParams{
+		CabalID: m.cabal.UUID(), At: s.d.Clock.Now(),
+	})
+	if err != nil || reopened == 0 {
+		return err
+	}
+	tx.AfterCommit(func(ctx context.Context) {
+		observability.Info(ctx, observability.TreasuryWindDownReopened, slog.String("cabal_id", m.cabal.String()),
+			slog.String("transfer_id", m.transfer.ID.String()), slog.String("reason", "fund_landed_after_completion"))
+	})
+	return nil
 }
 
 func (s *FundSettler) revalidate(ctx context.Context, tx db.Tx, cabal ids.CabalID, quote potQuote) error {

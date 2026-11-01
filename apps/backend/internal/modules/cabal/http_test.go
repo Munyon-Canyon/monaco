@@ -672,6 +672,30 @@ func TestMyCabals_listsMembershipsAndCreatorRequests(t *testing.T) {
 	}
 }
 
+func TestMyCabals_keepsABannedCabalOnlyWhileTheMemberStillHoldsShares(t *testing.T) {
+	t.Parallel()
+	f := newCreate(t)
+	now := clock.Real{}.Now().UTC().Truncate(time.Microsecond)
+	active, holding, paidOut := testkit.NewCabal(t, f.pool), testkit.NewCabal(t, f.pool), testkit.NewCabal(t, f.pool)
+	joinMyCabal(t, f, active.ID.UUID(), now.Add(-3*time.Hour))
+	joinMyCabal(t, f, holding.ID.UUID(), now.Add(-2*time.Hour))
+	joinMyCabal(t, f, paidOut.ID.UUID(), now.Add(-time.Hour))
+	for cabalID, units := range map[uuid.UUID]string{holding.ID.UUID(): "5", paidOut.ID.UUID(): "0"} {
+		execSQL(t, f.pool, `UPDATE cabals SET status = 'banned' WHERE id = $1`, cabalID)
+		execSQL(t, f.pool, `INSERT INTO user_positions
+			(user_id, cabal_id, share_units, contributed_micros, withdrawn_micros, updated_at)
+			VALUES ($1, $2, $3::numeric, 0, 0, $4)`, f.user.ID.UUID(), cabalID, units, now)
+	}
+	result, err := f.routes(nil).GetMyCabals(f.actor(t.Context()), api.GetMyCabalsRequestObject{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	items := []api.MyCabal(result.(api.GetMyCabals200JSONResponse))
+	if len(items) != 2 || items[0].Id != active.ID.UUID() || items[1].Id != holding.ID.UUID() {
+		t.Fatalf("cabals = %+v, want the active cabal and the banned one the member still holds", items)
+	}
+}
+
 func TestMyCabals_returnsAnEmptyListForANewUser(t *testing.T) {
 	t.Parallel()
 	f := newCreate(t)

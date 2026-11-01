@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding"
+	"github.com/monaco/monaco/apps/backend/internal/modules/treasury"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
@@ -15,7 +16,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 )
 
-const opsUsage = "usage: monacoctl ops pause --cabal <id>|--all --note <text> | resume --cabal <id>|--all | evm-wallets"
+const opsUsage = "usage: monacoctl ops pause --cabal <id>|--all --note <text> | resume --cabal <id>|--all | winddown --cabal <id> | evm-wallets"
 
 func toolOps(env toolEnv) tool { return opsTool(env.environ, clock.Real{}) }
 
@@ -88,7 +89,39 @@ func opsTool(environ []string, clk clock.Clock) tool {
 		})
 	}
 	return func(args []string, stdout, stderr io.Writer) int {
-		cmds := map[string]command{"pause": pause, "resume": resume, "evm-wallets": evmWalletsCommand(clk)}
+		cmds := map[string]command{
+			"pause": pause, "resume": resume, "winddown": windDownCommand(clk), "evm-wallets": evmWalletsCommand(clk),
+		}
 		return run(cmds, nil, environ, args, stdout, stderr)
+	}
+}
+
+func windDownCommand(clk clock.Clock) command {
+	return func(cfg config.Config, args []string, stdout, stderr io.Writer) int {
+		fs := flag.NewFlagSet("ops winddown", flag.ContinueOnError)
+		fs.SetOutput(io.Discard)
+		rawCabal := fs.String("cabal", "", "")
+		if fs.Parse(args) != nil || fs.NArg() != 0 {
+			_, _ = fmt.Fprintln(stderr, opsUsage)
+			return 2
+		}
+		cabal, err := ids.ParseCabalID(*rawCabal)
+		if err != nil {
+			_, _ = fmt.Fprintln(stderr, opsUsage)
+			return 2
+		}
+		ctx := context.Background()
+		pool, err := db.Open(ctx, cfg.DB)
+		if err != nil {
+			return fail(stderr, err)
+		}
+		defer pool.Close()
+		deps := module.Deps{Config: cfg, Clock: clk, IDs: ids.Real{}, Pool: pool, UoW: db.New(pool, ids.Real{}, clk)}
+		state, err := treasury.New(deps).ResumeWindDown(ctx, cabal)
+		if err != nil {
+			return fail(stderr, err)
+		}
+		_, _ = fmt.Fprintf(stdout, "wind-down %s %s\n", cabal, state)
+		return 0
 	}
 }

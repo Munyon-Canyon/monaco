@@ -14,11 +14,14 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
+	"github.com/monaco/monaco/apps/backend/internal/modules/treasury"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/adapters"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/app"
+	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/port"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/marketfake"
@@ -253,24 +256,90 @@ func (r windDownRig) reissue(t *testing.T, member ids.UserID, units int64) {
 		units, r.cabal, member))
 }
 
-func TestWindDown_Poller_CountsReissuesThenAlertsWhenStuck(t *testing.T) {
-	t.Parallel()
-	r := newWindDownRig(t, thirds()...)
-	if err := r.start(); err != nil {
-		t.Fatal(err)
-	}
+func (r windDownRig) reachTheCap(t *testing.T) {
+	t.Helper()
 	for attempt := range int64(app.WindDownMaxAttempts) {
 		r.reissue(t, r.members[2], 10)
 		if scanned, changed := r.tick(t); scanned != 1 || changed != 1 || r.attempts(t) != attempt+1 {
 			t.Fatalf("re-issue %d: scanned %d changed %d attempts %d", attempt+1, scanned, changed, r.attempts(t))
 		}
 	}
+}
+
+func (r windDownRig) retryPastTheCap(t *testing.T, attempts int64) {
+	t.Helper()
 	r.reissue(t, r.members[2], 10)
-	if _, err := r.poller.Tick(r.system()); err == nil || r.attempts(t) != app.WindDownMaxAttempts {
-		t.Fatalf("tick past the cap = %v with %d attempts, want an error and no new attempt", err, r.attempts(t))
+	wait := app.WindDownBackoff(int(attempts))
+	if wait <= 0 {
+		t.Fatalf("backoff at %d attempts = %v, want a wait", attempts, wait)
+	}
+	r.f.clock.Advance(wait - time.Second)
+	if _, changed := r.tick(t); changed != 0 || r.attempts(t) != attempts {
+		t.Fatalf("tick inside the backoff changed %d, %d attempts, want none and %d", changed, r.attempts(t), attempts)
+	}
+	r.f.clock.Advance(time.Second)
+	if _, changed := r.tick(t); changed != 1 || r.attempts(t) != attempts+1 {
+		t.Fatalf("tick after the backoff changed %d, %d attempts, want 1 and %d", changed, r.attempts(t), attempts+1)
+	}
+}
+
+func TestWindDown_Poller_CountsReissuesThenKeepsRetryingPastTheCapWithBackoff(t *testing.T) {
+	t.Parallel()
+	r := newWindDownRig(t, thirds()...)
+	if err := r.start(); err != nil {
+		t.Fatal(err)
+	}
+	r.reachTheCap(t)
+	for past := range int64(3) {
+		r.retryPastTheCap(t, app.WindDownMaxAttempts+past)
 	}
 	if !bytes.Contains(r.f.logs.Bytes(), []byte("treasury.winddown_stuck")) {
 		t.Fatal("no treasury.winddown_stuck alert logged")
+	}
+	r.finish(t)
+	if _, changed := r.tick(t); changed != 1 || r.wound(t)["members_paid"] == nil {
+		t.Fatalf("tick after the retries changed %d, want the wind-down completed with cabal.wound_down", changed)
+	}
+}
+
+func TestWindDown_Backoff_GrowsPastTheCapAndStops(t *testing.T) {
+	t.Parallel()
+	if got := app.WindDownBackoff(app.WindDownMaxAttempts - 1); got != 0 {
+		t.Fatalf("backoff below the cap = %v, want none", got)
+	}
+	first := app.WindDownBackoff(app.WindDownMaxAttempts)
+	second := app.WindDownBackoff(app.WindDownMaxAttempts + 1)
+	if first <= 0 || second != 2*first {
+		t.Fatalf("backoff at the cap %v then %v, want it to double", first, second)
+	}
+	if got := app.WindDownBackoff(app.WindDownMaxAttempts + 500); got != app.WindDownBackoffMax {
+		t.Fatalf("backoff far past the cap = %v, want %v", got, app.WindDownBackoffMax)
+	}
+}
+
+func TestWindDown_WaitsForAnOpenFundBeforeCompleting(t *testing.T) {
+	t.Parallel()
+	r := newWindDownRig(t, thirds()...)
+	if err := r.start(); err != nil {
+		t.Fatal(err)
+	}
+	r.finish(t)
+	for _, status := range []domain.FundStatus{domain.FundCreated, domain.FundSubmitted, domain.FundLanded} {
+		fund := r.f.fundTransferIn(t, r.members[0], status, 5_000_000)
+		r.f.exec(t, fmt.Sprintf(`UPDATE fund_transfers SET cabal_id = '%s' WHERE id = '%s'`, r.cabal, fund))
+		if _, changed := r.tick(
+			t,
+		); changed != 0 ||
+			r.scalar(t, `SELECT count(*) FROM events WHERE type = 'cabal.wound_down'`) != 0 {
+			t.Fatalf("tick completed the wind-down with a %s fund still open (changed %d)", status, changed)
+		}
+		r.f.exec(
+			t,
+			`UPDATE fund_transfers SET status = 'failed', fail_code = 'fund_expired' WHERE id = '`+fund.String()+`'`,
+		)
+	}
+	if _, changed := r.tick(t); changed != 1 {
+		t.Fatal("tick did not complete the wind-down once every fund ended")
 	}
 }
 
@@ -747,5 +816,74 @@ func TestWindDown_MemberCashOutsKeepTheMinimumExceptToLeave(t *testing.T) {
 	result, err := handler.Handle(ctx, app.CashOut{CabalID: r.cabal, UserID: r.members[1], All: true})
 	if err != nil || result.ShareUnits.Uint64() != 1 || result.PayoutMicros.Uint64() >= 100_000 {
 		t.Fatalf("a member cashing out all under the minimum = (%#v, %v), want the whole stake to leave", result, err)
+	}
+}
+
+func (r windDownRig) refuseWindDownUpdates(t *testing.T) {
+	t.Helper()
+	r.f.exec(t, `CREATE FUNCTION refuse_winddown_update() RETURNS trigger LANGUAGE plpgsql
+		AS $$ BEGIN RAISE EXCEPTION 'no update'; END $$;
+		CREATE TRIGGER refuse_winddown_update BEFORE UPDATE ON cabal_winddowns
+		FOR EACH ROW EXECUTE FUNCTION refuse_winddown_update()`)
+}
+
+func TestWindDown_Resume_ResetsARunningOneAndReopensACompletedOne(t *testing.T) {
+	t.Parallel()
+	r := newWindDownRig(t, thirds()...)
+	if err := r.start(); err != nil {
+		t.Fatal(err)
+	}
+	r.f.exec(t, fmt.Sprintf(`UPDATE cabal_winddowns SET attempts = 14 WHERE cabal_id = '%s'`, r.cabal))
+	if state, err := r.wd.Resume(r.system(), r.cabal); err != nil || state != "reset" || r.attempts(t) != 0 {
+		t.Fatalf("Resume of a stuck one = %q, %v with %d attempts, want reset and none", state, err, r.attempts(t))
+	}
+	r.f.exec(t, fmt.Sprintf(
+		`UPDATE cabal_winddowns SET status = 'completed', completed_at = now(), attempts = 3 WHERE cabal_id = '%s'`,
+		r.cabal,
+	))
+	if state, err := r.wd.Resume(r.system(), r.cabal); err != nil || state != "reopened" || r.attempts(t) != 0 {
+		t.Fatalf(
+			"Resume of a completed one = %q, %v with %d attempts, want reopened and none",
+			state,
+			err,
+			r.attempts(t),
+		)
+	}
+	if scanned, _ := r.tick(t); scanned != 1 {
+		t.Fatalf("tick after the resume scanned %d, want the reopened wind-down", scanned)
+	}
+}
+
+func TestWindDown_Resume_RefusesAnUnknownCabalAndReportsStoreFailures(t *testing.T) {
+	t.Parallel()
+	r := newWindDownRig(t, thirds()...)
+	if _, err := r.wd.Resume(r.system(), r.cabal); errs.CodeOf(err) != errs.CodeNotFound {
+		t.Fatalf("Resume with no wind-down = %v, want not_found", err)
+	}
+	if err := r.start(); err != nil {
+		t.Fatal(err)
+	}
+	r.refuseWindDownUpdates(t)
+	if _, err := r.wd.Resume(r.system(), r.cabal); err == nil {
+		t.Fatal("Resume with the reset refused = nil error")
+	}
+	r.f.exec(t, fmt.Sprintf(`ALTER TABLE cabal_winddowns DISABLE TRIGGER refuse_winddown_update;
+		UPDATE cabal_winddowns SET status = 'completed', completed_at = now() WHERE cabal_id = '%s';
+		ALTER TABLE cabal_winddowns ENABLE TRIGGER refuse_winddown_update`, r.cabal))
+	if _, err := r.wd.Resume(r.system(), r.cabal); err == nil {
+		t.Fatal("Resume with the reopen refused = nil error")
+	}
+}
+
+func TestModule_ResumeWindDown_ReopensAsTheOperator(t *testing.T) {
+	t.Parallel()
+	r := newWindDownRig(t, thirds()...)
+	if err := r.start(); err != nil {
+		t.Fatal(err)
+	}
+	r.f.exec(t, fmt.Sprintf(`UPDATE cabal_winddowns SET attempts = 12 WHERE cabal_id = '%s'`, r.cabal))
+	m := treasury.New(module.Deps{Pool: r.f.pool, UoW: r.f.uow, Clock: r.f.clock})
+	if state, err := m.ResumeWindDown(r.f.ctx(), r.cabal); err != nil || state != "reset" || r.attempts(t) != 0 {
+		t.Fatalf("ResumeWindDown = %q, %v with %d attempts, want reset and none", state, err, r.attempts(t))
 	}
 }

@@ -24,3 +24,4 @@ Dated record of changes to [analytics-admin.md](../analytics-admin.md). Add one 
 - 2026-10-28: Vote flow: added the app step `vote_undone`, tracked when a member taps Undo on the vote toast. The server's `vote_retracted` stays the authoritative event (#6506).
 - 2026-10-29: Catch up flow: added the app steps `catch_up_cleared`, `catch_up_opened_item` and `catch_up_open_feed`; the first two carry the item `kind` (#6566).
 - 2026-10-29: Added the Leaderboard flow to the client steps: `tab_selected`, `period_selected` and `info_opened` (#6499).
+- 2026-11-01: Wind-downs retry past 10 attempts with a doubling wait instead of erroring, wait for open fund transfers before completing, reopen when a fund lands after completion, and `monacoctl ops winddown` resets one; `/me/cabals` lists a banned cabal while the member holds shares (#7435).
