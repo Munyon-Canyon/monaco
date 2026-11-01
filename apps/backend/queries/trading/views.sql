@@ -16,4 +16,16 @@ SELECT EXISTS (
 );
 
 -- name: OwnsSignature :one
-SELECT EXISTS (SELECT 1 FROM swaps WHERE tx_signature = @tx_signature::text);
+SELECT EXISTS (
+  SELECT 1 FROM swaps WHERE tx_signature = @tx_signature::text
+  UNION ALL
+  SELECT 1 FROM trade_steps WHERE step = 'bridge_back' AND arrival_tx = @tx_signature::text
+);
+
+-- name: BridgeBacksInFlight :many
+SELECT t.id, t.amount_micros::text AS sent_micros, r.comparison
+FROM trade_steps t
+JOIN swaps s ON s.id = t.trade_id
+JOIN trade_routes r ON r.trade_id = t.trade_id
+WHERE s.cabal_id = @cabal_id::uuid AND t.step = 'bridge_back' AND t.status = 'submitted'
+ORDER BY t.created_at, t.id;

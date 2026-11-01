@@ -58,23 +58,27 @@ type WatchPrices interface {
 }
 
 type DetectDeps struct {
-	UoW     *db.UnitOfWork
-	Reads   sqlc.DBTX
-	IDs     ids.Generator
-	Clock   clock.Clock
-	Hints   HintPublisher
-	Chain   WatchChain
-	Owners  []fundingport.SignatureOwner
-	Assets  WatchAssets
-	Prices  WatchPrices
-	Wallets identityport.WalletReader
-	USDC    chain.SolanaAddress
+	UoW      *db.UnitOfWork
+	Reads    sqlc.DBTX
+	IDs      ids.Generator
+	Clock    clock.Clock
+	Hints    HintPublisher
+	Chain    WatchChain
+	Owners   []fundingport.SignatureOwner
+	Arrivals []fundingport.ArrivalExpectation
+	Assets   WatchAssets
+	Prices   WatchPrices
+	Wallets  identityport.WalletReader
+	USDC     chain.SolanaAddress
 }
 
-type DetectExternalDepositHandler struct{ d DetectDeps }
+type DetectExternalDepositHandler struct {
+	d      DetectDeps
+	claims *bandClaims
+}
 
 func NewDetectExternalDepositHandler(d DetectDeps) *DetectExternalDepositHandler {
-	return &DetectExternalDepositHandler{d: d}
+	return &DetectExternalDepositHandler{d: d, claims: &bandClaims{by: map[uuid.UUID]chain.Signature{}}}
 }
 
 type inboundTransfer struct {
@@ -112,7 +116,34 @@ func (h *DetectExternalDepositHandler) Handle(ctx context.Context, cmd DetectExt
 	if in.verdict != domain.VerdictDetected {
 		return h.ignore(ctx, cmd, in)
 	}
+	arriving, err := h.arriving(ctx, cmd, in.transfer)
+	if err != nil {
+		return DetectResult{}, errs.Wrap(err, errs.CodeOf(err), op)
+	}
+	if arriving {
+		observability.Info(ctx, observability.FundingWatchOwnTransfer,
+			slog.String("cabal_id", cmd.CabalID.String()), slog.String("tx", string(cmd.Signature)),
+			slog.String("reason", "bridge_back_in_flight"))
+		return DetectResult{Verdict: domain.VerdictOwn}, nil
+	}
 	return h.detect(ctx, cmd, in)
+}
+
+func (h *DetectExternalDepositHandler) arriving(
+	ctx context.Context, cmd DetectExternalDeposit, t solana.Transfer,
+) (bool, error) {
+	if t.Mint.Address != h.d.USDC {
+		return false, nil
+	}
+	var bands []fundingport.ArrivalBand
+	for _, a := range h.d.Arrivals {
+		got, err := a.BridgeBacksInFlight(ctx, cmd.CabalID)
+		if err != nil {
+			return false, err
+		}
+		bands = append(bands, got...)
+	}
+	return h.claims.claim(bands, cmd.Signature, money.MicrosFromUint64(t.Net.Uint64())), nil
 }
 
 func (h *DetectExternalDepositHandler) owned(ctx context.Context, sig chain.Signature) (bool, error) {

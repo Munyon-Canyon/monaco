@@ -52,30 +52,41 @@ func (r *RouteExec) bridgeBack(ctx context.Context, b routedBuy) (domain.StepSta
 	}
 	leg := b.bridgeBack(amount)
 	leg.Observe = func(ctx context.Context, action multichain.ActionStatus) (money.Micros, domain.Arrival, error) {
-		arrived, err := r.arrival(ctx, b, action)
+		arrived, fill, err := r.arrival(ctx, b, action)
 		if err != nil {
 			return money.Micros{}, domain.Arrival{}, err
 		}
-		fee, err := amount.Sub(atMost(arrived, amount))
-		return fee, domain.Arrival{}, err
+		got := atMost(arrived, amount)
+		fee, err := amount.Sub(got)
+		return fee, backArrival(got, fill), err
 	}
 	return r.bridge().Run(ctx, leg)
 }
 
-func (r *RouteExec) arrival(ctx context.Context, b routedBuy, action multichain.ActionStatus) (money.Micros, error) {
+func backArrival(got money.Micros, fill chain.Signature) domain.Arrival {
+	if got.IsZero() || fill == "" {
+		return domain.Arrival{}
+	}
+	return domain.Arrival{Amount: got, TxHash: string(fill)}
+}
+
+func (r *RouteExec) arrival(
+	ctx context.Context, b routedBuy, action multichain.ActionStatus,
+) (money.Micros, chain.Signature, error) {
 	for _, s := range action.Steps {
 		if s.Network != chain.NetworkSolana || s.TxHash == "" {
 			continue
 		}
 		cash := chain.NetworkSolana.Cash()
 		usdc := chain.Mint{Address: chain.SolanaAddress(cash.Address), Decimals: cash.Decimals}
-		got, err := r.d.Arrivals.InboundAmount(ctx, chain.Signature(s.TxHash), b.solana, usdc)
-		return money.MicrosFromUint64(got.Uint64()), err
+		fill := chain.Signature(s.TxHash)
+		got, err := r.d.Arrivals.InboundAmount(ctx, fill, b.solana, usdc)
+		return money.MicrosFromUint64(got.Uint64()), fill, err
 	}
 	if action.State == multichain.ActionSucceeded && !action.Delivered.IsZero() {
-		return action.Delivered, nil
+		return action.Delivered, "", nil
 	}
-	return money.Micros{}, errs.New(errs.CodeUpstreamUnavailable, "trading.RouteExec.arrival",
+	return money.Micros{}, "", errs.New(errs.CodeUpstreamUnavailable, "trading.RouteExec.arrival",
 		slog.String("swap_id", b.id.String()), slog.String("action_id", string(action.ID)))
 }
 
@@ -88,7 +99,7 @@ func (r *RouteExec) observedBack(ctx context.Context, b routedBuy) (money.Micros
 	if err != nil {
 		return money.Micros{}, false, err
 	}
-	arrived, err := r.arrival(ctx, b, action)
+	arrived, _, err := r.arrival(ctx, b, action)
 	return atMost(arrived, step.Amount), err == nil, err
 }
 

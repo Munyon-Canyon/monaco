@@ -331,3 +331,60 @@ func TestBridgeBack_aReturnWhoseSolanaLegIsExternalSettlesOnWhatPrivyDelivered(t
 	got := e.steps(t, swap)
 	wantSteps(t, got[len(got)-3:], "bridge_back:pending:0", "bridge_back:submitted:7500", "bridge_back:succeeded:21282")
 }
+
+func (e *routeEnv) queries() app.Queries { return app.NewQueries(e.pool) }
+
+func TestBridgeBack_theFillIsOwnedOnceTheReturnSucceedsAndExpectedWhileItIsInFlight(t *testing.T) {
+	t.Parallel()
+	e := newRouteEnv(t)
+	_, swap := e.strand(t)
+	e.mustTick(t, 1, 0)
+	e.proposals.set(governance.Status("cancelled"))
+	e.privy.script(multichain.ActionPending)
+
+	e.mustTick(t, 1, 1)
+
+	bands, err := e.queries().BridgeBacksInFlight(t.Context(), e.cabal)
+	sent := money.MicrosFromUint64(landedMicros)
+	if err != nil || len(bands) != 1 || bands[0].Max != sent || bands[0].Min.Cmp(sent) >= 0 || bands[0].Min.IsZero() {
+		t.Fatalf("bands = %+v, %v, want one band ending at %d while the return is submitted", bands, err, landedMicros)
+	}
+	_, action := e.bridgeBackOf(t, swap)
+	fill := chain.Signature(arrivalPrefix + action)
+	if owned, err := e.queries().OwnsSignature(t.Context(), fill); err != nil || owned {
+		t.Fatalf("OwnsSignature(fill) = %t, %v, want false before the return succeeds", owned, err)
+	}
+
+	e.privy.script(multichain.ActionSucceeded)
+	e.mustTick(t, 1, 1)
+
+	if owned, err := e.queries().OwnsSignature(t.Context(), fill); err != nil || !owned {
+		t.Fatalf("OwnsSignature(fill) = %t, %v, want true once the return succeeded", owned, err)
+	}
+	if bands, err := e.queries().BridgeBacksInFlight(t.Context(), e.cabal); err != nil || len(bands) != 0 {
+		t.Fatalf("bands = %+v, %v, want none once the return succeeded", bands, err)
+	}
+}
+
+func TestBridgeBack_aRouteTheBandCannotReadFailsInsteadOfGuessing(t *testing.T) {
+	t.Parallel()
+	e := newRouteEnv(t)
+	_, swap := e.strand(t)
+	e.mustTick(t, 1, 0)
+	e.proposals.set(governance.Status("cancelled"))
+	e.privy.script(multichain.ActionPending)
+	e.mustTick(t, 1, 1)
+	if _, err := e.pool.Exec(
+		t.Context(),
+		`UPDATE trade_routes SET comparison = '"unreadable"' WHERE trade_id = $1`,
+		swap,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	bands, err := e.queries().BridgeBacksInFlight(t.Context(), e.cabal)
+
+	if errs.CodeOf(err) != errs.CodeDecodeFailed || len(bands) != 0 {
+		t.Fatalf("bands = %+v, err = %v, want a decode failure and no bands", bands, err)
+	}
+}

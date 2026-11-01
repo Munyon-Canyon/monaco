@@ -244,9 +244,11 @@ func TestQueries_reportADatabaseFailureAsInternal(t *testing.T) {
 	_, _, latestErr := d.port.LatestBySource(t.Context(), src)
 	_, liveErr := d.port.HasLiveSwap(t.Context(), src)
 	_, ownsErr := d.port.OwnsSignature(t.Context(), "sig-1")
+	_, inFlightErr := trading.New(module.Deps{Pool: d.pool}).
+		BridgeBacksInFlight(t.Context(), ids.CabalIDFrom(d.ids.NewV7()))
 	for name, err := range map[string]error{
 		"Swap": swapErr, "SwapBySignature": sigErr, "LatestBySource": latestErr, "HasLiveSwap": liveErr,
-		"OwnsSignature": ownsErr,
+		"OwnsSignature": ownsErr, "BridgeBacksInFlight": inFlightErr,
 	} {
 		if errs.CodeOf(err) != errs.CodeInternal {
 			t.Errorf("%s without the table err = %v, want internal", name, err)

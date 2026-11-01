@@ -59,6 +59,7 @@ type Module struct {
 	deps       module.Deps
 	balances   *adapters.Balances
 	owners     []port.SignatureOwner
+	arrivals   []port.ArrivalExpectation
 }
 
 type Option func(*Module)
@@ -131,6 +132,9 @@ func (m *Module) Wire(set module.Set) {
 		if owner, ok := mod.(port.SignatureOwner); ok {
 			m.owners = append(m.owners, owner)
 		}
+		if arrivals, ok := mod.(port.ArrivalExpectation); ok {
+			m.arrivals = append(m.arrivals, arrivals)
+		}
 	}
 }
 
@@ -144,7 +148,7 @@ func (m *Module) DetectExternalDeposit() *app.DetectExternalDepositHandler {
 	cfg, prices := m.deps.Config, market.New(m.deps)
 	return app.NewDetectExternalDepositHandler(app.DetectDeps{
 		UoW: m.deps.UoW, Reads: m.deps.Pool, IDs: m.deps.IDs, Clock: m.deps.Clock, Hints: m.deps.Bus,
-		Chain: solana.New(cfg, m.deps.Clock), Owners: m.signatureOwners(),
+		Chain: solana.New(cfg, m.deps.Clock), Owners: m.signatureOwners(), Arrivals: m.arrivals,
 		Assets: prices.Catalog(), Prices: prices.Prices(),
 		Wallets: identity.New(m.deps).Queries(), USDC: chain.SolanaAddress(cfg.Solana.USDCMint),
 	})
