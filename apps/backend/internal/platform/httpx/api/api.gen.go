@@ -187,6 +187,7 @@ const (
 	VersionConflict ErrorCode = "version_conflict"
 	VoteNotFound ErrorCode = "vote_not_found"
 	WalletMismatch ErrorCode = "wallet_mismatch"
+	WithdrawNoUsdcAccount ErrorCode = "withdraw_no_usdc_account"
 	WithdrawNotAllowed ErrorCode = "withdraw_not_allowed"
 	WithdrawToOwnWallet ErrorCode = "withdraw_to_own_wallet"
 	XLinkedElsewhere ErrorCode = "x_linked_elsewhere"
@@ -547,6 +548,8 @@ func (e ErrorCode) Valid() bool {
 	case VoteNotFound:
 		return true
 	case WalletMismatch:
+		return true
+	case WithdrawNoUsdcAccount:
 		return true
 	case WithdrawNotAllowed:
 		return true

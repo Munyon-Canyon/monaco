@@ -194,6 +194,27 @@ func TestCashOutSale_nothingRaisedAndNothingOnHandFailsAndReturnsEveryUnit(t *te
 	}
 }
 
+func TestCashOutSale_aFailedSaleLeavesNoWalletResidualAndStillReturnsTheUnits(t *testing.T) {
+	t.Parallel()
+	r := newSaleRig(t, 100_000_000)
+	r.deliver(t, r.started)
+	r.deliver(t, r.unsold(r.f.ids.NewV7(), 500, 1))
+	r.want(t, "failed", "50000000", "100", "sale_short", 100)
+	var wallet, cabal string
+	if err := r.f.pool.QueryRow(t.Context(), `SELECT
+		coalesce(sum(e.amount) FILTER (WHERE e.account = 'wallet'), 0)::text,
+		coalesce(sum(e.amount) FILTER (WHERE e.account = 'cabal'), 0)::text
+		FROM user_txns t JOIN user_txn_entries e ON e.txn_id = t.id
+		WHERE t.user_id = $1 AND t.kind = 'cash_out' AND t.status = 'settled'`, r.alice.UUID()).
+		Scan(&wallet, &cabal); err != nil {
+		t.Fatal(err)
+	}
+	if wallet != "0" || cabal != "0" {
+		t.Fatalf("settled cash-out wallet legs sum to %s and cabal legs to %s, want 0 and 0 once the original failed",
+			wallet, cabal)
+	}
+}
+
 func TestCashOutSale_aResultBeforeTheStartIsKeptAndSettlesOnStart(t *testing.T) {
 	t.Parallel()
 	r := newSaleRig(t, 80_000_000)

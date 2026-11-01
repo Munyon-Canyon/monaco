@@ -179,6 +179,7 @@ extension Components.Schemas.ErrorCode {
         case .versionConflict: true
         case .voteNotFound: true
         case .walletMismatch: true
+        case .withdrawNoUsdcAccount: true
         case .withdrawNotAllowed: true
         case .withdrawToOwnWallet: true
         case .xLinkedElsewhere: true

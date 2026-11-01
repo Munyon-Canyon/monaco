@@ -144,7 +144,7 @@ func TestWithdrawEVM_PendingWaits(t *testing.T) {
 	}
 }
 
-func TestWithdrawEVM_FailedWithABroadcastStepKeepsTheHoldAndFlagsSupportOnce(t *testing.T) {
+func TestWithdrawEVM_FailedWithABroadcastStepKeepsTheHoldAndFlagsSupportAgainEverySixHours(t *testing.T) {
 	t.Parallel()
 	actions := &privyActions{
 		status: multichain.ActionStatus{State: multichain.ActionFailed, Steps: []multichain.ActionStep{
@@ -174,6 +174,14 @@ func TestWithdrawEVM_FailedWithABroadcastStepKeepsTheHoldAndFlagsSupportOnce(t *
 	f.assertInFlight(t, "2000000")
 	if n := strings.Count(string(logs.Bytes()), observability.FundingWithdrawalNeedsSupport.Name); n != 1 {
 		t.Fatalf("needs_support logged %d times, want once:\n%s", n, logs.Bytes())
+	}
+	f.clock.Advance(app.EVMWithdrawalSupportRealertAfter)
+	if _, err := p.Tick(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if n := strings.Count(string(logs.Bytes()), observability.FundingWithdrawalNeedsSupport.Name); n != 2 {
+		t.Fatalf("needs_support logged %d times, want it repeated after %s:\n%s",
+			n, app.EVMWithdrawalSupportRealertAfter, logs.Bytes())
 	}
 }
 

@@ -9,5 +9,6 @@ func init() {
 		FundingWithdrawalNeedsSupport,
 		FundingWithdrawalAuthorized,
 		FundingWithdrawalEVMPending,
+		FundingWithdrawalSupportResolved,
 	)
 }

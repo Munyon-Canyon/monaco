@@ -215,6 +215,16 @@ func (r *payoutRig) transferStatuses(t *testing.T) string {
 		WHERE transfer_id = $1), '')`, r.job)
 }
 
+func (r *payoutRig) noCashOutWalletResidual(t *testing.T, user ids.UserID) {
+	t.Helper()
+	got := r.scalar(t, `SELECT coalesce(sum(e.amount), 0)::text FROM user_txns t
+		JOIN user_txn_entries e ON e.txn_id = t.id
+		WHERE t.user_id = $1 AND t.kind = 'cash_out' AND t.status = 'settled' AND e.account = 'wallet'`, user.UUID())
+	if got != "0" {
+		t.Fatalf("settled cash-out wallet legs of %s sum to %s, want 0 after a failed cash out", user, got)
+	}
+}
+
 func (r *payoutRig) noDrift(t *testing.T) {
 	t.Helper()
 	if drift := r.f.drift(t); len(drift) != 0 {
@@ -271,6 +281,7 @@ func TestCashOutPayout_givesUpOnceEveryAttemptLapsedAndReturnsEveryUnit(t *testi
 	if r.events(t, events.TypeCashOutFailed) != "1" || r.shares(t, r.alice) != 100 {
 		t.Fatal("a second run returned the units twice")
 	}
+	r.noCashOutWalletResidual(t, r.alice)
 	r.noDrift(t)
 }
 
@@ -296,6 +307,7 @@ func TestCashOutPayout_aPayoutRefusedOnChainFailsTheJob(t *testing.T) {
 	if got := r.attempts(t); !slices.Equal(got, []string{"1:failed"}) || r.shares(t, r.alice) != 100 {
 		t.Fatalf("attempts = %v, alice shares %d", got, r.shares(t, r.alice))
 	}
+	r.noCashOutWalletResidual(t, r.alice)
 	r.noDrift(t)
 }
 

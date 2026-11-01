@@ -35,6 +35,10 @@ type Transfers interface {
 	Broadcast(context.Context, relayer.SignedTx) error
 }
 
+type AccountProbe interface {
+	HasTokenAccount(context.Context, chain.SolanaAddress, chain.Mint) (bool, error)
+}
+
 const WithdrawOperation = "funding.withdraw"
 
 const (
@@ -97,7 +101,7 @@ func (h *WithdrawHandler) Handle(ctx context.Context, cmd Withdraw) (WithdrawRes
 	if err != nil {
 		return WithdrawResult{}, err
 	}
-	prior, plan, replayed, err := h.create(ctx, cmd)
+	prior, plan, replayed, err := h.create(ctx, cmd, h.destinationLacksAccount(ctx, transfers, cmd.Request.To))
 	if err != nil {
 		return WithdrawResult{}, err
 	}
@@ -126,6 +130,19 @@ func (h *WithdrawHandler) Handle(ctx context.Context, cmd Withdraw) (WithdrawRes
 	return WithdrawResult{ID: cmd.ID, Status: domain.WithdrawalSubmitted, TxSignature: signed.Signature}, nil
 }
 
+func (h *WithdrawHandler) destinationLacksAccount(
+	ctx context.Context,
+	transfers Transfers,
+	to chain.SolanaAddress,
+) bool {
+	probe, ok := transfers.(AccountProbe)
+	if !ok {
+		return false
+	}
+	has, err := probe.HasTokenAccount(ctx, to, h.d.USDC)
+	return err == nil && !has
+}
+
 func (h *WithdrawHandler) refuseTreasury(ctx context.Context, to chain.SolanaAddress) error {
 	const op = "funding.Withdraw.refuseTreasury"
 	treasuries, err := h.d.Treasuries.TreasuryWallets(ctx)
@@ -148,7 +165,7 @@ func replayResult(row sqlc.GetWithdrawalRow) WithdrawResult {
 }
 
 func (h *WithdrawHandler) create(
-	ctx context.Context, cmd Withdraw,
+	ctx context.Context, cmd Withdraw, lacksAccount bool,
 ) (prior sqlc.GetWithdrawalRow, plan relayer.SponsorPlan, replayed bool, err error) {
 	obs, observeErr := h.d.Balances.Observe(ctx, cmd.UserID)
 	err = h.d.UoW.Do(ctx, func(ctx context.Context, tx db.Tx) error {
@@ -165,7 +182,7 @@ func (h *WithdrawHandler) create(
 			prior, plan, err = h.resume(ctx, tx, cmd, bound)
 			return err
 		}
-		plan, err = h.open(ctx, tx, cmd, obs, observeErr)
+		plan, err = h.open(ctx, tx, cmd, obs, observeErr, lacksAccount)
 		return err
 	})
 	return prior, plan, replayed, err
@@ -183,7 +200,7 @@ func (h *WithdrawHandler) resume(
 }
 
 func (h *WithdrawHandler) open(
-	ctx context.Context, tx db.Tx, cmd Withdraw, obs port.Observation, observeErr error,
+	ctx context.Context, tx db.Tx, cmd Withdraw, obs port.Observation, observeErr error, lacksAccount bool,
 ) (relayer.SponsorPlan, error) {
 	q := sqlc.New(tx.Queries())
 	if err := h.requireStepUp(ctx, q, cmd); err != nil {
@@ -199,7 +216,7 @@ func (h *WithdrawHandler) open(
 	if err := h.consumeAuthorization(ctx, q, cmd); err != nil {
 		return relayer.SponsorPlan{}, err
 	}
-	plan, err := h.reserve(ctx, tx, cmd, cmd.ID, !landed)
+	plan, err := h.reserve(ctx, tx, cmd, cmd.ID, !landed || lacksAccount)
 	if err != nil {
 		return relayer.SponsorPlan{}, err
 	}

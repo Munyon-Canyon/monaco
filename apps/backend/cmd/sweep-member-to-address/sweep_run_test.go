@@ -35,6 +35,16 @@ func (*stubRPC) MintConfig(_ context.Context, mint chain.SolanaAddress) (solana.
 	}, nil
 }
 
+func (*stubRPC) Accounts(
+	_ context.Context, addrs []chain.SolanaAddress, _ uint64,
+) (uint64, []solana.TokenAccountState, error) {
+	out := make([]solana.TokenAccountState, len(addrs))
+	for i, a := range addrs {
+		out[i] = solana.TokenAccountState{Address: a, Exists: true}
+	}
+	return 1, out, nil
+}
+
 func (r *stubRPC) SendTransaction(_ context.Context, raw []byte) (chain.Signature, error) {
 	tx, err := chain.DecodeTransaction(raw)
 	if err != nil {

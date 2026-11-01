@@ -9,7 +9,7 @@ This page shows how to prove an EVM withdrawal end to end with real USDC on main
    - The first time Privy reports the Solana step `confirmed`, the worker stores that signature in `tx_signature`.
    - `succeeded` moves the withdrawal to `confirmed`, and `withdrawal.confirmed` settles it in the user ledger.
    - `rejected`, or `failed` with no step broadcast, moves it to `failed` and releases the hold.
-   - `failed` after a step was broadcast keeps the hold, is never retried, and logs `funding.withdrawal.needs_support` once.
+   - `failed` after a step was broadcast keeps the hold, is never retried, and raises the `funding.withdrawal.needs_support` alert, again every 6 hours until support settles it with `monacoctl funding withdrawal resolve`.
 3. If the create's outcome is unknown, the row stays `created`. After `WITHDRAWAL_UNSENT_AGE` the worker asks Privy again with the same key, so the transfer is never sent twice.
 
 ## Preview what arrives
