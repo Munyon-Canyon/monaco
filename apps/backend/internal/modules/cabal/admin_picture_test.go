@@ -8,6 +8,7 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
+	"github.com/monaco/monaco/apps/backend/internal/modules/cabal/app"
 	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
 	apibase "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
 	api "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/cabalapi"
@@ -76,6 +77,7 @@ func TestAdminRemoveCabalPicture_Refusals(t *testing.T) {
 	c := testkit.NewCabal(t, f.pool)
 	user := &auth.Actor{Kind: auth.ActorUser, ID: c.Creator.ID.String()}
 	admin := &auth.Actor{Kind: auth.ActorAdmin, ID: testkit.NewIDs(9).NewV7().String(), Role: "moderator"}
+	service := &auth.Actor{Kind: auth.ActorAdmin, ID: "ops-1"}
 	for name, tc := range map[string]struct {
 		actor  *auth.Actor
 		cabal  uuid.UUID
@@ -85,6 +87,7 @@ func TestAdminRemoveCabalPicture_Refusals(t *testing.T) {
 		"no actor":     {nil, c.ID.UUID(), "abusive image", errs.CodeAdminForbidden},
 		"a user":       {user, c.ID.UUID(), "abusive image", errs.CodeAdminForbidden},
 		"short reason": {admin, c.ID.UUID(), "no", errs.CodeReasonRequired},
+		"service id":   {service, c.ID.UUID(), "abusive image", errs.CodeAdminForbidden},
 		"unknown":      {admin, f.ids.NewV7(), "abusive image", errs.CodeCabalNotFound},
 	} {
 		ctx := t.Context()
@@ -129,5 +132,23 @@ func TestAdminRemoveCabalPicture_failsWithInternalWhenTheStoreFails(t *testing.T
 				t.Fatalf("RemoveAdminCabalPicture = %v, want %s", err, errs.CodeInternal)
 			}
 		})
+	}
+}
+
+func TestAdminRemoveCabalPicture_refusesAMissingReasonBeforeCommitting(t *testing.T) {
+	t.Parallel()
+	f := newAccess(t)
+	c := testkit.NewCabal(t, f.pool)
+	if _, err := f.pool.Exec(t.Context(),
+		`UPDATE cabals SET picture_url = 'https://cdn.example.com/p.png' WHERE id = $1`, c.ID.UUID()); err != nil {
+		t.Fatal(err)
+	}
+	handler := app.NewRemoveCabalPictureHandler(f.uow, f.ids, f.clock)
+	err := handler.Handle(moderatorContext(t), app.RemoveCabalPicture{CabalID: c.ID, Admin: c.Creator.ID})
+	if errs.CodeOf(err) != errs.CodeReasonRequired {
+		t.Fatalf("Handle = %v, want %s", err, errs.CodeReasonRequired)
+	}
+	if url := f.pictureURL(t, c.ID); url == nil {
+		t.Fatal("picture_url is null after a refused removal, want it kept")
 	}
 }

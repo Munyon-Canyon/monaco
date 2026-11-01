@@ -62,9 +62,7 @@ func TestReportGauges_countOpenReportsAndTheAgeOfTheOldest(t *testing.T) {
 	f := newReportFixture(t)
 	reader := sdkmetric.NewManualReader()
 	meter := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader)).Meter("report_gauges_test")
-	if err := adapters.ExportReportGauges(meter, f.pool, f.clock); err != nil {
-		t.Fatal(err)
-	}
+	adapters.ExportReportGauges(meter, f.pool, f.clock)
 	want := map[string]int64{"monaco_reports_open": 0, "monaco_reports_oldest_open_seconds": 0}
 	if got := gaugeValues(
 		t,
@@ -101,9 +99,7 @@ func TestReportGauges_failTheCollectionWhenTheCountFails(t *testing.T) {
 	f := newReportFixture(t)
 	reader := sdkmetric.NewManualReader()
 	meter := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader)).Meter("report_gauges_failing_test")
-	if err := adapters.ExportReportGauges(meter, f.pool, f.clock); err != nil {
-		t.Fatal(err)
-	}
+	adapters.ExportReportGauges(meter, f.pool, f.clock)
 	if _, err := f.pool.Exec(t.Context(), `DROP TABLE reports`); err != nil {
 		t.Fatal(err)
 	}

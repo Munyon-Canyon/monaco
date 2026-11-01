@@ -384,7 +384,7 @@ const reportMeter = "github.com/monaco/monaco/apps/backend/internal/modules/soci
 
 func (m *Module) Consumers() []bus.Consumer {
 	m.gauges.Do(func() {
-		_ = adapters.ExportReportGauges(otel.GetMeterProvider().Meter(reportMeter), m.deps.Pool, m.deps.Clock)
+		adapters.ExportReportGauges(otel.GetMeterProvider().Meter(reportMeter), m.deps.Pool, m.deps.Clock)
 	})
 	feed := adapters.Feed{
 		Bus: m.deps.Bus, Users: m.users, Cabals: m.cabals, Assets: m.assets, Treasury: m.treasury,

@@ -39,23 +39,17 @@ func (r reportCounts) CountOpenReports(ctx context.Context, now time.Time) (sqlc
 	return sqlc.New(r.reads).CountOpenReports(ctx, now)
 }
 
-func ExportReportGauges(meter metric.Meter, reads sqlc.DBTX, clk clock.Clock) error {
-	return exportReportGauges(meter, reportCounts{reads: reads}, clk)
+func ExportReportGauges(meter metric.Meter, reads sqlc.DBTX, clk clock.Clock) {
+	exportReportGauges(meter, reportCounts{reads: reads}, clk)
 }
 
-func exportReportGauges(meter metric.Meter, source OpenReports, clk clock.Clock) error {
+func exportReportGauges(meter metric.Meter, source OpenReports, clk clock.Clock) {
 	const op = "social.ExportReportGauges"
-	open, err := meter.Int64ObservableGauge("monaco_reports_open",
+	open, _ := meter.Int64ObservableGauge("monaco_reports_open",
 		metric.WithUnit("{report}"), metric.WithDescription("User reports not yet resolved."))
-	if err != nil {
-		return errs.Wrap(err, errs.CodeInternal, op)
-	}
-	oldest, err := meter.Int64ObservableGauge("monaco_reports_oldest_open_seconds",
+	oldest, _ := meter.Int64ObservableGauge("monaco_reports_oldest_open_seconds",
 		metric.WithUnit("s"), metric.WithDescription("Age of the oldest unresolved report; 0 if none."))
-	if err != nil {
-		return errs.Wrap(err, errs.CodeInternal, op)
-	}
-	_, err = meter.RegisterCallback(func(ctx context.Context, o metric.Observer) error {
+	_, _ = meter.RegisterCallback(func(ctx context.Context, o metric.Observer) error {
 		row, err := source.CountOpenReports(ctx, clk.Now().UTC())
 		if err != nil {
 			return errs.Wrap(err, errs.CodeDBUnavailable, op)
@@ -64,8 +58,4 @@ func exportReportGauges(meter metric.Meter, source OpenReports, clk clock.Clock)
 		o.ObserveInt64(oldest, row.OldestSeconds)
 		return nil
 	}, open, oldest)
-	if err != nil {
-		return errs.Wrap(err, errs.CodeInternal, op)
-	}
-	return nil
 }

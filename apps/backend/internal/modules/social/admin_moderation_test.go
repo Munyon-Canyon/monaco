@@ -288,3 +288,31 @@ func TestAdminResolveReport_failsWithInternalWhenTheStoreFails(t *testing.T) {
 		})
 	}
 }
+
+func TestAdminRemoveChatMessage_refusesAMissingReasonBeforeCommitting(t *testing.T) {
+	t.Parallel()
+	f := newChatFixture(t)
+	m := f.mustSend(t, f.member(0), "hello", nil)
+	admin := ids.UserIDFrom(moderatorID())
+	err := app.NewRemoveChatMessageHandler(f.deps).
+		Handle(asAdmin(t), app.RemoveChatMessage{MessageID: m.ID, Admin: admin})
+	wantCode(t, err, errs.CodeReasonRequired)
+	if got := f.count(t, `SELECT count(*) FROM cabal_messages WHERE deleted_at IS NOT NULL`); got != 0 {
+		t.Fatalf("%d deleted messages after a refused removal, want 0", got)
+	}
+}
+
+func TestAdminResolveReport_refusesAMissingReasonBeforeCommitting(t *testing.T) {
+	t.Parallel()
+	admin := ids.UserIDFrom(moderatorID())
+	r := newReportFixture(t)
+	id, err := r.file(t, r.reporter, domain.ReportMessage, r.message)
+	if err != nil {
+		t.Fatal(err)
+	}
+	handler := app.NewResolveReportHandler(db.New(r.pool, r.gen, r.clock), r.gen, r.clock)
+	wantCode(t, handler.Handle(asAdmin(t), app.ResolveReport{ReportID: id, Admin: admin}), errs.CodeReasonRequired)
+	if got := r.status(t, id); got != "open" {
+		t.Fatalf("status after a refused resolve = %q, want open", got)
+	}
+}
