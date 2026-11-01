@@ -26,7 +26,7 @@ import (
 )
 
 const swapsUsage = `usage:
-  monacoctl swaps force-resolve --signature <sig> --to confirmed|failed [--out-amount <units>] --reason <text> [--yes]
+  monacoctl swaps force-resolve --signature <sig> --to confirmed|failed [--out-amount <units>] --reason <text> [--override] [--yes]
   monacoctl swaps parked
   monacoctl swaps unpark --swap <uuid> --reason <text> [--yes]
   monacoctl swaps fail-parked --swap <uuid> --reason <text> [--yes]
@@ -50,6 +50,7 @@ func swapsToolWith(environ []string, clk clock.Clock, stdin io.Reader, ports cas
 		outAmount := fs.String("out-amount", "", "")
 		reason := fs.String("reason", "", "")
 		yes := fs.Bool("yes", false, "")
+		override := fs.Bool("override", false, "")
 		if fs.Parse(args) != nil || fs.NArg() != 0 || *signature == "" || *reason == "" ||
 			(*to != string(domain.StatusConfirmed) && *to != string(domain.StatusFailed)) ||
 			(*to == string(domain.StatusConfirmed) && *outAmount == "") ||
@@ -62,9 +63,10 @@ func swapsToolWith(environ []string, clk clock.Clock, stdin io.Reader, ports cas
 			_, _ = fmt.Fprintln(stderr, swapsUsage)
 			return 2
 		}
-		return resolveSwap(
-			cfg, clk, stdin, chain.Signature(*signature), domain.Status(*to), amount, *reason, *yes, stdout, stderr,
-		)
+		return resolveSwap(cfg, clk, stdin, ports, forceResolveRequest{
+			signature: chain.Signature(*signature), to: domain.Status(*to), amount: amount, reason: *reason,
+			actor: "operator:" + operatorOf(environ), override: *override, yes: *yes,
+		}, stdout, stderr)
 	}
 	return func(args []string, stdout, stderr io.Writer) int {
 		return run(map[string]command{
@@ -91,16 +93,25 @@ func parseForceResolveAmount(raw string) (uint64, error) {
 	return amount, nil
 }
 
+type forceResolveRequest struct {
+	signature chain.Signature
+	to        domain.Status
+	amount    uint64
+	reason    string
+	actor     string
+	override  bool
+	yes       bool
+}
+
 func resolveSwap(
 	cfg config.Config,
 	clk clock.Clock,
 	stdin io.Reader,
-	signature chain.Signature,
-	to domain.Status,
-	amount uint64,
-	reason string,
-	yes bool, stdout, stderr io.Writer,
+	ports cashPorts,
+	req forceResolveRequest,
+	stdout, stderr io.Writer,
 ) int {
+	signature, to, amount, yes := req.signature, req.to, req.amount, req.yes
 	ctx := observability.WithLogger(context.Background(), observability.NewLogger(cfg, stderr))
 	pool, err := db.Open(ctx, cfg.DB)
 	if err != nil {
@@ -126,9 +137,10 @@ func resolveSwap(
 	if err != nil {
 		return fail(stderr, err)
 	}
-	handler := tradingapp.NewForceResolveSwapHandler(db.New(pool, ids.Real{}, clk), pool, clk, conn)
+	uow := db.New(pool, ids.Real{}, clk)
+	handler := tradingapp.NewForceResolveSwapHandler(uow, pool, clk, ids.Real{}, conn, ports(cfg, pool, uow, clk).Chain)
 	after, err := handler.Handle(ctx, tradingapp.ForceResolveSwap{
-		Signature: signature, To: to, OutAmount: units, Reason: reason, Actor: "system:monacoctl",
+		Signature: signature, To: to, OutAmount: units, Reason: req.reason, Actor: req.actor, Override: req.override,
 		IdempotencyKey: "force-resolve:" + string(signature) + ":" + string(to),
 	})
 	if errs.CodeOf(err) == errs.CodeSwapNotStuck {

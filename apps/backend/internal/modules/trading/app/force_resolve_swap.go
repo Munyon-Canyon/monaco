@@ -3,9 +3,11 @@ package app
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 	"unicode/utf8"
 
@@ -17,11 +19,17 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
+	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 )
 
 const forceResolveSwapOp = "trading.ForceResolveSwap"
+
+const (
+	actionForceResolve = "force_resolve"
+	actorOperatorTag   = "operator:"
+)
 
 type ForceResolveSwap struct {
 	Signature      chain.Signature
@@ -30,36 +38,144 @@ type ForceResolveSwap struct {
 	Reason         string
 	Actor          string
 	IdempotencyKey string
+	Override       bool
 }
 
 type ForceResolveSwapHandler struct {
 	uow   *db.UnitOfWork
 	reads sqlc.DBTX
 	clock clock.Clock
+	ids   ids.Generator
 	hints Hints
+	chain ChainReader
 }
 
 func NewForceResolveSwapHandler(
 	uow *db.UnitOfWork,
 	reads sqlc.DBTX,
 	c clock.Clock,
+	g ids.Generator,
 	hints Hints,
+	reader ChainReader,
 ) *ForceResolveSwapHandler {
-	return &ForceResolveSwapHandler{uow: uow, reads: reads, clock: c, hints: hints}
+	return &ForceResolveSwapHandler{uow: uow, reads: reads, clock: c, ids: g, hints: hints, chain: reader}
 }
 
 func (h *ForceResolveSwapHandler) Handle(ctx context.Context, cmd ForceResolveSwap) (SwapView, error) {
 	if err := cmd.validate(); err != nil {
 		return SwapView{}, err
 	}
-	return h.resolve(observability.WithActor(ctx, cmd.Actor), cmd)
+	ctx = observability.WithActor(ctx, "system:"+cmd.Actor)
+	facts, err := h.verify(ctx, cmd)
+	if err != nil {
+		return SwapView{}, err
+	}
+	return h.resolve(ctx, cmd, facts)
 }
 
-func (h *ForceResolveSwapHandler) resolve(ctx context.Context, cmd ForceResolveSwap) (SwapView, error) {
+type chainFacts struct {
+	State         string  `json:"chain_state"`
+	ChainOut      *uint64 `json:"chain_out_amount,omitempty"`
+	Contradiction string  `json:"contradiction,omitempty"`
+	Unverified    string  `json:"unverified,omitempty"`
+}
+
+func (h *ForceResolveSwapHandler) verify(ctx context.Context, cmd ForceResolveSwap) (chainFacts, error) {
+	row, err := sqlc.New(h.reads).SwapForForceResolve(ctx, string(cmd.Signature))
+	if err != nil {
+		return chainFacts{}, forceResolveFound(err)
+	}
+	if row.Status != string(domain.StatusSubmitted) {
+		return chainFacts{State: "skipped"}, nil
+	}
+	if row.Routed {
+		return chainFacts{
+			State: "not_checked", Unverified: "a routed swap settles on an EVM chain; its receipt is not read here",
+		}, nil
+	}
+	facts, err := h.chainFacts(ctx, cmd, row)
+	switch {
+	case err == nil && facts.Contradiction != "" && !cmd.Override:
+		return chainFacts{}, fmt.Errorf(
+			"%w: the chain contradicts --to %s: %s; rerun with --override to book it anyway",
+			errs.New(errs.CodeInvalidInput, forceResolveSwapOp), cmd.To, facts.Contradiction,
+		)
+	case err != nil && cmd.Override:
+		return chainFacts{State: "unknown", Unverified: err.Error()}, nil
+	}
+	return facts, err
+}
+
+func (h *ForceResolveSwapHandler) chainFacts(
+	ctx context.Context, cmd ForceResolveSwap, row sqlc.SwapForForceResolveRow,
+) (chainFacts, error) {
+	statuses, err := h.chain.SignatureStatuses(ctx, []chain.Signature{cmd.Signature})
+	if err != nil {
+		return chainFacts{}, err
+	}
+	if len(statuses) != 1 {
+		return chainFacts{}, errs.New(errs.CodeDecodeFailed, forceResolveSwapOp, slog.Int("statuses", len(statuses)))
+	}
+	status := statuses[0]
+	switch {
+	case status.State == SigFinalized && status.Failed:
+		return h.verdict(cmd, chainFacts{State: "failed"}, "it failed on chain", domain.StatusFailed), nil
+	case status.State == SigFinalized:
+		return h.landed(ctx, cmd, row)
+	case status.State == SigProcessing:
+		return h.verdict(cmd, chainFacts{State: "processing"}, "it is still processing and may yet land", ""), nil
+	}
+	valid, err := h.chain.BlockhashValid(ctx, row.SignedTx)
+	if err != nil {
+		return chainFacts{}, err
+	}
+	facts := chainFacts{State: "not_found"}
+	if valid {
+		return h.verdict(cmd, facts, "it was not found but its blockhash is still valid, so it may yet land", ""), nil
+	}
+	return h.verdict(cmd, facts, "it was not found and its blockhash expired", domain.StatusFailed), nil
+}
+
+func (h *ForceResolveSwapHandler) verdict(
+	cmd ForceResolveSwap, facts chainFacts, what string, agrees domain.Status,
+) chainFacts {
+	if cmd.To != agrees {
+		facts.Contradiction = what
+	}
+	return facts
+}
+
+func (h *ForceResolveSwapHandler) landed(
+	ctx context.Context, cmd ForceResolveSwap, row sqlc.SwapForForceResolveRow,
+) (chainFacts, error) {
+	facts := chainFacts{State: "landed"}
+	if cmd.To == domain.StatusFailed {
+		facts.Contradiction = "it landed successfully on chain"
+		return facts, nil
+	}
+	mint, err := confirmedOutMint(row, cmd)
+	if err != nil {
+		return chainFacts{}, err
+	}
+	got, err := h.chain.InboundAmount(ctx, cmd.Signature, chain.SolanaAddress(row.TreasuryAddress), mint)
+	if err != nil {
+		return chainFacts{}, err
+	}
+	out := got.Uint64()
+	facts.ChainOut = &out
+	if out != cmd.OutAmount.Uint64() {
+		facts.Contradiction = fmt.Sprintf("the treasury received %d, not %d", out, cmd.OutAmount.Uint64())
+	}
+	return facts, nil
+}
+
+func (h *ForceResolveSwapHandler) resolve(
+	ctx context.Context, cmd ForceResolveSwap, facts chainFacts,
+) (SwapView, error) {
 	var resolved SwapView
 	err := h.uow.Do(ctx, func(ctx context.Context, tx db.Tx) error {
 		var err error
-		resolved, err = h.resolveTx(ctx, tx, cmd)
+		resolved, err = h.resolveTx(ctx, tx, cmd, facts)
 		return err
 	})
 	if err != nil {
@@ -68,7 +184,9 @@ func (h *ForceResolveSwapHandler) resolve(ctx context.Context, cmd ForceResolveS
 	return resolved, nil
 }
 
-func (h *ForceResolveSwapHandler) resolveTx(ctx context.Context, tx db.Tx, cmd ForceResolveSwap) (SwapView, error) {
+func (h *ForceResolveSwapHandler) resolveTx(
+	ctx context.Context, tx db.Tx, cmd ForceResolveSwap, facts chainFacts,
+) (SwapView, error) {
 	row, err := sqlc.New(tx.Queries()).SwapForForceResolve(ctx, string(cmd.Signature))
 	if err != nil {
 		return SwapView{}, forceResolveFound(err)
@@ -90,13 +208,9 @@ func (h *ForceResolveSwapHandler) resolveTx(ctx context.Context, tx db.Tx, cmd F
 		return SwapView{}, err
 	}
 	if cmd.To == domain.StatusConfirmed {
-		if row.OutDecimals < 0 || row.OutDecimals > 255 {
-			return SwapView{}, errs.New(errs.CodeDecodeFailed, forceResolveSwapOp)
+		if req.OutMint, err = confirmedOutMint(row, cmd); err != nil {
+			return SwapView{}, err
 		}
-		if int16(cmd.OutAmount.Decimals()) != row.OutDecimals {
-			return SwapView{}, errs.New(errs.CodeInvalidInput, forceResolveSwapOp)
-		}
-		req.OutMint = chain.Mint{Address: chain.SolanaAddress(row.OutMint), Decimals: uint8(row.OutDecimals)}
 	}
 	s := cmd.step(req, row.ID)
 	at := h.clock.Now()
@@ -110,6 +224,9 @@ func (h *ForceResolveSwapHandler) resolveTx(ctx context.Context, tx db.Tx, cmd F
 	if err := tx.Events.Append(ctx, s.event(at)); err != nil {
 		return SwapView{}, err
 	}
+	if err := h.record(ctx, sqlc.New(tx.Queries()), row.ID, cmd, facts, at); err != nil {
+		return SwapView{}, err
+	}
 	resolved, err := NewQueries(tx.Queries()).SwapBySignature(ctx, cmd.Signature)
 	if err != nil {
 		return SwapView{}, err
@@ -118,8 +235,37 @@ func (h *ForceResolveSwapHandler) resolveTx(ctx context.Context, tx db.Tx, cmd F
 	return resolved, nil
 }
 
+func (h *ForceResolveSwapHandler) record(
+	ctx context.Context, q *sqlc.Queries, id uuid.UUID, cmd ForceResolveSwap, facts chainFacts, at time.Time,
+) error {
+	detail, err := json.Marshal(struct {
+		To        domain.Status `json:"to"`
+		OutAmount uint64        `json:"out_amount"`
+		Override  bool          `json:"override"`
+		chainFacts
+	}{cmd.To, cmd.OutAmount.Uint64(), cmd.Override, facts})
+	return errors.Join(err, q.InsertSwapOperatorAction(ctx, sqlc.InsertSwapOperatorActionParams{
+		ID: h.ids.NewV7(), SwapID: id, Action: actionForceResolve, Actor: cmd.Actor,
+		Reason: cmd.Reason, Detail: detail, CreatedAt: at,
+	}))
+}
+
+func confirmedOutMint(row sqlc.SwapForForceResolveRow, cmd ForceResolveSwap) (chain.Mint, error) {
+	if row.OutDecimals < 0 || row.OutDecimals > 255 {
+		return chain.Mint{}, errs.New(errs.CodeDecodeFailed, forceResolveSwapOp)
+	}
+	if int16(cmd.OutAmount.Decimals()) != row.OutDecimals {
+		return chain.Mint{}, errs.New(errs.CodeInvalidInput, forceResolveSwapOp)
+	}
+	return chain.Mint{Address: chain.SolanaAddress(row.OutMint), Decimals: uint8(row.OutDecimals)}, nil
+}
+
+func validOperator(actor string) bool {
+	return strings.HasPrefix(actor, actorOperatorTag) && len(actor) > len(actorOperatorTag)
+}
+
 func (cmd ForceResolveSwap) validate() error {
-	if cmd.Signature == "" || cmd.IdempotencyKey == "" || cmd.Actor == "" ||
+	if cmd.Signature == "" || cmd.IdempotencyKey == "" || !validOperator(cmd.Actor) ||
 		utf8.RuneCountInString(cmd.Reason) < 1 || utf8.RuneCountInString(cmd.Reason) > 500 {
 		return errs.New(errs.CodeInvalidInput, forceResolveSwapOp)
 	}
@@ -180,6 +326,8 @@ func (h *ForceResolveSwapHandler) committed(
 		slog.String("from", string(s.from)),
 		slog.String("to", string(s.status)),
 		slog.String("reason", cmd.Reason),
+		slog.String("actor", cmd.Actor),
+		slog.Bool("override", cmd.Override),
 	)
 }
 

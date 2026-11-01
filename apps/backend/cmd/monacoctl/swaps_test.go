@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"strings"
 	"testing"
 	"time"
@@ -11,14 +12,60 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading"
+	tradingapp "github.com/monaco/monaco/apps/backend/internal/modules/trading/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/sqlc"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
+	"github.com/monaco/monaco/apps/backend/internal/platform/config"
+	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
 
-func seededSubmittedSwap(t *testing.T, input string) (tool, string, uuid.UUID, *pgxpool.Pool) {
+type stubChain struct {
+	statuses []tradingapp.SigStatus
+	inbound  money.BaseUnits
+}
+
+func (c stubChain) SignatureStatuses(context.Context, []chain.Signature) ([]tradingapp.SigStatus, error) {
+	return c.statuses, nil
+}
+
+func (c stubChain) BlockhashValid(context.Context, []byte) (bool, error) { return false, nil }
+
+func (c stubChain) InboundAmount(
+	context.Context, chain.Signature, chain.SolanaAddress, chain.Mint,
+) (money.BaseUnits, error) {
+	return c.inbound, nil
+}
+
+func chainPorts(c tradingapp.ChainReader) cashPorts {
+	return func(config.Config, *pgxpool.Pool, *db.UnitOfWork, clock.Clock) cashAdapters {
+		return cashAdapters{Chain: c}
+	}
+}
+
+func landedChain() stubChain {
+	return stubChain{
+		statuses: []tradingapp.SigStatus{{State: tradingapp.SigFinalized}},
+		inbound:  money.NewBaseUnits(104_000_000, 8),
+	}
+}
+
+func failedChain() stubChain {
+	return stubChain{statuses: []tradingapp.SigStatus{{State: tradingapp.SigFinalized, Failed: true}}}
+}
+
+func seededSubmittedSwap(t *testing.T) (tool, string, uuid.UUID, *pgxpool.Pool) {
+	t.Helper()
+	return seededSubmittedSwapOn(t, "", landedChain())
+}
+
+func seededSubmittedSwapOn(
+	t *testing.T, input string, reader tradingapp.ChainReader,
+) (tool, string, uuid.UUID, *pgxpool.Pool) {
 	t.Helper()
 	pool := testkit.DB(t)
 	now := time.Now().UTC().Add(-time.Hour)
@@ -43,13 +90,15 @@ func seededSubmittedSwap(t *testing.T, input string) (tool, string, uuid.UUID, *
 	}
 	environ := []string{
 		"MONACO_ENV=test", "DATABASE_URL=" + pool.Config().ConnString(), "NATS_URL=" + testkit.NATSURL(),
+		"USER=alice",
 	}
-	return swapsTool(environ, testkit.NewClock(now), strings.NewReader(input)), signature, id, pool
+	swaps := swapsToolWith(environ, testkit.NewClock(now), strings.NewReader(input), chainPorts(reader))
+	return swaps, signature, id, pool
 }
 
 func TestSwapsForceResolve_confirmsOnceAndPrintsBeforeAndAfter(t *testing.T) {
 	t.Parallel()
-	swaps, signature, id, pool := seededSubmittedSwap(t, "")
+	swaps, signature, id, pool := seededSubmittedSwap(t)
 	args := []string{
 		"force-resolve", "--signature", signature, "--to", "confirmed", "--out-amount", "104000000",
 		"--reason", "chain explorer verified it", "--yes",
@@ -72,9 +121,40 @@ func TestSwapsForceResolve_confirmsOnceAndPrintsBeforeAndAfter(t *testing.T) {
 	}
 }
 
+func TestSwapsForceResolve_refusesWhatTheChainContradictsUntilOverridden(t *testing.T) {
+	t.Parallel()
+	swaps, signature, id, pool := seededSubmittedSwap(t)
+	failed := []string{"force-resolve", "--signature", signature, "--to", "failed", "--reason", "typo", "--yes"}
+	assertForceResolveFailure(t, swaps, failed, "landed successfully")
+	wrong := func(extra ...string) []string {
+		return append([]string{
+			"force-resolve", "--signature", signature, "--to", "confirmed", "--out-amount", "10400000",
+			"--reason", "typo", "--yes",
+		}, extra...)
+	}
+	assertForceResolveFailure(t, swaps, wrong(), "--override")
+	var audit int
+	const q = `SELECT count(*) FROM swap_operator_actions WHERE swap_id = $1`
+	if err := pool.QueryRow(t.Context(), q, id).Scan(&audit); err != nil || audit != 0 {
+		t.Fatalf("audit rows after refusals = %d, %v, want 0", audit, err)
+	}
+	assertForceResolveSuccess(t, swaps, wrong("--override"))
+	var actor, detail string
+	const row = `SELECT actor, detail::text FROM swap_operator_actions WHERE swap_id = $1 AND action = 'force_resolve'`
+	if err := pool.QueryRow(t.Context(), row, id).Scan(&actor, &detail); err != nil || actor != "operator:alice" ||
+		!strings.Contains(detail, `"override": true`) {
+		t.Fatalf("audit = %q %s, %v", actor, detail, err)
+	}
+	var eventActor string
+	const ev = `SELECT actor_id FROM events WHERE aggregate_id = $1`
+	if err := pool.QueryRow(t.Context(), ev, id).Scan(&eventActor); err != nil || eventActor != "operator:alice" {
+		t.Fatalf("event actor = %q, %v", eventActor, err)
+	}
+}
+
 func TestSwapsForceResolve_refusesConflictingTerminalStatus(t *testing.T) {
 	t.Parallel()
-	swaps, signature, _, _ := seededSubmittedSwap(t, "")
+	swaps, signature, _, _ := seededSubmittedSwap(t)
 	confirmed := []string{
 		"force-resolve", "--signature", signature, "--to", "confirmed", "--out-amount", "104000000",
 		"--reason", "chain explorer verified it", "--yes",
@@ -88,7 +168,7 @@ func TestSwapsForceResolve_refusesConflictingTerminalStatus(t *testing.T) {
 
 func TestSwapsForceResolve_promptsBeforeFailing(t *testing.T) {
 	t.Parallel()
-	swaps, signature, id, pool := seededSubmittedSwap(t, "n\n")
+	swaps, signature, id, pool := seededSubmittedSwapOn(t, "n\n", failedChain())
 	args := []string{
 		"force-resolve", "--signature", signature, "--to", "failed", "--reason", "chain explorer verified it",
 	}
@@ -102,9 +182,9 @@ func TestSwapsForceResolve_promptsBeforeFailing(t *testing.T) {
 	if err := pool.QueryRow(t.Context(), allEvents, id).Scan(&events); err != nil || events != 0 {
 		t.Fatalf("events after cancellation = %d, %v, want 0", events, err)
 	}
-	swaps = swapsTool(
+	swaps = swapsToolWith(
 		[]string{"MONACO_ENV=test", "DATABASE_URL=" + pool.Config().ConnString(), "NATS_URL=" + testkit.NATSURL()},
-		testkit.NewClock(time.Now().UTC()), strings.NewReader("y\n"),
+		testkit.NewClock(time.Now().UTC()), strings.NewReader("y\n"), chainPorts(failedChain()),
 	)
 	stdout.Reset()
 	stderr.Reset()
@@ -115,7 +195,7 @@ func TestSwapsForceResolve_promptsBeforeFailing(t *testing.T) {
 
 func TestSwapsForceResolve_rejectsMalformedArgumentsWithTheUsage(t *testing.T) {
 	t.Parallel()
-	swaps, signature, _, _ := seededSubmittedSwap(t, "")
+	swaps, signature, _, _ := seededSubmittedSwap(t)
 	for _, args := range [][]string{
 		{"force-resolve", "--to", "failed", "--reason", "verified"},
 		{"force-resolve", "--signature", signature, "--to", "submitted", "--reason", "verified"},
@@ -142,7 +222,7 @@ func TestSwapsForceResolve_rejectsMalformedArgumentsWithTheUsage(t *testing.T) {
 
 func TestSwapsForceResolve_createdSwapReturnsNotStuck(t *testing.T) {
 	t.Parallel()
-	swaps, signature, id, pool := seededSubmittedSwap(t, "")
+	swaps, signature, id, pool := seededSubmittedSwap(t)
 	if _, err := pool.Exec(t.Context(), `UPDATE swaps SET status = 'created' WHERE id = $1`, id); err != nil {
 		t.Fatal(err)
 	}
@@ -205,13 +285,13 @@ func TestSwapsForceResolve_reportsOperationalFailures(t *testing.T) {
 	t.Parallel()
 	t.Run("missing swap", func(t *testing.T) {
 		t.Parallel()
-		swaps, _, _, _ := seededSubmittedSwap(t, "")
+		swaps, _, _, _ := seededSubmittedSwap(t)
 		args := []string{"force-resolve", "--signature", "missing", "--to", "failed", "--reason", "verified", "--yes"}
 		assertForceResolveFailure(t, swaps, args, "swap_not_found")
 	})
 	t.Run("nats unavailable", func(t *testing.T) {
 		t.Parallel()
-		_, signature, _, pool := seededSubmittedSwap(t, "")
+		_, signature, _, pool := seededSubmittedSwap(t)
 		swaps := swapsTool(
 			[]string{"MONACO_ENV=test", "DATABASE_URL=" + pool.Config().ConnString(), "NATS_URL=nats://127.0.0.1:1"},
 			clock.Real{}, strings.NewReader(""),
@@ -221,7 +301,7 @@ func TestSwapsForceResolve_reportsOperationalFailures(t *testing.T) {
 	})
 	t.Run("invalid stored decimals", func(t *testing.T) {
 		t.Parallel()
-		swaps, signature, id, pool := seededSubmittedSwap(t, "")
+		swaps, signature, id, pool := seededSubmittedSwap(t)
 		if _, err := pool.Exec(t.Context(), `UPDATE swaps SET out_decimals = -1 WHERE id = $1`, id); err != nil {
 			t.Fatal(err)
 		}
@@ -233,7 +313,7 @@ func TestSwapsForceResolve_reportsOperationalFailures(t *testing.T) {
 	})
 	t.Run("invalid command", func(t *testing.T) {
 		t.Parallel()
-		swaps, signature, _, _ := seededSubmittedSwap(t, "")
+		swaps, signature, _, _ := seededSubmittedSwap(t)
 		args := []string{
 			"force-resolve", "--signature", signature, "--to", "failed", "--reason", strings.Repeat("a", 501), "--yes",
 		}
