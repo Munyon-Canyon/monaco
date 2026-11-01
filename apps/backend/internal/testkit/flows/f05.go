@@ -1,9 +1,13 @@
 package flows
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"time"
+
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
@@ -106,15 +110,7 @@ func F05CreditDepositCrashFirstSightAfterCommit(s *scenario.Scenario) {
 const fixtureTransferBlockTime = 1790000000
 
 func firstSightCrashes(s *scenario.Scenario, point faultpoint.Name) {
-	user := seedDepositUser(s)
-	if _, err := s.DB().Exec(
-		s.Context(),
-		`UPDATE user_wallets SET created_at = to_timestamp($1) WHERE user_id = $2`,
-		fixtureTransferBlockTime-100,
-		user.ID.UUID(),
-	); err != nil {
-		s.Fatalf("flows: backdate deposit wallet: %v", err)
-	}
+	user := seedDepositUser(s, time.Unix(fixtureTransferBlockTime-100, 0))
 	s.Given(oneInboundTransfer(user)...).When(
 		scenario.TickCrashingAt(depositPoller, point),
 		scenario.AwaitTick(depositPoller),
@@ -124,7 +120,7 @@ func firstSightCrashes(s *scenario.Scenario, point faultpoint.Name) {
 }
 
 func seedDepositWallet(s *scenario.Scenario) testkit.SeededUser {
-	user := seedDepositUser(s)
+	user := seedDepositUser(s, time.Now())
 	ata, err := chain.AssociatedTokenAccount(user.Address, testkit.USDCMint, chain.SPLProgram)
 	if err != nil {
 		s.Fatalf("flows: derive deposit account: %v", err)
@@ -158,21 +154,29 @@ func seedDepositWallet(s *scenario.Scenario) testkit.SeededUser {
 	return user
 }
 
-func seedDepositUser(s *scenario.Scenario) testkit.SeededUser {
-	user := testkit.SeedUser(seedT{s}, s.DB(), testkit.UserOpts{WithWallet: true})
-	user.Address = chain.SolanaAddress(depositWallet)
-	if _, err := s.DB().Exec(s.Context(), `DELETE FROM user_wallets WHERE address = $1`, user.Address); err != nil {
-		s.Fatalf("flows: clear deposit wallet: %v", err)
-	}
-	if _, err := s.DB().Exec(
-		s.Context(),
-		`UPDATE user_wallets SET address = $1 WHERE user_id = $2`,
-		user.Address,
-		user.ID.UUID(),
-	); err != nil {
-		s.Fatalf("flows: update deposit wallet: %v", err)
+func seedDepositUser(s *scenario.Scenario, walletCreatedAt time.Time) testkit.SeededUser {
+	user := testkit.SeedUser(seedT{s}, s.DB(), testkit.UserOpts{})
+	if err := PlaceDepositWallet(s.Context(), s.DB(), &user, walletCreatedAt); err != nil {
+		s.Fatalf("flows: %v", err)
 	}
 	return user
+}
+
+func PlaceDepositWallet(
+	ctx context.Context, db *pgxpool.Pool, user *testkit.SeededUser, walletCreatedAt time.Time,
+) error {
+	user.PrivyWalletID, user.Address = "wallet-"+user.ID.String(), chain.SolanaAddress(depositWallet)
+	if _, err := db.Exec(ctx, `DELETE FROM user_wallets WHERE address = $1`, user.Address); err != nil {
+		return fmt.Errorf("clear deposit wallet: %w", err)
+	}
+	if _, err := db.Exec(
+		ctx,
+		`INSERT INTO user_wallets (user_id, privy_wallet_id, address, created_at) VALUES ($1, $2, $3, $4)`,
+		user.ID.UUID(), user.PrivyWalletID, string(user.Address), walletCreatedAt.UTC(),
+	); err != nil {
+		return fmt.Errorf("insert deposit wallet: %w", err)
+	}
+	return nil
 }
 
 func expectDeposit(user testkit.SeededUser) scenario.Step {
