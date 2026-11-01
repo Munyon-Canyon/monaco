@@ -153,6 +153,18 @@ func (s Queries) OwnsSignature(ctx context.Context, sig chain.Signature) (bool, 
 	return owns, nil
 }
 
+func (s Queries) BridgeBackInFlight(ctx context.Context, cabal ids.CabalID) (money.Micros, error) {
+	sum, err := s.q.BridgeBackInFlight(ctx, cabal.UUID())
+	var micros money.Micros
+	if err == nil {
+		micros, err = money.ParseMicros(sum)
+	}
+	if err != nil {
+		return money.Micros{}, errs.Wrap(err, errs.CodeInternal, "trading.BridgeBackInFlight")
+	}
+	return micros, nil
+}
+
 func found(op string, row sqlc.SwapView, err error) (SwapView, error) {
 	switch {
 	case errors.Is(err, sql.ErrNoRows):

@@ -16,6 +16,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	cabalport "github.com/monaco/monaco/apps/backend/internal/modules/cabal/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding/app"
+	fundingport "github.com/monaco/monaco/apps/backend/internal/modules/funding/port"
 	treasuryport "github.com/monaco/monaco/apps/backend/internal/modules/treasury/port"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/solana"
@@ -652,5 +653,107 @@ func TestTreasuryReconcile_ATokenAccountScanFailureIsCountedNotFatal(t *testing.
 				t.Fatalf("tick = %+v, %v, want one failed cabal and no tick error", report, err)
 			}
 		})
+	}
+}
+
+type bridgeBackInFlight money.Micros
+
+func (b bridgeBackInFlight) BridgeBackInFlight(context.Context, ids.CabalID) (money.Micros, error) {
+	return money.Micros(b), nil
+}
+
+func TestTreasuryReconcile_ABridgeBackFillLandingBeforeBridgeLandedIsNotBounced(t *testing.T) {
+	t.Parallel()
+	env := newReconcileEnv(t)
+	treasury := env.cabal.TreasuryAddress
+	env.deps.Detect = detectorFunc(func(ctx context.Context, cmd app.DetectExternalDeposit) (app.DetectResult, error) {
+		deps := env.watchEnv.deps
+		deps.Arrivals = []fundingport.ArrivalExpectation{bridgeBackInFlight(money.MicrosFromUint64(30_000_000))}
+		return app.NewDetectExternalDepositHandler(deps).Handle(ctx, cmd)
+	})
+	fill := env.inbound(t, env.usdcMint(), 29_400_000, randomAddress(t))
+	env.landed(treasury, fill)
+	env.onChain(treasury, env.usdc, 29_400_000)
+
+	changed, err := env.tick(t)
+
+	if err != nil || changed != 0 {
+		t.Fatalf("tick = %d, %v, want the bridge-back fill left alone", changed, err)
+	}
+	if rows := externalDeposits(t, env.pool); len(rows) != 0 {
+		t.Fatalf("rows = %+v, want no external deposit for a bridge-back fill", rows)
+	}
+	if env.cursor(t) != string(fill) {
+		t.Fatalf("cursor = %q, want %q so the fill is never scanned again", env.cursor(t), fill)
+	}
+}
+
+func TestTreasuryReconcile_ATransferLargerThanTheBridgeBackInFlightIsStillBounced(t *testing.T) {
+	t.Parallel()
+	env := newReconcileEnv(t)
+	treasury := env.cabal.TreasuryAddress
+	env.deps.Detect = detectorFunc(func(ctx context.Context, cmd app.DetectExternalDeposit) (app.DetectResult, error) {
+		deps := env.watchEnv.deps
+		deps.Arrivals = []fundingport.ArrivalExpectation{bridgeBackInFlight(money.MicrosFromUint64(30_000_000))}
+		return app.NewDetectExternalDepositHandler(deps).Handle(ctx, cmd)
+	})
+	stray := env.inbound(t, env.usdcMint(), 30_000_001, randomAddress(t))
+	env.landed(treasury, stray)
+	env.onChain(treasury, env.usdc, 30_000_001)
+
+	changed, err := env.tick(t)
+
+	if err != nil || changed != 1 {
+		t.Fatalf("tick = %d, %v, want the oversize transfer recorded", changed, err)
+	}
+	if rows := externalDeposits(t, env.pool); rows[string(stray)].status != "detected" {
+		t.Fatalf("rows = %+v, want the oversize transfer detected", rows)
+	}
+}
+
+func TestTreasuryReconcile_ABridgeBackThatIsNotInFlightDoesNotShieldATransfer(t *testing.T) {
+	t.Parallel()
+	env := newReconcileEnv(t)
+	treasury := env.cabal.TreasuryAddress
+	env.deps.Detect = detectorFunc(func(ctx context.Context, cmd app.DetectExternalDeposit) (app.DetectResult, error) {
+		deps := env.watchEnv.deps
+		deps.Arrivals = []fundingport.ArrivalExpectation{bridgeBackInFlight(money.Micros{})}
+		return app.NewDetectExternalDepositHandler(deps).Handle(ctx, cmd)
+	})
+	stray := env.inbound(t, env.usdcMint(), 5_000_000, randomAddress(t))
+	env.landed(treasury, stray)
+	env.onChain(treasury, env.usdc, 5_000_000)
+
+	if changed, err := env.tick(t); err != nil || changed != 1 {
+		t.Fatalf("tick = %d, %v, want the stray transfer recorded", changed, err)
+	}
+}
+
+type brokenArrivals struct{}
+
+func (brokenArrivals) BridgeBackInFlight(context.Context, ids.CabalID) (money.Micros, error) {
+	return money.Micros{}, errs.New(errs.CodeInternal, "test.BridgeBackInFlight")
+}
+
+func TestTreasuryReconcile_AnUnreadableBridgeBackFailsTheScanInsteadOfBouncing(t *testing.T) {
+	t.Parallel()
+	env := newReconcileEnv(t)
+	treasury := env.cabal.TreasuryAddress
+	env.deps.Detect = detectorFunc(func(ctx context.Context, cmd app.DetectExternalDeposit) (app.DetectResult, error) {
+		deps := env.watchEnv.deps
+		deps.Arrivals = []fundingport.ArrivalExpectation{brokenArrivals{}}
+		return app.NewDetectExternalDepositHandler(deps).Handle(ctx, cmd)
+	})
+	stray := env.inbound(t, env.usdcMint(), 5_000_000, randomAddress(t))
+	env.landed(treasury, stray)
+	env.onChain(treasury, env.usdc, 5_000_000)
+
+	report, err := env.tickReport(t)
+
+	if err != nil || attr(report, "failed") != 1 || report.Changed != 0 {
+		t.Fatalf("tick = %+v, %v, want one failed cabal and nothing recorded", report, err)
+	}
+	if rows := externalDeposits(t, env.pool); len(rows) != 0 || env.cursor(t) != "" {
+		t.Fatalf("rows = %+v, cursor %q, want nothing recorded and the cursor held", rows, env.cursor(t))
 	}
 }

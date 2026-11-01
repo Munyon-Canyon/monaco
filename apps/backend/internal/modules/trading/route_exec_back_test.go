@@ -331,3 +331,36 @@ func TestBridgeBack_aReturnWhoseSolanaLegIsExternalSettlesOnWhatPrivyDelivered(t
 	got := e.steps(t, swap)
 	wantSteps(t, got[len(got)-3:], "bridge_back:pending:0", "bridge_back:submitted:7500", "bridge_back:succeeded:21282")
 }
+
+func (e *routeEnv) queries() app.Queries { return app.NewQueries(e.pool) }
+
+func TestBridgeBack_theFillIsOwnedOnceTheReturnSucceedsAndExpectedWhileItIsInFlight(t *testing.T) {
+	t.Parallel()
+	e := newRouteEnv(t)
+	_, swap := e.strand(t)
+	e.mustTick(t, 1, 0)
+	e.proposals.set(governance.Status("cancelled"))
+	e.privy.script(multichain.ActionPending)
+
+	e.mustTick(t, 1, 1)
+
+	inFlight, err := e.queries().BridgeBackInFlight(t.Context(), e.cabal)
+	if err != nil || inFlight != money.MicrosFromUint64(landedMicros) {
+		t.Fatalf("in flight = %s, %v, want %d while the return is submitted", inFlight, err, landedMicros)
+	}
+	_, action := e.bridgeBackOf(t, swap)
+	fill := chain.Signature(arrivalPrefix + action)
+	if owned, err := e.queries().OwnsSignature(t.Context(), fill); err != nil || owned {
+		t.Fatalf("OwnsSignature(fill) = %t, %v, want false before the return succeeds", owned, err)
+	}
+
+	e.privy.script(multichain.ActionSucceeded)
+	e.mustTick(t, 1, 1)
+
+	if owned, err := e.queries().OwnsSignature(t.Context(), fill); err != nil || !owned {
+		t.Fatalf("OwnsSignature(fill) = %t, %v, want true once the return succeeded", owned, err)
+	}
+	if inFlight, err := e.queries().BridgeBackInFlight(t.Context(), e.cabal); err != nil || !inFlight.IsZero() {
+		t.Fatalf("in flight = %s, %v, want zero once the return succeeded", inFlight, err)
+	}
+}

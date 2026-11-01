@@ -217,6 +217,10 @@ func (m *Module) OwnsSignature(ctx context.Context, sig chain.Signature) (bool, 
 	return m.Queries().OwnsSignature(ctx, sig)
 }
 
+func (m *Module) BridgeBackInFlight(ctx context.Context, cabal ids.CabalID) (money.Micros, error) {
+	return m.Queries().BridgeBackInFlight(ctx, cabal)
+}
+
 func (m *Module) build() {
 	cfg, clk := m.deps.Config, m.deps.Clock
 	venue := m.venue

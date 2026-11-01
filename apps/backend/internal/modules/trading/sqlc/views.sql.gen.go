@@ -11,6 +11,20 @@ import (
 	"github.com/google/uuid"
 )
 
+const bridgeBackInFlight = `-- name: BridgeBackInFlight :one
+SELECT coalesce(sum(t.amount_micros), 0)::text AS in_flight_micros
+FROM trade_steps t
+JOIN swaps s ON s.id = t.trade_id
+WHERE s.cabal_id = $1::uuid AND t.step = 'bridge_back' AND t.status = 'submitted'
+`
+
+func (q *Queries) BridgeBackInFlight(ctx context.Context, cabalID uuid.UUID) (string, error) {
+	row := q.db.QueryRow(ctx, bridgeBackInFlight, cabalID)
+	var in_flight_micros string
+	err := row.Scan(&in_flight_micros)
+	return in_flight_micros, err
+}
+
 const hasLiveSwap = `-- name: HasLiveSwap :one
 SELECT EXISTS (
   SELECT 1 FROM swaps WHERE source_kind = $1 AND source_id = $2 AND status <> 'failed'
@@ -66,7 +80,11 @@ func (q *Queries) LatestBySource(ctx context.Context, arg LatestBySourceParams) 
 }
 
 const ownsSignature = `-- name: OwnsSignature :one
-SELECT EXISTS (SELECT 1 FROM swaps WHERE tx_signature = $1::text)
+SELECT EXISTS (
+  SELECT 1 FROM swaps WHERE tx_signature = $1::text
+  UNION ALL
+  SELECT 1 FROM trade_steps WHERE step = 'bridge_back' AND arrival_tx = $1::text
+)
 `
 
 func (q *Queries) OwnsSignature(ctx context.Context, txSignature string) (bool, error) {

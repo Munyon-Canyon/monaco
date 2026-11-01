@@ -58,17 +58,18 @@ type WatchPrices interface {
 }
 
 type DetectDeps struct {
-	UoW     *db.UnitOfWork
-	Reads   sqlc.DBTX
-	IDs     ids.Generator
-	Clock   clock.Clock
-	Hints   HintPublisher
-	Chain   WatchChain
-	Owners  []fundingport.SignatureOwner
-	Assets  WatchAssets
-	Prices  WatchPrices
-	Wallets identityport.WalletReader
-	USDC    chain.SolanaAddress
+	UoW      *db.UnitOfWork
+	Reads    sqlc.DBTX
+	IDs      ids.Generator
+	Clock    clock.Clock
+	Hints    HintPublisher
+	Chain    WatchChain
+	Owners   []fundingport.SignatureOwner
+	Arrivals []fundingport.ArrivalExpectation
+	Assets   WatchAssets
+	Prices   WatchPrices
+	Wallets  identityport.WalletReader
+	USDC     chain.SolanaAddress
 }
 
 type DetectExternalDepositHandler struct{ d DetectDeps }
@@ -112,7 +113,36 @@ func (h *DetectExternalDepositHandler) Handle(ctx context.Context, cmd DetectExt
 	if in.verdict != domain.VerdictDetected {
 		return h.ignore(ctx, cmd, in)
 	}
+	arriving, err := h.arriving(ctx, cmd, in.transfer)
+	if err != nil {
+		return DetectResult{}, errs.Wrap(err, errs.CodeOf(err), op)
+	}
+	if arriving {
+		observability.Info(ctx, observability.FundingWatchOwnTransfer,
+			slog.String("cabal_id", cmd.CabalID.String()), slog.String("tx", string(cmd.Signature)),
+			slog.String("reason", "bridge_back_in_flight"))
+		return DetectResult{Verdict: domain.VerdictOwn}, nil
+	}
 	return h.detect(ctx, cmd, in)
+}
+
+func (h *DetectExternalDepositHandler) arriving(
+	ctx context.Context, cmd DetectExternalDeposit, t solana.Transfer,
+) (bool, error) {
+	if t.Mint.Address != h.d.USDC {
+		return false, nil
+	}
+	got := money.MicrosFromUint64(t.Net.Uint64())
+	for _, a := range h.d.Arrivals {
+		expected, err := a.BridgeBackInFlight(ctx, cmd.CabalID)
+		if err != nil {
+			return false, err
+		}
+		if !expected.IsZero() && got.Cmp(expected) <= 0 {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func (h *DetectExternalDepositHandler) owned(ctx context.Context, sig chain.Signature) (bool, error) {

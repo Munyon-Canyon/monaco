@@ -16,4 +16,14 @@ SELECT EXISTS (
 );
 
 -- name: OwnsSignature :one
-SELECT EXISTS (SELECT 1 FROM swaps WHERE tx_signature = @tx_signature::text);
+SELECT EXISTS (
+  SELECT 1 FROM swaps WHERE tx_signature = @tx_signature::text
+  UNION ALL
+  SELECT 1 FROM trade_steps WHERE step = 'bridge_back' AND arrival_tx = @tx_signature::text
+);
+
+-- name: BridgeBackInFlight :one
+SELECT coalesce(sum(t.amount_micros), 0)::text AS in_flight_micros
+FROM trade_steps t
+JOIN swaps s ON s.id = t.trade_id
+WHERE s.cabal_id = @cabal_id::uuid AND t.step = 'bridge_back' AND t.status = 'submitted';
