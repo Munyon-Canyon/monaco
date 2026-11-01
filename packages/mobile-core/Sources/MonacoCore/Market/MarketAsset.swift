@@ -82,6 +82,7 @@ public struct MarketAsset: Equatable, Sendable, Identifiable {
     public let isQuotable: Bool
     public let volume24hMicros: Int64?
     public let estimate: MarketEstimate?
+    public let isDelayed: Bool
 
     public var id: String { symbol }
 
@@ -103,7 +104,8 @@ public struct MarketAsset: Equatable, Sendable, Identifiable {
         isTradable: Bool,
         isQuotable: Bool = true,
         volume24hMicros: Int64? = nil,
-        estimate: MarketEstimate? = nil
+        estimate: MarketEstimate? = nil,
+        isDelayed: Bool = false
     ) {
         self.symbol = symbol
         self.ticker = ticker
@@ -123,6 +125,7 @@ public struct MarketAsset: Equatable, Sendable, Identifiable {
         self.isQuotable = isQuotable
         self.volume24hMicros = volume24hMicros
         self.estimate = estimate
+        self.isDelayed = isDelayed
     }
 
     public var isPaused: Bool { isTradable && !isQuotable }

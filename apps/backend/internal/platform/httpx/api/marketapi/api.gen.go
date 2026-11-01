@@ -553,6 +553,11 @@ type AssetDetail struct {
 	// Examples: [100000000,110000000]
 	SparklineMicros *[]int64 `json:"sparkline_micros"`
 
+	// Stale True when `price_micros` is older than the freshness limit: 15 minutes in an open, pre-market, after-hours or continuous session, and more than a day before the last close in a closed one. The app marks the price Delayed instead of showing it as live. Absent when the asset is unpriced.
+	//
+	// Examples: false
+	Stale *bool `json:"stale,omitempty"`
+
 	// Stats The market stats of an equity. Six cells, always drawn: a null value is shown as a dash, never hidden. The cells are market cap, volume (`volume_24h_micros`), open, 52-week low, 52-week high and held by. Null for a `pre_ipo` asset, which shows its round stats instead.
 	//
 	// Examples: null
@@ -792,6 +797,11 @@ type AssetSummary struct {
 	//
 	// Examples: [100000000,110000000]
 	SparklineMicros *[]int64 `json:"sparkline_micros"`
+
+	// Stale True when `price_micros` is older than the freshness limit: 15 minutes in an open, pre-market, after-hours or continuous session, and more than a day before the last close in a closed one. The app marks the price Delayed instead of showing it as live. Absent when the asset is unpriced.
+	//
+	// Examples: false
+	Stale *bool `json:"stale,omitempty"`
 
 	// Symbol The ticker the app shows and the path key for the asset.
 	//

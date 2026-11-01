@@ -192,6 +192,7 @@ func wireSummary(item app.Summary, now time.Time) (api.AssetSummary, error) {
 	}
 	out.PriceMicros = &price
 	out.PriceAsOf = &at
+	out.Stale = &item.Stale
 	out.ChangeBps = item.Change
 	out.SparklineMicros = &points
 	return out, nil
@@ -225,6 +226,7 @@ func wireDetail(view app.AssetView, now time.Time, pollInterval time.Duration) (
 		LogoUrl:         summary.LogoUrl,
 		PriceMicros:     summary.PriceMicros,
 		PriceAsOf:       summary.PriceAsOf,
+		Stale:           summary.Stale,
 		ChangeBps:       summary.ChangeBps,
 		SparklineMicros: summary.SparklineMicros,
 		Volume24hMicros: summary.Volume24hMicros,

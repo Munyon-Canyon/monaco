@@ -305,6 +305,14 @@ components:
           format: date-time
           description: When `price_micros` was sampled. Null when the asset is unpriced.
           examples: ["2026-03-04T14:30:00Z"]
+        stale:
+          type: boolean
+          description: >-
+            True when `price_micros` is older than the freshness limit: 15 minutes in an open,
+            pre-market, after-hours or continuous session, and more than a day before the last close
+            in a closed one. The app marks the price Delayed instead of showing it as live. Absent
+            when the asset is unpriced.
+          examples: [false]
         change_bps:
           type: [integer, "null"]
           format: int32
@@ -522,6 +530,14 @@ components:
           format: date-time
           description: When `price_micros` was sampled. Null when the asset is unpriced.
           examples: ["2026-03-04T14:30:00Z"]
+        stale:
+          type: boolean
+          description: >-
+            True when `price_micros` is older than the freshness limit: 15 minutes in an open,
+            pre-market, after-hours or continuous session, and more than a day before the last close
+            in a closed one. The app marks the price Delayed instead of showing it as live. Absent
+            when the asset is unpriced.
+          examples: [false]
         change_bps:
           type: [integer, "null"]
           format: int32

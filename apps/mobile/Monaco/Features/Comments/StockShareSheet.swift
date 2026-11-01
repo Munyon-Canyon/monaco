@@ -91,6 +91,7 @@ struct StockShareSheet: View {
                     symbol: asset.symbol, displayName: asset.name, assetKind: asset.kind, size: .row,
                     logoURL: asset.logoURL)
             ) {
+                if asset.isDelayed { DelayedTag() }
                 Text(asset.priceText)
                     .moneyFigure(.row)
                     .foregroundStyle(MonacoTheme.ink)

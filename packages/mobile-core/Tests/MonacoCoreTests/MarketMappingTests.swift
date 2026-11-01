@@ -17,6 +17,23 @@ final class MarketMappingTests: XCTestCase {
         XCTAssertTrue(MarketMapping.detail(.googl).asset.isQuotable)
     }
 
+    func testServerStaleFlagAndAgeMarkAPriceDelayed() {
+        let now = sampledAt.addingTimeInterval(MarketStaleness.priceAgeLimit + 1)
+        let flagged = delayedSummary(asOf: sampledAt, stale: true, state: .closed)
+        let aged = delayedSummary(asOf: sampledAt, stale: false, state: .open)
+        let live = delayedSummary(asOf: sampledAt, stale: false, state: .open)
+        let closedClose = delayedSummary(asOf: sampledAt, stale: false, state: .closed)
+        let unpriced = delayedSummary(asOf: nil, stale: true, state: .open, priceMicros: nil)
+
+        XCTAssertTrue(MarketMapping.asset(flagged, now: sampledAt).isDelayed)
+        XCTAssertTrue(MarketMapping.asset(aged, now: now).isDelayed)
+        XCTAssertFalse(MarketMapping.asset(live, now: sampledAt).isDelayed)
+        XCTAssertFalse(MarketMapping.asset(closedClose, now: now).isDelayed)
+        XCTAssertFalse(MarketMapping.asset(unpriced, now: now).isDelayed)
+        XCTAssertTrue(MarketMapping.page(.init(assets: [flagged], nextCursor: nil), now: sampledAt).assets[0].isDelayed)
+        XCTAssertFalse(MarketMapping.detail(.googl, now: sampledAt).asset.isDelayed)
+    }
+
     func testVolumeMapsFromAFreshReadingAndIsNilWithoutOne() {
         let withVolume = MarketMapping.asset(
             summary(
@@ -312,6 +329,18 @@ extension MarketMappingTests {
         XCTAssertEqual(page.assets.map(\.symbol), ["AAPLx", "TSLAx"])
         XCTAssertEqual(page.assets.map(\.issuer), [.xstocks, .prestocks])
         XCTAssertEqual(page.nextCursor, "cursor-2")
+    }
+
+    private func delayedSummary(
+        asOf: Date?, stale: Bool, state: Components.Schemas.MarketState, priceMicros: Int64? = 110_000_000
+    ) -> Components.Schemas.AssetSummary {
+        var out = summary(
+            symbol: "AAPLx", displayName: "Apple xStock", issuer: .xstocks, kind: .equity, logoUrl: nil,
+            priceMicros: priceMicros, priceAsOf: asOf, changeBps: nil, sparklineMicros: nil,
+            session: session(state: state)
+        )
+        out.stale = stale
+        return out
     }
 
     private func summary(

@@ -54,6 +54,7 @@ type Summary struct {
 	Session   domain.SessionInfo
 	Priced    bool
 	Price     domain.Sample
+	Stale     bool
 	Change    *int32
 	Sparkline []money.Micros
 	Volume    *Volume
@@ -364,7 +365,7 @@ func (l *ListAssets) summaries(ctx context.Context, assets []domain.Asset, now t
 	}
 	out := make([]Summary, len(assets))
 	for i, asset := range assets {
-		out[i] = summary(asset, sessions[asset.Kind], loaded)
+		out[i] = summary(asset, sessions[asset.Kind], loaded, now)
 		if profile, ok := profiles[asset.CompanyKey]; ok && asset.Kind == domain.KindPreIPO {
 			out[i].Profile = &profile
 		}

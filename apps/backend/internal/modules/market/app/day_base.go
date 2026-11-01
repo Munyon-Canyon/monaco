@@ -21,7 +21,14 @@ func closedSamples(
 	if err != nil {
 		return nil, errs.Wrap(err, errs.CodeOf(err), "market.NewestSamples")
 	}
-	return groupNewest(rows)
+	grouped, err := groupNewest(rows)
+	if err != nil {
+		return nil, err
+	}
+	for mint, samples := range grouped {
+		grouped[mint] = domain.WithinOfClose(samples, session.LastClose)
+	}
+	return grouped, nil
 }
 
 func openedSamples(
