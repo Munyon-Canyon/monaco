@@ -23,13 +23,14 @@ const (
 	followDigestLag      = time.Hour
 	followDigestKind     = "follow_digest"
 	opFollowDigest       = "notify.FollowDigest"
+	followDigestSource   = "notify.follow_digest"
 )
 
 type FollowDigest struct{ pusher *Pusher }
 
 func NewFollowDigest(p *Pusher) *FollowDigest { return &FollowDigest{pusher: p} }
 
-func (*FollowDigest) Name() string { return "notify.follow_digest" }
+func (*FollowDigest) Name() string { return "follow_digest" }
 
 func (*FollowDigest) Interval() time.Duration { return followDigestInterval }
 
@@ -81,7 +82,7 @@ func (p *FollowDigest) cards(
 func (p *FollowDigest) digest(
 	ctx context.Context, now, since time.Time, followee ids.UserID, followers int64,
 ) (int, error) {
-	key := fmt.Sprintf("%s:%s:%s", p.Name(), followee, since.Format(time.DateOnly))
+	key := fmt.Sprintf("%s:%s:%s", followDigestSource, followee, since.Format(time.DateOnly))
 	source := ids.EventIDFrom(uuid.NewSHA1(uuid.NameSpaceOID, []byte(key)))
 	note := Notification{Kind: followDigestKind, UserID: followee, Message: followDigestMessage(followee, followers)}
 	written, err := p.pusher.write(ctx, bus.Delivery{Handler: p.Name(), EventID: source, At: now}, []Notification{note})

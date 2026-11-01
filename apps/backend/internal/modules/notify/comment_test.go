@@ -170,6 +170,11 @@ func TestNotify_CommentReply_Render(t *testing.T) {
 			edit: func(*events.CommentCreated) {}, to: itemActor, cards: map[ids.UserID]identity.UserCard{replier: card},
 			title: "Bea replied to you", body: "“Buy it before earnings” On your Buy NVDA.", pres: cabalPres,
 		},
+		"a post with no actor name": {
+			edit:  func(e *events.CommentCreated) { e.ItemActorName, e.ItemLabel = "", "TSLA move" },
+			cards: map[ids.UserID]identity.UserCard{replier: card},
+			title: "Bea replied to you", body: "“Buy it before earnings” On the TSLA move.", pres: cabalPres,
+		},
 		"a post outside a cabal's discussion": {
 			edit:  func(e *events.CommentCreated) { e.ReplyRule = "anyone" },
 			cards: map[ids.UserID]identity.UserCard{replier: card},

@@ -6,7 +6,7 @@ func (codeFiles) PrivyUsers() map[Code]Row {
 	return map[Code]Row{
 		CodePrivyUserLimit: {
 			Name: "PrivyUserLimit", Kind: KindUnavailable,
-			Message: "The wallet provider cannot add more users. Try again later.",
+			Message: "We can't add more people right now. Try again later.",
 		},
 	}
 }

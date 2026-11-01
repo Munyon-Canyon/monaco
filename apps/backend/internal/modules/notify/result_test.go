@@ -196,6 +196,7 @@ func TestNotify_ResultFilled_PushesTheVotersOnlyWithTheFill(t *testing.T) {
 		"the fixture's NVDA fill":  {buyKind, 182_000_000, 399_308_000, "Bought 1.82 sh at $219.40. You voted {vote}."},
 		"a whole number of shares": {buyKind, 300_000_000, 1_500_000_000, "Bought 3 sh at $500.00. You voted {vote}."},
 		"a fraction below a cent":  {buyKind, 1_000_000, 4_999, "Bought 0.01 sh at $0.50. You voted {vote}."},
+		"a price over a thousand":  {buyKind, 300_000_000, 3_000_000_000, "Bought 3 sh at $1,000.00. You voted {vote}."},
 		"a fill of no shares":      {buyKind, 0, 4_999, "Bought 0 sh at $0.00. You voted {vote}."},
 	} {
 		t.Run(name, func(t *testing.T) {

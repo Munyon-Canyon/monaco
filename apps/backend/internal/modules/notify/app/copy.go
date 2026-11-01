@@ -46,14 +46,14 @@ func assetLabel(asset market.Asset) string {
 func dollars(m money.Micros) string {
 	cents := m.Uint64() / microsPerCent
 	if cents%100 == 0 {
-		return fmt.Sprintf("$%d", cents/100)
+		return "$" + grouped(strconv.FormatUint(cents/100, 10))
 	}
-	return fmt.Sprintf("$%d.%02d", cents/100, cents%100)
+	return usd(m)
 }
 
 func cents(c *big.Int) string {
 	whole, frac := new(big.Int).QuoRem(c, big.NewInt(100), new(big.Int))
-	return fmt.Sprintf("$%s.%02d", whole, frac.Int64())
+	return fmt.Sprintf("$%s.%02d", grouped(whole.String()), frac.Int64())
 }
 
 func pow10(n uint8) *big.Int { return new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(n)), nil) }

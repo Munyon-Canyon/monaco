@@ -33,6 +33,17 @@ struct PrivyLogoutRevokeTests {
         #expect(auth.accessToken == nil)
     }
 
+    @Test func signingOutDeletesTheInteractionsDonatedForContactSuggestions() async {
+        let deleted = RevokedTokens()
+        let auth = service(recording: RevokedTokens())
+        auth.deleteDonatedInteractions = { deleted.record("deleted") }
+
+        await auth.logout()
+        await auth.awaitPendingRevoke()
+
+        #expect(deleted.tokens == ["deleted"])
+    }
+
     @Test func aSessionTheServerAlreadyRejectedIsNotRevokedAgain() async {
         let revoked = RevokedTokens()
         let auth = service(recording: revoked)

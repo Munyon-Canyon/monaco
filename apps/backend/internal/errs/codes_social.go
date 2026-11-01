@@ -12,11 +12,11 @@ func (codeFiles) Social() map[Code]Row {
 	return map[Code]Row{
 		CodeCannotFollowSelf: {Name: "CannotFollowSelf", Kind: KindInvalid, Message: "You cannot follow yourself."},
 		CodeContactHashesInvalid: {
-			Name: "ContactHashesInvalid", Kind: KindInvalid, Message: "Those contact hashes are not valid.",
+			Name: "ContactHashesInvalid", Kind: KindInvalid, Message: "Those contacts couldn't be read.",
 		},
 		CodeFeedItemNotFound: {Name: "FeedItemNotFound", Kind: KindNotFound, Message: "This item is not in the feed."},
 		CodeTooManyContactHashes: {
-			Name: "TooManyContactHashes", Kind: KindInvalid, Message: "Send at most 2000 contact hashes.",
+			Name: "TooManyContactHashes", Kind: KindInvalid, Message: "Send at most 2,000 contacts at a time.",
 		},
 		CodeUserBanned: {Name: "UserBanned", Kind: KindForbidden, Message: "You cannot follow this account."},
 	}
