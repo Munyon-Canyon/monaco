@@ -47,6 +47,7 @@ type fundStubs struct {
 	reads       adapters.FundOutflows
 	ownedAtSend []bool
 	sent        int
+	builds      int
 	gate        *testkit.Gate
 	owner       *adapters.Queries
 	failOn      string
@@ -157,6 +158,9 @@ func (s *fundStubs) PotValue(context.Context, ids.CabalID) (money.Micros, error)
 }
 
 func (s *fundStubs) Build(_ context.Context, spec relayer.TransferSpec) (relayer.SignedTx, error) {
+	s.mu.Lock()
+	s.builds++
+	s.mu.Unlock()
 	if s.onBuild != nil {
 		s.onBuild()
 	}
@@ -210,7 +214,7 @@ func newFundHarnessOn(t *testing.T, f fixture, sent *hints) *fundHarness {
 	h := app.NewFundCabalHandler(app.FundCabalDeps{
 		UoW: f.uow, IDs: f.ids, Clock: f.clock, Cabals: s, Wallets: s, Balances: s,
 		Pauses: func(db.Tx) fundingport.Pauses { return s }, Pot: s, Transfers: s,
-		Hints: sent, USDC: chain.Mint{Address: usdcAddress, Decimals: 6},
+		Hints: sent, USDC: chain.Mint{Address: usdcAddress, Decimals: 6}, SendWindow: fundSendWindow,
 	})
 	return &fundHarness{fixture: f, stubs: s, handler: h, user: f.user(t), cabal: f.cabal(t)}
 }

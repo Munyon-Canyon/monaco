@@ -2,8 +2,13 @@
 SELECT pg_advisory_xact_lock(hashtextextended('wallet-outflow:' || sqlc.arg(user_id)::uuid::text, 0));
 
 -- name: InsertFundTransfer :exec
-INSERT INTO fund_transfers (id, user_id, cabal_id, amount_micros, from_address, to_address, status, created_at)
-VALUES ($1, $2, $3, sqlc.arg(amount_micros)::text::numeric, $4, $5, 'created', $6);
+INSERT INTO fund_transfers (id, user_id, cabal_id, amount_micros, from_address, to_address, status, created_at,
+  signing_until)
+VALUES ($1, $2, $3, sqlc.arg(amount_micros)::text::numeric, $4, $5, 'created', $6, sqlc.arg(signing_until)::timestamptz);
+
+-- name: ClaimFundSigning :execrows
+UPDATE fund_transfers SET signing_until = sqlc.arg(until)::timestamptz
+WHERE id = $1 AND status = 'created' AND (signing_until IS NULL OR signing_until < sqlc.arg(now)::timestamptz);
 
 -- name: SubmitFundTransfer :execrows
 UPDATE fund_transfers
