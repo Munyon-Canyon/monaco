@@ -17,14 +17,16 @@ import (
 
 func rangeAt() time.Time { return time.Date(2026, 10, 4, 12, 0, 0, 0, time.UTC) }
 
+const usd = 1_000_000
+
 func dailySnapshots(final uint64) []domain.Snapshot {
 	const days = 200
 	at := rangeAt()
 	out := make([]domain.Snapshot, 0, days+1)
 	for d := days; d >= 0; d-- {
-		value := uint64(1000)
+		value := uint64(1000 * usd)
 		if d <= 30 {
-			value = 1500
+			value = 1500 * usd
 		}
 		if d == 0 {
 			value = final
@@ -46,8 +48,8 @@ func rangeHTTP(cabal ids.CabalID, final uint64) adapters.HTTP {
 		}
 	}
 	rows := dailySnapshots(final)
-	h := historyHTTP(1500, rows...)
-	h.Stakes = stubStakes{points: []app.StakePoint{stake(210, 1000), stake(30, 1500)}}
+	h := historyHTTP(1500*usd, rows...)
+	h.Stakes = stubStakes{points: []app.StakePoint{stake(210, 1000*usd), stake(30, 1500*usd)}}
 	series := map[ids.CabalID][]domain.Snapshot{cabal: rows}
 	h.Snapshots = fixedSnapshots{stubSnapshots: stubSnapshots{rows: rows}, series: series}
 	return h
@@ -81,7 +83,7 @@ func readValue(t *testing.T, h adapters.HTTP, raw string) api.GetCabalValueHisto
 
 func TestGetMyPnlHistory_servesThreeAndSixMonths(t *testing.T) {
 	t.Parallel()
-	h := rangeHTTP(ids.CabalIDFrom(ids.Real{}.NewV7()), 1741)
+	h := rangeHTTP(ids.CabalIDFrom(ids.Real{}.NewV7()), 1741*usd)
 	budget := len(readPnL(t, h, "1M").Points)
 	for raw, span := range map[string]int{"3M": 90, "6M": 182} {
 		out := readPnL(t, h, raw)
@@ -100,7 +102,7 @@ func TestGetMyPnlHistory_servesThreeAndSixMonths(t *testing.T) {
 
 func TestGetCabalValueHistory_servesThreeAndSixMonths(t *testing.T) {
 	t.Parallel()
-	h := rangeHTTP(ids.CabalIDFrom(ids.Real{}.NewV7()), 1741)
+	h := rangeHTTP(ids.CabalIDFrom(ids.Real{}.NewV7()), 1741*usd)
 	budget := len(readValue(t, h, "1M").Points)
 	for raw, span := range map[string]int{"3M": 90, "6M": 182} {
 		out := readValue(t, h, raw)
@@ -126,9 +128,9 @@ func TestGetMyPnlHistory_returnsTheRangesGainWithoutTheDeposit(t *testing.T) {
 		pnl   int64
 		bps   int64
 	}{
-		"deposit only":     {final: 1500, pnl: 0, bps: 0},
-		"deposit and gain": {final: 1741, pnl: 241, bps: 1606},
-		"deposit and loss": {final: 1425, pnl: -75, bps: -500},
+		"deposit only":     {final: 1500 * usd, pnl: 0, bps: 0},
+		"deposit and gain": {final: 1741 * usd, pnl: 241 * usd, bps: 1606},
+		"deposit and loss": {final: 1425 * usd, pnl: -75 * usd, bps: -500},
 	} {
 		got, err := rangeHTTP(cabal, tc.final).GetMyPnlHistory(ctx, api.GetMyPnlHistoryRequestObject{
 			Params: api.GetMyPnlHistoryParams{Range: ptr(api.GetMyPnlHistoryParamsRange("3M"))},
