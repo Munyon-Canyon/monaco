@@ -163,6 +163,19 @@ func (w *worker) errors(t *testing.T, code string) int64 {
 
 const fixtureAssets = 14.0
 
+func backoffScheduled(clk *testkit.Clock) func(*testing.T) {
+	scheduled := make(chan time.Duration, 1)
+	clk.NotifyAfters(scheduled)
+	return func(t *testing.T) {
+		t.Helper()
+		select {
+		case <-scheduled:
+		case <-time.After(30 * time.Second):
+			t.Fatal("the poller never scheduled its retry after the failed tick")
+		}
+	}
+}
+
 func TestCatalogPoller_twoWorkersOnOneDatabaseRunOneTickPerHour(t *testing.T) {
 	t.Parallel()
 	pool, clk := testkit.DB(t), testkit.NewClock(clock.Real{}.Now().UTC())
@@ -197,6 +210,7 @@ func TestCatalogPoller_providerFailureCountsInPollerErrors(t *testing.T) {
 	t.Parallel()
 	pool, clk := testkit.DB(t), testkit.NewClock(clock.Real{}.Now().UTC())
 	up := fakeUpstream(t, fakes.Step{Route: "/xstocks/api/v2/public/assets", Action: fakes.ActionFail, Status: 404})
+	retryScheduled := backoffScheduled(clk)
 	w := startWorker(t, pool, clk, up)
 	if failed := w.expect(t, "poller.tick.failed"); failed["code"] != "upstream_unavailable" {
 		t.Fatalf("failed line = %v, want upstream_unavailable", failed)
@@ -204,6 +218,7 @@ func TestCatalogPoller_providerFailureCountsInPollerErrors(t *testing.T) {
 	if got := w.errors(t, "upstream_unavailable"); got != 1 {
 		t.Fatalf("poller_errors_total{market.catalog, upstream_unavailable} = %d, want 1", got)
 	}
+	retryScheduled(t)
 	clk.Advance(time.Hour)
 	if tick := w.expect(t, "poller.tick"); tick["scanned"] != fixtureAssets {
 		t.Fatalf("recovered tick = %v, want the fixture catalog applied", tick)
@@ -214,6 +229,7 @@ func TestCatalogPoller_anRPCFailureCountsInPollerErrorsAndTheNextTickChecksThatM
 	t.Parallel()
 	pool, clk := testkit.DB(t), testkit.NewClock(clock.Real{}.Now().UTC())
 	up := fakeUpstream(t, fakes.Step{Route: "/rpc/getMultipleAccounts", Action: fakes.ActionFail, Status: 500})
+	retryScheduled := backoffScheduled(clk)
 	w := startWorker(t, pool, clk, up)
 	if failed := w.expect(t, "poller.tick.failed"); failed["code"] != "rpc_unavailable" {
 		t.Fatalf("failed line = %v, want rpc_unavailable", failed)
@@ -221,6 +237,7 @@ func TestCatalogPoller_anRPCFailureCountsInPollerErrorsAndTheNextTickChecksThatM
 	if got := w.errors(t, "rpc_unavailable"); got != 1 {
 		t.Fatalf("poller_errors_total{market.catalog, rpc_unavailable} = %d, want 1", got)
 	}
+	retryScheduled(t)
 	clk.Advance(time.Hour)
 	if tick := w.expect(t, "poller.tick"); tick["changed"] != fixtureAssets {
 		t.Fatalf("retry tick = %v, want the batch of unchecked mints checked", tick)

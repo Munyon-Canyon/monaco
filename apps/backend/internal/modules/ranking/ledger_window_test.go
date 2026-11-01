@@ -455,3 +455,21 @@ func TestLedgerWindow_AMidWeekGainTooLargeForSignedMicrosSurfaces(t *testing.T) 
 		t.Fatalf("BuildLedger = %v, %v, want the series point's gain overflow", ok, err)
 	}
 }
+
+func TestLedgerWindow_ASeriesPointWhoseFlowsOverflowSignedMicrosSurfaces(t *testing.T) {
+	t.Parallel()
+	w := seedWeek42(t)
+	c := newChain(w.andres, chainCabal{w.degens, 1000, 1100})
+	for _, f := range []struct {
+		amount int64
+		at     time.Duration
+	}{{math.MinInt64, time.Hour}, {math.MaxInt64, 30 * time.Hour}} {
+		c.flows = append(c.flows, treasury.MemberFlow{
+			UserID: c.owner, CabalID: c.cabals[0].id, Amount: money.SignedMicrosFromInt64(f.amount),
+			At: windowStart().Add(f.at),
+		})
+	}
+	if _, ok, err := build(t, w, c); err == nil || ok {
+		t.Fatalf("BuildLedger = %v, %v, want the early series point's gain overflow", ok, err)
+	}
+}

@@ -457,14 +457,22 @@ func TestHistory_concurrentMissesMakeOneCall(t *testing.T) {
 	})
 }
 
-type fixedLevel struct{ level app.BudgetLevel }
+type fixedLevel struct{ level atomic.Int64 }
 
-func (f *fixedLevel) Level(context.Context) app.BudgetLevel { return f.level }
+func newFixedLevel(level app.BudgetLevel) *fixedLevel {
+	f := &fixedLevel{}
+	f.level.Store(int64(level))
+	return f
+}
+
+func (f *fixedLevel) Level(context.Context) app.BudgetLevel {
+	return app.BudgetLevel(int(f.level.Load()))
+}
 
 func TestHistory_aSoftBudgetServesNoUpstreamLoadAndCachesNothingUntilItOpens(t *testing.T) {
 	t.Parallel()
 	fake := &countingHistory{samples: []app.Sample{{At: marketWhen()}}}
-	level := &fixedLevel{level: app.BudgetSoft}
+	level := newFixedLevel(app.BudgetSoft)
 	cached := CacheHistory(fake, NewCache(testkit.NewClock(marketWhen()))).WithBudget(level)
 	mint := historyMint(t)
 	for range 2 {
@@ -478,7 +486,8 @@ func TestHistory_aSoftBudgetServesNoUpstreamLoadAndCachesNothingUntilItOpens(t *
 	if fake.calls.Load() != 0 {
 		t.Fatalf("upstream calls = %d under a soft budget, want 0", fake.calls.Load())
 	}
-	level.level = app.BudgetOpen
+	_, _, _ = cached.cache.flight.Do(historyKey(mint, 7), func() (any, error) { return struct{}{}, nil })
+	level.level.Store(int64(app.BudgetOpen))
 	if got, err := cached.MarketChart(t.Context(), mint, 7); err != nil || len(got.Prices) != 1 {
 		t.Fatalf("MarketChart once the budget is open = %v, %v, want the history", got, err)
 	}
