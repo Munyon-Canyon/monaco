@@ -63,31 +63,39 @@ func (h *DeleteAccount) Handle(ctx context.Context, id ids.UserID) error {
 		if err := h.d.Users.Delete(ctx, tx.Queries(), id, user.AccountStatus, at); err != nil {
 			return err
 		}
-		deleted := events.UserDeleted{V: 1, UserID: id.UUID(), At: at}
-		attrs := []slog.Attr{slog.String("user_id", id.String())}
-		if !forfeited.IsZero() {
-			deleted.ForfeitedMicros = &forfeited
-			if user.Wallet != nil {
-				deleted.ForfeitedWallet = MaskAddress(string(user.Wallet.Address))
-			}
-			attrs = append(
-				attrs,
-				slog.String(
-					"forfeited_micros",
-					forfeited.String(),
-				),
-				slog.String("forfeited_wallet", deleted.ForfeitedWallet),
-			)
-		}
+		deleted := deletedEvent(id, user, forfeited, at)
 		if err := tx.Events.Append(ctx, deleted); err != nil {
 			return err
 		}
 		tx.AfterCommit(func(ctx context.Context) {
 			h.d.Hints.PublishHint(ctx, "user."+id.String()+".me_changed", nil)
-			observability.Info(ctx, observability.IdentityAccountDeleted, attrs...)
+			logDeleted(ctx, id, deleted)
 		})
 		return nil
 	})
+}
+
+func deletedEvent(id ids.UserID, user domain.User, forfeited money.Micros, at time.Time) events.UserDeleted {
+	deleted := events.UserDeleted{V: 1, UserID: id.UUID(), At: at}
+	if forfeited.IsZero() {
+		return deleted
+	}
+	deleted.ForfeitedMicros = &forfeited
+	if user.Wallet != nil {
+		deleted.ForfeitedWallet = MaskAddress(string(user.Wallet.Address))
+	}
+	return deleted
+}
+
+func logDeleted(ctx context.Context, id ids.UserID, deleted events.UserDeleted) {
+	if deleted.ForfeitedMicros == nil {
+		observability.Info(ctx, observability.IdentityAccountDeleted, slog.String("user_id", id.String()))
+		return
+	}
+	observability.Info(ctx, observability.IdentityAccountDeleted,
+		slog.String("user_id", id.String()),
+		slog.String("forfeited_micros", deleted.ForfeitedMicros.String()),
+		slog.String("forfeited_wallet", deleted.ForfeitedWallet))
 }
 
 func (h *DeleteAccount) empty(ctx context.Context, id ids.UserID) (money.Micros, error) {
