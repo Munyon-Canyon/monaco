@@ -147,9 +147,9 @@ func TestJournal_submittedMovesPendingOnceAndAResumeKeepsTheStoredActionID(t *te
 	e := newStepEnv(t)
 	e.begin(t, 10_000_000)
 
-	moved, err := e.journal.Submitted(stepCtx(t), e.ref, "privy-action-1")
+	moved, err := e.journal.Submitted(stepCtx(t), e.ref, "privy-action-1", money.Micros{})
 	wantMoved(t, "first Submitted", moved, err, true)
-	moved, err = e.journal.Submitted(stepCtx(t), e.ref, "privy-action-2")
+	moved, err = e.journal.Submitted(stepCtx(t), e.ref, "privy-action-2", money.Micros{})
 	wantMoved(t, "resumed Submitted", moved, err, false)
 	resumed := e.begin(t, 10_000_000)
 
@@ -169,7 +169,7 @@ func TestJournal_succeededCarriesTheFeeOnceAndAFinishedStepNeverMovesAgain(t *te
 	t.Parallel()
 	e := newStepEnv(t)
 	e.begin(t, 10_000_000)
-	moved, err := e.journal.Submitted(stepCtx(t), e.ref, "privy-action-1")
+	moved, err := e.journal.Submitted(stepCtx(t), e.ref, "privy-action-1", money.Micros{})
 	wantMoved(t, "Submitted", moved, err, true)
 
 	moved, err = e.journal.Succeeded(stepCtx(t), e.ref, money.MicrosFromUint64(7_500), domain.Arrival{})
@@ -178,7 +178,7 @@ func TestJournal_succeededCarriesTheFeeOnceAndAFinishedStepNeverMovesAgain(t *te
 	wantMoved(t, "second Succeeded", moved, err, false)
 	moved, err = e.journal.Failed(stepCtx(t), e.ref, "late failure")
 	wantMoved(t, "Failed after success", moved, err, false)
-	moved, err = e.journal.Submitted(stepCtx(t), e.ref, "privy-action-2")
+	moved, err = e.journal.Submitted(stepCtx(t), e.ref, "privy-action-2", money.Micros{})
 	wantMoved(t, "Submitted after success", moved, err, false)
 
 	if s := e.step(t); s.Status != domain.StepSucceeded || s.Error != "" || s.PrivyActionID != "privy-action-1" {
@@ -202,7 +202,7 @@ func TestJournal_failedStoresTheReasonFromPendingOrSubmitted(t *testing.T) {
 			action := ""
 			if submit {
 				action = "privy-action-1"
-				moved, err := e.journal.Submitted(stepCtx(t), e.ref, action)
+				moved, err := e.journal.Submitted(stepCtx(t), e.ref, action, money.Micros{})
 				wantMoved(t, "Submitted", moved, err, true)
 				want = append(want, e.event(domain.StepSubmitted, action, 0))
 			}
@@ -227,7 +227,7 @@ func TestJournal_aFeeAboveTheAmountRollsTheSuccessBack(t *testing.T) {
 	t.Parallel()
 	e := newStepEnv(t)
 	e.begin(t, 10_000_000)
-	moved, err := e.journal.Submitted(stepCtx(t), e.ref, "privy-action-1")
+	moved, err := e.journal.Submitted(stepCtx(t), e.ref, "privy-action-1", money.Micros{})
 	wantMoved(t, "Submitted", moved, err, true)
 
 	moved, err = e.journal.Succeeded(stepCtx(t), e.ref, money.MicrosFromUint64(10_000_001), domain.Arrival{})
@@ -253,10 +253,10 @@ func TestJournal_refusesEmptyInputsAndReportsAMissingStep(t *testing.T) {
 	if _, ok, err := e.journal.Step(stepCtx(t), e.ref.SwapID, e.ref.Step); ok || err != nil {
 		t.Fatalf("Step before Begin = %v, %v, want missing", ok, err)
 	}
-	moved, err := e.journal.Submitted(stepCtx(t), e.ref, "privy-action-1")
+	moved, err := e.journal.Submitted(stepCtx(t), e.ref, "privy-action-1", money.Micros{})
 	wantMoved(t, "Submitted before Begin", moved, err, false)
 	e.begin(t, 10_000_000)
-	if _, err := e.journal.Submitted(stepCtx(t), e.ref, ""); errs.CodeOf(err) != errs.CodeInvalidInput {
+	if _, err := e.journal.Submitted(stepCtx(t), e.ref, "", money.Micros{}); errs.CodeOf(err) != errs.CodeInvalidInput {
 		t.Fatalf("Submitted(\"\") err = %v, want invalid_input", err)
 	}
 	if _, err := e.journal.Failed(stepCtx(t), e.ref, ""); errs.CodeOf(err) != errs.CodeInvalidInput {
@@ -298,7 +298,7 @@ func TestJournal_anAmountPastUint64IsAnErrorAndRollsTheMoveBack(t *testing.T) {
 	if _, err := e.journal.Begin(stepCtx(t), e.ref, money.MicrosFromUint64(10_000_000)); err == nil {
 		t.Fatal("a resumed Begin read an amount past uint64, want an error")
 	}
-	moved, err := e.journal.Submitted(stepCtx(t), e.ref, "privy-action-1")
+	moved, err := e.journal.Submitted(stepCtx(t), e.ref, "privy-action-1", money.Micros{})
 	if err == nil || moved {
 		t.Fatalf("Submitted = %v, %v, want an error", moved, err)
 	}
@@ -383,7 +383,7 @@ func TestJournal_logsEachCommittedTransitionOnceAfterTheCommit(t *testing.T) {
 	if _, err := e.journal.Begin(ctx, e.ref, money.MicrosFromUint64(10_000_000)); err != nil {
 		t.Fatal(err)
 	}
-	moved, err := e.journal.Submitted(ctx, e.ref, "privy-action-1")
+	moved, err := e.journal.Submitted(ctx, e.ref, "privy-action-1", money.Micros{})
 	wantMoved(t, "Submitted", moved, err, true)
 	if _, err := e.journal.Succeeded(ctx, e.ref, money.MicrosFromUint64(10_000_001), domain.Arrival{}); err == nil {
 		t.Fatal("a fee above the amount succeeded")
@@ -408,4 +408,18 @@ func TestJournal_logsEachCommittedTransitionOnceAfterTheCommit(t *testing.T) {
 	if got := stepLogs(t, logs); !slices.Equal(got, want) {
 		t.Fatalf("step logs = %+v, want %+v", got, want)
 	}
+}
+
+func TestJournal_submittedCarriesTheQuotedFeeOnItsEvent(t *testing.T) {
+	t.Parallel()
+	e := newStepEnv(t)
+	e.begin(t, 10_000_000)
+
+	moved, err := e.journal.Submitted(stepCtx(t), e.ref, "privy-action-1", money.MicrosFromUint64(25_000))
+	wantMoved(t, "Submitted", moved, err, true)
+
+	wantEvents(t, e.events(t),
+		e.event(domain.StepPending, "", 0),
+		e.event(domain.StepSubmitted, "privy-action-1", 25_000),
+	)
 }

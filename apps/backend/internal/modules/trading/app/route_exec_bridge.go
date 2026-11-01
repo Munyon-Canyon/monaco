@@ -24,6 +24,8 @@ type BridgeLeg struct {
 	Observe  func(context.Context, multichain.ActionStatus) (money.Micros, domain.Arrival, error)
 }
 
+func (l BridgeLeg) quotedFee() money.Micros { return atMost(l.Fee, l.Spec.AmountMicros) }
+
 func stepKey(ref domain.StepRef) string {
 	return "trade:" + ref.SwapID.String() + ":" + string(ref.Step)
 }
@@ -98,7 +100,7 @@ func (b Bridge) landedLate(
 		case err != nil:
 			return "", "", err
 		case action.State == multichain.ActionSucceeded:
-			_, err = b.Journal.Submitted(ctx, leg.Ref, prior)
+			_, err = b.Journal.Submitted(ctx, leg.Ref, prior, leg.quotedFee())
 			return multichain.ActionID(prior), action.State, err
 		case action.State == multichain.ActionPending:
 			state = action.State
@@ -132,7 +134,7 @@ func (b Bridge) submit(
 		return "", domain.StepFailed, err
 	}
 	faultpoint.Hit(ctx, faultpoint.AfterBroadcast)
-	_, err = b.Journal.Submitted(ctx, leg.Ref, string(id))
+	_, err = b.Journal.Submitted(ctx, leg.Ref, string(id), leg.quotedFee())
 	return id, "", err
 }
 

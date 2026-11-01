@@ -100,7 +100,7 @@ func TestRetry_aBridgeBackWhoseArrivalCannotBeReadStaysSubmittedUntilItCan(t *te
 			if _, err := r.retryHandle(t, h, r.cmd, r.first); !errs.Retryable(errs.CodeOf(err)) {
 				t.Fatalf("first delivery err = %v, want a retryable error", err)
 			}
-			if got := r.steps(t, r.first); got[len(got)-1] != "bridge_back:submitted:0" {
+			if got := r.steps(t, r.first); got[len(got)-1] != "bridge_back:submitted:7500" {
 				t.Fatalf("stranded swap steps = %v, want the bridge back left submitted", got)
 			}
 			r.privy.noArrival = false

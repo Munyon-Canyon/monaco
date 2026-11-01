@@ -19,7 +19,7 @@ func (e stepEnv) submittedStep(t *testing.T, ref domain.StepRef, amount uint64) 
 	if _, err := e.journal.Begin(stepCtx(t), ref, money.MicrosFromUint64(amount)); err != nil {
 		t.Fatal(err)
 	}
-	moved, err := e.journal.Submitted(stepCtx(t), ref, "privy-"+ref.SwapID.String())
+	moved, err := e.journal.Submitted(stepCtx(t), ref, "privy-"+ref.SwapID.String(), money.Micros{})
 	wantMoved(t, "Submitted", moved, err, true)
 }
 

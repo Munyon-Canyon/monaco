@@ -75,15 +75,21 @@ type stepMove struct {
 	arrival  domain.Arrival
 }
 
-func (j Journal) Submitted(ctx context.Context, ref domain.StepRef, actionID string) (bool, error) {
-	return j.in(ctx, func(ctx context.Context, tx db.Tx) (bool, error) { return j.submitted(ctx, tx, ref, actionID) })
+func (j Journal) Submitted(
+	ctx context.Context, ref domain.StepRef, actionID string, quotedFee money.Micros,
+) (bool, error) {
+	return j.in(ctx, func(ctx context.Context, tx db.Tx) (bool, error) {
+		return j.submitted(ctx, tx, ref, actionID, quotedFee)
+	})
 }
 
-func (j Journal) submitted(ctx context.Context, tx db.Tx, ref domain.StepRef, actionID string) (bool, error) {
+func (j Journal) submitted(
+	ctx context.Context, tx db.Tx, ref domain.StepRef, actionID string, quotedFee money.Micros,
+) (bool, error) {
 	if actionID == "" {
 		return false, errs.New(errs.CodeInvalidInput, journalOp, slog.String("step", string(ref.Step)))
 	}
-	return j.move(ctx, tx, ref, stepMove{to: domain.StepSubmitted, actionID: actionID})
+	return j.move(ctx, tx, ref, stepMove{to: domain.StepSubmitted, actionID: actionID, fee: quotedFee})
 }
 
 func (j Journal) Succeeded(

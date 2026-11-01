@@ -78,9 +78,16 @@ func (TradeSteps) sent(
 	if err != nil || !posted {
 		return err
 	}
+	if b.Fee.Cmp(b.Sent) >= 0 {
+		return nil
+	}
+	net, err := b.Sent.Sub(b.Fee)
+	if err != nil {
+		return err
+	}
 	return q.InsertInTransit(ctx, sqlc.InsertInTransitParams{
 		CabalID: b.CabalID.UUID(), TradeID: b.SwapID, Network: string(b.Network), CreatedAt: at,
-		AmountMicros: pgtype.Numeric{Int: new(big.Int).SetUint64(b.Sent.Uint64()), Valid: true},
+		AmountMicros: pgtype.Numeric{Int: new(big.Int).SetUint64(net.Uint64()), Valid: true},
 	})
 }
 

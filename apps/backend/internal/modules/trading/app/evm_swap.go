@@ -216,7 +216,7 @@ func (s EVMSwap) approved(ctx context.Context, leg EVMSwapLeg, hash string) erro
 
 func (s EVMSwap) submit(ctx context.Context, leg EVMSwapLeg, hash string) error {
 	return s.Journal.UoW.Do(ctx, func(ctx context.Context, tx db.Tx) error {
-		moved, err := s.Journal.submitted(ctx, tx, leg.Ref, hash)
+		moved, err := s.Journal.submitted(ctx, tx, leg.Ref, hash, money.Micros{})
 		if err != nil || !moved {
 			return err
 		}

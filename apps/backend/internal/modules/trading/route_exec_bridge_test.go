@@ -100,7 +100,7 @@ func TestBridge_aTransferThatLandsWalksPendingSubmittedSucceededOnce(t *testing.
 	}
 	wantEvents(t, e.events(t),
 		e.event(domain.StepPending, "", 0),
-		e.event(domain.StepSubmitted, "privy-action-1", 0),
+		e.event(domain.StepSubmitted, "privy-action-1", 7_500),
 		e.event(domain.StepSucceeded, "privy-action-1", 7_500),
 	)
 }
@@ -123,7 +123,7 @@ func TestBridge_aCrashAfterTheTransferResumesUnderTheSameKeyWithOneAction(t *tes
 	e.wantOneTransfer(t, 2)
 	wantEvents(t, e.events(t),
 		e.event(domain.StepPending, "", 0),
-		e.event(domain.StepSubmitted, "privy-action-1", 0),
+		e.event(domain.StepSubmitted, "privy-action-1", 7_500),
 		e.event(domain.StepSucceeded, "privy-action-1", 7_500),
 	)
 }
@@ -376,5 +376,23 @@ func TestBridge_aPriorActionThatBroadcastThenFailedStopsTheLegAndSurfacesAParkFa
 
 	if len(e.privy.calls()) != 0 || !slices.Equal(*e.unsure, []multichain.ActionID{"privy-action-9"}) {
 		t.Fatalf("transfers %v, unknown %v, want no send and the prior action reported", e.privy.calls(), *e.unsure)
+	}
+}
+
+func TestBridge_theSubmittedEventCarriesTheQuotedFeeCappedAtTheAmountSent(t *testing.T) {
+	t.Parallel()
+	e := newBridgeEnv(t)
+	e.leg.Fee = money.MicrosFromUint64(12_000_000)
+	e.leg.Observe = func(context.Context, multichain.ActionStatus) (money.Micros, domain.Arrival, error) {
+		return money.MicrosFromUint64(7_500), domain.Arrival{}, nil
+	}
+	e.privy.script(multichain.ActionSucceeded)
+
+	e.wantRun(t.Context(), t, domain.StepSucceeded)
+
+	got := e.events(t)
+	if len(got) < 2 || got[1].Status != string(domain.StepSubmitted) ||
+		got[1].FeeMicros != money.MicrosFromUint64(10_000_000) {
+		t.Fatalf("events = %+v, want a submitted event carrying a fee capped at the 10 USDC sent", got)
 	}
 }
