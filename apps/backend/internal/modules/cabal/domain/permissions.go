@@ -10,13 +10,13 @@ import (
 )
 
 type Cabal struct {
-	CreatorID ids.UserID
-	Admins    []ids.UserID
-	Rules     Rules
-	Banned    bool
+	Creators []ids.UserID
+	Admins   []ids.UserID
+	Rules    Rules
+	Banned   bool
 }
 
-func (c Cabal) IsCreator(user ids.UserID) bool { return c.CreatorID == user }
+func (c Cabal) IsCreator(user ids.UserID) bool { return slices.Contains(c.Creators, user) }
 
 func (c Cabal) IsAdmin(user ids.UserID) bool {
 	return c.IsCreator(user) || slices.Contains(c.Admins, user)
@@ -68,7 +68,7 @@ func CanInvite(actor Actor, cabal Cabal) error {
 	if !actor.Member {
 		return errs.New(errs.CodeNotCabalMember, op)
 	}
-	return require(actor.Member && cabal.IsAdmin(actor.UserID), errs.CodeNotCabalAdmin, op)
+	return require(cabal.IsAdmin(actor.UserID), errs.CodeNotCabalAdmin, op)
 }
 
 func CanInviteUser(inviter, invitee Actor, cabal Cabal, blocked bool) error {
@@ -117,7 +117,7 @@ func CanDecide(actor Actor, cabal Cabal, req AccessRequest) error {
 	const op = "cabal.CanDecide"
 	switch req.Direction {
 	case DirectionRequest:
-		return require(actor.Member && cabal.IsAdmin(actor.UserID), errs.CodeNotCabalAdmin, op)
+		return require(cabal.IsAdmin(actor.UserID), errs.CodeNotCabalAdmin, op)
 	case DirectionInvite:
 		return require(actor.UserID == req.UserID, errs.CodeForbidden, op)
 	}
@@ -141,7 +141,7 @@ func CanRevoke(actor Actor, cabal Cabal, req AccessRequest) error {
 	case DirectionRequest:
 		return require(actor.UserID == req.UserID, errs.CodeCannotRevokeAccess, op)
 	case DirectionInvite:
-		return require(actor.Member && cabal.IsAdmin(actor.UserID), errs.CodeCannotRevokeAccess, op)
+		return require(cabal.IsAdmin(actor.UserID), errs.CodeCannotRevokeAccess, op)
 	}
 	return errs.New(errs.CodeInternal, op, slog.String("direction", string(req.Direction)))
 }

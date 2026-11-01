@@ -187,10 +187,14 @@ func TestNotify_AccessKinds_ConvergeUnderChaos(t *testing.T) {
 		seedChaosUsers(t, h)
 		deps := module.Deps{Pool: h.Pool, IDs: h.IDs, Clock: h.Clock, UoW: db.New(h.Pool, h.IDs, h.Clock)}
 		creator0, creator1 := ids.UserIDFrom(chaosRecipient(0)), ids.UserIDFrom(chaosRecipient(1))
-		first := cabal.View{ID: ids.CabalIDFrom(chaosCabal(0)), Name: cabalName, CreatorID: creator0}
-		second := cabal.View{ID: ids.CabalIDFrom(chaosCabal(1)), Name: "Rocket", CreatorID: creator1}
+		first := cabal.View{ID: ids.CabalIDFrom(chaosCabal(0)), Name: cabalName}
+		second := cabal.View{ID: ids.CabalIDFrom(chaosCabal(1)), Name: "Rocket"}
 		seeds := []fakes.CabalSeed{{View: first}, {View: second}}
+		members := []fakes.CabalMember{
+			{CabalID: first.ID, Member: cabal.MemberView{UserID: creator0, Role: cabal.RoleCreator, CanVote: true}},
+			{CabalID: second.ID, Member: cabal.MemberView{UserID: creator1, Role: cabal.RoleCreator, CanVote: true}},
+		}
 		return notify.New(deps, notify.WithSender(&testkit.FakeSender{}),
-			notify.WithCabals(fakes.NewCabal(seeds, nil))).Consumers()[0]
+			notify.WithCabals(fakes.NewCabal(seeds, members))).Consumers()[0]
 	}, func(_ *rand.Rand, i int) events.Event { return chaosAccess(i) })
 }

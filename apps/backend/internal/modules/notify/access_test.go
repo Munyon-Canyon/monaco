@@ -31,7 +31,9 @@ func (r *pushRig) accessWorld(t *testing.T) accessWorld {
 	r.device(t, w.creator, token('a'))
 	r.device(t, w.requester, token('b'))
 	view := cabal.View{ID: w.cabalID, Name: cabalName, CreatorID: w.creator}
-	w.cabals = fakes.NewCabal([]fakes.CabalSeed{{View: view}}, nil)
+	w.cabals = fakes.NewCabal([]fakes.CabalSeed{{View: view}}, []fakes.CabalMember{{
+		CabalID: w.cabalID, Member: cabal.MemberView{UserID: w.creator, Role: cabal.RoleCreator, CanVote: true},
+	}})
 	return w
 }
 
@@ -71,6 +73,25 @@ func TestNotify_CabalAccessRequested_PushesTheCreator(t *testing.T) {
 	r.wantRecorded(t, d, 1)
 }
 
+func TestNotify_CabalAccessRequested_NamesNobodyWithoutACreatorRow(t *testing.T) {
+	t.Parallel()
+	r := newPushRig(t)
+	w := r.accessWorld(t)
+	view := cabal.View{ID: w.cabalID, Name: cabalName, CreatorID: w.creator}
+	w.cabals = fakes.NewCabal([]fakes.CabalSeed{{View: view}}, []fakes.CabalMember{{
+		CabalID: w.cabalID, Member: cabal.MemberView{UserID: w.creator, Role: cabal.RoleMember, CanVote: true},
+	}})
+	e := w.requested(r, "request")
+	d := r.emit(t, userActor(w.requester), e)
+
+	err := handleKinds(t, r, r.sender, d, e, app.CabalAccessRequested{Cabals: w.cabals, Users: r.users})
+
+	wantVerdict(t, err, "", errs.VerdictAck)
+	if sent := r.sender.Sent(); len(sent) != 0 {
+		t.Fatalf("sent %+v to a user whose member row is not the creator, want nothing", sent)
+	}
+}
+
 func TestNotify_CabalAccessRequested_InviteNotifiesNobody(t *testing.T) {
 	t.Parallel()
 	r := newPushRig(t)
@@ -95,7 +116,7 @@ func (u failingUsers) UsersByID(context.Context, []ids.UserID) (map[ids.UserID]i
 func TestNotify_CabalAccessRequested_PortFailuresReturnAsIs(t *testing.T) {
 	t.Parallel()
 	down := errs.New(errs.CodeDBUnavailable, "test.port")
-	for _, op := range []string{"Cabal", "UsersByID"} {
+	for _, op := range []string{"Members", "UsersByID"} {
 		t.Run(op, func(t *testing.T) {
 			t.Parallel()
 			r := newPushRig(t)
@@ -103,8 +124,8 @@ func TestNotify_CabalAccessRequested_PortFailuresReturnAsIs(t *testing.T) {
 			e := w.requested(r, "request")
 			d := r.emit(t, userActor(w.requester), e)
 			kind := app.CabalAccessRequested{Cabals: w.cabals, Users: failingUsers{down}}
-			if op == "Cabal" {
-				w.cabals.Fail("Cabal", down)
+			if op == "Members" {
+				w.cabals.Fail("Members", down)
 			}
 
 			err := handleKinds(t, r, r.sender, d, e, kind)

@@ -45,7 +45,7 @@ func (r Rules) Patch(p RulesPatch) (Rules, error) {
 func CanEdit(actor Actor, cabal Cabal) error {
 	const op = "cabal.CanEdit"
 	switch {
-	case !actor.Member || !cabal.IsCreator(actor.UserID):
+	case !cabal.IsCreator(actor.UserID):
 		return errs.New(errs.CodeNotCabalCreator, op)
 	case cabal.Banned:
 		return errs.New(errs.CodeCabalBanned, op)

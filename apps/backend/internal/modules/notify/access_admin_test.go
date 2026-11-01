@@ -26,7 +26,7 @@ func (r *pushRig) adminWorld(t *testing.T) (accessWorld, ids.UserID) {
 	member := r.follower(t, "dee", "Dee")
 	r.device(t, member, token('d'))
 	joined := time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC)
-	view := cabal.View{ID: w.cabalID, Name: cabalName, CreatorID: w.creator}
+	view := cabal.View{ID: w.cabalID, Name: cabalName}
 	w.cabals = fakes.NewCabal([]fakes.CabalSeed{{View: view}},
 		[]fakes.CabalMember{
 			{CabalID: w.cabalID, Member: cabal.MemberView{UserID: member, Role: cabal.RoleMember, JoinedAt: joined}},

@@ -24,6 +24,7 @@ type ruleWorld struct {
 	cabal   ids.CabalID
 	members []ids.UserID
 	fake    *fakes.Cabal
+	rows    []fakes.CabalMember
 }
 
 type ruleWorldOpts struct {
@@ -62,6 +63,7 @@ func newRuleWorld(t *testing.T, o ruleWorldOpts) *ruleWorld {
 			UserID: user, Role: role, CanVote: !o.nonVoters[i], JoinedAt: w.now.Add(time.Duration(i) * time.Minute),
 		}})
 	}
+	w.rows = rows
 	w.fake = fakes.NewCabal([]fakes.CabalSeed{{
 		View: cabal.View{ID: w.cabal, Name: "Pot", CreatorID: w.members[0], Status: o.status},
 		Rules: cabal.Rules{
@@ -385,7 +387,7 @@ func TestProposeRuleChange_portFailuresSurface(t *testing.T) {
 			func(w *ruleWorld) app.RuleTarget { return w.member(domain.RuleVoter, false, 2) },
 		},
 		{"target Admins", "Admins", 0, adminTarget},
-		{"Cabal", "Cabal", 0, nil},
+		{"Members", "Members", 0, nil},
 		{"guard Admins", "Admins", 1, adminTarget},
 	}
 	for _, tc := range cases {
@@ -431,5 +433,24 @@ func TestProposeRuleChange_theCreatorProposesPassingTheRoleToAnAdminAndOnlyOneSt
 	}
 	if _, err := w.propose(0, w.creatorTarget(2)); errs.CodeOf(err) != errs.CodeRuleChangeOpen {
 		t.Fatalf("second creator proposal = %v, want rule_change_open", err)
+	}
+}
+
+func TestProposeRuleChange_theCreatorRoleComesFromTheMemberRowNotTheStoredCreatorID(t *testing.T) {
+	t.Parallel()
+	w := newRuleWorld(t, ruleWorldOpts{roles: map[int]cabal.Role{1: adminRole, 2: adminRole}})
+	stale := w.members[1]
+	w.fake = fakes.NewCabal([]fakes.CabalSeed{{
+		View: cabal.View{ID: w.cabal, Name: "Pot", CreatorID: stale, Status: cabal.StatusActive},
+		Rules: cabal.Rules{
+			JoinMode: cabal.JoinOpen, VoterMode: cabal.VotersAll, Threshold: cabal.ThresholdMajority,
+			ProposalExpiry: 24 * time.Hour, SlippageBps: 100,
+		},
+	}}, w.rows)
+	if _, err := w.propose(1, w.creatorTarget(2)); errs.CodeOf(err) != errs.CodeInvalidInput {
+		t.Fatalf("an admin named creator only by the stored id proposes the role: %v, want invalid_input", err)
+	}
+	if _, err := w.propose(0, w.creatorTarget(1)); err != nil {
+		t.Fatalf("the member-row creator proposes the role: %v, want ok", err)
 	}
 }

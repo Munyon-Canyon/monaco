@@ -367,10 +367,13 @@ func (q *Queries) LockCabalExclusive(ctx context.Context, id uuid.UUID) (uuid.UU
 }
 
 const lockCabalForAccess = `-- name: LockCabalForAccess :one
-SELECT c.creator_id, c.join_mode, c.voter_mode, c.threshold, c.proposal_expiry_seconds, c.slippage_bps, c.status,
+SELECT c.join_mode, c.voter_mode, c.threshold, c.proposal_expiry_seconds, c.slippage_bps, c.status,
   ARRAY(
     SELECT m.user_id FROM cabal_members m WHERE m.cabal_id = c.id AND m.user_id = ANY($1::uuid[])
   )::uuid[] AS member_ids,
+  ARRAY(
+    SELECT m.user_id FROM cabal_members m WHERE m.cabal_id = c.id AND m.role = 'creator'
+  )::uuid[] AS creator_ids,
   ARRAY(
     SELECT m.user_id FROM cabal_members m WHERE m.cabal_id = c.id AND m.role IN ('creator', 'admin')
   )::uuid[] AS admin_ids
@@ -385,7 +388,6 @@ type LockCabalForAccessParams struct {
 }
 
 type LockCabalForAccessRow struct {
-	CreatorID             uuid.UUID
 	JoinMode              string
 	VoterMode             string
 	Threshold             string
@@ -393,6 +395,7 @@ type LockCabalForAccessRow struct {
 	SlippageBps           int32
 	Status                string
 	MemberIds             []uuid.UUID
+	CreatorIds            []uuid.UUID
 	AdminIds              []uuid.UUID
 }
 
@@ -400,7 +403,6 @@ func (q *Queries) LockCabalForAccess(ctx context.Context, arg LockCabalForAccess
 	row := q.db.QueryRow(ctx, lockCabalForAccess, arg.UserIds, arg.CabalID)
 	var i LockCabalForAccessRow
 	err := row.Scan(
-		&i.CreatorID,
 		&i.JoinMode,
 		&i.VoterMode,
 		&i.Threshold,
@@ -408,6 +410,7 @@ func (q *Queries) LockCabalForAccess(ctx context.Context, arg LockCabalForAccess
 		&i.SlippageBps,
 		&i.Status,
 		&i.MemberIds,
+		&i.CreatorIds,
 		&i.AdminIds,
 	)
 	return i, err
