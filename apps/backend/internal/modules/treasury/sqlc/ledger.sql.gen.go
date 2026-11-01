@@ -708,6 +708,26 @@ func (q *Queries) OwnsSignature(ctx context.Context, txSignature string) (pgtype
 	return column_1, err
 }
 
+const ownsSignatureForUser = `-- name: OwnsSignatureForUser :one
+SELECT EXISTS (SELECT 1 FROM cabal_txns WHERE tx_signature = $1::text)
+  OR EXISTS (SELECT 1 FROM user_txns WHERE tx_signature = $1::text
+    AND user_id = $2::uuid)
+  OR EXISTS (SELECT 1 FROM fund_transfers WHERE tx_signature = $1::text)
+  OR EXISTS (SELECT 1 FROM cash_out_payouts WHERE signature = $1::text)
+`
+
+type OwnsSignatureForUserParams struct {
+	TxSignature string
+	UserID      uuid.UUID
+}
+
+func (q *Queries) OwnsSignatureForUser(ctx context.Context, arg OwnsSignatureForUserParams) (pgtype.Bool, error) {
+	row := q.db.QueryRow(ctx, ownsSignatureForUser, arg.TxSignature, arg.UserID)
+	var column_1 pgtype.Bool
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const setTransferStatus = `-- name: SetTransferStatus :one
 WITH c AS (
   UPDATE cabal_txns SET status = $1::text

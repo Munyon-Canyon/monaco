@@ -98,6 +98,7 @@ type reservationStore interface {
 
 type signatureStore interface {
 	OwnsSignature(context.Context, string) (pgtype.Bool, error)
+	OwnsSignatureForUser(context.Context, sqlc.OwnsSignatureForUserParams) (pgtype.Bool, error)
 }
 
 type walletLedgerStore interface {
@@ -240,6 +241,16 @@ func (q *Queries) OwnsSignature(ctx context.Context, sig chain.Signature) (bool,
 	owned, err := q.signature.OwnsSignature(ctx, string(sig))
 	if err != nil {
 		return false, errs.Wrap(err, errs.CodeInternal, "treasury.OwnsSignature")
+	}
+	return owned.Bool, nil
+}
+
+func (q *Queries) OwnsSignatureForUser(ctx context.Context, sig chain.Signature, user ids.UserID) (bool, error) {
+	owned, err := q.signature.OwnsSignatureForUser(ctx, sqlc.OwnsSignatureForUserParams{
+		TxSignature: string(sig), UserID: user.UUID(),
+	})
+	if err != nil {
+		return false, errs.Wrap(err, errs.CodeInternal, "treasury.OwnsSignatureForUser")
 	}
 	return owned.Bool, nil
 }
