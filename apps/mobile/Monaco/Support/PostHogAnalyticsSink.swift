@@ -36,6 +36,15 @@ struct PostHogAnalyticsSink: AnalyticsSink {
         SessionReplayGate.isRecording = config.sessionReplay
         PostHogSDK.shared.setup(config)
         PostHogSDK.shared.register(Self.superProperties(for: environment))
+        if !AnalyticsConsent.isSharing { Self.apply(sharing: false) }
+    }
+
+    static func apply(sharing: Bool) {
+        if sharing {
+            PostHogSDK.shared.optIn()
+        } else {
+            PostHogSDK.shared.optOut()
+        }
     }
 
     func identify(userID: String, properties: [String: AnalyticsValue]) {
@@ -52,6 +61,7 @@ struct PostHogAnalyticsSink: AnalyticsSink {
 
     func reset() {
         PostHogSDK.shared.reset()
+        if !AnalyticsConsent.isSharing { Self.apply(sharing: false) }
     }
 }
 

@@ -48,6 +48,11 @@ struct DeleteAccountContent: View {
         return false
     }
 
+    private var forfeitedMicros: Int64 {
+        if case .loaded(let checklist) = model?.state { return checklist.forfeitedMicros }
+        return 0
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: MonacoTheme.Space.l) {
@@ -80,6 +85,10 @@ struct DeleteAccountContent: View {
                     .accessibilityIdentifier("delete-account-confirm")
                     Button(AccountCopy.cancel, role: .cancel) {}
                         .accessibilityIdentifier("delete-account-cancel")
+                } message: {
+                    if forfeitedMicros > 0 {
+                        Text(AccountCopy.confirmDust(micros: forfeitedMicros))
+                    }
                 }
             }
         }
@@ -125,7 +134,9 @@ struct DeleteAccountContent: View {
             isHighlighted: model?.highlighted == .withdrawFirst
         ) {
             if checklist.isWithdrawn {
-                DoneLine(detail: amount)
+                DoneLine(
+                    detail: checklist.forfeitedMicros > 0
+                        ? AccountCopy.dustLeft(micros: checklist.forfeitedMicros) : amount)
             } else {
                 MonacoGroupedList {
                     NavigationLink(value: AnyAppRoute(WithdrawRoute())) {

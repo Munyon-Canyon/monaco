@@ -15,10 +15,31 @@ final class AppFeaturesTests: XCTestCase {
     }
 
     func testLaunchArgumentWinsOverInfoPlist() {
-        XCTAssertTrue(AppFeatures(infoDictionary: [:], arguments: ["-MonacoFeatureConnectX", "YES"]).connectX)
+        let on = ["-MonacoFeatureConnectX", "YES"]
+        let off = ["-MonacoFeatureConnectX", "NO"]
+        XCTAssertTrue(AppFeatures(infoDictionary: [:], arguments: on, honorsLaunchArguments: true).connectX)
         XCTAssertFalse(
-            AppFeatures(infoDictionary: ["MonacoFeatureConnectX": "YES"], arguments: ["-MonacoFeatureConnectX", "NO"])
-                .connectX)
-        XCTAssertFalse(AppFeatures(infoDictionary: [:], arguments: ["-MonacoFeatureConnectX"]).connectX)
+            AppFeatures(
+                infoDictionary: ["MonacoFeatureConnectX": "YES"], arguments: off, honorsLaunchArguments: true
+            ).connectX)
+        XCTAssertFalse(
+            AppFeatures(
+                infoDictionary: [:], arguments: ["-MonacoFeatureConnectX"], honorsLaunchArguments: true
+            ).connectX)
+    }
+
+    func testAReleaseBuildIgnoresTheLaunchArgument() {
+        let on = ["-MonacoFeatureConnectX", "YES"]
+        let off = ["-MonacoFeatureConnectX", "NO"]
+        XCTAssertFalse(AppFeatures(infoDictionary: [:], arguments: on, honorsLaunchArguments: false).connectX)
+        XCTAssertTrue(
+            AppFeatures(
+                infoDictionary: ["MonacoFeatureConnectX": "YES"], arguments: off, honorsLaunchArguments: false
+            ).connectX)
+    }
+
+    func testTheDefaultFollowsTheBuildKind() {
+        let on = ["-MonacoFeatureConnectX", "YES"]
+        XCTAssertEqual(AppFeatures(infoDictionary: [:], arguments: on).connectX, MonacoBuildKind.current == .debug)
     }
 }

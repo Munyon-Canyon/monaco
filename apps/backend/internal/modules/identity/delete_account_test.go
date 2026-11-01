@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -201,8 +202,14 @@ func TestDeleteAccount_refusesWhileMoneyIsLeftOrItCannotTell(t *testing.T) {
 		given func(f deleteFixture, user ids.UserID)
 		code  errs.Code
 	}{
-		{"one micro on chain", func(f deleteFixture, user ids.UserID) {
-			f.balances.Set(user, funding.Balance{OnChainMicros: micros(1), AvailableMicros: micros(1)})
+		{"one cent on chain", func(f deleteFixture, user ids.UserID) {
+			f.balances.Set(user, funding.Balance{OnChainMicros: micros(10_000), AvailableMicros: micros(10_000)})
+		}, errs.CodeAccountHasBalance},
+		{"dust with a withdrawal in flight", func(f deleteFixture, user ids.UserID) {
+			f.balances.Set(user, funding.Balance{OnChainMicros: micros(3_000), InFlightWithdrawalMicros: micros(1)})
+		}, errs.CodeAccountHasBalance},
+		{"dust with a fund in flight", func(f deleteFixture, user ids.UserID) {
+			f.balances.Set(user, funding.Balance{OnChainMicros: micros(3_000), InFlightFundMicros: micros(1)})
 		}, errs.CodeAccountHasBalance},
 		{"a withdrawal still in flight", func(f deleteFixture, user ids.UserID) {
 			f.balances.Set(user, funding.Balance{OnChainMicros: micros(40), InFlightWithdrawalMicros: micros(40)})
@@ -232,14 +239,73 @@ func TestDeleteAccount_refusesWhileMoneyIsLeftOrItCannotTell(t *testing.T) {
 
 func micros(v uint64) money.Micros { return money.MicrosFromUint64(v) }
 
-func TestDeleteAccount_deletesOnlyWithNoUSDCOnChainOrInFlight(t *testing.T) {
+func TestDeleteAccount_dustUnderACentIsForfeitedAndRecorded(t *testing.T) {
+	t.Parallel()
+	for _, dust := range []uint64{1, 3_000, 9_999} {
+		t.Run(micros(dust).String(), func(t *testing.T) {
+			t.Parallel()
+			f := newDeleteFixture(t)
+			u := f.seedWithPII(t, "active")
+			f.balances.Set(u.ID, funding.Balance{OnChainMicros: micros(dust), AvailableMicros: micros(dust)})
+			if err := f.handler(adapters.Users{}).Handle(asUser(t, u.ID), u.ID); err != nil {
+				t.Fatalf("DeleteAccount with %d micros left = %v, want it deleted", dust, err)
+			}
+			var address string
+			if err := f.pool.QueryRow(t.Context(), `SELECT address FROM user_wallets WHERE user_id = $1`, u.ID.UUID()).
+				Scan(&address); err != nil {
+				t.Fatal(err)
+			}
+			forfeited := micros(dust)
+			want := events.UserDeleted{
+				V: 1, UserID: u.ID.UUID(), At: f.clock.Now(), ForfeitedMicros: &forfeited,
+				ForfeitedWallet: address[:4] + "..." + address[len(address)-4:],
+			}
+			got := f.deletedEvents(t)
+			if len(got) != 1 || got[0].ForfeitedMicros == nil || *got[0].ForfeitedMicros != forfeited ||
+				got[0].ForfeitedWallet != want.ForfeitedWallet || got[0].UserID != want.UserID || !got[0].At.Equal(want.At) {
+				t.Fatalf("user.deleted events = %+v, want %+v", got, want)
+			}
+			if strings.Contains(got[0].ForfeitedWallet, address) {
+				t.Fatalf("event carries the full wallet address %q", got[0].ForfeitedWallet)
+			}
+		})
+	}
+}
+
+func TestDeleteAccount_aZeroBalanceRecordsNoForfeit(t *testing.T) {
+	t.Parallel()
+	f := newDeleteFixture(t)
+	u := f.seedWithPII(t, "active")
+	if err := f.handler(adapters.Users{}).Handle(asUser(t, u.ID), u.ID); err != nil {
+		t.Fatalf("DeleteAccount = %v", err)
+	}
+	if got := f.deletedEvents(t); len(got) != 1 || got[0].ForfeitedMicros != nil || got[0].ForfeitedWallet != "" {
+		t.Fatalf("user.deleted events = %+v, want one with no forfeit", got)
+	}
+}
+
+func TestDeleteAccount_dustWithoutAWalletStillDeletes(t *testing.T) {
+	t.Parallel()
+	f := newDeleteFixture(t)
+	u := testkit.SeedUser(t, f.pool, testkit.UserOpts{Handle: "no_wallet"})
+	f.balances.Set(u.ID, funding.Balance{OnChainMicros: micros(3_000), AvailableMicros: micros(3_000)})
+	if err := f.handler(adapters.Users{}).Handle(asUser(t, u.ID), u.ID); err != nil {
+		t.Fatalf("DeleteAccount = %v", err)
+	}
+	got := f.deletedEvents(t)
+	if len(got) != 1 || got[0].ForfeitedMicros == nil || got[0].ForfeitedWallet != "" {
+		t.Fatalf("user.deleted events = %+v, want a forfeit and no wallet", got)
+	}
+}
+
+func TestDeleteAccount_deletesOnlyWithDustOnChainAndNothingInFlight(t *testing.T) {
 	t.Parallel()
 	f := newDeleteFixture(t)
 	h := f.handler(adapters.Users{})
 	rapid.Check(t, func(rt *rapid.T) {
 		draw := func(label string) money.Micros { return micros(rapid.Uint64Range(0, 100).Draw(rt, label)) }
 		b := funding.Balance{
-			OnChainMicros:            draw("on_chain"),
+			OnChainMicros:            micros(rapid.Uint64Range(0, 20_000).Draw(rt, "on_chain")),
 			InFlightFundMicros:       draw("fund"),
 			InFlightWithdrawalMicros: draw("withdrawal"),
 		}
@@ -252,7 +318,8 @@ func TestDeleteAccount_deletesOnlyWithNoUSDCOnChainOrInFlight(t *testing.T) {
 		}
 		u := testkit.SeedUser(t, f.pool, testkit.UserOpts{WithWallet: true})
 		f.balances.Set(u.ID, b)
-		held := !b.OnChainMicros.IsZero() || !b.InFlightFundMicros.IsZero() || !b.InFlightWithdrawalMicros.IsZero()
+		held := b.OnChainMicros.Uint64() >= app.DustCeilingMicros || !b.InFlightFundMicros.IsZero() ||
+			!b.InFlightWithdrawalMicros.IsZero()
 		err = h.Handle(asUser(t, u.ID), u.ID)
 		if held && errs.CodeOf(err) != errs.CodeAccountHasBalance || !held && err != nil {
 			rt.Fatalf("DeleteAccount with %+v = %v, want it refused %t", b, err, held)

@@ -15,7 +15,6 @@
 	<key>com.apple.developer.associated-domains</key>
 	<array>
 		<string>applinks:monacolabs.xyz</string>
-		<string>applinks:www.monacolabs.xyz</string>
 	</array>
 </dict>
 </plist>

@@ -15,8 +15,8 @@ Subject `events.admin.action`, version 1.
 | `target_type` | `events.AdminTargetType` |
 | `target_id` | `string` |
 | `reason` | `string` |
-| `before` | `json.RawMessage` |
-| `after` | `json.RawMessage` |
+| `before` | `jsontext.Value` |
+| `after` | `jsontext.Value` |
 | `approved_by` | `*uuid.UUID` |
 
 ## `admin.approval_requested`
@@ -709,7 +709,7 @@ Subject `events.proposal.rule_passed`, version 1.
 | `proposal_id` | `uuid.UUID` |
 | `cabal_id` | `uuid.UUID` |
 | `proposer_id` | `uuid.UUID` |
-| `change` | `json.RawMessage` |
+| `change` | `jsontext.Value` |
 | `passed_at` | `time.Time` |
 
 ## `proposal.voided`
@@ -1036,6 +1036,8 @@ Subject `events.user.deleted`, version 1.
 | `v` | `int` |
 | `user_id` | `uuid.UUID` |
 | `at` | `time.Time` |
+| `forfeited_micros` | `*money.Micros` |
+| `forfeited_wallet` | `string` |
 
 ## `user.nudge_due`
 

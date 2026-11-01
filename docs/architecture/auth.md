@@ -129,7 +129,7 @@ Rules:
 
 ### Deletion
 
-"Delete my account" requires a zero position first (default 2026-09-27). The app sends the user through cash out for every cabal and withdraw for the platform balance. Deletion is refused with a `KindBlocked` code until nothing is left. Then `identity` sets `deleted_at` and `account_status = deleted`, and scrubs PII (`email`, phone columns, X columns, display name, photo). The `users` row keeps its handle, so no one else can claim it. This is a soft delete (decided 2026-09-27): reads filter `deleted_at IS NULL`. Ledger rows and the `users` row stay, so every `cabal_txns` and `user_txns` entry still points at a real id. Ledger rows are never deleted.
+"Delete my account" requires a zero position first (default 2026-09-27). The app sends the user through cash out for every cabal and withdraw for the platform balance. Deletion is refused with a `KindBlocked` code until nothing is left, except that dust under $0.01 (10,000 micros) on chain, with nothing in flight, no longer blocks it: the dust is forfeited, and `user.deleted` carries `forfeited_micros` and a masked `forfeited_wallet` so ops can see it (decided 2026-11-01). Then `identity` sets `deleted_at` and `account_status = deleted`, and scrubs PII (`email`, phone columns, X columns, display name, photo). The `users` row keeps its handle, so no one else can claim it. This is a soft delete (decided 2026-09-27): reads filter `deleted_at IS NULL`. Ledger rows and the `users` row stay, so every `cabal_txns` and `user_txns` entry still points at a real id. Ledger rows are never deleted.
 
 ### Nudges
 

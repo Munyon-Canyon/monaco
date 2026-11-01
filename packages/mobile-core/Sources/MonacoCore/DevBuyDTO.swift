@@ -1,5 +1,6 @@
 import Foundation
 
+#if DEBUG
 public struct DevBuyRequestDTO: Encodable, Sendable {
     public let symbol: String
     public let usdc: Int64
@@ -18,3 +19,4 @@ public struct DevBuyResponseDTO: Decodable, Sendable {
     public let txSignature: String?
     public let created: Bool
 }
+#endif

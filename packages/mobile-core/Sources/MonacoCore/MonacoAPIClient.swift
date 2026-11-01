@@ -181,6 +181,7 @@ public final class MonacoAPIClient: @unchecked Sendable {
         return try JSONDecoder().decode(GroupViewDTO.self, from: response.data)
     }
 
+    #if DEBUG
     public func devBuy(groupId: String, symbol: String, usdc: Int64) async throws -> DevBuyResponseDTO {
         let url = baseURL.appending(path: "v1/dev/groups/\(groupId)/buy")
         var request = URLRequest(url: url)
@@ -188,8 +189,6 @@ public final class MonacoAPIClient: @unchecked Sendable {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         try await applyAuthorizationHeader(to: &request)
         request.httpBody = try JSONEncoder().encode(DevBuyRequestDTO(symbol: symbol, usdc: usdc))
-
-        // Buys the stock inside the request, so it gets the money budget, not the read one.
         let response = try await send(
             request,
             route: "/v1/dev/groups/{id}/buy",
@@ -197,6 +196,7 @@ public final class MonacoAPIClient: @unchecked Sendable {
         )
         return try JSONDecoder().decode(DevBuyResponseDTO.self, from: response.data)
     }
+    #endif
 
     private struct VoteRequestDTO: Encodable {
         let choice: String

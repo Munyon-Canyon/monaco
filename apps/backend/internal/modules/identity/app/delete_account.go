@@ -14,8 +14,11 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 )
+
+const DustCeilingMicros uint64 = 10_000
 
 type Balances interface {
 	Available(ctx context.Context, user ids.UserID) (fundingport.Balance, error)
@@ -44,7 +47,8 @@ type DeleteAccount struct{ d DeleteAccountDeps }
 func NewDeleteAccount(d DeleteAccountDeps) *DeleteAccount { return &DeleteAccount{d: d} }
 
 func (h *DeleteAccount) Handle(ctx context.Context, id ids.UserID) error {
-	if err := h.empty(ctx, id); err != nil {
+	forfeited, err := h.empty(ctx, id)
+	if err != nil {
 		return err
 	}
 	return h.d.UoW.Do(ctx, func(ctx context.Context, tx db.Tx) error {
@@ -59,33 +63,57 @@ func (h *DeleteAccount) Handle(ctx context.Context, id ids.UserID) error {
 		if err := h.d.Users.Delete(ctx, tx.Queries(), id, user.AccountStatus, at); err != nil {
 			return err
 		}
-		if err := tx.Events.Append(ctx, events.UserDeleted{V: 1, UserID: id.UUID(), At: at}); err != nil {
+		deleted := events.UserDeleted{V: 1, UserID: id.UUID(), At: at}
+		attrs := []slog.Attr{slog.String("user_id", id.String())}
+		if !forfeited.IsZero() {
+			deleted.ForfeitedMicros = &forfeited
+			if user.Wallet != nil {
+				deleted.ForfeitedWallet = MaskAddress(string(user.Wallet.Address))
+			}
+			attrs = append(
+				attrs,
+				slog.String(
+					"forfeited_micros",
+					forfeited.String(),
+				),
+				slog.String("forfeited_wallet", deleted.ForfeitedWallet),
+			)
+		}
+		if err := tx.Events.Append(ctx, deleted); err != nil {
 			return err
 		}
 		tx.AfterCommit(func(ctx context.Context) {
 			h.d.Hints.PublishHint(ctx, "user."+id.String()+".me_changed", nil)
-			observability.Info(ctx, observability.IdentityAccountDeleted, slog.String("user_id", id.String()))
+			observability.Info(ctx, observability.IdentityAccountDeleted, attrs...)
 		})
 		return nil
 	})
 }
 
-func (h *DeleteAccount) empty(ctx context.Context, id ids.UserID) error {
+func (h *DeleteAccount) empty(ctx context.Context, id ids.UserID) (money.Micros, error) {
 	const op = "identity.DeleteAccount"
 	stakes, err := h.d.Stakes.StakesOf(ctx, id)
 	if err != nil {
-		return err
+		return money.Micros{}, err
 	}
 	if len(stakes) > 0 {
-		return errs.New(errs.CodeAccountHasPositions, op, slog.Int("cabal_count", len(stakes)))
+		return money.Micros{}, errs.New(errs.CodeAccountHasPositions, op, slog.Int("cabal_count", len(stakes)))
 	}
 	balance, err := h.d.Balances.Available(ctx, id)
 	if err != nil {
-		return err
+		return money.Micros{}, err
 	}
-	if !balance.OnChainMicros.IsZero() || !balance.InFlightFundMicros.IsZero() ||
-		!balance.InFlightWithdrawalMicros.IsZero() {
-		return errs.New(errs.CodeAccountHasBalance, op)
+	if !balance.InFlightFundMicros.IsZero() || !balance.InFlightWithdrawalMicros.IsZero() ||
+		balance.OnChainMicros.Cmp(money.MicrosFromUint64(DustCeilingMicros)) >= 0 {
+		return money.Micros{}, errs.New(errs.CodeAccountHasBalance, op)
 	}
-	return nil
+	return balance.OnChainMicros, nil
+}
+
+func MaskAddress(address string) string {
+	const edge = 4
+	if len(address) <= 2*edge {
+		return "..."
+	}
+	return address[:edge] + "..." + address[len(address)-edge:]
 }
