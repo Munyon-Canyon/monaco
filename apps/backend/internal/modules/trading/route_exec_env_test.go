@@ -141,14 +141,17 @@ type evmArrivalsFake struct {
 	missing int
 	err     error
 	seen    []time.Time
+	floors  []money.Micros
 }
 
 func (f *evmArrivalsFake) Inbound(
-	_ context.Context, _ chain.Network, _, _ chain.EVMAddress, since time.Time, atMost money.Micros, exclude []string,
+	_ context.Context, _ chain.Network, _, _ chain.EVMAddress, since time.Time, atLeast, atMost money.Micros,
+	exclude []string,
 ) (app.EVMArrival, bool, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.seen = append(f.seen, since)
+	f.floors = append(f.floors, atLeast)
 	if err := f.err; err != nil {
 		f.err = nil
 		return app.EVMArrival{}, false, err

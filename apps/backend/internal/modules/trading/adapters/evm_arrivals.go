@@ -114,6 +114,7 @@ type arrivalScan struct {
 	owner   chain.EVMAddress
 	attrs   []slog.Attr
 	filter  logFilter
+	atLeast money.Micros
 	atMost  money.Micros
 	exclude []string
 }
@@ -123,7 +124,7 @@ func (a *EVMArrivals) Inbound(
 	network chain.Network,
 	token, owner chain.EVMAddress,
 	since time.Time,
-	atMost money.Micros,
+	atLeast, atMost money.Micros,
 	exclude []string,
 ) (app.EVMArrival, bool, error) {
 	attrs := []slog.Attr{slog.String("network", string(network)), slog.String("owner", owner.String())}
@@ -137,8 +138,15 @@ func (a *EVMArrivals) Inbound(
 	}
 	transfer, recipient := transferEventTopic, topicOf(owner)
 	s := arrivalScan{
-		client: client, pace: &pacer{clock: a.clock}, network: network, owner: owner, attrs: attrs, atMost: atMost,
-		exclude: exclude, filter: logFilter{Address: token.String(), Topics: []*string{&transfer, nil, &recipient}},
+		client:  client,
+		pace:    &pacer{clock: a.clock},
+		network: network,
+		owner:   owner,
+		attrs:   attrs,
+		atLeast: atLeast,
+		atMost:  atMost,
+		exclude: exclude,
+		filter:  logFilter{Address: token.String(), Topics: []*string{&transfer, nil, &recipient}},
 	}
 	key := arrivalKey{network: network, owner: owner, since: since.UnixNano()}
 	got, found, err := a.inbound(ctx, s, key, since)
@@ -266,7 +274,7 @@ func (s arrivalScan) first(logs []arrivalLog) (app.EVMArrival, bool, error) {
 				append(s.attrs, slog.String("tx_hash", l.TxHash), slog.String("data", l.Data))...)
 		}
 		got := money.MicrosFromUint64(amount.Uint64())
-		if got.IsZero() || got.Cmp(s.atMost) > 0 {
+		if got.IsZero() || got.Cmp(s.atLeast) < 0 || got.Cmp(s.atMost) > 0 {
 			continue
 		}
 		return app.EVMArrival{Amount: got, TxHash: strings.ToLower(l.TxHash)}, true, nil

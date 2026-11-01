@@ -423,7 +423,7 @@ func (r *RouteExec) observeOut(ctx context.Context, b routedBuy, step domain.Tra
 	exclude, err := r.d.Journal.ArrivalTxs(ctx, step.Network)
 	if err == nil {
 		arrival, found, err = r.d.EVMArrivals.Inbound(ctx, step.Network, b.cash, b.evm.Address, step.SentAt,
-			step.Amount, exclude)
+			b.arrivalFloor(step.Amount), step.Amount, exclude)
 	}
 	if err == nil && !found {
 		err = errs.New(errs.CodeUpstreamUnavailable, "trading.RouteExec.observeOut",
@@ -469,6 +469,19 @@ func bridgeFee(c multichain.Comparison) money.Micros {
 		}
 	}
 	return fee
+}
+
+const (
+	arrivalSlackFlat    = 100_000
+	arrivalSlackDivisor = 100
+)
+
+func (b routedBuy) arrivalFloor(sent money.Micros) money.Micros {
+	allowed := b.estimate.Uint64() + arrivalSlackFlat + sent.Uint64()/arrivalSlackDivisor
+	if allowed < b.estimate.Uint64() || allowed >= sent.Uint64() {
+		return money.MicrosFromUint64(1)
+	}
+	return money.MicrosFromUint64(sent.Uint64() - allowed)
 }
 
 func (b routedBuy) ref(kind domain.StepKind) domain.StepRef {

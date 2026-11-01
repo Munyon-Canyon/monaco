@@ -197,8 +197,10 @@ func (c *fakeChain) inboundCtx(
 ) (app.EVMArrival, bool, error) {
 	t.Helper()
 	return a.Inbound(ctx, chain.NetworkRobinhood, evmAddress(t, rhUSDG), evmAddress(t, rhTreasury), since,
-		money.MicrosFromUint64(1_000_000), exclude)
+		money.MicrosFromUint64(arrivalFloor), money.MicrosFromUint64(1_000_000), exclude)
 }
+
+const arrivalFloor = 900_000
 
 func txHash(n int) string { return fmt.Sprintf("0x%064x", n) }
 
@@ -228,12 +230,57 @@ func TestEVMArrivals_findsTheEarliestTransferInSinceTheStep(t *testing.T) {
 	}
 }
 
+func TestEVMArrivals_ignoresATransferBelowTheBridgesFeeFloor(t *testing.T) {
+	t.Parallel()
+	const stranger = "0x00000000000000000000000000000000000000cc"
+	c := newFakeChain()
+	c.logs = []chainLog{
+		{block: 4_100, token: rhUSDG, from: stranger, to: rhTreasury, amount: 1, tx: txHash(1)},
+		{block: 4_200, token: rhUSDG, from: rhBridge, to: rhTreasury, amount: arrivalFloor - 1, tx: txHash(2)},
+		{block: 4_300, token: rhUSDG, from: rhBridge, to: rhTreasury, amount: 972_507, tx: txHash(3)},
+	}
+
+	got, found, err := c.inbound(t, c.arrivals(t, 50_000), c.blockAt(4_000))
+
+	want := app.EVMArrival{Amount: money.MicrosFromUint64(972_507), TxHash: txHash(3)}
+	if err != nil || !found || got != want {
+		t.Fatalf("Inbound = %+v, %v, %v, want only the transfer at or above the floor %+v", got, found, err, want)
+	}
+}
+
+func TestEVMArrivals_doesNotMatchSaleProceedsAsTheBridgeArrival(t *testing.T) {
+	t.Parallel()
+	const router = "0x00000000000000000000000000000000000000dd"
+	c := newFakeChain()
+	c.logs = []chainLog{{block: 4_100, token: rhUSDG, from: router, to: rhTreasury, amount: 310_000, tx: txHash(1)}}
+
+	got, found, err := c.inbound(t, c.arrivals(t, 50_000), c.blockAt(4_000))
+
+	if err != nil || found {
+		t.Fatalf("Inbound = %+v, %v, %v, want sale proceeds under the floor left unmatched", got, found, err)
+	}
+}
+
+func TestEVMArrivals_acceptsATransferExactlyAtTheFloor(t *testing.T) {
+	t.Parallel()
+	c := newFakeChain()
+	c.logs = []chainLog{
+		{block: 4_100, token: rhUSDG, from: rhBridge, to: rhTreasury, amount: arrivalFloor, tx: txHash(1)},
+	}
+
+	got, found, err := c.inbound(t, c.arrivals(t, 50_000), c.blockAt(4_000))
+
+	if err != nil || !found || got.Amount != money.MicrosFromUint64(arrivalFloor) {
+		t.Fatalf("Inbound = %+v, %v, %v, want the transfer at the floor", got, found, err)
+	}
+}
+
 func TestEVMArrivals_looksTwoMinutesBeforeTheStep(t *testing.T) {
 	t.Parallel()
 	c := newFakeChain()
 	c.logs = []chainLog{
-		{block: 3_879, token: rhUSDG, from: rhBridge, to: rhTreasury, amount: 1, tx: txHash(1)},
-		{block: 3_880, token: rhUSDG, from: rhBridge, to: rhTreasury, amount: 2, tx: txHash(2)},
+		{block: 3_879, token: rhUSDG, from: rhBridge, to: rhTreasury, amount: 950_000, tx: txHash(1)},
+		{block: 3_880, token: rhUSDG, from: rhBridge, to: rhTreasury, amount: 960_000, tx: txHash(2)},
 	}
 
 	got, found, err := c.inbound(t, c.arrivals(t, 50_000), c.blockAt(4_000))
@@ -346,7 +393,7 @@ func TestEVMArrivals_anUnknownNetworkIsInvalidInput(t *testing.T) {
 	a := adapters.NewEVMArrivals(nil, 10, steppingClock{testkit.NewClock(chainStart())})
 
 	_, _, err := a.Inbound(t.Context(), chain.NetworkBase, evmAddress(t, rhUSDG), evmAddress(t, rhTreasury),
-		chainStart(), money.MicrosFromUint64(1), nil)
+		chainStart(), money.Micros{}, money.MicrosFromUint64(1), nil)
 
 	if errs.CodeOf(err) != errs.CodeInvalidInput {
 		t.Fatalf("Inbound err = %v, want invalid_input", err)
@@ -410,7 +457,7 @@ func TestEVMArrivals_refusesWhatItCannotRead(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			_, _, err := rawRPC(t, tc.reply).Inbound(t.Context(), chain.NetworkRobinhood, evmAddress(t, rhUSDG),
-				evmAddress(t, rhTreasury), chainStart(), money.MicrosFromUint64(1_000_000), nil)
+				evmAddress(t, rhTreasury), chainStart(), money.Micros{}, money.MicrosFromUint64(1_000_000), nil)
 			if errs.CodeOf(err) != tc.want {
 				t.Fatalf("Inbound err = %v, want %s", err, tc.want)
 			}
@@ -431,7 +478,7 @@ func TestEVMArrivals_aClosedRPCIsUnavailable(t *testing.T) {
 		steppingClock{testkit.NewClock(chainStart())})
 
 	_, _, err := a.Inbound(t.Context(), chain.NetworkRobinhood, evmAddress(t, rhUSDG), evmAddress(t, rhTreasury),
-		chainStart(), money.MicrosFromUint64(1), nil)
+		chainStart(), money.Micros{}, money.MicrosFromUint64(1), nil)
 
 	if !errs.Retryable(errs.CodeOf(err)) {
 		t.Fatalf("Inbound err = %v, want a retryable outage", err)
@@ -507,7 +554,7 @@ func TestEVMArrivals_waitsForTheChainsSafeDepth(t *testing.T) {
 			a := adapters.NewEVMArrivals(map[chain.Network]*httpclient.Client{tc.network: rpc}, 50_000, c.clock)
 			arrive := func() (app.EVMArrival, bool, error) {
 				return a.Inbound(t.Context(), tc.network, evmAddress(t, token), evmAddress(t, rhTreasury),
-					c.blockAt(4_000), money.MicrosFromUint64(1_000_000), nil)
+					c.blockAt(4_000), money.Micros{}, money.MicrosFromUint64(1_000_000), nil)
 			}
 
 			if _, found, err := arrive(); err != nil || found {
