@@ -165,10 +165,7 @@ func (j Journal) SentTx(ctx context.Context, ref domain.StepRef) (multichain.EVM
 }
 
 func (j Journal) RecordSentTx(ctx context.Context, ref domain.StepRef, tx multichain.EVMTransaction) error {
-	raw, err := json.Marshal(tx)
-	if err != nil {
-		return errs.Wrap(err, errs.CodeInternal, journalOp)
-	}
+	raw, _ := json.Marshal(tx)
 	return j.UoW.Do(ctx, func(ctx context.Context, tx db.Tx) error {
 		_, err := sqlc.New(tx.Queries()).RecordTradeStepSentTx(ctx, sqlc.RecordTradeStepSentTxParams{
 			SentTx: raw, TradeID: ref.SwapID.UUID(), Step: string(ref.Step),

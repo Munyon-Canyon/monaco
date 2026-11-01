@@ -422,3 +422,22 @@ func TestEVMSwap_aBuyWhoseExecutionQuoteBeatsTheRequoteStillGoesThrough(t *testi
 		})
 	}
 }
+
+func TestEVMSwap_aStoredTransactionThatCannotBeReadStopsTheSendAndSendsNothing(t *testing.T) {
+	t.Parallel()
+	e := newEVMSwapEnv(t)
+	if _, err := e.journal.Begin(actorContext(t.Context()), e.ref, e.leg.Amount); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.pool.Exec(t.Context(), `UPDATE trade_steps SET sent_tx = '"garbage"' WHERE trade_id = $1`,
+		e.ref.SwapID.UUID()); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := e.run(t.Context()); errs.CodeOf(err) != errs.CodeInternal {
+		t.Fatalf("Run err = %v, want internal", err)
+	}
+	if len(e.evm.keys()) != 0 || e.evm.builds != 0 {
+		t.Fatalf("sent %v after %d builds, want nothing", e.evm.keys(), e.evm.builds)
+	}
+}

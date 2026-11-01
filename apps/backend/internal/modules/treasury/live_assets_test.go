@@ -1,6 +1,7 @@
 package treasury_test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/domain"
@@ -54,4 +55,14 @@ func TestHoldsLiveAssets_namesACabalWhoseShareCountCannotPriceAFund(t *testing.T
 		t.Fatal(err)
 	}
 	holds("a cabal that holds a token", true)
+}
+
+func TestHoldsLiveAssets_surfacesAReadFailure(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	if _, err := newQueries(f).HoldsLiveAssets(ctx, f.cabal(t)); err == nil {
+		t.Fatal("HoldsLiveAssets with a cancelled context returned no error")
+	}
 }

@@ -440,15 +440,7 @@ func (q *Queries) HoldsLiveAssets(ctx context.Context, cabalID ids.CabalID) (boo
 			return true, nil
 		}
 	}
-	live, err := micros(rows[0].CashOutReservedMicros)
-	if err != nil {
-		return false, err
-	}
-	transit, err := micros(rows[0].InTransitMicros)
-	if err != nil {
-		return false, err
-	}
-	return !live.IsZero() || !transit.IsZero(), nil
+	return rows[0].CashOutReservedMicros != "0" || rows[0].InTransitMicros != "0", nil
 }
 
 func (q *Queries) TotalShares(ctx context.Context, cabalID ids.CabalID) (money.SharesUnits, error) {

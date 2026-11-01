@@ -63,7 +63,8 @@ func (p *EVMTrades) Tick(ctx context.Context) (poller.Report, error) {
 	stranded, strandedErr := q.ListStrandedCash(ctx, sqlc.ListStrandedCashParams{
 		OlderThan: now.Add(-p.timing.Age), MaxRows: SwapSweepBatch,
 	})
-	if err := errors.Join(unfinishedErr, strandedErr); err != nil {
+	failed, failedErr := p.retry.ListFailed(ctx)
+	if err := errors.Join(unfinishedErr, strandedErr, failedErr); err != nil {
 		return poller.Report{}, errs.Wrap(err, errs.CodeInternal, "trading.EVMTrades")
 	}
 	report := poller.Report{Scanned: len(unfinished) + len(stranded)}
@@ -85,15 +86,13 @@ func (p *EVMTrades) Tick(ctx context.Context) (poller.Report, error) {
 		}
 		failures = append(failures, err)
 	}
-	failures = append(failures, p.failedBridgeBacks(ctx, now, &report))
+	failures = append(failures, p.retryFailedBridgeBacks(ctx, failed, now, &report))
 	return report, errors.Join(failures...)
 }
 
-func (p *EVMTrades) failedBridgeBacks(ctx context.Context, now time.Time, report *poller.Report) error {
-	failed, err := p.retry.ListFailed(ctx)
-	if err != nil {
-		return err
-	}
+func (p *EVMTrades) retryFailedBridgeBacks(
+	ctx context.Context, failed []FailedBridgeBack, now time.Time, report *poller.Report,
+) error {
 	var failures []error
 	for _, row := range failed {
 		if now.Sub(row.FailedAt) < p.timing.Age {
