@@ -39,6 +39,7 @@ type fundStubs struct {
 	paused      bool
 	onChain     money.Micros
 	totalShares money.SharesUnits
+	holdsLive   bool
 	pot         money.Micros
 	potErr      error
 	buildErr    error
@@ -145,6 +146,10 @@ func (*fundStubs) PausedCabals(context.Context) (fundingport.PausedSet, error) {
 
 func (s *fundStubs) TotalShares(context.Context, ids.CabalID) (money.SharesUnits, error) {
 	return s.totalShares, s.err("TotalShares")
+}
+
+func (s *fundStubs) HoldsLiveAssets(context.Context, ids.CabalID) (bool, error) {
+	return s.holdsLive, s.err("HoldsLiveAssets")
 }
 
 func (s *fundStubs) PotValue(context.Context, ids.CabalID) (money.Micros, error) {
@@ -276,6 +281,12 @@ func TestFundCabal_refusals(t *testing.T) {
 		{"pot has shares but no value", 5_000_000, func(s *fundStubs) {
 			s.totalShares = money.SharesUnitsFromUint64(10)
 		}, errs.CodePotValueZero},
+		{"no shares while the pot still holds a live cash-out or positions", 5_000_000, func(s *fundStubs) {
+			s.holdsLive = true
+		}, errs.CodePotValueChanged},
+		{"live holdings read fails", 5_000_000, func(s *fundStubs) {
+			s.failOn = "HoldsLiveAssets"
+		}, errs.CodeInternal},
 		{"membership read fails", 5_000_000, func(s *fundStubs) { s.failOn = "IsMember" }, errs.CodeInternal},
 		{"member lock read fails", 5_000_000, func(s *fundStubs) { s.failOn = "LockMember" }, errs.CodeInternal},
 		{

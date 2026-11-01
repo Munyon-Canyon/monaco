@@ -279,6 +279,32 @@ func TestBridge_aRefusedTransferFailsTheStep(t *testing.T) {
 	}
 }
 
+func TestBridge_aSuccessResponseThatFailsToDecodeIsAnUnknownOutcomeNotAReturn(t *testing.T) {
+	t.Parallel()
+	e := newBridgeEnv(t)
+	e.privy.transferErr = errs.New(errs.CodeDecodeFailed, "privy.Transfer")
+	e.privy.script(multichain.ActionSucceeded)
+	var logs bytes.Buffer
+	ctx := observability.WithLogger(t.Context(), slog.New(slog.NewJSONHandler(&logs, nil)))
+
+	e.wantRun(ctx, t, domain.StepPending)
+
+	if s := e.step(t); s.Status != domain.StepPending || s.Error != "" || s.PrivyActionID != "" {
+		t.Fatalf("step = %+v, want pending with no error so nothing is booked back", s)
+	}
+	e.wantNoFailedEvent(t)
+	if !slices.Equal(*e.unsure, []multichain.ActionID{""}) {
+		t.Fatalf("unknown outcome reported %v, want it once with no action id", *e.unsure)
+	}
+	if !strings.Contains(logs.String(), "trading.bridge.outcome_unknown") ||
+		!strings.Contains(logs.String(), `"level":"ERROR"`) {
+		t.Fatalf("logs = %s, want an outcome_unknown alert", logs.String())
+	}
+
+	e.wantRun(t.Context(), t, domain.StepSucceeded)
+	e.wantOneTransfer(t, 1)
+}
+
 func TestBridge_aTransferOutageLeavesTheStepPending(t *testing.T) {
 	t.Parallel()
 	outage := newBridgeEnv(t)

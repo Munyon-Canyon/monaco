@@ -199,12 +199,19 @@ func (l *SwapLayer) settle(
 	case ExecuteSuccess:
 		return l.confirm(ctx, req, id, signature, result)
 	case ExecuteFailed:
+		if mayStillLand(result.ErrorCode) {
+			return nil
+		}
 		_, err := l.move(ctx, req, id, failed(req, id, domain.FailureJupiterFailed, strconv.Itoa(result.ErrorCode)))
 		return err
 	case ExecutePending:
 	}
 	return nil
 }
+
+const jupiterSubmissionCodeCeiling = -1000
+
+func mayStillLand(code int) bool { return code <= jupiterSubmissionCodeCeiling }
 
 func unfinished(cause error) error {
 	if code := errs.CodeOf(cause); code == errs.CodeUpstreamTimeout || code == errs.CodeJupiterUnavailable {

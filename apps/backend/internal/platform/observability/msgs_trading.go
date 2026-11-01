@@ -72,6 +72,11 @@ var TradingBridgeBackRetried = Msg{
 	Required: []string{"swap_id", "cabal_id", "attempt", "actor", "reason"},
 }
 
+var TradingBridgeBackFailed = Msg{
+	Name:     "trading.bridge_back.failed",
+	Required: []string{"swap_id", "cabal_id", "attempt", "error", "retrying"},
+}
+
 var TradingEVMCashReturnQueued = Msg{
 	Name: "trading.evm_cash_return.queued",
 	Required: []string{

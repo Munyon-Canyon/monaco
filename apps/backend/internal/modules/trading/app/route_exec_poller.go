@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"log/slog"
+	"strconv"
 	"time"
 
 	"github.com/google/uuid"
@@ -19,7 +20,11 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/poller"
 )
 
-const StrandedReturnHold = 24 * time.Hour
+const (
+	StrandedReturnHold    = 24 * time.Hour
+	MaxBridgeBackAttempts = 5
+	bridgeBackSweepActor  = "trading.bridge_back_sweep"
+)
 
 type Resumer interface {
 	Resume(ctx context.Context, id ids.SwapID) error
@@ -33,12 +38,16 @@ type EVMTrades struct {
 	routes    Resumer
 	proposals Proposals
 	timing    SweepTiming
+	retry     *RetryBridgeBackHandler
 }
 
 func NewEVMTrades(
 	uow *db.UnitOfWork, reads sqlc.DBTX, c clock.Clock, routes Resumer, proposals Proposals, timing SweepTiming,
 ) *EVMTrades {
-	return &EVMTrades{uow: uow, reads: reads, clock: c, routes: routes, proposals: proposals, timing: timing}
+	return &EVMTrades{
+		uow: uow, reads: reads, clock: c, routes: routes, proposals: proposals, timing: timing,
+		retry: NewRetryBridgeBackHandler(uow, reads, c, ids.Real{}),
+	}
 }
 
 func (*EVMTrades) Name() string { return "trading.evm_trades" }
@@ -54,7 +63,8 @@ func (p *EVMTrades) Tick(ctx context.Context) (poller.Report, error) {
 	stranded, strandedErr := q.ListStrandedCash(ctx, sqlc.ListStrandedCashParams{
 		OlderThan: now.Add(-p.timing.Age), MaxRows: SwapSweepBatch,
 	})
-	if err := errors.Join(unfinishedErr, strandedErr); err != nil {
+	failed, failedErr := p.retry.ListFailed(ctx)
+	if err := errors.Join(unfinishedErr, strandedErr, failedErr); err != nil {
 		return poller.Report{}, errs.Wrap(err, errs.CodeInternal, "trading.EVMTrades")
 	}
 	report := poller.Report{Scanned: len(unfinished) + len(stranded)}
@@ -76,7 +86,37 @@ func (p *EVMTrades) Tick(ctx context.Context) (poller.Report, error) {
 		}
 		failures = append(failures, err)
 	}
+	failures = append(failures, p.retryFailedBridgeBacks(ctx, failed, now, &report))
 	return report, errors.Join(failures...)
+}
+
+func (p *EVMTrades) retryFailedBridgeBacks(
+	ctx context.Context, failed []FailedBridgeBack, now time.Time, report *poller.Report,
+) error {
+	var failures []error
+	for _, row := range failed {
+		if now.Sub(row.FailedAt) < p.timing.Age {
+			continue
+		}
+		report.Scanned++
+		retrying := row.Attempt < MaxBridgeBackAttempts
+		observability.Alert(ctx, observability.TradingBridgeBackFailed,
+			slog.String("swap_id", row.SwapID.String()), slog.String("cabal_id", row.CabalID.String()),
+			slog.Int("attempt", row.Attempt), slog.String("error", row.Error), slog.Bool("retrying", retrying))
+		if !retrying {
+			continue
+		}
+		_, err := p.retry.Handle(ctx, RetryBridgeBack{
+			SwapID: row.SwapID,
+			Actor:  bridgeBackSweepActor,
+			Reason: "the return failed on attempt " + strconv.Itoa(row.Attempt),
+		})
+		if err == nil {
+			report.Changed++
+		}
+		failures = append(failures, err)
+	}
+	return errors.Join(failures...)
 }
 
 func (p *EVMTrades) resume(ctx context.Context, id uuid.UUID, now time.Time) error {

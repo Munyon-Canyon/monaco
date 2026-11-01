@@ -82,6 +82,10 @@ func (s *settleStubs) TotalShares(ctx context.Context, cabal ids.CabalID) (money
 	return total, err
 }
 
+func (s *settleStubs) HoldsLiveAssets(ctx context.Context, cabal ids.CabalID) (bool, error) {
+	return s.reads.HoldsLiveAssets(ctx, cabal)
+}
+
 func (s *settleStubs) PotBasis(ctx context.Context, cabal ids.CabalID) (string, error) {
 	return s.reads.PotBasis(ctx, cabal)
 }
@@ -93,6 +97,10 @@ func (r failingPotReads) TotalShares(context.Context, ids.CabalID) (money.Shares
 }
 
 func (r failingPotReads) PotBasis(context.Context, ids.CabalID) (string, error) { return "", r.err }
+
+func (r failingPotReads) HoldsLiveAssets(context.Context, ids.CabalID) (bool, error) {
+	return false, r.err
+}
 
 func (s *settleStubs) PublishHint(_ context.Context, key string, _ []byte) {
 	s.mu.Lock()
@@ -521,6 +529,37 @@ func TestFundSettler_waitsWhenTheCabalMovesBetweenTheQuoteAndTheLock(t *testing.
 	h.tick(t)
 	if status, _, _ := h.status(t, id); status != "settled" {
 		t.Fatalf("status once the cabal holds still = %s, want settled", status)
+	}
+}
+
+func TestFundSettler_waitsWhileACabalWithNoSharesStillHoldsALiveCashOut(t *testing.T) {
+	t.Parallel()
+	h := newSettleHarness(t)
+	id := h.landed(t, "5000000")
+	if _, err := h.pool.Exec(t.Context(), `INSERT INTO cabal_positions
+		(cabal_id, asset, units, cost_basis_micros, updated_at) VALUES ($1, $2, 10000000, 10000000, $3)`,
+		h.cabal.UUID(), h.cfg.Solana.USDCMint, h.clock.Now()); err != nil {
+		t.Fatal(err)
+	}
+	job := h.ids.NewV7()
+	if _, err := h.pool.Exec(t.Context(), `INSERT INTO cash_out_jobs
+		(id, cabal_id, user_id, share_units, payout_micros, slice_micros, status, created_at, updated_at)
+		VALUES ($1, $2, $3, 100, 4000000, 4000000, 'selling', $4, $4)`,
+		job, h.cabal.UUID(), h.user.UUID(), h.clock.Now()); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.tickErr(); err != nil {
+		t.Fatalf("Tick during the live cash-out = %v, want nil", err)
+	}
+	if status, _, _ := h.status(t, id); status != "landed" || h.count(t, "user_txns") != 0 {
+		t.Fatalf("status during the live cash-out = %s, want landed with nothing minted at 1:1", status)
+	}
+	if _, err := h.pool.Exec(t.Context(), `UPDATE cash_out_jobs SET status = 'failed' WHERE id = $1`, job); err != nil {
+		t.Fatal(err)
+	}
+	h.tick(t)
+	if status, _, _ := h.status(t, id); status != "settled" {
+		t.Fatalf("status once the cash-out is over = %s, want settled", status)
 	}
 }
 

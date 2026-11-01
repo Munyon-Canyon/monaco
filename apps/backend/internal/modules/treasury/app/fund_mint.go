@@ -127,6 +127,9 @@ func (s *FundSettler) revalidate(ctx context.Context, tx db.Tx, cabal ids.CabalI
 		return errs.New(errs.CodePotValueChanged, "treasury.FundSettler.revalidate",
 			slog.String("cabal_id", cabal.String()))
 	}
+	if total.IsZero() {
+		return refuseUnpriceableFund(ctx, reads, cabal)
+	}
 	return nil
 }
 
