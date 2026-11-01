@@ -74,29 +74,32 @@ private struct CabalInfoLinks: View {
     }
 
     private func links(_ cabal: Components.Schemas.Cabal) -> some View {
-        MonacoGroupedList {
+        let canInvite = !CabalClosedModel.isReadOnly(cabal.status)
+        return MonacoGroupedList {
             NavigationLink(value: AnyAppRoute(MembersRoute(cabalID: cabalID))) {
                 MonacoRow(
                     title: "Members & voters", subtitle: CabalCopy.memberCount(cabal.memberCount), chevron: true,
-                    isLast: false
+                    isLast: !canInvite && requestCount == 0
                 ) {
                     SunkenGlyphMark(systemImage: "person.2")
                 }
             }
             .buttonStyle(.monacoRow)
             .accessibilityIdentifier("cabal-members-row")
-            Button {
-                if let share { share.open() } else { showsInvite = true }
-            } label: {
-                MonacoRow(
-                    title: "Invite to this cabal", subtitle: "Share an invitation", chevron: true,
-                    isLast: requestCount == 0
-                ) {
-                    SunkenGlyphMark(icon: .share)
+            if canInvite {
+                Button {
+                    if let share { share.open() } else { showsInvite = true }
+                } label: {
+                    MonacoRow(
+                        title: "Invite to this cabal", subtitle: "Share an invitation", chevron: true,
+                        isLast: requestCount == 0
+                    ) {
+                        SunkenGlyphMark(icon: .share)
+                    }
                 }
+                .buttonStyle(.monacoRow)
+                .accessibilityIdentifier("cabal-invite-member-row")
             }
-            .buttonStyle(.monacoRow)
-            .accessibilityIdentifier("cabal-invite-member-row")
             if requestCount > 0 {
                 NavigationLink(value: AnyAppRoute(MembersRoute(cabalID: cabalID))) {
                     MonacoRow(

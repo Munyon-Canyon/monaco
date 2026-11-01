@@ -110,7 +110,7 @@ final class CabalCopyTests: XCTestCase {
 
     private func myCabal(role: String, pending: Int32) -> Components.Schemas.MyCabal {
         .init(
-            id: "c-1", name: "QA pot", pictureUrl: nil, role: role, canVote: true, memberCount: 2,
+            id: "c-1", name: "QA pot", pictureUrl: nil, status: "active", role: role, canVote: true, memberCount: 2,
             joinedAt: Date(timeIntervalSince1970: 0), pendingRequestCount: pending, unreadCount: 0)
     }
 

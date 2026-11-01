@@ -185,7 +185,7 @@ struct ProfileTabsSampleScreen: View {
         -> Components.Schemas.MyCabal
     {
         Components.Schemas.MyCabal(
-            id: ref.id, name: ref.name, pictureUrl: nil, role: role, canVote: true, memberCount: 5,
+            id: ref.id, name: ref.name, pictureUrl: nil, status: "active", role: role, canVote: true, memberCount: 5,
             joinedAt: Date(timeIntervalSince1970: 0), pendingRequestCount: 0, unreadCount: 0)
     }
 

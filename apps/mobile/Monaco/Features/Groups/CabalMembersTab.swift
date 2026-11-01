@@ -39,6 +39,8 @@ private struct CabalMembersTabBody: View {
     @Environment(AppEnvironment.self) private var environment
     @State private var showsInvite = false
 
+    private var canInvite: Bool { !CabalClosedModel.isReadOnly(cabal.status) }
+
     var body: some View {
         let viewerID = environment.viewer?.userID
         VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
@@ -54,20 +56,22 @@ private struct CabalMembersTabBody: View {
             MonacoGroupedList {
                 NavigationLink(value: AnyAppRoute(MembersRoute(cabalID: cabal.id))) {
                     MonacoRow(
-                        title: CabalMemberCopy.seeAll(cabal.memberCount), chevron: true, isLast: false,
+                        title: CabalMemberCopy.seeAll(cabal.memberCount), chevron: true, isLast: !canInvite,
                         leading: { SunkenGlyphMark(systemImage: "person.2") }, trailing: { EmptyView() })
                 }
                 .buttonStyle(.monacoRow)
                 .accessibilityIdentifier("cabal-members-see-all")
-                Button {
-                    showsInvite = true
-                } label: {
-                    MonacoRow(
-                        title: CabalMemberCopy.invite, titleColor: MonacoTheme.brand, isLast: true,
-                        leading: { SunkenGlyphMark(systemImage: "person.badge.plus") }, trailing: { EmptyView() })
+                if canInvite {
+                    Button {
+                        showsInvite = true
+                    } label: {
+                        MonacoRow(
+                            title: CabalMemberCopy.invite, titleColor: MonacoTheme.brand, isLast: true,
+                            leading: { SunkenGlyphMark(systemImage: "person.badge.plus") }, trailing: { EmptyView() })
+                    }
+                    .buttonStyle(.monacoRow)
+                    .accessibilityIdentifier("cabal-members-invite")
                 }
-                .buttonStyle(.monacoRow)
-                .accessibilityIdentifier("cabal-members-invite")
             }
             .tintedCard()
             .padding(.horizontal, MonacoTheme.Space.gutter)

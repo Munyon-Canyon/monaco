@@ -247,7 +247,8 @@ enum HomeSampleData {
         -> Components.Schemas.MyCabal
     {
         Components.Schemas.MyCabal(
-            id: cabal.id, name: cabal.name, pictureUrl: nil, role: "member", canVote: true, memberCount: cabal.members,
+            id: cabal.id, name: cabal.name, pictureUrl: nil,
+            status: "active", role: "member", canVote: true, memberCount: cabal.members,
             joinedAt: Date(timeIntervalSince1970: 1_790_000_000), pendingRequestCount: 0, unreadCount: 0)
     }
 

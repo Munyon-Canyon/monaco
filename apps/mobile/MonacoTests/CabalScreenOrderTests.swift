@@ -69,6 +69,7 @@ struct CabalScreenOrderTests {
         #expect(CabalMoreItem.items(role: "member", status: "active") == [.chat, .treasury, .report, .leave])
         #expect(
             CabalMoreItem.items(role: "member", status: CabalClosedModel.closedStatus) == [.treasury, .report, .leave])
+        #expect(CabalMoreItem.items(role: "member", status: "winding_down") == [.treasury, .report, .leave])
         #expect(CabalMoreItem.items(role: nil, status: "active") == [.report])
         #expect(CabalMoreItem.items(role: "creator", status: "active").last == .leave)
     }

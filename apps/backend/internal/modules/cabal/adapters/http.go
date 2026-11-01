@@ -145,7 +145,7 @@ func (h HTTP) GetMyCabals(
 	items := make([]api.MyCabal, 0, len(rows))
 	for _, row := range rows {
 		items = append(items, api.MyCabal{
-			Id: row.ID, Name: row.Name, PictureUrl: nullableText(row.PictureUrl), Role: row.Role,
+			Id: row.ID, Name: row.Name, PictureUrl: nullableText(row.PictureUrl), Status: row.Lifecycle, Role: row.Role,
 			CanVote: row.CanVote, MemberCount: row.MemberCount, JoinedAt: row.JoinedAt,
 			PendingRequestCount: row.PendingRequestCount, UnreadCount: unread[ids.CabalIDFrom(row.ID)],
 		})

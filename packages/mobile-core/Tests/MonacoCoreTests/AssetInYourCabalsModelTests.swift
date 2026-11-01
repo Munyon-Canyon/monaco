@@ -103,7 +103,7 @@ final class AssetInYourCabalsModelTests: XCTestCase {
 
     private var cabalsJSON: String {
         let cabal = { (id: String, vote: Bool) in
-            #"{"id":"\#(id)","name":"Cabal \#(id)","picture_url":null,"role":"member","can_vote":\#(vote),"#
+            #"{"id":"\#(id)","name":"Cabal \#(id)","picture_url":null,"status":"active","role":"member","can_vote":\#(vote),"#
                 + #""member_count":2,"joined_at":"2026-09-30T12:00:00Z","pending_request_count":0,"unread_count":0}"#
         }
         return "[\(cabal("c-1", true)),\(cabal("c-2", false))]"

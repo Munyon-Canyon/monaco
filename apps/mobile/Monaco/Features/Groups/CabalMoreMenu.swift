@@ -42,7 +42,7 @@ enum CabalMoreItem: CaseIterable {
     static func items(role: String?, status: String) -> [CabalMoreItem] {
         guard role != nil else { return [.report] }
         var items: [CabalMoreItem] = []
-        if status != CabalClosedModel.closedStatus { items.append(.chat) }
+        if !CabalClosedModel.isReadOnly(status) { items.append(.chat) }
         if role == "creator" { items.append(.edit) }
         items.append(.treasury)
         if role != "creator" { items.append(.report) }

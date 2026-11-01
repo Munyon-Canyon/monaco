@@ -293,7 +293,7 @@ final class CabalActionsModelTests: XCTestCase {
     }
 
     private static func myCabals(unread: Int) -> String {
-        ##"[{"id":"\##(cabalID)","name":"QA pot","picture_url":null,"role":"member","can_vote":true,"##
+        ##"[{"id":"\##(cabalID)","name":"QA pot","picture_url":null,"status":"active","role":"member","can_vote":true,"##
             + ##""member_count":2,"joined_at":"2026-10-02T15:00:00Z","pending_request_count":0,"unread_count":\##(unread)}]"##
     }
 

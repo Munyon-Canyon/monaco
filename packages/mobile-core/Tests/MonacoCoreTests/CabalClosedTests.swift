@@ -13,6 +13,24 @@ final class CabalClosedTests: XCTestCase {
         XCTAssertTrue(model.isClosed)
     }
 
+    func testAWindingDownCabalShowsThePayoutInProgressMessage() async throws {
+        let model = try await loaded(.sampleBanned(role: "member"))
+        XCTAssertEqual(model.status, "winding_down")
+        XCTAssertEqual(CabalClosedModel.message(for: try XCTUnwrap(model.status)), CabalClosedModel.windingDownMessage)
+    }
+
+    func testAClosedCabalIsReadOnlyAndShowsTheClosedMessage() async throws {
+        let model = try await loaded(.sampleClosed(role: "member"))
+        XCTAssertTrue(model.isClosed)
+        XCTAssertEqual(CabalClosedModel.message(for: try XCTUnwrap(model.status)), CabalClosedModel.closedMessage)
+    }
+
+    func testOnlyAnActiveCabalIsNotReadOnly() {
+        XCTAssertFalse(CabalClosedModel.isReadOnly("active"))
+        XCTAssertTrue(CabalClosedModel.isReadOnly("winding_down"))
+        XCTAssertTrue(CabalClosedModel.isReadOnly("closed"))
+    }
+
     func testAnActiveCabalIsNotClosed() async throws {
         let model = try await loaded(.sample(role: "member"))
         XCTAssertFalse(model.isClosed)

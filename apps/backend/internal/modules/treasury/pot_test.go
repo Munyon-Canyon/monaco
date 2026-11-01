@@ -449,3 +449,15 @@ func TestGetCabalPot_leavesTheAverageNullWhenAnEVMHoldingRoundsToZeroShares(t *t
 		t.Fatalf("units %s, avg_entry_micros %v, want 0.0000 shares and no average", h.Units, h.AvgEntryMicros)
 	}
 }
+
+func TestGetCabalPot_aMemberOfABannedCabalStillSeesTheirSlice(t *testing.T) {
+	t.Parallel()
+	p := newPotCase(t)
+	got, err := p.get(t, p.funder, p.funder)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Me == nil || got.Me.ShareUnits == 0 || got.Me.ValueMicros == 0 {
+		t.Fatalf("me = %+v, want the member's stake in a banned cabal", got.Me)
+	}
+}

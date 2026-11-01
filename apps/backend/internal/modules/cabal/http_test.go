@@ -334,6 +334,7 @@ func TestGetCabal_reportsAMissingCabalAndABrokenRead(t *testing.T) {
 		{name: "cabal", ddl: `ALTER TABLE cabals RENAME TO cabals_gone`, code: errs.CodeInternal},
 		{name: "members", ddl: `ALTER TABLE cabal_members DROP COLUMN joined_at`, code: errs.CodeInternal},
 		{name: "wallet", ddl: `DELETE FROM treasury_wallets`, code: errs.CodeInternal},
+		{name: "lifecycle", ddl: `ALTER TABLE cabal_winddowns RENAME TO winddowns_gone`, code: errs.CodeInternal},
 		{name: "access", ddl: `ALTER TABLE cabal_access_requests RENAME TO requests_gone`, code: errs.CodeInternal},
 	}
 	for _, tc := range cases {
@@ -935,5 +936,78 @@ func TestMyCabals_omitsABannedCabal(t *testing.T) {
 	items := []api.MyCabal(mine.(api.GetMyCabals200JSONResponse))
 	if len(items) != 1 || items[0].Id != active.ID.UUID() {
 		t.Fatalf("my cabals = %+v, want only the active cabal", items)
+	}
+}
+
+type lifecycleCase struct {
+	name     string
+	banned   bool
+	windDown string
+	want     string
+}
+
+func lifecycleCases() []lifecycleCase {
+	return []lifecycleCase{
+		{name: "active", want: "active"},
+		{name: "banned before the wind-down starts", banned: true, want: "winding_down"},
+		{name: "banned while the wind-down runs", banned: true, windDown: "running", want: "winding_down"},
+		{name: "banned after the wind-down completes", banned: true, windDown: "completed", want: "closed"},
+	}
+}
+
+func seedLifecycle(t *testing.T, f createFixture, tc lifecycleCase) uuid.UUID {
+	t.Helper()
+	now := clock.Real{}.Now().UTC().Truncate(time.Microsecond)
+	seeded := testkit.NewCabal(t, f.pool)
+	id := seeded.ID.UUID()
+	joinMyCabal(t, f, id, now.Add(-time.Hour))
+	execSQL(t, f.pool, `INSERT INTO user_positions
+		(user_id, cabal_id, share_units, contributed_micros, withdrawn_micros, updated_at)
+		VALUES ($1, $2, 5::numeric, 0, 0, $3)`, f.user.ID.UUID(), id, now)
+	if tc.banned {
+		execSQL(t, f.pool, `UPDATE cabals SET status = 'banned' WHERE id = $1`, id)
+	}
+	if tc.windDown != "" {
+		execSQL(t, f.pool, `INSERT INTO cabal_winddowns (cabal_id, status, started_at) VALUES ($1, $2, $3)`,
+			id, tc.windDown, now)
+	}
+	return id
+}
+
+func TestMyCabals_reportsEachCabalsLifecycleStatus(t *testing.T) {
+	t.Parallel()
+	for _, tc := range lifecycleCases() {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			f := newCreate(t)
+			id := seedLifecycle(t, f, tc)
+			result, err := f.routes(nil).GetMyCabals(f.actor(t.Context()), api.GetMyCabalsRequestObject{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			items := []api.MyCabal(result.(api.GetMyCabals200JSONResponse))
+			if len(items) != 1 || items[0].Id != id || items[0].Status != tc.want {
+				t.Fatalf("cabals = %+v, want one cabal with status %s", items, tc.want)
+			}
+		})
+	}
+}
+
+func TestGetCabal_aMemberOfABannedCabalStillReadsItWithItsLifecycleStatus(t *testing.T) {
+	t.Parallel()
+	for _, tc := range lifecycleCases() {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			f := newCreate(t)
+			id := seedLifecycle(t, f, tc)
+			result, err := f.routes(nil).GetCabal(f.actor(t.Context()), api.GetCabalRequestObject{Id: id})
+			if err != nil {
+				t.Fatal(err)
+			}
+			got, ok := result.(api.GetCabal200JSONResponse)
+			if !ok || got.Status != tc.want || got.Me == nil {
+				t.Fatalf("GetCabal = %+v, want 200 with status %s and the caller as a member", result, tc.want)
+			}
+		})
 	}
 }

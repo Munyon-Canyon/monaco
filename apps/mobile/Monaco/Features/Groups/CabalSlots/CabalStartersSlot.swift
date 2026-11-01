@@ -1,3 +1,4 @@
+import MonacoAPI
 import MonacoCore
 import SwiftUI
 
@@ -18,6 +19,7 @@ enum CabalStartersSlot: CabalSection {
 private struct CabalStartersList: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(\.hostMainTab) private var hostMainTab
+    @Environment(\.cabalModel) private var cabalModel
     @State private var model: CabalStartersModel?
 
     var body: some View {
@@ -31,8 +33,12 @@ private struct CabalStartersList: View {
             .onScreenVisibilityChange { model?.setVisible($0) }
     }
 
+    private var isReadOnly: Bool {
+        cabalModel?.cabal.map { CabalClosedModel.isReadOnly($0.status) } ?? false
+    }
+
     @ViewBuilder private var content: some View {
-        if let rows = model?.rows, !rows.isEmpty {
+        if !isReadOnly, let rows = model?.rows, !rows.isEmpty {
             VStack(alignment: .leading, spacing: 0) {
                 MonacoSectionHeader(CabalStartersModel.title)
                     .padding(.horizontal, MonacoTheme.Space.gutter)

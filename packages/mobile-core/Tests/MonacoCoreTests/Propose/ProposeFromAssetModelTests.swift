@@ -21,6 +21,17 @@ final class ProposeFromAssetModelTests: XCTestCase {
         XCTAssertEqual(model.destination, .amount("a"))
     }
 
+    func testAWindingDownCabalIsNeverOfferedToProposeInto() async {
+        let model = makeModel([
+            cabal("a", canVote: true, status: "winding_down"), cabal("b", canVote: true, status: "closed"),
+        ])
+
+        await model.load(kind: .buy, symbol: "AAPLx")
+
+        XCTAssertEqual(model.destination, .join)
+        XCTAssertNil(model.votableCabal(id: "a"))
+    }
+
     func testTwoVotingCabalsAskWhichOne() async {
         let model = makeModel([cabal("a", canVote: true), cabal("b", canVote: true)])
 
@@ -102,7 +113,7 @@ final class ProposeFromAssetModelTests: XCTestCase {
         APIClient(serverURL: testServerURL, tokens: StubTokenProvider(token: "token-1"), transport: transport)
     }
 
-    private func cabal(_ id: String, canVote: Bool) -> String {
-        #"{"id":"\#(id)","name":"Cabal \#(id)","picture_url":null,"role":"member","can_vote":\#(canVote),"member_count":2,"joined_at":"2026-09-30T12:00:00Z","pending_request_count":0,"unread_count":0}"#
+    private func cabal(_ id: String, canVote: Bool, status: String = "active") -> String {
+        #"{"id":"\#(id)","name":"Cabal \#(id)","picture_url":null,"status":"\#(status)","role":"member","can_vote":\#(canVote),"member_count":2,"joined_at":"2026-09-30T12:00:00Z","pending_request_count":0,"unread_count":0}"#
     }
 }

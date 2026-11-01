@@ -35,6 +35,15 @@ SELECT c.id, c.name, c.picture_url, c.creator_id, c.join_mode, c.voter_mode, c.t
 FROM cabals c
 WHERE c.id = $1;
 
+-- name: FindCabalLifecycle :one
+SELECT CASE
+    WHEN c.status <> 'banned' THEN 'active'
+    WHEN EXISTS (SELECT 1 FROM cabal_winddowns w WHERE w.cabal_id = c.id AND w.status = 'completed') THEN 'closed'
+    ELSE 'winding_down'
+  END::text AS lifecycle
+FROM cabals c
+WHERE c.id = $1;
+
 -- name: ListCabals :many
 SELECT c.id, c.name, c.picture_url, c.creator_id, c.join_mode, c.voter_mode, c.threshold,
   c.proposal_expiry_seconds, c.slippage_bps, c.show_sides, c.show_sides_changed_at, c.max_trade_bps,
@@ -78,6 +87,11 @@ LIMIT sqlc.arg(page_size)::int;
 
 -- name: ListMyCabals :many
 SELECT c.id, c.name, c.picture_url, m.role, m.can_vote, m.joined_at,
+  CASE
+    WHEN c.status <> 'banned' THEN 'active'
+    WHEN EXISTS (SELECT 1 FROM cabal_winddowns w WHERE w.cabal_id = c.id AND w.status = 'completed') THEN 'closed'
+    ELSE 'winding_down'
+  END::text AS lifecycle,
   (SELECT count(*) FROM cabal_members cm WHERE cm.cabal_id = c.id)::int AS member_count,
   CASE WHEN m.role IN ('creator', 'admin') AND c.join_mode = 'request' THEN
     (SELECT count(*) FROM cabal_access_requests ar
