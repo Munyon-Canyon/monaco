@@ -529,6 +529,16 @@ func (s reservationStoreFake) CashOutReservations(context.Context) ([]sqlc.CashO
 	return s.rows, s.err
 }
 
+func (s reservationStoreFake) CashOutReservationsAt(
+	context.Context, time.Time,
+) ([]sqlc.CashOutReservationsAtRow, error) {
+	rows := make([]sqlc.CashOutReservationsAtRow, len(s.rows))
+	for i, row := range s.rows {
+		rows[i] = sqlc.CashOutReservationsAtRow(row)
+	}
+	return rows, s.err
+}
+
 func TestCashOutReservationsReadFailures(t *testing.T) {
 	t.Parallel()
 	for name, store := range map[string]reservationStoreFake{
@@ -539,6 +549,41 @@ func TestCashOutReservationsReadFailures(t *testing.T) {
 			t.Parallel()
 			if _, err := (&Queries{reserved: store}).CashOutReservations(t.Context()); err == nil {
 				t.Fatal("CashOutReservations() error = nil")
+			}
+		})
+	}
+}
+
+func TestValuationInputsAtStopsAtEveryReadFailure(t *testing.T) {
+	t.Parallel()
+	boom := errs.New(errs.CodeInternal, "boom")
+	for name, q := range map[string]*Queries{
+		"positions":    {history: historicalStore{snapshotsErr: boom}, reserved: reservationStoreFake{}, usdc: usdcMint},
+		"stakes":       {history: historicalStore{membersErr: boom}, reserved: reservationStoreFake{}, usdc: usdcMint},
+		"reservations": {history: historicalStore{}, reserved: reservationStoreFake{err: boom}, usdc: usdcMint},
+		"snapshot": {
+			snapshot: func(context.Context, func(context.Context, sqlc.DBTX) error) error { return boom },
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			if _, err := q.ValuationInputsAt(t.Context(), time.Time{}); errs.CodeOf(err) != errs.CodeInternal {
+				t.Fatalf("ValuationInputsAt() error = %v, want %v", err, boom)
+			}
+		})
+	}
+}
+
+func TestValuationInputsAtReadFailures(t *testing.T) {
+	t.Parallel()
+	for name, store := range map[string]reservationStoreFake{
+		"read":   {err: errs.New(errs.CodeInternal, "boom")},
+		"decode": {rows: []sqlc.CashOutReservationsRow{{ReservedMicros: "-1"}}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			if _, err := (&Queries{reserved: store}).CashOutReservationsAt(t.Context(), time.Time{}); err == nil {
+				t.Fatal("CashOutReservationsAt() error = nil")
 			}
 		})
 	}

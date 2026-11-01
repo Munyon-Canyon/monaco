@@ -7,6 +7,7 @@ package sqlc
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -32,6 +33,39 @@ func (q *Queries) CashOutReservations(ctx context.Context) ([]CashOutReservation
 	var items []CashOutReservationsRow
 	for rows.Next() {
 		var i CashOutReservationsRow
+		if err := rows.Scan(&i.CabalID, &i.ReservedMicros); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const cashOutReservationsAt = `-- name: CashOutReservationsAt :many
+SELECT cabal_id, sum(payout_micros)::text AS reserved_micros
+FROM cash_out_jobs
+WHERE created_at <= $1::timestamptz
+  AND (status IN ('started', 'selling', 'paying') OR updated_at > $1::timestamptz)
+GROUP BY cabal_id
+`
+
+type CashOutReservationsAtRow struct {
+	CabalID        uuid.UUID
+	ReservedMicros string
+}
+
+func (q *Queries) CashOutReservationsAt(ctx context.Context, at time.Time) ([]CashOutReservationsAtRow, error) {
+	rows, err := q.db.Query(ctx, cashOutReservationsAt, at)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CashOutReservationsAtRow
+	for rows.Next() {
+		var i CashOutReservationsAtRow
 		if err := rows.Scan(&i.CabalID, &i.ReservedMicros); err != nil {
 			return nil, err
 		}

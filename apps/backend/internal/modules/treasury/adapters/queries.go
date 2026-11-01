@@ -13,6 +13,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/app"
@@ -21,6 +22,8 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
+	"github.com/monaco/monaco/apps/backend/internal/platform/db"
+	dbsqlc "github.com/monaco/monaco/apps/backend/internal/platform/db/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
@@ -44,6 +47,7 @@ type Queries struct {
 	catalog   app.MintResolver
 	prices    app.PriceReader
 	listings  app.ListingReader
+	snapshot  func(context.Context, func(context.Context, sqlc.DBTX) error) error
 	clock     clock.Clock
 	usdc      chain.SolanaAddress
 }
@@ -84,6 +88,7 @@ type flowStore interface {
 
 type reservationStore interface {
 	CashOutReservations(context.Context) ([]sqlc.CashOutReservationsRow, error)
+	CashOutReservationsAt(context.Context, time.Time) ([]sqlc.CashOutReservationsAtRow, error)
 }
 
 type signatureStore interface {
@@ -132,20 +137,84 @@ func (q *Queries) WithListings(listings app.ListingReader) *Queries {
 	return q
 }
 
+func (q *Queries) WithSnapshots(pool *pgxpool.Pool, timeout time.Duration) *Queries {
+	q.snapshot = func(ctx context.Context, fn func(context.Context, sqlc.DBTX) error) error {
+		return db.ReadSnapshot(ctx, pool, timeout, func(ctx context.Context, tx dbsqlc.DBTX) error {
+			return fn(ctx, tx)
+		})
+	}
+	return q
+}
+
 func (q *Queries) CashOutReservations(ctx context.Context) (map[ids.CabalID]money.Micros, error) {
+	const op = "treasury.Queries.CashOutReservations"
 	rows, err := q.reserved.CashOutReservations(ctx)
 	if err != nil {
-		return nil, errs.Wrap(err, errs.CodeOf(err), "treasury.Queries.CashOutReservations")
+		return nil, errs.Wrap(err, errs.CodeOf(err), op)
 	}
 	out := make(map[ids.CabalID]money.Micros, len(rows))
 	for _, row := range rows {
-		reserved, err := money.ParseMicros(row.ReservedMicros)
-		if err != nil {
-			return nil, errs.Wrap(err, errs.CodeDecodeFailed, "treasury.Queries.CashOutReservations")
+		if err := addReservation(out, row.CabalID, row.ReservedMicros, op); err != nil {
+			return nil, err
 		}
-		out[ids.CabalIDFrom(row.CabalID)] = reserved
 	}
 	return out, nil
+}
+
+func (q *Queries) CashOutReservationsAt(ctx context.Context, at time.Time) (map[ids.CabalID]money.Micros, error) {
+	const op = "treasury.Queries.CashOutReservationsAt"
+	rows, err := q.reserved.CashOutReservationsAt(ctx, at)
+	if err != nil {
+		return nil, errs.Wrap(err, errs.CodeOf(err), op)
+	}
+	out := make(map[ids.CabalID]money.Micros, len(rows))
+	for _, row := range rows {
+		if err := addReservation(out, row.CabalID, row.ReservedMicros, op); err != nil {
+			return nil, err
+		}
+	}
+	return out, nil
+}
+
+func addReservation(out map[ids.CabalID]money.Micros, cabalID uuid.UUID, text, op string) error {
+	reserved, err := money.ParseMicros(text)
+	if err != nil {
+		return errs.Wrap(err, errs.CodeDecodeFailed, op)
+	}
+	out[ids.CabalIDFrom(cabalID)] = reserved
+	return nil
+}
+
+func (q *Queries) ValuationInputsAt(ctx context.Context, at time.Time) (port.ValuationInputs, error) {
+	if q.snapshot == nil {
+		return q.valuationInputsAt(ctx, at)
+	}
+	var out port.ValuationInputs
+	err := q.snapshot(ctx, func(ctx context.Context, tx sqlc.DBTX) error {
+		var err error
+		out, err = q.On(tx).valuationInputsAt(ctx, at)
+		return err
+	})
+	if err != nil {
+		return port.ValuationInputs{}, errs.Wrap(err, errs.CodeOf(err), "treasury.Queries.ValuationInputsAt")
+	}
+	return out, nil
+}
+
+func (q *Queries) valuationInputsAt(ctx context.Context, at time.Time) (port.ValuationInputs, error) {
+	positions, err := q.CabalPositionsAt(ctx, at)
+	if err != nil {
+		return port.ValuationInputs{}, err
+	}
+	stakes, err := q.MemberStakesAt(ctx, at)
+	if err != nil {
+		return port.ValuationInputs{}, err
+	}
+	reserved, err := q.CashOutReservationsAt(ctx, at)
+	if err != nil {
+		return port.ValuationInputs{}, err
+	}
+	return port.ValuationInputs{Positions: positions, Stakes: stakes, Reserved: reserved}, nil
 }
 
 func (q *Queries) OwnsSignature(ctx context.Context, sig chain.Signature) (bool, error) {

@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"maps"
 	"slices"
@@ -99,18 +100,11 @@ func (r RunValuation) read(ctx context.Context, at time.Time) (readData, error) 
 	if err != nil {
 		return readData{}, err
 	}
-	positions, err := r.ports.Treasury.CabalPositionsAt(ctx, at)
+	inputs, err := r.ports.Treasury.ValuationInputsAt(ctx, at)
 	if err != nil {
 		return readData{}, err
 	}
-	stakes, err := r.ports.Treasury.MemberStakesAt(ctx, at)
-	if err != nil {
-		return readData{}, err
-	}
-	reserved, err := r.ports.Treasury.CashOutReservations(ctx)
-	if err != nil {
-		return readData{}, err
-	}
+	positions, stakes, reserved := inputs.Positions, inputs.Stakes, inputs.Reserved
 	users, err := r.readUsers(ctx, stakes, members)
 	if err != nil {
 		return readData{}, err
@@ -352,6 +346,7 @@ func (r RunValuation) values(
 	defer cancel()
 	values := make([]CabalValue, 0, len(inputs))
 	flagged := []CabalValue{}
+	skipped := logSkipped(ctx)
 	stage := concurrency.Stage(
 		ctx,
 		concurrency.Feed(ctx, inputs),
@@ -384,17 +379,8 @@ func (r RunValuation) values(
 			flagged = append(flagged, CabalValue{CabalID: result.Val.cabalID, Flags: result.Val.flags})
 			continue
 		}
-		if err := conservation(
-			result.Val.cabalID,
-			result.Val.position.TotalShares,
-			stakes,
-			result.Val.nav.Value,
-		); err != nil {
-			if errs.CodeOf(err) == errs.CodeConservationBroken {
-				logExcluded(ctx, result.Val.cabalID, errs.CodeConservationBroken)
-				continue
-			}
-			return nil, nil, err
+		if r.unconserved(ctx, result.Val, stakes, skipped) {
+			continue
 		}
 		values = append(
 			values,
@@ -407,6 +393,21 @@ func (r RunValuation) values(
 		)
 	}
 	return values, flagged, nil
+}
+
+func (RunValuation) unconserved(
+	ctx context.Context, cabal valuedCabal, stakes []treasury.MemberStake, skipped func(ids.CabalID),
+) bool {
+	err := conservation(cabal.cabalID, cabal.position.TotalShares, stakes, cabal.nav.Value)
+	switch {
+	case err == nil:
+		return false
+	case errors.Is(err, domain.ErrUnusableStart):
+		skipped(cabal.cabalID)
+	default:
+		logExcluded(ctx, cabal.cabalID, errs.CodeOf(err))
+	}
+	return true
 }
 
 func (r RunValuation) readUsers(

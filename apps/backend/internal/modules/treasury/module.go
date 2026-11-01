@@ -83,6 +83,7 @@ type (
 	CabalPositions    = port.CabalPositions
 	ListingPosition   = port.ListingPosition
 	MemberStake       = port.MemberStake
+	ValuationInputs   = port.ValuationInputs
 	MemberFlow        = port.MemberFlow
 	SignatureOwner    = port.SignatureOwner
 	WalletLedger      = port.WalletLedger
@@ -403,6 +404,8 @@ func (m *Module) FundOutflowsOn(q dbsqlc.DBTX) adapters.FundOutflows {
 	return adapters.NewFundOutflows(q)
 }
 
+const valuationSnapshotTimeout = time.Minute
+
 func (m *Module) reads() *adapters.Queries {
 	marketModule := market.New(m.deps)
 	return adapters.NewQueries(
@@ -411,7 +414,7 @@ func (m *Module) reads() *adapters.Queries {
 		marketPrices(marketModule.Prices()),
 		m.deps.Clock,
 		chain.SolanaAddress(m.deps.Config.Solana.USDCMint),
-	).WithListings(marketListings(marketModule.Prices()))
+	).WithListings(marketListings(marketModule.Prices())).WithSnapshots(m.deps.Pool, valuationSnapshotTimeout)
 }
 
 func positionPrices(source market.PositionPrices) app.PositionPrices {
