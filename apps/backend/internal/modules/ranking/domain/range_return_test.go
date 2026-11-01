@@ -45,9 +45,13 @@ func TestRangeReturn(t *testing.T) {
 			first: pnlPoint(0, 0), last: pnlPoint(5*usd, 5*usd),
 			pnl: 5 * usd, bps: 0,
 		},
-		"a negative base": {
+		"a cash-out past the start value": {
 			first: pnlPoint(1*usd, 0), last: pnlPoint(0, 5*usd),
-			pnl: 5 * usd, bps: 0,
+			pnl: 5 * usd, bps: 50000,
+		},
+		"a base under the floor": {
+			first: pnlPoint(100, 0), last: pnlPoint(200, 100),
+			pnl: 100, bps: 0,
 		},
 	}
 	for name, tt := range tests {
@@ -64,6 +68,49 @@ func TestRangeReturn(t *testing.T) {
 	}
 }
 
+func TestRangeReturnOfIgnoresCashOuts(t *testing.T) {
+	t.Parallel()
+	const usd = 1_000_000
+	tests := map[string]struct {
+		points []domain.PnLPoint
+		pnl    int64
+		bps    domain.Bps
+	}{
+		"exiting one of two cabals after a 1% loss": {
+			points: []domain.PnLPoint{pnlPoint(1_100*usd, 0), pnlPoint(100*usd, -10*usd)},
+			pnl:    -10 * usd, bps: -90,
+		},
+		"exiting the only cabal after a 1% loss": {
+			points: []domain.PnLPoint{pnlPoint(1_000*usd, 0), pnlPoint(0, -10*usd)},
+			pnl:    -10 * usd, bps: -100,
+		},
+		"exiting the only cabal after a gain": {
+			points: []domain.PnLPoint{pnlPoint(1_000*usd, 0), pnlPoint(0, 10*usd)},
+			pnl:    10 * usd, bps: 100,
+		},
+		"a deposit then a cash-out counts the deposit once": {
+			points: []domain.PnLPoint{pnlPoint(1_000*usd, 0), pnlPoint(2_000*usd, 0), pnlPoint(1_010*usd, 10*usd)},
+			pnl:    10 * usd, bps: 50,
+		},
+		"a base under the floor shows no percent": {
+			points: []domain.PnLPoint{pnlPoint(usd/200, 0), pnlPoint(usd/100, usd/200)},
+			pnl:    usd / 200, bps: 0,
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			pnl, bps, err := domain.RangeReturnOf(tt.points)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if pnl.Int64() != tt.pnl || bps != tt.bps {
+				t.Fatalf("RangeReturnOf = %d, %d, want %d, %d", pnl.Int64(), bps, tt.pnl, tt.bps)
+			}
+		})
+	}
+}
+
 func TestRangeReturnOfNeedsTwoPoints(t *testing.T) {
 	t.Parallel()
 	for _, points := range [][]domain.PnLPoint{nil, {pnlPoint(5, 5)}} {
@@ -72,9 +119,15 @@ func TestRangeReturnOfNeedsTwoPoints(t *testing.T) {
 			t.Fatalf("RangeReturnOf(%d points) = %v, %d, %v, want zeros", len(points), pnl, bps, err)
 		}
 	}
-	pnl, bps, err := domain.RangeReturnOf([]domain.PnLPoint{pnlPoint(100, 0), pnlPoint(110, 10), pnlPoint(120, 20)})
-	if err != nil || pnl.Int64() != 20 || bps != 2000 {
-		t.Fatalf("RangeReturnOf = %v, %d, %v, want 20, 2000", pnl, bps, err)
+	pnl, bps, err := domain.RangeReturnOf(
+		[]domain.PnLPoint{
+			pnlPoint(100_000_000, 0),
+			pnlPoint(110_000_000, 10_000_000),
+			pnlPoint(120_000_000, 20_000_000),
+		},
+	)
+	if err != nil || pnl.Int64() != 20_000_000 || bps != 2000 {
+		t.Fatalf("RangeReturnOf = %v, %d, %v, want 20000000, 2000", pnl, bps, err)
 	}
 }
 
@@ -83,7 +136,6 @@ func TestRangeReturnRefusesAFigureThatOverflows(t *testing.T) {
 	const bound = math.MaxInt64
 	tests := map[string]struct{ first, last domain.PnLPoint }{
 		"pnl difference": {first: pnlPoint(0, -bound), last: pnlPoint(bound, bound)},
-		"return":         {first: pnlPoint(1, 0), last: pnlPoint(bound+1, bound)},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
