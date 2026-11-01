@@ -211,6 +211,7 @@ class PrivyAuthService: ObservableObject {
     }
 
     private func adoptAccessToken(_ token: String) {
+        serverSessionsEnded = false
         accessToken = token
         sessionTokens.adopt(token)
     }
