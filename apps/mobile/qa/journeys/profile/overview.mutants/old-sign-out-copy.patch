@@ -7,7 +7,7 @@ scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 diff --git a/apps/mobile/Monaco/Features/Settings/SettingsView.swift b/apps/mobile/Monaco/Features/Settings/SettingsView.swift
 --- a/apps/mobile/Monaco/Features/Settings/SettingsView.swift
 +++ b/apps/mobile/Monaco/Features/Settings/SettingsView.swift
-@@ -68,7 +68,7 @@
+@@ -93,7 +93,7 @@
      static let signOut = "Sign out"
      static let signOutTitle = "Sign out of Monaco?"
      static let signOutMessage =
