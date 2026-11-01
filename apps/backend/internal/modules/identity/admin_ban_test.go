@@ -36,6 +36,7 @@ import (
 const (
 	moderatorToken = "admin-moderator"
 	viewerToken    = "admin-viewer"
+	operatorToken  = "admin-operator"
 	moderatorID    = "019cc330-1111-7000-8000-000000000001"
 )
 
@@ -45,6 +46,8 @@ func (v adminOrUser) Verify(ctx context.Context, raw string) (auth.Actor, error)
 	switch raw {
 	case moderatorToken:
 		return auth.Actor{Kind: auth.ActorAdmin, ID: moderatorID, Role: "moderator"}, nil
+	case operatorToken:
+		return auth.Actor{Kind: auth.ActorAdmin, ID: moderatorID, Role: "operator"}, nil
 	case viewerToken:
 		return auth.Actor{Kind: auth.ActorAdmin, ID: moderatorID, Role: "viewer"}, nil
 	}
@@ -250,6 +253,63 @@ func TestAdminBanUser_ViewerForbidden(t *testing.T) {
 	}
 	if n := len(f.payloads(t, events.TypeAdminAction)); n != 0 {
 		t.Fatalf("%d admin.action events after a refused ban, want 0", n)
+	}
+}
+
+func (f adminFixture) grantAdmin(t *testing.T, user ids.UserID, role string, revoked bool) {
+	t.Helper()
+	revokedAt := "NULL"
+	if revoked {
+		revokedAt = "now()"
+	}
+	_, err := f.pool.Exec(t.Context(),
+		`INSERT INTO admins (user_id, role, granted_at, revoked_at) VALUES ($1, $2, now(), `+revokedAt+`)`,
+		user.UUID(), role)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestAdminBanUser_AnAdminOfEqualOrHigherRankIsProtected(t *testing.T) {
+	t.Parallel()
+	for name, tc := range map[string]struct {
+		caller, target string
+		revoked, ok    bool
+	}{
+		"moderator bans operator":        {moderatorToken, "operator", false, false},
+		"moderator bans moderator":       {moderatorToken, "moderator", false, false},
+		"operator bans operator":         {operatorToken, "operator", false, false},
+		"moderator bans viewer admin":    {moderatorToken, "viewer", false, true},
+		"operator bans moderator":        {operatorToken, "moderator", false, true},
+		"moderator bans a revoked admin": {moderatorToken, "operator", true, true},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			f := newAdminFixture(t)
+			user := f.seed(t, portSeed{handle: "opsadmin"})
+			f.grantAdmin(t, user.ID, tc.target, tc.revoked)
+			path := "/v1/admin/users/" + user.ID.String() + "/ban"
+			rec := f.call(t, tc.caller, http.MethodPost, path, "k1", `{"reason":"fraud"}`)
+			f.expectBanOutcome(t, rec, user.ID, tc.ok)
+		})
+	}
+}
+
+func (f adminFixture) expectBanOutcome(t *testing.T, rec *httptest.ResponseRecorder, user ids.UserID, ok bool) {
+	t.Helper()
+	want, code, events := "active", http.StatusForbidden, 0
+	if ok {
+		want, code, events = "banned", http.StatusNoContent, 2
+	}
+	if rec.Code != code || f.status(t, user) != want {
+		t.Fatalf("ban = %d %s, status %s, want %d %s", rec.Code, rec.Body, f.status(t, user), code, want)
+	}
+	if !ok && problemCode(t, rec) != apiCode(errs.CodeForbidden) {
+		t.Fatalf("ban code = %s, want forbidden", problemCode(t, rec))
+	}
+	n := len(f.payloads(t, "admin.action")) + len(f.payloads(t, "user.account_status_changed"))
+	if n != events {
+		t.Fatalf("%d events after the ban, want %d", n, events)
 	}
 }
 
