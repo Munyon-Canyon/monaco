@@ -94,6 +94,17 @@ func refusalCases() []refusalCase {
 		{"buy while reservations exceed the ledger cash", func(e *engineEnv, _ *app.ExecuteTrade) {
 			e.positions.reserved = 200_000_000
 		}, errs.CodeInsufficientFunds, "0", "25000000"},
+		{"buy over the cap on the ledger cash", func(e *engineEnv, _ *app.ExecuteTrade) {
+			e.capTradesAt(1_000)
+		}, errs.CodeOverTradeCap, "10000000", "25000000"},
+		{"buy over the cap after the pot shrank since the proposal", func(e *engineEnv, _ *app.ExecuteTrade) {
+			e.capTradesAt(5_000)
+			e.positions.units = 30_000_000
+		}, errs.CodeOverTradeCap, "15000000", "25000000"},
+		{"buy over the cap on the cash left after a cash-out reservation", func(e *engineEnv, _ *app.ExecuteTrade) {
+			e.capTradesAt(5_000)
+			e.positions.reserved = 60_000_000
+		}, errs.CodeOverTradeCap, "20000000", "25000000"},
 		{"sell short of the token amount", func(e *engineEnv, cmd *app.ExecuteTrade) {
 			*cmd = e.sell(50_000_000)
 			e.ledger.SetTokens(e.wallet.Address, aaplxToken(), 49_999_999)
@@ -194,6 +205,27 @@ func TestExecuteTrade_eachRefusalBlocksOnceRecordsTheDeliveryAndNeverSwaps(t *te
 				t.Fatalf("trade.blocked = %v, want %s with have %s and need %s", b, tc.code, tc.have, tc.need)
 			}
 		})
+	}
+}
+
+func TestExecuteTrade_aBuyWithinTheCapRunsAndASellIgnoresIt(t *testing.T) {
+	t.Parallel()
+	e := newEngineEnv(t)
+	e.capTradesAt(2_500)
+	cmd := e.buy()
+	if err := e.handle(t, e.delivery(t, cmd), cmd); err != nil || len(e.blocked(t, cmd.ProposalID)) != 0 ||
+		len(e.swapsOf(t, cmd.ProposalID)) != 1 {
+		t.Fatalf("err %v, %d blocked, %d swaps; want a buy of exactly the cap to run",
+			err, len(e.blocked(t, cmd.ProposalID)), len(e.swapsOf(t, cmd.ProposalID)))
+	}
+	e.capTradesAt(1)
+	e.ledger.SetTokens(e.wallet.Address, aaplxToken(), 50_000_000)
+	e.quote(aaplxToken(), usdcToken(), quotedOut, true)
+	sell := e.sell(50_000_000)
+	if err := e.handle(t, e.delivery(t, sell), sell); err != nil || len(e.blocked(t, sell.ProposalID)) != 0 ||
+		len(e.swapsOf(t, sell.ProposalID)) != 1 {
+		t.Fatalf("err %v, %d blocked, %d swaps; want a sell to ignore the buy cap",
+			err, len(e.blocked(t, sell.ProposalID)), len(e.swapsOf(t, sell.ProposalID)))
 	}
 }
 

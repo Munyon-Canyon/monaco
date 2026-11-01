@@ -8,6 +8,7 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/domain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
@@ -22,6 +23,7 @@ const (
 type Queries interface {
 	Status(ctx context.Context, id ids.ProposalID) (Status, error)
 	Retryable(ctx context.Context, id ids.ProposalID) (bool, error)
+	LockRetryable(ctx context.Context, tx db.Tx, id ids.ProposalID) (bool, error)
 	Proposer(ctx context.Context, id ids.ProposalID) (ids.UserID, error)
 }
 

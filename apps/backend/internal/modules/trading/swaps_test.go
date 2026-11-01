@@ -108,14 +108,14 @@ func wantUniqueViolation(t *testing.T, err error, index string) {
 	}
 }
 
-func TestSwaps_oneLiveRowPerSourceAndMintUntilItFails(t *testing.T) {
+func TestSwaps_oneLiveRowPerProposalUntilItFails(t *testing.T) {
 	t.Parallel()
 	d := newSwapDB(t)
 	source := d.ids.NewV7()
 	first := d.created(source, usdcMint)
 	d.insert(t, first)
-	wantUniqueViolation(t, d.q.InsertCreated(t.Context(), d.created(source, usdcMint)), "swaps_live_source_idx")
-	d.insert(t, d.created(source, tslaxMint))
+	wantUniqueViolation(t, d.q.InsertCreated(t.Context(), d.created(source, usdcMint)), "swaps_live_proposal_idx")
+	wantUniqueViolation(t, d.q.InsertCreated(t.Context(), d.created(source, tslaxMint)), "swaps_live_proposal_idx")
 	if n := d.fail(t, first.ID, "never_submitted"); n != 1 {
 		t.Fatalf("FinishFailed on the created row changed %d rows, want 1", n)
 	}
@@ -133,9 +133,9 @@ func TestSwaps_liveIndexCoversSubmittedAndConfirmedRows(t *testing.T) {
 	row := d.created(source, usdcMint)
 	d.insert(t, row)
 	d.submit(t, row.ID, "req-1", "sig-1")
-	wantUniqueViolation(t, d.q.InsertCreated(t.Context(), d.created(source, usdcMint)), "swaps_live_source_idx")
+	wantUniqueViolation(t, d.q.InsertCreated(t.Context(), d.created(source, usdcMint)), "swaps_live_proposal_idx")
 	d.confirm(t, row.ID)
-	wantUniqueViolation(t, d.q.InsertCreated(t.Context(), d.created(source, usdcMint)), "swaps_live_source_idx")
+	wantUniqueViolation(t, d.q.InsertCreated(t.Context(), d.created(source, usdcMint)), "swaps_live_proposal_idx")
 }
 
 func TestSwaps_requestIDAndSignatureAreUnique(t *testing.T) {

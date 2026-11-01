@@ -41,6 +41,7 @@ A durable JetStream pull consumer in the `trading` module, filtered on `proposal
 | --- | --- | --- | --- |
 | Asset tradable | Mint resolves in the market catalog; mint not paused (pre-IPO tokens can pause) | Same | `AssetUntradable` |
 | Treasury funds | Treasury on-chain USDC ≥ `usdc_micros` | Treasury holds ≥ `token_amount` of the mint | `InsufficientFunds` |
+| Within the trade cap | A cabal with a max-per-trade rule refuses a buy over that share of its ledger cash after cash-out reservations, read again now; a retry that reuses stranded cash skips it | Not checked | `OverTradeCap` |
 | Route exists | Jupiter returns a route for the exact-in amount. When it doesn't, one probe quote (1 USDC on a buy, at most one whole token on a sell) tells `NoRoute` (the probe routes, so a smaller amount may work) from `AssetPaused` (the probe doesn't route either, or the amount is already at or below it) | Same | `NoRoute`, `AssetPaused` |
 | Cabal not paused | Cabal not banned (cabal query port), and no active pause in funding's pause record, which is an ops pause (funding query port); an external deposit does not pause | Same | `CabalPaused` |
 
@@ -52,7 +53,7 @@ A refused check appends `trade.blocked` with the code and the numbers it compare
 
 An upstream failure while running the checks is not a refusal. Jupiter, Privy or RPC down returns an `Unavailable` code (`JupiterUnavailable` and the like), which is retryable, so `bus.Dispatch` naks with backoff and the checks run again on redelivery ([Surfacing](backend-platform.md#surfacing)). After `MaxDeliver` the message goes to `DEADLETTER`.
 
-**Hand-off.** If all checks pass, the engine calls the swap layer with the proposal id as the idempotency key. Once the `created` row commits, the engine reads the proposal's status through governance's query port. If the proposal is no longer `passed`, the row fails with `source_cancelled` before anything is signed. A void that lands after the row exists is refused because a live swap exists, so the two cannot race. If that read fails, the row fails with `never_submitted` and the bus naks, so the redelivery makes a fresh claim.
+**Hand-off.** If all checks pass, the engine calls the swap layer with the proposal id as the idempotency key. The claim transaction takes the proposal's row lock (`FOR UPDATE`, through governance's query port) and reads whether it is still `passed`, then inserts the `created` row in that same transaction. If the proposal is no longer `passed`, the row fails with `source_cancelled` before anything is signed. A void takes the same lock before it looks for a live swap, so one of the two waits and the loser sees the final state: a void that lands first stops the trade, and a void that waits on a claim is refused because a live swap exists. If that read fails, the row fails with `never_submitted` and the bus naks, so the redelivery makes a fresh claim.
 
 ### Stage 3: swap layer
 
@@ -82,7 +83,7 @@ The status is a Go type with a `transitions` table and a pure `Next(from, event)
 **Invariants**
 
 - `tx_signature` is unique. `execute_request_id` is unique.
-- At most one `swaps` row per proposal in a non-`failed` state: a partial unique index on the source id `WHERE status <> 'failed'`.
+- At most one `swaps` row per proposal in a non-`failed` state, whatever its mint or chain: a partial unique index on the source id `WHERE source_kind = 'proposal' AND status <> 'failed'`. Other sources, a cash-out sale with one leg per mint, stay unique per `(source_kind, source_id, in_mint)`.
 - Status only moves forward. No path writes `submitted` back to `created`, or `confirmed` to anything. Only the sweeper (`never_submitted`) and the engine's hand-off (`source_cancelled`, or `never_submitted` when the status read fails) move `created` to `failed`.
 - The `events` table is append-only and is the audit log. The swap status is a projection of the latest event.
 - `events` rows are written only inside the same transaction as the state change they announce. Nothing publishes to NATS except the relay.

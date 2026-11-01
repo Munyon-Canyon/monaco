@@ -211,13 +211,13 @@ func (h *ExecuteTradeHandler) checks(cmd ExecuteTrade, winner multichain.Listing
 		held := h.held(evmAsset(winner.Network, winner.TokenAddress))
 		return []tradeCheck{settles(winner), held, h.slippage, h.paused}
 	case winner.Network.IsEVM():
-		return []tradeCheck{settles(winner), h.routedFunds, h.slippage, h.paused}
+		return []tradeCheck{settles(winner), h.routedFunds, h.tradeCap, h.slippage, h.paused}
 	case winner.Network == chain.NetworkSolana && cmd.Action == domain.ActionSell:
 		req.InMint = token
 	case winner.Network == chain.NetworkSolana:
 		req.OutMint = token
 	}
-	return []tradeCheck{h.funds, h.slippage, h.price, h.paused}
+	return []tradeCheck{h.funds, h.tradeCap, h.slippage, h.price, h.paused}
 }
 
 func (h *ExecuteTradeHandler) tradable(
@@ -288,9 +288,17 @@ func (h *ExecuteTradeHandler) routedFunds(ctx context.Context, cmd ExecuteTrade,
 }
 
 func (h *ExecuteTradeHandler) ledgerCovers(ctx context.Context, cmd ExecuteTrade, req *SwapRequest) (refusal, error) {
+	have, err := h.availableLedgerCash(ctx, cmd)
+	if have.Uint64() >= req.InAmount || err != nil {
+		return refusal{}, err
+	}
+	return refusal{code: errs.CodeInsufficientFunds, have: have.Uint64(), need: req.InAmount}, nil
+}
+
+func (h *ExecuteTradeHandler) availableLedgerCash(ctx context.Context, cmd ExecuteTrade) (money.Micros, error) {
 	positions, err := h.d.Ports.Positions.SolanaPositions(ctx, cmd.CabalID)
 	if err != nil {
-		return refusal{}, err
+		return money.Micros{}, err
 	}
 	var cash money.Micros
 	for _, position := range positions {
@@ -300,14 +308,38 @@ func (h *ExecuteTradeHandler) ledgerCovers(ctx context.Context, cmd ExecuteTrade
 	}
 	reserved, err := h.d.Ports.Positions.CashOutReservations(ctx)
 	if err != nil {
-		return refusal{}, err
+		return money.Micros{}, err
 	}
-	have, err := availableCash(cash, reserved[cmd.CabalID])
-	if have.Uint64() >= req.InAmount || err != nil {
-		return refusal{}, err
-	}
-	return refusal{code: errs.CodeInsufficientFunds, have: have.Uint64(), need: req.InAmount}, nil
+	return availableCash(cash, reserved[cmd.CabalID])
 }
+
+func (h *ExecuteTradeHandler) tradeCap(ctx context.Context, cmd ExecuteTrade, req *SwapRequest) (refusal, error) {
+	if cmd.Action != domain.ActionBuy || req.ReusesStranded {
+		return refusal{}, nil
+	}
+	rules, err := h.d.Ports.Cabals.Rules(ctx, cmd.CabalID)
+	if err != nil || rules.MaxTradeBps == nil {
+		return refusal{}, err
+	}
+	if *rules.MaxTradeBps < 0 {
+		return refusal{}, errs.New(errs.CodeInternal, "trading.ExecuteTrade.tradeCap",
+			slog.Int("max_trade_bps", int(*rules.MaxTradeBps)))
+	}
+	cash, err := h.availableLedgerCash(ctx, cmd)
+	if err != nil {
+		return refusal{}, err
+	}
+	limit, err := money.MulDiv(cash.Uint64(), uint64(*rules.MaxTradeBps), bpsScale)
+	switch {
+	case err != nil:
+		return refusal{}, errs.Wrap(err, errs.CodeInternal, "trading.ExecuteTrade.tradeCap")
+	case req.InAmount > limit:
+		return refusal{code: errs.CodeOverTradeCap, have: limit, need: req.InAmount}, nil
+	}
+	return refusal{}, nil
+}
+
+const bpsScale = 10_000
 
 func availableCash(cash, reserved money.Micros) (money.Micros, error) {
 	if reserved.Cmp(cash) >= 0 {
@@ -325,6 +357,9 @@ func (h *ExecuteTradeHandler) request(cmd ExecuteTrade, asset market.Asset, w ca
 		SourceBatchSize: 1,
 		StillWanted: func(ctx context.Context) (bool, error) {
 			return h.d.Ports.Proposals.Retryable(ctx, cmd.ProposalID)
+		},
+		LockWanted: func(ctx context.Context, tx db.Tx) (bool, error) {
+			return h.d.Ports.Proposals.LockRetryable(ctx, tx, cmd.ProposalID)
 		},
 		Route: cmd.Route, Pin: cmd.Pin,
 	}

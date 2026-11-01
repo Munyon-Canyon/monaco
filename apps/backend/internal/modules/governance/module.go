@@ -91,7 +91,7 @@ func (m *Module) Mount(r api.Mount) {
 		Reminders:   app.NewReminderHandler(m.deps.UoW, m.deps.Clock),
 		Withdraw:    app.NewWithdrawProposalHandler(m.deps.UoW, m.deps.Clock, hints),
 		Void: app.NewVoidProposalHandler(
-			m.deps.UoW, m.deps.Pool, m.deps.IDs, m.deps.Clock, trading.New(m.deps).Queries(), hints,
+			m.deps.UoW, m.deps.IDs, m.deps.Clock, trading.New(m.deps).Queries(), hints,
 		),
 		Reads:   reads,
 		Pending: pending,
@@ -219,7 +219,6 @@ func (m *Module) VoidFromOps(ctx context.Context, id ProposalID, rawReason strin
 	ctx = auth.WithActor(ctx, auth.Actor{Kind: auth.ActorSystem, ID: "monacoctl"})
 	voids := app.NewVoidProposalHandler(
 		m.deps.UoW,
-		m.deps.Pool,
 		m.deps.IDs,
 		m.deps.Clock,
 		trading.New(m.deps).Queries(),
@@ -230,7 +229,7 @@ func (m *Module) VoidFromOps(ctx context.Context, id ProposalID, rawReason strin
 
 func (m *Module) voidProposal(hints app.Hints) *app.VoidProposalHandler {
 	return app.NewVoidProposalHandler(
-		m.deps.UoW, m.deps.Pool, m.deps.IDs, m.deps.Clock, trading.New(m.deps).Queries(), hints,
+		m.deps.UoW, m.deps.IDs, m.deps.Clock, trading.New(m.deps).Queries(), hints,
 	)
 }
 

@@ -18,6 +18,7 @@ import (
 	platform "github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/solana"
+	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
@@ -43,6 +44,8 @@ func (flowCabals) TreasuryWallet(_ context.Context, id ids.CabalID) (cabal.Treas
 	}, nil
 }
 
+func (flowCabals) Rules(context.Context, ids.CabalID) (cabal.Rules, error) { return cabal.Rules{}, nil }
+
 func (flowCabals) IsMember(context.Context, ids.CabalID, ids.UserID) (bool, error) { return true, nil }
 
 type flowChain struct {
@@ -59,6 +62,10 @@ func (*flowChain) MintConfig(context.Context, platform.SolanaAddress) (solana.Mi
 }
 
 func (*flowChain) Retryable(context.Context, ids.ProposalID) (bool, error) { return true, nil }
+
+func (*flowChain) LockRetryable(context.Context, db.Tx, ids.ProposalID) (bool, error) {
+	return true, nil
+}
 
 func (*flowChain) Listing(context.Context, multichain.ListingID) (multichain.Listing, error) {
 	return flows.RoutedListing(), nil

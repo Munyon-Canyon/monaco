@@ -105,6 +105,13 @@ WHERE id = @id AND status = 'execution_blocked' AND status_reason = 'swap_failed
 SELECT (status = 'passed' OR (status = 'execution_blocked' AND status_reason = 'swap_failed'))::bool
 FROM proposals WHERE id = @id;
 
+-- name: LockRetryableByID :one
+SELECT (status = 'passed' OR (status = 'execution_blocked' AND status_reason = 'swap_failed'))::bool
+FROM proposals WHERE id = @id FOR UPDATE;
+
+-- name: LockCabalOfProposal :one
+SELECT cabal_id FROM proposals WHERE id = @id FOR UPDATE;
+
 -- name: StatusByID :one
 SELECT status FROM proposals WHERE id = @id;
 

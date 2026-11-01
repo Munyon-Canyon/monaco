@@ -103,10 +103,21 @@ func (p *proposalsFake) Retryable(context.Context, ids.ProposalID) (bool, error)
 	if err := p.Check("Retryable"); err != nil {
 		return false, err
 	}
+	return p.retryable(), nil
+}
+
+func (p *proposalsFake) retryable() bool {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	return p.status == governance.StatusPassed ||
-		p.status == governance.Status("execution_blocked") && p.reason == "swap_failed", nil
+		p.status == governance.Status("execution_blocked") && p.reason == "swap_failed"
+}
+
+func (p *proposalsFake) LockRetryable(_ context.Context, _ db.Tx, _ ids.ProposalID) (bool, error) {
+	if err := p.Check("LockRetryable"); err != nil {
+		return false, err
+	}
+	return p.retryable(), nil
 }
 
 func (p *proposalsFake) Status(context.Context, ids.ProposalID) (governance.Status, error) {
@@ -175,6 +186,14 @@ func (e *engineEnv) seedCabal(status cabal.Status, slippageBps int32) {
 	}}, nil)
 }
 
+func (e *engineEnv) capTradesAt(bps int32) {
+	e.cabals = fakes.NewCabal([]fakes.CabalSeed{{
+		View:   cabal.View{ID: e.cabal, Status: cabal.StatusActive},
+		Rules:  cabal.Rules{SlippageBps: 100, MaxTradeBps: &bps},
+		Wallet: e.wallet,
+	}}, nil)
+}
+
 func (e *engineEnv) quote(in, out platform.Mint, outAmount uint64, routable bool) {
 	e.jup.SetQuote(jupiterMint(in), jupiterMint(out), jupiter.Quote{
 		InAmount: money.NewBaseUnits(0, in.Decimals), OutAmount: money.NewBaseUnits(outAmount, out.Decimals),
@@ -190,6 +209,10 @@ func (c liveCabals) Status(ctx context.Context, id ids.CabalID) (cabal.Status, e
 
 func (c liveCabals) SlippageBps(ctx context.Context, id ids.CabalID) (int32, error) {
 	return c.e.cabals.SlippageBps(ctx, id)
+}
+
+func (c liveCabals) Rules(ctx context.Context, id ids.CabalID) (cabal.Rules, error) {
+	return c.e.cabals.Rules(ctx, id)
 }
 
 func (c liveCabals) TreasuryWallet(ctx context.Context, id ids.CabalID) (cabal.TreasuryWallet, error) {

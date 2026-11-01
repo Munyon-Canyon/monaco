@@ -11,6 +11,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/sqlc"
+	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 )
 
@@ -18,7 +19,7 @@ type Queries struct {
 	q *sqlc.Queries
 }
 
-func NewQueries(db sqlc.DBTX) Queries { return Queries{q: sqlc.New(db)} }
+func NewQueries(conn sqlc.DBTX) Queries { return Queries{q: sqlc.New(conn)} }
 
 func (s Queries) Status(ctx context.Context, id ids.ProposalID) (domain.Status, error) {
 	const op = "governance.Status"
@@ -39,6 +40,18 @@ func (s Queries) Status(ctx context.Context, id ids.ProposalID) (domain.Status, 
 func (s Queries) Retryable(ctx context.Context, id ids.ProposalID) (bool, error) {
 	const op = "governance.Retryable"
 	ok, err := s.q.RetryableByID(ctx, id.UUID())
+	switch {
+	case errors.Is(err, sql.ErrNoRows):
+		return false, errs.New(errs.CodeProposalNotFound, op)
+	case err != nil:
+		return false, errs.Wrap(err, errs.CodeInternal, op)
+	}
+	return ok, nil
+}
+
+func (s Queries) LockRetryable(ctx context.Context, tx db.Tx, id ids.ProposalID) (bool, error) {
+	const op = "governance.LockRetryable"
+	ok, err := sqlc.New(tx.Queries()).LockRetryableByID(ctx, id.UUID())
 	switch {
 	case errors.Is(err, sql.ErrNoRows):
 		return false, errs.New(errs.CodeProposalNotFound, op)

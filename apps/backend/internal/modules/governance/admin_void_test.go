@@ -24,7 +24,7 @@ import (
 )
 
 func (d voteDB) voidAs(ctx context.Context, proposal uuid.UUID, reason string) error {
-	return app.NewVoidProposalHandler(d.uow, d.pool, d.ids, d.clk, fakes.NewTrading(), app.NoHints{}).
+	return app.NewVoidProposalHandler(d.uow, d.ids, d.clk, fakes.NewTrading(), app.NoHints{}).
 		Handle(ctx, app.VoidProposal{ProposalID: ids.ProposalIDFrom(proposal), Reason: domain.VoidReason(reason)})
 }
 

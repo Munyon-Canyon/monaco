@@ -294,6 +294,17 @@ func (q *Queries) LockBallot(ctx context.Context, arg LockBallotParams) (LockBal
 	return i, err
 }
 
+const lockCabalOfProposal = `-- name: LockCabalOfProposal :one
+SELECT cabal_id FROM proposals WHERE id = $1 FOR UPDATE
+`
+
+func (q *Queries) LockCabalOfProposal(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, lockCabalOfProposal, id)
+	var cabal_id uuid.UUID
+	err := row.Scan(&cabal_id)
+	return cabal_id, err
+}
+
 const lockForWithdraw = `-- name: LockForWithdraw :one
 SELECT
   p.id, p.cabal_id, p.proposer_id, p.status,
@@ -385,6 +396,18 @@ func (q *Queries) LockProposal(ctx context.Context, arg LockProposalParams) (Loc
 		&i.IsVoter,
 	)
 	return i, err
+}
+
+const lockRetryableByID = `-- name: LockRetryableByID :one
+SELECT (status = 'passed' OR (status = 'execution_blocked' AND status_reason = 'swap_failed'))::bool
+FROM proposals WHERE id = $1 FOR UPDATE
+`
+
+func (q *Queries) LockRetryableByID(ctx context.Context, id uuid.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, lockRetryableByID, id)
+	var column_1 bool
+	err := row.Scan(&column_1)
+	return column_1, err
 }
 
 const openProposal = `-- name: OpenProposal :execrows

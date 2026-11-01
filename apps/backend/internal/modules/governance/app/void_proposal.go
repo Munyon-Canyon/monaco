@@ -31,7 +31,6 @@ type VoidProposal struct {
 
 type VoidProposalHandler struct {
 	uow   *db.UnitOfWork
-	reads sqlc.DBTX
 	ids   ids.Generator
 	clock clock.Clock
 	swaps LiveSwaps
@@ -39,9 +38,9 @@ type VoidProposalHandler struct {
 }
 
 func NewVoidProposalHandler(
-	uow *db.UnitOfWork, reads sqlc.DBTX, g ids.Generator, c clock.Clock, s LiveSwaps, hints Hints,
+	uow *db.UnitOfWork, g ids.Generator, c clock.Clock, s LiveSwaps, hints Hints,
 ) *VoidProposalHandler {
-	return &VoidProposalHandler{uow: uow, reads: reads, ids: g, clock: c, swaps: s, hints: hints}
+	return &VoidProposalHandler{uow: uow, ids: g, clock: c, swaps: s, hints: hints}
 }
 
 func (h *VoidProposalHandler) Handle(ctx context.Context, cmd VoidProposal) error {
@@ -49,11 +48,14 @@ func (h *VoidProposalHandler) Handle(ctx context.Context, cmd VoidProposal) erro
 	if err != nil {
 		return err
 	}
-	cabal, err := h.guard(ctx, h.reads, cmd)
-	if err != nil {
-		return err
-	}
-	err = h.uow.Do(ctx, func(ctx context.Context, tx db.Tx) error { return h.void(ctx, tx, cmd, actor, audit) })
+	var cabal uuid.UUID
+	err = h.uow.Do(ctx, func(ctx context.Context, tx db.Tx) error {
+		var err error
+		if cabal, err = h.guard(ctx, tx.Queries(), cmd); err != nil {
+			return err
+		}
+		return h.void(ctx, tx, cmd, actor, audit)
+	})
 	if err != nil {
 		return err
 	}
@@ -63,7 +65,7 @@ func (h *VoidProposalHandler) Handle(ctx context.Context, cmd VoidProposal) erro
 
 func (h *VoidProposalHandler) guard(ctx context.Context, q sqlc.DBTX, cmd VoidProposal) (uuid.UUID, error) {
 	const op = "governance.VoidProposal"
-	cabal, err := sqlc.New(q).CabalOfProposal(ctx, cmd.ProposalID.UUID())
+	cabal, err := sqlc.New(q).LockCabalOfProposal(ctx, cmd.ProposalID.UUID())
 	if err != nil {
 		return uuid.Nil, lookupFailed(err, op)
 	}

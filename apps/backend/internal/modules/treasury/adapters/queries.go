@@ -28,7 +28,11 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
-const usdcDecimals = 6
+const (
+	usdcDecimals        = 6
+	dustMicros          = 10_000
+	unpricedDustDivisor = 100_000
+)
 
 const usdcMint = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
 
@@ -435,12 +439,76 @@ func (q *Queries) HoldsLiveAssets(ctx context.Context, cabalID ids.CabalID) (boo
 	if err != nil {
 		return false, errs.Wrap(err, errs.CodeOf(err), "treasury.Queries.HoldsLiveAssets")
 	}
-	for _, row := range rows {
-		if row.Asset.Valid && row.Asset.String != string(q.usdc) {
-			return true, nil
-		}
+	held, err := q.holdsLiveTokens(ctx, rows)
+	if err != nil || held {
+		return held, err
 	}
 	return rows[0].CashOutReservedMicros != "0" || rows[0].InTransitMicros != "0", nil
+}
+
+func (q *Queries) holdsLiveTokens(ctx context.Context, rows []sqlc.CabalValueRowsRow) (bool, error) {
+	var tokens []port.Position
+	assets := map[chain.SolanaAddress]app.Asset{}
+	for _, row := range rows {
+		if !row.Asset.Valid || row.Asset.String == string(q.usdc) {
+			continue
+		}
+		if domain.PlaceAsset(row.Asset.String, q.usdc).Place != domain.SolanaToken {
+			return true, nil
+		}
+		position, err := q.position(ctx, row.Asset.String, row.Units, row.CostBasisMicros, assets)
+		switch code := errs.CodeOf(err); {
+		case code == errs.CodePriceUnavailable || code == errs.CodeDecodeFailed:
+			return true, nil
+		case err != nil:
+			return false, err
+		}
+		tokens = append(tokens, position)
+	}
+	if len(tokens) == 0 {
+		return false, nil
+	}
+	dust, err := q.onlyDust(ctx, tokens, assets)
+	return !dust, err
+}
+
+func (q *Queries) onlyDust(
+	ctx context.Context, positions []port.Position, assets map[chain.SolanaAddress]app.Asset,
+) (bool, error) {
+	prices, err := q.pricesOf(ctx, positions, assets)
+	if err != nil {
+		return false, errs.Wrap(err, errs.CodeOf(err), "treasury.Queries.HoldsLiveAssets")
+	}
+	for _, position := range positions {
+		dust, err := q.isDust(ctx, position, prices, assets)
+		if err != nil || !dust {
+			return false, err
+		}
+	}
+	return true, nil
+}
+
+func (q *Queries) isDust(
+	ctx context.Context,
+	position port.Position,
+	prices map[uuid.UUID]app.Price,
+	assets map[chain.SolanaAddress]app.Asset,
+) (bool, error) {
+	asset, err := q.assetByAddress(ctx, position.Mint, assets)
+	if err != nil {
+		return false, errs.Wrap(err, errs.CodeOf(err), "treasury.Queries.isDust")
+	}
+	if _, priced := prices[asset.ID]; !priced {
+		return position.Units.Uint64() < money.OneWhole(position.Units.Decimals())/unpricedDustDivisor, nil
+	}
+	value, err := q.positionValue(ctx, position, prices, assets)
+	switch {
+	case errs.CodeOf(err) == errs.CodePriceUnavailable:
+		return false, nil
+	case err != nil:
+		return false, err
+	}
+	return value.Uint64() < dustMicros, nil
 }
 
 func (q *Queries) TotalShares(ctx context.Context, cabalID ids.CabalID) (money.SharesUnits, error) {

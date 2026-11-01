@@ -48,7 +48,8 @@ WHERE tx_signature = @tx_signature::text;
 -- name: ClaimLive :one
 SELECT id, status
 FROM swaps
-WHERE source_kind = @source_kind AND source_id = @source_id AND in_mint = @in_mint AND status <> 'failed';
+WHERE source_kind = @source_kind AND source_id = @source_id AND status <> 'failed'
+  AND (source_kind = 'proposal' OR in_mint = @in_mint);
 
 -- name: ListStaleCreated :many
 SELECT id, cabal_id, source_kind, source_id, action, symbol, in_mint, source_batch_size, in_amount

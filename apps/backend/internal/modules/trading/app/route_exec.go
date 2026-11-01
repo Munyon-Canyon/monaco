@@ -81,11 +81,11 @@ func (r *RouteExec) Trade(
 	if err != nil {
 		return SwapView{}, err
 	}
-	id, owned, err := l.claim(ctx, req, insert)
+	id, owned, locked, err := l.claim(ctx, req, insert)
 	if err == nil && owned {
 		faultpoint.Hit(ctx, faultpoint.AfterCreate)
 		err = l.beating(ctx, heartbeat, func(ctx context.Context) error {
-			wanted, err := l.wanted(ctx, req, id)
+			wanted, err := l.wanted(ctx, req, id, locked)
 			if err != nil || !wanted {
 				return err
 			}

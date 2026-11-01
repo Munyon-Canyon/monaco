@@ -18,7 +18,7 @@ import (
 )
 
 func (d voteDB) banVoids(swaps *fakes.Trading) adapters.BanVoids {
-	return adapters.BanVoids{Voids: app.NewVoidProposalHandler(d.uow, d.pool, d.ids, d.clk, swaps, app.NoHints{})}
+	return adapters.BanVoids{Voids: app.NewVoidProposalHandler(d.uow, d.ids, d.clk, swaps, app.NoHints{})}
 }
 
 func (d voteDB) ban(t *testing.T, h adapters.BanVoids, user uuid.UUID, to string) error {
@@ -143,7 +143,7 @@ func TestAdminBanUser_VoidsOnlyForAnAdminOrSystemActor(t *testing.T) {
 	t.Parallel()
 	d := newVoteDB(t)
 	open := d.proposedBy(t, d.ids.NewV7(), "open")
-	voids := app.NewVoidProposalHandler(d.uow, d.pool, d.ids, d.clk, fakes.NewTrading(), app.NoHints{})
+	voids := app.NewVoidProposalHandler(d.uow, d.ids, d.clk, fakes.NewTrading(), app.NoHints{})
 	err := d.uow.Do(as(t, auth.ActorUser), func(ctx context.Context, tx db.Tx) error {
 		return voids.Within(ctx, tx, app.VoidProposal{ProposalID: ids.ProposalIDFrom(open), Reason: "x"})
 	})
