@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/jackc/pgx/v5/pgconn"
+
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal"
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding"
@@ -299,6 +301,24 @@ func TestExecuteTrade_aRetryableCheckErrorBlocksOnlyOnTheFinalDelivery(t *testin
 
 	if err := e.handle(t, d, cmd); errs.CodeOf(err) != errs.CodeJupiterUnavailable ||
 		e.recorded(t, d) || e.blockedCodes(t, cmd) != "" {
+		t.Fatalf("err = %v, recorded %v, blocked %q; want the error returned and nothing written",
+			err, e.recorded(t, d), e.blockedCodes(t, cmd))
+	}
+	d.Final = true
+	if err := e.handle(t, d, cmd); err != nil || e.blockedCodes(t, cmd) != "trade_not_started" {
+		t.Fatalf("err = %v, blocked %q; want the final delivery to block as trade_not_started",
+			err, e.blockedCodes(t, cmd))
+	}
+}
+
+func TestExecuteTrade_aTransientDatabaseErrorInTheChecksBlocksOnlyOnTheFinalDelivery(t *testing.T) {
+	t.Parallel()
+	e := newEngineEnv(t)
+	e.jup.Fail("Quote", errs.Wrap(&pgconn.PgError{Code: "53300"}, errs.CodeInternal, "funding.Pauses"))
+	cmd := e.buy()
+	d := e.delivery(t, cmd)
+
+	if err := e.handle(t, d, cmd); err == nil || e.recorded(t, d) || e.blockedCodes(t, cmd) != "" {
 		t.Fatalf("err = %v, recorded %v, blocked %q; want the error returned and nothing written",
 			err, e.recorded(t, d), e.blockedCodes(t, cmd))
 	}

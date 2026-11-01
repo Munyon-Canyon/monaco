@@ -98,7 +98,7 @@ func (h *SellForCashOutHandler) HandleDelivery(
 			return err
 		})
 	}
-	code := errs.CodeOf(cause)
+	code := db.CodeOf(cause)
 	if errs.Retryable(code) && !d.Final {
 		return cause
 	}

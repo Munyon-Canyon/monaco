@@ -225,6 +225,7 @@ type Error struct {
 - Domain returns `errs.New(CodeInsufficientFunds, op, attrs...)`. Adapters wrap upstream failures with `errs.Wrap(err, CodeJupiterUnavailable, op, attrs...)`. Sentinel `var ErrX = errors.New(...)` is banned (`forbidigo` on `errors\.New` outside `errs`), so an error without a code cannot exist.
 - `errors.Is` and `errors.As` are the only comparisons (`errorlint`). `errs.CodeOf(err)` returns `CodeInternal` for any non-`*errs.Error`, which is the fallback that makes a missed wrap visible as a 500 and an alert, not a silent 200.
 - `UnitOfWork.Do` reclassifies an app `internal` wrap of a transient database error as `db_unavailable`.
+- `db_unavailable` covers SQLSTATE classes 08, 53, 57P and 58 plus 57014, 55P03, 25006 and 25P03, so a connection limit, a statement or lock timeout and a failover read-only error are retried. `bus.Dispatch` applies the same reclassification to an `internal` error from a `HandleOwn` handler or a `HandleFetched` fetch step, and the trade engine and cash-out sell handler apply it before they give up (`db.CodeOf`).
 
 ### Surfacing
 
