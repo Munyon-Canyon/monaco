@@ -44,6 +44,7 @@ type Deps struct {
 	RateLimit     func(http.Handler) http.Handler
 	WebOrigins    []string
 	Ready         Pinger
+	ReadyWarnings []string
 }
 
 func (d Deps) wrap(next http.Handler) http.Handler {

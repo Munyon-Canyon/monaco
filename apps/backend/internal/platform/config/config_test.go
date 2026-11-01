@@ -25,10 +25,8 @@ func required() []string {
 	}
 }
 
-const storeURLKey = "APP_STORE_URL=https://apps.apple.com/app/id6820853661"
-
 func apnsKeys() []string {
-	return []string{"APNS_KEY_P8=p8-key", "APNS_KEY_ID=key-id", "APNS_TEAM_ID=team-id", storeURLKey}
+	return []string{"APNS_KEY_P8=p8-key", "APNS_KEY_ID=key-id", "APNS_TEAM_ID=team-id"}
 }
 
 func TestLoadFillsDefaultsFromTheRFC(t *testing.T) {
@@ -568,7 +566,7 @@ func TestLoadFailures(t *testing.T) {
 				"ABLY_API_KEY=ably-key",
 				"APNS_KEY_ID=key-id",
 			),
-			want: "config.Load: invalid_input: missing APNS_KEY_P8, APNS_TEAM_ID, APP_STORE_URL",
+			want: "config.Load: invalid_input: missing APNS_KEY_P8, APNS_TEAM_ID",
 		},
 		{
 			name:    "a local APNs key needs its ids",
@@ -595,7 +593,7 @@ func TestLoadFailures(t *testing.T) {
 				"ABLY_API_KEY=ably-key",
 				"APNS_BASE_URL=http://fakes/apns",
 			),
-			want: "config.Load: invalid_input: missing APNS_KEY_P8, APNS_KEY_ID, APNS_TEAM_ID, APP_STORE_URL; " +
+			want: "config.Load: invalid_input: missing APNS_KEY_P8, APNS_KEY_ID, APNS_TEAM_ID; " +
 				"invalid APNS_BASE_URL (not allowed in production)",
 		},
 		{
@@ -618,23 +616,7 @@ func TestLoadFailures(t *testing.T) {
 			name:    "production names every missing key in one error",
 			environ: []string{"MONACO_ENV=production", "NATS_URL=nats://x"},
 			want: "config.Load: invalid_input: missing DATABASE_URL, APNS_KEY_P8, APNS_KEY_ID, APNS_TEAM_ID, " +
-				"POSTHOG_API_KEY, APP_STORE_URL, ABLY_API_KEY",
-		},
-		{
-			name: "staging without a store URL",
-			environ: []string{
-				"MONACO_ENV=staging",
-				"DATABASE_URL=postgres://x",
-				"NATS_URL=nats://x",
-				"ABLY_API_KEY=ably-key",
-			},
-			want: "config.Load: invalid_input: missing APP_STORE_URL",
-		},
-		{
-			name: "production with an empty store URL",
-			environ: append(append(required(), apnsKeys()...), "MONACO_ENV=production", "POSTHOG_API_KEY=ph-key",
-				"ABLY_API_KEY=ably-key", "APP_STORE_URL="),
-			want: "config.Load: invalid_input: missing APP_STORE_URL",
+				"POSTHOG_API_KEY, ABLY_API_KEY",
 		},
 		{
 			name:    "trust proxy headers not a boolean",
@@ -703,7 +685,7 @@ func TestRedactedHidesSecretsAndShowsTheRest(t *testing.T) {
 	}
 	environ := make([]string, 0, 2+len(secrets))
 	environ = append(environ, "MONACO_ENV=staging", "MONACO_TIMEOUT_JUPITER_EXECUTE=90s",
-		"APNS_KEY_ID=key-id", "APNS_TEAM_ID=team-id", storeURLKey, "NATS_CREDS=/run/secrets/nats.creds")
+		"APNS_KEY_ID=key-id", "APNS_TEAM_ID=team-id", "NATS_CREDS=/run/secrets/nats.creds")
 	for k, v := range secrets {
 		environ = append(environ, k+"="+v)
 	}
@@ -811,7 +793,7 @@ func TestRedactedHidesSecretsAndShowsTheRest(t *testing.T) {
 		{"ADMIN_DEADLETTERS_INTERVAL", "10s"},
 		{"ADMIN_APPROVALS_EXPIRE_INTERVAL", "5m0s"},
 		{"APP_MIN_IOS_BUILD", "0"},
-		{"APP_STORE_URL", "https://apps.apple.com/app/id6820853661"},
+		{"APP_STORE_URL", ""},
 		{"TRUST_PROXY_HEADERS", "false"},
 		{"FUND_PAGE_URL", ""},
 		{"WEB_ALLOWED_ORIGINS", ""},
@@ -954,32 +936,61 @@ func TestLoad_dbTimeoutsAreOffUnlessSetAndRefuseNegatives(t *testing.T) {
 	}
 }
 
-func TestLoadStoreURL(t *testing.T) {
+func TestAppStoreURL_validValueKeepsTheUpgradeGate(t *testing.T) {
 	t.Parallel()
-	const want = "invalid APP_STORE_URL (https://apps.apple.com/... or a TestFlight join link)"
-	tests := []struct {
-		url string
-		ok  bool
-	}{
-		{"https://apps.apple.com/app/id6820853661", true},
-		{"https://apps.apple.com/us/app/monaco/id6820853661", true},
-		{"https://testflight.apple.com/join/AbCd1234", true},
-		{"", true},
-		{"https://testflight.apple.com/join/monaco", false},
-		{"https://testflight.apple.com/join/", false},
-		{"https://apps.apple.com/", false},
-		{"http://apps.apple.com/app/id6820853661", false},
-		{"https://example.com/app/id6820853661", false},
-		{"https://apps.apple.com.evil.test/app/id6820853661", false},
-		{"not a url", false},
+	for _, u := range []string{
+		"https://apps.apple.com/app/id6820853661",
+		"https://apps.apple.com/us/app/monaco/id6820853661",
+		"https://testflight.apple.com/join/AbCd1234",
+	} {
+		cfg, err := config.Load(append(required(), "APP_MIN_IOS_BUILD=120", "APP_STORE_URL="+u))
+		if err != nil {
+			t.Fatalf("APP_STORE_URL=%q: %v", u, err)
+		}
+		build, store := cfg.App.UpgradeGate()
+		if build != 120 || store != u || cfg.App.StoreURLProblem() != "" {
+			t.Errorf("APP_STORE_URL=%q: gate = %d %q, problem %q, want 120 %q and none",
+				u, build, store, cfg.App.StoreURLProblem(), u)
+		}
 	}
-	for _, tt := range tests {
-		_, err := config.Load(append(required(), "APP_STORE_URL="+tt.url))
-		switch {
-		case tt.ok && err != nil:
-			t.Errorf("APP_STORE_URL=%q: %v, want it accepted", tt.url, err)
-		case !tt.ok && (err == nil || !strings.Contains(err.Error(), want)):
-			t.Errorf("APP_STORE_URL=%q: err %v, want %q", tt.url, err, want)
+}
+
+func TestAppStoreURL_missingStillBootsAndTurnsTheGateOff(t *testing.T) {
+	t.Parallel()
+	for _, env := range []config.Env{config.EnvLocal, config.EnvTest} {
+		cfg, err := config.Load(append(required(), "MONACO_ENV="+string(env), "APP_MIN_IOS_BUILD=120"))
+		if err != nil {
+			t.Fatalf("MONACO_ENV=%s without APP_STORE_URL: %v", env, err)
+		}
+		if build, store := cfg.App.UpgradeGate(); build != 0 || store != "" {
+			t.Errorf("gate = %d %q, want it off", build, store)
+		}
+		if cfg.App.StoreURLProblem() != "APP_STORE_URL is not set" {
+			t.Errorf("problem = %q", cfg.App.StoreURLProblem())
+		}
+	}
+}
+
+func TestAppStoreURL_placeholdersStillBootAndTurnTheGateOff(t *testing.T) {
+	t.Parallel()
+	for _, u := range []string{
+		"https://testflight.apple.com/join/monaco",
+		"https://testflight.apple.com/join/",
+		"https://apps.apple.com/",
+		"http://apps.apple.com/app/id6820853661",
+		"https://example.com/app/id6820853661",
+		"https://apps.apple.com.evil.test/app/id6820853661",
+		"not a url",
+	} {
+		cfg, err := config.Load(append(required(), "APP_MIN_IOS_BUILD=120", "APP_STORE_URL="+u))
+		if err != nil {
+			t.Fatalf("APP_STORE_URL=%q: %v, want it to boot", u, err)
+		}
+		if build, store := cfg.App.UpgradeGate(); build != 0 || store != "" {
+			t.Errorf("APP_STORE_URL=%q: gate = %d %q, want it off", u, build, store)
+		}
+		if cfg.App.StoreURLProblem() == "" {
+			t.Errorf("APP_STORE_URL=%q: no problem reported", u)
 		}
 	}
 }

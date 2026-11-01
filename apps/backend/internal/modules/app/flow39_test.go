@@ -20,7 +20,7 @@ func withApp(cfg config.App) scenario.Option {
 
 func TestFlow39_GetConfig_OK(t *testing.T) {
 	t.Parallel()
-	flows.F39GetConfigOK(scenario.New(t, withApp(config.App{StoreURL: "https://testflight.apple.com/join/monaco"})))
+	flows.F39GetConfigOK(scenario.New(t, withApp(config.App{StoreURL: "https://apps.apple.com/app/id6820853661"})))
 }
 
 func TestModule_servesTheConfigWithTheGateOn(t *testing.T) {
@@ -34,11 +34,32 @@ func TestModule_servesTheConfigWithTheGateOn(t *testing.T) {
 
 func TestGetConfig_returnsTheConfiguredMinimumBuild(t *testing.T) {
 	t.Parallel()
-	s := scenario.New(t, withApp(config.App{MinIOSBuild: 120, StoreURL: "https://testflight.apple.com/join/example"}))
+	s := scenario.New(t, withApp(config.App{MinIOSBuild: 120, StoreURL: "https://testflight.apple.com/join/AbCd1234"}))
 	s.Given(scenario.Anonymous()).
 		When(
 			scenario.Get("/v1/app/config"),
 			scenario.ExpectJSON("min_ios_build", 120),
-			scenario.ExpectJSON("store_url", "https://testflight.apple.com/join/example"),
+			scenario.ExpectJSON("store_url", "https://testflight.apple.com/join/AbCd1234"),
 		)
+}
+
+func expectGateOff(t *testing.T, storeURL string) {
+	t.Helper()
+	s := scenario.New(t, withApp(config.App{MinIOSBuild: 120, StoreURL: storeURL}))
+	s.Given(scenario.Anonymous()).
+		When(
+			scenario.Get("/v1/app/config"),
+			scenario.ExpectJSON("min_ios_build", 0),
+			scenario.ExpectJSON("store_url", ""),
+		)
+}
+
+func TestGetConfig_turnsTheGateOffWhenTheStoreURLIsMissing(t *testing.T) {
+	t.Parallel()
+	expectGateOff(t, "")
+}
+
+func TestGetConfig_turnsTheGateOffWhenTheStoreURLIsAPlaceholder(t *testing.T) {
+	t.Parallel()
+	expectGateOff(t, "https://testflight.apple.com/join/monaco")
 }

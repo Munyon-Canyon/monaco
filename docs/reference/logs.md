@@ -12,6 +12,7 @@ For a stuck money row, [Money runbook](../how-to/money-runbook.md) maps the sign
 | `analytics.capture_sent` | `event`, `uuid` |
 | `analytics.capture_skipped` | `reason` |
 | `apns.noop_send` | `user_id` |
+| `app.store_url_invalid` | `reason`, `min_ios_build` |
 | `boot.config` | `service`, `config` |
 | `boot.listening` | `service`, `addr` |
 | `boot.push_disabled` | `service`, `reason` |

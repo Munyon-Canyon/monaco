@@ -68,7 +68,7 @@ The `user.created` consumer `identity.evm_wallet` creates the user's EVM deposit
 
 1. Add a payment method to the Render workspace. `render blueprints validate render.yaml` fails with `need_payment_info` until you do.
 2. In the Render dashboard, choose **New** → **Blueprint**, pick this repo, and point it at `render.yaml` on `staging`. This creates the two services and the `monaco-staging` env group.
-3. Fill `.env.staging` with the secrets (`dotenvx set KEY value -f .env.staging` encrypts as it writes). `render.yaml` sets the non-secret keys, including `APP_STORE_URL`, where the forced-upgrade screen sends members. The API refuses to boot in staging or production without it, and rejects anything but an `https://apps.apple.com/...` link or a real TestFlight join link (`https://testflight.apple.com/join/<8 characters>`); if the listing is not live yet, set the public TestFlight link instead. Leave `EVM_DEPOSIT_NETWORKS` unset so Deposit offers Base, Arbitrum and Ethereum after Solana; set it, as in `EVM_DEPOSIT_NETWORKS=base`, only to narrow that list. The file's private key, `DOTENV_PRIVATE_KEY_STAGING`, is not in the repo; share it like the `.env.local` key.
+3. Fill `.env.staging` with the secrets (`dotenvx set KEY value -f .env.staging` encrypts as it writes). `render.yaml` sets the non-secret keys. Leave `EVM_DEPOSIT_NETWORKS` unset so Deposit offers Base, Arbitrum and Ethereum after Solana; set it, as in `EVM_DEPOSIT_NETWORKS=base`, only to narrow that list. The file's private key, `DOTENV_PRIVATE_KEY_STAGING`, is not in the repo; share it like the `.env.local` key.
 4. Push the secrets and the NATS creds file into the env group:
 
    ```bash

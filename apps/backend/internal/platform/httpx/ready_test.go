@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -126,5 +127,19 @@ func TestHandler_servesReadinessBesideLivenessOnlyWhenDepsAskForIt(t *testing.T)
 	}
 	if rec = serveRaw(t, served, http.MethodGet, "/readyz", nil); rec.Code != http.StatusServiceUnavailable {
 		t.Fatalf("GET /readyz with an exhausted pool = %d, want 503", rec.Code)
+	}
+}
+
+func TestReady_warningsRideAlongWithAnOKAnswerAndNeverFailIt(t *testing.T) {
+	t.Parallel()
+	h := Ready(alive(), pinger(func(context.Context) error { return nil }), readyBound, "app.store_url_invalid: unset")
+	if code, body := probe(h, http.MethodGet, "/readyz"); code != http.StatusOK ||
+		body != "ok\nwarning: app.store_url_invalid: unset\n" {
+		t.Fatalf("GET /readyz = %d %q, want 200 ok with the warning", code, body)
+	}
+	h = Ready(alive(), pinger(exhausted), readyBound, "app.store_url_invalid: unset")
+	if code, body := probe(h, http.MethodGet, "/readyz"); code != http.StatusServiceUnavailable ||
+		strings.Contains(body, "warning") {
+		t.Fatalf("GET /readyz = %d %q, want 503 without the warning", code, body)
 	}
 }

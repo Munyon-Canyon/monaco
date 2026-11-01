@@ -315,7 +315,6 @@ func Load(environ []string) (Config, error) {
 	}
 	bad.checkAPNs(cfg)
 	bad.checkTrade(cfg)
-	bad.checkStoreURL(cfg)
 	bad.missing = append(bad.missing, missingIn(cfg)...)
 	for k := range vars {
 		if strings.HasPrefix(k, "MONACO_") && !known[k] && !isIOSBuildKey(k) {
@@ -612,8 +611,7 @@ func adminFields() []field {
 func appFields() []field {
 	return []field{
 		buildFloor("APP_MIN_IOS_BUILD", func(c *Config) *int32 { return &c.App.MinIOSBuild }),
-		text("APP_STORE_URL", "", func(c *Config) *string { return &c.App.StoreURL }).
-			requiredIn(EnvStaging, EnvProduction),
+		text("APP_STORE_URL", "", func(c *Config) *string { return &c.App.StoreURL }),
 	}
 }
 
@@ -633,10 +631,23 @@ func realStoreURL(u string) bool {
 	return false
 }
 
-func (e *keysError) checkStoreURL(c Config) {
-	if c.App.StoreURL != "" && !realStoreURL(c.App.StoreURL) {
-		e.invalid = append(e.invalid, "APP_STORE_URL (https://apps.apple.com/... or a TestFlight join link)")
+func (a App) StoreURLValid() bool { return realStoreURL(a.StoreURL) }
+
+func (a App) StoreURLProblem() string {
+	switch {
+	case a.StoreURL == "":
+		return "APP_STORE_URL is not set"
+	case !realStoreURL(a.StoreURL):
+		return "APP_STORE_URL is not an https://apps.apple.com/... listing or a TestFlight join link"
 	}
+	return ""
+}
+
+func (a App) UpgradeGate() (minBuild int32, storeURL string) {
+	if !a.StoreURLValid() {
+		return 0, ""
+	}
+	return a.MinIOSBuild, a.StoreURL
 }
 
 func buildFloor(key string, at func(*Config) *int32) field {
