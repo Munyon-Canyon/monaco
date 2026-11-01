@@ -138,6 +138,7 @@ func TestRun_refusesToBootNamingTheFirstGaugeExportThatFailed(t *testing.T) {
 		"monaco_bus_account_":  "bus.ExportAccountGauges",
 		"monaco_bus_consumer_": "bus.NewRegistry",
 		"poller_errors_":       "poller.NewRunner",
+		"monaco_money_intent_": "worker.exportMoneyIntentGauge",
 	} {
 		t.Run(op, func(t *testing.T) {
 			t.Parallel()
