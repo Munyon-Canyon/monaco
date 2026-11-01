@@ -3,11 +3,16 @@ package domain
 import (
 	"log/slog"
 	"slices"
+	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 )
 
-const MaxPayoutAttempts = 3
+const (
+	MaxPayoutAttempts  = 8
+	PayoutRetryBase    = 30 * time.Second
+	PayoutRetryCeiling = 10 * time.Minute
+)
 
 type PayoutStatus string
 

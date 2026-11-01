@@ -15,13 +15,20 @@ WHERE j.id = sqlc.arg(id)::uuid;
 SELECT j.id
 FROM cash_out_jobs AS j
 LEFT JOIN LATERAL (
-  SELECT status, created_at FROM cash_out_payouts WHERE job_id = j.id ORDER BY attempt DESC LIMIT 1
+  SELECT attempt, status, created_at FROM cash_out_payouts WHERE job_id = j.id ORDER BY attempt DESC LIMIT 1
 ) AS p ON true
 WHERE (j.status = 'started' AND j.sell_usdc_micros = 0 AND j.created_at < sqlc.arg(stale_before)::timestamptz)
-  OR (j.status = 'paying' AND (p.status IS NULL OR p.status IN ('expired', 'failed')
-    OR p.created_at < sqlc.arg(stale_before)::timestamptz))
+  OR (j.status = 'paying' AND (p.status IS NULL
+    OR (p.status IN ('expired', 'failed') AND p.created_at + make_interval(secs => least(
+      sqlc.arg(retry_base_secs)::integer * power(2::float8, (p.attempt - 1)::float8),
+      sqlc.arg(retry_max_secs)::integer)) < sqlc.arg(at)::timestamptz)
+    OR (p.status NOT IN ('expired', 'failed') AND p.created_at < sqlc.arg(stale_before)::timestamptz)))
 ORDER BY j.updated_at, j.id
 LIMIT sqlc.arg(max_rows)::integer;
+
+-- name: TouchCashOutJob :execrows
+UPDATE cash_out_jobs SET updated_at = sqlc.arg(at)::timestamptz
+WHERE id = sqlc.arg(id)::uuid AND status IN ('started', 'paying');
 
 -- name: InsertCashOutPayout :execrows
 INSERT INTO cash_out_payouts (job_id, attempt, signature, signed_tx, last_valid_block_height, status, created_at)

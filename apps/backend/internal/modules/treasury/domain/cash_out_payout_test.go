@@ -25,12 +25,12 @@ func TestNextPayoutStep_signsOnlyWhenNoAttemptCanStillLand(t *testing.T) {
 		{domain.CashOutPaying, false, attempt(1, domain.PayoutSigned), domain.PayoutSend},
 		{domain.CashOutPaying, false, attempt(1, domain.PayoutBroadcast), domain.PayoutCheck},
 		{domain.CashOutPaying, false, attempt(1, domain.PayoutConfirmed), domain.PayoutCheck},
-		{domain.CashOutPaying, false, attempt(2, domain.PayoutExpired), domain.PayoutSign},
-		{domain.CashOutPaying, false, attempt(3, domain.PayoutExpired), domain.PayoutGiveUp},
-		{domain.CashOutPaying, false, attempt(3, domain.PayoutFailed), domain.PayoutGiveUp},
+		{domain.CashOutPaying, false, attempt(domain.MaxPayoutAttempts-1, domain.PayoutExpired), domain.PayoutSign},
+		{domain.CashOutPaying, false, attempt(domain.MaxPayoutAttempts, domain.PayoutExpired), domain.PayoutGiveUp},
+		{domain.CashOutPaying, false, attempt(domain.MaxPayoutAttempts, domain.PayoutFailed), domain.PayoutGiveUp},
 		{domain.CashOutCompleted, false, attempt(1, domain.PayoutConfirmed), domain.PayoutIdle},
 		{domain.CashOutPartial, true, attempt(1, domain.PayoutConfirmed), domain.PayoutIdle},
-		{domain.CashOutFailed, false, attempt(3, domain.PayoutExpired), domain.PayoutIdle},
+		{domain.CashOutFailed, false, attempt(domain.MaxPayoutAttempts, domain.PayoutExpired), domain.PayoutIdle},
 	} {
 		if got := domain.NextPayoutStep(c.job, c.selling, c.latest); got != c.want {
 			t.Errorf("NextPayoutStep(%s, %t, %+v) = %d, want %d", c.job, c.selling, c.latest, got, c.want)

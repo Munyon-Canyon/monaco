@@ -22,6 +22,20 @@ func (r *payoutRig) crashPaying(t *testing.T, point faultpoint.Name) {
 	r.mustAdvance(t)
 }
 
+func (r *payoutRig) crashPayingAfter(t *testing.T, point faultpoint.Name, skip int) {
+	t.Helper()
+	ctx := observability.WithActor(faultpoint.ArmedAfter(t.Context(), point, skip), "system:treasury.cashout_payout")
+	crashed := func() (p any) {
+		defer func() { p = recover() }()
+		_ = r.payouts().Advance(ctx, r.job, 0, nil)
+		return nil
+	}()
+	if crashed != (faultpoint.Crash{Name: point}) {
+		t.Fatalf("the run did not crash at %s after %d hits: %v", point, skip, crashed)
+	}
+	r.mustAdvance(t)
+}
+
 func (r *payoutRig) paidOnce(t *testing.T, built int, sent ...chain.Signature) {
 	t.Helper()
 	r.wantJob(t, "completed", "")
@@ -63,11 +77,18 @@ func TestFlow14_CashOutPayouts_CrashAfterBroadcast(t *testing.T) {
 
 func TestFlow14_CashOutPayouts_CrashBeforeCommit(t *testing.T) {
 	t.Parallel()
+	t.Run("reserving the sponsor budget", func(t *testing.T) {
+		t.Parallel()
+		r := newPayoutRig(t)
+		r.chain.set(payoutSig(1), landed())
+		r.crashPaying(t, faultpoint.BeforeCommit)
+		r.paidOnce(t, 1, payoutSig(1))
+	})
 	t.Run("storing the signed payout", func(t *testing.T) {
 		t.Parallel()
 		r := newPayoutRig(t)
 		r.chain.set(payoutSig(2), landed())
-		r.crashPaying(t, faultpoint.BeforeCommit)
+		r.crashPayingAfter(t, faultpoint.BeforeCommit, 1)
 		r.paidOnce(t, 2, payoutSig(2))
 	})
 	t.Run("settling the landed payout", func(t *testing.T) {

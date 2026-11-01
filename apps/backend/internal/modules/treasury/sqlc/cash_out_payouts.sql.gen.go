@@ -71,22 +71,34 @@ const cashOutPayoutsDue = `-- name: CashOutPayoutsDue :many
 SELECT j.id
 FROM cash_out_jobs AS j
 LEFT JOIN LATERAL (
-  SELECT status, created_at FROM cash_out_payouts WHERE job_id = j.id ORDER BY attempt DESC LIMIT 1
+  SELECT attempt, status, created_at FROM cash_out_payouts WHERE job_id = j.id ORDER BY attempt DESC LIMIT 1
 ) AS p ON true
 WHERE (j.status = 'started' AND j.sell_usdc_micros = 0 AND j.created_at < $1::timestamptz)
-  OR (j.status = 'paying' AND (p.status IS NULL OR p.status IN ('expired', 'failed')
-    OR p.created_at < $1::timestamptz))
+  OR (j.status = 'paying' AND (p.status IS NULL
+    OR (p.status IN ('expired', 'failed') AND p.created_at + make_interval(secs => least(
+      $2::integer * power(2::float8, (p.attempt - 1)::float8),
+      $3::integer)) < $4::timestamptz)
+    OR (p.status NOT IN ('expired', 'failed') AND p.created_at < $1::timestamptz)))
 ORDER BY j.updated_at, j.id
-LIMIT $2::integer
+LIMIT $5::integer
 `
 
 type CashOutPayoutsDueParams struct {
-	StaleBefore time.Time
-	MaxRows     int32
+	StaleBefore   time.Time
+	RetryBaseSecs int32
+	RetryMaxSecs  int32
+	At            time.Time
+	MaxRows       int32
 }
 
 func (q *Queries) CashOutPayoutsDue(ctx context.Context, arg CashOutPayoutsDueParams) ([]uuid.UUID, error) {
-	rows, err := q.db.Query(ctx, cashOutPayoutsDue, arg.StaleBefore, arg.MaxRows)
+	rows, err := q.db.Query(ctx, cashOutPayoutsDue,
+		arg.StaleBefore,
+		arg.RetryBaseSecs,
+		arg.RetryMaxSecs,
+		arg.At,
+		arg.MaxRows,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -199,6 +211,24 @@ func (q *Queries) MoveCashOutPayout(ctx context.Context, arg MoveCashOutPayoutPa
 		arg.Attempt,
 		arg.FromStatuses,
 	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const touchCashOutJob = `-- name: TouchCashOutJob :execrows
+UPDATE cash_out_jobs SET updated_at = $1::timestamptz
+WHERE id = $2::uuid AND status IN ('started', 'paying')
+`
+
+type TouchCashOutJobParams struct {
+	At time.Time
+	ID uuid.UUID
+}
+
+func (q *Queries) TouchCashOutJob(ctx context.Context, arg TouchCashOutJobParams) (int64, error) {
+	result, err := q.db.Exec(ctx, touchCashOutJob, arg.At, arg.ID)
 	if err != nil {
 		return 0, err
 	}

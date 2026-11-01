@@ -48,6 +48,7 @@ type CashOutPayoutDeps struct {
 	Wallets   PayoutWallets
 	USDC      chain.Mint
 	Hints     Hints
+	Sponsor   relayer.SponsorBudgets
 }
 
 type CashOutPayouts struct{ d CashOutPayoutDeps }
@@ -152,7 +153,10 @@ func (p *CashOutPayouts) lapse(ctx context.Context, job payoutJob) error {
 			JobID: job.id, Attempt: job.latest.Number, ToStatus: string(domain.PayoutExpired),
 			FromStatuses: []string{string(domain.PayoutSigned), string(domain.PayoutBroadcast)},
 		})
-		return err
+		if err != nil {
+			return err
+		}
+		return p.release(ctx, tx, job)
 	})
 }
 
@@ -239,6 +243,9 @@ func (p *CashOutPayouts) fail(ctx context.Context, job payoutJob, rejected int16
 			if err := p.settleAttempt(ctx, q, now, domain.PayoutFailed); err != nil {
 				return err
 			}
+		}
+		if err := p.release(ctx, tx, now); err != nil {
+			return err
 		}
 		if err := p.giveBack(ctx, tx, now); err != nil {
 			return err

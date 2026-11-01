@@ -123,10 +123,7 @@ func (q *Queries) CashOutShares(ctx context.Context, arg CashOutSharesParams) (C
 const cashOutShortfall = `-- name: CashOutShortfall :one
 SELECT greatest($1::text::numeric - greatest(coalesce((SELECT units FROM cabal_positions
   WHERE cabal_id = $2::uuid AND asset = $3::text), 0) - coalesce((SELECT
-    sum(CASE WHEN j.status = 'paying' THEN j.payout_micros ELSE least(j.payout_micros,
-      j.payout_micros - j.sell_usdc_micros + coalesce((SELECT sum(s.usdc_out_micros) FROM cash_out_sells AS s
-        WHERE s.job_id = j.id), 0)) END)
-  FROM cash_out_jobs AS j
+    sum(j.payout_micros) FROM cash_out_jobs AS j
   WHERE j.cabal_id = $2::uuid AND j.status IN ('started', 'selling', 'paying')), 0), 0),
   0)::text
 `
