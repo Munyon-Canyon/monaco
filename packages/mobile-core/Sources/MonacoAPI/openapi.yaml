@@ -385,11 +385,38 @@ paths:
       description: >-
         Returns the size of every queue for the panel's home tiles, each with the route that lists it. Stuck
         transactions use the default age of five minutes, unpublished events thirty seconds, and dead letters
-        count the open ones.
+        count the open ones. Every money state machine has a queue named `stuck_<kind>` (withdrawals, fund
+        transfers, cash-out jobs and payouts, wind-downs, EVM forwards, external deposits, on-ramp sessions and
+        deposit candidates) counted at the five-minute age, with the age of its oldest row.
       responses:
         "200":
           description: The queue sizes.
           content: {application/json: {schema: {$ref: "#/components/schemas/AdminQueues"}}}
+        default: {$ref: "#/components/responses/Problem"}
+  /v1/admin/queues/stuck-money:
+    get:
+      operationId: getStuckMoney
+      tags: [admin]
+      x-admin-role: viewer
+      x-rate-limit: {actor: {rate: 120, per: 1m, burst: 30}}
+      summary: List money rows that have not finished.
+      description: >-
+        Lists the rows of every money state machine that sit in a non-final state longer than `older_than`
+        (default five minutes), oldest first. `kind` narrows it to one machine. A `ref` is the row id, a
+        `<tx signature>:<wallet>` pair for a deposit candidate, `<job id>:<attempt>` for a cash-out payout and the
+        cabal id for a wind-down.
+      parameters:
+        - name: kind
+          in: query
+          required: false
+          description: Only this money state machine.
+          schema: {$ref: "#/components/schemas/StuckMoneyKind"}
+        - $ref: "#/components/parameters/OlderThan"
+        - $ref: "#/components/parameters/QueueLimit"
+      responses:
+        "200":
+          description: The stuck money rows.
+          content: {application/json: {schema: {$ref: "#/components/schemas/StuckMoneyRows"}}}
         default: {$ref: "#/components/responses/Problem"}
   /v1/admin/queues/stuck-txns:
     get:
@@ -1286,11 +1313,11 @@ paths:
       tags: [funding]
       x-admin-role: viewer
       x-rate-limit: {actor: {rate: 120, per: 1m, burst: 30}}
-      summary: List cabals waiting for a bounce.
+      summary: List direct transfers waiting for a bounce.
       description: >-
-        Lists the open pauses with reason `external_deposit`, oldest first: a direct transfer into a cabal
-        treasury that has not been sent back yet. Each row names the paused cabal, which the cabal lookup
-        resolves. A resume never clears one of these pauses.
+        Lists the external deposits that are still `detected`, `bouncing` or `bounce_failed`, oldest first: a
+        direct transfer into a cabal treasury that has not been sent back yet. Each row carries the external
+        deposit id that `monacoctl funding bounce` takes, and the cabal that received it.
       parameters:
         - name: limit
           in: query
@@ -5865,9 +5892,10 @@ components:
         - {name: stuck_txns, count: 0, href: /v1/admin/queues/stuck-txns}
       required: [name, count, href]
       properties:
-        name: {type: string, description: "The queue: stuck_txns, unpublished_events or dead_letters.", examples: [stuck_txns]}
+        name: {type: string, description: "The queue: stuck_txns, unpublished_events, dead_letters or stuck_<kind> for a money state machine.", examples: [stuck_txns]}
         count: {type: integer, format: int64, description: How many items the queue holds., examples: [0]}
         href: {type: string, description: The route that lists the queue., examples: [/v1/admin/queues/stuck-txns]}
+        oldest_age_seconds: {type: integer, format: int64, description: Seconds since the oldest item entered the queue. Absent when the queue is empty or does not track age., examples: [400]}
     AdminQueues:
       type: object
       description: The size of every queue.
@@ -6200,6 +6228,42 @@ components:
           format: uuid
           description: Pass it as `cursor` to read the next page. Null on the last page.
           examples: [null]
+    StuckMoneyKind:
+      type: string
+      description: A money state machine.
+      enum: [withdrawal, fund_transfer, cash_out_job, cash_out_payout, wind_down, evm_forward, external_deposit, onramp_session, deposit_candidate]
+      examples: [withdrawal]
+    StuckMoneyRow:
+      type: object
+      description: One money row that has not reached a final state.
+      examples:
+        - kind: withdrawal
+          ref: 019cc330-6666-7000-8000-000000000001
+          user_id: 019cc330-1111-7000-8000-000000000001
+          cabal_id: null
+          status: submitted
+          since: "2026-10-06T12:00:00Z"
+          age_seconds: 400
+      required: [kind, ref, user_id, cabal_id, status, since, age_seconds]
+      properties:
+        kind: {$ref: "#/components/schemas/StuckMoneyKind"}
+        ref: {type: string, description: The row's reference. See the route description for its form., examples: [019cc330-6666-7000-8000-000000000001]}
+        user_id: {type: [string, "null"], format: uuid, description: The member the row belongs to. Null when the row has none., examples: [019cc330-1111-7000-8000-000000000001]}
+        cabal_id: {type: [string, "null"], format: uuid, description: The cabal the row belongs to. Null when the row has none., examples: [null]}
+        status: {type: string, description: The row's current status., examples: [submitted]}
+        since: {type: string, format: date-time, description: When the row entered its current wait., examples: ["2026-10-06T12:00:00Z"]}
+        age_seconds: {type: integer, format: int64, description: Seconds since `since`., examples: [400]}
+    StuckMoneyRows:
+      type: object
+      description: The stuck money rows, oldest first.
+      examples:
+        - items: []
+      required: [items]
+      properties:
+        items:
+          type: array
+          description: The rows.
+          items: {$ref: "#/components/schemas/StuckMoneyRow"}
     StuckTxn:
       type: object
       description: One swap that has not finished.
@@ -7152,7 +7216,7 @@ components:
       properties:
         items:
           type: array
-          description: The paused cabals.
+          description: The pending transfers.
           items: {$ref: "#/components/schemas/PendingBounce"}
     CreateOnrampSessionRequest:
       type: object
@@ -7281,13 +7345,26 @@ components:
           examples: ["2026-10-07T12:00:00Z"]
     PendingBounce:
       type: object
-      description: One cabal paused for a direct transfer that has not been sent back.
+      description: One direct transfer that has not been sent back.
       examples:
-        - {cabal_id: 019cc330-2222-7000-8000-000000000001, since: "2026-10-07T12:00:00Z"}
-      required: [cabal_id, since]
+        - external_deposit_id: 019cc330-7777-7000-8000-000000000001
+          cabal_id: 019cc330-2222-7000-8000-000000000001
+          status: bounce_failed
+          amount: "5000000"
+          mint: EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
+          return_address: null
+          attempts: 1
+          since: "2026-10-07T12:00:00Z"
+      required: [external_deposit_id, cabal_id, status, amount, mint, return_address, attempts, since]
       properties:
-        cabal_id: {type: string, format: uuid, description: The paused cabal., examples: [019cc330-2222-7000-8000-000000000001]}
-        since: {type: string, format: date-time, description: When the pause began., examples: ["2026-10-07T12:00:00Z"]}
+        external_deposit_id: {type: string, format: uuid, description: The external deposit id that the bounce commands take., examples: [019cc330-7777-7000-8000-000000000001]}
+        cabal_id: {type: string, format: uuid, description: The cabal that received the transfer., examples: [019cc330-2222-7000-8000-000000000001]}
+        status: {type: string, description: "The deposit status: detected, bouncing or bounce_failed.", examples: [bounce_failed]}
+        amount: {type: string, description: The transferred amount in base units., examples: ["5000000"]}
+        mint: {type: string, description: The token mint., examples: [EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v]}
+        return_address: {type: [string, "null"], description: Where the bounce goes. Null while none is set., examples: [null]}
+        attempts: {type: integer, format: int32, description: How many bounces were signed., examples: [1]}
+        since: {type: string, format: date-time, description: When the transfer was detected., examples: ["2026-10-07T12:00:00Z"]}
     ReportOnrampStatusRequest:
       type: object
       description: How the provider flow ended.

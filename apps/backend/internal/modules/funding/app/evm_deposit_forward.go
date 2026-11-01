@@ -64,14 +64,17 @@ type EVMDepositForwardDeps struct {
 }
 
 type EVMDepositForwardPoller struct {
-	d         EVMDepositForwardDeps
-	mu        sync.Mutex
-	alerted   map[uuid.UUID]bool
-	reindexed map[string]bool
+	d             EVMDepositForwardDeps
+	mu            sync.Mutex
+	alerted       map[uuid.UUID]bool
+	failedAlerted map[uuid.UUID]bool
+	reindexed     map[string]bool
 }
 
 func NewEVMDepositForwardPoller(d EVMDepositForwardDeps) *EVMDepositForwardPoller {
-	return &EVMDepositForwardPoller{d: d, alerted: map[uuid.UUID]bool{}, reindexed: map[string]bool{}}
+	return &EVMDepositForwardPoller{
+		d: d, alerted: map[uuid.UUID]bool{}, failedAlerted: map[uuid.UUID]bool{}, reindexed: map[string]bool{},
+	}
 }
 
 func (*EVMDepositForwardPoller) Name() string { return "funding.evm_deposit_forward" }
@@ -107,7 +110,7 @@ func (p *EVMDepositForwardPoller) Tick(ctx context.Context) (poller.Report, erro
 		}
 		after = wallets[len(wallets)-1].UserID
 	}
-	failures = append(failures, p.alertStuck(ctx))
+	failures = append(failures, p.alertStuck(ctx), p.alertFailed(ctx))
 	return report, errors.Join(failures...)
 }
 
@@ -340,5 +343,26 @@ func (p *EVMDepositForwardPoller) alertStuck(ctx context.Context) error {
 			slog.String("network", row.Network), slog.Time("pending_since", row.CreatedAt))
 	}
 	p.alerted = still
+	return nil
+}
+
+func (p *EVMDepositForwardPoller) alertFailed(ctx context.Context) error {
+	rows, err := sqlc.New(p.d.Reads).ListFailedEVMDepositForwards(ctx, evmDepositStuckBatch)
+	if err != nil {
+		return errs.Wrap(err, errs.CodeInternal, "funding.EVMDepositForward.failed")
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	failed := make(map[uuid.UUID]bool, len(rows))
+	for _, row := range rows {
+		failed[row.ID] = true
+		if p.failedAlerted[row.ID] {
+			continue
+		}
+		observability.Alert(ctx, observability.FundingEVMForwardFailed,
+			slog.String("forward_id", row.ID.String()), slog.String("user_id", row.UserID.String()),
+			slog.String("network", row.Network), slog.Time("failed_since", row.CreatedAt))
+	}
+	p.failedAlerted = failed
 	return nil
 }

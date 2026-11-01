@@ -254,7 +254,7 @@ type Balance struct {
 //
 // Examples: {"items":[]}
 type BounceQueue struct {
-	// Items The paused cabals.
+	// Items The pending transfers.
 	Items []PendingBounce `json:"items"`
 }
 
@@ -386,19 +386,49 @@ type PauseState struct {
 	Since *time.Time `json:"since"`
 }
 
-// PendingBounce One cabal paused for a direct transfer that has not been sent back.
+// PendingBounce One direct transfer that has not been sent back.
 //
-// Examples: {"cabal_id":"019cc330-2222-7000-8000-000000000001","since":"2026-10-07T12:00:00Z"}
+// Examples: {"amount":"5000000","attempts":1,"cabal_id":"019cc330-2222-7000-8000-000000000001","external_deposit_id":"019cc330-7777-7000-8000-000000000001","mint":"EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v","return_address":null,"since":"2026-10-07T12:00:00Z","status":"bounce_failed"}
 type PendingBounce struct {
-	// CabalId The paused cabal.
+	// Amount The transferred amount in base units.
+	//
+	// Examples: 5000000
+	Amount string `json:"amount"`
+
+	// Attempts How many bounces were signed.
+	//
+	// Examples: 1
+	Attempts int32 `json:"attempts"`
+
+	// CabalId The cabal that received the transfer.
 	//
 	// Examples: 019cc330-2222-7000-8000-000000000001
 	CabalId openapi_types.UUID `json:"cabal_id"`
 
-	// Since When the pause began.
+	// ExternalDepositId The external deposit id that the bounce commands take.
+	//
+	// Examples: 019cc330-7777-7000-8000-000000000001
+	ExternalDepositId openapi_types.UUID `json:"external_deposit_id"`
+
+	// Mint The token mint.
+	//
+	// Examples: EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
+	Mint string `json:"mint"`
+
+	// ReturnAddress Where the bounce goes. Null while none is set.
+	//
+	// Examples: null
+	ReturnAddress *string `json:"return_address"`
+
+	// Since When the transfer was detected.
 	//
 	// Examples: 2026-10-07T12:00:00Z
 	Since time.Time `json:"since"`
+
+	// Status The deposit status: detected, bouncing or bounce_failed.
+	//
+	// Examples: bounce_failed
+	Status string `json:"status"`
 }
 
 // ReportOnrampStatusRequest How the provider flow ended.
@@ -711,7 +741,7 @@ type ServerInterface interface {
 	// PauseAdminAll Pause trading in every cabal.
 	// (POST /v1/admin/pause)
 	PauseAdminAll(w http.ResponseWriter, r *http.Request, params PauseAdminAllParams)
-	// GetBounceQueue List cabals waiting for a bounce.
+	// GetBounceQueue List direct transfers waiting for a bounce.
 	// (GET /v1/admin/queues/bounces)
 	GetBounceQueue(w http.ResponseWriter, r *http.Request, params GetBounceQueueParams)
 	// ResumeAdminAll Resume trading in every cabal.
@@ -1961,7 +1991,7 @@ type StrictServerInterface interface {
 	// PauseAdminAll Pause trading in every cabal.
 	// (POST /v1/admin/pause)
 	PauseAdminAll(ctx context.Context, request PauseAdminAllRequestObject) (PauseAdminAllResponseObject, error)
-	// GetBounceQueue List cabals waiting for a bounce.
+	// GetBounceQueue List direct transfers waiting for a bounce.
 	// (GET /v1/admin/queues/bounces)
 	GetBounceQueue(ctx context.Context, request GetBounceQueueRequestObject) (GetBounceQueueResponseObject, error)
 	// ResumeAdminAll Resume trading in every cabal.

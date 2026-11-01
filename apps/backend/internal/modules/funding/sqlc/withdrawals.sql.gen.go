@@ -357,7 +357,8 @@ func (q *Queries) ListStaleCreatedWithdrawals(ctx context.Context, arg ListStale
 
 const listSubmittedEVMWithdrawals = `-- name: ListSubmittedEVMWithdrawals :many
 SELECT id, user_id, amount_micros::text AS amount_micros, evm_address::text AS evm_address,
-  privy_action_id::text AS privy_action_id, COALESCE(tx_signature, '')::text AS tx_signature
+  privy_action_id::text AS privy_action_id, COALESCE(tx_signature, '')::text AS tx_signature,
+  submitted_at
 FROM withdrawals
 WHERE status = 'submitted' AND destination_kind = 'evm'
 ORDER BY last_attempt_at NULLS FIRST, submitted_at, id
@@ -371,6 +372,7 @@ type ListSubmittedEVMWithdrawalsRow struct {
 	EvmAddress    string
 	PrivyActionID string
 	TxSignature   string
+	SubmittedAt   pgtype.Timestamptz
 }
 
 func (q *Queries) ListSubmittedEVMWithdrawals(ctx context.Context, maxRows int32) ([]ListSubmittedEVMWithdrawalsRow, error) {
@@ -389,6 +391,7 @@ func (q *Queries) ListSubmittedEVMWithdrawals(ctx context.Context, maxRows int32
 			&i.EvmAddress,
 			&i.PrivyActionID,
 			&i.TxSignature,
+			&i.SubmittedAt,
 		); err != nil {
 			return nil, err
 		}

@@ -180,6 +180,25 @@ func TestEVMDepositForward_StuckPendingAlertsOnce(t *testing.T) {
 	}
 }
 
+func TestEVMDepositForward_FailedForwardAlertsAtOnceAndOnlyOnce(t *testing.T) {
+	t.Parallel()
+	f := newForwardFixture(t)
+	f.tick(t, execution("k", mc.ActionPending))
+	if got := f.logged(observability.FundingEVMForwardFailed); got != 0 {
+		t.Fatalf("failed alerts for a pending forward = %d, want 0", got)
+	}
+	f.tick(t, execution("k", mc.ActionFailed))
+	f.tick(t, execution("k", mc.ActionFailed))
+	f.clock.Advance(time.Hour)
+	f.tick(t, execution("k", mc.ActionFailed))
+	if got := f.logged(observability.FundingEVMForwardFailed); got != 1 {
+		t.Fatalf("failed alerts = %d, want 1 the moment the forward failed", got)
+	}
+	if got := f.logged(observability.FundingEVMForwardStuck); got != 0 {
+		t.Fatalf("stuck alerts for a failed forward = %d, want 0", got)
+	}
+}
+
 func TestEVMDepositForward_ExecutionOwnedByAnotherUserIsAnInternalError(t *testing.T) {
 	t.Parallel()
 	f := newForwardFixture(t)
@@ -218,7 +237,8 @@ func TestEVMDepositForward_ReadFailuresFailTheTickAsInternal(t *testing.T) {
 	f := newForwardFixture(t, func(d *app.EVMDepositForwardDeps) { d.Reads = closedPool(t, d.Reads.(*pgxpool.Pool)) })
 	err := f.tickErr(t, unrouted("h"))
 	if errs.CodeOf(err) != errs.CodeInternal || !strings.Contains(err.Error(), "funding.EVMDepositForward.status") ||
-		!strings.Contains(err.Error(), "funding.EVMDepositForward.stuck") {
+		!strings.Contains(err.Error(), "funding.EVMDepositForward.stuck") ||
+		!strings.Contains(err.Error(), "funding.EVMDepositForward.failed") {
 		t.Fatalf("tick error = %v, want internal status and stuck read failures", err)
 	}
 	if got := f.feed.Reindexes.Calls(); got != 0 {

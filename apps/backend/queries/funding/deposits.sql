@@ -165,3 +165,14 @@ SELECT count(*)::bigint FROM deposit_watch_wallets WHERE residual_streak >= 2;
 -- name: DepositCandidatesPendingOldestSeconds :one
 SELECT coalesce(extract(epoch FROM (sqlc.arg(now)::timestamptz - min(seen_at))), 0)::bigint
 FROM deposit_candidates WHERE status = 'pending';
+
+-- name: RescanDepositWatchWallet :execrows
+UPDATE deposit_watch_accounts
+SET high_signature = NULLIF(sqlc.arg(from_signature)::text, ''),
+  high_slot = 0,
+  page_before = NULL,
+  page_top_signature = NULL,
+  page_top_slot = NULL,
+  history_floor = NULL,
+  dirty_gen = dirty_gen + 1
+WHERE wallet_address = sqlc.arg(wallet_address)::text AND state <> 'foreign';

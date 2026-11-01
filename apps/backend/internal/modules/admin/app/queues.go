@@ -1,8 +1,10 @@
 package app
 
 import (
+	"cmp"
 	"context"
 	"log/slog"
+	"slices"
 	"time"
 
 	"github.com/google/uuid"
@@ -10,6 +12,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
 const (
@@ -22,6 +25,7 @@ const (
 	QueueStuckTxns         = "stuck_txns"
 	QueueUnpublishedEvents = "unpublished_events"
 	QueueDeadLetters       = "dead_letters"
+	QueueStuckMoneyPrefix  = "stuck_"
 )
 
 type StuckTxn struct {
@@ -45,15 +49,27 @@ type UnpublishedEvent struct {
 }
 
 type QueueCount struct {
-	Name  string
-	Count int
-	Href  string
+	Name   string
+	Count  int
+	Href   string
+	Oldest time.Duration
+}
+
+type StuckMoneyRow struct {
+	Kind    string
+	Ref     string
+	UserID  uuid.UUID
+	CabalID uuid.UUID
+	Status  string
+	Since   time.Time
+	Age     time.Duration
 }
 
 type Queues struct {
 	Swaps   StuckSwaps
 	Events  EventQueue
 	Letters DeadLetterCounter
+	Money   []money.StuckReader
 	Clock   clock.Clock
 }
 
@@ -113,9 +129,79 @@ func (q Queues) Counts(ctx context.Context) ([]QueueCount, error) {
 	if err != nil {
 		return nil, err
 	}
-	return []QueueCount{
+	counts := []QueueCount{
 		{Name: QueueStuckTxns, Count: stuck, Href: "/v1/admin/queues/stuck-txns"},
 		{Name: QueueUnpublishedEvents, Count: unpublished, Href: "/v1/admin/queues/unpublished-events"},
 		{Name: QueueDeadLetters, Count: letters, Href: "/v1/admin/dead-letters"},
-	}, nil
+	}
+	summaries, err := q.MoneySummaries(ctx, StuckAfter)
+	if err != nil {
+		return nil, err
+	}
+	now := q.Clock.Now()
+	for _, kind := range money.StuckKinds() {
+		sum := summaries[kind]
+		count := QueueCount{Name: QueueStuckMoneyPrefix + kind, Count: sum.Count, Href: MoneyHref(kind)}
+		if sum.Count > 0 {
+			count.Oldest = now.Sub(sum.Oldest)
+		}
+		counts = append(counts, count)
+	}
+	return counts, nil
+}
+
+func MoneyHref(kind string) string { return "/v1/admin/queues/stuck-money?kind=" + kind }
+
+func (q Queues) MoneySummaries(ctx context.Context, olderThan time.Duration) (map[string]money.StuckSummary, error) {
+	out := map[string]money.StuckSummary{}
+	for _, reader := range q.Money {
+		rows, err := reader.Summary(ctx, olderThan)
+		if err != nil {
+			return nil, err
+		}
+		for _, row := range rows {
+			out[row.Kind] = row
+		}
+	}
+	return out, nil
+}
+
+func (q Queues) StuckMoney(
+	ctx context.Context, kind string, olderThan time.Duration, limit int,
+) ([]StuckMoneyRow, error) {
+	var rows []money.StuckRow
+	for _, reader := range q.Money {
+		part, err := reader.List(ctx, kind, olderThan, limit)
+		if err != nil {
+			return nil, err
+		}
+		rows = append(rows, part...)
+	}
+	slices.SortStableFunc(rows, func(a, b money.StuckRow) int {
+		return cmp.Or(a.Since.Compare(b.Since), cmp.Compare(a.Ref, b.Ref))
+	})
+	rows = rows[:min(len(rows), limit)]
+	now := q.Clock.Now()
+	out := make([]StuckMoneyRow, len(rows))
+	for i, r := range rows {
+		out[i] = StuckMoneyRow{
+			Kind: r.Kind, Ref: r.Ref, UserID: r.UserID, CabalID: r.CabalID, Status: r.Status, Since: r.Since,
+			Age: now.Sub(r.Since),
+		}
+	}
+	return out, nil
+}
+
+func (q Queues) OldestMoneyIntent(ctx context.Context) (time.Duration, error) {
+	summaries, err := q.MoneySummaries(ctx, 0)
+	if err != nil {
+		return 0, err
+	}
+	var oldest time.Duration
+	for kind, sum := range summaries {
+		if money.IsIntentKind(kind) && sum.Count > 0 {
+			oldest = max(oldest, q.Clock.Now().Sub(sum.Oldest))
+		}
+	}
+	return oldest, nil
 }

@@ -28,6 +28,8 @@ import (
 const (
 	WithdrawalPollInterval = 5 * time.Second
 	withdrawalBatch        = 100
+
+	EVMWithdrawalPendingAfter = 30 * time.Minute
 )
 
 type SignatureStatuses interface {
@@ -49,8 +51,9 @@ type WithdrawalPollerDeps struct {
 }
 
 type WithdrawalPoller struct {
-	d       WithdrawalPollerDeps
-	flagged sync.Map
+	d              WithdrawalPollerDeps
+	flagged        sync.Map
+	pendingFlagged sync.Map
 }
 
 func NewWithdrawalPoller(d WithdrawalPollerDeps) *WithdrawalPoller { return &WithdrawalPoller{d: d} }

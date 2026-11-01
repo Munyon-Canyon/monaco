@@ -128,7 +128,22 @@ func (p *WithdrawalPoller) resolveEVM(ctx context.Context, row sqlc.ListSubmitte
 	if out.needsSupport {
 		p.flagNeedsSupport(ctx, row)
 	}
+	if status.State == multichain.ActionPending {
+		p.flagPending(ctx, row)
+	}
 	return p.settleEVM(ctx, row, out)
+}
+
+func (p *WithdrawalPoller) flagPending(ctx context.Context, row sqlc.ListSubmittedEVMWithdrawalsRow) {
+	if !row.SubmittedAt.Valid || p.d.Clock.Now().Sub(row.SubmittedAt.Time) < EVMWithdrawalPendingAfter {
+		return
+	}
+	if _, seen := p.pendingFlagged.LoadOrStore(row.ID, struct{}{}); seen {
+		return
+	}
+	observability.Alert(ctx, observability.FundingWithdrawalEVMPending,
+		slog.String("withdrawal_id", row.ID.String()), slog.String("user_id", row.UserID.String()),
+		slog.String("privy_action_id", row.PrivyActionID), slog.Time("submitted_at", row.SubmittedAt.Time))
 }
 
 func (p *WithdrawalPoller) flagNeedsSupport(ctx context.Context, row sqlc.ListSubmittedEVMWithdrawalsRow) {

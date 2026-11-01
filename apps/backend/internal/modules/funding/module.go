@@ -305,6 +305,10 @@ func (m *Module) ExternalDeposits() *app.Bouncer { return m.Bouncer() }
 
 func (m *Module) Withdrawals() port.Withdrawals { return app.WithdrawalReads{Reads: m.deps.Pool} }
 
+func (m *Module) StuckMoney() app.StuckMoney {
+	return app.StuckMoney{Reads: m.deps.Pool, Clock: m.deps.Clock}
+}
+
 func (m *Module) Pauses() port.Pauses { return adapters.NewPauses(m.deps.Pool) }
 
 func (*Module) PausesIn(tx db.Tx) port.Pauses { return adapters.NewPauses(tx.Queries()) }

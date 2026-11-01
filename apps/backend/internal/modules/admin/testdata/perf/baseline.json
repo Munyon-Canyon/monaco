@@ -1,11 +1,12 @@
 {
   "allocs": {},
   "queries": {
-    "admin GetAdminUser": 8,
-    "admin GetAdminCabal": 12,
-    "admin GetAdminTxn": 4,
     "admin FindAdminTxn": 4,
-    "admin GetAdminQueues": 3,
+    "admin GetAdminCabal": 12,
+    "admin GetAdminQueues": 5,
+    "admin GetAdminTxn": 4,
+    "admin GetAdminUser": 8,
+    "admin GetStuckMoney": 2,
     "admin GetStuckTxns": 1,
     "admin GetUnpublishedEvents": 1
   }

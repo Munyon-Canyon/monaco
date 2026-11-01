@@ -9,7 +9,9 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/admin/adapters"
+	"github.com/monaco/monaco/apps/backend/internal/modules/admin/app"
 	adminapi "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/adminapi"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
 
@@ -109,10 +111,13 @@ func TestAdminQueue_CountsEveryQueueWithItsRoute(t *testing.T) {
 	f.clock.Advance(time.Hour)
 	var body adminapi.AdminQueues
 	queueBody(t, f, "/v1/admin/queues", &body)
-	want := []adminapi.AdminQueue{
-		{Name: "stuck_txns", Count: 1, Href: "/v1/admin/queues/stuck-txns"},
-		{Name: "unpublished_events", Count: 1, Href: "/v1/admin/queues/unpublished-events"},
-		{Name: "dead_letters", Count: 1, Href: "/v1/admin/dead-letters"},
+	want := make([]adminapi.AdminQueue, 0, 3+len(money.StuckKinds()))
+	want = append(want,
+		adminapi.AdminQueue{Name: "stuck_txns", Count: 1, Href: "/v1/admin/queues/stuck-txns"},
+		adminapi.AdminQueue{Name: "unpublished_events", Count: 1, Href: "/v1/admin/queues/unpublished-events"},
+		adminapi.AdminQueue{Name: "dead_letters", Count: 1, Href: "/v1/admin/dead-letters"})
+	for _, kind := range money.StuckKinds() {
+		want = append(want, adminapi.AdminQueue{Name: "stuck_" + kind, Href: app.MoneyHref(kind)})
 	}
 	if len(body.Queues) != len(want) {
 		t.Fatalf("queues = %+v", body.Queues)
@@ -134,6 +139,7 @@ func TestAdminQueue_QueryCount(t *testing.T) {
 	for name, path := range map[string]string{
 		"admin GetAdminQueues":       "/v1/admin/queues",
 		"admin GetStuckTxns":         "/v1/admin/queues/stuck-txns",
+		"admin GetStuckMoney":        "/v1/admin/queues/stuck-money",
 		"admin GetUnpublishedEvents": "/v1/admin/queues/unpublished-events",
 	} {
 		testkit.AssertQueries(t, name, func() {

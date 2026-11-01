@@ -612,6 +612,31 @@ func (q *Queries) MarkDepositWatchAccountDirty(ctx context.Context, arg MarkDepo
 	return result.RowsAffected(), nil
 }
 
+const rescanDepositWatchWallet = `-- name: RescanDepositWatchWallet :execrows
+UPDATE deposit_watch_accounts
+SET high_signature = NULLIF($1::text, ''),
+  high_slot = 0,
+  page_before = NULL,
+  page_top_signature = NULL,
+  page_top_slot = NULL,
+  history_floor = NULL,
+  dirty_gen = dirty_gen + 1
+WHERE wallet_address = $2::text AND state <> 'foreign'
+`
+
+type RescanDepositWatchWalletParams struct {
+	FromSignature string
+	WalletAddress string
+}
+
+func (q *Queries) RescanDepositWatchWallet(ctx context.Context, arg RescanDepositWatchWalletParams) (int64, error) {
+	result, err := q.db.Exec(ctx, rescanDepositWatchWallet, arg.FromSignature, arg.WalletAddress)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const resolveDepositCandidate = `-- name: ResolveDepositCandidate :execrows
 UPDATE deposit_candidates
 SET status = $1,

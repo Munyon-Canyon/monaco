@@ -17,6 +17,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
 	adminapi "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/adminapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/platform/poller"
 )
 
@@ -82,6 +83,7 @@ func (m *Module) queues() app.Queues {
 	return app.Queues{
 		Swaps: trading.New(m.deps).Queries(), Events: bus.NewEventLog(m.deps.Pool, m.deps.Clock),
 		Letters: adapters.DeadLetterCount{DB: m.deps.Pool}, Clock: m.deps.Clock,
+		Money: []money.StuckReader{funding.New(m.deps).StuckMoney(), treasury.New(m.deps).StuckMoney()},
 	}
 }
 
@@ -106,6 +108,7 @@ func (*Module) Consumers() []bus.Consumer {
 
 func (m *Module) Pollers() []poller.Poller {
 	meter := otel.GetMeterProvider().Meter("github.com/monaco/monaco/apps/backend/internal/modules/admin")
+	app.ObserveMoneyIntents(meter, m.queues())
 	return []poller.Poller{
 		app.NewDeadLettersPoller(app.DeadLettersDeps{
 			Source:   m.deps.Bus,

@@ -89,3 +89,8 @@ var FundingReconcileDeficit = Msg{
 	Name:     "funding.reconcile.deficit",
 	Required: []string{"cabal_id", "mint", "ledger_units", "chain_units"},
 }
+
+var FundingDepositRescanned = Msg{
+	Name:     "funding.deposit.rescanned",
+	Required: []string{"wallet_address", "from_signature", "accounts"},
+}
