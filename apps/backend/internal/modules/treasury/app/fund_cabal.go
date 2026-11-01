@@ -312,18 +312,25 @@ func (h *FundCabalHandler) submit(
 
 func (h *FundCabalHandler) failUnsent(ctx context.Context, id uuid.UUID, cause error) {
 	code := string(errs.CodeOf(cause))
+	failed := false
 	err := h.d.UoW.Do(ctx, func(ctx context.Context, tx db.Tx) error {
-		moved, err := sqlc.New(tx.Queries()).FailFundTransfer(ctx, sqlc.FailFundTransferParams{ID: id, FailCode: code})
+		moved, err := sqlc.New(tx.Queries()).FailUnsentFundTransfer(ctx,
+			sqlc.FailUnsentFundTransferParams{ID: id, FailCode: code})
 		if err == nil && moved > 0 {
 			err = db.UnbindIntent(ctx, tx.Queries(), FundCabalOperation, id)
 		}
+		failed = err == nil && moved > 0
 		return err
 	})
-	after := domain.FundFailed
-	if err != nil {
-		after = domain.FundCreated
+	after := string(domain.FundCreated)
+	switch {
+	case err != nil:
+	case failed:
+		after = string(domain.FundFailed)
+	default:
+		after = "unchanged"
 	}
 	observability.Info(ctx, observability.TreasuryFundSignFailed, slog.String("transfer_id", id.String()),
 		slog.String("code", code), slog.String("status_before", string(domain.FundCreated)),
-		slog.String("status_after", string(after)))
+		slog.String("status_after", after))
 }

@@ -26,6 +26,10 @@ WHERE id = $1 AND status = 'landed';
 UPDATE fund_transfers SET status = 'failed', fail_code = sqlc.arg(fail_code)::text
 WHERE id = $1 AND status IN ('created', 'submitted');
 
+-- name: FailUnsentFundTransfer :execrows
+UPDATE fund_transfers SET status = 'failed', fail_code = sqlc.arg(fail_code)::text
+WHERE id = $1 AND status = 'created';
+
 -- name: GetFundTransfer :one
 SELECT id, user_id, cabal_id, amount_micros::text AS amount_micros, status,
   COALESCE(share_units, 0)::text AS share_units, COALESCE(fail_code, '')::text AS fail_code
