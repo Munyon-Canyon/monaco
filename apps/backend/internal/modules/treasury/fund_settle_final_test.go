@@ -1,6 +1,7 @@
 package treasury_test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
@@ -68,5 +69,28 @@ func TestFundSettler_oneRowsWriteErrorDoesNotStopTheOthers(t *testing.T) {
 	}
 	if status, units, _ := h.status(t, good); status != "settled" || units != "5000000" {
 		t.Fatalf("good fund = %s/%s, want settled 5000000 past the other row's error", status, units)
+	}
+}
+
+func TestFundSettler_aFundAnotherRunnerAlreadyLandedIsLeftForTheNextTick(t *testing.T) {
+	t.Parallel()
+	h := newSettleHarness(t)
+	id, sig := h.submitted(t, 5_000_000)
+	h.finalize(sig)
+	h.chain.onStatuses = func() {
+		if _, err := h.pool.Exec(
+			context.Background(), `UPDATE fund_transfers SET status = 'landed', landed_at = now() WHERE id = $1`, id,
+		); err != nil {
+			t.Error(err)
+		}
+	}
+	tick, err := h.settler.Tick(h.systemCtx())
+	if err != nil || tick.Minted != 0 {
+		t.Fatalf("Tick = %+v, %v, want no mint and no error", tick, err)
+	}
+	h.chain.onStatuses = nil
+	h.tick(t)
+	if status, units, _ := h.status(t, id); status != "settled" || units != "5000000" {
+		t.Fatalf("status on the next tick = %s/%s, want settled 5000000", status, units)
 	}
 }
