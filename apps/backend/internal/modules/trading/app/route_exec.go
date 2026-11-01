@@ -138,6 +138,9 @@ func (r *RouteExec) drive(ctx context.Context, id uuid.UUID) error {
 	if err != nil || b.status != domain.StatusCreated && b.status != domain.StatusSubmitted {
 		return err
 	}
+	if b.req.Action == domain.ActionSell && b.req.InMint.Address == b.req.OutMint.Address {
+		return r.cashLeg(ctx, b)
+	}
 	if b.req.Action == domain.ActionSell {
 		return r.swapOnce(ctx, b, money.Micros{}, b.sellLeg())
 	}
@@ -268,7 +271,14 @@ func (r *RouteExec) requote(ctx context.Context, b routedBuy) (swapQuote, bool, 
 		out = quote.GrossOutput.Uint64()
 	}
 	floor := domain.SlippageOf(b.slippage).MinOut(out)
-	if floor == 0 {
+	strayed, siblingErr := false, error(nil)
+	if floor != 0 {
+		strayed, siblingErr = r.strayedFromSibling(ctx, b, quote)
+	}
+	if siblingErr != nil {
+		return swapQuote{}, true, siblingErr
+	}
+	if floor == 0 || strayed {
 		return swapQuote{}, true, r.finish(ctx, b, failed(b.req, b.id, domain.FailurePriceMoved, ""), "")
 	}
 	faultpoint.Hit(ctx, faultpoint.AfterRequote)
@@ -343,6 +353,7 @@ type routedBuy struct {
 	slippage     int32
 	solanaWallet string
 	solana       chain.SolanaAddress
+	sibling      multichain.ListingID
 	evm          multichain.EVMWallet
 	cash         chain.EVMAddress
 	token        chain.EVMAddress
@@ -377,6 +388,7 @@ func (r *RouteExec) loadRow(ctx context.Context, id uuid.UUID) (routedBuy, error
 	b := routedBuy{
 		id: id, req: req, status: domain.Status(row.Status), sent: sent,
 		fee: estimate, landed: landed, estimate: estimate, slippage: row.SlippageBps,
+		sibling: solanaSibling(comparison),
 	}
 	return r.resolve(ctx, b, comparison.Winner)
 }
@@ -427,6 +439,10 @@ func (r *RouteExec) observeOut(ctx context.Context, b routedBuy, step domain.Tra
 
 func (r *RouteExec) resolve(ctx context.Context, b routedBuy, winner multichain.ListingID) (routedBuy, error) {
 	listing, listingErr := r.d.Listings.Listing(ctx, winner)
+	if listingErr == nil && b.req.InMint.Address == b.req.OutMint.Address {
+		cash := listing.Network.Cash()
+		listing.TokenAddress, listing.Decimals, listing.Symbol = cash.Address, cash.Decimals, cash.Symbol
+	}
 	solana, solanaErr := r.d.Wallets.TreasuryWallet(ctx, b.req.CabalID)
 	evm, evmErr := r.d.TreasuryEVM.EnsureTreasuryEVMWallet(ctx, b.req.CabalID)
 	cash, cashErr := chain.ParseEVMAddress(listing.Network.Cash().Address)

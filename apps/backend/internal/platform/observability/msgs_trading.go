@@ -86,7 +86,14 @@ var TradingEVMCashReturnQueued = Msg{
 	Name: "trading.evm_cash_return.queued",
 	Required: []string{
 		"swap_id", "requested_swap_id", "cabal_id", "network", "landed_micros", "on_chain_micros", "amount_micros",
-		"actor", "reason",
+		"uncovered_micros", "actor", "reason",
+	},
+}
+
+var TradingEVMCashUncovered = Msg{
+	Name: "trading.evm_cash_return.uncovered",
+	Required: []string{
+		"swap_id", "cabal_id", "network", "landed_micros", "on_chain_micros", "uncovered_micros", "actor", "reason",
 	},
 }
 

@@ -39,9 +39,20 @@ func (c *cashBalance) Balance(context.Context, chain.Network, chain.EVMAddress) 
 	return money.MicrosFromUint64(got), nil
 }
 
+type cashWriteOffsFake struct{ offs *[]tradingapp.EVMCashWriteOff }
+
+func (w cashWriteOffsFake) WriteOff(_ context.Context, _ db.Tx, off tradingapp.EVMCashWriteOff) error {
+	*w.offs = append(*w.offs, off)
+	return nil
+}
+
 func fakeCashPorts(cash tradingapp.EVMCash) cashPorts {
 	return func(config.Config, *pgxpool.Pool, *db.UnitOfWork, clock.Clock) cashAdapters {
-		return cashAdapters{Wallets: cashWallets{}, Cash: cash}
+		return cashAdapters{
+			Wallets:   cashWallets{},
+			Cash:      cash,
+			WriteOffs: cashWriteOffsFake{offs: &[]tradingapp.EVMCashWriteOff{}},
+		}
 	}
 }
 
@@ -100,7 +111,7 @@ func TestSwapsReturnEVMCash_queuesTheReturnPrintsThePlanAndRecordsTheOperator(t 
 	wantContains(t, "stderr", stderr, "[y/N]")
 	wantContains(t, "stdout", out,
 		"plan swap="+swap.String()+" requested="+swap.String(),
-		"network=base landed_micros=24992500 on_chain_micros=24000000 amount_micros=24000000",
+		"network=base landed_micros=24992500 on_chain_micros=24000000 amount_micros=24000000 uncovered_micros=992500",
 		"queued swap="+swap.String(), "status=pending",
 	)
 	var step, action string

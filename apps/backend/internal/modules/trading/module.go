@@ -368,6 +368,9 @@ func (m *Module) modulePorts() EnginePorts {
 	if p.Positions == nil {
 		p.Positions = app.UnwiredPositions{}
 	}
+	if p.Calendar == nil {
+		p.Calendar = market.New(m.deps).Calendar()
+	}
 	return p
 }
 

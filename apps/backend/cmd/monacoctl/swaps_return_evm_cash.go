@@ -14,6 +14,9 @@ import (
 	tradingadapters "github.com/monaco/monaco/apps/backend/internal/modules/trading/adapters"
 	tradingchain "github.com/monaco/monaco/apps/backend/internal/modules/trading/adapters/chain"
 	tradingapp "github.com/monaco/monaco/apps/backend/internal/modules/trading/app"
+	treasuryapp "github.com/monaco/monaco/apps/backend/internal/modules/treasury/app"
+	treasurydomain "github.com/monaco/monaco/apps/backend/internal/modules/treasury/domain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/solana"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
@@ -25,9 +28,10 @@ import (
 )
 
 type cashAdapters struct {
-	Wallets tradingapp.TreasuryEVM
-	Cash    tradingapp.EVMCash
-	Chain   tradingapp.ChainReader
+	Wallets   tradingapp.TreasuryEVM
+	Cash      tradingapp.EVMCash
+	WriteOffs tradingapp.EVMCashWriteOffs
+	Chain     tradingapp.ChainReader
 
 	Receipts tradingapp.RoutedReceiptReader
 }
@@ -38,14 +42,23 @@ func liveCashPorts(cfg config.Config, pool *pgxpool.Pool, uow *db.UnitOfWork, cl
 	deps := module.Deps{Config: cfg, Clock: clk, IDs: ids.Real{}, Pool: pool, UoW: uow, HTTPClient: httpclient.New}
 	wallets := cabal.New(deps).TreasuryEVMWallets()
 	return cashAdapters{
-		Wallets: wallets,
-		Cash:    tradingadapters.NewEVMCash(tradingadapters.EVMRPC(deps)),
-		Chain:   tradingchain.NewReader(solana.New(cfg, clk)),
+		Wallets:   wallets,
+		Cash:      tradingadapters.NewEVMCash(tradingadapters.EVMRPC(deps)),
+		WriteOffs: cashWriteOffs{ledger: treasuryapp.NewLedger(chain.SolanaAddress(cfg.Solana.USDCMint), clk)},
+		Chain:     tradingchain.NewReader(solana.New(cfg, clk)),
 		Receipts: tradingapp.RoutedReceipts{
 			Reads: pool, Listings: market.New(deps).Catalog(), Wallets: wallets,
 			Venue: tradingadapters.NewEVMVenue(nil, "", tradingadapters.EVMRPC(deps), clk),
 		},
 	}
+}
+
+type cashWriteOffs struct{ ledger treasuryapp.Ledger }
+
+func (w cashWriteOffs) WriteOff(ctx context.Context, tx db.Tx, off tradingapp.EVMCashWriteOff) error {
+	return w.ledger.WriteOffEVMCash(ctx, tx, treasurydomain.CashWriteOff{
+		SwapID: off.SwapID.UUID(), CabalID: off.CabalID, Network: off.Network, Amount: off.Amount,
+	})
 }
 
 func parseReturnEVMCash(environ []string, args []string) (tradingapp.ReturnEVMCash, bool, bool) {
@@ -81,7 +94,15 @@ func returnEVMCash(environ []string, clk clock.Clock, stdin io.Reader, ports cas
 		defer pool.Close()
 		uow := db.New(pool, ids.Real{}, clk)
 		adapters := ports(cfg, pool, uow, clk)
-		handler := tradingapp.NewReturnEVMCashHandler(uow, pool, clk, ids.Real{}, adapters.Wallets, adapters.Cash)
+		handler := tradingapp.NewReturnEVMCashHandler(
+			uow,
+			pool,
+			clk,
+			ids.Real{},
+			adapters.Wallets,
+			adapters.Cash,
+			adapters.WriteOffs,
+		)
 		plan, err := handler.Plan(ctx, cmd.SwapID)
 		if err != nil {
 			return fail(stderr, err)
@@ -101,6 +122,15 @@ func returnEVMCash(environ []string, clk clock.Clock, stdin io.Reader, ports cas
 }
 
 func evmCashLine(r tradingapp.EVMCashReturn) string {
-	return fmt.Sprintf("swap=%s requested=%s cabal=%s network=%s landed_micros=%s on_chain_micros=%s amount_micros=%s",
-		r.Holder.UUID(), r.Requested.UUID(), r.CabalID.UUID(), r.Network, r.Landed, r.OnChain, r.Amount)
+	return fmt.Sprintf(
+		"swap=%s requested=%s cabal=%s network=%s landed_micros=%s on_chain_micros=%s amount_micros=%s uncovered_micros=%s",
+		r.Holder.UUID(),
+		r.Requested.UUID(),
+		r.CabalID.UUID(),
+		r.Network,
+		r.Landed,
+		r.OnChain,
+		r.Amount,
+		r.Uncovered,
+	)
 }

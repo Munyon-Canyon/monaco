@@ -381,7 +381,7 @@ func TestEVMArrivals_refusesWhatItCannotRead(t *testing.T) {
 	}
 	block := func(method string) (int, string) {
 		if method == "eth_blockNumber" {
-			return ok(`"0x10"`)
+			return ok(`"0x1000"`)
 		}
 		return ok(`{"timestamp":"0x7fffffff"}`)
 	}
@@ -471,5 +471,54 @@ func TestEVMArrivals_resumesFromItsCursorAfterARateLimitAndBacksOff(t *testing.T
 	}
 	if want := []uint64{3_880, 3_980, 4_080, 4_180, 4_280}; !slices.Equal(firsts, want) {
 		t.Fatalf("first block per tick = %v, want %v", firsts, want)
+	}
+}
+
+func TestEVMArrivals_waitsForTheChainsSafeDepth(t *testing.T) {
+	t.Parallel()
+	for name, tc := range map[string]struct {
+		network chain.Network
+		depth   uint64
+	}{
+		"robinhood": {chain.NetworkRobinhood, 240},
+		"base":      {chain.NetworkBase, 30},
+		"unlisted":  {chain.NetworkSolana, 32},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			c := newFakeChain()
+			token := rhUSDG
+			if tc.network == chain.NetworkBase {
+				token = chain.NetworkBase.Cash().Address
+			}
+			c.logs = []chainLog{
+				{
+					block:  c.head - tc.depth + 1,
+					token:  token,
+					from:   rhBridge,
+					to:     rhTreasury,
+					amount: 972_507,
+					tx:     txHash(1),
+				},
+			}
+			srv := httptest.NewServer(c)
+			t.Cleanup(srv.Close)
+			rpc := httpclient.New("evm-rpc-test", httpclient.WithBaseURL(srv.URL), httpclient.WithTimeout(time.Second))
+			a := adapters.NewEVMArrivals(map[chain.Network]*httpclient.Client{tc.network: rpc}, 50_000, c.clock)
+			arrive := func() (app.EVMArrival, bool, error) {
+				return a.Inbound(t.Context(), tc.network, evmAddress(t, token), evmAddress(t, rhTreasury),
+					c.blockAt(4_000), money.MicrosFromUint64(1_000_000), nil)
+			}
+
+			if _, found, err := arrive(); err != nil || found {
+				t.Fatalf("Inbound inside the safe depth = %v, %v, want not found", found, err)
+			}
+			c.mu.Lock()
+			c.head++
+			c.mu.Unlock()
+			if got, found, err := arrive(); err != nil || !found || got.TxHash != txHash(1) {
+				t.Fatalf("Inbound at the safe depth = %+v, %v, %v, want the transfer", got, found, err)
+			}
+		})
 	}
 }

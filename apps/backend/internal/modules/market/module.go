@@ -68,6 +68,10 @@ type CompanyListings interface {
 
 type SessionInfo = domain.SessionInfo
 
+type SessionState = domain.State
+
+const SessionClosed = domain.StateClosed
+
 type Calendar interface {
 	Session(ctx context.Context, id AssetID, at time.Time) (SessionInfo, error)
 }

@@ -41,6 +41,7 @@ The gauge `monaco_oldest_unresolved_money_intent_seconds` is the age of the olde
 | `trading.routed_swap.parked` | `monacoctl swaps parked`, then `swaps unpark --swap <id> --reason <text>` or `swaps fail-parked --swap <id> --reason <text>` | A parked swap had no receipt. Check the EVM receipt first. Failing a swap that landed loses the leg. |
 | `trading.bridge_back.failed` | `monacoctl swaps failed-bridge-backs`, then `swaps retry-bridge-back --swap <id> --reason <text>` | Confirm with Privy that the earlier bridge did not finish. |
 | `trading.evm_cash_return.queued` | `monacoctl swaps return-evm-cash --swap <id> --reason <text>` | Compare the landed amount with the on-chain amount in the log line. |
+| `trading.evm_cash_return.uncovered` | None: the return already wrote the gap off | The wallet held less than the ledger. Find where the missing cash went before the next cash out. |
 | Cash-out sales bigger than the pot cash | `monacoctl swaps overstated-sells` | The command lists them. It changes nothing. |
 
 ## Events and dead letters

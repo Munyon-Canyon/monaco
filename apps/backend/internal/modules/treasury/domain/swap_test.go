@@ -10,6 +10,7 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/domain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
@@ -83,4 +84,27 @@ func TestSwapProperty_aBuyBalancesPerAssetAndCostsWhatTheTreasuryPaid(t *testing
 			}
 		}
 	})
+}
+
+func TestNewSwapTxn_aCashLegSoldForItselfNetsToNothing(t *testing.T) {
+	t.Parallel()
+	cash := domain.EVMCashAsset(chain.NetworkBase)
+	txn, err := domain.NewSwapTxn(testkit.NewIDs(1).NewV7(), domain.Swap{
+		ID:  testkit.NewIDs(2).NewV7(),
+		In:  domain.Leg{Asset: cash, Amount: 40_000_000},
+		Out: domain.Leg{Asset: cash, Amount: 40_000_000},
+	}, usdc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	net := map[domain.CabalAccount]int64{}
+	for _, e := range txn.Entries() {
+		if e.Asset != cash {
+			t.Fatalf("entry %+v, want only the EVM cash asset", e)
+		}
+		net[e.Account] += e.Amount.Int64()
+	}
+	if net[domain.CabalTreasury] != 0 || net[domain.CabalVenue] != 0 {
+		t.Fatalf("net by account = %v, want the treasury and venue unchanged", net)
+	}
 }

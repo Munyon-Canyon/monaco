@@ -531,3 +531,33 @@ func TestTradeSteps_aRetryThatAdoptsTheFirstActionLandsTheSolanaUSDCOnce(t *test
 		position{Asset: baseCash, Units: "0", Cost: "0"})
 	wantInTransit(t, f, cabal)
 }
+
+func TestTradeSteps_aCashLegSoldForItselfThenBridgedBackMovesTheEVMCashToSolanaUSDC(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	cabal := f.funded(t)
+	f.bridgedOut(t, cabal, 20_000_000, 0)
+	swap := f.ids.NewV7()
+	cashLeg := events.TradeConfirmed{
+		V: 1, SwapID: swap, CabalID: cabal.UUID(), Action: "sell", Symbol: "USDC",
+		InMint: chain.SolanaAddress(baseCash), InAmount: 15_000_000,
+		OutMint: chain.SolanaAddress(baseCash), OutAmount: 15_000_000,
+		USDCMicros: money.MicrosFromUint64(15_000_000), ConfirmedAt: confirmedAt(),
+	}
+
+	if err := f.confirm(t, cashLeg); err != nil {
+		t.Fatal(err)
+	}
+	wantBridgePositions(t, f,
+		position{Asset: usdcMint, Units: "80000000", Cost: "80000000"},
+		position{Asset: baseCash, Units: "20000000", Cost: "20000000"},
+	)
+
+	back := bridgeRun{f: f, cabal: cabal, swap: swap, step: "bridge_back"}
+	back.submitted(t, 15_000_000)
+	back.succeeded(t, 15_000_000, 2_500)
+	wantBridgePositions(t, f,
+		position{Asset: usdcMint, Units: "94997500", Cost: "94997500"},
+		position{Asset: baseCash, Units: "5000000", Cost: "5000000"},
+	)
+}

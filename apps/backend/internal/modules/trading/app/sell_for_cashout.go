@@ -283,7 +283,7 @@ func (h *SellForCashOutHandler) quote(ctx context.Context, cabal ids.CabalID) ([
 		if held.Mint.Address == h.d.USDC.Address || held.Units == 0 {
 			continue
 		}
-		lot, err := h.value(ctx, held)
+		lot, err := h.value(ctx, cabal, held)
 		if err != nil {
 			return nil, err
 		}
@@ -294,8 +294,11 @@ func (h *SellForCashOutHandler) quote(ctx context.Context, cabal ids.CabalID) ([
 	return lots, nil
 }
 
-func (h *SellForCashOutHandler) value(ctx context.Context, held Holding) (domain.Lot, error) {
+func (h *SellForCashOutHandler) value(ctx context.Context, cabal ids.CabalID, held Holding) (domain.Lot, error) {
 	lot := domain.Lot{Mint: held.Mint, Symbol: held.Symbol, Units: held.Units}
+	if network, ok := evmCashNetwork(string(held.Mint.Address)); ok {
+		return h.cashLot(ctx, cabal, network, lot)
+	}
 	if isEVMAsset(string(held.Mint.Address)) {
 		sale, err := h.d.EVMSales.Sale(ctx, string(held.Mint.Address), held.Units)
 		if err != nil {
@@ -311,6 +314,18 @@ func (h *SellForCashOutHandler) value(ctx context.Context, held Holding) (domain
 	}
 	lot.QuoteUSDC = q.OutAmount
 	return lot, nil
+}
+
+func (h *SellForCashOutHandler) cashLot(
+	ctx context.Context, cabal ids.CabalID, network chain.Network, lot domain.Lot,
+) (domain.Lot, error) {
+	listing, units, err := h.d.Routes.CashLeg(ctx, cabal, network, lot.Units)
+	if err != nil || units == 0 {
+		return domain.Lot{}, err
+	}
+	fee, err := money.MulDiv(units, bridgeBackEstimateBps, bridgeBackEstimateOf)
+	lot.Units, lot.QuoteUSDC, lot.Listing = units, units-fee, &listing
+	return lot, err
 }
 
 func (h *SellForCashOutHandler) store(ctx context.Context, cmd SellForCashOut, raw []byte, legs bool) (bool, error) {
