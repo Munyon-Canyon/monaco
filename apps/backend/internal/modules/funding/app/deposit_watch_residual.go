@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"math/big"
 	"time"
@@ -9,6 +10,7 @@ import (
 	"go.opentelemetry.io/otel/metric"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
+	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
@@ -20,6 +22,8 @@ import (
 
 const (
 	DepositResidualInterval = time.Hour
+
+	DepositCandidateReemitAfter = 15 * time.Minute
 
 	residualAlertStreak = 2
 )
@@ -40,14 +44,17 @@ func (b *watchBudget) timeUp(now time.Time) bool {
 }
 
 func (p *DepositWatch) reconcile(ctx context.Context, budget *watchBudget) (int, int, error) {
-	rows, err := sqlc.New(p.reads).DepositWatchReconcileWallets(ctx, sqlc.DepositWatchReconcileWalletsParams{
-		Now: p.clock.Now(), RowLimit: depositWatchDirtyBatch,
+	freshSince := p.clock.Now().Add(-DepositCandidateReemitAfter)
+	q := sqlc.New(p.reads)
+	rows, err := q.DepositWatchReconcileWallets(ctx, sqlc.DepositWatchReconcileWalletsParams{
+		Now: p.clock.Now(), FreshSince: freshSince, RowLimit: depositWatchDirtyBatch,
 	})
 	if err != nil {
 		return 0, 0, errs.Wrap(err, errs.CodeOf(err), "funding.DepositWatch.reconcile")
 	}
 	updates := make([]sqlc.SetDepositWatchReconcileParams, 0, len(rows))
 	var alerts []residualAlert
+	var wallets []string
 	for _, row := range rows {
 		if budget.timeUp(p.clock.Now()) {
 			break
@@ -60,8 +67,16 @@ func (p *DepositWatch) reconcile(ctx context.Context, budget *watchBudget) (int,
 		if alert != nil {
 			alerts = append(alerts, *alert)
 		}
+		wallets = append(wallets, row.WalletAddress)
 	}
-	if err := p.saveReconcile(ctx, updates); err != nil {
+	stale, staleErr := q.StalePendingDepositCandidates(ctx, sqlc.StalePendingDepositCandidatesParams{
+		WalletAddresses: wallets, FreshSince: freshSince,
+	})
+	var saveErr error
+	if staleErr == nil {
+		saveErr = p.saveReconcile(ctx, updates, stale)
+	}
+	if err := errors.Join(staleErr, saveErr); err != nil {
 		return 0, 0, err
 	}
 	for _, alert := range alerts {
@@ -70,10 +85,12 @@ func (p *DepositWatch) reconcile(ctx context.Context, budget *watchBudget) (int,
 			slog.String("residual_micros", alert.residual), slog.String("observed_micros", alert.observed),
 			slog.String("ledger_micros", alert.ledger))
 	}
-	return len(updates), 0, nil
+	return len(updates), len(stale), nil
 }
 
-func (p *DepositWatch) saveReconcile(ctx context.Context, updates []sqlc.SetDepositWatchReconcileParams) error {
+func (p *DepositWatch) saveReconcile(
+	ctx context.Context, updates []sqlc.SetDepositWatchReconcileParams, stale []sqlc.StalePendingDepositCandidatesRow,
+) error {
 	if len(updates) == 0 {
 		return nil
 	}
@@ -84,12 +101,33 @@ func (p *DepositWatch) saveReconcile(ctx context.Context, updates []sqlc.SetDepo
 				return err
 			}
 		}
+		for _, row := range stale {
+			if err := tx.Events.Append(ctx, p.reemit(row)); err != nil {
+				return err
+			}
+			tx.AfterCommit(func(ctx context.Context) {
+				observability.Info(ctx, observability.FundingCandidateReemitted,
+					slog.String("wallet_address", row.WalletAddress), slog.String("tx_signature", row.TxSignature))
+			})
+		}
 		return nil
 	})
 	if err != nil {
 		return errs.Wrap(err, errs.CodeOf(err), "funding.DepositWatch.saveReconcile")
 	}
 	return nil
+}
+
+func (p *DepositWatch) reemit(row sqlc.StalePendingDepositCandidatesRow) events.DepositCandidateSeen {
+	var blockTime time.Time
+	if row.BlockTime.Valid {
+		blockTime = row.BlockTime.Time
+	}
+	return events.DepositCandidateSeen{
+		V: 1, CandidateID: p.ids.NewV7(), UserID: row.UserID, WalletAddress: chain.SolanaAddress(row.WalletAddress),
+		TxSignature: chain.Signature(row.TxSignature), Slot: row.Slot, BlockTime: optionalTime(blockTime),
+		Source: row.Source,
+	}
 }
 
 type residualAlert struct {

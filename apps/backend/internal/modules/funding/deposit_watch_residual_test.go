@@ -12,6 +12,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
+	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
@@ -20,6 +21,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
@@ -232,22 +234,135 @@ func TestDepositResidual_PendingLedgerRowsMakeTheCheckInconclusive(t *testing.T)
 	}
 }
 
-func TestDepositResidual_PendingCandidatesMakeTheCheckInconclusive(t *testing.T) {
-	t.Parallel()
-	e := newResidualEnv(t, "0", 5_000_000)
-	f := candidateFixture{
+func (e *residualEnv) candidates(t *testing.T) candidateFixture {
+	t.Helper()
+	return candidateFixture{
 		pool: e.pool, uow: db.New(e.pool, testkit.NewIDs(412), e.clock), ids: testkit.NewIDs(413), now: e.clock.Now(),
 		user: e.user,
 	}
+}
+
+func (e *residualEnv) seenEvents(t *testing.T) int {
+	t.Helper()
+	var n int
+	if err := e.pool.QueryRow(
+		t.Context(), `SELECT count(*) FROM events WHERE type = 'deposit.candidate_seen'`,
+	).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	return n
+}
+
+func TestDepositResidual_AFreshPendingCandidateMakesTheCheckInconclusive(t *testing.T) {
+	t.Parallel()
+	e := newResidualEnv(t, "0", 5_000_000)
+	e.candidates(t).record(t, e.candidates(t).candidate())
+	e.clock.Advance(app.DepositCandidateReemitAfter - time.Minute)
+	if err := e.tick(t); err != nil {
+		t.Fatal(err)
+	}
+	if e.alerts() != 0 || e.streak(t) != 0 || e.seenEvents(t) != 1 {
+		t.Fatalf("alerts = %d, streak = %d, %d seen events; want no alert, no streak and no re-emit",
+			e.alerts(), e.streak(t), e.seenEvents(t))
+	}
+}
+
+func TestDepositResidual_AStalePendingCandidateIsReEmittedAndTheCheckSeesThePastIt(t *testing.T) {
+	t.Parallel()
+	e := newResidualEnv(t, "0", 5_000_000)
+	f := e.candidates(t)
 	f.record(t, f.candidate())
-	for range 3 {
-		if err := e.tick(t); err != nil {
+	e.clock.Advance(app.DepositCandidateReemitAfter + time.Minute)
+	if err := e.tick(t); err != nil {
+		t.Fatal(err)
+	}
+	if e.seenEvents(t) != 2 || e.streak(t) != 1 {
+		t.Fatalf("%d seen events, streak %d; want the candidate re-emitted once and the residual counted",
+			e.seenEvents(t), e.streak(t))
+	}
+	var distinct int
+	if err := e.pool.QueryRow(t.Context(), `SELECT count(DISTINCT payload->>'candidate_id') FROM events
+		WHERE type = 'deposit.candidate_seen'`).Scan(&distinct); err != nil || distinct != 2 {
+		t.Fatalf("%d distinct candidate ids, %v; want the re-emit to carry its own id", distinct, err)
+	}
+	e.nextCheck(t)
+	if err := e.tick(t); err != nil {
+		t.Fatal(err)
+	}
+	if e.seenEvents(t) != 3 || e.alerts() != 1 {
+		t.Fatalf("%d seen events, %d alerts; want a second re-emit and the residual alert", e.seenEvents(t), e.alerts())
+	}
+}
+
+func TestDepositResidual_AReEmittedCandidateCreditsTheDepositOnce(t *testing.T) {
+	t.Parallel()
+	e := newResidualEnv(t, "0", 5_000_000)
+	f := e.candidates(t)
+	f.record(t, f.candidate())
+	e.clock.Advance(app.DepositCandidateReemitAfter + time.Minute)
+	if err := e.tick(t); err != nil {
+		t.Fatal(err)
+	}
+	var raw []byte
+	if err := e.pool.QueryRow(t.Context(), `SELECT payload FROM events WHERE type = 'deposit.candidate_seen'
+		ORDER BY id DESC LIMIT 1`).Scan(&raw); err != nil {
+		t.Fatal(err)
+	}
+	decoded, err := events.Decode(events.TypeDepositCandidateSeen, 1, raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	seen, ok := decoded.(events.DepositCandidateSeen)
+	if !ok {
+		t.Fatalf("decoded %T, want DepositCandidateSeen", decoded)
+	}
+	resolver := candidateResolver(f, candidateRPC{})
+	resolution := app.DepositCandidateResolution{Amount: money.MicrosFromUint64(5_000_000)}
+	for range 2 {
+		if err := f.applyContext(t.Context(), resolver, seen, resolution); err != nil {
 			t.Fatal(err)
 		}
-		e.nextCheck(t)
 	}
-	if e.alerts() != 0 || e.streak(t) != 0 {
-		t.Fatalf("alerts = %d, streak = %d; want none with a pending candidate", e.alerts(), e.streak(t))
+	var deposits int
+	if err := e.pool.QueryRow(t.Context(), `SELECT count(*) FROM deposits`).Scan(&deposits); err != nil ||
+		deposits != 1 || f.candidateStatus(t, depositSignature) != "credited" {
+		t.Fatalf("%d deposits, status %q, %v; want the re-emit to credit once", deposits,
+			f.candidateStatus(t, depositSignature), err)
+	}
+}
+
+func TestDepositResidual_AReEmitThatCannotBeWrittenFailsTheStepAndChangesNothing(t *testing.T) {
+	t.Parallel()
+	e := newResidualEnv(t, "0", 5_000_000)
+	f := e.candidates(t)
+	f.record(t, f.candidate())
+	if _, err := e.pool.Exec(t.Context(), `CREATE FUNCTION refuse_seen() RETURNS trigger LANGUAGE plpgsql AS
+		$$BEGIN RAISE EXCEPTION 'refused'; END$$;
+		CREATE TRIGGER refuse_seen BEFORE INSERT ON events FOR EACH ROW WHEN (NEW.type = 'deposit.candidate_seen')
+		EXECUTE FUNCTION refuse_seen()`); err != nil {
+		t.Fatal(err)
+	}
+	e.clock.Advance(app.DepositCandidateReemitAfter + time.Minute)
+	if err := e.tick(t); err == nil || e.streak(t) != 0 || e.seenEvents(t) != 1 {
+		t.Fatalf("tick = %v, streak %d, %d seen events; want the error and nothing written",
+			err, e.streak(t), e.seenEvents(t))
+	}
+}
+
+func TestDepositResidual_AResolvedCandidateIsNotReEmitted(t *testing.T) {
+	t.Parallel()
+	e := newResidualEnv(t, "0", 0)
+	f := e.candidates(t)
+	f.record(t, f.candidate())
+	if _, err := e.pool.Exec(
+		t.Context(),
+		`UPDATE deposit_candidates SET status = 'credited', resolved_at = now()`,
+	); err != nil {
+		t.Fatal(err)
+	}
+	e.clock.Advance(app.DepositCandidateReemitAfter + time.Minute)
+	if err := e.tick(t); err != nil || e.seenEvents(t) != 1 {
+		t.Fatalf("tick = %v with %d seen events, want the credited candidate left alone", err, e.seenEvents(t))
 	}
 }
 

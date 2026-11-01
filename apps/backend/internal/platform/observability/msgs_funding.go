@@ -15,6 +15,11 @@ var FundingCandidateRecorded = Msg{
 	Required: []string{"wallet_address"},
 }
 
+var FundingCandidateReemitted = Msg{
+	Name:     "funding.candidate.reemitted",
+	Required: []string{"wallet_address", "tx_signature"},
+}
+
 var FundingCandidateResolved = Msg{
 	Name:     "funding.candidate.resolved",
 	Required: []string{"wallet_address", "amount_micros"},

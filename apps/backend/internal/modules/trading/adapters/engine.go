@@ -4,6 +4,8 @@ import (
 	"context"
 	"slices"
 
+	"github.com/google/uuid"
+
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/domain"
@@ -39,9 +41,12 @@ func (e Engine) HandleRetry(ctx context.Context, d bus.Delivery, ev events.Trade
 		ProposalID: ids.ProposalIDFrom(ev.Source.ID), CabalID: ids.CabalIDFrom(ev.CabalID),
 		Action: domain.Action(ev.Action), Symbol: ev.Symbol, Mint: ev.OutMint,
 		USDCMicros: money.MicrosFromUint64(ev.InAmount), QuoteOutAmount: ev.QuoteOutAmount,
-		Retry: &app.Retry{
+		Pin: ev.Network,
+	}
+	if ev.SwapID != uuid.Nil {
+		cmd.Retry = &app.Retry{
 			Of: ids.SwapIDFrom(ev.SwapID), SlippageBps: ev.SlippageBps, AtCurrentPrice: ev.AtCurrentPrice,
-		},
+		}
 	}
 	if cmd.Action == domain.ActionSell {
 		cmd.Mint, cmd.USDCMicros, cmd.TokenAmount = ev.InMint, money.Micros{}, ev.InAmount

@@ -51,3 +51,23 @@ WHERE id = sqlc.arg(id)::uuid AND status = sqlc.arg(from_status)::text;
 UPDATE user_txns SET status = 'failed'
 WHERE transfer_id = sqlc.arg(transfer_id)::uuid AND status = 'pending'
   AND NOT EXISTS (SELECT 1 FROM cabal_txns WHERE transfer_id = sqlc.arg(transfer_id)::uuid);
+
+-- name: CashOutSalesStuck :many
+SELECT j.id, j.cabal_id, j.user_id, j.share_units::text AS share_units, j.payout_micros::text AS payout_micros,
+  j.sell_usdc_micros::text AS sell_usdc_micros, j.cause, j.created_at
+FROM cash_out_jobs AS j
+WHERE j.status IN ('started', 'selling') AND j.sell_usdc_micros > 0
+  AND j.updated_at < sqlc.arg(stale_before)::timestamptz
+  AND NOT EXISTS (
+    SELECT 1 FROM swaps AS s
+    WHERE s.source_kind = 'cashout' AND s.source_id = j.id AND s.status IN ('created', 'submitted'))
+ORDER BY j.updated_at, j.id
+LIMIT sqlc.arg(max_rows)::integer;
+
+-- name: ClaimStuckCashOutSale :execrows
+UPDATE cash_out_jobs AS j SET updated_at = sqlc.arg(at)::timestamptz
+WHERE j.id = sqlc.arg(id)::uuid AND j.status IN ('started', 'selling')
+  AND j.updated_at < sqlc.arg(stale_before)::timestamptz
+  AND NOT EXISTS (
+    SELECT 1 FROM swaps AS s
+    WHERE s.source_kind = 'cashout' AND s.source_id = j.id AND s.status IN ('created', 'submitted'));

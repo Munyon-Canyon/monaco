@@ -122,6 +122,7 @@ type TradeRetryRequested struct {
 	SlippageBps    int32               `json:"slippage_bps"`
 	RequestedBy    uuid.UUID           `json:"requested_by"`
 	AtCurrentPrice bool                `json:"at_current_price,omitempty"`
+	Network        chain.Network       `json:"network,omitempty"`
 }
 
 func (TradeRetryRequested) Type() Type { return TypeTradeRetryRequested }

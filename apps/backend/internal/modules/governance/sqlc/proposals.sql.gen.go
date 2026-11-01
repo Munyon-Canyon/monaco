@@ -524,6 +524,49 @@ func (q *Queries) Reopen(ctx context.Context, arg ReopenParams) (int64, error) {
 	return result.RowsAffected(), nil
 }
 
+const reopenUnstarted = `-- name: ReopenUnstarted :one
+UPDATE proposals
+SET status = 'passed', status_reason = NULL, updated_at = $1::timestamptz
+WHERE id = $2 AND status = 'execution_blocked' AND status_reason = 'trade_not_started'
+RETURNING id, cabal_id, kind, coalesce(symbol, '')::text AS symbol, coalesce(mint, '')::text AS mint,
+  coalesce(usdc_micros, 0)::bigint AS usdc_micros, coalesce(token_amount, 0)::bigint AS token_amount,
+  coalesce(quote_out_amount, 0)::bigint AS quote_out_amount, coalesce(network, '')::text AS network
+`
+
+type ReopenUnstartedParams struct {
+	At time.Time
+	ID uuid.UUID
+}
+
+type ReopenUnstartedRow struct {
+	ID             uuid.UUID
+	CabalID        uuid.UUID
+	Kind           string
+	Symbol         string
+	Mint           string
+	UsdcMicros     int64
+	TokenAmount    int64
+	QuoteOutAmount int64
+	Network        string
+}
+
+func (q *Queries) ReopenUnstarted(ctx context.Context, arg ReopenUnstartedParams) (ReopenUnstartedRow, error) {
+	row := q.db.QueryRow(ctx, reopenUnstarted, arg.At, arg.ID)
+	var i ReopenUnstartedRow
+	err := row.Scan(
+		&i.ID,
+		&i.CabalID,
+		&i.Kind,
+		&i.Symbol,
+		&i.Mint,
+		&i.UsdcMicros,
+		&i.TokenAmount,
+		&i.QuoteOutAmount,
+		&i.Network,
+	)
+	return i, err
+}
+
 const retryableByID = `-- name: RetryableByID :one
 SELECT (status = 'passed' OR (status = 'execution_blocked' AND status_reason = 'swap_failed'))::bool
 FROM proposals WHERE id = $1

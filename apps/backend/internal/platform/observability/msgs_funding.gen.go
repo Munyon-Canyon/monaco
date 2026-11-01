@@ -7,6 +7,7 @@ func init() {
 		FundingDepositDuplicate,
 		FundingDepositCredited,
 		FundingCandidateRecorded,
+		FundingCandidateReemitted,
 		FundingCandidateResolved,
 		FundingCandidateDismissed,
 		FundingCandidateUnresolved,

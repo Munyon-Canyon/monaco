@@ -133,7 +133,9 @@ SELECT w.wallet_address, w.user_id, coalesce(w.opening_micros::text, '')::text A
   coalesce(sum(a.last_amount) FILTER (WHERE a.state = 'open'), 0)::text AS observed,
   coalesce(bool_or(a.dirty_gen > a.clean_gen), false)::boolean AS dirty,
   EXISTS (
-    SELECT 1 FROM deposit_candidates c WHERE c.wallet_address = w.wallet_address AND c.status = 'pending'
+    SELECT 1 FROM deposit_candidates c
+    WHERE c.wallet_address = w.wallet_address AND c.status = 'pending'
+      AND c.seen_at >= sqlc.arg(fresh_since)::timestamptz
   )::boolean AS pending_candidates
 FROM deposit_watch_wallets w
 JOIN deposit_watch_accounts a ON a.wallet_address = w.wallet_address
@@ -142,6 +144,13 @@ GROUP BY w.wallet_address
 HAVING bool_and(a.observed_slot > 0)
 ORDER BY w.reconcile_due_at, w.wallet_address
 LIMIT sqlc.arg(row_limit)::int;
+
+-- name: StalePendingDepositCandidates :many
+SELECT tx_signature, wallet_address, user_id, slot, block_time, source
+FROM deposit_candidates
+WHERE wallet_address = ANY(sqlc.arg(wallet_addresses)::text[]) AND status = 'pending'
+  AND seen_at < sqlc.arg(fresh_since)::timestamptz
+ORDER BY seen_at, tx_signature;
 
 -- name: SetDepositWatchReconcile :exec
 UPDATE deposit_watch_wallets

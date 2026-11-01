@@ -117,6 +117,87 @@ func (q *Queries) CashOutPayoutsDue(ctx context.Context, arg CashOutPayoutsDuePa
 	return items, nil
 }
 
+const cashOutSalesStuck = `-- name: CashOutSalesStuck :many
+SELECT j.id, j.cabal_id, j.user_id, j.share_units::text AS share_units, j.payout_micros::text AS payout_micros,
+  j.sell_usdc_micros::text AS sell_usdc_micros, j.cause, j.created_at
+FROM cash_out_jobs AS j
+WHERE j.status IN ('started', 'selling') AND j.sell_usdc_micros > 0
+  AND j.updated_at < $1::timestamptz
+  AND NOT EXISTS (
+    SELECT 1 FROM swaps AS s
+    WHERE s.source_kind = 'cashout' AND s.source_id = j.id AND s.status IN ('created', 'submitted'))
+ORDER BY j.updated_at, j.id
+LIMIT $2::integer
+`
+
+type CashOutSalesStuckParams struct {
+	StaleBefore time.Time
+	MaxRows     int32
+}
+
+type CashOutSalesStuckRow struct {
+	ID             uuid.UUID
+	CabalID        uuid.UUID
+	UserID         uuid.UUID
+	ShareUnits     string
+	PayoutMicros   string
+	SellUsdcMicros string
+	Cause          string
+	CreatedAt      time.Time
+}
+
+func (q *Queries) CashOutSalesStuck(ctx context.Context, arg CashOutSalesStuckParams) ([]CashOutSalesStuckRow, error) {
+	rows, err := q.db.Query(ctx, cashOutSalesStuck, arg.StaleBefore, arg.MaxRows)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CashOutSalesStuckRow
+	for rows.Next() {
+		var i CashOutSalesStuckRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.CabalID,
+			&i.UserID,
+			&i.ShareUnits,
+			&i.PayoutMicros,
+			&i.SellUsdcMicros,
+			&i.Cause,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const claimStuckCashOutSale = `-- name: ClaimStuckCashOutSale :execrows
+UPDATE cash_out_jobs AS j SET updated_at = $1::timestamptz
+WHERE j.id = $2::uuid AND j.status IN ('started', 'selling')
+  AND j.updated_at < $3::timestamptz
+  AND NOT EXISTS (
+    SELECT 1 FROM swaps AS s
+    WHERE s.source_kind = 'cashout' AND s.source_id = j.id AND s.status IN ('created', 'submitted'))
+`
+
+type ClaimStuckCashOutSaleParams struct {
+	At          time.Time
+	ID          uuid.UUID
+	StaleBefore time.Time
+}
+
+func (q *Queries) ClaimStuckCashOutSale(ctx context.Context, arg ClaimStuckCashOutSaleParams) (int64, error) {
+	result, err := q.db.Exec(ctx, claimStuckCashOutSale, arg.At, arg.ID, arg.StaleBefore)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const endCashOutJob = `-- name: EndCashOutJob :execrows
 UPDATE cash_out_jobs
 SET status = $1::text, result_code = coalesce(NULLIF($2::text, ''), result_code),

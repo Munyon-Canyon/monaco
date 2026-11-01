@@ -3,6 +3,7 @@ package domain
 import (
 	"log/slog"
 	"slices"
+	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
@@ -17,6 +18,11 @@ const (
 	CashOutCompleted CashOutStatus = "completed"
 	CashOutPartial   CashOutStatus = "partial"
 	CashOutFailed    CashOutStatus = "failed"
+)
+
+const (
+	CashOutSellStale  = 15 * time.Minute
+	CashOutSellGiveUp = time.Hour
 )
 
 type CashOutEvent string

@@ -317,20 +317,23 @@ SELECT w.wallet_address, w.user_id, coalesce(w.opening_micros::text, '')::text A
   coalesce(sum(a.last_amount) FILTER (WHERE a.state = 'open'), 0)::text AS observed,
   coalesce(bool_or(a.dirty_gen > a.clean_gen), false)::boolean AS dirty,
   EXISTS (
-    SELECT 1 FROM deposit_candidates c WHERE c.wallet_address = w.wallet_address AND c.status = 'pending'
+    SELECT 1 FROM deposit_candidates c
+    WHERE c.wallet_address = w.wallet_address AND c.status = 'pending'
+      AND c.seen_at >= $1::timestamptz
   )::boolean AS pending_candidates
 FROM deposit_watch_wallets w
 JOIN deposit_watch_accounts a ON a.wallet_address = w.wallet_address
-WHERE w.reconcile_due_at <= $1::timestamptz
+WHERE w.reconcile_due_at <= $2::timestamptz
 GROUP BY w.wallet_address
 HAVING bool_and(a.observed_slot > 0)
 ORDER BY w.reconcile_due_at, w.wallet_address
-LIMIT $2::int
+LIMIT $3::int
 `
 
 type DepositWatchReconcileWalletsParams struct {
-	Now      time.Time
-	RowLimit int32
+	FreshSince time.Time
+	Now        time.Time
+	RowLimit   int32
 }
 
 type DepositWatchReconcileWalletsRow struct {
@@ -344,7 +347,7 @@ type DepositWatchReconcileWalletsRow struct {
 }
 
 func (q *Queries) DepositWatchReconcileWallets(ctx context.Context, arg DepositWatchReconcileWalletsParams) ([]DepositWatchReconcileWalletsRow, error) {
-	rows, err := q.db.Query(ctx, depositWatchReconcileWallets, arg.Now, arg.RowLimit)
+	rows, err := q.db.Query(ctx, depositWatchReconcileWallets, arg.FreshSince, arg.Now, arg.RowLimit)
 	if err != nil {
 		return nil, err
 	}
@@ -675,4 +678,53 @@ func (q *Queries) SetDepositWatchReconcile(ctx context.Context, arg SetDepositWa
 		arg.ReconcileDueAt,
 	)
 	return err
+}
+
+const stalePendingDepositCandidates = `-- name: StalePendingDepositCandidates :many
+SELECT tx_signature, wallet_address, user_id, slot, block_time, source
+FROM deposit_candidates
+WHERE wallet_address = ANY($1::text[]) AND status = 'pending'
+  AND seen_at < $2::timestamptz
+ORDER BY seen_at, tx_signature
+`
+
+type StalePendingDepositCandidatesParams struct {
+	WalletAddresses []string
+	FreshSince      time.Time
+}
+
+type StalePendingDepositCandidatesRow struct {
+	TxSignature   string
+	WalletAddress string
+	UserID        uuid.UUID
+	Slot          int64
+	BlockTime     pgtype.Timestamptz
+	Source        string
+}
+
+func (q *Queries) StalePendingDepositCandidates(ctx context.Context, arg StalePendingDepositCandidatesParams) ([]StalePendingDepositCandidatesRow, error) {
+	rows, err := q.db.Query(ctx, stalePendingDepositCandidates, arg.WalletAddresses, arg.FreshSince)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []StalePendingDepositCandidatesRow
+	for rows.Next() {
+		var i StalePendingDepositCandidatesRow
+		if err := rows.Scan(
+			&i.TxSignature,
+			&i.WalletAddress,
+			&i.UserID,
+			&i.Slot,
+			&i.BlockTime,
+			&i.Source,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }

@@ -697,6 +697,7 @@ Subject `events.proposal.reopened`, version 1.
 | `proposal_id` | `uuid.UUID` |
 | `cabal_id` | `uuid.UUID` |
 | `swap_id` | `uuid.UUID` |
+| `reason` | `string` |
 
 ## `proposal.rule_passed`
 
@@ -934,6 +935,7 @@ Subject `events.trade.retry_requested`, version 1.
 | `slippage_bps` | `int32` |
 | `requested_by` | `uuid.UUID` |
 | `at_current_price` | `bool` |
+| `network` | `chain.Network` |
 
 ## `trade.routed`
 

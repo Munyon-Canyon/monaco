@@ -228,6 +228,18 @@ func (m *Module) VoidFromOps(ctx context.Context, id ProposalID, rawReason strin
 	return voids.Handle(ctx, app.VoidProposal{ProposalID: id, Reason: reason})
 }
 
+func (m *Module) RetryBlockedTradeFromOps(ctx context.Context, id ProposalID, reason string) error {
+	retries := app.NewRetryBlockedTradeHandler(
+		m.deps.UoW,
+		m.deps.Pool,
+		m.deps.Clock,
+		trading.New(m.deps).Queries(),
+		adapters.Hints{Publish: m.deps.Bus},
+		chain.SolanaAddress(m.deps.Config.Solana.USDCMint),
+	)
+	return retries.Handle(ctx, app.RetryBlockedTrade{ProposalID: id, Reason: reason})
+}
+
 func (m *Module) voidProposal(hints app.Hints) *app.VoidProposalHandler {
 	return app.NewVoidProposalHandler(
 		m.deps.UoW, m.deps.Pool, m.deps.IDs, m.deps.Clock, trading.New(m.deps).Queries(), hints,
