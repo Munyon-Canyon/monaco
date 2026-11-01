@@ -22,7 +22,10 @@ public enum AccountCopy {
     public static func confirmDust(micros: Int64) -> String { "Your remaining \(dust(micros)) will be lost." }
 
     static func dust(_ micros: Int64) -> String {
-        "$" + (Decimal(micros) / Decimal(1_000_000)).description
+        var digits = String(micros % 1_000_000)
+        digits = String(repeating: "0", count: 6 - digits.count) + digits
+        while digits.count > 2, digits.hasSuffix("0") { digits.removeLast() }
+        return "$\(micros / 1_000_000).\(digits)"
     }
 
     public static let auditedStrings = [
