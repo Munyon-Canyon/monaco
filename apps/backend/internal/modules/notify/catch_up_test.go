@@ -841,25 +841,33 @@ func ptrValue(id *uuid.UUID) uuid.UUID {
 	return *id
 }
 
-func TestCatchUp_ChatItemsFromSeveralAuthorsCarryThemAndOneWithoutACabalHasNone(t *testing.T) {
+func TestCatchUp_ChatItemsFromSeveralAuthorsCarryThemAndDropOnesFromACabalTheViewerLeft(t *testing.T) {
 	t.Parallel()
 	w := newCatchUpWorld(t)
 	cabal := w.cabal("Degens")
-	dana, eli := w.r.follower(t, "dana", "Dana"), w.r.follower(t, "eli", "Eli")
+	left := ids.CabalIDFrom(w.r.ids.NewV7())
+	dana, eli, fay := w.r.follower(t, "dana", "Dana"), w.r.follower(t, "eli", "Eli"), w.r.follower(t, "fay", "Fay")
 	w.row(t, "chat_mention", "chat:"+w.r.ids.NewV7().String(), map[string]string{
 		"author_id": dana.String(), "cabal_id": cabal.String(),
 	}, w.now.Add(-time.Minute))
-	w.row(t, "chat_thread_reply", "chat:"+w.r.ids.NewV7().String(), map[string]string{"author_id": eli.String()},
-		w.now.Add(-2*time.Minute))
+	w.row(t, "chat_thread_reply", "chat:"+w.r.ids.NewV7().String(), map[string]string{
+		"author_id": eli.String(), "cabal_id": cabal.String(),
+	}, w.now.Add(-2*time.Minute))
+	w.row(t, "chat_mention", "chat:"+w.r.ids.NewV7().String(), map[string]string{
+		"author_id": fay.String(), "cabal_id": left.String(),
+	}, w.now.Add(-3*time.Minute))
+	w.row(t, "chat_mention", "chat:"+w.r.ids.NewV7().String(), map[string]string{"author_id": fay.String()},
+		w.now.Add(-4*time.Minute))
 
 	got, err := w.reads().Read(t.Context(), w.viewer, w.now.Add(-12*time.Hour))
+	count, countErr := w.reads().Count(t.Context(), w.viewer)
 
-	if err != nil || len(got.Replies) != 2 {
-		t.Fatalf("got %+v, %v, want two chat items", got, err)
+	if err != nil || countErr != nil || len(got.Replies) != 2 || got.Count != 2 || count != 2 {
+		t.Fatalf("got %+v (count %d), %v, %v, want two chat items", got, count, err, countErr)
 	}
 	mention, thread := got.Replies[0], got.Replies[1]
 	if mention.Actor.Name != "Dana" || mention.Cabal.Name != "Degens" || thread.Actor.Name != "Eli" ||
-		thread.Cabal != nil {
+		thread.Cabal.Name != "Degens" {
 		t.Fatalf("mention %+v, thread %+v", mention, thread)
 	}
 }
@@ -868,8 +876,10 @@ func TestCatchUp_AFailedAuthorReadFailsTheRead(t *testing.T) {
 	t.Parallel()
 	w := newCatchUpWorld(t)
 	author := w.r.follower(t, "dana", "Dana")
-	w.row(t, "chat_mention", "chat:"+w.r.ids.NewV7().String(), map[string]string{"author_id": author.String()},
-		w.now.Add(-time.Minute))
+	cabal := w.cabal("Degens")
+	w.row(t, "chat_mention", "chat:"+w.r.ids.NewV7().String(), map[string]string{
+		"author_id": author.String(), "cabal_id": cabal.String(),
+	}, w.now.Add(-time.Minute))
 	reads := app.NewReadCatchUp(app.CatchUpPorts{
 		Governance: w.gov, Comments: w.comments, Replies: w.replies, Invites: w.invites, Cabals: w.cabals,
 		Holdings: w.holdings, Assets: w.assets, Users: users{err: errs.New(errs.CodeDBUnavailable, "test.users")},
@@ -1051,8 +1061,9 @@ func TestCatchUp_TwoRowsWithOneItemKeyAreOneItem(t *testing.T) {
 	t.Parallel()
 	w := newCatchUpWorld(t)
 	key := "chat:" + w.r.ids.NewV7().String()
-	w.row(t, "chat_mention", key, map[string]string{}, w.now.Add(-time.Minute))
-	w.row(t, "chat_thread_reply", key, map[string]string{}, w.now.Add(-2*time.Minute))
+	data := map[string]string{"cabal_id": w.cabal("Degens").String()}
+	w.row(t, "chat_mention", key, data, w.now.Add(-time.Minute))
+	w.row(t, "chat_thread_reply", key, data, w.now.Add(-2*time.Minute))
 
 	got, err := w.reads().Read(t.Context(), w.viewer, w.now.Add(-12*time.Hour))
 

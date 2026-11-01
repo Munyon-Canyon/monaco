@@ -1,4 +1,5 @@
 import Foundation
+import MonacoAPI
 
 public enum PushRoute: Equatable, Sendable {
     case userProfile(userID: String)
@@ -10,14 +11,21 @@ public enum PushRoute: Equatable, Sendable {
     case feedItem(feedItemID: String)
     case reply(ReplyDestination)
     case cabal(cabalID: String)
+    case joinRequests(cabalID: String)
     case ledger(week: String)
     case home
+
+    public static func catchUpChat(_ item: Components.Schemas.CatchUpItem) -> PushRoute? {
+        guard item.key.hasPrefix("chat:"), let cabalID = item.cabal?.id else { return nil }
+        return .chat(cabalID: cabalID.lowercased())
+    }
 
     public static func parse(_ userInfo: [String: Any]) -> PushRoute {
         let payload = Payload(values: userInfo)
         return payload.ledger
             ?? payload.profile
             ?? payload.chat
+            ?? payload.access
             ?? payload.reply
             ?? payload.transaction
             ?? payload.proposal
@@ -45,6 +53,9 @@ private enum Kind: String {
     case chatThreadReply = "chat_thread_reply"
     case commentReply = "comment_reply"
     case postReply = "post_reply"
+    case commentMention = "comment_mention"
+    case cabalAccessRequested = "cabal_access_requested"
+    case cabalAccessApproved = "cabal_access_approved"
     case weeklyLedger = "weekly_ledger"
 }
 
@@ -80,6 +91,15 @@ private struct Payload {
         return .chat(cabalID: cabalID)
     }
 
+    var access: PushRoute? {
+        guard let cabalID = id(.cabalID) else { return nil }
+        switch kind {
+        case .cabalAccessRequested: return .joinRequests(cabalID: cabalID)
+        case .cabalAccessApproved: return .chat(cabalID: cabalID)
+        default: return nil
+        }
+    }
+
     var transaction: PushRoute? {
         guard let txnID = id(.txnID), let cabalID = id(.cabalID) else { return nil }
         return .transaction(txnID: txnID, cabalID: cabalID)
@@ -90,8 +110,10 @@ private struct Payload {
         return .proposal(proposalID: proposalID, cabalID: cabalID)
     }
 
+    var replies: Bool { kind == .commentReply || kind == .postReply || kind == .commentMention }
+
     var reply: PushRoute? {
-        guard kind == .commentReply || kind == .postReply, let feedItemID = id(.feedItemID),
+        guard replies, let feedItemID = id(.feedItemID),
             let commentID = id(.commentID)
         else { return nil }
         return .reply(
@@ -100,7 +122,7 @@ private struct Payload {
     }
 
     var feedItem: PushRoute? {
-        guard kind == .commentReply || kind == .postReply, id(.proposalID) == nil, let feedItemID = id(.feedItemID)
+        guard replies, id(.proposalID) == nil, let feedItemID = id(.feedItemID)
         else { return nil }
         return .feedItem(feedItemID: feedItemID)
     }

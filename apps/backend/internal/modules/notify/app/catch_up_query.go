@@ -84,6 +84,7 @@ type catchUpSet struct {
 	cards      map[ids.ProposalID]governanceport.CatchUpProposal
 	previews   map[uuid.UUID]socialport.CommentPreview
 	activeKeys map[string]bool
+	joined     []ids.CabalID
 }
 
 func (r *ReadCatchUp) Count(ctx context.Context, user ids.UserID) (int, error) {
@@ -99,7 +100,7 @@ func (r *ReadCatchUp) Read(ctx context.Context, user ids.UserID, since time.Time
 	if err != nil {
 		return domain.CatchUp{}, err
 	}
-	deco, err := r.decorate(ctx, user, set)
+	deco, err := r.decorate(ctx, set)
 	if err != nil {
 		return domain.CatchUp{}, err
 	}
@@ -134,6 +135,8 @@ type sources struct {
 	states   map[string]itemState
 	previews map[uuid.UUID]socialport.CommentPreview
 	cards    map[ids.ProposalID]governanceport.CatchUpProposal
+	joined   []ids.CabalID
+	member   map[string]bool
 }
 
 func (r *ReadCatchUp) collect(ctx context.Context, user ids.UserID) (catchUpSet, error) {
@@ -163,12 +166,23 @@ func (r *ReadCatchUp) gather(ctx context.Context, user ids.UserID, now time.Time
 	if src.previews, err = r.previews(ctx, user, src.rows); err != nil {
 		return sources{}, err
 	}
-	src.cards, err = r.cards(ctx, user, src.rows, src.previews)
-	return src, err
+	if src.cards, err = r.cards(ctx, user, src.rows, src.previews); err != nil {
+		return sources{}, err
+	}
+	if src.joined, err = r.ports.Cabals.CabalsOf(ctx, user); err != nil {
+		return sources{}, err
+	}
+	src.member = make(map[string]bool, len(src.joined))
+	for _, id := range src.joined {
+		src.member[id.String()] = true
+	}
+	return src, nil
 }
 
 func (s sources) activeSet(user ids.UserID, now time.Time) catchUpSet {
-	set := catchUpSet{now: now, cards: s.cards, previews: s.previews, activeKeys: map[string]bool{}}
+	set := catchUpSet{
+		now: now, cards: s.cards, previews: s.previews, activeKeys: map[string]bool{}, joined: s.joined,
+	}
 	for i := range s.pending {
 		p := s.pending[i]
 		set.add(s.states, candidate{
@@ -201,6 +215,8 @@ func (s sources) rowCandidate(user ids.UserID, row sourceRow) (candidate, bool, 
 		preview, ok := s.previews[commentOf(row)]
 		c.comment = &preview
 		return c, false, ok
+	case strings.HasPrefix(row.key, domain.ItemKeyChatPrefix):
+		return c, false, s.member[row.data["cabal_id"]]
 	}
 	return c, false, true
 }
@@ -352,10 +368,10 @@ type decoration struct {
 	set       catchUpSet
 }
 
-func (r *ReadCatchUp) decorate(ctx context.Context, user ids.UserID, set catchUpSet) (decoration, error) {
+func (r *ReadCatchUp) decorate(ctx context.Context, set catchUpSet) (decoration, error) {
 	deco := decoration{set: set}
 	var err error
-	if err = r.decorateCabals(ctx, user, &deco); err != nil {
+	if err = r.decorateCabals(ctx, &deco); err != nil {
 		return decoration{}, err
 	}
 	if err = r.decorateReplies(ctx, &deco); err != nil {
@@ -370,11 +386,8 @@ func (r *ReadCatchUp) decorate(ctx context.Context, user ids.UserID, set catchUp
 	return deco, nil
 }
 
-func (r *ReadCatchUp) decorateCabals(ctx context.Context, user ids.UserID, deco *decoration) error {
-	joined, err := r.ports.Cabals.CabalsOf(ctx, user)
-	if err != nil {
-		return err
-	}
+func (r *ReadCatchUp) decorateCabals(ctx context.Context, deco *decoration) error {
+	joined := deco.set.joined
 	deco.cabals = map[string]domain.CatchUpCabal{}
 	deco.cabalList = []domain.CatchUpCabal{}
 	if len(joined) == 0 {
@@ -655,7 +668,7 @@ func (r *ReadCatchUp) Render(
 		return nil, err
 	}
 	set.actives = slices.DeleteFunc(set.actives, func(c candidate) bool { return !slices.Contains(keys, c.key) })
-	deco, err := r.decorate(ctx, user, set)
+	deco, err := r.decorate(ctx, set)
 	if err != nil {
 		return nil, err
 	}

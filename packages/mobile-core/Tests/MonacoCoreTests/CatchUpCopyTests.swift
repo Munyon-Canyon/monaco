@@ -94,6 +94,11 @@ final class CatchUpCopyTests: XCTestCase {
             tokenAmount: nil, proposer: .init(id: "u", name: "A", photoUrl: nil), createdAt: now, expiresAt: now,
             status: "closed", yes: 2, no: 0, voted: 2, eligible: 5, replyCount: 0, outcome: .expired)
         XCTAssertEqual(Copy.resultTitle(expired), "Buy SpaceX closed 2–0")
+        var fillFailed = expired
+        fillFailed.outcome = .fillFailed
+        fillFailed.yes = 4
+        fillFailed.no = 1
+        XCTAssertEqual(Copy.resultTitle(fillFailed), "Buy SpaceX passed 4–1 · didn't go through")
         let rule = Components.Schemas.CatchUpItem(key: "proposal:r", kind: .result, unread: false, at: now)
         XCTAssertEqual(Copy.subtitle(rule, now: now), "")
         XCTAssertEqual(Copy.rowTitle(rule), "")

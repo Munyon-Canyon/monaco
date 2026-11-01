@@ -25,7 +25,7 @@ final class HomeBellModelTests: XCTestCase {
         let (model, _) = make([6])
         await model.load()
         XCTAssertEqual(model.badgeText, "6")
-        XCTAssertEqual(model.accessibilityLabel, "Catch up, 6 new")
+        XCTAssertEqual(model.accessibilityLabel, "Catch up, 6 to catch up")
     }
 
     func testNineShowsNineAndTwelveShowsNinePlus() async {
@@ -35,7 +35,7 @@ final class HomeBellModelTests: XCTestCase {
         let (twelve, _) = make([12])
         await twelve.load()
         XCTAssertEqual(twelve.badgeText, "9+")
-        XCTAssertEqual(twelve.accessibilityLabel, "Catch up, 12 new")
+        XCTAssertEqual(twelve.accessibilityLabel, "Catch up, 12 to catch up")
     }
 
     func testAHintReloadsTheCount() async {

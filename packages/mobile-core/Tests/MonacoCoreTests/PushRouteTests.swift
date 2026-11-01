@@ -187,8 +187,50 @@ final class PushRouteTests: XCTestCase {
         XCTAssertEqual(
             PushRoute.parse(wire("post_reply", ["feed_item_id": feedItem, "comment_id": notAnID])),
             .feedItem(feedItemID: feedItem))
+    }
+
+    func testAMentionOpensItsCommentLikeAReply() {
+        let onPost = wire("comment_mention", ["feed_item_id": feedItem, "comment_id": comment])
+        let onProposal = wire(
+            "comment_mention",
+            ["feed_item_id": feedItem, "comment_id": comment, "proposal_id": proposal, "cabal_id": cabal])
+
         XCTAssertEqual(
-            PushRoute.parse(wire("comment_mention", ["feed_item_id": feedItem, "comment_id": comment])), .home)
+            PushRoute.parse(onPost),
+            .reply(ReplyDestination(feedItemID: feedItem, commentID: comment, proposalID: nil, cabalID: nil)))
+        XCTAssertEqual(
+            PushRoute.parse(onProposal),
+            .reply(ReplyDestination(feedItemID: feedItem, commentID: comment, proposalID: proposal, cabalID: cabal)))
+        XCTAssertEqual(
+            PushRoute.parse(wire("comment_mention", ["feed_item_id": feedItem, "comment_id": notAnID])),
+            .feedItem(feedItemID: feedItem))
+        XCTAssertEqual(
+            PushRoute.parse(
+                wire("comment_mention", ["feed_item_id": feedItem, "proposal_id": proposal, "cabal_id": cabal])),
+            .proposal(proposalID: proposal, cabalID: cabal))
+    }
+
+    func testAccessPushesOpenTheRequestsAndTheChat() {
+        XCTAssertEqual(
+            PushRoute.parse(wire("cabal_access_requested", ["cabal_id": cabal])), .joinRequests(cabalID: cabal))
+        XCTAssertEqual(PushRoute.parse(wire("cabal_access_approved", ["cabal_id": cabal])), .chat(cabalID: cabal))
+        XCTAssertEqual(PushRoute.parse(wire("cabal_access_requested", [:])), .home)
+        XCTAssertEqual(PushRoute.parse(wire("cabal_access_approved", ["cabal_id": notAnID])), .home)
+    }
+
+    func testACatchUpChatItemOpensItsCabalChatAndOthersDoNot() {
+        let at = Date(timeIntervalSince1970: 1_760_000_000)
+        let chat = Components.Schemas.CatchUpItem(
+            key: "chat:\(message)", kind: .mention, unread: true, at: at,
+            cabal: .init(id: cabal.uppercased(), name: "Degens", pictureUrl: nil))
+        var noCabal = chat
+        noCabal.cabal = nil
+        var comment = chat
+        comment.key = "comment:\(message)"
+
+        XCTAssertEqual(PushRoute.catchUpChat(chat), .chat(cabalID: cabal))
+        XCTAssertNil(PushRoute.catchUpChat(noCabal))
+        XCTAssertNil(PushRoute.catchUpChat(comment))
     }
 
     func testACatchUpReplyMakesTheSameDestinationAsItsPush() throws {
@@ -301,7 +343,7 @@ final class PushRouteTests: XCTestCase {
             ("comment_reply_proposal", replyKeys.union(senderKeys).union(["proposal_id"]), "reply"),
             (
                 "comment_mention", replyKeys.subtracting(["quoted_excerpt"]).union(senderKeys).union(["proposal_id"]),
-                "proposal"
+                "reply"
             ),
             ("post_reply", replyKeys.union(senderKeys.filter { $0.hasPrefix("sender_") }), "reply"),
             ("malformed", ["kind", "cabal_id", "txn_id"], "home"),
@@ -337,6 +379,7 @@ final class PushRouteTests: XCTestCase {
         case .feedItem: "feedItem"
         case .reply: "reply"
         case .cabal: "cabal"
+        case .joinRequests: "joinRequests"
         case .ledger: "ledger"
         case .home: "home"
         }

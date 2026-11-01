@@ -16,6 +16,11 @@ final class PushRouter {
         self.dismissPresented = dismissPresented
     }
 
+    func isShowing(chatCabalID: String) -> Bool {
+        let navigator = environment.navigator
+        return navigator.path(for: navigator.selectedTab).last == AnyAppRoute(ChatRoute(cabalID: chatCabalID))
+    }
+
     func isShowing(proposalID: String) -> Bool {
         let navigator = environment.navigator
         return navigator.voteHold?.proposalID == proposalID
@@ -87,6 +92,8 @@ final class PushRouter {
             navigator.open(reply: destination)
         case .cabal(let cabalID):
             navigator.open(chain: [CabalRoute(id: cabalID)], in: .cabals)
+        case .joinRequests(let cabalID):
+            navigator.open(cabalID: cabalID, then: MembersRoute(cabalID: cabalID), in: .cabals)
         case .home:
             navigator.selectedTab = .home
             navigator.homePath = []
