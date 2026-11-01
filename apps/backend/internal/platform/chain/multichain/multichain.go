@@ -306,6 +306,10 @@ type EVMPriceSource interface {
 	Prices(ctx context.Context, listings []Listing) (map[ListingID]Price, error)
 }
 
+type EVMSellPriceSource interface {
+	SellPrices(ctx context.Context, listings []Listing) (map[ListingID]Price, error)
+}
+
 type Pending struct{ Ticket string }
 
 func (p Pending) notImplemented(method string) error {

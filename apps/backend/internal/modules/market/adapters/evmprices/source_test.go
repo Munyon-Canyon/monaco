@@ -112,3 +112,17 @@ func TestSource_dropsAQuoteWhosePriceImpactIsOverTheRouterLimit(t *testing.T) {
 		)
 	}
 }
+
+func TestSource_sellPricesQuoteTheSellSideOfTheReferenceAmount(t *testing.T) {
+	t.Parallel()
+	ondo := listing(t, "0x1", 18, "1.25")
+	q := &quoter{gross: map[string]*big.Int{"0x1": units("328000000000000000")}}
+
+	got, err := evmprices.New(q).SellPrices(t.Context(), []multichain.Listing{ondo})
+	if err != nil || len(got) != 1 || got[ondo.ID].PerShareMicros.Uint64() != 243_902_439 {
+		t.Fatalf("SellPrices = %+v, %v, want 243.902439 USDC a share", got, err)
+	}
+	if len(q.sides) != 1 || q.sides[0] != multichain.SideSell || q.sizes[0].Uint64() != evmprices.ReferenceMicros {
+		t.Fatalf("quotes = %v %v, want one sell of the reference amount", q.sides, q.sizes)
+	}
+}

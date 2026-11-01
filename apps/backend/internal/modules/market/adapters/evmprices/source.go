@@ -13,7 +13,10 @@ import (
 
 const ReferenceMicros = 100_000_000
 
-var _ multichain.EVMPriceSource = Source{}
+var (
+	_ multichain.EVMPriceSource     = Source{}
+	_ multichain.EVMSellPriceSource = Source{}
+)
 
 type Source struct {
 	quoter    multichain.Quoter
@@ -27,10 +30,22 @@ func New(quoter multichain.Quoter) Source {
 func (s Source) Prices(
 	ctx context.Context, listings []multichain.Listing,
 ) (map[multichain.ListingID]multichain.Price, error) {
+	return s.prices(ctx, listings, multichain.SideBuy)
+}
+
+func (s Source) SellPrices(
+	ctx context.Context, listings []multichain.Listing,
+) (map[multichain.ListingID]multichain.Price, error) {
+	return s.prices(ctx, listings, multichain.SideSell)
+}
+
+func (s Source) prices(
+	ctx context.Context, listings []multichain.Listing, side multichain.Side,
+) (map[multichain.ListingID]multichain.Price, error) {
 	out := make(map[multichain.ListingID]multichain.Price, len(listings))
 	var failed []error
 	for _, l := range listings {
-		q, err := s.quoter.Quote(ctx, l, multichain.SideBuy, s.reference)
+		q, err := s.quoter.Quote(ctx, l, side, s.reference)
 		if err == nil {
 			err = withinImpact(q)
 		}

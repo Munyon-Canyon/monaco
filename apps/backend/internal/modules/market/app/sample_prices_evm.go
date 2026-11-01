@@ -44,7 +44,7 @@ type ListingGap struct {
 }
 
 func (p *SamplePrices) sampleListings(
-	ctx context.Context, at time.Time, solana map[domain.Mint]money.Micros,
+	ctx context.Context, at time.Time, assets []domain.Asset,
 ) ([]slog.Attr, error) {
 	if p.evm.Source == nil {
 		return nil, nil
@@ -53,14 +53,21 @@ func (p *SamplePrices) sampleListings(
 	if err != nil || len(listings) == 0 {
 		return nil, err
 	}
-	priced, sourceErr := p.priceListings(ctx, listings)
+	fetchCtx, cancel := context.WithTimeout(ctx, p.fetchWindow())
+	defer cancel()
+	priced, sourceErr := p.priceListings(fetchCtx, listings)
+	solana := p.solanaReference(assets)
 	gaps := listingGaps(listings, priced, solana)
 	kept := withinReference(priced, gaps)
+	unchecked, sellErr := p.checkAgainstSell(fetchCtx, listings, kept, solana)
+	if sourceErr == nil {
+		sourceErr = sellErr
+	}
 	if err := p.storeListingPrices(ctx, at, listings, kept); err != nil {
 		return nil, err
 	}
 	p.countGaps(ctx, gaps)
-	p.logDropped(ctx, listings, priced, kept)
+	p.logDropped(ctx, listings, priced, kept, unchecked)
 	attrs := []slog.Attr{
 		slog.Int("evm_priced", len(kept)), slog.Int("evm_missing", len(listings)-len(kept)),
 		slog.String("evm_gaps", gapNames(gaps)),
@@ -69,6 +76,50 @@ func (p *SamplePrices) sampleListings(
 		attrs = append(attrs, slog.String("evm_error", string(errs.CodeOf(sourceErr))))
 	}
 	return attrs, nil
+}
+
+func (p *SamplePrices) solanaReference(assets []domain.Asset) map[domain.Mint]money.Micros {
+	accepted, now := p.accepted(), p.clock.Now()
+	out := make(map[domain.Mint]money.Micros, len(accepted))
+	for _, a := range assets {
+		if s, ok := accepted[a.ID]; ok && !s.Micros.IsZero() && now.Sub(s.ObservedAt) <= multichain.ListingPriceMaxAge {
+			out[a.Mint] = s.Micros
+		}
+	}
+	return out
+}
+
+func (p *SamplePrices) checkAgainstSell(
+	ctx context.Context, listings map[multichain.ListingID]HeldListing,
+	kept map[multichain.ListingID]money.Micros, solana map[domain.Mint]money.Micros,
+) (map[multichain.ListingID]bool, error) {
+	byMint := make(map[string]bool, len(solana))
+	for m := range solana {
+		byMint[m.String()] = true
+	}
+	var open []multichain.Listing
+	for id := range kept {
+		if l := listings[id]; l.Asset == nil || !byMint[l.Asset.Mint] {
+			open = append(open, l.Listing)
+		}
+	}
+	if len(open) == 0 {
+		return map[multichain.ListingID]bool{}, nil
+	}
+	var sells map[multichain.ListingID]multichain.Price
+	var err error
+	if source, ok := p.evm.Source.(multichain.EVMSellPriceSource); ok {
+		sells, err = source.SellPrices(ctx, open)
+	}
+	unchecked := make(map[multichain.ListingID]bool, len(open))
+	for _, l := range open {
+		sell, ok := sells[l.ID]
+		if !ok || sell.PerShareMicros.IsZero() || GapBps(kept[l.ID], sell.PerShareMicros) > ListingGapBps {
+			delete(kept, l.ID)
+			unchecked[l.ID] = true
+		}
+	}
+	return unchecked, err
 }
 
 func (p *SamplePrices) heldListings(ctx context.Context) (map[multichain.ListingID]HeldListing, error) {
@@ -94,9 +145,7 @@ func (p *SamplePrices) priceListings(
 	for _, l := range listings {
 		asked = append(asked, l.Listing)
 	}
-	fetchCtx, cancel := context.WithTimeout(ctx, p.fetchWindow())
-	answered, err := p.evm.Source.Prices(fetchCtx, asked)
-	cancel()
+	answered, err := p.evm.Source.Prices(ctx, asked)
 	priced := map[multichain.ListingID]money.Micros{}
 	for id, price := range answered {
 		if _, held := listings[id]; held && !price.PerShareMicros.IsZero() {
@@ -138,7 +187,7 @@ const droppedLogEvery = 10 * time.Minute
 
 func (p *SamplePrices) logDropped(
 	ctx context.Context, listings map[multichain.ListingID]HeldListing,
-	priced, kept map[multichain.ListingID]money.Micros,
+	priced, kept map[multichain.ListingID]money.Micros, unchecked map[multichain.ListingID]bool,
 ) {
 	now := p.clock.Now()
 	for id, l := range listings {
@@ -151,6 +200,9 @@ func (p *SamplePrices) logDropped(
 		reason := "no_quote"
 		if _, quoted := priced[id]; quoted {
 			reason = "off_reference"
+			if unchecked[id] {
+				reason = "no_reference"
+			}
 		}
 		p.dropped[l.Key] = now
 		observability.Degraded(ctx, observability.MarketPricesEVMDropped, slog.String("listing", string(l.Key)),

@@ -285,7 +285,7 @@ func (p *SamplePrices) settle(
 	if err := p.absorb(ctx, assets, answered, asked, inserted); err != nil {
 		return nil, err
 	}
-	attrs, err := p.sampleListings(ctx, at, answered)
+	attrs, err := p.sampleListings(ctx, at, assets)
 	if err != nil {
 		return nil, err
 	}

@@ -10,6 +10,7 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market/app"
+	"github.com/monaco/monaco/apps/backend/internal/modules/market/domain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
@@ -18,6 +19,7 @@ import (
 
 type evmPrices struct {
 	perShare map[string]money.Micros
+	sell     map[string]money.Micros
 	err      error
 	asked    []multichain.Listing
 	during   func()
@@ -39,8 +41,21 @@ func (e *evmPrices) Prices(
 	return out, e.err
 }
 
+func (e *evmPrices) SellPrices(
+	_ context.Context, listings []multichain.Listing,
+) (map[multichain.ListingID]multichain.Price, error) {
+	out := map[multichain.ListingID]multichain.Price{}
+	for _, l := range listings {
+		if p, ok := e.sell[l.TokenAddress]; ok {
+			out[l.ID] = multichain.Price{PerShareMicros: p, AsOf: time.Unix(1_800_000_000, 0)}
+		}
+	}
+	return out, nil
+}
+
 type evmRig struct {
 	*sampleRig
+	quotes *quotes
 	reader *sdkmetric.ManualReader
 	token  string
 	key    string
@@ -88,7 +103,7 @@ func newEVMRigHot(
 		source.perShare = map[string]money.Micros{}
 	}
 	r.poller.WithEVM(app.EVMSampling{Source: source, Gaps: gaps})
-	return &evmRig{sampleRig: r, reader: reader, token: token, key: key}
+	return &evmRig{sampleRig: r, quotes: q, reader: reader, token: token, key: key}
 }
 
 func (r *evmRig) gapCount(t *testing.T) int64 {
@@ -245,5 +260,100 @@ func TestSamplePrices_aFailedEVMInsertFailsTheTick(t *testing.T) {
 	source.perShare[r.token] = money.MicrosFromUint64(252_000_000)
 	if _, err := r.poller.Tick(ctx); err == nil {
 		t.Fatal("Tick whose EVM insert fails = nil, want an error")
+	}
+}
+
+func (r *evmRig) nextTick(t *testing.T, after time.Duration) {
+	t.Helper()
+	r.clock.Advance(after)
+	r.bucket = r.clock.Now().UTC().Truncate(domain.SampleBucket)
+}
+
+func (r *evmRig) unlink(t *testing.T) {
+	t.Helper()
+	if _, err := r.pool.Exec(t.Context(),
+		`UPDATE asset_listings SET asset_id = NULL WHERE token_address = $1`, r.token); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestSamplePrices_dropsAnEVMPriceFifteenPercentOffTheLastSolanaSampleWhenTheSiblingWasNotAskedThisTick(
+	t *testing.T,
+) {
+	t.Parallel()
+	source := &evmPrices{}
+	r := newEVMRig(t, source)
+	source.perShare[r.token] = money.MicrosFromUint64(252_000_000)
+	if _, err := r.poller.Tick(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+
+	r.nextTick(t, 2*time.Minute)
+	r.quotes.mu.Lock()
+	r.quotes.prices = nil
+	r.quotes.mu.Unlock()
+	source.perShare[r.token] = money.MicrosFromUint64(287_500_000)
+	report, err := r.poller.Tick(t.Context())
+	if err != nil || attr(report.Attrs, "evm_priced") != "0" || attr(report.Attrs, "evm_missing") != "1" {
+		t.Fatalf("Tick = %+v, %v, want the 15%% high quote dropped against the stored Solana sample", report, err)
+	}
+	wantPoints(t, r.pool,
+		pricePoint{marketfake.AAPLx().Mint.String(), r.bucket.Add(-2 * time.Minute), 250_000_000, "jupiter"},
+		pricePoint{r.key, r.bucket.Add(-2 * time.Minute), 252_000_000, "uniswap"},
+	)
+}
+
+func TestSamplePrices_doesNotStoreAnEVMPriceWhenTheSolanaSampleIsOlderThanTheFreshnessWindow(t *testing.T) {
+	t.Parallel()
+	source := &evmPrices{}
+	r := newEVMRig(t, source)
+	source.perShare[r.token] = money.MicrosFromUint64(252_000_000)
+	if _, err := r.poller.Tick(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+
+	r.nextTick(t, multichain.ListingPriceMaxAge+time.Minute)
+	r.quotes.mu.Lock()
+	r.quotes.prices = nil
+	r.quotes.mu.Unlock()
+	report, err := r.poller.Tick(t.Context())
+	if err != nil || attr(report.Attrs, "evm_priced") != "0" {
+		t.Fatalf("Tick = %+v, %v, want no EVM price stored without a fresh Solana sample or a sell quote", report, err)
+	}
+	if got := len(pricePoints(t, r.pool)); got != 2 {
+		t.Fatalf("price_points = %d, want only the first tick's two", got)
+	}
+}
+
+func TestSamplePrices_storesAnUnlinkedEVMListingOnlyWhenItsSellQuoteAgrees(t *testing.T) {
+	t.Parallel()
+	for _, c := range []struct {
+		name   string
+		sell   map[string]money.Micros
+		stored bool
+	}{
+		{name: "agreeing sell quote", sell: map[string]money.Micros{"": money.MicrosFromUint64(251_000_000)}, stored: true},
+		{name: "sell quote far below", sell: map[string]money.Micros{"": money.MicrosFromUint64(200_000_000)}},
+		{name: "no sell quote"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			source := &evmPrices{}
+			r := newEVMRig(t, source)
+			r.unlink(t)
+			source.perShare[r.token] = money.MicrosFromUint64(252_000_000)
+			source.sell = map[string]money.Micros{}
+			for range c.sell {
+				source.sell[r.token] = c.sell[""]
+			}
+			report, err := r.poller.Tick(t.Context())
+			want := "0"
+			if c.stored {
+				want = "1"
+			}
+			if err != nil || attr(report.Attrs, "evm_priced") != want {
+				t.Fatalf("Tick = %+v, %v, want evm_priced %s", report, err, want)
+			}
+		})
 	}
 }
