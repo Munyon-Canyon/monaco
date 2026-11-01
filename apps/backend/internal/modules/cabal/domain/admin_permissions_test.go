@@ -23,7 +23,11 @@ func newAdminCast(t *testing.T) (adminCast, domain.Cabal) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return cast, domain.Cabal{CreatorID: cast.creator, Admins: []ids.UserID{cast.creator, cast.admin}, Rules: rules}
+	return cast, domain.Cabal{
+		Creators: []ids.UserID{cast.creator},
+		Admins:   []ids.UserID{cast.creator, cast.admin},
+		Rules:    rules,
+	}
 }
 
 type doorCase struct {
@@ -125,8 +129,42 @@ func TestAdminRoles_theCreatorIsAnAdminAndAdminsAlwaysVote(t *testing.T) {
 			t.Errorf("VoterFor(%s) in a list cabal = %v, want %v", tt.who, got, tt.role.IsAdmin())
 		}
 	}
-	if !(domain.Cabal{CreatorID: c.creator}).IsAdmin(c.creator) {
+	if !(domain.Cabal{Creators: []ids.UserID{c.creator}}).IsAdmin(c.creator) {
 		t.Error("a cabal built from its creator alone does not count the creator as an admin")
+	}
+}
+
+func TestRoles_aUserWithoutAMemberRowHasNoRole(t *testing.T) {
+	t.Parallel()
+	c, _ := newAdminCast(t)
+	empty := domain.Cabal{}
+	if empty.IsCreator(c.creator) || empty.IsAdmin(c.creator) {
+		t.Error("a cabal with no member rows gives a user creator or admin power")
+	}
+	if got := empty.RoleOf(c.creator); got != domain.RoleMember {
+		t.Errorf("RoleOf with no member row = %s, want %s", got, domain.RoleMember)
+	}
+	if err := domain.CanEdit(domain.Actor{UserID: c.creator}, empty); errs.CodeOf(err) != errs.CodeNotCabalCreator {
+		t.Errorf("CanEdit with no member row = %v, want %s", err, errs.CodeNotCabalCreator)
+	}
+	if err := domain.CanDecide(
+		domain.Actor{UserID: c.creator},
+		empty,
+		domain.AccessRequest{Direction: domain.DirectionRequest},
+	); errs.CodeOf(
+		err,
+	) != errs.CodeNotCabalAdmin {
+		t.Errorf("CanDecide with no member row = %v, want %s", err, errs.CodeNotCabalAdmin)
+	}
+	invite := domain.AccessRequest{Direction: domain.DirectionInvite, InvitedBy: c.creator}
+	if err := domain.CanRevoke(
+		domain.Actor{UserID: c.creator},
+		empty,
+		invite,
+	); errs.CodeOf(
+		err,
+	) != errs.CodeCannotRevokeAccess {
+		t.Errorf("CanRevoke with no member row = %v, want %s", err, errs.CodeCannotRevokeAccess)
 	}
 }
 

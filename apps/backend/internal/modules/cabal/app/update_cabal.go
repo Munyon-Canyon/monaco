@@ -91,9 +91,12 @@ func editable(
 	if err != nil {
 		return sqlc.FindCabalRow{}, domain.Cabal{}, err
 	}
-	_, err = q.FindMember(ctx, sqlc.FindMemberParams{CabalID: cabalID.UUID(), UserID: actor.UUID()})
+	found, err := q.FindMember(ctx, sqlc.FindMemberParams{CabalID: cabalID.UUID(), UserID: actor.UUID()})
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return sqlc.FindCabalRow{}, domain.Cabal{}, errs.Wrap(err, errs.CodeInternal, updateCabalOp)
+	}
+	if err == nil && domain.Role(found.Role) == domain.RoleCreator {
+		cabal.Creators = []ids.UserID{actor}
 	}
 	member := domain.Actor{UserID: actor, Member: err == nil}
 	return row, cabal, domain.CanEdit(member, cabal)
@@ -121,7 +124,7 @@ func loadCabal(ctx context.Context, q *sqlc.Queries, cabalID ids.CabalID) (sqlc.
 		return sqlc.FindCabalRow{}, domain.Cabal{}, errs.Wrap(err, errs.CodeInternal, updateCabalOp)
 	}
 	cabal := domain.Cabal{
-		CreatorID: ids.UserIDFrom(row.CreatorID), Rules: rules, Banned: row.Status == string(port.StatusBanned),
+		Rules: rules, Banned: row.Status == string(port.StatusBanned),
 	}
 	return row, cabal, nil
 }

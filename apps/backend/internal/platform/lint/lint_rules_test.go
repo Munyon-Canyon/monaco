@@ -141,6 +141,8 @@ func TestLintRules_eachViolationFailsWithItsLinter(t *testing.T) {
 		{"port-imports-app", "depguard", "a port package holds interfaces and read types"},
 		{"port-imports-sqlc", "depguard", "a port package holds interfaces and read types"},
 		{"module-imports-boundary", "depguard", "only platform, testkit and cmd log Warn and Error"},
+		{"creator-id-in-domain", "forbidigo", "creator power comes from the member row role"},
+		{"creator-id-in-app", "forbidigo", "creator power comes from the member row role"},
 		{"float-in-domain", "forbidigo", "money is integer base units"},
 		{"float-in-money", "forbidigo", "money is integer base units"},
 		{"time-now-in-app", "forbidigo", "inject platform/clock.Clock"},

@@ -58,7 +58,7 @@ func lockCabalFor(
 		return domain.Cabal{}, nil, errs.Wrap(err, errs.CodeInternal, op)
 	}
 	cabal := domain.Cabal{
-		CreatorID: ids.UserIDFrom(row.CreatorID), Admins: userIDsOf(row.AdminIds), Rules: rules,
+		Creators: userIDsOf(row.CreatorIds), Admins: userIDsOf(row.AdminIds), Rules: rules,
 		Banned: row.Status == string(port.StatusBanned),
 	}
 	actors := make([]domain.Actor, 0, len(users))
