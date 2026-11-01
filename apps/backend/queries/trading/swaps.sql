@@ -34,7 +34,8 @@ WHERE id = @id
 -- name: SwapForForceResolve :one
 SELECT id, cabal_id, source_kind, source_id, action, symbol, in_mint, in_amount, out_mint, out_decimals,
   source_batch_size, status, tx_signature,
-  EXISTS (SELECT 1 FROM trade_steps WHERE trade_steps.trade_id = swaps.id) AS routed
+  EXISTS (SELECT 1 FROM trade_steps WHERE trade_steps.trade_id = swaps.id) AS routed,
+  coalesce(parked_code = 'swap_receipt_missing', false)::bool AS receipt_missing
 FROM swaps
 WHERE tx_signature = @tx_signature::text;
 

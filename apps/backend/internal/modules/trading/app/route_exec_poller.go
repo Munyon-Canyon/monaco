@@ -49,7 +49,7 @@ func (p *EVMTrades) Tick(ctx context.Context) (poller.Report, error) {
 	now := p.clock.Now()
 	q := sqlc.New(p.reads)
 	unfinished, unfinishedErr := q.ListRoutedUnfinished(ctx, sqlc.ListRoutedUnfinishedParams{
-		OlderThan: now.Add(-p.timing.Age), MaxRows: SwapSweepBatch,
+		OlderThan: now.Add(-p.timing.Age), Now: now, MaxRows: SwapSweepBatch,
 	})
 	stranded, strandedErr := q.ListStrandedCash(ctx, sqlc.ListStrandedCashParams{
 		OlderThan: now.Add(-p.timing.Age), MaxRows: SwapSweepBatch,
