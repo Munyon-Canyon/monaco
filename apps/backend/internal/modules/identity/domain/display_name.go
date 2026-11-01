@@ -9,6 +9,7 @@ import (
 	"golang.org/x/text/unicode/norm"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
+	"github.com/monaco/monaco/apps/backend/internal/platform/textfilter"
 )
 
 type DisplayName struct{ value string }
@@ -20,6 +21,9 @@ func ParseDisplayName(raw string) (DisplayName, error) {
 	value, reason := normalizeDisplayName(strings.TrimSpace(norm.NFC.String(raw)))
 	if reason != "" {
 		return DisplayName{}, invalidDisplayName(reason)
+	}
+	if err := textfilter.Check("identity.ParseDisplayName", value); err != nil {
+		return DisplayName{}, err
 	}
 	return DisplayName{value: value}, nil
 }

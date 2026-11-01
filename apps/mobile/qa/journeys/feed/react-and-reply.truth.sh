@@ -19,9 +19,11 @@ row="$(qa_sql -F $'\t' -v a="$a" -v run="$run" <<<"
     (SELECT count(*) FROM comment_reactions r JOIN root ON root.id = r.comment_id WHERE r.user_id = :'a' AND r.emoji = U&'\\+01F389'),
     (SELECT count(*) FROM comment_reactions r JOIN feed_comments c ON c.id = r.comment_id JOIN pub ON pub.id = c.feed_object_id
       WHERE r.user_id = :'a' AND r.emoji = U&'\\+01F44D'),
-    (SELECT count(*) FROM feed_comments c JOIN pub ON pub.id = c.feed_object_id WHERE c.author_id = :'a')")" ||
+    (SELECT count(*) FROM feed_comments c JOIN pub ON pub.id = c.feed_object_id WHERE c.author_id = :'a'),
+    (SELECT count(*) FROM reports r JOIN feed_objects f ON f.id = (SELECT id FROM sale) AND r.target_id = f.actor_id
+      WHERE r.reporter_id = :'a' AND r.kind = 'user' AND r.reason = 'spam')")" ||
   { echo "database cannot be reached" >&2; exit 2; }
-IFS=$'\t' read -r sale fire text gif party thumb publicreply <<<"$row"
+IFS=$'\t' read -r sale fire text gif party thumb publicreply reported <<<"$row"
 
 if [[ "$sale" == 0 ]]; then
   echo "ok: the run seeded nothing"
@@ -34,5 +36,6 @@ fail=0
 [[ "$party" == 1 ]] || { echo "A's 🎉 on 'QA root $run': got $party, want 1"; fail=1; }
 [[ "$thumb" == 1 ]] || { echo "A's 👍 on the public reply: got $thumb, want 1"; fail=1; }
 [[ "$publicreply" == 0 ]] || { echo "A's replies on the public proposal: got $publicreply, want 0"; fail=1; }
-[[ "$fail" == 0 ]] && echo "ok: A's reaction, GIF reply, deleted reply, two emoji chips and no public reply"
+[[ "$reported" -ge 1 ]] || { echo "A's spam report of the sale's author: got $reported, want at least 1"; fail=1; }
+[[ "$fail" == 0 ]] && echo "ok: A's reaction, GIF reply, deleted reply, two emoji chips, no public reply and a spam report"
 exit "$fail"

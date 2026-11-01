@@ -82,21 +82,24 @@ func TestNewReason_countsRunesAfterTrimmingAndKeepsTheTrimmedText(t *testing.T) 
 	}
 }
 
-func TestAdminActionKind_validIsExactlyTheTwelveWireValues(t *testing.T) {
+func TestAdminActionKind_validIsExactlyTheFifteenWireValues(t *testing.T) {
 	t.Parallel()
 	wire := map[string]events.AdminActionKind{
-		"ops_pause":       events.AdminActionOpsPause,
-		"ops_resume":      events.AdminActionOpsResume,
-		"global_pause":    events.AdminActionGlobalPause,
-		"global_resume":   events.AdminActionGlobalResume,
-		"proposal_void":   events.AdminActionProposalVoid,
-		"user_ban":        events.AdminActionUserBan,
-		"user_unban":      events.AdminActionUserUnban,
-		"comment_remove":  events.AdminActionCommentRemove,
-		"handle_revoke":   events.AdminActionHandleRevoke,
-		"handle_reassign": events.AdminActionHandleReassign,
-		"cabal_ban":       events.AdminActionCabalBan,
-		"ping_flag":       events.AdminActionPingFlag,
+		"ops_pause":            events.AdminActionOpsPause,
+		"ops_resume":           events.AdminActionOpsResume,
+		"global_pause":         events.AdminActionGlobalPause,
+		"global_resume":        events.AdminActionGlobalResume,
+		"proposal_void":        events.AdminActionProposalVoid,
+		"user_ban":             events.AdminActionUserBan,
+		"user_unban":           events.AdminActionUserUnban,
+		"comment_remove":       events.AdminActionCommentRemove,
+		"handle_revoke":        events.AdminActionHandleRevoke,
+		"handle_reassign":      events.AdminActionHandleReassign,
+		"cabal_ban":            events.AdminActionCabalBan,
+		"ping_flag":            events.AdminActionPingFlag,
+		"chat_message_remove":  events.AdminActionChatRemove,
+		"cabal_picture_remove": events.AdminActionPictureRemove,
+		"report_resolve":       events.AdminActionReportResolve,
 	}
 	for text, kind := range wire {
 		if string(kind) != text || !kind.Valid() {
@@ -110,16 +113,18 @@ func TestAdminActionKind_validIsExactlyTheTwelveWireValues(t *testing.T) {
 	}
 }
 
-func TestAdminTargetType_validIsExactlyTheSevenWireValues(t *testing.T) {
+func TestAdminTargetType_validIsExactlyTheNineWireValues(t *testing.T) {
 	t.Parallel()
 	wire := map[string]events.AdminTargetType{
-		"cabal":       events.AdminTargetCabal,
-		"proposal":    events.AdminTargetProposal,
-		"user":        events.AdminTargetUser,
-		"comment":     events.AdminTargetComment,
-		"handle":      events.AdminTargetHandle,
-		"system_ping": events.AdminTargetSystemPing,
-		"global":      events.AdminTargetGlobal,
+		"cabal":        events.AdminTargetCabal,
+		"proposal":     events.AdminTargetProposal,
+		"user":         events.AdminTargetUser,
+		"comment":      events.AdminTargetComment,
+		"handle":       events.AdminTargetHandle,
+		"system_ping":  events.AdminTargetSystemPing,
+		"global":       events.AdminTargetGlobal,
+		"chat_message": events.AdminTargetChat,
+		"report":       events.AdminTargetReport,
 	}
 	for text, target := range wire {
 		if string(target) != text || !target.Valid() {

@@ -7,6 +7,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
+	"github.com/monaco/monaco/apps/backend/internal/platform/textfilter"
 )
 
 const (
@@ -22,6 +23,9 @@ func ParseName(raw string) (Name, error) {
 	if chars < MinNameLen || chars > MaxNameLen || !utf8.ValidString(trimmed) ||
 		strings.ContainsFunc(trimmed, unicode.IsControl) {
 		return Name{}, errs.New(errs.CodeInvalidInput, "cabal.ParseName", slog.Int("chars", chars))
+	}
+	if err := textfilter.Check("cabal.ParseName", trimmed); err != nil {
+		return Name{}, err
 	}
 	return Name{value: trimmed}, nil
 }

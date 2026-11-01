@@ -19,6 +19,7 @@ struct CommentActionsOverlay: View {
     let onReply: () -> Void
     let onCopy: () -> Void
     var onReport: (() -> Void)?
+    var onBlock: (() -> Void)?
     var onDelete: (() -> Void)?
     let onDismiss: () -> Void
 
@@ -96,6 +97,9 @@ struct CommentActionsOverlay: View {
             action("Copy", icon: .copy, id: "copy", perform: onCopy)
             if let onReport {
                 action("Report", icon: .report, id: "report", destructive: true, perform: onReport)
+            }
+            if let onBlock {
+                action("Block", icon: .hand, id: "block", destructive: true, perform: onBlock)
             }
             if let onDelete {
                 action(CommentsCopy.delete, icon: .trash, id: "delete", destructive: true, perform: onDelete)

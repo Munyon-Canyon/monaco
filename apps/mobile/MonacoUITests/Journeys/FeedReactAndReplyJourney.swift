@@ -2,7 +2,7 @@ import XCTest
 
 enum FeedReactAndReplyJourney {
     static let id = "feed/react-and-reply"
-    static let version = 2
+    static let version = 3
 
     static func recorder() -> JourneyRecorder {
         JourneyRecorder(journey: id, version: version)
@@ -244,6 +244,28 @@ extension FeedReactAndReplyJourney {
             XCTAssertTrue(
                 waitForRepliesHeader(app, count: 2, timeout: 10), "S2.6: the header is not 'Replies 2'"
             )
+        }
+    }
+
+    static func reportPost(_ app: XCUIApplication, item: String, recorder: JourneyRecorder) {
+        recorder.step("S4.1", "long-press the sale's card and read its menu") {
+            app.popToRoot()
+            FeedBrowseJourney.openFeed(app, step: "S4.1")
+            let cell = app.element("feed-cell-\(item)")
+            app.scrollIntoReach(cell)
+            XCTAssertTrue(cell.waitForExistence(timeout: 15), "S4.1: no sale card within 15 s")
+            cell.press(forDuration: 1.0)
+            XCTAssertTrue(app.element("feed-report").waitForExistence(timeout: 10), "S4.1: no Report in the card menu")
+            XCTAssertTrue(app.element("feed-block").exists, "S4.1: no Block in the card menu")
+        }
+
+        recorder.step("S4.2", "report the post as spam") {
+            app.element("feed-report").tap()
+            XCTAssertTrue(app.element("report-title").waitForExistence(timeout: 5), "S4.2: no report sheet")
+            app.element("report-reason-spam").tap()
+            XCTAssertEqual(
+                app.toastText(timeout: 10), "Thanks. We'll take a look.", "S4.2: no report toast within 10 s")
+            XCTAssertTrue(waitGone(app.element("report-title"), timeout: 10), "S4.2: the report sheet stayed open")
         }
     }
 

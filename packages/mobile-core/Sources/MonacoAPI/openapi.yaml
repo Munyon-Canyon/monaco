@@ -655,6 +655,38 @@ paths:
         default:
           $ref: "#/components/responses/Problem"
   # api/spec/cabal.yaml
+  /v1/admin/cabals/{id}/picture:
+    delete:
+      operationId: removeAdminCabalPicture
+      tags: [cabal]
+      x-admin-role: moderator
+      x-idempotent: true
+      x-rate-limit: {actor: {rate: 120, per: 1m, burst: 30}}
+      summary: Remove a cabal's picture as a moderator.
+      description: >-
+        Clears the cabal's picture and appends `cabal.updated` and `admin.action` in one transaction. A cabal
+        with no picture returns 204 and changes nothing. An unknown cabal is cabal_not_found, and a reason
+        shorter than 3 characters is reason_required.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - name: id
+          in: path
+          required: true
+          description: The cabal's id.
+          schema: {type: string, format: uuid, examples: ["01890a5d-ac96-774b-bcce-b302099a8058"]}
+      requestBody:
+        description: Why the moderator removes the picture.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReasonBody"
+            example: {reason: abusive image}
+      responses:
+        "204":
+          description: The picture is removed.
+        default:
+          $ref: "#/components/responses/Problem"
   /v1/cabals:
     get:
       operationId: getCabals
@@ -3817,6 +3849,39 @@ paths:
         default:
           $ref: "#/components/responses/Problem"
   # api/spec/social.yaml
+  /v1/admin/chat-messages/{id}:
+    delete:
+      operationId: removeChatMessage
+      tags: [social]
+      x-admin-role: moderator
+      x-idempotent: true
+      x-rate-limit: {actor: {rate: 120, per: 1m, burst: 30}}
+      summary: Remove a cabal chat message.
+      description: >-
+        Soft-deletes the message as a moderator and tells the cabal's live channel it is gone. Appends
+        `admin.action` in the same transaction and never copies the body into the audit. A message that is
+        already deleted returns 204 and changes nothing. An unknown message is chat_message_not_found, and a
+        reason shorter than 3 characters is reason_required.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - name: id
+          in: path
+          required: true
+          description: The message's id.
+          schema: {type: string, format: uuid, examples: ["01920000-0000-7000-8000-000000000007"]}
+      requestBody:
+        description: Why the moderator removes the message.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReasonBody"
+            example: {reason: abuse}
+      responses:
+        "204":
+          description: The message is removed.
+        default:
+          $ref: "#/components/responses/Problem"
   /v1/admin/comments/{id}:
     delete:
       operationId: removeComment
@@ -3884,6 +3949,38 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AdminReports"
+        default:
+          $ref: "#/components/responses/Problem"
+  /v1/admin/reports/{id}/resolve:
+    post:
+      operationId: resolveReport
+      tags: [social]
+      x-admin-role: moderator
+      x-idempotent: true
+      x-rate-limit: {actor: {rate: 120, per: 1m, burst: 30}}
+      summary: Resolve a report.
+      description: >-
+        Marks the report resolved after a moderator acted on it or decided no action is needed, and appends
+        `admin.action`. A report that is already resolved returns 204 and changes nothing. An unknown report is
+        report_not_found, and a reason shorter than 3 characters is reason_required.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - name: id
+          in: path
+          required: true
+          description: The report's id.
+          schema: {type: string, format: uuid, examples: ["01920000-0000-7000-8000-000000000009"]}
+      requestBody:
+        description: What the moderator decided.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReasonBody"
+            example: {reason: removed the message}
+      responses:
+        "204":
+          description: The report is resolved.
         default:
           $ref: "#/components/responses/Problem"
   /v1/cabals/{id}/chat/seen:
@@ -5699,6 +5796,9 @@ components:
         - handle_reassign
         - cabal_ban
         - ping_flag
+        - chat_message_remove
+        - cabal_picture_remove
+        - report_resolve
       examples: [ping_flag]
     AdminActionRecord:
       type: object
@@ -6103,7 +6203,7 @@ components:
     AdminTargetType:
       type: string
       description: The kind of thing the action changed.
-      enum: [cabal, proposal, user, comment, handle, system_ping, global]
+      enum: [cabal, proposal, user, comment, handle, system_ping, global, chat_message, report]
       examples: [system_ping]
     AdminTxn:
       type: object
@@ -7194,6 +7294,7 @@ components:
         - comment_parent_mismatch
         - conservation_broken
         - contact_hashes_invalid
+        - content_not_allowed
         - cursor_stale
         - dashboard_timeout
         - db_schema_behind
@@ -7284,6 +7385,7 @@ components:
         - referral_self
         - referral_window_closed
         - relayer_underfunded
+        - report_not_found
         - report_target_not_found
         - request_not_needed
         - request_pending

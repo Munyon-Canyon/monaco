@@ -9,6 +9,7 @@ import (
 	"golang.org/x/text/unicode/norm"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
+	"github.com/monaco/monaco/apps/backend/internal/platform/textfilter"
 )
 
 const MaxBioScalars = 160
@@ -27,6 +28,9 @@ func ParseBio(raw string) (Bio, error) {
 	}
 	if utf8.RuneCountInString(value) > MaxBioScalars {
 		return Bio{}, invalidBio("too_long")
+	}
+	if err := textfilter.Check("identity.ParseBio", value); err != nil {
+		return Bio{}, err
 	}
 	return Bio{value: value}, nil
 }

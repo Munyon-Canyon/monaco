@@ -59,6 +59,7 @@ const (
 	CommentParentMismatch ErrorCode = "comment_parent_mismatch"
 	ConservationBroken ErrorCode = "conservation_broken"
 	ContactHashesInvalid ErrorCode = "contact_hashes_invalid"
+	ContentNotAllowed ErrorCode = "content_not_allowed"
 	CursorStale ErrorCode = "cursor_stale"
 	DashboardTimeout ErrorCode = "dashboard_timeout"
 	DbSchemaBehind ErrorCode = "db_schema_behind"
@@ -149,6 +150,7 @@ const (
 	ReferralSelf ErrorCode = "referral_self"
 	ReferralWindowClosed ErrorCode = "referral_window_closed"
 	RelayerUnderfunded ErrorCode = "relayer_underfunded"
+	ReportNotFound ErrorCode = "report_not_found"
 	ReportTargetNotFound ErrorCode = "report_target_not_found"
 	RequestNotNeeded ErrorCode = "request_not_needed"
 	RequestPending ErrorCode = "request_pending"
@@ -288,6 +290,8 @@ func (e ErrorCode) Valid() bool {
 	case ConservationBroken:
 		return true
 	case ContactHashesInvalid:
+		return true
+	case ContentNotAllowed:
 		return true
 	case CursorStale:
 		return true
@@ -468,6 +472,8 @@ func (e ErrorCode) Valid() bool {
 	case ReferralWindowClosed:
 		return true
 	case RelayerUnderfunded:
+		return true
+	case ReportNotFound:
 		return true
 	case ReportTargetNotFound:
 		return true

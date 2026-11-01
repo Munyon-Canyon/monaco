@@ -34,13 +34,17 @@ const (
 	AdminActionHandleReassign AdminActionKind = "handle_reassign"
 	AdminActionCabalBan       AdminActionKind = "cabal_ban"
 	AdminActionPingFlag       AdminActionKind = "ping_flag"
+	AdminActionChatRemove     AdminActionKind = "chat_message_remove"
+	AdminActionPictureRemove  AdminActionKind = "cabal_picture_remove"
+	AdminActionReportResolve  AdminActionKind = "report_resolve"
 )
 
 func (k AdminActionKind) Valid() bool {
 	switch k {
 	case AdminActionOpsPause, AdminActionOpsResume, AdminActionGlobalPause, AdminActionGlobalResume,
 		AdminActionProposalVoid, AdminActionUserBan, AdminActionUserUnban, AdminActionCommentRemove,
-		AdminActionHandleRevoke, AdminActionHandleReassign, AdminActionCabalBan, AdminActionPingFlag:
+		AdminActionHandleRevoke, AdminActionHandleReassign, AdminActionCabalBan, AdminActionPingFlag,
+		AdminActionChatRemove, AdminActionPictureRemove, AdminActionReportResolve:
 		return true
 	}
 	return false
@@ -56,12 +60,14 @@ const (
 	AdminTargetHandle     AdminTargetType = "handle"
 	AdminTargetSystemPing AdminTargetType = "system_ping"
 	AdminTargetGlobal     AdminTargetType = "global"
+	AdminTargetChat       AdminTargetType = "chat_message"
+	AdminTargetReport     AdminTargetType = "report"
 )
 
 func (t AdminTargetType) Valid() bool {
 	switch t {
 	case AdminTargetCabal, AdminTargetProposal, AdminTargetUser, AdminTargetComment, AdminTargetHandle,
-		AdminTargetSystemPing, AdminTargetGlobal:
+		AdminTargetSystemPing, AdminTargetGlobal, AdminTargetChat, AdminTargetReport:
 		return true
 	}
 	return false

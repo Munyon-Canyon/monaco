@@ -1,17 +1,17 @@
 ---
 id: feed/react-and-reply
 title: React and reply from the Feed
-version: 2
+version: 3
 milestone: F launch (phase 1)
 requires: [auth/sign-in]
 actors: [A]
-flows: [21, 21b]
+flows: [20a, 21, 21b]
 xcuitest: [apps/mobile/MonacoUITests/Journeys/FeedReactAndReplyJourney.swift, apps/mobile/MonacoUITests/Journeys/FeedReactAndReplyJourneyUITests.swift]
 ---
 
 # React and reply from the Feed
 
-A member reacts to a post and replies to it from the Feed card, reads the post page, replies to a reply with a GIF, long-presses a reply for its actions, and reads a public post of a cabal they are not in. Every Feed post takes emoji reactions and replies (flow 21 is replies, where #6533 adds the GIF attachment rows; flow 21b is reactions, #6431 and #6507). There are no image uploads in chats at launch, so no step uses a Photo.
+A member reacts to a post and replies to it from the Feed card, reads the post page, replies to a reply with a GIF, long-presses a reply for its actions, and reads a public post of a cabal they are not in, and reports a Feed post (App Store Guideline 1.2). Every Feed post takes emoji reactions and replies (flow 21 is replies, where #6533 adds the GIF attachment rows; flow 21b is reactions, #6431 and #6507). There are no image uploads in chats at launch, so no step uses a Photo.
 
 Frames: `05-feed-A`, `05-post-reply`, `05-post`, `05-post-scrolled`, `05-comment-actions`, `05-post-public` in `docs/design/f/screens/`.
 
@@ -55,9 +55,16 @@ The format of this doc is in [App journeys](../README.md).
 | S3.2 | A | scroll to | `comment-members-only` | | It reads "Members of QA public {QA.run} reply here" (#6553). There is no `comment-composer-field` and no `comment-reply-<id>` |
 | S3.3 | A | long-press, tap | the host's `QA public reply {QA.run}`, then `reaction-tray-1F44D` | | The tray, `comment-action-copy` and `comment-action-report` show, and no `comment-action-reply`. Within 10 s the row shows `reaction-chip-comment-<id>-1F44D` "👍 1" |
 
+### S4 Report a Feed post
+
+| Step | Actor | Action | Target | Input | Expect |
+| --- | --- | --- | --- | --- | --- |
+| S4.1 | A | tap, long-press | the Feed tab, then the sale's card `feed-cell-<item id>` | | Within 10 s the card's menu shows `feed-report` and `feed-block` besides its mute rows. A is not offered either on a card of their own |
+| S4.2 | A | tap, tap | `feed-report`, then `report-reason-spam` in `report-title` "Report" | | Within 10 s the toast reads "Thanks. We'll take a look." and the sheet closes. The menu's `feed-block` is not tapped, so the pooled host stays unblocked for the next run |
+
 ## Ground truth
 
-`apps/mobile/qa/journeys/feed/react-and-reply.truth.sh` reads `feed_reactions`, `feed_comments`, `comment_attachments` and `comment_reactions`. It expects A's 🔥 reaction on the sale item; A's text reply `QA feed reply {QA.run}` deleted and A's GIF reply live with `parent_comment_id` equal to the root and a `gif` attachment; A's 🎉 on the root and 👍 on the public reply; and no reply by A on the public proposal. A run that stopped before it seeded anything passes with a note.
+`apps/mobile/qa/journeys/feed/react-and-reply.truth.sh` reads `feed_reactions`, `feed_comments`, `comment_attachments` and `comment_reactions`. It expects A's 🔥 reaction on the sale item; A's text reply `QA feed reply {QA.run}` deleted and A's GIF reply live with `parent_comment_id` equal to the root and a `gif` attachment; A's 🎉 on the root and 👍 on the public reply; and no reply by A on the public proposal; and at least one `reports` row by A against the host with kind `user` and reason `spam` (the sale card's actor). A run that stopped before it seeded anything passes with a note.
 
 ## Known failures on staging
 

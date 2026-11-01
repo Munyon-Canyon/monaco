@@ -541,6 +541,160 @@
           }
         }
       ]
+    },
+    {
+      "uid": "monaco-reports-open",
+      "title": "A user report is waiting for review",
+      "condition": "C",
+      "noDataState": "OK",
+      "execErrState": "Error",
+      "for": "1m",
+      "labels": {
+        "team": "monaco",
+        "severity": "warning"
+      },
+      "annotations": {
+        "summary": "A member reported content (App Store Guideline 1.2). Open https://monacolabs.retool.com/reports, remove the content or suspend the user, then resolve the report. The 24-hour commitment is in docs/how-to/moderation.md."
+      },
+      "data": [
+        {
+          "refId": "A",
+          "relativeTimeRange": {
+            "from": 600,
+            "to": 0
+          },
+          "datasourceUid": "grafanacloud-prom",
+          "model": {
+            "refId": "A",
+            "expr": "monaco_reports_open > 0",
+            "instant": true,
+            "intervalMs": 1000,
+            "maxDataPoints": 43200
+          }
+        },
+        {
+          "refId": "B",
+          "relativeTimeRange": {
+            "from": 600,
+            "to": 0
+          },
+          "datasourceUid": "__expr__",
+          "model": {
+            "refId": "B",
+            "type": "reduce",
+            "expression": "A",
+            "reducer": "last",
+            "datasource": {
+              "type": "__expr__",
+              "uid": "__expr__"
+            }
+          }
+        },
+        {
+          "refId": "C",
+          "relativeTimeRange": {
+            "from": 600,
+            "to": 0
+          },
+          "datasourceUid": "__expr__",
+          "model": {
+            "refId": "C",
+            "type": "threshold",
+            "expression": "B",
+            "conditions": [
+              {
+                "evaluator": {
+                  "type": "gt",
+                  "params": [
+                    0
+                  ]
+                }
+              }
+            ],
+            "datasource": {
+              "type": "__expr__",
+              "uid": "__expr__"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "uid": "monaco-reports-overdue",
+      "title": "A user report has waited over 12 hours",
+      "condition": "C",
+      "noDataState": "OK",
+      "execErrState": "Error",
+      "for": "1m",
+      "labels": {
+        "team": "monaco",
+        "severity": "critical"
+      },
+      "annotations": {
+        "summary": "The oldest open report is past half of the 24-hour response commitment. Review it now in https://monacolabs.retool.com/reports (docs/how-to/moderation.md)."
+      },
+      "data": [
+        {
+          "refId": "A",
+          "relativeTimeRange": {
+            "from": 600,
+            "to": 0
+          },
+          "datasourceUid": "grafanacloud-prom",
+          "model": {
+            "refId": "A",
+            "expr": "monaco_reports_oldest_open_seconds > 43200",
+            "instant": true,
+            "intervalMs": 1000,
+            "maxDataPoints": 43200
+          }
+        },
+        {
+          "refId": "B",
+          "relativeTimeRange": {
+            "from": 600,
+            "to": 0
+          },
+          "datasourceUid": "__expr__",
+          "model": {
+            "refId": "B",
+            "type": "reduce",
+            "expression": "A",
+            "reducer": "last",
+            "datasource": {
+              "type": "__expr__",
+              "uid": "__expr__"
+            }
+          }
+        },
+        {
+          "refId": "C",
+          "relativeTimeRange": {
+            "from": 600,
+            "to": 0
+          },
+          "datasourceUid": "__expr__",
+          "model": {
+            "refId": "C",
+            "type": "threshold",
+            "expression": "B",
+            "conditions": [
+              {
+                "evaluator": {
+                  "type": "gt",
+                  "params": [
+                    0
+                  ]
+                }
+              }
+            ],
+            "datasource": {
+              "type": "__expr__",
+              "uid": "__expr__"
+            }
+          }
+        }
+      ]
     }
   ]
 }

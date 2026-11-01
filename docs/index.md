@@ -46,6 +46,7 @@ Read these in order to understand the repo:
 | [Prove an EVM trade](how-to/evm-trade.md) | Proving a cabal trade routed to Base, Arbitrum or Ethereum with real USDC through the API, and the first recorded run |
 | [Sweep wallets](how-to/sweep-wallets.md) | Recovering test USDC that a QA run left in member wallets or cabal treasuries |
 | [Admin panel](how-to/admin-panel.md) | The viewer service token Grafana uses to read the admin dashboards: create, store, rotate, revoke |
+| [Moderate reported content](how-to/moderation.md) | The 24-hour response commitment, how a report pages the team, and the admin action that answers each kind of report |
 | [TestFlight](https://github.com/Munyon-Canyon/monaco/blob/main/apps/mobile/TestFlight.md) | Shipping an iOS build |
 
 ## Operations

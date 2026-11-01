@@ -551,11 +551,14 @@ components:
         - handle_reassign
         - cabal_ban
         - ping_flag
+        - chat_message_remove
+        - cabal_picture_remove
+        - report_resolve
       examples: [ping_flag]
     AdminTargetType:
       type: string
       description: The kind of thing the action changed.
-      enum: [cabal, proposal, user, comment, handle, system_ping, global]
+      enum: [cabal, proposal, user, comment, handle, system_ping, global, chat_message, report]
       examples: [system_ping]
     AdminActionRecord:
       type: object

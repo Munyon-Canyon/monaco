@@ -12,6 +12,24 @@ import (
 	"github.com/google/uuid"
 )
 
+const countOpenReports = `-- name: CountOpenReports :one
+SELECT count(*)::bigint AS open_count,
+  coalesce(extract(epoch FROM $1::timestamptz - min(created_at)), 0)::bigint AS oldest_seconds
+FROM reports WHERE status = 'open'
+`
+
+type CountOpenReportsRow struct {
+	OpenCount     int64
+	OldestSeconds int64
+}
+
+func (q *Queries) CountOpenReports(ctx context.Context, now time.Time) (CountOpenReportsRow, error) {
+	row := q.db.QueryRow(ctx, countOpenReports, now)
+	var i CountOpenReportsRow
+	err := row.Scan(&i.OpenCount, &i.OldestSeconds)
+	return i, err
+}
+
 const insertReport = `-- name: InsertReport :one
 INSERT INTO reports (id, reporter_id, kind, target_id, reason, note, created_at)
 VALUES ($1, $2, $3, $4, $5, NULLIF($7::text, ''), $6)
@@ -98,6 +116,22 @@ func (q *Queries) ListReports(ctx context.Context, arg ListReportsParams) ([]Rep
 	return items, nil
 }
 
+const lockReport = `-- name: LockReport :one
+SELECT id, status FROM reports WHERE id = $1 FOR UPDATE
+`
+
+type LockReportRow struct {
+	ID     uuid.UUID
+	Status string
+}
+
+func (q *Queries) LockReport(ctx context.Context, id uuid.UUID) (LockReportRow, error) {
+	row := q.db.QueryRow(ctx, lockReport, id)
+	var i LockReportRow
+	err := row.Scan(&i.ID, &i.Status)
+	return i, err
+}
+
 const openReportID = `-- name: OpenReportID :one
 SELECT id FROM reports
 WHERE reporter_id = $1 AND kind = $2 AND target_id = $3 AND status = 'open'
@@ -114,4 +148,16 @@ func (q *Queries) OpenReportID(ctx context.Context, arg OpenReportIDParams) (uui
 	var id uuid.UUID
 	err := row.Scan(&id)
 	return id, err
+}
+
+const resolveReport = `-- name: ResolveReport :execrows
+UPDATE reports SET status = 'resolved' WHERE id = $1 AND status = 'open'
+`
+
+func (q *Queries) ResolveReport(ctx context.Context, id uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, resolveReport, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }

@@ -51,6 +51,7 @@ extension Components.Schemas.ErrorCode {
         case .commentParentMismatch: true
         case .conservationBroken: true
         case .contactHashesInvalid: true
+        case .contentNotAllowed: true
         case .cursorStale: true
         case .dashboardTimeout: true
         case .dbSchemaBehind: true
@@ -141,6 +142,7 @@ extension Components.Schemas.ErrorCode {
         case .referralSelf: true
         case .referralWindowClosed: true
         case .relayerUnderfunded: true
+        case .reportNotFound: true
         case .reportTargetNotFound: true
         case .requestNotNeeded: true
         case .requestPending: true

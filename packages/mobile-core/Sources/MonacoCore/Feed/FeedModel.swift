@@ -132,6 +132,14 @@ public final class FeedModel {
         FeedMuteOption.options(for: item, viewerID: viewerID)
     }
 
+    public func reportTarget(for item: Components.Schemas.FeedItem) -> FeedReportTarget? {
+        FeedModeration.reportTarget(for: item, viewerID: viewerID)
+    }
+
+    public func blockTarget(for item: Components.Schemas.FeedItem) -> FeedBlockTarget? {
+        FeedModeration.blockTarget(for: item, viewerID: viewerID)
+    }
+
     public func mute(_ option: FeedMuteOption) async -> FeedMuteReceipt? {
         do {
             try await mutes.mute(option.target)

@@ -108,6 +108,12 @@ WHERE NOT EXISTS (SELECT 1 FROM feed_cabals fc WHERE fc.cabal_id = f.cabal_id AN
     SELECT 1 FROM feed_mutes m
     WHERE m.user_id = sqlc.arg(viewer)::uuid AND m.target_type = 'item' AND m.target_id = f.id::text
   )
+  AND NOT EXISTS (
+    SELECT 1 FROM user_blocks b
+    WHERE f.actor_id IS NOT NULL
+      AND ((b.blocker_id = sqlc.arg(viewer)::uuid AND b.blocked_id = f.actor_id)
+        OR (b.blocker_id = f.actor_id AND b.blocked_id = sqlc.arg(viewer)::uuid))
+  )
   AND (
     NOT sqlc.arg(has_cursor)::bool
     OR (f.created_at, f.id) < (sqlc.arg(after_at)::timestamptz, sqlc.arg(after_id)::uuid)
@@ -209,6 +215,12 @@ WHERE NOT EXISTS (SELECT 1 FROM feed_cabals fc WHERE fc.cabal_id = f.cabal_id AN
     SELECT 1 FROM feed_mutes m
     WHERE m.user_id = sqlc.arg(viewer)::uuid AND m.target_type = 'item' AND m.target_id = f.id::text
   )
+  AND NOT EXISTS (
+    SELECT 1 FROM user_blocks b
+    WHERE f.actor_id IS NOT NULL
+      AND ((b.blocker_id = sqlc.arg(viewer)::uuid AND b.blocked_id = f.actor_id)
+        OR (b.blocker_id = f.actor_id AND b.blocked_id = sqlc.arg(viewer)::uuid))
+  )
   AND f.created_at >= sqlc.arg(since)::timestamptz
   AND (
     NOT sqlc.arg(has_cursor)::bool
@@ -300,6 +312,12 @@ SELECT f.id, f.kind, f.ref_type, f.ref_id, f.cabal_id, f.actor_id, f.symbol, f.t
     AND NOT EXISTS (
       SELECT 1 FROM feed_mutes m
       WHERE m.user_id = sqlc.arg(viewer)::uuid AND m.target_type = 'item' AND m.target_id = f.id::text
+    )
+    AND NOT EXISTS (
+      SELECT 1 FROM user_blocks b
+      WHERE f.actor_id IS NOT NULL
+        AND ((b.blocker_id = sqlc.arg(viewer)::uuid AND b.blocked_id = f.actor_id)
+          OR (b.blocker_id = f.actor_id AND b.blocked_id = sqlc.arg(viewer)::uuid))
     )
   )::bool AS visible
 FROM feed_objects f

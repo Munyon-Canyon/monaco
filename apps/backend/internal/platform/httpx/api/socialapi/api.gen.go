@@ -2220,6 +2220,12 @@ type ChatCabalId = openapi_types.UUID
 // ChatMessageId Examples: 01920000-0000-7000-8000-000000000007
 type ChatMessageId = openapi_types.UUID
 
+// RemoveChatMessageParams defines parameters for RemoveChatMessage.
+type RemoveChatMessageParams struct {
+	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
+	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
+}
+
 // RemoveCommentParams defines parameters for RemoveComment.
 type RemoveCommentParams struct {
 	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
@@ -2240,6 +2246,12 @@ type GetAdminReportsParams struct {
 
 // GetAdminReportsParamsStatus defines parameters for GetAdminReports.
 type GetAdminReportsParamsStatus string
+
+// ResolveReportParams defines parameters for ResolveReport.
+type ResolveReportParams struct {
+	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
+	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
+}
 
 // GetChatSeenByParams defines parameters for GetChatSeenBy.
 type GetChatSeenByParams struct {
@@ -2538,8 +2550,14 @@ type GetUserFollowingParams struct {
 	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
+// RemoveChatMessageJSONRequestBody defines body for RemoveChatMessage for application/json ContentType.
+type RemoveChatMessageJSONRequestBody = externalRef0.ReasonBody
+
 // RemoveCommentJSONRequestBody defines body for RemoveComment for application/json ContentType.
 type RemoveCommentJSONRequestBody = externalRef0.ReasonBody
+
+// ResolveReportJSONRequestBody defines body for ResolveReport for application/json ContentType.
+type ResolveReportJSONRequestBody = externalRef0.ReasonBody
 
 // PostChatMessageJSONRequestBody defines body for PostChatMessage for application/json ContentType.
 type PostChatMessageJSONRequestBody = PostChatMessageRequest
@@ -3086,12 +3104,18 @@ func (t *UserActivity) UnmarshalJSON(b []byte) error {
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
+	// RemoveChatMessage Remove a cabal chat message.
+	// (DELETE /v1/admin/chat-messages/{id})
+	RemoveChatMessage(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params RemoveChatMessageParams)
 	// RemoveComment Remove a comment.
 	// (DELETE /v1/admin/comments/{id})
 	RemoveComment(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params RemoveCommentParams)
 	// GetAdminReports List reports for moderators.
 	// (GET /v1/admin/reports)
 	GetAdminReports(w http.ResponseWriter, r *http.Request, params GetAdminReportsParams)
+	// ResolveReport Resolve a report.
+	// (POST /v1/admin/reports/{id}/resolve)
+	ResolveReport(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params ResolveReportParams)
 	// GetChatSeenBy List who has seen a chat message.
 	// (GET /v1/cabals/{id}/chat/seen)
 	GetChatSeenBy(w http.ResponseWriter, r *http.Request, id ChatCabalId, params GetChatSeenByParams)
@@ -3211,6 +3235,60 @@ type ServerInterfaceWrapper struct {
 
 type MiddlewareFunc func(http.Handler) http.Handler
 
+// RemoveChatMessage operation middleware
+func (siw *ServerInterfaceWrapper) RemoveChatMessage(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params RemoveChatMessageParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey externalRef0.IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.RemoveChatMessage(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // RemoveComment operation middleware
 func (siw *ServerInterfaceWrapper) RemoveComment(w http.ResponseWriter, r *http.Request) {
 
@@ -3315,6 +3393,60 @@ func (siw *ServerInterfaceWrapper) GetAdminReports(w http.ResponseWriter, r *htt
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetAdminReports(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ResolveReport operation middleware
+func (siw *ServerInterfaceWrapper) ResolveReport(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ResolveReportParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey externalRef0.IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ResolveReport(w, r, id, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -5516,8 +5648,10 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 		ErrorHandlerFunc:   options.ErrorHandlerFunc,
 	}
 
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/admin/chat-messages/{id}", wrapper.RemoveChatMessage)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/admin/comments/{id}", wrapper.RemoveComment)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/admin/reports", wrapper.GetAdminReports)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/admin/reports/{id}/resolve", wrapper.ResolveReport)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/cabals/{id}/chat/seen", wrapper.GetChatSeenBy)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/cabals/{id}/chat/seen", wrapper.MarkChatSeen)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/cabals/{id}/messages", wrapper.GetChatMessages)
@@ -5556,6 +5690,41 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/users/{id}/following", wrapper.GetUserFollowing)
 
 	return m
+}
+
+type RemoveChatMessageRequestObject struct {
+	Id     openapi_types.UUID `json:"id"`
+	Params RemoveChatMessageParams
+	Body   *RemoveChatMessageJSONRequestBody
+}
+
+type RemoveChatMessageResponseObject interface {
+	VisitRemoveChatMessageResponse(w http.ResponseWriter) error
+}
+
+type RemoveChatMessage204Response struct {
+}
+
+func (response RemoveChatMessage204Response) VisitRemoveChatMessageResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type RemoveChatMessagedefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response RemoveChatMessagedefaultApplicationProblemPlusJSONResponse) VisitRemoveChatMessageResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
 }
 
 type RemoveCommentRequestObject struct {
@@ -5621,6 +5790,41 @@ type GetAdminReportsdefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response GetAdminReportsdefaultApplicationProblemPlusJSONResponse) VisitGetAdminReportsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ResolveReportRequestObject struct {
+	Id     openapi_types.UUID `json:"id"`
+	Params ResolveReportParams
+	Body   *ResolveReportJSONRequestBody
+}
+
+type ResolveReportResponseObject interface {
+	VisitResolveReportResponse(w http.ResponseWriter) error
+}
+
+type ResolveReport204Response struct {
+}
+
+func (response ResolveReport204Response) VisitResolveReportResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type ResolveReportdefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response ResolveReportdefaultApplicationProblemPlusJSONResponse) VisitResolveReportResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -7032,12 +7236,18 @@ func (response GetUserFollowingdefaultApplicationProblemPlusJSONResponse) VisitG
 
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
+	// RemoveChatMessage Remove a cabal chat message.
+	// (DELETE /v1/admin/chat-messages/{id})
+	RemoveChatMessage(ctx context.Context, request RemoveChatMessageRequestObject) (RemoveChatMessageResponseObject, error)
 	// RemoveComment Remove a comment.
 	// (DELETE /v1/admin/comments/{id})
 	RemoveComment(ctx context.Context, request RemoveCommentRequestObject) (RemoveCommentResponseObject, error)
 	// GetAdminReports List reports for moderators.
 	// (GET /v1/admin/reports)
 	GetAdminReports(ctx context.Context, request GetAdminReportsRequestObject) (GetAdminReportsResponseObject, error)
+	// ResolveReport Resolve a report.
+	// (POST /v1/admin/reports/{id}/resolve)
+	ResolveReport(ctx context.Context, request ResolveReportRequestObject) (ResolveReportResponseObject, error)
 	// GetChatSeenBy List who has seen a chat message.
 	// (GET /v1/cabals/{id}/chat/seen)
 	GetChatSeenBy(ctx context.Context, request GetChatSeenByRequestObject) (GetChatSeenByResponseObject, error)
@@ -7187,6 +7397,40 @@ type strictHandler struct {
 	options     StrictHTTPServerOptions
 }
 
+// RemoveChatMessage operation middleware
+func (sh *strictHandler) RemoveChatMessage(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params RemoveChatMessageParams) {
+	var request RemoveChatMessageRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	var body RemoveChatMessageJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.RemoveChatMessage(ctx, request.(RemoveChatMessageRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "RemoveChatMessage")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(RemoveChatMessageResponseObject); ok {
+		if err := validResponse.VisitRemoveChatMessageResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // RemoveComment operation middleware
 func (sh *strictHandler) RemoveComment(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params RemoveCommentParams) {
 	var request RemoveCommentRequestObject
@@ -7240,6 +7484,40 @@ func (sh *strictHandler) GetAdminReports(w http.ResponseWriter, r *http.Request,
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetAdminReportsResponseObject); ok {
 		if err := validResponse.VisitGetAdminReportsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ResolveReport operation middleware
+func (sh *strictHandler) ResolveReport(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params ResolveReportParams) {
+	var request ResolveReportRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	var body ResolveReportJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ResolveReport(ctx, request.(ResolveReportRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ResolveReport")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ResolveReportResponseObject); ok {
+		if err := validResponse.VisitResolveReportResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

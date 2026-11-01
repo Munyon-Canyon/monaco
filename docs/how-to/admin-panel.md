@@ -46,6 +46,7 @@ Both send `Authorization: Bearer {{ privyToken.value }}`. Every mutating query a
 | Lookups: proposal | `GET /proposals/{id}` |
 | Lookups: transaction | `GET /txns/{id}` by id, `GET /txns?signature=` by signature, with a Solscan link |
 | Queues | `GET /queues/stuck-txns`, `GET /queues/stuck-money` (see the [money runbook](money-runbook.md)), `GET /queues/unpublished-events`, `GET /queues/bounces`, `GET /dead-letters` (filters `status`, default `open`, and `consumer`) |
+| Reports | `GET /reports` (`status`, default `open`, oldest first), the page the `monaco-reports-open` alert links to; see [Moderate reported content](moderation.md) |
 | Approvals | `GET /approvals` (`status`, default `pending`) |
 | Audit | `GET /actions` with filters `admin_id`, `target_type`, `target_id`, `action`, paged with `cursor` and `limit` |
 
@@ -65,6 +66,9 @@ Each button is hidden when the role from `GET /me` is below the route's `x-admin
 | Revoke handle (user) | `POST /users/{id}/handle/revoke` | moderator |
 | Reassign handle (user) | `POST /handles/{handle}/reassign`, body `to_user_id` and `reason` | moderator |
 | Remove comment (user or cabal) | `DELETE /comments/{id}` | moderator |
+| Remove chat message (cabal) | `DELETE /chat-messages/{id}` | moderator |
+| Remove cabal picture (cabal) | `DELETE /cabals/{id}/picture` | moderator |
+| Resolve report (Reports) | `POST /reports/{id}/resolve` | moderator |
 | Pause cabal (cabal) | `POST /cabals/{id}/pause` | operator |
 | Resume cabal (cabal) | `POST /cabals/{id}/resume` | operator |
 | Pause all cabals (Home) | `POST /pause` | operator |

@@ -47,24 +47,31 @@ func (e AdminAccountStatus) Valid() bool {
 
 // Defines values for AdminActionKind.
 const (
-	AdminActionKindCabalBan       AdminActionKind = "cabal_ban"
-	AdminActionKindCommentRemove  AdminActionKind = "comment_remove"
-	AdminActionKindGlobalPause    AdminActionKind = "global_pause"
-	AdminActionKindGlobalResume   AdminActionKind = "global_resume"
-	AdminActionKindHandleReassign AdminActionKind = "handle_reassign"
-	AdminActionKindHandleRevoke   AdminActionKind = "handle_revoke"
-	AdminActionKindOpsPause       AdminActionKind = "ops_pause"
-	AdminActionKindOpsResume      AdminActionKind = "ops_resume"
-	AdminActionKindPingFlag       AdminActionKind = "ping_flag"
-	AdminActionKindProposalVoid   AdminActionKind = "proposal_void"
-	AdminActionKindUserBan        AdminActionKind = "user_ban"
-	AdminActionKindUserUnban      AdminActionKind = "user_unban"
+	AdminActionKindCabalBan           AdminActionKind = "cabal_ban"
+	AdminActionKindCabalPictureRemove AdminActionKind = "cabal_picture_remove"
+	AdminActionKindChatMessageRemove  AdminActionKind = "chat_message_remove"
+	AdminActionKindCommentRemove      AdminActionKind = "comment_remove"
+	AdminActionKindGlobalPause        AdminActionKind = "global_pause"
+	AdminActionKindGlobalResume       AdminActionKind = "global_resume"
+	AdminActionKindHandleReassign     AdminActionKind = "handle_reassign"
+	AdminActionKindHandleRevoke       AdminActionKind = "handle_revoke"
+	AdminActionKindOpsPause           AdminActionKind = "ops_pause"
+	AdminActionKindOpsResume          AdminActionKind = "ops_resume"
+	AdminActionKindPingFlag           AdminActionKind = "ping_flag"
+	AdminActionKindProposalVoid       AdminActionKind = "proposal_void"
+	AdminActionKindReportResolve      AdminActionKind = "report_resolve"
+	AdminActionKindUserBan            AdminActionKind = "user_ban"
+	AdminActionKindUserUnban          AdminActionKind = "user_unban"
 )
 
 // Valid indicates whether the value is a known member of the AdminActionKind enum.
 func (e AdminActionKind) Valid() bool {
 	switch e {
 	case AdminActionKindCabalBan:
+		return true
+	case AdminActionKindCabalPictureRemove:
+		return true
+	case AdminActionKindChatMessageRemove:
 		return true
 	case AdminActionKindCommentRemove:
 		return true
@@ -83,6 +90,8 @@ func (e AdminActionKind) Valid() bool {
 	case AdminActionKindPingFlag:
 		return true
 	case AdminActionKindProposalVoid:
+		return true
+	case AdminActionKindReportResolve:
 		return true
 	case AdminActionKindUserBan:
 		return true
@@ -233,19 +242,23 @@ func (e AdminRole) Valid() bool {
 
 // Defines values for AdminTargetType.
 const (
-	AdminTargetTypeCabal      AdminTargetType = "cabal"
-	AdminTargetTypeComment    AdminTargetType = "comment"
-	AdminTargetTypeGlobal     AdminTargetType = "global"
-	AdminTargetTypeHandle     AdminTargetType = "handle"
-	AdminTargetTypeProposal   AdminTargetType = "proposal"
-	AdminTargetTypeSystemPing AdminTargetType = "system_ping"
-	AdminTargetTypeUser       AdminTargetType = "user"
+	AdminTargetTypeCabal       AdminTargetType = "cabal"
+	AdminTargetTypeChatMessage AdminTargetType = "chat_message"
+	AdminTargetTypeComment     AdminTargetType = "comment"
+	AdminTargetTypeGlobal      AdminTargetType = "global"
+	AdminTargetTypeHandle      AdminTargetType = "handle"
+	AdminTargetTypeProposal    AdminTargetType = "proposal"
+	AdminTargetTypeReport      AdminTargetType = "report"
+	AdminTargetTypeSystemPing  AdminTargetType = "system_ping"
+	AdminTargetTypeUser        AdminTargetType = "user"
 )
 
 // Valid indicates whether the value is a known member of the AdminTargetType enum.
 func (e AdminTargetType) Valid() bool {
 	switch e {
 	case AdminTargetTypeCabal:
+		return true
+	case AdminTargetTypeChatMessage:
 		return true
 	case AdminTargetTypeComment:
 		return true
@@ -254,6 +267,8 @@ func (e AdminTargetType) Valid() bool {
 	case AdminTargetTypeHandle:
 		return true
 	case AdminTargetTypeProposal:
+		return true
+	case AdminTargetTypeReport:
 		return true
 	case AdminTargetTypeSystemPing:
 		return true

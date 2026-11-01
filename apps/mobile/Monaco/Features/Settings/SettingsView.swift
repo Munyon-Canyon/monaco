@@ -5,11 +5,11 @@ import UIKit
 
 enum SettingsRow: CaseIterable, Identifiable {
     case notifications, editProfile, findFriends, inviteFriends, viewAsOthers, activity, withdraw, blockedPeople
-    case advanced, signOut, deleteAccount
+    case advanced, contactSupport, signOut, deleteAccount
 
     static let accountRows: [SettingsRow] = [
         .editProfile, .findFriends, .inviteFriends, .viewAsOthers, .activity, .withdraw, .blockedPeople, .advanced,
-        .signOut,
+        .contactSupport, .signOut,
     ]
 
     var id: Self { self }
@@ -25,6 +25,7 @@ enum SettingsRow: CaseIterable, Identifiable {
         case .withdraw: "Withdraw"
         case .blockedPeople: "Blocked people"
         case .advanced: "Block explorers"
+        case .contactSupport: "Contact support"
         case .signOut: "Sign out"
         case .deleteAccount: "Delete account"
         }
@@ -41,6 +42,7 @@ enum SettingsRow: CaseIterable, Identifiable {
         case .withdraw: "Send cash to an external wallet"
         case .blockedPeople: "People you've blocked"
         case .advanced: "Choose where transaction links open"
+        case .contactSupport: SettingsCopy.supportEmail
         case .signOut: "Return to sign-in"
         case .deleteAccount: "Close your account and leave your cabals"
         }
@@ -57,6 +59,7 @@ enum SettingsRow: CaseIterable, Identifiable {
         case .withdraw: "arrow.up.right"
         case .blockedPeople: "hand.raised"
         case .advanced: "link"
+        case .contactSupport: "envelope"
         case .signOut: "rectangle.portrait.and.arrow.right"
         case .deleteAccount: "trash"
         }
@@ -73,6 +76,7 @@ enum SettingsRow: CaseIterable, Identifiable {
         case .withdraw: "settings-withdraw"
         case .blockedPeople: "settings-blocked-people"
         case .advanced: "settings-advanced"
+        case .contactSupport: "settings-contact-support"
         case .signOut: "profileSignOutButton"
         case .deleteAccount: "settings-delete-account"
         }
@@ -80,6 +84,8 @@ enum SettingsRow: CaseIterable, Identifiable {
 }
 
 enum SettingsCopy {
+    static let supportEmail = "support@monacolabs.xyz"
+    static let supportURL = URL(string: "mailto:\(supportEmail)?subject=Monaco%20support") ?? URL(fileURLWithPath: "/")
     static let signOut = "Sign out"
     static let signOutTitle = "Sign out of Monaco?"
     static let signOutMessage =
@@ -377,7 +383,7 @@ extension SettingsList {
         case .withdraw: WithdrawRoute()
         case .blockedPeople: BlockedPeopleRoute()
         case .deleteAccount: DeleteAccountRoute()
-        case .notifications, .advanced, .signOut: nil
+        case .notifications, .advanced, .contactSupport, .signOut: nil
         }
     }
 
@@ -389,6 +395,14 @@ extension SettingsList {
         case .advanced:
             NavigationLink {
                 AdvancedSettingsView()
+            } label: {
+                label(for: row, isLast: isLast)
+            }
+            .buttonStyle(.monacoRow)
+            .accessibilityIdentifier(row.identifier)
+        case .contactSupport:
+            Button {
+                openURL(SettingsCopy.supportURL)
             } label: {
                 label(for: row, isLast: isLast)
             }

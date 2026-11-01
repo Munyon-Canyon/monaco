@@ -7,5 +7,6 @@ func init() {
 		SocialChatPublishFailed,
 		SocialChatAuthorUnreadable,
 		ContactsMatched,
+		SocialReportReceived,
 	)
 }

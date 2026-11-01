@@ -25,6 +25,7 @@ func TestParseChatBody(t *testing.T) {
 		{"only whitespace", " \n\t ", "", errs.CodeChatBodyInvalid},
 		{"2001 scalars", strings.Repeat("🙂", 2001), "", errs.CodeChatBodyInvalid},
 		{"invalid UTF-8", "gm\xff", "", errs.CodeChatBodyInvalid},
+		{"listed word", "go kys", "", errs.CodeContentNotAllowed},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

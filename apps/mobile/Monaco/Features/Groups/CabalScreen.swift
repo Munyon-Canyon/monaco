@@ -145,6 +145,11 @@ struct CabalScreen: View {
                         .accessibilityIdentifier("cabal-inline-title")
                 }
             }
+            if let loaded = cabal.cabal, loaded.me == nil {
+                ToolbarItem(placement: .topBarTrailing) {
+                    CabalMoreMenu(items: CabalMoreItem.items(role: nil, status: loaded.status)) { pendingMore = $0 }
+                }
+            }
             if let loaded = cabal.cabal, loaded.me != nil {
                 ToolbarItem(placement: .topBarTrailing) {
                     HStack(spacing: MonacoTheme.Space.s) {

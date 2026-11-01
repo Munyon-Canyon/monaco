@@ -4,14 +4,12 @@ expect-fail: S1
 The … menu has no Leave cabal. S1.2 waits for it, so S1 must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
-diff --git a/apps/mobile/Monaco/Features/Groups/CabalMoreMenu.swift b/apps/mobile/Monaco/Features/Groups/CabalMoreMenu.swift
-index 9c150ebd9..5dfd88a15 100644
 --- a/apps/mobile/Monaco/Features/Groups/CabalMoreMenu.swift
 +++ b/apps/mobile/Monaco/Features/Groups/CabalMoreMenu.swift
-@@ -41,7 +41,6 @@ enum CabalMoreItem: CaseIterable {
-         if status != CabalClosedModel.closedStatus { items.append(.chat) }
+@@ -46,7 +46,6 @@
          if role == "creator" { items.append(.edit) }
          items.append(.treasury)
+         if role != "creator" { items.append(.report) }
 -        items.append(.leave)
          return items
      }
