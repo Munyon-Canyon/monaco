@@ -9,7 +9,7 @@ import (
 func TestLoad_apnsKeyIsOptionalInLocalAndTest(t *testing.T) {
 	t.Parallel()
 	for _, env := range []config.Env{config.EnvLocal, config.EnvTest} {
-		cfg, err := config.Load(append(required(), "MONACO_ENV="+string(env)))
+		cfg, err := config.Load(append(append(required(), storeURLKey), "MONACO_ENV="+string(env)))
 		if err != nil {
 			t.Fatalf("MONACO_ENV=%s without an APNs key: %v", env, err)
 		}
@@ -21,7 +21,7 @@ func TestLoad_apnsKeyIsOptionalInLocalAndTest(t *testing.T) {
 
 func TestLoad_apnsKeyIsOptionalInStaging(t *testing.T) {
 	t.Parallel()
-	cfg, err := config.Load(append(required(), "MONACO_ENV=staging", "ABLY_API_KEY=ably-key"))
+	cfg, err := config.Load(append(append(required(), storeURLKey), "MONACO_ENV=staging", "ABLY_API_KEY=ably-key"))
 	if err != nil {
 		t.Fatalf("MONACO_ENV=staging without an APNs key: %v", err)
 	}

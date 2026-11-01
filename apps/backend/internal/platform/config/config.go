@@ -2,6 +2,7 @@ package config
 
 import (
 	"net/url"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -314,6 +315,7 @@ func Load(environ []string) (Config, error) {
 	}
 	bad.checkAPNs(cfg)
 	bad.checkTrade(cfg)
+	bad.checkStoreURL(cfg)
 	bad.missing = append(bad.missing, missingIn(cfg)...)
 	for k := range vars {
 		if strings.HasPrefix(k, "MONACO_") && !known[k] && !isIOSBuildKey(k) {
@@ -610,8 +612,30 @@ func adminFields() []field {
 func appFields() []field {
 	return []field{
 		buildFloor("APP_MIN_IOS_BUILD", func(c *Config) *int32 { return &c.App.MinIOSBuild }),
-		text("APP_STORE_URL", "https://testflight.apple.com/join/monaco",
-			func(c *Config) *string { return &c.App.StoreURL }),
+		text("APP_STORE_URL", "", func(c *Config) *string { return &c.App.StoreURL }).
+			requiredIn(EnvStaging, EnvProduction),
+	}
+}
+
+var testFlightCode = regexp.MustCompile(`^/join/[A-Za-z0-9]{8}$`)
+
+func realStoreURL(u string) bool {
+	parsed, err := url.Parse(u)
+	if err != nil || parsed.Scheme != "https" || parsed.RawQuery != "" || parsed.Fragment != "" {
+		return false
+	}
+	switch parsed.Host {
+	case "apps.apple.com":
+		return len(parsed.Path) > 1
+	case "testflight.apple.com":
+		return testFlightCode.MatchString(parsed.Path)
+	}
+	return false
+}
+
+func (e *keysError) checkStoreURL(c Config) {
+	if c.App.StoreURL != "" && !realStoreURL(c.App.StoreURL) {
+		e.invalid = append(e.invalid, "APP_STORE_URL (https://apps.apple.com/... or a TestFlight join link)")
 	}
 }
 

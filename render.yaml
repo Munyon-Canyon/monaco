@@ -11,6 +11,8 @@ envVarGroups:
         value: json
       - key: TRUST_PROXY_HEADERS
         value: "true"
+      - key: APP_STORE_URL
+        value: https://apps.apple.com/app/id6820853661
       - key: NATS_URL
         value: tls://connect.ngs.global
       - key: NATS_CREDS
