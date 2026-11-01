@@ -7,5 +7,6 @@ func init() {
 		RelayerSOLToppedUp,
 		RelayerTopUpUnderfunded,
 		RelayerTopUpCapped,
+		RelayerCoSigned,
 	)
 }

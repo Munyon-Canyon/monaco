@@ -7,3 +7,5 @@ func WithKey(r *Relayer, key ed25519.PrivateKey) *Relayer {
 	c.key = key
 	return &c
 }
+
+func Inspect(l Limits, msg []byte) (Spend, error) { return l.inspect(msg) }
