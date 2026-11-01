@@ -26,7 +26,27 @@ func (r *pushRig) reply(t *testing.T, parent, replier ids.UserID) events.Comment
 	author := parent.UUID()
 	e.CommentID, e.AuthorID, e.ParentAuthorID, e.ReplyToUserID = r.ids.NewV7(), replier.UUID(), &author, nil
 	e.ReplyToAuthorID = &author
+	r.storeComment(t, e)
 	return e
+}
+
+func (r *pushRig) storeComment(t *testing.T, e events.CommentCreated) {
+	t.Helper()
+	now := r.clock.Now().UTC()
+	_, err := r.pool.Exec(
+		t.Context(),
+		`INSERT INTO feed_objects (id, kind, ref_type, ref_id, title, payload, created_at, updated_at)
+VALUES ($1, 'trade', 'swaps', $1, 'Trade', '{}', $2, $2) ON CONFLICT (id) DO NOTHING`,
+		e.FeedObjectID,
+		now,
+	)
+	if err == nil {
+		_, err = r.pool.Exec(t.Context(), `INSERT INTO feed_comments (id, feed_object_id, author_id, body, created_at)
+VALUES ($1, $2, $3, 'hi', $4)`, e.CommentID, e.FeedObjectID, e.AuthorID, now)
+	}
+	if err != nil {
+		t.Fatalf("storing the comment: %v", err)
+	}
 }
 
 func (r *pushRig) emitReply(t *testing.T, e events.CommentCreated) bus.Delivery {
@@ -36,7 +56,14 @@ func (r *pushRig) emitReply(t *testing.T, e events.CommentCreated) bus.Delivery 
 
 func (r *pushRig) handleReply(t *testing.T, d bus.Delivery, e events.CommentCreated) error {
 	t.Helper()
-	return handleKinds(t, r, r.sender, d, e, app.CommentReply{Users: r.users, Cabals: cabalsOf(e), Blocks: blocks{}})
+	return handleKinds(
+		t,
+		r,
+		r.sender,
+		d,
+		e,
+		app.CommentReply{Users: r.users, Cabals: cabalsOf(e), Blocks: blocks{}, Comments: comments{}},
+	)
 }
 
 func wantReplyPush(t *testing.T, sent []apns.Push, to ids.UserID, e events.CommentCreated, title, body, thread string) {
@@ -139,7 +166,14 @@ func TestNotify_CommentReply_Recipients(t *testing.T) {
 		e := golden
 		tc.edit(&e)
 
-		got, err := app.CommentReply{Cabals: cabalsOf(e), Blocks: blocks{}}.Recipients(t.Context(), e)
+		got, err := app.CommentReply{
+			Cabals:   cabalsOf(e),
+			Blocks:   blocks{},
+			Comments: comments{},
+		}.Recipients(
+			t.Context(),
+			e,
+		)
 
 		if err != nil || !slices.Equal(got, tc.want) {
 			t.Errorf("%s: Recipients = %v, %v, want %v", name, got, err, tc.want)
@@ -227,7 +261,12 @@ func TestNotify_CommentReply_Render(t *testing.T) {
 	} {
 		e := golden
 		tc.edit(&e)
-		kind := app.CommentReply{Users: users{cards: tc.cards}, Cabals: cabalsOf(e), Blocks: blocks{}}
+		kind := app.CommentReply{
+			Users:    users{cards: tc.cards},
+			Cabals:   cabalsOf(e),
+			Blocks:   blocks{},
+			Comments: comments{},
+		}
 
 		msg, err := kind.Render(t.Context(), e, tc.to)
 
@@ -246,8 +285,8 @@ func TestNotify_CommentReply_RenderFailures(t *testing.T) {
 	golden := goldenEvent(t, events.TypeCommentCreated).(events.CommentCreated)
 	down := errs.New(errs.CodeDBUnavailable, "test.down")
 	for name, kind := range map[string]app.CommentReply{
-		"a users port failure":  {Users: users{err: down}, Cabals: cabalsOf(golden), Blocks: blocks{}},
-		"a cabals port failure": {Users: users{}, Cabals: downCabals{err: down}, Blocks: blocks{}},
+		"a users port failure":  {Users: users{err: down}, Cabals: cabalsOf(golden), Blocks: blocks{}, Comments: comments{}},
+		"a cabals port failure": {Users: users{}, Cabals: downCabals{err: down}, Blocks: blocks{}, Comments: comments{}},
 	} {
 		if _, err := kind.Render(t.Context(), golden, ids.UserID{}); !errors.Is(err, down) {
 			t.Errorf("%s: Render error = %v, want %v", name, err, down)
@@ -270,7 +309,14 @@ func TestNotify_CommentReply_BlocksDropTheRecipientEitherWay(t *testing.T) {
 		"the replier blocked":     {blocks{pairs: map[[2]ids.UserID]bool{{replier, answered}: true}}, nil, nil},
 		"the block store is down": {blocks{err: down}, nil, down},
 	} {
-		got, err := app.CommentReply{Cabals: cabalsOf(golden), Blocks: tc.blocks}.Recipients(t.Context(), golden)
+		got, err := app.CommentReply{
+			Cabals:   cabalsOf(golden),
+			Blocks:   tc.blocks,
+			Comments: comments{},
+		}.Recipients(
+			t.Context(),
+			golden,
+		)
 
 		if !errors.Is(err, tc.err) || !slices.Equal(got, tc.want) {
 			t.Errorf("%s: Recipients = %v, %v, want %v, %v", name, got, err, tc.want, tc.err)
@@ -311,7 +357,7 @@ func TestNotify_CommentReply_CollapsesOnTheAnsweredRoot(t *testing.T) {
 		"an old event's parent":       {old, "comment-" + golden.ParentCommentID.String()},
 		"a top-level reply":           {topLevel, "comment-" + golden.ReplyToRootID.String()},
 	} {
-		kind := app.CommentReply{Users: users{}, Cabals: cabalsOf(tc.e), Blocks: blocks{}}
+		kind := app.CommentReply{Users: users{}, Cabals: cabalsOf(tc.e), Blocks: blocks{}, Comments: comments{}}
 
 		msg, err := kind.Render(t.Context(), tc.e, ids.UserID{})
 

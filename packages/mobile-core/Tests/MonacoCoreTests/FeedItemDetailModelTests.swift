@@ -46,10 +46,25 @@ final class FeedItemDetailModelTests: XCTestCase {
         await model.load()
         let observer = Task { await model.observe() }
         addTeardownBlock { observer.cancel() }
-        let subscribed = await Support.waitUntil { await hints.subscriberCount == 1 }
+        let subscribed = await Support.waitUntil { await hints.subscriberCount == 2 }
         XCTAssertTrue(subscribed)
 
         await hints.send(.changed(.global, what: "feed", id: "1"))
+
+        let refetched = await Support.waitUntil { await transport.sent.count == 5 }
+        XCTAssertTrue(refetched)
+    }
+
+    func testACabalFeedItemHintRefetchesTheItemAndTheFirstPage() async throws {
+        let (model, transport, hints) = try make(
+            comments: [Support.page(Support.Thread.samples), Support.page(Support.Thread.samples)], items: 2)
+        await model.load()
+        let observer = Task { await model.observe() }
+        addTeardownBlock { observer.cancel() }
+        let subscribed = await Support.waitUntil { await hints.subscriberCount == 2 }
+        XCTAssertTrue(subscribed)
+
+        await hints.send(.changed(.cabal("cabal-1"), what: "feed_item", id: "1"))
 
         let refetched = await Support.waitUntil { await transport.sent.count == 5 }
         XCTAssertTrue(refetched)

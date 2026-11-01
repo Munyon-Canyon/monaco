@@ -198,7 +198,11 @@ func (h *CreateCommentHandler) store(
 			return Comment{}, err
 		}
 	}
-	tx.AfterCommit(func(ctx context.Context) { h.d.Hints.PublishHint(ctx, FeedHint, nil) })
+	hint := FeedHint
+	if reply.title == "" {
+		hint = itemChangedKey(ids.CabalIDFrom(at.thread.CabalID.Bytes))
+	}
+	tx.AfterCommit(func(ctx context.Context) { h.d.Hints.PublishHint(ctx, hint, nil) })
 	mentioned, err := h.resolveCommentMentions(ctx, tx, at, cmd.Author, cmd.Input.Text().String())
 	if err != nil {
 		return Comment{}, err

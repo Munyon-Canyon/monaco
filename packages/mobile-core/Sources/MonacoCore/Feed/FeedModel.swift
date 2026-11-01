@@ -34,7 +34,9 @@ public final class FeedModel {
     private let hints: any HintSource
     private let clock: any Clock<Duration>
     private let now: @Sendable () -> Date
-    @ObservationIgnored private lazy var refresher = HintRefresher { [weak self] in await self?.refresh() }
+    @ObservationIgnored private lazy var refresher = HintRefresher(minInterval: HintRefresher.feedInterval) {
+        [weak self] in await self?.refresh()
+    }
 
     public init(
         api: APIClient, viewerID: String?, hints: any HintSource, clock: any Clock<Duration>,

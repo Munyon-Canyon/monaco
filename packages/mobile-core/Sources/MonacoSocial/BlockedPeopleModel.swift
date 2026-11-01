@@ -56,8 +56,8 @@ public final class BlockedPeopleModel {
     public func load() async {
         if case .loaded = state {} else { state = .loading }
         do {
-            let page = try await api.read { try await $0.getMeBlocks().ok.body.json }
-            state = .loaded(page.users.map(BlockedPerson.init))
+            let users = try await api.readAllBlockedUsers()
+            state = .loaded(users.map(BlockedPerson.init))
         } catch {
             if Task.isCancelled { return }
             if case .loaded = state { return }

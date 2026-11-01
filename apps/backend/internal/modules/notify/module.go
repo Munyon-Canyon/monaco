@@ -157,10 +157,23 @@ func (m *Module) Consumers() []bus.Consumer {
 		adapters.Push(pusher, app.NewFollower{Users: m.users}),
 		adapters.Push(pusher, app.Nudge{Users: m.users}),
 		adapters.Push(pusher, app.WeeklyLedger{Users: m.users, Ledgers: m.ledgers}),
-		adapters.Push(pusher,
-			app.CommentReply{Users: m.users, Cabals: m.cabals, Blocks: socials.Follows()},
-			app.PostReply{Users: m.users, Cabals: m.cabals, Blocks: socials.Follows()},
-			app.CommentMention{Users: m.users, Cabals: m.cabals, Blocks: socials.Follows()},
+		adapters.Push(
+			pusher,
+			app.CommentReply{
+				Users:    m.users,
+				Cabals:   m.cabals,
+				Blocks:   socials.Follows(),
+				Comments: socials.CommentLiveness(),
+			},
+			app.PostReply{
+				Users:    m.users,
+				Cabals:   m.cabals,
+				Blocks:   socials.Follows(),
+				Comments: socials.CommentLiveness(),
+			},
+			app.CommentMention{
+				Users: m.users, Cabals: m.cabals, Blocks: socials.Follows(), Comments: socials.CommentLiveness(),
+			},
 		),
 		adapters.Push(
 			pusher,

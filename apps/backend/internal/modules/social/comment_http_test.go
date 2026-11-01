@@ -364,8 +364,9 @@ func TestComments_hintTheFeedThroughTheBusAfterACreateAndADelete(t *testing.T) {
 		t.Fatal(err)
 	}
 	testkit.Eventually(t, func() bool { return len(seen.seen()) == 2 }, 5*time.Second)
-	if got := seen.seen(); !slices.Equal(got, []string{"global.feed", "global.feed"}) {
-		t.Fatalf("hints = %v, want two global.feed", got)
+	want := []string{"cabal." + f.cabal.ID.String() + ".feed_item", "global.feed"}
+	if got := seen.seen(); !slices.Equal(got, want) {
+		t.Fatalf("hints = %v, want %v", got, want)
 	}
 }
 

@@ -277,7 +277,7 @@ final class CommentsModelTests: XCTestCase {
         await model.load()
         let observer = Task { await model.observe() }
         addTeardownBlock { observer.cancel() }
-        let subscribed = await Support.waitUntil { await hints.subscriberCount == 1 }
+        let subscribed = await Support.waitUntil { await hints.subscriberCount == 2 }
         XCTAssertTrue(subscribed)
 
         await hints.send(.changed(.global, what: "feed", id: "1"))
@@ -296,7 +296,7 @@ final class CommentsModelTests: XCTestCase {
         await model.load()
         let observer = Task { await model.observe() }
         addTeardownBlock { observer.cancel() }
-        _ = await Support.waitUntil { await hints.subscriberCount == 1 }
+        _ = await Support.waitUntil { await hints.subscriberCount == 2 }
 
         await hints.send(.changed(.global, what: "prices_updated", id: "1"))
         model.setVisible(false)

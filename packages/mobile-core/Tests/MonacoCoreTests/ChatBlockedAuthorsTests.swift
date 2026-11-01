@@ -55,6 +55,39 @@ final class ChatBlockedAuthorsTests: XCTestCase {
         XCTAssertEqual(Fixtures.ids(state), ["m2"])
     }
 
+    func testBlocksOnLaterPagesAreReadToo() async throws {
+        let first =
+            #"{"users":[{"user_id":"first-author","handle":"h","display_name":"H","photo_url":null}],"next_cursor":"c1"}"#
+        let second =
+            #"{"users":[{"user_id":"\#(Fixtures.otherID)","handle":"h","display_name":"H","photo_url":null}],"next_cursor":null}"#
+        let transport = StubTransport(routes: [
+            "/v1/me/blocks": [.json(.ok, first)],
+            "/v1/me/blocks?cursor=c1": [.json(.ok, second)],
+            "/v1/cabals/\(Fixtures.cabalID)/messages?limit=50": [try Fixtures.page([])],
+        ])
+        let session = Fixtures.session(transport, blocked: true)
+        await session.open()
+
+        await session.apply(.messageCreated(Fixtures.message("m1", author: Fixtures.otherID, minutes: 1)))
+
+        let state = await Fixtures.state(session)
+        XCTAssertEqual(Fixtures.ids(state), [])
+    }
+
+    func testAFailedBlocksReadIsAToastAndKeepsTheKnownBlocks() async throws {
+        let transport = transport(
+            blocks(Fixtures.otherID), .failure(URLError(.notConnectedToInternet)), then: try Fixtures.page([]))
+        let session = Fixtures.session(transport, blocked: true)
+        await session.open()
+
+        await session.refreshBlocked()
+        await session.apply(.messageCreated(Fixtures.message("m1", author: Fixtures.otherID, minutes: 1)))
+
+        let state = await Fixtures.state(session)
+        XCTAssertNotNil(state.notice)
+        XCTAssertEqual(Fixtures.ids(state), [])
+    }
+
     func testABlockedAuthorsReplyNeverReachesAnOpenThread() async throws {
         let parent = Fixtures.message("p1", author: "someone-else", minutes: 1, replyCount: 0)
         let transport = StubTransport(routes: [

@@ -17,3 +17,7 @@ func UserCashOutChangedHint(user ids.UserID) string {
 func UserCatchUpChangedHint(user ids.UserID) string {
 	return "user." + user.String() + ".catch_up_changed"
 }
+
+func CabalFeedItemChangedHint(cabalID ids.CabalID) string {
+	return "cabal." + cabalID.String() + ".feed_item"
+}

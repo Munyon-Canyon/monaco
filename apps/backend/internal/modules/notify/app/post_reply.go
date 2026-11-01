@@ -14,9 +14,10 @@ func postItemKinds() []string {
 }
 
 type PostReply struct {
-	Users  Users
-	Cabals Cabals
-	Blocks Blocks
+	Users    Users
+	Cabals   Cabals
+	Blocks   Blocks
+	Comments Comments
 }
 
 func (PostReply) Name() string { return "post_reply" }
@@ -39,7 +40,7 @@ func (k PostReply) Recipients(ctx context.Context, e events.CommentCreated) ([]i
 	if err != nil || !stays {
 		return nil, err
 	}
-	return unblocked(ctx, k.Blocks, e, owner)
+	return unblocked(ctx, k.Blocks, k.Comments, e, owner)
 }
 
 func (PostReply) ItemKey(e events.CommentCreated) string {

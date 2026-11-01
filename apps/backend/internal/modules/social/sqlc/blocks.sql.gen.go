@@ -96,25 +96,49 @@ func (q *Queries) IsBlockedEitherWay(ctx context.Context, arg IsBlockedEitherWay
 }
 
 const listUserBlocks = `-- name: ListUserBlocks :many
-SELECT blocked_id FROM user_blocks
-WHERE blocker_id = $1
+SELECT id, blocked_id, created_at FROM user_blocks
+WHERE blocker_id = $1::uuid
+  AND (
+    NOT $2::boolean
+    OR (created_at, id) < ($3::timestamptz, $4::uuid)
+  )
 ORDER BY created_at DESC, id DESC
-LIMIT 500
+LIMIT $5::int
 `
 
-func (q *Queries) ListUserBlocks(ctx context.Context, blockerID uuid.UUID) ([]uuid.UUID, error) {
-	rows, err := q.db.Query(ctx, listUserBlocks, blockerID)
+type ListUserBlocksParams struct {
+	BlockerID uuid.UUID
+	HasCursor bool
+	AfterAt   time.Time
+	AfterID   uuid.UUID
+	RowLimit  int32
+}
+
+type ListUserBlocksRow struct {
+	ID        uuid.UUID
+	BlockedID uuid.UUID
+	CreatedAt time.Time
+}
+
+func (q *Queries) ListUserBlocks(ctx context.Context, arg ListUserBlocksParams) ([]ListUserBlocksRow, error) {
+	rows, err := q.db.Query(ctx, listUserBlocks,
+		arg.BlockerID,
+		arg.HasCursor,
+		arg.AfterAt,
+		arg.AfterID,
+		arg.RowLimit,
+	)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []uuid.UUID
+	var items []ListUserBlocksRow
 	for rows.Next() {
-		var blocked_id uuid.UUID
-		if err := rows.Scan(&blocked_id); err != nil {
+		var i ListUserBlocksRow
+		if err := rows.Scan(&i.ID, &i.BlockedID, &i.CreatedAt); err != nil {
 			return nil, err
 		}
-		items = append(items, blocked_id)
+		items = append(items, i)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err

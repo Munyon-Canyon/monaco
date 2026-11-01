@@ -691,8 +691,13 @@ type BlockedUser struct {
 	UserId   openapi_types.UUID `json:"user_id"`
 }
 
-// BlockedUsers The users the caller blocks, newest block first.
+// BlockedUsers One page of the users the caller blocks, newest block first.
 type BlockedUsers struct {
+	// NextCursor The cursor for the next page. Null on the last page.
+	//
+	// Examples: null
+	NextCursor *string `json:"next_cursor"`
+
 	// Users Examples: []
 	Users []BlockedUser `json:"users"`
 }
@@ -2416,6 +2421,15 @@ type PutFeedReactionParams struct {
 	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
 }
 
+// GetMeBlocksParams defines parameters for GetMeBlocks.
+type GetMeBlocksParams struct {
+	// Cursor The next_cursor from the previous page. Absent reads the first page.
+	Cursor *string `form:"cursor,omitempty" json:"cursor,omitempty"`
+
+	// Limit Page size. Defaults to 500 and cannot exceed 500.
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
 // PostMeContactsMatchParams defines parameters for PostMeContactsMatch.
 type PostMeContactsMatchParams struct {
 	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
@@ -3137,7 +3151,7 @@ type ServerInterface interface {
 	PutFeedReaction(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, emoji string, params PutFeedReactionParams)
 	// GetMeBlocks List the users the caller blocks.
 	// (GET /v1/me/blocks)
-	GetMeBlocks(w http.ResponseWriter, r *http.Request)
+	GetMeBlocks(w http.ResponseWriter, r *http.Request, params GetMeBlocksParams)
 	// PostMeContactsMatch Match address-book hashes to people on Monaco.
 	// (POST /v1/me/contacts/match)
 	PostMeContactsMatch(w http.ResponseWriter, r *http.Request, params PostMeContactsMatchParams)
@@ -4546,8 +4560,40 @@ func (siw *ServerInterfaceWrapper) PutFeedReaction(w http.ResponseWriter, r *htt
 // GetMeBlocks operation middleware
 func (siw *ServerInterfaceWrapper) GetMeBlocks(w http.ResponseWriter, r *http.Request) {
 
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetMeBlocksParams
+
+	// ------------- Optional query parameter "cursor" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "cursor", r.URL.Query(), &params.Cursor, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "cursor"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "cursor", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.GetMeBlocks(w, r)
+		siw.Handler.GetMeBlocks(w, r, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -6331,6 +6377,7 @@ func (response PutFeedReactiondefaultApplicationProblemPlusJSONResponse) VisitPu
 }
 
 type GetMeBlocksRequestObject struct {
+	Params GetMeBlocksParams
 }
 
 type GetMeBlocksResponseObject interface {
@@ -7740,8 +7787,10 @@ func (sh *strictHandler) PutFeedReaction(w http.ResponseWriter, r *http.Request,
 }
 
 // GetMeBlocks operation middleware
-func (sh *strictHandler) GetMeBlocks(w http.ResponseWriter, r *http.Request) {
+func (sh *strictHandler) GetMeBlocks(w http.ResponseWriter, r *http.Request, params GetMeBlocksParams) {
 	var request GetMeBlocksRequestObject
+
+	request.Params = params
 
 	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
 		return sh.ssi.GetMeBlocks(ctx, request.(GetMeBlocksRequestObject))

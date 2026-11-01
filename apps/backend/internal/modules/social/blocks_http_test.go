@@ -178,3 +178,70 @@ func TestGetMeBlocks_failsWhenTheStoreOrTheUserLookupFails(t *testing.T) {
 	_, err = f.routes().GetMeBlocks(asUser(t.Context(), f.alice), api.GetMeBlocksRequestObject{})
 	wantCode(t, err, errs.CodeInternal)
 }
+
+func (f fixture) blockThree(t *testing.T) {
+	t.Helper()
+	for _, target := range []ids.UserID{f.bob, f.banned} {
+		f.clock.Advance(time.Second)
+		if err := f.block(t, f.alice, target); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := f.pool.Exec(t.Context(),
+		`INSERT INTO user_blocks (id, blocker_id, blocked_id, created_at) VALUES ($1, $2, $3, $4)`,
+		f.gen.NewV7(), f.alice.UUID(), f.deleted.UUID(), f.now.Add(10*time.Second)); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func (f fixture) blocksPage(t *testing.T, cursor *string, limit int) api.BlockedUsers {
+	t.Helper()
+	req := api.GetMeBlocksRequestObject{Params: api.GetMeBlocksParams{Cursor: cursor, Limit: &limit}}
+	res, err := f.routes().GetMeBlocks(asUser(t.Context(), f.alice), req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return api.BlockedUsers(res.(api.GetMeBlocks200JSONResponse))
+}
+
+func TestGetMeBlocks_pagesNewestFirstWithACursor(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	f.blockThree(t)
+
+	first := f.blocksPage(t, nil, 2)
+	if len(first.Users) != 2 || first.Users[0].UserId != f.deleted.UUID() || first.Users[1].UserId != f.banned.UUID() ||
+		first.NextCursor == nil {
+		t.Fatalf("first page = %+v, want the deleted and banned users and a cursor", first)
+	}
+	second := f.blocksPage(t, first.NextCursor, 2)
+	if len(second.Users) != 1 || second.Users[0].UserId != f.bob.UUID() || second.NextCursor != nil {
+		t.Fatalf("second page = %+v, want bob and no cursor", second)
+	}
+}
+
+func TestGetMeBlocks_aPageOfExactlyTheListHasNoCursor(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	f.blockThree(t)
+
+	if all := f.blocksPage(t, nil, 3); len(all.Users) != 3 || all.NextCursor != nil {
+		t.Fatalf("a page of exactly the list = %+v, want 3 users and no cursor", all)
+	}
+}
+
+func TestGetMeBlocks_refusesABadCursorOrLimit(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	bad, zero, tooMany := "not-a-cursor", 0, 501
+	for name, params := range map[string]api.GetMeBlocksParams{
+		"a cursor the server did not write": {Cursor: &bad},
+		"a limit of zero":                   {Limit: &zero},
+		"a limit past the cap":              {Limit: &tooMany},
+	} {
+		_, err := f.routes().GetMeBlocks(asUser(t.Context(), f.alice), api.GetMeBlocksRequestObject{Params: params})
+		if code := errs.CodeOf(err); code != errs.CodeInvalidInput {
+			t.Errorf("%s: code = %v, want %v", name, code, errs.CodeInvalidInput)
+		}
+	}
+}

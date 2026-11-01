@@ -54,7 +54,7 @@ func (h *VoteCommentPollHandler) Handle(ctx context.Context, cmd VoteCommentPoll
 	if err != nil {
 		return PollView{}, err
 	}
-	feedObjectID, attachment, err := requireOpenPoll(ctx, h.d, cmd.Viewer, cmd.CommentID, true)
+	item, attachment, err := requireOpenPoll(ctx, h.d, cmd.Viewer, cmd.CommentID, true)
 	if err != nil {
 		return PollView{}, err
 	}
@@ -69,9 +69,9 @@ func (h *VoteCommentPollHandler) Handle(ctx context.Context, cmd VoteCommentPoll
 		case rows == 0:
 			return errs.New(errs.CodeInvalidInput, op, slog.String("reason", "poll_option"))
 		}
-		tx.AfterCommit(func(ctx context.Context) { h.d.Hints.PublishHint(ctx, FeedHint, nil) })
+		tx.AfterCommit(func(ctx context.Context) { h.d.Hints.PublishHint(ctx, itemChangedKey(item.CabalID), nil) })
 		return tx.Events.Append(ctx, events.CommentPollVoted{
-			V: 1, CommentID: cmd.CommentID, FeedObjectID: feedObjectID, UserID: cmd.Viewer.UUID(),
+			V: 1, CommentID: cmd.CommentID, FeedObjectID: item.ID, UserID: cmd.Viewer.UUID(),
 			Position: cmd.Position,
 		})
 	})
@@ -83,7 +83,7 @@ func (h *VoteCommentPollHandler) Handle(ctx context.Context, cmd VoteCommentPoll
 
 func (h *WithdrawCommentPollVoteHandler) Handle(ctx context.Context, cmd WithdrawCommentPollVote) (PollView, error) {
 	const op = "social.WithdrawCommentPollVote"
-	_, attachment, err := requireOpenPoll(ctx, h.d, cmd.Viewer, cmd.CommentID, false)
+	item, attachment, err := requireOpenPoll(ctx, h.d, cmd.Viewer, cmd.CommentID, false)
 	if err != nil {
 		return PollView{}, err
 	}
@@ -95,7 +95,7 @@ func (h *WithdrawCommentPollVoteHandler) Handle(ctx context.Context, cmd Withdra
 			return errs.Wrap(err, errs.CodeInternal, op)
 		}
 		if rows > 0 {
-			tx.AfterCommit(func(ctx context.Context) { h.d.Hints.PublishHint(ctx, FeedHint, nil) })
+			tx.AfterCommit(func(ctx context.Context) { h.d.Hints.PublishHint(ctx, itemChangedKey(item.CabalID), nil) })
 		}
 		return nil
 	})
@@ -107,28 +107,29 @@ func (h *WithdrawCommentPollVoteHandler) Handle(ctx context.Context, cmd Withdra
 
 func requireOpenPoll(
 	ctx context.Context, d PollDeps, viewer ids.UserID, comment uuid.UUID, membersOnly bool,
-) (uuid.UUID, *domain.Attachment, error) {
+) (FeedItem, *domain.Attachment, error) {
 	const op = "social.requireOpenPoll"
 	row, err := sqlc.New(d.Reads).GetCommentPoll(ctx, comment)
 	switch {
 	case errors.Is(err, sql.ErrNoRows) || err == nil && row.Deleted:
-		return uuid.Nil, nil, errs.New(errs.CodeCommentNotFound, op, slog.String("comment_id", comment.String()))
+		return FeedItem{}, nil, errs.New(errs.CodeCommentNotFound, op, slog.String("comment_id", comment.String()))
 	case err != nil:
-		return uuid.Nil, nil, errs.Wrap(err, errs.CodeInternal, op)
+		return FeedItem{}, nil, errs.Wrap(err, errs.CodeInternal, op)
 	}
+	var item FeedItem
 	if membersOnly {
-		_, err = CanReact(ctx, d.Reads, d.Members, viewer, row.FeedObjectID)
+		item, err = CanReact(ctx, d.Reads, d.Members, viewer, row.FeedObjectID)
 	} else {
-		_, err = requireVisibleItem(ctx, d.Reads, viewer, row.FeedObjectID)
+		item, err = requireVisibleItem(ctx, d.Reads, viewer, row.FeedObjectID)
 	}
 	if err != nil {
-		return uuid.Nil, nil, err
+		return FeedItem{}, nil, err
 	}
 	attachment := domain.DecodeAttachment(string(domain.AttachmentPoll), row.Payload)
 	if pollClosed(attachment.Poll.ClosesAt, d.Clock.Now()) {
-		return uuid.Nil, nil, errs.New(errs.CodePollClosed, op, slog.String("comment_id", comment.String()))
+		return FeedItem{}, nil, errs.New(errs.CodePollClosed, op, slog.String("comment_id", comment.String()))
 	}
-	return row.FeedObjectID, attachment, nil
+	return item, attachment, nil
 }
 
 func pollStateOf(

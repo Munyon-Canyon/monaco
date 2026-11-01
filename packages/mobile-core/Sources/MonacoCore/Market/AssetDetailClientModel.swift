@@ -122,7 +122,7 @@ public final class AssetDetailClientModel {
         let feedHook = ReloadHook()
         let activityHook = ReloadHook()
         refresher = HintRefresher { await hook.run?() }
-        feedRefresher = HintRefresher { await feedHook.run?() }
+        feedRefresher = HintRefresher(minInterval: HintRefresher.feedInterval) { await feedHook.run?() }
         activityRefresher = HintRefresher { await activityHook.run?() }
         hook.run = { [weak self] in
             await self?.refresh()

@@ -3,7 +3,11 @@ import MonacoAPI
 extension ChatSession {
     public func refreshBlocked() async {
         guard let blocked else { return }
-        await blocked.refresh()
+        do {
+            try await blocked.refresh()
+        } catch {
+            if !Task.isCancelled { fail(error, firstLoad: false) }
+        }
         let authors = await blocked.authors
         state.timeline.removeMessages(by: authors)
         for thread in attached.values { await thread.dropBlocked(authors) }

@@ -23,10 +23,15 @@ type Blocks interface {
 	BlockedByMe(ctx context.Context, viewer, user ids.UserID) (bool, error)
 }
 
+type Comments interface {
+	CommentDeleted(ctx context.Context, id uuid.UUID) (bool, error)
+}
+
 type CommentReply struct {
-	Users  Users
-	Cabals Cabals
-	Blocks Blocks
+	Users    Users
+	Cabals   Cabals
+	Blocks   Blocks
+	Comments Comments
 }
 
 func (CommentReply) Name() string { return "comment_reply" }
@@ -53,7 +58,7 @@ func (k CommentReply) Recipients(ctx context.Context, e events.CommentCreated) (
 	if err != nil || !stays {
 		return nil, err
 	}
-	return unblocked(ctx, k.Blocks, e, to)
+	return unblocked(ctx, k.Blocks, k.Comments, e, to)
 }
 
 func stillReads(ctx context.Context, cabals Cabals, e events.CommentCreated, user ids.UserID) (bool, error) {
@@ -64,7 +69,13 @@ func stillReads(ctx context.Context, cabals Cabals, e events.CommentCreated, use
 	return slices.Contains(members, user), err
 }
 
-func unblocked(ctx context.Context, blocks Blocks, e events.CommentCreated, to ids.UserID) ([]ids.UserID, error) {
+func unblocked(
+	ctx context.Context, blocks Blocks, comments Comments, e events.CommentCreated, to ids.UserID,
+) ([]ids.UserID, error) {
+	gone, err := comments.CommentDeleted(ctx, e.CommentID)
+	if err != nil || gone {
+		return nil, err
+	}
 	replier := ids.UserIDFrom(e.AuthorID)
 	for _, pair := range [][2]ids.UserID{{to, replier}, {replier, to}} {
 		blocked, err := blocks.BlockedByMe(ctx, pair[0], pair[1])

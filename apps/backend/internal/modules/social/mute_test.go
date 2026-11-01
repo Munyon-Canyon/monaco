@@ -100,3 +100,29 @@ func TestMute_rejectsUnknownAndSelfAndUnmuteIsIdempotent(t *testing.T) {
 		t.Fatalf("err = %v", err)
 	}
 }
+
+func TestMute_aHiddenCabalsItemsAreNotFoundSoNoTitleEchoesBack(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	cabal, asset, actor, item := f.gen.NewV7(), f.gen.NewV7(), f.bob.UUID(), f.gen.NewV7()
+	f.feedObject(t, item, "trade", "Secret bought Apple", cabal, asset, actor, "Secret", "AAPLx", "Bob")
+	if _, err := f.pool.Exec(
+		t.Context(),
+		`INSERT INTO feed_cabals (cabal_id, name, updated_at, hidden_at) VALUES ($1, 'Secret', now(), now())`,
+		cabal,
+	); err != nil {
+		t.Fatal(err)
+	}
+	for _, tt := range []struct{ typ, id string }{
+		{"cabal", cabal.String()}, {"asset", asset.String()}, {"user", actor.String()}, {"item", item.String()},
+	} {
+		err := f.mute.Handle(f.ctx(t), app.Mute{User: f.alice, TargetType: tt.typ, TargetID: tt.id})
+		if code := errs.CodeOf(err); code != errs.CodeInvalidInput {
+			t.Errorf("%s: code = %v, want %v", tt.typ, code, errs.CodeInvalidInput)
+		}
+	}
+	var count int
+	if err := f.pool.QueryRow(t.Context(), `SELECT count(*) FROM feed_mutes`).Scan(&count); err != nil || count != 0 {
+		t.Fatalf("%d mutes stored, %v, want none", count, err)
+	}
+}

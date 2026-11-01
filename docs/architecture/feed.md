@@ -137,9 +137,13 @@ The page is ordered `(at desc, kind_rank, source_id desc)` and paged by one opaq
 
 - Any feed item takes emoji reactions, one row per user and emoji in `feed_reactions`, at most 10 distinct emoji per user per item ([Comments](#comments) covers replies). `domain.ParseEmoji` accepts exactly one emoji.
 - `PUT /v1/feed/{id}/reactions/{emoji}` adds one and `DELETE /v1/feed/{id}/reactions/{emoji}` removes the caller's, the emoji percent-encoded in the path and no body. The emoji follows the id because `PUT /v1/feed/{id}/reactions` would overlap `PUT /v1/feed/likes/{id}` in the router. Both are idempotent and return the item's `ReactionSummary`, so the app reconciles its optimistic chip. The 11th distinct emoji is `invalid_input` with `reason=reaction_limit`.
-- `ReactFeedItem` inserts the row and appends `reaction.added` in one `uow.Do`; `UnreactFeedItem` appends `reaction.removed` only when a row went. A repeat appends nothing. Both hint `global.feed` after the commit. Nothing consumes the events: a reaction never pushes (flow 21b).
+- `ReactFeedItem` inserts the row and appends `reaction.added` in one `uow.Do`; `UnreactFeedItem` appends `reaction.removed` only when a row went. A repeat appends nothing. Both hint `cabal.<id>.feed_item` after the commit (`global.feed` when the item has no cabal), so only the cabal's members refetch. Nothing consumes the events: a reaction never pushes (flow 21b).
 - The like routes are ❤️ reactions. `PUT|DELETE /v1/feed/likes/{id}` call the same handlers and no longer write `feed_likes`.
 - There is no route that lists who reacted.
+- `GET /v1/me/blocks` pages with `cursor` and `limit` (default and cap 500, newest block first, `next_cursor` null on the last page), and the app follows the cursor until it ends.
+- A comment push rechecks that the comment still exists before it goes out.
+- `FeedMuteLabel` skips hidden cabals, so muting a hidden cabal's id is `invalid_input`.
+- A feed row's reactions and the thread comment's reactions stay separate sets: the reply row is its own feed item with its own `feed_reactions`, and mirroring them would need a data change nobody asked for (2026-11-01).
 
 ## GIFs
 
@@ -160,7 +164,7 @@ Hints are droppable. A lost hint costs one missed re-fetch, and the reconnect fe
 
 Fallback when the stream drops: the app re-fetches from its newest cursor on reconnect. It never polls on a timer.
 
-Every feed hint goes under the hub's `global` key, which every connection joins (platform default 2026-09-27). Every cabal is public, so any connection may learn that a feed item changed; the `GET` still applies scope and mutes. The hub's `user:<id>` and `cabal:<id>` keys stay for hints that only concern one person or one cabal.
+Every hint that adds or removes a feed item goes under the hub's `global` key, which every connection joins (platform default 2026-09-27). A change to an existing item, such as a reaction, a poll vote or a comment on a post that adds no reply row, goes under `cabal:<id>` as `feed_item`, so a reaction does not make every online client refetch the feed. Only the open thread and item screens listen for `feed_item`. The app spaces feed refetches at least 5 seconds apart. Every cabal is public, so any connection may learn that a feed item changed; the `GET` still applies scope and mutes. The hub's `user:<id>` and `cabal:<id>` keys stay for hints that only concern one person or one cabal.
 
 ## Notifications
 

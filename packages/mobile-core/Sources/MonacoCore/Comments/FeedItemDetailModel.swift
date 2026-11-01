@@ -18,7 +18,9 @@ public final class FeedItemDetailModel {
     private let hints: any HintSource
     private let threadID = ThreadItemID()
     @ObservationIgnored private var anchorSettled = false
-    @ObservationIgnored private lazy var refresher = HintRefresher { [weak self] in await self?.refresh() }
+    @ObservationIgnored private lazy var refresher = HintRefresher(minInterval: HintRefresher.feedInterval) {
+        [weak self] in await self?.refresh()
+    }
 
     public init(
         itemID: String, anchorCommentID: String? = nil, api: APIClient, hints: any HintSource,
@@ -46,7 +48,10 @@ public final class FeedItemDetailModel {
     }
 
     public func observe() async {
-        await refresher.observe(hints.hints(matching: .global(what: "feed")))
+        await refresher.observe([
+            hints.hints(matching: .global(what: "feed")),
+            hints.hints(matching: .anyCabal(what: "feed_item")),
+        ])
     }
 
     public func setVisible(_ visible: Bool) {

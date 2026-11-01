@@ -37,10 +37,13 @@ SELECT COALESCE(CASE $1::text
   WHEN 'item' THEN f.title
 END, '')::text AS label
 FROM feed_objects f
-WHERE ($1::text = 'cabal' AND f.cabal_id = $2::uuid)
-   OR ($1::text = 'asset' AND f.asset_id = $2::uuid)
-   OR ($1::text = 'user' AND f.actor_id = $2::uuid)
-   OR ($1::text = 'item' AND f.id = $2::uuid)
+WHERE NOT EXISTS (SELECT 1 FROM feed_cabals fc WHERE fc.cabal_id = f.cabal_id AND fc.hidden_at IS NOT NULL)
+  AND (
+    ($1::text = 'cabal' AND f.cabal_id = $2::uuid)
+    OR ($1::text = 'asset' AND f.asset_id = $2::uuid)
+    OR ($1::text = 'user' AND f.actor_id = $2::uuid)
+    OR ($1::text = 'item' AND f.id = $2::uuid)
+  )
 ORDER BY f.created_at DESC, f.id DESC
 LIMIT 1
 `
