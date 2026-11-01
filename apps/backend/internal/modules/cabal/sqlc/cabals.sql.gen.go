@@ -134,6 +134,25 @@ func (q *Queries) CabalCounts(ctx context.Context) (CabalCountsRow, error) {
 	return i, err
 }
 
+const closeEmptyCabal = `-- name: CloseEmptyCabal :execrows
+UPDATE cabals SET status = 'banned', updated_at = $1
+WHERE id = $2 AND status = 'active'
+  AND NOT EXISTS (SELECT 1 FROM cabal_members m WHERE m.cabal_id = cabals.id)
+`
+
+type CloseEmptyCabalParams struct {
+	Now time.Time
+	ID  uuid.UUID
+}
+
+func (q *Queries) CloseEmptyCabal(ctx context.Context, arg CloseEmptyCabalParams) (int64, error) {
+	result, err := q.db.Exec(ctx, closeEmptyCabal, arg.Now, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const findCabal = `-- name: FindCabal :one
 SELECT c.id, c.name, c.picture_url, c.creator_id, c.join_mode, c.voter_mode, c.threshold,
   c.proposal_expiry_seconds, c.slippage_bps, c.show_sides, c.show_sides_changed_at, c.max_trade_bps,

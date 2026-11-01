@@ -125,6 +125,7 @@ The `cabal_standing` consumer keeps both out of every electorate, so a cabal's v
 
 - `user.deleted` deletes the user's memberships and emits `cabal.member_left` for each. Deleting an account already requires no shares and no cabal led with other members.
 - `user.account_status_changed` to `banned` sets `suspended` on the user's memberships, makes them `member` and clears `can_vote`. The row and any shares stay, so the member can still cash out and leave. A suspended member never returns to a voter list: `SetMemberVoters`, `SetAllMembersVote` and `SetMemberRole` skip `suspended` rows. A change from `banned` to another status clears `suspended`, restores `can_vote` when the cabal's `voter_mode` is `all`, and does not restore a lost role.
+- When the deleted user was the cabal's last member, the cabal closes through the ban transition: a guarded update from `active` to `banned` under the cabal lock, then `cabal.banned` with the reason "The last member deleted their account". The cabal leaves the list, refuses joins, and its wind-down completes with no holders to pay. A redelivery finds no membership, and a cabal that is already `banned` gets no second event.
 - When a cabal then has no `creator` or `admin`, the longest-standing member who is not suspended becomes `admin` (`joined_at`, then `user_id`) and `cabal.updated` carries them in `admin_ids`. A cabal with no such member stays without one.
 - Proposals already open keep the electorate they were created with.
 

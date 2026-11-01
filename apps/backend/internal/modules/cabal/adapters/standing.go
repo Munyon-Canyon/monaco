@@ -14,11 +14,14 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 )
 
-const accountBanned = "banned"
+const (
+	accountBanned    = "banned"
+	lastMemberClosed = "The last member deleted their account"
+)
 
 type Standing struct{}
 
-func (Standing) Deleted(ctx context.Context, tx db.Tx, e events.UserDeleted, _ time.Time) error {
+func (Standing) Deleted(ctx context.Context, tx db.Tx, e events.UserDeleted, at time.Time) error {
 	const op = "cabal.Standing.Deleted"
 	q := sqlc.New(tx.Queries())
 	gone, err := q.DeleteMembershipsOf(ctx, e.UserID)
@@ -33,7 +36,11 @@ func (Standing) Deleted(ctx context.Context, tx db.Tx, e events.UserDeleted, _ t
 			return err
 		}
 	}
-	return keepAnAdmin(ctx, tx, q, cabals, op)
+	open, err := closeEmptyCabals(ctx, tx, q, cabals, at, op)
+	if err != nil {
+		return err
+	}
+	return keepAnAdmin(ctx, tx, q, open, op)
 }
 
 func (Standing) StatusChanged(ctx context.Context, tx db.Tx, e events.UserAccountStatusChanged, _ time.Time) error {
@@ -52,6 +59,32 @@ func (Standing) StatusChanged(ctx context.Context, tx db.Tx, e events.UserAccoun
 		}
 	}
 	return nil
+}
+
+func closeEmptyCabals(
+	ctx context.Context, tx db.Tx, q *sqlc.Queries, cabals []uuid.UUID, at time.Time, op string,
+) ([]uuid.UUID, error) {
+	open := make([]uuid.UUID, 0, len(cabals))
+	for _, cabal := range cabals {
+		if _, err := q.LockCabalExclusive(ctx, cabal); err != nil {
+			return nil, errs.Wrap(err, errs.CodeInternal, op)
+		}
+		closed, err := q.CloseEmptyCabal(ctx, sqlc.CloseEmptyCabalParams{ID: cabal, Now: at})
+		if err != nil {
+			return nil, errs.Wrap(err, errs.CodeInternal, op)
+		}
+		if closed == 0 {
+			open = append(open, cabal)
+			continue
+		}
+		if err := tx.Events.Append(
+			ctx,
+			events.CabalBanned{V: 1, CabalID: cabal, Reason: lastMemberClosed},
+		); err != nil {
+			return nil, err
+		}
+	}
+	return open, nil
 }
 
 func keepAnAdmin(ctx context.Context, tx db.Tx, q *sqlc.Queries, cabals []uuid.UUID, op string) error {
