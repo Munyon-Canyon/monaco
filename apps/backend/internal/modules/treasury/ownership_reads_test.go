@@ -9,6 +9,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/domain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
+	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
@@ -47,6 +48,11 @@ func TestQueries_ownsSignaturesAndReadsWalletLedger(t *testing.T) {
 	for _, sig := range []chain.Signature{"cabal-signature", "user-signature"} {
 		assertSignatureOwned(f.ctx(), t, q, sig, true)
 	}
+	other := f.user(t)
+	assertSignatureOwnedFor(f.ctx(), t, q, "user-signature", user, true)
+	assertSignatureOwnedFor(f.ctx(), t, q, "user-signature", other, false)
+	assertSignatureOwnedFor(f.ctx(), t, q, "cabal-signature", other, true)
+	assertSignatureOwnedFor(f.ctx(), t, q, "missing", user, false)
 	settled, pendingCount, err := q.WalletLedgerMicros(f.ctx(), user, chain.SolanaAddress(f.cfg.Solana.USDCMint))
 	assertWalletLedger(t, settled, pendingCount, err, amount(-2_500_000), 1)
 	empty, count, err := q.WalletLedgerMicros(f.ctx(), f.user(t), chain.SolanaAddress(f.cfg.Solana.USDCMint))
@@ -55,8 +61,20 @@ func TestQueries_ownsSignaturesAndReadsWalletLedger(t *testing.T) {
 	cancel()
 	_, err = q.OwnsSignature(ctx, "canceled")
 	assertInternal(t, err)
+	_, err = q.OwnsSignatureForUser(ctx, "canceled", user)
+	assertInternal(t, err)
 	_, _, err = q.WalletLedgerMicros(ctx, user, chain.SolanaAddress(f.cfg.Solana.USDCMint))
 	assertInternal(t, err)
+}
+
+func assertSignatureOwnedFor(
+	ctx context.Context, t *testing.T, q *adapters.Queries, sig chain.Signature, user ids.UserID, want bool,
+) {
+	t.Helper()
+	owned, err := q.OwnsSignatureForUser(ctx, sig, user)
+	if err != nil || owned != want {
+		t.Fatalf("OwnsSignatureForUser(%q, %s) = %t, %v, want %t, nil", sig, user, owned, err, want)
+	}
 }
 
 func assertSignatureOwned(ctx context.Context, t *testing.T, q *adapters.Queries, sig chain.Signature, want bool) {

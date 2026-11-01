@@ -70,8 +70,9 @@ func (r DepositCandidateResolver) Fetch(
 	if amount.IsZero() {
 		return DepositCandidateResolution{}, nil
 	}
+	user := ids.UserIDFrom(e.UserID)
 	for _, owner := range r.owners {
-		ours, err := owner.OwnsSignature(ctx, e.TxSignature)
+		ours, err := ownsFor(ctx, owner, e.TxSignature, user)
 		if err != nil {
 			err = ownerError(err)
 			r.unresolved(ctx, e.WalletAddress, err)
@@ -134,6 +135,15 @@ func (r DepositCandidateResolver) Apply(
 		)
 	})
 	return nil
+}
+
+func ownsFor(
+	ctx context.Context, owner port.SignatureOwner, sig chain.Signature, user ids.UserID,
+) (bool, error) {
+	if scoped, ok := owner.(port.UserSignatureOwner); ok {
+		return scoped.OwnsSignatureForUser(ctx, sig, user)
+	}
+	return owner.OwnsSignature(ctx, sig)
 }
 
 func ownerError(err error) error {

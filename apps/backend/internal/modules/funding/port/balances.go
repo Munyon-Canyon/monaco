@@ -34,6 +34,10 @@ type SignatureOwner interface {
 	OwnsSignature(ctx context.Context, sig chain.Signature) (bool, error)
 }
 
+type UserSignatureOwner interface {
+	OwnsSignatureForUser(ctx context.Context, sig chain.Signature, user ids.UserID) (bool, error)
+}
+
 type Balance struct {
 	OnChainMicros            money.Micros
 	InFlightFundMicros       money.Micros

@@ -106,6 +106,9 @@ func TestOwnershipAndWalletLedgerErrors(t *testing.T) {
 	if _, err := q.OwnsSignature(t.Context(), "signature"); errs.CodeOf(err) != errs.CodeInternal {
 		t.Fatalf("OwnsSignature() code = %q, want %q", errs.CodeOf(err), errs.CodeInternal)
 	}
+	if _, err := q.OwnsSignatureForUser(t.Context(), "signature", ids.UserID{}); errs.CodeOf(err) != errs.CodeInternal {
+		t.Fatalf("OwnsSignatureForUser() code = %q, want %q", errs.CodeOf(err), errs.CodeInternal)
+	}
 	if _, _, err := q.WalletLedgerMicros(t.Context(), ids.UserID{}, ""); errs.CodeOf(err) != errs.CodeInternal {
 		t.Fatalf("WalletLedgerMicros() code = %q, want %q", errs.CodeOf(err), errs.CodeInternal)
 	}
@@ -423,6 +426,10 @@ type ownershipStore struct {
 }
 
 func (s ownershipStore) OwnsSignature(context.Context, string) (pgtype.Bool, error) {
+	return s.row, s.err
+}
+
+func (s ownershipStore) OwnsSignatureForUser(context.Context, sqlc.OwnsSignatureForUserParams) (pgtype.Bool, error) {
 	return s.row, s.err
 }
 
