@@ -10,7 +10,7 @@ export type ReportStatus = "confirmed" | "submitted" | "cancelled" | "failed";
 
 export type Report = { status: ReportStatus; idempotencyKey: string };
 
-export type Failure = "link_expired" | "wrong_account" | "network" | "unexpected";
+export type Failure = "link_expired" | "wrong_account" | "network" | "unavailable" | "unexpected";
 
 // The steps the page moves through. "open" covers loading, login and ready: which one shows
 // depends on Privy's auth state, so view() derives it rather than the reducer storing it.
@@ -101,9 +101,20 @@ function retryFrom(state: State, failure: Failure): State | null {
     case "wrong_account":
       return state;
     case "link_expired":
+    case "unavailable":
     case "unexpected":
       return null;
   }
+}
+
+export const privyReadyTimeoutMs = 20_000;
+
+// A build for a host must name its Privy environment: a missing or misspelled value would silently
+// run the sandbox on-ramp in production. Local builds without one keep the sandbox default.
+export function privyEnvProblem(value: string | undefined, onHost: boolean): string | null {
+  if (value === "production" || value === "sandbox") return null;
+  if (value === undefined || value === "") return onHost ? "VITE_PRIVY_ENV is not set. Set it to production or sandbox." : null;
+  return `VITE_PRIVY_ENV is "${value}". Set it to production or sandbox.`;
 }
 
 // Funding and reporting both need the Privy session, so an open or reporting state waits on it.
@@ -150,6 +161,7 @@ export const errorCopy: Record<Failure, string> = {
   link_expired: "Check Monaco for your deposit. If it isn't there, tap Deposit again.",
   wrong_account: "Sign in with the account you use in the Monaco app.",
   network: "We couldn't reach Monaco. Check your connection and try again.",
+  unavailable: "Couldn't load the payment page. Go back to Monaco and try again.",
   unexpected: "Something went wrong. Go back to Monaco and tap Deposit again.",
 };
 

@@ -1,7 +1,7 @@
 import { useEffect, useReducer, useRef } from "react";
 import { useFiatOnramp, useLogout, usePrivy } from "@privy-io/react-auth";
 import { exchangeToken, FundError, reportStatus } from "./api";
-import { accountDecision, completeURL, errorCopy, fundOptions, saveSession, statusFromError, statusFromResult, transition, view, type State } from "./lib";
+import { accountDecision, completeURL, errorCopy, fundOptions, privyReadyTimeoutMs, saveSession, statusFromError, statusFromResult, transition, view, type State } from "./lib";
 
 const api = import.meta.env.VITE_MONACO_API_URL;
 const environment = import.meta.env.VITE_PRIVY_ENV === "production" ? "production" : "sandbox";
@@ -76,6 +76,12 @@ export function App({ initial }: { initial: State }) {
     }
   }, [state, step, user, ready, authenticated]);
 
+  useEffect(() => {
+    if (step !== "loading") return;
+    const timer = setTimeout(() => dispatch({ type: "failed", failure: "unavailable" }), privyReadyTimeoutMs);
+    return () => clearTimeout(timer);
+  }, [step]);
+
   return (
     <main>
       <img src="/assets/mark-ink.svg" alt="" width={40} height={40} />
@@ -103,7 +109,13 @@ function Screen(props: { state: State; step: ReturnType<typeof view>; login: () 
       return <p role="status">Opening the deposit…</p>;
     case "reporting":
     case "redirect":
-      return <p role="status">Taking you back to Monaco…</p>;
+      if (state.step !== "reporting" && state.step !== "redirect") return null;
+      return (
+        <>
+          <p role="status">Taking you back to Monaco…</p>
+          <button onClick={() => location.assign(completeURL(state.session.session_id))}>Open Monaco</button>
+        </>
+      );
     case "error": {
       if (state.step !== "error") return null;
       return (
