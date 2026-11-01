@@ -252,6 +252,10 @@ func (h *ProposeTradeHandler) assess(ctx context.Context, cmd ProposeTrade) (ass
 		}
 		return sold, nil
 	}
+	if !asset.Priced() {
+		return assessment{}, errs.NewWithMessage(errs.CodePriceUnavailable, "governance.ProposeTrade",
+			"We can't price this stock right now", slog.String("symbol", asset.Symbol))
+	}
 	pot, err := h.ports.Treasury.PotValue(ctx, cmd.CabalID)
 	if err != nil {
 		return assessment{}, err

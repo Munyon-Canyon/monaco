@@ -328,13 +328,15 @@ func TestFundCabal_refusals(t *testing.T) {
 	}
 }
 
-func TestFundCabal_priceUnavailableDoesNotRefuse(t *testing.T) {
+func TestFundCabal_priceUnavailableRefusesBeforeAnyTransfer(t *testing.T) {
 	t.Parallel()
 	h := newFundHarness(t)
 	h.stubs.totalShares = money.SharesUnitsFromUint64(10)
 	h.stubs.potErr = errs.New(errs.CodePriceUnavailable, "stub")
-	if _, err := h.fund(5_000_000); err != nil {
-		t.Fatalf("fund with no price = %v, want submitted", err)
+	_, err := h.fund(5_000_000)
+	wantCode(t, err, errs.CodePriceUnavailable)
+	if n := h.count(t, "fund_transfers"); n != 0 || h.stubs.sent != 0 {
+		t.Fatalf("fund_transfers = %d, broadcasts = %d, want none", n, h.stubs.sent)
 	}
 	h.stubs.potErr, h.stubs.pot = nil, money.MicrosFromUint64(1)
 	if _, err := h.fund(5_000_000); err != nil {

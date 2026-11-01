@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"slices"
 	"sync"
+	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market"
@@ -66,6 +67,8 @@ func preIPO(id, symbol, mint string, issuer domain.Issuer) market.Asset {
 	return a
 }
 
+func quotedAt() time.Time { return time.Date(2026, time.January, 2, 15, 0, 0, 0, time.UTC) }
+
 func fixture(id, symbol, mint, name string, rank int16, tradable bool) market.Asset {
 	assetID, err := domain.ParseAssetID(id)
 	if err != nil {
@@ -76,10 +79,24 @@ func fixture(id, symbol, mint, name string, rank int16, tradable bool) market.As
 		panic(err)
 	}
 	return market.Asset{
-		ID: assetID, Symbol: symbol, Mint: m, Decimals: 8, Issuer: domain.IssuerXStocks, Kind: domain.KindEquity,
-		DisplayName: name, LogoURL: "https://xstocks-metadata.backed.fi/logos/tokens/" + symbol + ".png",
-		UIMultiplier: domain.Multiplier{Num: 1, Den: 1}, ChainChecked: true, IssuerTradable: tradable,
-		Override: domain.OverrideAuto, PopularRank: rank, CompanyKey: domain.CompanyKey(domain.IssuerXStocks, name),
+		ID:          assetID,
+		Symbol:      symbol,
+		Mint:        m,
+		Decimals:    8,
+		Issuer:      domain.IssuerXStocks,
+		Kind:        domain.KindEquity,
+		DisplayName: name,
+		LogoURL:     "https://xstocks-metadata.backed.fi/logos/tokens/" + symbol + ".png",
+		UIMultiplier: domain.Multiplier{
+			Num: 1,
+			Den: 1,
+		},
+		ChainChecked:   true,
+		IssuerTradable: tradable,
+		LastQuotedAt:   quotedAt(),
+		Override:       domain.OverrideAuto,
+		PopularRank:    rank,
+		CompanyKey:     domain.CompanyKey(domain.IssuerXStocks, name),
 	}
 }
 

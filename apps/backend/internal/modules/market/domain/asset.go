@@ -157,6 +157,10 @@ func (a Asset) Quotable(now time.Time) bool {
 	return !a.LastQuotedAt.IsZero() && now.Sub(a.LastQuotedAt) <= QuotableWindow
 }
 
+func (a Asset) Priced() bool {
+	return !a.LastQuotedAt.IsZero()
+}
+
 func (a Asset) Tradable() bool {
 	if !a.ChainChecked {
 		return false

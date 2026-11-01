@@ -260,3 +260,15 @@ func TestUIMultiplierAt_switchesToTheScheduledMultiplierAtItsEffectiveSecond(t *
 		}
 	}
 }
+
+func TestAsset_pricedNeedsAQuote(t *testing.T) {
+	t.Parallel()
+	a := marketfake.AAPLx()
+	if !a.Priced() {
+		t.Fatal("a quoted asset is not Priced")
+	}
+	a.LastQuotedAt = time.Time{}
+	if a.Priced() {
+		t.Fatal("an asset never quoted is Priced")
+	}
+}
