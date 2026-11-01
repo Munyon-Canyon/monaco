@@ -46,7 +46,7 @@ public struct ValueCurve: Equatable, Sendable {
     public init(_ history: Components.Schemas.MyPnlHistory) {
         samples = history.points.map { Sample(at: $0.at, value: $0.equityMicros, pnl: $0.pnlMicros) }
         rangePnlMicros = history.pnlMicros
-        rangeReturnBps = history.returnBps
+        rangeReturnBps = history.returnKnown == false ? nil : history.returnBps
     }
 
     public init(_ history: Components.Schemas.CabalValueHistory) {
@@ -159,9 +159,8 @@ extension ValueCurve {
         let direction = PortfolioSummary.Direction(signedMicros: delta)
         switch plot {
         case .pnl:
-            let base = drawn.first { $0.value > 0 }?.value
             let amount = UsdAmountFormatter.format(signedMicros: delta)
-            let percent = base.map { Self.percentText(delta, over: $0) }
+            let percent = Self.rangeBase(drawn, through: index).map { Self.percentText(delta, over: $0) }
             let underACent = amount == "$0.00"
             let movedAPercent = percent != nil && percent != "0.00%"
             return Change(
@@ -175,6 +174,20 @@ extension ValueCurve {
                 direction: direction)
         }
     }
+
+    private static func rangeBase(_ samples: [Sample], through index: Int) -> Int64? {
+        guard let first = samples.first else { return nil }
+        var base = first.value
+        var contributed = first.value - first.pnl
+        for sample in samples.prefix(index + 1).dropFirst() {
+            let now = sample.value - sample.pnl
+            base += max(0, now - contributed)
+            contributed = now
+        }
+        return base >= minimumBase ? base : nil
+    }
+
+    private static let minimumBase: Int64 = 10_000
 
     private static func plottedValue(_ sample: Sample, _ plot: Plot) -> Int64 {
         switch plot {

@@ -120,16 +120,16 @@ func TestRangedBoard_MidRangeDepositShowsNoFakeGain(t *testing.T) {
 	}
 }
 
-func TestRangedBoard_CabalYoungerThanRangeStartsFromZeroAndRanksByDietz(t *testing.T) {
+func TestRangedBoard_CabalYoungerThanRangeStartsFromZeroAndRanksByTheHomeFormula(t *testing.T) {
 	t.Parallel()
 	r := newRangedRig(domain.Range1W)
 	r.alphaOnly(110_000_000, 100, 100_000_000)
 	r.flow(r.alpha, r.u1, 100_000_000, r.at.Add(-24*time.Hour))
 	boards := r.build(t)
-	wantRow(t, boards["people/1W"], r.u1, 10_000_000, 7_000)
-	wantRow(t, boards["cabal_members:"+r.alpha.UUID().String()+"/1W"], r.u1, 10_000_000, 7_000)
-	if cabals := boards["cabals/1W"]; len(cabals) != 1 || *cabals[0].ReturnBps != 7_000 {
-		t.Fatalf("cabals 1W = %+v, want the Dietz return from a zero start", cabals)
+	wantRow(t, boards["people/1W"], r.u1, 10_000_000, 1_000)
+	wantRow(t, boards["cabal_members:"+r.alpha.UUID().String()+"/1W"], r.u1, 10_000_000, 1_000)
+	if cabals := boards["cabals/1W"]; len(cabals) != 1 || *cabals[0].ReturnBps != 1_000 {
+		t.Fatalf("cabals 1W = %+v, want the home-formula return from a zero start", cabals)
 	}
 	if len(r.skips) != 0 {
 		t.Fatalf("skips = %+v, a young cabal is not a skip", r.skips)
@@ -233,7 +233,7 @@ func TestRangedBoard_ACashedOutCabalStillCountsInThePersonsSum(t *testing.T) {
 	r.startedWith(r.bet, r.u1, 10, 10, 20_000_000)
 	r.flow(r.bet, r.u1, -30_000_000, r.at.Add(-24*time.Hour))
 	boards := r.build(t)
-	wantRow(t, boards["people/1W"], r.u1, 10_000_000, 864)
+	wantRow(t, boards["people/1W"], r.u1, 10_000_000, 833)
 }
 
 func TestRangedBoard_KeepsAFlaggedCabalsPreviousRowsInTheirOwnRange(t *testing.T) {

@@ -61,13 +61,14 @@ func (f fakeRoles) MembersOf(_ context.Context, cabals []ids.CabalID) (map[ids.C
 
 type fakeBalances struct {
 	available money.Micros
+	inFlight  money.Micros
 	err       error
 	queries   int
 }
 
 func (f *fakeBalances) ForDisplay(context.Context, ids.UserID) (fundingport.Balance, error) {
 	f.queries++
-	return fundingport.Balance{AvailableMicros: f.available}, f.err
+	return fundingport.Balance{AvailableMicros: f.available, InFlightFundMicros: f.inFlight}, f.err
 }
 
 type fakeJoined struct {
@@ -401,5 +402,131 @@ func TestReadPortfolio_AUserWhoseOnlyCabalHasNoValuationRunYetGetsAZeroRow(t *te
 	if err != nil || len(got.Rows) != 1 || got.Rows[0].CabalID != f.cabal || !got.Rows[0].Value.IsZero() ||
 		got.Cabals[f.cabal].Name != "Alpha" || got.ComputedAt != nil || f.latest.queries != 0 {
 		t.Fatalf("Run = %+v, %v, want the membership as a zero row and no snapshot read", got, err)
+	}
+}
+
+func TestReadPortfolio_FundingNeverLowersNetWorth(t *testing.T) {
+	t.Parallel()
+	at := time.Date(2026, 10, 4, 12, 0, 0, 0, time.UTC)
+	netWorth := func(t *testing.T, mutate func(*portfolioFixture)) app.PortfolioView {
+		t.Helper()
+		f := newPortfolioFixture()
+		f.balances.available = money.MicrosFromUint64(100)
+		mutate(&f)
+		got, err := f.read(t, fakeBoards{run: f.run, hasRun: true})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return got
+	}
+	before := netWorth(t, func(*portfolioFixture) {})
+	if before.NetWorth.Uint64() != 300 || before.Arriving.Int64() != 0 {
+		t.Fatalf(
+			"before = %d net worth, %d arriving, want 300 and 0",
+			before.NetWorth.Uint64(),
+			before.Arriving.Int64(),
+		)
+	}
+	cases := map[string]func(*portfolioFixture){
+		"a fund in flight": func(f *portfolioFixture) {
+			f.balances.available, f.balances.inFlight = money.MicrosFromUint64(70), money.MicrosFromUint64(30)
+		},
+		"a fund settled since the run": func(f *portfolioFixture) {
+			f.balances.available = money.MicrosFromUint64(70)
+			f.stakes.points = append(f.stakes.points, app.StakePoint{
+				CabalID: f.cabal, At: at.Add(time.Minute), ShareUnits: money.SharesUnitsFromUint64(8),
+				NetContributed: money.SignedMicrosFromInt64(130),
+			})
+		},
+	}
+	for name, mutate := range cases {
+		got := netWorth(t, mutate)
+		if got.NetWorth.Uint64() != 300 || got.Arriving.Int64() != 30 {
+			t.Errorf("%s: net worth %d arriving %d, want 300 and 30", name, got.NetWorth.Uint64(), got.Arriving.Int64())
+		}
+	}
+}
+
+func TestReadPortfolio_ACashOutSettledSinceTheRunDoesNotCountTwice(t *testing.T) {
+	t.Parallel()
+	at := time.Date(2026, 10, 4, 12, 0, 0, 0, time.UTC)
+	f := newPortfolioFixture()
+	f.balances.available = money.MicrosFromUint64(150)
+	f.stakes.points = append(f.stakes.points, app.StakePoint{
+		CabalID: f.cabal, At: at.Add(time.Minute), ShareUnits: money.SharesUnitsFromUint64(3),
+		NetContributed: money.SignedMicrosFromInt64(0),
+	})
+	got, err := f.read(t, fakeBoards{run: f.run, hasRun: true})
+	if err != nil || got.NetWorth.Uint64() != 250 || got.Arriving.Int64() != -100 {
+		t.Fatalf(
+			"Run = net worth %d arriving %d, %v, want 250 and -100",
+			got.NetWorth.Uint64(),
+			got.Arriving.Int64(),
+			err,
+		)
+	}
+}
+
+func TestReadPortfolio_FlagsACabalTheLatestRunSkipped(t *testing.T) {
+	t.Parallel()
+	f := newPortfolioFixture()
+	f.run.AsOf = f.latest.values[f.cabal].At.Add(time.Hour)
+	got, err := f.read(t, fakeBoards{run: f.run, hasRun: true})
+	if err != nil || len(got.Rows) != 1 || !got.Rows[0].Stale {
+		t.Fatalf("Run = %+v, %v, want the row flagged stale", got.Rows, err)
+	}
+	f.run.AsOf = f.latest.values[f.cabal].At
+	if got, err = f.read(t, fakeBoards{run: f.run, hasRun: true}); err != nil || got.Rows[0].Stale {
+		t.Fatalf("Run = %+v, %v, want a cabal in the latest run left unflagged", got.Rows, err)
+	}
+}
+
+func TestReadPortfolio_RefusesMoneyThatCannotBeAddedUp(t *testing.T) {
+	t.Parallel()
+	at := time.Date(2026, 10, 4, 12, 0, 0, 0, time.UTC)
+	for name, mutate := range map[string]func(*portfolioFixture){
+		"a fund in flight larger than any balance": func(f *portfolioFixture) {
+			f.balances.inFlight = money.MicrosFromUint64(math.MaxUint64)
+		},
+		"money arriving on top of a fund in flight": func(f *portfolioFixture) {
+			f.balances.inFlight = money.MicrosFromUint64(math.MaxInt64)
+			f.stakes.points = append(f.stakes.points, app.StakePoint{
+				CabalID: f.cabal, At: at.Add(time.Minute), ShareUnits: money.SharesUnitsFromUint64(8),
+				NetContributed: money.SignedMicrosFromInt64(130),
+			})
+		},
+		"cash that overflows the cabals' total": func(f *portfolioFixture) {
+			f.balances.available = money.MicrosFromUint64(math.MaxUint64)
+		},
+		"arriving money that overflows net worth": func(f *portfolioFixture) {
+			f.balances.available = money.MicrosFromUint64(math.MaxUint64 - 250)
+			f.balances.inFlight = money.MicrosFromUint64(100)
+		},
+	} {
+		f := newPortfolioFixture()
+		mutate(&f)
+		if _, err := f.read(t, fakeBoards{run: f.run, hasRun: true}); errs.CodeOf(err) == "" {
+			t.Errorf("%s: err = %v, want a refusal", name, err)
+		}
+	}
+}
+
+func TestReadPortfolio_ACashOutLargerThanEverythingElseShowsZeroNotADebt(t *testing.T) {
+	t.Parallel()
+	at := time.Date(2026, 10, 4, 12, 0, 0, 0, time.UTC)
+	f := newPortfolioFixture()
+	f.balances.available = money.MicrosFromUint64(0)
+	f.stakes.points = append(f.stakes.points, app.StakePoint{
+		CabalID: f.cabal, At: at.Add(time.Minute), ShareUnits: money.SharesUnitsFromUint64(0),
+		NetContributed: money.SignedMicrosFromInt64(-1_000),
+	})
+	got, err := f.read(t, fakeBoards{run: f.run, hasRun: true})
+	if err != nil || !got.NetWorth.IsZero() || got.Arriving.Int64() >= 0 {
+		t.Fatalf(
+			"Run = net worth %d arriving %d, %v, want 0 and a negative arriving",
+			got.NetWorth.Uint64(),
+			got.Arriving.Int64(),
+			err,
+		)
 	}
 }

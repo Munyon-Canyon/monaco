@@ -174,9 +174,19 @@ func (r RunValuation) value(ctx context.Context, data readData, at time.Time) (V
 		return Valuation{}, err
 	}
 	return Valuation{
-		AsOf: at, PricesAsOf: at, Cabals: values, Flagged: flagged, Entries: entries,
+		AsOf: at, PricesAsOf: oldestPrice(atTime, at), Cabals: values, Flagged: flagged, Entries: entries,
 		Excluded: len(data.cabals) - len(values),
 	}, nil
+}
+
+func oldestPrice(prices map[market.AssetID]market.Price, at time.Time) time.Time {
+	oldest := at
+	for _, price := range prices {
+		if price.ObservedAt.Before(oldest) {
+			oldest = price.ObservedAt
+		}
+	}
+	return oldest
 }
 
 func logSkipped(ctx context.Context) func(ids.CabalID) {

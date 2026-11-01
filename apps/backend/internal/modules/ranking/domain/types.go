@@ -12,6 +12,13 @@ import (
 
 type Bps int64
 
+func (b *Bps) OrZero() Bps {
+	if b == nil {
+		return 0
+	}
+	return *b
+}
+
 type Range string
 
 const (

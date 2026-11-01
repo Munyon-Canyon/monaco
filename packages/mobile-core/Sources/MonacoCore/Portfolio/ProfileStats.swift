@@ -9,7 +9,7 @@ public struct ProfileStats: Equatable, Sendable {
     public let cabalsLabel: String
 
     public init(_ portfolio: Components.Schemas.MyPortfolio) {
-        inCabals = UsdAmountFormatter.format(micros: portfolio.totalValueMicros)
+        inCabals = UsdAmountFormatter.format(flooredMicros: portfolio.totalValueMicros)
         returnDollars = UsdAmountFormatter.format(signedMicros: portfolio.pnlMicros)
         returnBps = portfolio.returnBps
         returnPercent = portfolio.returnBps.map {

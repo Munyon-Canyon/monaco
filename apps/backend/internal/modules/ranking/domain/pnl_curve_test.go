@@ -110,6 +110,22 @@ func TestPnLCurve_SkipsBucketsWithoutASnapshotForAHeldCabal(t *testing.T) {
 	}
 }
 
+func TestPnLCurve_ACabalWithNoSnapshotYetDoesNotBlankTheCurve(t *testing.T) {
+	t.Parallel()
+	now := bucketNowAt()
+	valued, fresh := newCabalID(), newCabalID()
+	from := now.Add(-3 * time.Hour)
+	stakes := []domain.StakePoint{stake(valued, from, 10, 1_000), stake(fresh, from.Add(30*time.Minute), 10, 500)}
+	snaps := map[ids.CabalID][]domain.Snapshot{valued: hourly(from, 4, 1_500, 10)}
+	got, err := domain.PnLCurve(domain.Range1D, now, stakes, snaps, skipNone)
+	if err != nil || len(got) == 0 {
+		t.Fatalf("PnLCurve = %+v, %v, want the valued cabal's line", got, err)
+	}
+	if last := got[len(got)-1]; !last.At.Equal(now) || last.Equity.Uint64() != 1_500 || last.PnL.Int64() != 500 {
+		t.Fatalf("last point = %+v, want one at now with the valued cabal alone: equity 1500, pnl 500", last)
+	}
+}
+
 func TestPnLCurve_ACabalWithMoreSharesThanItsSnapshotIsSkippedAndReported(t *testing.T) {
 	t.Parallel()
 	now := bucketNowAt()

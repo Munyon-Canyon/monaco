@@ -50,7 +50,7 @@ func (r RunValuation) readRanged(ctx context.Context, at time.Time) ([]rangedBoo
 	if err != nil {
 		return nil, err
 	}
-	rows, err := r.ports.Snapshots.SnapshotsAt(ctx, starts)
+	rows, err := r.ports.Snapshots.SnapshotsAt(ctx, snapshotsAt(starts))
 	if err != nil {
 		return nil, err
 	}
@@ -88,4 +88,8 @@ func addSnapshots(books []rangedBook, rows []sqlc.SnapshotsAtRow) error {
 		}
 	}
 	return nil
+}
+
+func snapshotsAt(ts []time.Time) sqlc.SnapshotsAtParams {
+	return sqlc.SnapshotsAtParams{Ts: ts, LookbackSeconds: int64(domain.SnapshotLookback / time.Second)}
 }

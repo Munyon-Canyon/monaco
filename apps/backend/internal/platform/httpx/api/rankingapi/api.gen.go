@@ -1688,10 +1688,15 @@ type MyPnlHistory struct {
 	// Examples: ALL
 	Range MyPnlHistoryRange `json:"range"`
 
-	// ReturnBps The return over the range in basis points, rounded toward zero: `pnl_micros` over the first point's equity plus the money put in during the range. 0 with fewer than two points or when that base is not positive.
+	// ReturnBps The return over the range in basis points, rounded toward zero: `pnl_micros` over the first point's equity plus the money put in during the range. 0 with fewer than two points or when that base is under 1 cent: check `return_known`.
 	//
 	// Examples: 203
 	ReturnBps int64 `json:"return_bps"`
+
+	// ReturnKnown False when there is no return to show: fewer than two points, or a base under 1 cent. `return_bps` is 0 then, and the app shows a dash. Absent means true, for servers that predate the field.
+	//
+	// Examples: true
+	ReturnKnown *bool `json:"return_known,omitempty"`
 }
 
 // MyPnlHistoryRange The window the curve covers.
@@ -1701,6 +1706,11 @@ type MyPnlHistoryRange string
 
 // MyPortfolio The caller's stakes, valued by the latest run, and their cash.
 type MyPortfolio struct {
+	// ArrivingMicros Money on its way into (positive) or out of (negative) cabals that no run has valued yet, in USDC micros: funds in flight plus stakes bought or cashed out since the latest snapshot, at cost. Counted in `net_worth_micros`, not in `total_value_micros`. Absent means 0.
+	//
+	// Examples: 100000000
+	ArrivingMicros *int64 `json:"arriving_micros,omitempty"`
+
 	// Cabals Every cabal the caller is an active member of, valued ones largest first, then the ones with no stake or no valuation yet, whose value, P&L, return and ownership are zero.
 	//
 	// Examples: []
@@ -1716,7 +1726,7 @@ type MyPortfolio struct {
 	// Examples: 2026-10-04T12:00:00Z
 	ComputedAt *time.Time `json:"computed_at"`
 
-	// NetWorthMicros `total_value_micros` plus `cash_micros` in USDC micros.
+	// NetWorthMicros `total_value_micros` plus `cash_micros` plus `arriving_micros` in USDC micros, so funding a cabal or cashing out never moves it.
 	//
 	// Examples: 12082000000
 	NetWorthMicros int64 `json:"net_worth_micros"`
@@ -1762,6 +1772,11 @@ type PnlPoint struct {
 
 // PortfolioCabal The caller's stake in one cabal.
 type PortfolioCabal struct {
+	// ArrivingMicros Money put into (positive) or taken out of (negative) this stake since the snapshot `value_micros` is read from, in USDC micros, at cost. A stake no run has valued yet has `value_micros` 0 and shows this. Absent means 0.
+	//
+	// Examples: 100000000
+	ArrivingMicros *int64 `json:"arriving_micros,omitempty"`
+
 	// Cabal A cabal's name and picture.
 	Cabal CabalRef `json:"cabal"`
 
@@ -1819,6 +1834,11 @@ type PortfolioCabal struct {
 	//
 	// Examples: 5000
 	SliceBps int64 `json:"slice_bps"`
+
+	// Stale True when the latest run skipped this cabal (paused, banned or failing its checks), so `value_micros` is older than the rest. Absent means false.
+	//
+	// Examples: false
+	Stale *bool `json:"stale,omitempty"`
 
 	// ValueMicros The stake's value in USDC micros.
 	//

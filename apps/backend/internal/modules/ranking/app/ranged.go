@@ -55,7 +55,7 @@ func (r Ranged) Gain() (money.SignedMicros, *domain.Bps, error) {
 	if r.Start.IsZero() && len(r.Flows) == 0 {
 		return money.SignedMicros{}, nil, nil
 	}
-	return domain.ModifiedDietz(domain.DietzInput{T0: r.T0, T1: r.T1, Start: r.Start, End: r.End, Flows: r.Flows})
+	return domain.RangeGain(domain.DietzInput{T0: r.T0, T1: r.T1, Start: r.Start, End: r.End, Flows: r.Flows})
 }
 
 func RangeFlows(

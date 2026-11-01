@@ -16,8 +16,8 @@ public struct HomeCabalRow: Equatable, Sendable, Identifiable {
         pictureURL = row.pictureURL
         memberCount = row.memberCount
         ownershipText = PercentFormatter.format(basisPoints: row.ownershipBps, signed: false, fractionDigits: 0)
-        valueMicros = row.valueMicros
-        isFunded = row.valueMicros > 0
+        valueMicros = max(0, row.valueMicros + row.arrivingMicros)
+        isFunded = valueMicros > 0
         returnBps = isFunded ? row.returnBps : nil
     }
 

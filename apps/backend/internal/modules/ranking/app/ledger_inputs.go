@@ -35,7 +35,7 @@ func NewLedgerWindow(ctx context.Context, ports Ports, t0, t1 time.Time) (*Ledge
 			return nil, err
 		}
 	}
-	rows, err := ports.Snapshots.SnapshotsAt(ctx, []time.Time{t0, t1})
+	rows, err := ports.Snapshots.SnapshotsAt(ctx, snapshotsAt([]time.Time{t0, t1}))
 	if err != nil {
 		return nil, err
 	}

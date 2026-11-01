@@ -48,7 +48,7 @@ func TestSnapshotsAt_LatestAtOrBeforeEachBucket(t *testing.T) {
 	insertSnapshot(t, q, old, base.Add(3*time.Hour), 300)
 	insertSnapshot(t, q, young, base.Add(2*time.Hour), 50)
 	ts := []time.Time{base.Add(-time.Minute), base.Add(time.Hour), base.Add(2 * time.Hour), base.Add(4 * time.Hour)}
-	rows, err := q.SnapshotsAt(t.Context(), ts)
+	rows, err := q.SnapshotsAt(t.Context(), sqlc.SnapshotsAtParams{Ts: ts, LookbackSeconds: 24 * 3600})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -76,8 +76,27 @@ func TestSnapshotsAt_LatestAtOrBeforeEachBucket(t *testing.T) {
 
 func TestSnapshotsAt_NoTimesNoRows(t *testing.T) {
 	t.Parallel()
-	rows, err := sqlc.New(testkit.DB(t)).SnapshotsAt(t.Context(), nil)
+	rows, err := sqlc.New(testkit.DB(t)).SnapshotsAt(t.Context(), sqlc.SnapshotsAtParams{LookbackSeconds: 3600})
 	if err != nil || len(rows) != 0 {
 		t.Fatalf("SnapshotsAt(nil) = %v, %v", rows, err)
+	}
+}
+
+func TestSnapshotsAt_StopsLookingBeyondTheLookback(t *testing.T) {
+	t.Parallel()
+	q := sqlc.New(testkit.DB(t))
+	cabal := ids.CabalIDFrom(ids.Real{}.NewV7())
+	base := time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC)
+	insertSnapshot(t, q, cabal, base.Add(-48*time.Hour), 100)
+	insertSnapshot(t, q, cabal, base.Add(-30*time.Minute), 200)
+	rows, err := q.SnapshotsAt(t.Context(), sqlc.SnapshotsAtParams{
+		Ts: []time.Time{base, base.Add(2 * time.Hour)}, LookbackSeconds: 3600,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 1 || rows[0].Bucket != 0 || rows[0].ValueMicros != 200 {
+		t.Fatalf("SnapshotsAt = %+v, want the half-hour-old snapshot for the first time only: the 48-hour-old one "+
+			"and a gap of 2.5 hours are out of reach", rows)
 	}
 }

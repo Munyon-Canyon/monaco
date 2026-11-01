@@ -84,14 +84,21 @@ public enum ProfileCabalRows {
         var row = ProfileCabalRow.Member(
             id: cabal.id, name: cabal.name, pictureURL: cabal.pictureUrl, role: role(cabal))
         guard hasPortfolio else { return row }
+        let arriving = stake?.arrivingMicros ?? 0
         guard let stake, stake.shareUnits > 0 else {
+            if arriving > 0 {
+                row.value = "\(UsdAmountFormatter.format(flooredMicros: arriving)) pending"
+                row.valueMicros = arriving
+                return row
+            }
             let snapshotted = (stake?.potValueMicros ?? 0) > 0
             row.value = snapshotted ? UsdAmountFormatter.format(micros: 0) : "—"
             return row
         }
+        let worth = max(0, stake.valueMicros + arriving)
         row.ownership = ownership(bps: stake.ownershipBps)
-        row.value = UsdAmountFormatter.format(micros: stake.valueMicros)
-        row.valueMicros = stake.valueMicros
+        row.value = UsdAmountFormatter.format(flooredMicros: worth)
+        row.valueMicros = worth
         if let bps = stake.returnBps {
             row.returnText = PercentFormatter.format(basisPoints: bps, signed: true, fractionDigits: 1)
             row.returnTone = bps > 0 ? .gain : (bps < 0 ? .loss : .flat)

@@ -234,6 +234,24 @@ func TestNewPortfolio_Failures(t *testing.T) {
 			stakes: []domain.StakePoint{stake(a, now, 1, math.MaxInt64), stake(b, now, 0, math.MaxInt64)},
 			latest: map[ids.CabalID]domain.Snapshot{a: potSnap(now, 1, 1), b: potSnap(now, 1, 1)},
 		},
+		"money arriving overflows across cabals": {
+			stakes: []domain.StakePoint{
+				stake(a, now.Add(time.Hour), 1, math.MaxInt64), stake(b, now.Add(time.Hour), 1, math.MaxInt64),
+			},
+			latest: map[ids.CabalID]domain.Snapshot{},
+		},
+		"money arriving overflows in one cabal": {
+			stakes: []domain.StakePoint{
+				stake(a, now.Add(-time.Hour), 1, -1), stake(a, now.Add(time.Hour), 1, math.MaxInt64),
+			},
+			latest: map[ids.CabalID]domain.Snapshot{a: potSnap(now, 1, 1)},
+		},
+		"a net that cannot be negated": {
+			stakes: []domain.StakePoint{
+				stake(a, now.Add(-time.Hour), 1, math.MinInt64), stake(a, now.Add(time.Hour), 1, 0),
+			},
+			latest: map[ids.CabalID]domain.Snapshot{a: potSnap(now, 1, 1)},
+		},
 		"the total pnl does not fit": {
 			stakes: []domain.StakePoint{stake(a, now, 1, 0), stake(b, now, 1, 0)},
 			latest: map[ids.CabalID]domain.Snapshot{a: potSnap(now, huge, 1), b: potSnap(now, huge, 1)},
@@ -360,5 +378,42 @@ func TestNewPortfolio_AStakeOpenedAfterTheLatestSnapshotIsNotCounted(t *testing.
 			got,
 			err,
 		)
+	}
+}
+
+func TestNewPortfolio_MoneyMovedSinceTheLatestSnapshotArrivesBesideTheValue(t *testing.T) {
+	t.Parallel()
+	now := bucketNowAt()
+	const usd = 1_000_000
+	fresh, topped, cashed, left := newCabalID(), newCabalID(), newCabalID(), newCabalID()
+	stakes := []domain.StakePoint{
+		stake(fresh, now.Add(-time.Minute), 100, 100*usd),
+		stake(topped, now.Add(-time.Hour), 1_000, 1_000*usd), stake(topped, now.Add(-time.Minute), 1_100, 1_100*usd),
+		stake(cashed, now.Add(-time.Hour), 1_000, 1_000*usd), stake(cashed, now.Add(-time.Minute), 600, 600*usd),
+		stake(left, now.Add(-2*time.Minute), 50, 50*usd), stake(left, now.Add(-time.Minute), 0, -5*usd),
+	}
+	latest := map[ids.CabalID]domain.Snapshot{
+		topped: potSnap(now.Add(-30*time.Minute), 1_000*usd, 1_000),
+		cashed: potSnap(now.Add(-30*time.Minute), 1_000*usd, 1_000),
+	}
+	got, err := domain.NewPortfolio(stakes, latest, []ids.CabalID{fresh, topped, cashed, left}, skipNone)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Total.Uint64() != 2_000*usd {
+		t.Fatalf("Total = %d, want the two valued stakes only", got.Total.Uint64())
+	}
+	if got.Arriving.Int64() != (100-400)*usd+100*usd {
+		t.Fatalf("Arriving = %d, want fund 100 + top-up 100 - cash-out 400", got.Arriving.Int64())
+	}
+	byCabal := map[ids.CabalID]int64{}
+	for _, row := range got.Rows {
+		byCabal[row.CabalID] = row.Arriving.Int64()
+	}
+	want := map[ids.CabalID]int64{fresh: 100 * usd, topped: 100 * usd, cashed: -400 * usd, left: 0}
+	for cabal, arriving := range want {
+		if byCabal[cabal] != arriving {
+			t.Fatalf("row %v arriving = %d, want %d (rows %+v)", cabal, byCabal[cabal], arriving, byCabal)
+		}
 	}
 }

@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"math"
 	"slices"
 	"time"
 
@@ -44,6 +45,7 @@ type PortfolioView struct {
 	domain.Portfolio
 	Cash       money.Micros
 	NetWorth   money.Micros
+	Arriving   money.SignedMicros
 	Cabals     map[ids.CabalID]CabalView
 	Members    map[ids.CabalID]Membership
 	OpenVotes  map[ids.CabalID]int
@@ -105,13 +107,44 @@ func (r ReadPortfolio) Run(ctx context.Context, ports PortfolioPorts) (Portfolio
 		return PortfolioView{}, errs.Wrap(err, errs.CodeInternal, "ranking.ReadPortfolio")
 	}
 	view.Portfolio = portfolio
-	if view.NetWorth, err = portfolio.Total.Add(cash); err != nil {
+	if ok {
+		view.markStale(values, run.AsOf)
+	}
+	if err = view.settle(balance.InFlightFundMicros); err != nil {
 		return PortfolioView{}, errs.Wrap(err, errs.CodeInternal, "ranking.ReadPortfolio")
 	}
 	if len(portfolio.Rows) == 0 {
 		return view, nil
 	}
 	return r.describe(ctx, ports, view)
+}
+
+func (v *PortfolioView) markStale(values map[ids.CabalID]domain.Snapshot, asOf time.Time) {
+	for i, row := range v.Rows {
+		v.Rows[i].Stale = values[row.CabalID].At.Before(asOf)
+	}
+}
+
+func (v *PortfolioView) settle(inFlightFund money.Micros) error {
+	const op = "ranking.ReadPortfolio"
+	fund, arriving := inFlightFund.Uint64(), v.Portfolio.Arriving.Int64()
+	if fund > math.MaxInt64 || arriving > math.MaxInt64-int64(fund) {
+		return errs.New(errs.CodeInvalidInput, op)
+	}
+	arriving += int64(fund)
+	v.Arriving = money.SignedMicrosFromInt64(arriving)
+	worth, err := v.Total.Add(v.Cash)
+	if err != nil {
+		return err
+	}
+	if arriving >= 0 {
+		v.NetWorth, err = worth.Add(money.MicrosFromUint64(uint64(arriving)))
+		return err
+	}
+	if v.NetWorth, err = worth.Sub(money.MicrosFromUint64(uint64(-arriving))); err != nil {
+		v.NetWorth = money.Micros{}
+	}
+	return nil
 }
 
 func appendNew(cabals, more []ids.CabalID) []ids.CabalID {

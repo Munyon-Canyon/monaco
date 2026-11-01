@@ -50,7 +50,7 @@ final class ValueCurvePlotTests: XCTestCase {
         XCTAssertEqual(value.plotted(.pnl).map(\.value), [0, 10_000, 10_000, 20_000])
         XCTAssertEqual(
             value.change(.pnl),
-            ValueCurve.Change(amountText: "+$0.02", percentText: "+0.67%", direction: .up))
+            ValueCurve.Change(amountText: "+$0.02", percentText: "+0.33%", direction: .up))
         XCTAssertEqual(value.change(.pnl, to: 1)?.amountText, "+$0.01")
         XCTAssertEqual(value.change(.pnl, to: 1)?.percentText, "+0.33%")
     }

@@ -122,10 +122,12 @@ start_equity  = share_units_at(t0) × nav_per_share_at(t0)
 end_equity    = share_units_now × nav_per_share_now
 net_flows     = contributions − cash outs during (t0, now]
 gain          = end_equity − start_equity − net_flows
-return        = gain / (start_equity + time-weighted net_flows)      -- modified Dietz
+return        = gain / (start_equity + contributions)                -- the one return formula
 ```
 
-`share_units_at(t0)` comes from the user ledger (sum of share-unit entries up to `t0`, through `treasury`'s port), and `nav_per_share_at(t0)` from `cabal_value_snapshots`. This removes today's fake gain for members who deposit mid-range. Modified Dietz is a pure function in `ranking/domain`, covered by property tests like the rest of the money math ([Testing](backend-platform.md#testing)).
+`contributions` counts only money put in during the range; a cash-out never lowers the base, and a base under 1 cent (10,000 micros) has no return (null on the boards, `return_known: false` on the P&L history). Home, Profile, the people and cabal boards, the weekly ledger and the share cards all read this one formula (`RangeReturnOf` for the curve, `RangeGain` for the boards), so the same member, range and moment shows the same percent everywhere. It replaced the time-weighted Modified Dietz base (#7513), which gave 13.3% on the boards where Home said 10.0% for $1,000 + $1,000 mid-range + $200 gain, and which needed a minimum-exposure rule for a flow near the range end (#5900).
+
+`share_units_at(t0)` comes from the user ledger (sum of share-unit entries up to `t0`, through `treasury`'s port), and `nav_per_share_at(t0)` from `cabal_value_snapshots`. This removes today's fake gain for members who deposit mid-range. The return is a pure function in `ranking/domain`, covered by property tests like the rest of the money math ([Testing](backend-platform.md#testing)).
 
 ## 4. Request path and "real time"
 

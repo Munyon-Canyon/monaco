@@ -56,11 +56,11 @@ func TestMemberRanged_MidRangeDepositShowsNoFakeGain(t *testing.T) {
 func TestMemberRanged_StartsAtShareUnitsAtT0NotCurrent(t *testing.T) {
 	t.Parallel()
 	w := window(domain.Range1W)
-	r, err := app.MemberRanged(w, shares(100), shares(10), snapshotAt(w, 1_000, 100), usd(150), nil)
-	if err != nil || r.Start != usd(100) {
+	r, err := app.MemberRanged(w, shares(100), shares(10), snapshotAt(w, 1_000_000_000, 100), usd(150_000_000), nil)
+	if err != nil || r.Start != usd(100_000_000) {
 		t.Fatalf("MemberRanged = %+v, %v, want 10 of 100 shares of 1000", r, err)
 	}
-	wantGain(t, r, 50, 5_000)
+	wantGain(t, r, 50_000_000, 5_000)
 }
 
 func TestMemberRanged_CashOutInRangeIsNotALoss(t *testing.T) {
@@ -77,12 +77,12 @@ func TestMemberRanged_CashOutInRangeIsNotALoss(t *testing.T) {
 func TestMemberRanged_CabalYoungerThanRangeStartsAtZero(t *testing.T) {
 	t.Parallel()
 	w := window(domain.Range1W)
-	flows := []domain.Flow{{Amount: signed(100), At: w.T1.Add(-24 * time.Hour)}}
-	r, err := app.MemberRanged(w, shares(0), shares(0), nil, usd(110), flows)
+	flows := []domain.Flow{{Amount: signed(100_000_000), At: w.T1.Add(-24 * time.Hour)}}
+	r, err := app.MemberRanged(w, shares(0), shares(0), nil, usd(110_000_000), flows)
 	if err != nil || !r.Start.IsZero() {
 		t.Fatalf("MemberRanged = %+v, %v, want a zero start", r, err)
 	}
-	wantGain(t, r, 10, 7_000)
+	wantGain(t, r, 10_000_000, 1_000)
 }
 
 func TestMemberRanged_ZeroSharesIgnoreAStaleSnapshot(t *testing.T) {
@@ -185,13 +185,13 @@ func TestRanged_NoStartAndNoFlowsIsNoGain(t *testing.T) {
 func TestCabalRanged(t *testing.T) {
 	t.Parallel()
 	w := window(domain.Range1W)
-	flows := []domain.Flow{{Amount: signed(50), At: w.T0.Add(time.Hour)}}
-	r, err := app.CabalRanged(w, shares(100), snapshotAt(w, 100, 100), usd(150), flows)
-	if err != nil || r.Start != usd(100) {
+	flows := []domain.Flow{{Amount: signed(50_000_000), At: w.T0.Add(time.Hour)}}
+	r, err := app.CabalRanged(w, shares(100), snapshotAt(w, 100_000_000, 100), usd(150_000_000), flows)
+	if err != nil || r.Start != usd(100_000_000) {
 		t.Fatalf("CabalRanged = %+v, %v, want the snapshot value as the start", r, err)
 	}
 	wantGain(t, r, 0, 0)
-	young, err := app.CabalRanged(w, shares(0), nil, usd(150), nil)
+	young, err := app.CabalRanged(w, shares(0), nil, usd(150_000_000), nil)
 	if err != nil || !young.Start.IsZero() {
 		t.Fatalf("CabalRanged = %+v, %v, want a zero start for a cabal with no shares at t0", young, err)
 	}

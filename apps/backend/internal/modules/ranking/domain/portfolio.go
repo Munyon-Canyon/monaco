@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"errors"
 	"log/slog"
+	"math"
 	"math/bits"
 	"slices"
 	"time"
@@ -23,13 +24,16 @@ type PortfolioRow struct {
 	Return       *Bps
 	SliceBps     uint64
 	OwnershipBps int32
+	Arriving     money.SignedMicros
+	Stale        bool
 }
 
 type Portfolio struct {
-	Total  money.Micros
-	PnL    money.SignedMicros
-	Return *Bps
-	Rows   []PortfolioRow
+	Total    money.Micros
+	PnL      money.SignedMicros
+	Return   *Bps
+	Rows     []PortfolioRow
+	Arriving money.SignedMicros
 }
 
 func NewPortfolio(
@@ -40,6 +44,10 @@ func NewPortfolio(
 		byCabal[s.CabalID] = append(byCabal[s.CabalID], s)
 	}
 	out := Portfolio{Rows: []PortfolioRow{}}
+	arriving, err := out.arriving(byCabal, latest)
+	if err != nil {
+		return Portfolio{}, err
+	}
 	exited, err := out.collect(byCabal, latest, skipped)
 	if err != nil {
 		return Portfolio{}, err
@@ -60,7 +68,43 @@ func NewPortfolio(
 		return Portfolio{}, err
 	}
 	out.Rows = append(out.Rows, unfundedRows(out.Rows, latest, memberships)...)
+	for i, row := range out.Rows {
+		out.Rows[i].Arriving = arriving[row.CabalID]
+	}
 	inOrder(out.Rows, memberships)
+	return out, nil
+}
+
+func (p *Portfolio) arriving(
+	byCabal map[ids.CabalID][]StakePoint, latest map[ids.CabalID]Snapshot,
+) (map[ids.CabalID]money.SignedMicros, error) {
+	const op = "ranking.NewPortfolio"
+	out := make(map[ids.CabalID]money.SignedMicros, len(byCabal))
+	for cabal, points := range byCabal {
+		last := points[len(points)-1]
+		var counted *StakePoint
+		if snap, ok := latest[cabal]; ok {
+			counted = LastAtOrBefore(points, snap.At, func(s StakePoint) time.Time { return s.At })
+		}
+		var moved money.SignedMicros
+		switch {
+		case counted == nil && last.Shares.IsZero():
+		case counted == nil:
+			moved = last.Net
+		case counted.Net.Int64() == math.MinInt64:
+			return nil, errs.New(errs.CodeInvalidInput, op, slog.String("cabal", cabal.String()))
+		default:
+			var err error
+			if moved, err = addSigned(op, last.Net, money.SignedMicrosFromInt64(-counted.Net.Int64())); err != nil {
+				return nil, err
+			}
+		}
+		out[cabal] = moved
+		var err error
+		if p.Arriving, err = addSigned(op, p.Arriving, moved); err != nil {
+			return nil, err
+		}
+	}
 	return out, nil
 }
 

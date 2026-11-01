@@ -62,9 +62,16 @@ SELECT DISTINCT ON (snapshots.cabal_id, bucket.idx)
   (bucket.idx - 1)::int AS bucket, snapshots.cabal_id, snapshots.at, snapshots.value_micros,
   snapshots.nav_per_share_micros, snapshots.total_shares
 FROM unnest($1::timestamptz[]) WITH ORDINALITY AS bucket(t, idx)
-JOIN cabal_value_snapshots AS snapshots ON snapshots.at <= bucket.t
+JOIN cabal_value_snapshots AS snapshots
+  ON snapshots.at <= bucket.t
+  AND snapshots.at >= bucket.t - $2::bigint * interval '1 second'
 ORDER BY snapshots.cabal_id, bucket.idx, snapshots.at DESC
 `
+
+type SnapshotsAtParams struct {
+	Ts              []time.Time
+	LookbackSeconds int64
+}
 
 type SnapshotsAtRow struct {
 	Bucket            int32
@@ -75,8 +82,8 @@ type SnapshotsAtRow struct {
 	TotalShares       int64
 }
 
-func (q *Queries) SnapshotsAt(ctx context.Context, ts []time.Time) ([]SnapshotsAtRow, error) {
-	rows, err := q.db.Query(ctx, snapshotsAt, ts)
+func (q *Queries) SnapshotsAt(ctx context.Context, arg SnapshotsAtParams) ([]SnapshotsAtRow, error) {
+	rows, err := q.db.Query(ctx, snapshotsAt, arg.Ts, arg.LookbackSeconds)
 	if err != nil {
 		return nil, err
 	}
