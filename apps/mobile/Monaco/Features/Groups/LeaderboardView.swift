@@ -120,6 +120,16 @@ struct LeaderboardView: View {
                 systemImage: "wifi.exclamationmark"
             ) { Task { await model.load() } }
         case .loaded(let screen):
+            if model.refreshFailed {
+                MonacoNotice(
+                    .warn, message: CallBoardCopy.staleMessage,
+                    action: (CallBoardCopy.tryAgain, { Task { await model.load() } }),
+                    actionIdentifier: "leaderboard-stale-retry"
+                )
+                .padding(.horizontal, MonacoTheme.Space.gutter)
+                .padding(.top, MonacoTheme.Space.s)
+                .accessibilityIdentifier("leaderboard-stale")
+            }
             if screen.isEmpty {
                 EmptyState(
                     title: CallBoardCopy.emptyTitle, message: screen.emptyMessage,

@@ -22,6 +22,7 @@ public struct MemberActivityRow: Equatable, Sendable, Identifiable {
     public enum Destination: Equatable, Sendable {
         case proposal(String)
         case board
+        case none
     }
 
     public let id: String
@@ -54,14 +55,33 @@ public final class MemberActivityModel {
     public private(set) var hasMore = false
 
     private let api: APIClient
+    private let hints: (any HintSource)?
     private let now: @Sendable () -> Date
     private var cursor: String?
     private var generation = 0
 
-    public init(userID: String, api: APIClient, now: @escaping @Sendable () -> Date = PortfolioClock.system) {
+    @ObservationIgnored private lazy var refresher = HintRefresher { [weak self] in await self?.load() }
+
+    public init(
+        userID: String, api: APIClient, hints: (any HintSource)? = nil,
+        now: @escaping @Sendable () -> Date = PortfolioClock.system
+    ) {
         self.userID = userID
         self.api = api
+        self.hints = hints
         self.now = now
+    }
+
+    public func observe() async {
+        guard let hints else { return }
+        await refresher.observe([
+            hints.hints(matching: .user(what: "cabals")),
+            hints.hints(matching: .user(what: "balance_changed")),
+        ])
+    }
+
+    public func setVisible(_ visible: Bool) {
+        refresher.setVisible(visible)
     }
 
     public var rows: [MemberActivityRow] {
@@ -133,7 +153,8 @@ public final class MemberActivityModel {
             return MemberActivityRow(
                 id: "\(index)", glyph: .toppedBoard, title: "Topped the board",
                 subtitle: "\(month(win.periodStart)) · \(win.right) of \(win.resolved) right",
-                time: time(win.at, now), destination: .board)
+                time: time(win.at, now),
+                destination: win.periodStart.hasPrefix(currentMonth(now)) ? .board : .none)
         }
     }
 
@@ -147,6 +168,13 @@ public final class MemberActivityModel {
         "January", "February", "March", "April", "May", "June", "July", "August", "September", "October",
         "November", "December",
     ]
+
+    private static func currentMonth(_ now: Date) -> String {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "UTC") ?? .current
+        let parts = calendar.dateComponents([.year, .month], from: now)
+        return String(format: "%04d-%02d", parts.year ?? 0, parts.month ?? 0)
+    }
 
     private static func month(_ periodStart: String) -> String {
         let parts = periodStart.split(separator: "-")

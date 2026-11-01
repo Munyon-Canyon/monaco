@@ -123,7 +123,7 @@ nonisolated final class AccountActivitySampleUITests: XCTestCase {
         let app = launch("empty")
         XCTAssertTrue(app.staticTexts["No transactions yet"].waitForExistence(timeout: 15))
         XCTAssertTrue(
-            app.staticTexts["Personal deposits, deposits, redemptions and withdrawals will appear here."].exists)
+            app.staticTexts["Deposits, redemptions and withdrawals will appear here."].exists)
         screenshot(app, "account-activity-empty")
     }
 }

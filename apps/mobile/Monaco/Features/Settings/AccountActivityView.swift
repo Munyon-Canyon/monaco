@@ -59,7 +59,7 @@ struct AccountActivityList: View {
                 header
                 EmptyState(
                     title: "No transactions yet",
-                    message: "Personal deposits, deposits, redemptions and withdrawals will appear here.",
+                    message: "Deposits, redemptions and withdrawals will appear here.",
                     systemImage: MonacoIcon.receipt.symbol
                 )
                 .accessibilityIdentifier("account-activity-empty")

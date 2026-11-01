@@ -5,7 +5,7 @@ enum SettingsDeleteAccountJourney {
     static let version = 6
 
     static let explainer =
-        "Deleting your account removes your name, photo, phone and X from Monaco. Your handle stays reserved. "
+        "Deleting your account removes your name, photo and phone from Monaco. Your handle stays reserved. "
         + "Your transaction history stays, because cabal records need it. This can't be undone."
     static let cashOutStep = "Cash out of every cabal"
     static let withdrawStep = "Withdraw your balance"

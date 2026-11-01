@@ -3,7 +3,7 @@ import Foundation
 public enum AccountCopy {
     public static let deleteTitle = "Delete account"
     public static let explainer =
-        "Deleting your account removes your name, photo, phone and X from Monaco. Your handle stays reserved. "
+        "Deleting your account removes your name, photo and phone from Monaco. Your handle stays reserved. "
         + "Your transaction history stays, because cabal records need it. This can't be undone."
     public static let cashOutStep = "Cash out of every cabal"
     public static func yourSlice(_ amount: String) -> String { "Your slice \(amount)" }

@@ -10,6 +10,7 @@ public enum CallBoardCopy {
     public static let errorTitle = "Can't load the leaderboard"
     public static let errorMessage = "Check your connection and try again."
     public static let tryAgain = "Try again"
+    public static let staleMessage = "Couldn't refresh. Showing the last board you loaded."
     public static let emptyTitle = "Nobody ranked yet"
     public static let back = "Back"
     public static let infoLabel = "How the board is ranked"
@@ -123,7 +124,7 @@ public enum CallBoardCopy {
     }
 
     public static func emptyMessage(_ period: CallPeriod, tab: CallBoardTab) -> String {
-        let who = tab == .friends ? "None of your friends has" : "No one has"
+        let who = tab == .friends ? "No one you follow has" : "No one has"
         switch period {
         case .all: return "\(who) five resolved votes yet."
         case .week, .month: return "\(who) five resolved votes yet \(periodWord(period))."

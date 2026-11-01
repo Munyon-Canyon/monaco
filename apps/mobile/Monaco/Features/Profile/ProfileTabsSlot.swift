@@ -103,6 +103,7 @@ struct ProfileTabsContent: View {
 
 private struct ProfileTabsLive: View {
     @Environment(AppEnvironment.self) private var environment
+    @Environment(ScreenRefresh.self) private var refresh: ScreenRefresh?
     @State private var cabals: ProfileCabalsModel?
     @State private var activity: MemberActivityModel?
     @State private var selection = ProfileTabsSelection.cabals
@@ -119,15 +120,21 @@ private struct ProfileTabsLive: View {
         .task(id: environment.viewer?.userID) {
             guard let userID = environment.viewer?.userID else { return }
             let cabalsModel = ProfileCabalsModel(api: environment.api, hints: environment.hints)
-            let activityModel = MemberActivityModel(userID: userID, api: environment.api)
+            let activityModel = MemberActivityModel(
+                userID: userID, api: environment.api, hints: environment.hints)
             cabals = cabalsModel
             activity = activityModel
+            refresh?.register("profile-activity") { await activityModel.load() }
             await withTaskGroup(of: Void.self) { group in
                 group.addTask { await cabalsModel.load() }
                 group.addTask { await cabalsModel.observe() }
                 group.addTask { await activityModel.load() }
+                group.addTask { await activityModel.observe() }
             }
         }
-        .onScreenVisibilityChange { cabals?.setVisible($0) }
+        .onScreenVisibilityChange {
+            cabals?.setVisible($0)
+            activity?.setVisible($0)
+        }
     }
 }

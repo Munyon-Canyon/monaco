@@ -235,16 +235,18 @@ private struct UserProfileCard: View {
                         .fixedSize(horizontal: false, vertical: true)
                         .accessibilityIdentifier("user-profile-bio")
                 }
-                MonacoRule()
-                let statsLayout =
-                    dynamicTypeSize.isAccessibilitySize
-                    ? AnyLayout(VStackLayout(alignment: .leading, spacing: MonacoTheme.Space.sm))
-                    : AnyLayout(HStackLayout(alignment: .top, spacing: MonacoTheme.Space.sm))
-                statsLayout {
-                    figure("P&L \u{00B7} 1M", data.pnl, tint: Self.tint(data.pnl), id: "user-profile-pnl")
-                    figure(
-                        "Right calls \u{00B7} 1M", data.rightCalls, tint: MonacoTheme.primaryText,
-                        id: "user-profile-right-calls")
+                if !data.performanceHidden {
+                    MonacoRule()
+                    let statsLayout =
+                        dynamicTypeSize.isAccessibilitySize
+                        ? AnyLayout(VStackLayout(alignment: .leading, spacing: MonacoTheme.Space.sm))
+                        : AnyLayout(HStackLayout(alignment: .top, spacing: MonacoTheme.Space.sm))
+                    statsLayout {
+                        figure("P&L \u{00B7} 1M", data.pnl, tint: Self.tint(data.pnl), id: "user-profile-pnl")
+                        figure(
+                            "Right calls \u{00B7} 1M", data.rightCalls, tint: MonacoTheme.primaryText,
+                            id: "user-profile-right-calls")
+                    }
                 }
             }
         }

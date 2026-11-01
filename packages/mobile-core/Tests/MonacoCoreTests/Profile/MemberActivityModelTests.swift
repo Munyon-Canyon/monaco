@@ -69,4 +69,46 @@ final class MemberActivityModelTests: XCTestCase {
         await model.loadMore()
         XCTAssertEqual(model.rows.count, 4)
     }
+
+    func testAWinOpensTheBoardOnlyWhenItIsThisMonths() async {
+        let current: String = """
+            {"items":[
+            {"kind":"topped_board","at":"\(stamp(60))","title":"Topped the board","period_start":"2027-01-01","right":9,"resolved":10},
+            {"kind":"topped_board","at":"\(stamp(1_814_400))","title":"Topped the board","period_start":"2026-12-01","right":11,"resolved":12}
+            ],"next_cursor":null}
+            """
+        let (model, _) = make([.json(.ok, current)])
+        await model.load()
+        XCTAssertEqual(model.rows.map(\.destination), [.board, .none])
+    }
+
+    func testALoadAfterALoadReplacesTheRowsAndAFailedOneKeepsThem() async {
+        let (model, _) = make([
+            .json(.ok, page(next: nil)), .failure(URLError(.notConnectedToInternet)),
+            .json(.ok, #"{"items":[],"next_cursor":null}"#),
+        ])
+        await model.load()
+        await model.load()
+        XCTAssertEqual(model.rows.count, 4)
+        await model.load()
+        XCTAssertEqual(model.rows.count, 0)
+    }
+
+    func testTheCabalsAndBalanceHintsReloadTheFeed() async {
+        let hints = FakeHintStream()
+        let transport = StubTransport(
+            scripted: [.json(.ok, page(next: nil)), .json(.ok, page(next: nil)), .json(.ok, page(next: nil))])
+        let api = APIClient(serverURL: testServerURL, tokens: StubTokenProvider(token: "t"), transport: transport)
+        let model = MemberActivityModel(userID: "u1", api: api, hints: hints)
+        await model.load()
+        let task = Task { await model.observe() }
+        await hints.waitForSubscribers(2)
+        await hints.send(.changed(.user("u1"), what: "cabals", id: "1"))
+        while await transport.sent.count < 2 { await Task.yield() }
+        await hints.send(.changed(.user("u1"), what: "balance_changed", id: "2"))
+        while await transport.sent.count < 3 { await Task.yield() }
+        task.cancel()
+        let count = await transport.sent.count
+        XCTAssertEqual(count, 3)
+    }
 }
