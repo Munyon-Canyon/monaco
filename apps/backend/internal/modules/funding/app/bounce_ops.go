@@ -37,6 +37,9 @@ func (b *Bouncer) SetReturnAddress(ctx context.Context, id uuid.UUID, address, o
 	if err != nil {
 		return errs.Wrap(err, errs.CodeInvalidAddress, op)
 	}
+	if !to.OnCurve() {
+		return errs.New(errs.CodeInvalidAddress, op, slog.String("reason", "off_curve"))
+	}
 	err = b.d.UoW.Do(ctx, func(ctx context.Context, tx db.Tx) error {
 		n, err := sqlc.New(tx.Queries()).SetBounceReturnAddress(ctx, sqlc.SetBounceReturnAddressParams{
 			ID: id, ReturnAddress: string(to), FromStatuses: statuses(domain.Sources(domain.BounceHold)),

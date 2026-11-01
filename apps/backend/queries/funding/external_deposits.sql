@@ -78,3 +78,14 @@ FROM cabal_pauses p
 JOIN external_deposits d ON d.id = p.external_deposit_id
 WHERE p.resolved_at IS NULL AND d.status IN ('returned', 'held')
 ORDER BY p.id;
+
+-- name: TokenAccountCursor :one
+SELECT coalesce((
+  SELECT last_signature FROM treasury_token_account_cursors
+  WHERE cabal_id = sqlc.arg(cabal_id)::uuid AND token_account = sqlc.arg(token_account)::text
+), '')::text;
+
+-- name: AdvanceTokenAccountCursor :exec
+INSERT INTO treasury_token_account_cursors (cabal_id, token_account, last_signature, updated_at)
+VALUES (sqlc.arg(cabal_id)::uuid, sqlc.arg(token_account)::text, sqlc.arg(last_signature)::text, sqlc.arg(updated_at)::timestamptz)
+ON CONFLICT (cabal_id, token_account) DO UPDATE SET last_signature = excluded.last_signature, updated_at = excluded.updated_at;

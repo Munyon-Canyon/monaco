@@ -12,6 +12,29 @@ import (
 	"github.com/google/uuid"
 )
 
+const advanceTokenAccountCursor = `-- name: AdvanceTokenAccountCursor :exec
+INSERT INTO treasury_token_account_cursors (cabal_id, token_account, last_signature, updated_at)
+VALUES ($1::uuid, $2::text, $3::text, $4::timestamptz)
+ON CONFLICT (cabal_id, token_account) DO UPDATE SET last_signature = excluded.last_signature, updated_at = excluded.updated_at
+`
+
+type AdvanceTokenAccountCursorParams struct {
+	CabalID       uuid.UUID
+	TokenAccount  string
+	LastSignature string
+	UpdatedAt     time.Time
+}
+
+func (q *Queries) AdvanceTokenAccountCursor(ctx context.Context, arg AdvanceTokenAccountCursorParams) error {
+	_, err := q.db.Exec(ctx, advanceTokenAccountCursor,
+		arg.CabalID,
+		arg.TokenAccount,
+		arg.LastSignature,
+		arg.UpdatedAt,
+	)
+	return err
+}
+
 const advanceWatchCursor = `-- name: AdvanceWatchCursor :exec
 INSERT INTO treasury_watch_cursors (cabal_id, last_signature, updated_at)
 VALUES ($1::uuid, $2::text, $3::timestamptz)
@@ -352,6 +375,25 @@ func (q *Queries) StartBounce(ctx context.Context, arg StartBounceParams) (int64
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const tokenAccountCursor = `-- name: TokenAccountCursor :one
+SELECT coalesce((
+  SELECT last_signature FROM treasury_token_account_cursors
+  WHERE cabal_id = $1::uuid AND token_account = $2::text
+), '')::text
+`
+
+type TokenAccountCursorParams struct {
+	CabalID      uuid.UUID
+	TokenAccount string
+}
+
+func (q *Queries) TokenAccountCursor(ctx context.Context, arg TokenAccountCursorParams) (string, error) {
+	row := q.db.QueryRow(ctx, tokenAccountCursor, arg.CabalID, arg.TokenAccount)
+	var column_1 string
+	err := row.Scan(&column_1)
+	return column_1, err
 }
 
 const unresolvedExternalDeposits = `-- name: UnresolvedExternalDeposits :many

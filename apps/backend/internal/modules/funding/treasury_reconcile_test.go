@@ -37,6 +37,22 @@ type reconcileChain struct {
 	down       map[chain.SolanaAddress]error
 	hang       map[chain.SolanaAddress]bool
 	entered    chan struct{}
+	accounts   map[chain.SolanaAddress][]solana.TokenAccountState
+	accountErr error
+}
+
+func (c *reconcileChain) TokenAccounts(
+	_ context.Context, owner chain.SolanaAddress, mint chain.Mint,
+) (uint64, []solana.TokenAccountState, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	var out []solana.TokenAccountState
+	for _, a := range c.accounts[owner] {
+		if a.Mint == mint.Address {
+			out = append(out, a)
+		}
+	}
+	return 0, out, c.accountErr
 }
 
 func (c *reconcileChain) TokenBalance(
@@ -155,6 +171,30 @@ func (e *reconcileEnv) landed(owner chain.SolanaAddress, sigs ...chain.Signature
 	for _, sig := range sigs {
 		e.chain.history[owner] = slices.Insert(e.chain.history[owner], 0, solana.SignatureInfo{Signature: sig})
 	}
+}
+
+func (e *reconcileEnv) tokenAccount(t *testing.T, owner, mint chain.SolanaAddress) chain.SolanaAddress {
+	t.Helper()
+	account, err := chain.AssociatedTokenAccount(owner, mint, chain.SPLProgram)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if e.chain.accounts == nil {
+		e.chain.accounts = map[chain.SolanaAddress][]solana.TokenAccountState{}
+	}
+	e.chain.accounts[owner] = append(e.chain.accounts[owner], solana.TokenAccountState{
+		Address: account, Exists: true, Program: chain.SPLProgram, Mint: mint, Owner: owner,
+	})
+	return account
+}
+
+func (e *reconcileEnv) tokenCursor(t *testing.T, account chain.SolanaAddress) string {
+	t.Helper()
+	var sig string
+	_ = e.pool.QueryRow(t.Context(),
+		`SELECT last_signature FROM treasury_token_account_cursors WHERE cabal_id = $1 AND token_account = $2`,
+		e.cabal.ID.UUID(), string(account)).Scan(&sig)
+	return sig
 }
 
 func (e *reconcileEnv) tick(t *testing.T) (int, error) {
@@ -483,5 +523,134 @@ func TestTreasuryReconcile_ACancelledTickFails(t *testing.T) {
 	cancel()
 	if _, err := app.NewTreasuryReconcilePoller(env.deps).Tick(ctx); err == nil {
 		t.Fatal("cancelled tick = nil error")
+	}
+}
+
+func TestTreasuryReconcile_StrayUSDCInTheTokenAccountIsDetectedAndBounced(t *testing.T) {
+	t.Parallel()
+	env := newReconcileEnv(t)
+	treasury := env.cabal.TreasuryAddress
+	account := env.tokenAccount(t, treasury, env.usdc)
+	stray := env.inbound(t, env.usdcMint(), 50_000_000, randomAddress(t))
+	env.landed(account, stray)
+	env.onChain(treasury, env.usdc, 50_000_000)
+
+	changed, err := env.tick(t)
+
+	if err != nil || changed != 1 {
+		t.Fatalf("tick = %d, %v, want the stray transfer recorded", changed, err)
+	}
+	rows := externalDeposits(t, env.pool)
+	if len(rows) != 1 || rows[string(stray)].source != "reconcile" || rows[string(stray)].status != "detected" {
+		t.Fatalf("rows = %+v, want the stray transfer detected from reconcile", rows)
+	}
+	if env.tokenCursor(t, account) != string(stray) {
+		t.Fatalf("token account cursor = %q, want %q", env.tokenCursor(t, account), stray)
+	}
+	if again, err := env.tick(t); err != nil || again != 0 {
+		t.Fatalf("second tick = %d, %v, want nothing new", again, err)
+	}
+}
+
+func TestTreasuryReconcile_TokenAccountScanReadsOnlySurplusMintsAndResumesFromItsCursor(t *testing.T) {
+	t.Parallel()
+	env := newReconcileEnv(t)
+	treasury := env.cabal.TreasuryAddress
+	usdcAccount := env.tokenAccount(t, treasury, env.usdc)
+	stock := env.stock.Mint.Address()
+	stockAccount := env.tokenAccount(t, treasury, stock)
+	env.ledger[env.cabal.ID] = []treasuryport.Position{
+		{Mint: env.usdc, Units: money.NewBaseUnits(10_000_000, 6)},
+		{Mint: stock, Units: money.NewBaseUnits(3, 8)},
+	}
+	env.onChain(treasury, env.usdc, 15_000_000)
+	env.onChain(treasury, stock, 3)
+	env.landed(stockAccount, "stock-noise")
+	env.landed(usdcAccount, "seen")
+	exec(t, env.pool, fmt.Sprintf(`INSERT INTO treasury_token_account_cursors
+		(cabal_id, token_account, last_signature, updated_at) VALUES ('%s', '%s', 'seen', now())`,
+		env.cabal.ID, usdcAccount))
+	stray := env.inbound(t, env.usdcMint(), 5_000_000, randomAddress(t))
+	env.landed(usdcAccount, stray)
+
+	changed, err := env.tick(t)
+
+	if err != nil || changed != 1 || env.tokenCursor(t, usdcAccount) != string(stray) {
+		t.Fatalf("tick = %d, %v, cursor %q, want the stray recorded", changed, err, env.tokenCursor(t, usdcAccount))
+	}
+	if env.tokenCursor(t, stockAccount) != "" {
+		t.Fatal("the stock token account was scanned although its balance matches the ledger")
+	}
+}
+
+func TestTreasuryReconcile_ATokenAccountReadFailureIsCountedAndRetried(t *testing.T) {
+	t.Parallel()
+	env := newReconcileEnv(t)
+	treasury := env.cabal.TreasuryAddress
+	account := env.tokenAccount(t, treasury, env.usdc)
+	stray := env.inbound(t, env.usdcMint(), 5_000_000, randomAddress(t))
+	env.landed(account, stray)
+	env.onChain(treasury, env.usdc, 5_000_000)
+	env.chain.accountErr = errWatchDown
+
+	report, err := env.tickReport(t)
+
+	if err != nil || attr(report, "failed") != 1 || env.tokenCursor(t, account) != "" {
+		t.Fatalf("tick = %+v, %v, want one failed cabal and no cursor", report, err)
+	}
+	env.chain.accountErr = nil
+	if changed, err := env.tick(t); err != nil || changed != 1 {
+		t.Fatalf("retry = %d, %v, want the stray recorded", changed, err)
+	}
+}
+
+func TestTreasuryReconcile_ATokenAccountThatDoesNotExistIsSkipped(t *testing.T) {
+	t.Parallel()
+	env := newReconcileEnv(t)
+	treasury := env.cabal.TreasuryAddress
+	env.chain.accounts = map[chain.SolanaAddress][]solana.TokenAccountState{
+		treasury: {{Address: randomAddress(t), Exists: false, Mint: env.usdc}},
+	}
+	env.onChain(treasury, env.usdc, 5_000_000)
+
+	report, err := env.tickReport(t)
+
+	if err != nil || attr(report, "failed") != 0 || report.Changed != 0 {
+		t.Fatalf("tick = %+v, %v, want the missing account skipped", report, err)
+	}
+	var cursors int
+	row := env.pool.QueryRow(t.Context(), `SELECT count(*) FROM treasury_token_account_cursors`)
+	if err := row.Scan(&cursors); err != nil || cursors != 0 {
+		t.Fatalf("token account cursors = %d, %v, want none", cursors, err)
+	}
+}
+
+func TestTreasuryReconcile_ATokenAccountScanFailureIsCountedNotFatal(t *testing.T) {
+	t.Parallel()
+	cases := map[string]func(t *testing.T, e *reconcileEnv, account chain.SolanaAddress){
+		"cursor read": func(t *testing.T, e *reconcileEnv, _ chain.SolanaAddress) {
+			t.Helper()
+			exec(t, e.pool, `ALTER TABLE treasury_token_account_cursors RENAME TO treasury_token_account_cursors_gone`)
+		},
+		"signatures": func(_ *testing.T, e *reconcileEnv, account chain.SolanaAddress) {
+			e.chain.down = map[chain.SolanaAddress]error{account: errWatchDown}
+		},
+	}
+	for name, arrange := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			env := newReconcileEnv(t)
+			treasury := env.cabal.TreasuryAddress
+			account := env.tokenAccount(t, treasury, env.usdc)
+			env.landed(account, env.inbound(t, env.usdcMint(), 5_000_000, randomAddress(t)))
+			env.onChain(treasury, env.usdc, 5_000_000)
+			arrange(t, env, account)
+
+			report, err := env.tickReport(t)
+
+			if err != nil || report.Scanned != 1 || attr(report, "failed") != 1 || report.Changed != 0 {
+				t.Fatalf("tick = %+v, %v, want one failed cabal and no tick error", report, err)
+			}
+		})
 	}
 }

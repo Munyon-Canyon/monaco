@@ -39,6 +39,11 @@ const (
 
 type ReconcileChain interface {
 	TokenBalance(ctx context.Context, owner chain.SolanaAddress, mint chain.Mint) (money.BaseUnits, error)
+	TokenAccounts(
+		ctx context.Context,
+		owner chain.SolanaAddress,
+		mint chain.Mint,
+	) (uint64, []solana.TokenAccountState, error)
 	SignaturesFor(
 		ctx context.Context,
 		addr chain.SolanaAddress,
@@ -224,16 +229,72 @@ func (p *TreasuryReconcilePoller) reconcile(
 		return false, 0, 0, err
 	}
 	p.alertDeficits(ctx, w.CabalID, shorts)
-	if !surplus {
+	if len(surplus) == 0 {
 		return false, len(shorts), 0, nil
 	}
 	cursor, err := sqlc.New(p.d.Reads).WatchCursor(ctx, w.CabalID.UUID())
 	if err != nil {
 		return true, len(shorts), 0, errs.Wrap(err, errs.CodeInternal, op)
 	}
-	sigs, err := p.signaturesSince(ctx, w.Address, chain.Signature(cursor))
+	advance := func(ctx context.Context, tx db.Tx, sig chain.Signature) error {
+		return sqlc.New(tx.Queries()).AdvanceWatchCursor(ctx, sqlc.AdvanceWatchCursorParams{
+			CabalID: w.CabalID.UUID(), LastSignature: string(sig), UpdatedAt: p.d.Clock.Now(),
+		})
+	}
+	recorded, err := p.scan(ctx, w, w.Address, chain.Signature(cursor), advance)
+	if err != nil {
+		return true, len(shorts), recorded, err
+	}
+	more, err := p.scanTokenAccounts(ctx, w, surplus)
+	return true, len(shorts), recorded + more, err
+}
+
+func (p *TreasuryReconcilePoller) scanTokenAccounts(
+	ctx context.Context, w cabalport.TreasuryWallet, mints []chain.Mint,
+) (int, error) {
+	const op = "funding.TreasuryReconcile.scanTokenAccounts"
+	recorded := 0
+	for _, mint := range mints {
+		_, accounts, err := p.d.Chain.TokenAccounts(ctx, w.Address, mint)
+		if err != nil {
+			return recorded, errs.Wrap(err, errs.CodeOf(err), op)
+		}
+		for _, account := range accounts {
+			if !account.Exists {
+				continue
+			}
+			cursor, err := sqlc.New(p.d.Reads).TokenAccountCursor(ctx, sqlc.TokenAccountCursorParams{
+				CabalID: w.CabalID.UUID(), TokenAccount: string(account.Address),
+			})
+			if err != nil {
+				return recorded, errs.Wrap(err, errs.CodeInternal, op)
+			}
+			n, err := p.scan(ctx, w, account.Address, chain.Signature(cursor),
+				func(ctx context.Context, tx db.Tx, sig chain.Signature) error {
+					return sqlc.New(tx.Queries()).AdvanceTokenAccountCursor(ctx, sqlc.AdvanceTokenAccountCursorParams{
+						CabalID: w.CabalID.UUID(), TokenAccount: string(account.Address),
+						LastSignature: string(sig), UpdatedAt: p.d.Clock.Now(),
+					})
+				})
+			recorded += n
+			if err != nil {
+				return recorded, err
+			}
+		}
+	}
+	return recorded, nil
+}
+
+func (p *TreasuryReconcilePoller) scan(
+	ctx context.Context,
+	w cabalport.TreasuryWallet,
+	addr chain.SolanaAddress,
+	cursor chain.Signature,
+	advance func(context.Context, db.Tx, chain.Signature) error,
+) (int, error) {
+	sigs, err := p.signaturesSince(ctx, addr, cursor)
 	if err != nil || len(sigs) == 0 {
-		return true, len(shorts), 0, err
+		return 0, err
 	}
 	recorded := 0
 	for _, s := range slices.Backward(sigs) {
@@ -244,40 +305,39 @@ func (p *TreasuryReconcilePoller) reconcile(
 			Signature: s.Signature, CabalID: w.CabalID, Treasury: w.Address, Source: domain.SourceReconcile,
 		})
 		if err != nil {
-			return true, len(shorts), recorded, err
+			return recorded, err
 		}
 		if res.Recorded {
 			recorded++
 		}
 	}
-	return true, len(shorts), recorded, p.d.UoW.Do(ctx, func(ctx context.Context, tx db.Tx) error {
-		return sqlc.New(tx.Queries()).AdvanceWatchCursor(ctx, sqlc.AdvanceWatchCursorParams{
-			CabalID: w.CabalID.UUID(), LastSignature: string(sigs[0].Signature), UpdatedAt: p.d.Clock.Now(),
-		})
+	return recorded, p.d.UoW.Do(ctx, func(ctx context.Context, tx db.Tx) error {
+		return advance(ctx, tx, sigs[0].Signature)
 	})
 }
 
 func (p *TreasuryReconcilePoller) compare(
 	ctx context.Context, w cabalport.TreasuryWallet,
-) (bool, []deficit, error) {
+) ([]chain.Mint, []deficit, error) {
 	positions, err := p.d.Ledger.SolanaPositions(ctx, w.CabalID)
 	if err != nil {
-		return false, nil, err
+		return nil, nil, err
 	}
 	ledger := map[chain.SolanaAddress]money.BaseUnits{p.d.USDC: money.NewBaseUnits(0, usdcDecimals)}
 	for _, pos := range positions {
 		ledger[pos.Mint] = pos.Units
 	}
-	surplus := false
+	var surplus []chain.Mint
 	var shorts []deficit
 	for mint, units := range ledger {
-		onChain, err := p.d.Chain.TokenBalance(ctx, w.Address, chain.Mint{Address: mint, Decimals: units.Decimals()})
+		m := chain.Mint{Address: mint, Decimals: units.Decimals()}
+		onChain, err := p.d.Chain.TokenBalance(ctx, w.Address, m)
 		if err != nil {
-			return false, nil, err
+			return nil, nil, err
 		}
 		switch {
 		case onChain.Uint64() > units.Uint64():
-			surplus = true
+			surplus = append(surplus, m)
 		case onChain.Uint64() < units.Uint64():
 			shorts = append(shorts, deficit{mint: mint, ledger: units, onChain: onChain})
 		}

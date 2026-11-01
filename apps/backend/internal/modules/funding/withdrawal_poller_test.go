@@ -245,6 +245,60 @@ func TestWithdrawalPoller_StaleCreatedFails(t *testing.T) {
 	f.assertNotSent(t)
 }
 
+func TestWithdrawalPoller_StaleCreatedFailureFreesTheSponsorReservation(t *testing.T) {
+	t.Parallel()
+	f := newWithdrawFixture(t, 5_000_000)
+	f.transfers.buildErr = errs.New(errs.CodePrivyUnavailable, "test")
+	if _, err := f.withdraw(t); err == nil {
+		t.Fatal("withdraw err = nil")
+	}
+	reopen := `UPDATE withdrawals SET status = 'created', fail_code = NULL, completed_at = NULL`
+	if _, err := f.pool.Exec(t.Context(), reopen); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.pool.Exec(t.Context(), `UPDATE relayer_sponsor_reservations SET released_at = NULL`); err != nil {
+		t.Fatal(err)
+	}
+	if live, released := f.reservations(t); live != 3 || released != 0 {
+		t.Fatalf("before tick: live = %d, released = %d, want 3, 0", live, released)
+	}
+	f.clock.Advance(withdrawalUnsentAge + time.Second)
+	if changed, err := f.tick(t, f.poller(&stubStatuses{})); err != nil || changed != 1 {
+		t.Fatalf("Tick = %d, %v", changed, err)
+	}
+	f.assertNotSent(t)
+	if live, released := f.reservations(t); live != 0 || released != 3 {
+		t.Fatalf("after tick: live = %d, released = %d, want 0, 3", live, released)
+	}
+}
+
+func TestWithdrawalPoller_StaleCreatedStaysCreatedWhenTheReservationCannotBeReleased(t *testing.T) {
+	t.Parallel()
+	f := newWithdrawFixture(t, 5_000_000)
+	f.transfers.buildErr = errs.New(errs.CodePrivyUnavailable, "test")
+	if _, err := f.withdraw(t); err == nil {
+		t.Fatal("withdraw err = nil")
+	}
+	reopen := `UPDATE withdrawals SET status = 'created', fail_code = NULL, completed_at = NULL`
+	if _, err := f.pool.Exec(t.Context(), reopen); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.pool.Exec(t.Context(),
+		`ALTER TABLE relayer_sponsor_reservations RENAME TO relayer_sponsor_reservations_gone`); err != nil {
+		t.Fatal(err)
+	}
+	f.clock.Advance(withdrawalUnsentAge + time.Second)
+
+	changed, err := f.tick(t, f.poller(&stubStatuses{}))
+
+	if err == nil || changed != 0 {
+		t.Fatalf("Tick = %d, %v, want an error and no change", changed, err)
+	}
+	if rows := f.rows(t); rows[0].status != "created" {
+		t.Fatalf("rows = %+v, want the withdrawal left created for the next tick", rows)
+	}
+}
+
 func (f *withdrawFixture) assertNotSent(t *testing.T) {
 	t.Helper()
 	if rows := f.rows(t); rows[0].status != "failed" || rows[0].failCode != "withdrawal_not_sent" {
