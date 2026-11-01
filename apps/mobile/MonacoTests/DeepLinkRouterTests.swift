@@ -24,6 +24,22 @@ struct DeepLinkRouterTests {
         }
     }
 
+    @Test func theLinkIsReadOnlyAfterTheSessionRestores() async {
+        let navigator = AppNavigator()
+        RestoreGatedDeepLink.restored = false
+
+        await DeepLinkRouter.handle(
+            URL(string: "monaco://gated")!,
+            navigator: navigator,
+            handlers: [RestoreGatedDeepLink.self],
+            sessionRestored: { RestoreGatedDeepLink.restored = true },
+            dismissPresented: {}
+        )
+
+        #expect(navigator.path(for: .cabals).count == 1)
+        #expect(navigator.signedOutLanding == nil)
+    }
+
     @Test func matchingURLClosesOpenSheetsBeforeItsRouteOpens() async {
         let navigator = AppNavigator()
         var routeWasOpenWhenSheetsClosed: [Bool] = []
@@ -261,6 +277,18 @@ private enum ProbeDeepLink: DeepLinkHandler {
     static func action(for url: URL) -> DeepLinkAction? {
         guard url.host == "match" else { return nil }
         return .open(ProbeRoute(marker: "matched"), in: .cabals)
+    }
+}
+
+private enum RestoreGatedDeepLink: DeepLinkHandler {
+    nonisolated(unsafe) static var restored = false
+
+    static func action(for url: URL) -> DeepLinkAction? {
+        guard restored else {
+            guard let code = ReferralCode("k7m4qx2p") else { return nil }
+            return .signedOutLanding(InviteLandingRoute(code: code, cabalID: "c1"))
+        }
+        return .open(ProbeRoute(marker: "restored"), in: .cabals)
     }
 }
 

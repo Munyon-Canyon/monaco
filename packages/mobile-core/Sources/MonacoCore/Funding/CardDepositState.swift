@@ -93,6 +93,7 @@ public final class CardDeposit {
     private var checkOnForeground = false
     private var processingSince: Date?
     private var startedAt: Date?
+    private var startedSessions: [String: String] = [:]
 
     public init(source: OnrampSource, hints: any HintSource, now: @escaping @Sendable () -> Date) {
         self.source = source
@@ -114,6 +115,7 @@ public final class CardDeposit {
             let session = try await source.createSession(
                 suggestedMicros: suggestedMicros, cabalID: cabalID, submission: submission)
             submission = IdempotentSubmission()
+            startedSessions[session.sessionID.lowercased()] = session.sessionID
             apply(.created(sessionID: session.sessionID))
             if state == .browsing(sessionID: session.sessionID) {
                 page = CardDepositPage(id: session.sessionID, url: session.url)
@@ -132,8 +134,9 @@ public final class CardDeposit {
     }
 
     public func redirected(sessionID: String) async {
-        apply(.redirected(sessionID: sessionID))
-        await readStatus(of: sessionID)
+        guard let id = startedSessions[sessionID.lowercased()] else { return }
+        apply(.redirected(sessionID: id))
+        await readStatus(of: id)
     }
 
     public func foregrounded() async {
@@ -156,6 +159,11 @@ public final class CardDeposit {
     }
 
     public func reset() {
+        startedSessions = [:]
+        clear()
+    }
+
+    private func clear() {
         state = .idle
         processingSince = nil
         startedAt = nil
@@ -195,7 +203,7 @@ public final class CardDeposit {
         case .processing:
             guard let processingSince else { return }
             if expired(processingSince) {
-                reset()
+                clear()
                 return
             }
             since = startedAt ?? processingSince

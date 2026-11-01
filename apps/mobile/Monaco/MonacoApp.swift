@@ -60,16 +60,22 @@ struct MonacoApp: App {
                 }
                 .onOpenURL { url in
                     if let id = DepositDeepLink.sessionID(in: url) {
+                        guard appEnvironment.hasOpenSession else { return }
                         Task { await appEnvironment.cardDeposit.redirected(sessionID: id) }
                         return
                     }
-                    Task { await DeepLinkRouter.handle(url, navigator: appEnvironment.navigator) }
+                    Task { await route(url) }
                 }
                 .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { activity in
                     guard let url = activity.webpageURL else { return }
-                    Task { await DeepLinkRouter.handle(url, navigator: appEnvironment.navigator) }
+                    Task { await route(url) }
                 }
         }
+    }
+
+    private func route(_ url: URL) async {
+        await DeepLinkRouter.handle(
+            url, navigator: appEnvironment.navigator, sessionRestored: { await appEnvironment.auth.waitForRestore() })
     }
 
     private var root: some View {

@@ -27,8 +27,8 @@ public enum PushAuthorizationStatus: Sendable, CaseIterable {
 public enum PushRegistrationPolicy {
     public static func shouldRegister(status: PushAuthorizationStatus, isSignedIn: Bool) -> Bool {
         switch status {
-        case .authorized: isSignedIn
-        case .notDetermined, .denied, .provisional, .ephemeral: false
+        case .authorized, .provisional: isSignedIn
+        case .notDetermined, .denied, .ephemeral: false
         }
     }
 }

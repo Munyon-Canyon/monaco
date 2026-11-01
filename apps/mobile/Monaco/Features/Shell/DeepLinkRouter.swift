@@ -21,8 +21,10 @@ enum DeepLinkRouter {
         _ url: URL,
         navigator: AppNavigator,
         handlers: [any DeepLinkHandler.Type] = handlers,
+        sessionRestored: @MainActor () async -> Void = {},
         dismissPresented: @MainActor () async -> Void = PresentedSheets.dismissAll
     ) async {
+        await sessionRestored()
         for handler in handlers {
             if let action = handler.action(for: url) {
                 if case .handled = action { return }
