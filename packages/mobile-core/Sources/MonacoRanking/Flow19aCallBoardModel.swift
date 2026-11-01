@@ -8,6 +8,7 @@ public final class CallBoardModel {
     public private(set) var state: LoadState<CallBoardScreen> = .idle
     public private(set) var period: CallPeriod
     public private(set) var tab: CallBoardTab
+    public private(set) var refreshFailed = false
 
     private let api: APIClient
     private let hints: any HintSource
@@ -31,6 +32,9 @@ public final class CallBoardModel {
     public func select(tab: CallBoardTab) async {
         guard tab != self.tab else { return }
         self.tab = tab
+        generation += 1
+        state = .loading
+        refreshFailed = false
         await load()
     }
 
@@ -50,8 +54,13 @@ public final class CallBoardModel {
             }
             guard mine == generation else { return }
             state = .loaded(CallBoardScreen(result))
+            refreshFailed = false
         } catch {
             guard mine == generation else { return }
+            if case .loaded = state {
+                refreshFailed = true
+                return
+            }
             state = .failed(APIError(error))
         }
     }

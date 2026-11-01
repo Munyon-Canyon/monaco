@@ -10,7 +10,7 @@ diff --git a/apps/mobile/Monaco/Features/Settings/SettingsView.swift b/apps/mobi
 @@ -281,7 +281,7 @@ extension SettingsList {
                  title,
                  isOn: Binding(
-                     get: { preferences.choices?[category] ?? true },
+                     get: { preferences.choices?[category] ?? false },
 -                    set: { enabled in Task { await save(category, enabled, in: preferences) } })
 +                    set: { _ in })
              )

@@ -44,7 +44,7 @@ enum SettingsRow: CaseIterable, Identifiable {
         case .advanced: "Choose where transaction links open"
         case .contactSupport: SettingsCopy.supportEmail
         case .signOut: "Return to sign-in"
-        case .deleteAccount: "Close your account and leave your cabals"
+        case .deleteAccount: "Cash out and withdraw first, then close your account"
         }
     }
 
@@ -303,7 +303,7 @@ extension SettingsList {
             Toggle(
                 title,
                 isOn: Binding(
-                    get: { preferences.choices?[category] ?? true },
+                    get: { preferences.choices?[category] ?? false },
                     set: { enabled in Task { await save(category, enabled, in: preferences) } })
             )
             .labelsHidden()

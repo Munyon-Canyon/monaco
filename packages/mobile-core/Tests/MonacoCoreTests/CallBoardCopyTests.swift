@@ -262,12 +262,12 @@ final class CallBoardCopyTests: XCTestCase {
         var board = Components.Schemas.CallBoard.empty
         board.filter = .friends
         XCTAssertEqual(
-            screen(board).emptyMessage, "None of your friends has five resolved votes yet this month.")
+            screen(board).emptyMessage, "No one you follow has five resolved votes yet this month.")
         XCTAssertEqual(
             CallBoardCopy.emptyMessage(.week, tab: .friends),
-            "None of your friends has five resolved votes yet this week.")
+            "No one you follow has five resolved votes yet this week.")
         XCTAssertEqual(
-            CallBoardCopy.emptyMessage(.all, tab: .friends), "None of your friends has five resolved votes yet.")
+            CallBoardCopy.emptyMessage(.all, tab: .friends), "No one you follow has five resolved votes yet.")
     }
 
     func testTheInfoSheetHoldsTheFiveLines() {

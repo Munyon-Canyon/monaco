@@ -86,6 +86,46 @@ final class CallBoardModelTests: XCTestCase {
         guard case .loaded = model.state else { return XCTFail("expected recovery") }
     }
 
+    func testAFailedRefreshKeepsTheLoadedRowsAndFlagsTheStaleBoard() async throws {
+        let (model, _) = make([
+            try Self.body(.peopleMonth), .failure(URLError(.notConnectedToInternet)), try Self.body(.peopleMonth),
+        ])
+        await model.load()
+        XCTAssertFalse(model.refreshFailed)
+
+        await model.load()
+        guard case .loaded(let kept) = model.state else { return XCTFail("rows were wiped") }
+        XCTAssertEqual(kept, CallBoardScreen(.peopleMonth))
+        XCTAssertTrue(model.refreshFailed)
+
+        await model.load()
+        XCTAssertFalse(model.refreshFailed)
+    }
+
+    func testSwitchingTabsClearsTheOldTabsRowsWhileTheNewOneLoads() async throws {
+        let (model, transport) = make([try Self.body(.peopleMonth), .gate])
+        await model.load()
+
+        let switching = Task { await model.select(tab: .cabals) }
+        await transport.waitForRequests(2)
+        XCTAssertEqual(model.tab, .cabals)
+        guard case .loading = model.state else { return XCTFail("kept the People rows under Cabals") }
+
+        await transport.releaseGate(try Self.body(.peopleMonth))
+        await switching.value
+        guard case .loaded = model.state else { return XCTFail("not loaded") }
+    }
+
+    func testAFailedTabSwitchShowsTheErrorNotTheOldRows() async throws {
+        let (model, _) = make([try Self.body(.peopleMonth), .failure(URLError(.notConnectedToInternet))])
+        await model.load()
+
+        await model.select(tab: .friends)
+
+        guard case .failed = model.state else { return XCTFail("expected the error state") }
+        XCTAssertFalse(model.refreshFailed)
+    }
+
     func testALeaderboardsUpdatedHintWhileVisibleReloadsOnce() async throws {
         let hints = FakeHintStream()
         let (model, transport) = make(Array(repeating: try Self.body(.peopleMonth), count: 3), hints: hints)
