@@ -24,6 +24,7 @@ type HTTP struct {
 	Vote        *app.CastVoteHandler
 	RetractVote *app.RetractVoteHandler
 	Withdraw    *app.WithdrawProposalHandler
+	RetryTrade  *app.RetryBlockedTradeHandler
 	Void        *app.VoidProposalHandler
 	Admin       *app.AdminReads
 	Reads       *app.ProposalReads
@@ -385,6 +386,24 @@ func (h HTTP) DeleteProposal(
 		return nil, err
 	}
 	return api.DeleteProposal200JSONResponse(out), nil
+}
+
+func (h HTTP) PostProposalRetryTrade(
+	ctx context.Context, req api.PostProposalRetryTradeRequestObject,
+) (api.PostProposalRetryTradeResponseObject, error) {
+	user, err := caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	id := ids.ProposalIDFrom(req.Id)
+	if err := h.RetryTrade.HandleMember(ctx, app.RetryBlockedTradeByMember{ProposalID: id, UserID: user}); err != nil {
+		return nil, err
+	}
+	out, err := h.detail(ctx, id, user)
+	if err != nil {
+		return nil, err
+	}
+	return api.PostProposalRetryTrade200JSONResponse(out), nil
 }
 
 func (h HTTP) detail(ctx context.Context, id ids.ProposalID, user ids.UserID) (api.ProposalDetail, error) {

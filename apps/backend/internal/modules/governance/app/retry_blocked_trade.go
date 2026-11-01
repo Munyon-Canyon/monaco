@@ -25,19 +25,52 @@ type RetryBlockedTrade struct {
 	Reason     string
 }
 
+const memberRetryReason = "member retry"
+
+type MemberRoster interface {
+	IsMember(ctx context.Context, id ids.CabalID, user ids.UserID) (bool, error)
+}
+
+type RetryBlockedTradeByMember struct {
+	ProposalID ids.ProposalID
+	UserID     ids.UserID
+}
+
 type RetryBlockedTradeHandler struct {
-	uow   *db.UnitOfWork
-	reads sqlc.DBTX
-	clock clock.Clock
-	swaps Swaps
-	hints Hints
-	usdc  chain.SolanaAddress
+	uow    *db.UnitOfWork
+	reads  sqlc.DBTX
+	clock  clock.Clock
+	swaps  Swaps
+	hints  Hints
+	usdc   chain.SolanaAddress
+	roster MemberRoster
 }
 
 func NewRetryBlockedTradeHandler(
 	uow *db.UnitOfWork, reads sqlc.DBTX, c clock.Clock, swaps Swaps, hints Hints, usdc chain.SolanaAddress,
 ) *RetryBlockedTradeHandler {
 	return &RetryBlockedTradeHandler{uow: uow, reads: reads, clock: c, swaps: swaps, hints: hints, usdc: usdc}
+}
+
+func (h *RetryBlockedTradeHandler) Members(roster MemberRoster) *RetryBlockedTradeHandler {
+	h.roster = roster
+	return h
+}
+
+func (h *RetryBlockedTradeHandler) HandleMember(ctx context.Context, cmd RetryBlockedTradeByMember) error {
+	const op = "governance.RetryBlockedTradeByMember"
+	cabal, err := sqlc.New(h.reads).CabalOfProposal(ctx, cmd.ProposalID.UUID())
+	if err != nil {
+		return lookupFailed(err, op)
+	}
+	ok, err := h.roster.IsMember(ctx, ids.CabalIDFrom(cabal), cmd.UserID)
+	switch {
+	case err != nil:
+		return err
+	case !ok:
+		return errs.New(errs.CodeNotCabalMember, op)
+	}
+	return h.Handle(ctx, RetryBlockedTrade{ProposalID: cmd.ProposalID, Reason: memberRetryReason})
 }
 
 func (h *RetryBlockedTradeHandler) Handle(ctx context.Context, cmd RetryBlockedTrade) error {

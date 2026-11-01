@@ -66,6 +66,7 @@ public struct ProposalSummary: Identifiable, Equatable, Sendable {
     public let tally: ProposalTally
     public let myBallot: String?
     public let status: ProposalStatus
+    public let statusReason: String?
     public let statusMessage: String?
     public let expiresAt: Date
     public let canVote: Bool
@@ -84,7 +85,8 @@ public struct ProposalSummary: Identifiable, Equatable, Sendable {
             id: other.id, cabalID: other.cabalID, cabalName: other.cabalName, kind: other.kind,
             symbol: other.symbol, proposerID: other.proposerID, thesis: other.thesis, usdcMicros: other.usdcMicros,
             tokenAmount: other.tokenAmount, quoteOutAmount: other.quoteOutAmount, createdAt: other.createdAt,
-            tally: other.tally, myBallot: other.myBallot, status: .passed, statusMessage: other.statusMessage,
+            tally: other.tally, myBallot: other.myBallot, status: .passed, statusReason: nil,
+            statusMessage: other.statusMessage,
             expiresAt: other.expiresAt, canVote: other.canVote, canWithdraw: other.canWithdraw, swap: nil,
             bestPrice: other.bestPrice, network: other.network, replyCount: other.replyCount)
     }
@@ -93,7 +95,8 @@ public struct ProposalSummary: Identifiable, Equatable, Sendable {
         ProposalSummary(
             id: id, cabalID: cabalID, cabalName: cabalName, kind: kind, symbol: symbol, proposerID: proposerID,
             thesis: thesis, usdcMicros: usdcMicros, tokenAmount: tokenAmount, quoteOutAmount: quoteOutAmount,
-            createdAt: createdAt, tally: tally, myBallot: ballot, status: status, statusMessage: statusMessage,
+            createdAt: createdAt, tally: tally, myBallot: ballot, status: status, statusReason: statusReason,
+            statusMessage: statusMessage,
             expiresAt: expiresAt,
             canVote: canVote, canWithdraw: canWithdraw, swap: swap, bestPrice: bestPrice, network: network,
             replyCount: replyCount)
@@ -102,8 +105,8 @@ public struct ProposalSummary: Identifiable, Equatable, Sendable {
     private init(
         id: String, cabalID: String, cabalName: String, kind: String, symbol: String, proposerID: String,
         thesis: String?, usdcMicros: Int64?, tokenAmount: Int64?, quoteOutAmount: Int64, createdAt: Date,
-        tally: ProposalTally, myBallot: String?, status: ProposalStatus, statusMessage: String?, expiresAt: Date,
-        canVote: Bool,
+        tally: ProposalTally, myBallot: String?, status: ProposalStatus, statusReason: String?, statusMessage: String?,
+        expiresAt: Date, canVote: Bool,
         canWithdraw: Bool, swap: ProposalSwap?, bestPrice: BestPrice?, network: Components.Schemas.Network?,
         replyCount: Int
     ) {
@@ -121,6 +124,7 @@ public struct ProposalSummary: Identifiable, Equatable, Sendable {
         self.tally = tally
         self.myBallot = myBallot
         self.status = status
+        self.statusReason = statusReason
         self.statusMessage = statusMessage
         self.expiresAt = expiresAt
         self.canVote = canVote
@@ -151,6 +155,7 @@ public struct ProposalSummary: Identifiable, Equatable, Sendable {
         tally = ProposalTally(proposal.tally)
         myBallot = proposal.myBallot?.rawValue
         status = ProposalStatus(proposal.status)
+        statusReason = proposal.statusReason
         statusMessage = proposal.statusMessage
         expiresAt = proposal.expiresAt
         self.canVote = canVote ?? proposal.canVote
@@ -470,6 +475,17 @@ public struct ProposalsRepository: Sendable {
             _ = try await client.postSwapRetry(
                 path: .init(id: id), headers: .init(idempotencyKey: key), body: body.map { .json($0) }
             ).accepted.body.json
+        }
+    }
+
+    public func retryTrade(proposalID: String, submission: IdempotentSubmission) async throws {
+        try await api.submit(
+            submission, payload: proposalID, operation: Operations.PostProposalRetryTrade.id
+        ) { client, key in
+            _ = try await client.postProposalRetryTrade(
+                path: .init(id: proposalID), headers: .init(idempotencyKey: key)
+            )
+            .ok
         }
     }
 

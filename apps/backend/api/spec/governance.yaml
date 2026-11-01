@@ -384,6 +384,40 @@ paths:
               example: {proposals: [{id: 01890a5d-ac96-774b-bcce-b302099a8057, cabal_id: 01890a5d-ac96-774b-bcce-b302099a8058, cabal_name: Friday Night Lights, proposer_id: 01890a5d-ac96-774b-bcce-b302099a8059, kind: buy, rule_change: null, symbol: AAPLx, usdc_micros: 25000000, token_amount: null, quote_out_amount: 105000000, thesis: Earnings next week., status: executed, status_reason: null, status_message: null, expires_at: "2026-10-04T15:00:00Z", created_at: "2026-10-03T15:00:00Z", tally: {"yes": 2, "no": 0, voters: 2, needed: 2}, my_ballot: "yes", can_vote: false, reply_count: 0}], next_cursor: null}
         default:
           $ref: "#/components/responses/Problem"
+  /v1/proposals/{id}/retry-trade:
+    post:
+      operationId: postProposalRetryTrade
+      tags: [governance]
+      x-rate-limit: {actor: {rate: 10, per: 1m, burst: 5}}
+      x-idempotent: true
+      summary: Retry a trade that was blocked before any swap.
+      description: >-
+        Reopens a proposal that is `execution_blocked` with `trade_not_started` and has no swap, and
+        asks the trade engine to run it again through the normal pre-trade checks. Only a member of
+        the proposal's cabal can ask. The server appends `proposal.reopened` with the caller as its
+        actor, then `trade.retry_requested`, and answers at once with the proposal; the engine creates
+        the swap, or blocks the proposal again, later. A proposal in any other state, with any other
+        block code, or with a swap is refused `swap_not_retryable`, which also refuses a second retry
+        once the first has reopened it. A replay with the same Idempotency-Key returns the first response.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The proposal id.
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "200":
+          description: The proposal after the retry was requested.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProposalDetail"
+              example: {id: 01890a5d-ac96-774b-bcce-b302099a8057, cabal_id: 01890a5d-ac96-774b-bcce-b302099a8058, cabal_name: Friday Night Lights, proposer_id: 01890a5d-ac96-774b-bcce-b302099a8059, proposer: {id: 01890a5d-ac96-774b-bcce-b302099a8059, display_name: Mia, photo_url: null}, proposer_return_1m_bps: 820, proposer_return_private: false, kind: buy, rule_change: null, symbol: AAPLx, usdc_micros: 25000000, token_amount: null, quote_out_amount: 105000000, thesis: Earnings next week., status: passed, status_reason: null, status_message: null, expires_at: "2026-10-04T15:00:00Z", created_at: "2026-10-03T15:00:00Z", tally: {"yes": 1, "no": 0, voters: 2, needed: 2}, my_ballot: "yes", voters: [{user_id: 01890a5d-ac96-774b-bcce-b302099a8059, voted: true, choice: "yes", cast_at: "2026-10-03T16:00:00Z", display_name: Mia, photo_url: null}, {user_id: 01890a5d-ac96-774b-bcce-b302099a8061, voted: false, choice: null, cast_at: null, display_name: Kai, photo_url: null}], sides_visible: false, can_vote: false, can_withdraw: false, swap: null, stats: {treasury_share_bps: 250, closes_at: "2026-10-04T15:00:00Z", closed_at: "2026-10-03T16:30:00Z", price_micros: 220000000, shares_atomics: 11363636, shares_exact: false, token_decimals: 8, since_bps: null}, passed_price_micros: null, my_vote: {order: 1, of: 2, yes_order: 1, no_order: 0, decided: false}, reply_count: 0, reminder_set: false}
+        default:
+          $ref: "#/components/responses/Problem"
   /v1/proposals/{id}/votes:
     get:
       operationId: getProposalVotes
