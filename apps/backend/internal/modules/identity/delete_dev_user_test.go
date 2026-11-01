@@ -101,6 +101,34 @@ func (f devDeleteFixture) linkDevX(t *testing.T) {
 	}
 }
 
+func (f devDeleteFixture) seedSessions(t *testing.T) {
+	t.Helper()
+	at := time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)
+	if _, err := f.pool.Exec(t.Context(),
+		`INSERT INTO revoked_sessions (privy_session_id, user_id, revoked_at) VALUES ('sess-revoked', $1, $2)`,
+		f.made.UserID.UUID(), at); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.pool.Exec(t.Context(),
+		`INSERT INTO user_sessions (privy_session_id, user_id, first_seen_at) VALUES ('sess-seen', $1, $2)`,
+		f.made.UserID.UUID(), at); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestDeleteDevUser_removesSessionRowsOfAUserWhoSignedOut(t *testing.T) {
+	t.Parallel()
+	f, _ := newDevDeleteFixture(t)
+	f.privy.Seed(app.PrivyUser{ID: f.privyID, Email: "dev-0a1b2c3d@example.com"})
+	f.seedSessions(t)
+	if err := app.DeleteDevUser(t.Context(), f.deps, f.made.UserID); err != nil {
+		t.Fatal(err)
+	}
+	if n := f.count(t, "users") + f.count(t, "revoked_sessions") + f.count(t, "user_sessions"); n != 0 {
+		t.Fatalf("%d user or session rows left", n)
+	}
+}
+
 func TestDeleteDevUser_removesTheRowsAndThePrivyUser(t *testing.T) {
 	t.Parallel()
 	f, privy := newDevDeleteFixture(t)

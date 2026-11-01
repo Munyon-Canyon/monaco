@@ -102,7 +102,9 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (int64, 
 
 const deleteDevUserRows = `-- name: DeleteDevUserRows :execrows
 WITH x_link AS (DELETE FROM dev_x_links WHERE user_id = $1),
-wallet AS (DELETE FROM user_wallets WHERE user_id = $1)
+wallet AS (DELETE FROM user_wallets WHERE user_id = $1),
+revoked AS (DELETE FROM revoked_sessions WHERE user_id = $1),
+seen AS (DELETE FROM user_sessions WHERE user_id = $1)
 DELETE FROM users WHERE id = $1
 `
 

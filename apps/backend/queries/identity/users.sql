@@ -148,7 +148,9 @@ FOR UPDATE OF u;
 
 -- name: DeleteDevUserRows :execrows
 WITH x_link AS (DELETE FROM dev_x_links WHERE user_id = sqlc.arg(id)),
-wallet AS (DELETE FROM user_wallets WHERE user_id = sqlc.arg(id))
+wallet AS (DELETE FROM user_wallets WHERE user_id = sqlc.arg(id)),
+revoked AS (DELETE FROM revoked_sessions WHERE user_id = sqlc.arg(id)),
+seen AS (DELETE FROM user_sessions WHERE user_id = sqlc.arg(id))
 DELETE FROM users WHERE id = sqlc.arg(id);
 
 -- name: LockUserStatus :one
