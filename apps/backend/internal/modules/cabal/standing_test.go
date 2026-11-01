@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal/adapters"
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal/sqlc"
@@ -138,7 +139,7 @@ func TestStanding_deletedVoterLeavesAUnanimousElectorateOfTheOtherTwo(t *testing
 	}
 }
 
-func TestStanding_deletedSoleCreatorLeavesAnEmptyCabalAlone(t *testing.T) {
+func TestStanding_deletedSoleMemberClosesTheCabalOnceAcrossRedelivery(t *testing.T) {
 	t.Parallel()
 	f := newCreate(t)
 	c := testkit.NewCabal(t, f.pool)
@@ -149,6 +150,84 @@ func TestStanding_deletedSoleCreatorLeavesAnEmptyCabalAlone(t *testing.T) {
 	}
 	if left := f.payloads(t, events.TypeCabalMemberLeft); len(left) != 1 {
 		t.Errorf("cabal.member_left = %v, want exactly one across the redelivery", left)
+	}
+	if got := f.status(t, c); got != "banned" {
+		t.Errorf("status = %s, want banned", got)
+	}
+	closed := f.payloads(t, events.TypeCabalBanned)
+	if len(closed) != 1 || closed[0]["cabal_id"] != c.ID.String() ||
+		closed[0]["reason"] != "The last member deleted their account" {
+		t.Errorf("cabal.banned = %v, want one for the cabal across the redelivery", closed)
+	}
+}
+
+func TestStanding_deletedMemberLeavesACabalWithMembersOpen(t *testing.T) {
+	t.Parallel()
+	f := newCreate(t)
+	c := testkit.NewCabal(t, f.pool, testkit.WithMembers(2))
+	f.deleted(t, c.Members[1].ID)
+	if got := f.status(t, c); got != "active" {
+		t.Errorf("status = %s, want active while a member remains", got)
+	}
+	if closed := f.payloads(t, events.TypeCabalBanned); len(closed) != 0 {
+		t.Errorf("cabal.banned = %v, want none", closed)
+	}
+	f.deleted(t, c.Creator.ID)
+	if got := f.status(t, c); got != "banned" {
+		t.Errorf("status = %s, want banned once the last member is gone", got)
+	}
+}
+
+func TestStanding_deletedSoleMemberOfABannedCabalAddsNoSecondBan(t *testing.T) {
+	t.Parallel()
+	f := newCreate(t)
+	c := testkit.NewCabal(t, f.pool)
+	if _, err := f.pool.Exec(
+		t.Context(),
+		`UPDATE cabals SET status = 'banned' WHERE id = $1`,
+		c.ID.UUID(),
+	); err != nil {
+		t.Fatal(err)
+	}
+	f.deleted(t, c.Creator.ID)
+	if closed := f.payloads(t, events.TypeCabalBanned); len(closed) != 0 {
+		t.Errorf("cabal.banned = %v, want none for a cabal that was already banned", closed)
+	}
+}
+
+func TestStanding_failsWhenTheEmptyCabalCannotBeClosed(t *testing.T) {
+	t.Parallel()
+	for name, sql := range map[string]string{
+		"lock":  `ALTER TABLE cabals RENAME TO cabals_gone`,
+		"close": `ALTER TABLE cabals RENAME COLUMN status TO status_gone`,
+		"event": `ALTER TABLE events ADD CONSTRAINT no_ban CHECK (type <> 'cabal.banned')`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			f := newCreate(t)
+			c := testkit.NewCabal(t, f.pool)
+			f.fails(t, sql, func() error { return f.tryDeleted(c.Creator.ID) })
+		})
+	}
+}
+
+func TestJoinCabal_refusesACabalClosedByItsLastMemberDeleting(t *testing.T) {
+	t.Parallel()
+	f := newAccess(t)
+	c := testkit.NewCabal(t, f.pool)
+	e := events.UserDeleted{V: 1, UserID: c.Creator.ID.UUID(), At: f.clock.Now()}
+	err := f.uow.Do(system(t), func(ctx context.Context, tx db.Tx) error {
+		return adapters.Standing{}.Deleted(ctx, tx, e, f.clock.Now())
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantErr(t, f.join(t.Context(), f.user(t), c.ID), errs.CodeCabalBanned)
+	rows, err := sqlc.New(f.pool).SearchCabals(t.Context(), sqlc.SearchCabalsParams{
+		ActorID: f.user(t).UUID(), PageSize: 20,
+	})
+	if err != nil || len(rows) != 0 {
+		t.Errorf("SearchCabals = %d rows, %v, want the closed cabal missing from the list", len(rows), err)
 	}
 }
 
