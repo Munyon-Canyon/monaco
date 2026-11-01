@@ -28,6 +28,11 @@ SELECT id, symbol, mint, decimals, issuer, kind, display_name, logo_url, ui_mult
 WHERE mint = ANY(sqlc.arg(mints)::text[])
 ORDER BY symbol;
 
+-- name: AssetsBySymbols :many
+SELECT id, symbol, mint, decimals, issuer, kind, display_name, logo_url, ui_multiplier_num, ui_multiplier_den, issuer_tradable, tradable_override, popular_rank, company_key, first_seen_at, updated_at, chain_checked_at, ui_multiplier_next_num, ui_multiplier_next_den, ui_multiplier_next_at, last_quoted_at FROM assets
+WHERE symbol = ANY(sqlc.arg(symbols)::text[])
+ORDER BY symbol;
+
 -- name: SiblingAssets :many
 SELECT id, symbol, mint, decimals, issuer, kind, display_name, logo_url, ui_multiplier_num, ui_multiplier_den, issuer_tradable, tradable_override, popular_rank, company_key, first_seen_at, updated_at, chain_checked_at, ui_multiplier_next_num, ui_multiplier_next_den, ui_multiplier_next_at, last_quoted_at FROM assets
 WHERE company_key = sqlc.arg(company_key)::text

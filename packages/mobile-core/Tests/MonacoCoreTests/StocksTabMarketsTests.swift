@@ -14,7 +14,6 @@ final class StocksTabMarketsTests: XCTestCase {
         let transport = PrefixTransport([
             ("/v1/assets?filter=pre_ipo", try Self.page(["tSpaceX": 5])),
             ("/v1/assets?filter=movers", try Self.page(["TSLAx": -240])),
-            ("/v1/assets/NVDAx", try Self.detailBody("NVDAx")),
             ("/v1/me/market-facts", Self.factsBody),
         ])
         let model = makeModel(transport, symbols: ["NVDAx"])
@@ -25,7 +24,7 @@ final class StocksTabMarketsTests: XCTestCase {
         XCTAssertEqual(targets.count, 4)
         XCTAssertEqual(targets.filter { $0.hasPrefix("/v1/assets?filter=movers") }.count, 1)
         XCTAssertEqual(targets.filter { $0.hasPrefix("/v1/assets?filter=pre_ipo") }.count, 1)
-        XCTAssertEqual(targets.filter { $0.hasPrefix("/v1/assets/NVDAx") }.count, 1)
+        XCTAssertEqual(targets.filter { $0.hasPrefix("/v1/assets/quotes?symbols=NVDAx") }.count, 1)
         XCTAssertEqual(targets.filter { $0.hasPrefix("/v1/me/market-facts") }.count, 1)
         XCTAssertEqual(model.preIpo.rows.map(\.symbol), ["tSpaceX"])
         XCTAssertEqual(model.rows.map(\.symbol), ["tSpaceX"])
@@ -34,9 +33,7 @@ final class StocksTabMarketsTests: XCTestCase {
     }
 
     func testTheFactsRequestCarriesTheWatchlistSymbolsOncePerChange() async throws {
-        let transport = PrefixTransport([
-            ("/v1/assets/", try Self.detailBody("NVDAx")), ("/v1/me/market-facts", Self.factsBody),
-        ])
+        let transport = PrefixTransport([("/v1/me/market-facts", Self.factsBody)])
         let watchlist = WatchlistModel(userID: "u1", store: InMemoryWatchlistStore(["u1": ["NVDAx", "AAPLx"]]))
         let model = makeModel(transport, watchlist: watchlist)
 
@@ -61,9 +58,7 @@ final class StocksTabMarketsTests: XCTestCase {
     }
 
     func testAFailedFactsReadKeepsTheLastFactsAndRaisesNoToast() async throws {
-        let transport = PrefixTransport([
-            ("/v1/assets/", try Self.detailBody("NVDAx")), ("/v1/me/market-facts", Self.factsBody),
-        ])
+        let transport = PrefixTransport([("/v1/me/market-facts", Self.factsBody)])
         let model = makeModel(transport, symbols: ["NVDAx"])
         await model.watchlistChanged()
         let failing = makeModel(StubTransport(.failure(URLError(.cannotConnectToHost))), symbols: ["NVDAx"])
@@ -77,11 +72,7 @@ final class StocksTabMarketsTests: XCTestCase {
 
     func testTheWatchlistPreviewLeavesPreIpoNamesToTheirOwnSectionAndStopsAtFive() async throws {
         let symbols = ["tSpaceX", "A1x", "A2x", "A3x", "A4x", "A5x", "A6x"]
-        let transport = PrefixTransport([
-            ("/v1/assets/tSpaceX", try Self.detailBody("tSpaceX", kind: .preIpo)),
-            ("/v1/assets/", try Self.detailBody("A1x")),
-            ("/v1/me/market-facts", Self.factsBody),
-        ])
+        let transport = PrefixTransport([("/v1/me/market-facts", Self.factsBody)])
         let model = makeModel(transport, symbols: symbols)
 
         await model.watchlistChanged()
@@ -297,15 +288,6 @@ final class StocksTabMarketsTests: XCTestCase {
         let list = Components.Schemas.AssetList(assets: [.spaceX], nextCursor: nil)
         return String(decoding: try encoder.encode(list), as: UTF8.self)
     }
-
-    private static func detailBody(_ symbol: String, kind: Components.Schemas.AssetKind = .equity) throws -> String {
-        var detail = Components.Schemas.AssetDetail.googl
-        detail.symbol = symbol
-        detail.kind = kind
-        let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
-        return String(decoding: try encoder.encode(detail), as: UTF8.self)
-    }
 }
 
 private final class PrefixTransport: ClientTransport, Sendable {
@@ -323,18 +305,34 @@ private final class PrefixTransport: ClientTransport, Sendable {
     {
         let path = request.path ?? ""
         paths.withLock { $0.append(path) }
-        guard let match = bodies.first(where: { path.hasPrefix($0.prefix) }) else { throw URLError(.unsupportedURL) }
         var response = HTTPResponse(status: .ok)
         response.headerFields[.contentType] = "application/json"
+        if path.hasPrefix("/v1/assets/quotes?symbols=") {
+            return (response, HTTPBody(Data(Self.quotes(path).utf8)))
+        }
+        guard let match = bodies.first(where: { path.hasPrefix($0.prefix) }) else { throw URLError(.unsupportedURL) }
         return (response, HTTPBody(Data(match.body.utf8)))
+    }
+
+    private static func quotes(_ path: String) -> String {
+        let query = path.dropFirst("/v1/assets/quotes?symbols=".count)
+        let symbols = (String(query).removingPercentEncoding ?? "").split(separator: ",").map(String.init)
+        var assets: [Components.Schemas.AssetSummary] = []
+        for symbol in symbols {
+            var asset: Components.Schemas.AssetSummary = symbol.hasPrefix("t") ? .spaceX : .googl
+            asset.symbol = symbol
+            assets.append(asset)
+        }
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let body = (try? encoder.encode(Components.Schemas.AssetQuotes(assets: assets))) ?? Data()
+        return String(decoding: body, as: UTF8.self)
     }
 }
 
 extension StocksTabMarketsTests {
     func testStarringOneStockQuotesOnlyThatStock() async throws {
-        let transport = PrefixTransport([
-            ("/v1/assets/", try Self.detailBody("NVDAx")), ("/v1/me/market-facts", Self.factsBody),
-        ])
+        let transport = PrefixTransport([("/v1/me/market-facts", Self.factsBody)])
         let watchlist = WatchlistModel(userID: "u1", store: InMemoryWatchlistStore(["u1": ["NVDAx", "AAPLx"]]))
         let model = makeModel(transport, watchlist: watchlist)
         await model.watchlistChanged()
@@ -344,8 +342,8 @@ extension StocksTabMarketsTests {
         await model.watchlistChanged()
 
         let quoted = transport.sent.filter { $0.hasPrefix("/v1/assets/") }
-        XCTAssertEqual(before, 2)
-        XCTAssertEqual(quoted.count, 3)
-        XCTAssertTrue(quoted[2].hasPrefix("/v1/assets/MSFTx"), quoted[2])
+        XCTAssertEqual(before, 1)
+        XCTAssertEqual(quoted.count, 2)
+        XCTAssertTrue(quoted[1].hasPrefix("/v1/assets/quotes?symbols=MSFTx"), quoted[1])
     }
 }

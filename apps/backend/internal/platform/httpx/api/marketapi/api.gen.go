@@ -734,6 +734,13 @@ type AssetListing struct {
 	Tradable bool `json:"tradable"`
 }
 
+// AssetQuotes The quotes of the assets that were asked for and are known.
+//
+// Examples: {"assets":[{"change_bps":1000,"display_name":"Apple","id":"01890a5d-ac96-774b-bcce-b302099a8070","issuer":"xstocks","kind":"equity","logo_url":"https://cdn.example.com/AAPLx.png","price_as_of":"2026-03-04T14:30:00Z","price_micros":110000000,"quotable":true,"session":{"continuous":false,"early_close":false,"holiday":"","next_state":"after_hours","next_transition":"2026-03-04T21:00:00Z","state":"open"},"sparkline_micros":[100000000,110000000],"symbol":"AAPLx","tradable":true,"volume_24h_as_of":"2026-03-04T05:00:00Z","volume_24h_micros":2500000000000}]}
+type AssetQuotes struct {
+	Assets []AssetSummary `json:"assets"`
+}
+
 // AssetSummary One tradable asset as the list draws it, with the price already chosen.
 //
 // Examples: {"change_bps":1000,"display_name":"Apple","id":"01890a5d-ac96-774b-bcce-b302099a8070","issuer":"xstocks","kind":"equity","logo_url":"https://cdn.example.com/AAPLx.png","price_as_of":"2026-03-04T14:30:00Z","price_micros":110000000,"quotable":true,"session":{"continuous":false,"early_close":false,"holiday":"","next_state":"after_hours","next_transition":"2026-03-04T21:00:00Z","state":"open"},"sparkline_micros":[100000000,110000000],"symbol":"AAPLx","tradable":true,"volume_24h_as_of":"2026-03-04T05:00:00Z","volume_24h_micros":2500000000000}
@@ -983,6 +990,12 @@ type GetAssetsParamsFilter string
 // GetAssetsParamsSort defines parameters for GetAssets.
 type GetAssetsParamsSort string
 
+// GetAssetQuotesParams defines parameters for GetAssetQuotes.
+type GetAssetQuotesParams struct {
+	// Symbols Comma-separated tickers, at most 50.
+	Symbols string `form:"symbols" json:"symbols"`
+}
+
 // GetAssetChartParams defines parameters for GetAssetChart.
 type GetAssetChartParams struct {
 	// Range The preset: the default interval and the first window.
@@ -1009,6 +1022,9 @@ type ServerInterface interface {
 	// GetAssets List tradable assets.
 	// (GET /v1/assets)
 	GetAssets(w http.ResponseWriter, r *http.Request, params GetAssetsParams)
+	// GetAssetQuotes Read the quotes of up to 50 assets at once.
+	// (GET /v1/assets/quotes)
+	GetAssetQuotes(w http.ResponseWriter, r *http.Request, params GetAssetQuotesParams)
 	// GetAsset Read one asset.
 	// (GET /v1/assets/{symbol})
 	GetAsset(w http.ResponseWriter, r *http.Request, symbol string)
@@ -1105,6 +1121,39 @@ func (siw *ServerInterfaceWrapper) GetAssets(w http.ResponseWriter, r *http.Requ
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetAssets(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetAssetQuotes operation middleware
+func (siw *ServerInterfaceWrapper) GetAssetQuotes(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetAssetQuotesParams
+
+	// ------------- Required query parameter "symbols" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "symbols", r.URL.Query(), &params.Symbols, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "symbols"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "symbols", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAssetQuotes(w, r, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1368,6 +1417,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	}
 
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/assets", wrapper.GetAssets)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/assets/quotes", wrapper.GetAssetQuotes)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/assets/{symbol}", wrapper.GetAsset)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/assets/{symbol}/best-chain", wrapper.GetAssetBestChain)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/assets/{symbol}/chart", wrapper.GetAssetChart)
@@ -1403,6 +1453,45 @@ type GetAssetsdefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response GetAssetsdefaultApplicationProblemPlusJSONResponse) VisitGetAssetsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAssetQuotesRequestObject struct {
+	Params GetAssetQuotesParams
+}
+
+type GetAssetQuotesResponseObject interface {
+	VisitGetAssetQuotesResponse(w http.ResponseWriter) error
+}
+
+type GetAssetQuotes200JSONResponse AssetQuotes
+
+func (response GetAssetQuotes200JSONResponse) VisitGetAssetQuotesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAssetQuotesdefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response GetAssetQuotesdefaultApplicationProblemPlusJSONResponse) VisitGetAssetQuotesResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -1537,6 +1626,9 @@ type StrictServerInterface interface {
 	// GetAssets List tradable assets.
 	// (GET /v1/assets)
 	GetAssets(ctx context.Context, request GetAssetsRequestObject) (GetAssetsResponseObject, error)
+	// GetAssetQuotes Read the quotes of up to 50 assets at once.
+	// (GET /v1/assets/quotes)
+	GetAssetQuotes(ctx context.Context, request GetAssetQuotesRequestObject) (GetAssetQuotesResponseObject, error)
 	// GetAsset Read one asset.
 	// (GET /v1/assets/{symbol})
 	GetAsset(ctx context.Context, request GetAssetRequestObject) (GetAssetResponseObject, error)
@@ -1606,6 +1698,32 @@ func (sh *strictHandler) GetAssets(w http.ResponseWriter, r *http.Request, param
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetAssetsResponseObject); ok {
 		if err := validResponse.VisitGetAssetsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetAssetQuotes operation middleware
+func (sh *strictHandler) GetAssetQuotes(w http.ResponseWriter, r *http.Request, params GetAssetQuotesParams) {
+	var request GetAssetQuotesRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAssetQuotes(ctx, request.(GetAssetQuotesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAssetQuotes")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAssetQuotesResponseObject); ok {
+		if err := validResponse.VisitGetAssetQuotesResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

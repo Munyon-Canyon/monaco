@@ -25,6 +25,7 @@ import (
 type HTTP struct {
 	List         app.Lister
 	Detail       app.Detailer
+	Quotes       app.BatchQuoter
 	Chart        app.Charter
 	BestChain    app.BestChainer
 	Clock        clock.Clock
@@ -63,6 +64,23 @@ func (h HTTP) GetAsset(ctx context.Context, req api.GetAssetRequestObject) (api.
 		return nil, err
 	}
 	return api.GetAsset200JSONResponse(body), nil
+}
+
+func (h HTTP) GetAssetQuotes(
+	ctx context.Context, req api.GetAssetQuotesRequestObject,
+) (api.GetAssetQuotesResponseObject, error) {
+	if err := caller(ctx); err != nil {
+		return nil, err
+	}
+	items, err := h.Quotes.Handle(ctx, strings.Split(req.Params.Symbols, ","))
+	if err != nil {
+		return nil, err
+	}
+	page, err := wirePage(app.Page{Items: items}, h.Clock.Now())
+	if err != nil {
+		return nil, err
+	}
+	return api.GetAssetQuotes200JSONResponse{Assets: page.Assets}, nil
 }
 
 func (h HTTP) GetAssetChart(

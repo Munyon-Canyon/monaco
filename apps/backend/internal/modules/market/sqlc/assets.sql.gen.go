@@ -159,6 +159,54 @@ func (q *Queries) AssetsByMints(ctx context.Context, mints []string) ([]Asset, e
 	return items, nil
 }
 
+const assetsBySymbols = `-- name: AssetsBySymbols :many
+SELECT id, symbol, mint, decimals, issuer, kind, display_name, logo_url, ui_multiplier_num, ui_multiplier_den, issuer_tradable, tradable_override, popular_rank, company_key, first_seen_at, updated_at, chain_checked_at, ui_multiplier_next_num, ui_multiplier_next_den, ui_multiplier_next_at, last_quoted_at FROM assets
+WHERE symbol = ANY($1::text[])
+ORDER BY symbol
+`
+
+func (q *Queries) AssetsBySymbols(ctx context.Context, symbols []string) ([]Asset, error) {
+	rows, err := q.db.Query(ctx, assetsBySymbols, symbols)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Asset
+	for rows.Next() {
+		var i Asset
+		if err := rows.Scan(
+			&i.ID,
+			&i.Symbol,
+			&i.Mint,
+			&i.Decimals,
+			&i.Issuer,
+			&i.Kind,
+			&i.DisplayName,
+			&i.LogoUrl,
+			&i.UiMultiplierNum,
+			&i.UiMultiplierDen,
+			&i.IssuerTradable,
+			&i.TradableOverride,
+			&i.PopularRank,
+			&i.CompanyKey,
+			&i.FirstSeenAt,
+			&i.UpdatedAt,
+			&i.ChainCheckedAt,
+			&i.UiMultiplierNextNum,
+			&i.UiMultiplierNextDen,
+			&i.UiMultiplierNextAt,
+			&i.LastQuotedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const assetsVersion = `-- name: AssetsVersion :one
 SELECT count(*)::bigint AS assets, coalesce(max(updated_at), TIMESTAMPTZ 'epoch')::timestamptz AS updated_at FROM assets
 `
