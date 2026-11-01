@@ -263,9 +263,6 @@ func (h *FundCabalHandler) checkPot(ctx context.Context, cabalID ids.CabalID) er
 		return refuseUnpriceableFund(ctx, h.d.Pot, cabalID)
 	}
 	pot, err := h.d.Pot.PotValue(ctx, cabalID)
-	if errs.CodeOf(err) == errs.CodePriceUnavailable {
-		return nil
-	}
 	if err != nil {
 		return err
 	}

@@ -5,6 +5,7 @@ import (
 	"math"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
 
@@ -67,6 +68,26 @@ func TestExecuteTrade_sellSpendsTheHeldTokensForUSDC(t *testing.T) {
 	}
 }
 
+func TestExecuteTrade_sellOfAnUnpricedAssetStillRuns(t *testing.T) {
+	t.Parallel()
+	e := newEngineEnv(t)
+	unpriced := marketfake.AAPLx()
+	unpriced.LastQuotedAt = time.Time{}
+	e.catalog.Put(unpriced)
+	e.ledger.SetTokens(e.wallet.Address, aaplxToken(), 50_000_000)
+	e.quote(aaplxToken(), usdcToken(), quotedOut, true)
+	cmd := e.sell(50_000_000)
+
+	if err := e.handle(t, e.delivery(t, cmd), cmd); err != nil {
+		t.Fatal(err)
+	}
+	var n int
+	if err := e.pool.QueryRow(t.Context(), `SELECT count(*) FROM swaps WHERE source_id = $1`,
+		cmd.ProposalID.UUID()).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("swaps = %d (%v), want the sell to run", n, err)
+	}
+}
+
 type refusalCase struct {
 	name       string
 	arrange    func(e *engineEnv, cmd *app.ExecuteTrade)
@@ -82,6 +103,11 @@ func refusalCases() []refusalCase {
 		},
 		{"halted asset", func(_ *engineEnv, cmd *app.ExecuteTrade) {
 			cmd.Symbol, cmd.Mint = "JPSTx", marketfake.JPSTx().Mint.Address()
+		}, errs.CodeAssetUntradable, "0", "0"},
+		{"buy of an asset the catalog never priced", func(e *engineEnv, _ *app.ExecuteTrade) {
+			unpriced := marketfake.AAPLx()
+			unpriced.LastQuotedAt = time.Time{}
+			e.catalog.Put(unpriced)
 		}, errs.CodeAssetUntradable, "0", "0"},
 		{"mint differs from the catalog's", func(_ *engineEnv, cmd *app.ExecuteTrade) {
 			cmd.Mint = marketfake.TSLAx().Mint.Address()
