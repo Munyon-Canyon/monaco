@@ -52,7 +52,9 @@ func (r Reader) SignatureStatuses(ctx context.Context, sigs []platform.Signature
 			return nil, errs.New(errs.CodeDecodeFailed, "trading.ChainReader.SignatureStatuses",
 				slog.Int("state", int(status.State)))
 		}
-		out[i] = app.SigStatus{State: state, Failed: status.Failed, BlockHeight: status.BlockHeight}
+		out[i] = app.SigStatus{
+			State: state, Failed: status.Failed, BlockHeight: status.BlockHeight, ContextSlot: status.ContextSlot,
+		}
 	}
 	return out, nil
 }

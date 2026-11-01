@@ -13,11 +13,12 @@ import (
 type chainFills struct {
 	app.ChainReader
 
-	mu     sync.Mutex
-	landed map[platform.Signature]uint64
-	feeBps uint64
-	err    error
-	reads  []platform.Mint
+	mu        sync.Mutex
+	landed    map[platform.Signature]uint64
+	feeBps    uint64
+	allowZero bool
+	err       error
+	reads     []platform.Mint
 }
 
 func newChainFills() *chainFills { return &chainFills{landed: map[platform.Signature]uint64{}} }
@@ -34,6 +35,9 @@ func (f *chainFills) InboundAmount(
 	out, ok := f.landed[sig]
 	if !ok {
 		return money.BaseUnits{}, errs.New(errs.CodeNotFound, "chainFills.InboundAmount")
+	}
+	if out == 0 && !f.allowZero {
+		return money.BaseUnits{}, errs.New(errs.CodeDecodeFailed, "chainFills.InboundAmount")
 	}
 	return money.NewBaseUnits(out-out*f.feeBps/10_000, mint.Decimals), nil
 }

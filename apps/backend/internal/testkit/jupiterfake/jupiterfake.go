@@ -167,7 +167,11 @@ func (v *Venue) execute(requestID string, signed []byte) (jupiter.ExecuteResult,
 	queue := v.executes[requestID]
 	switch len(queue) {
 	case 0:
-		return jupiter.ExecuteResult{Status: jupiter.StatusSuccess, Signature: "sig-" + requestID}, true, nil
+		return jupiter.ExecuteResult{
+			Status:    jupiter.StatusSuccess,
+			Signature: "sig-" + requestID,
+			OutAmount: 1,
+		}, true, nil
 	case 1:
 		return queue[0], true, nil
 	}

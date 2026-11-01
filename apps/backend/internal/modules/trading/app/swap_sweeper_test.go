@@ -768,3 +768,30 @@ func testSweepResolverFailures(t *testing.T, e *sweeperEnv) {
 		}
 	}
 }
+
+func TestSwapSweeper_aSecondNotFoundReadFromALaggingNodeDoesNotExpireTheSwap(t *testing.T) {
+	t.Parallel()
+	for name, c := range map[string]struct {
+		second uint64
+		state  string
+		failed int
+	}{
+		"a node behind the first read": {second: 99, state: "submitted"},
+		"the same slot":                {second: 100, state: "failed", failed: 1},
+		"a later slot":                 {second: 101, state: "failed", failed: 1},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			e := newSweeperEnv(t)
+			row := e.submit(t)
+			e.read.valid = false
+			e.read.statuses = []SigStatus{{State: SigNotFound, ContextSlot: 100}}
+			e.read.followups = [][]SigStatus{{{State: SigNotFound, ContextSlot: c.second}}}
+			e.advance()
+			if _, err := e.poller().Tick(tickContext(t)); err != nil {
+				t.Fatal(err)
+			}
+			e.assertStates(t, []sweeperState{{row.ID, c.state, c.failed}})
+		})
+	}
+}

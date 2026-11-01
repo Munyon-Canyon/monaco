@@ -105,6 +105,9 @@ func (r *Relayer) CoSign(_ context.Context, raw []byte) ([]byte, error) {
 	if tx.Signers[0] != r.address {
 		return nil, errs.New(errs.CodeInvalidInput, op, slog.String("fee_payer", string(tx.Signers[0])))
 	}
+	if err := inspectSwap(tx); err != nil {
+		return nil, err
+	}
 	if err := tx.Sign(r.key); err != nil {
 		return nil, errs.Wrap(err, errs.CodeInternal, op)
 	}
