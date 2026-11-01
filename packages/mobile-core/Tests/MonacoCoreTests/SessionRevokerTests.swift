@@ -29,6 +29,18 @@ final class SessionRevokerTests: XCTestCase {
         XCTAssertEqual(json, ["scope": "this_session"])
     }
 
+    func testItCanAskTheServerToEndEverySessionOfTheMember() async throws {
+        let transport = StubTransport(status: .noContent, contentType: "application/json", body: Data())
+
+        let revoked = await revoker(transport).revoke(token: "copied", scope: .allSessions)
+
+        XCTAssertTrue(revoked)
+        let bodies = await transport.sentBodies
+        let body = try XCTUnwrap(bodies.first ?? nil)
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: String])
+        XCTAssertEqual(json, ["scope": "all_sessions"])
+    }
+
     func testAnUnreachableServerIsNotAnError() async {
         let transport = StubTransport(.failure(URLError(.notConnectedToInternet)))
 

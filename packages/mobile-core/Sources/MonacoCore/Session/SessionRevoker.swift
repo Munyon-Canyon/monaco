@@ -4,6 +4,11 @@ import MonacoAPI
 public struct SessionRevoker: Sendable {
     public static let defaultWait = Duration.seconds(5)
 
+    public enum Scope: Sendable {
+        case thisSession
+        case allSessions
+    }
+
     private let makeClient: @Sendable (String) -> APIClient
 
     public init(serverURL: URL) {
@@ -15,10 +20,10 @@ public struct SessionRevoker: Sendable {
     }
 
     @discardableResult
-    public func revoke(token: String, within wait: Duration = defaultWait) async -> Bool {
+    public func revoke(token: String, scope: Scope = .thisSession, within wait: Duration = defaultWait) async -> Bool {
         let client = makeClient(token)
         return await withTaskGroup(of: Bool.self) { group in
-            group.addTask { await Self.send(client) }
+            group.addTask { await Self.send(client, scope: scope) }
             group.addTask {
                 try? await Task.sleep(for: wait)
                 return false
@@ -29,12 +34,12 @@ public struct SessionRevoker: Sendable {
         }
     }
 
-    private static func send(_ client: APIClient) async -> Bool {
+    private static func send(_ client: APIClient, scope: Scope) async -> Bool {
         do {
             try await client.read { client in
                 _ = try await client.revokeSessions(
                     headers: .init(idempotencyKey: UUID().uuidString),
-                    body: .json(.init(scope: .thisSession))
+                    body: .json(.init(scope: scope == .allSessions ? .allSessions : .thisSession))
                 ).noContent
             }
             return true

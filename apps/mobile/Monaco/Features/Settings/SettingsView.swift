@@ -5,11 +5,11 @@ import UIKit
 
 enum SettingsRow: CaseIterable, Identifiable {
     case notifications, editProfile, findFriends, inviteFriends, viewAsOthers, activity, withdraw, blockedPeople
-    case advanced, contactSupport, signOut, deleteAccount
+    case advanced, contactSupport, signOutEverywhere, signOut, deleteAccount
 
     static let accountRows: [SettingsRow] = [
         .editProfile, .findFriends, .inviteFriends, .viewAsOthers, .activity, .withdraw, .blockedPeople, .advanced,
-        .contactSupport, .signOut,
+        .contactSupport, .signOutEverywhere, .signOut,
     ]
 
     var id: Self { self }
@@ -26,6 +26,7 @@ enum SettingsRow: CaseIterable, Identifiable {
         case .blockedPeople: "Blocked people"
         case .advanced: "Block explorers"
         case .contactSupport: "Contact support"
+        case .signOutEverywhere: "Sign out of all devices"
         case .signOut: "Sign out"
         case .deleteAccount: "Delete account"
         }
@@ -43,6 +44,7 @@ enum SettingsRow: CaseIterable, Identifiable {
         case .blockedPeople: "People you've blocked"
         case .advanced: "Open transactions on a block explorer"
         case .contactSupport: SettingsCopy.supportEmail
+        case .signOutEverywhere: "End every session, including a lost phone"
         case .signOut: "Return to sign-in"
         case .deleteAccount: "Cash out and withdraw first, then close your account"
         }
@@ -60,6 +62,7 @@ enum SettingsRow: CaseIterable, Identifiable {
         case .blockedPeople: "hand.raised"
         case .advanced: "link"
         case .contactSupport: "envelope"
+        case .signOutEverywhere: "iphone.slash"
         case .signOut: "rectangle.portrait.and.arrow.right"
         case .deleteAccount: "trash"
         }
@@ -77,6 +80,7 @@ enum SettingsRow: CaseIterable, Identifiable {
         case .blockedPeople: "settings-blocked-people"
         case .advanced: "settings-advanced"
         case .contactSupport: "settings-contact-support"
+        case .signOutEverywhere: "settings-sign-out-everywhere"
         case .signOut: "profileSignOutButton"
         case .deleteAccount: "settings-delete-account"
         }
@@ -90,6 +94,11 @@ enum SettingsCopy {
     static let signOutTitle = "Sign out of Monaco?"
     static let signOutMessage =
         "You can sign back in with your existing account. This does not withdraw funds or leave your cabals."
+    static let signOutEverywhere = "Sign out of all devices"
+    static let signOutEverywhereTitle = "Sign out of all devices?"
+    static let signOutEverywhereMessage =
+        "This ends every session on your account, including a lost phone. "
+        + "You can sign back in with your existing account. This does not withdraw funds or leave your cabals."
     static let stayLabel = "Stay signed in"
     static let saving = "Saving…"
     static let errorTitle = "Couldn't load this view"
@@ -104,11 +113,12 @@ enum SettingsCopy {
 }
 
 enum SettingsScreenState: Equatable {
-    case ready, saving, error, signOut
+    case ready, saving, error, signOut, signOutEverywhere
 
     static func from(words: [String]) -> SettingsScreenState {
         if words.contains("saving") { return .saving }
         if words.contains("error") { return .error }
+        if words.contains("signOutEverywhere") { return .signOutEverywhere }
         if words.contains("signOut") { return .signOut }
         return .ready
     }
@@ -122,6 +132,7 @@ struct SettingsView: View {
         SettingsList(
             authorization: LiveNotificationAuthorizing(), register: environment.registerForPush,
             signOut: { await environment.signOut() },
+            signOutEverywhere: { await environment.signOutEverywhere() },
             preferences: { NotificationPreferencesModel(api: environment.api) },
             showError: { toasts.show($0) }, viewerID: environment.viewer?.userID,
             open: { route in environment.navigator.open(route, in: environment.navigator.selectedTab) })
@@ -132,6 +143,7 @@ struct SettingsList: View {
     let authorization: any NotificationAuthorizing
     let register: () -> Void
     let signOut: () async -> Void
+    let signOutEverywhere: () async -> Bool
     let showError: (APIError) -> Void
     let viewerID: String?
     let open: (any AppRoute) -> Void
@@ -148,6 +160,7 @@ struct SettingsList: View {
         authorization: any NotificationAuthorizing,
         register: @escaping () -> Void,
         signOut: @escaping () async -> Void = {},
+        signOutEverywhere: @escaping () async -> Bool = { true },
         state: SettingsScreenState = .ready,
         preferences: () -> NotificationPreferencesModel? = { nil },
         showError: @escaping (APIError) -> Void = { _ in },
@@ -157,6 +170,7 @@ struct SettingsList: View {
         self.authorization = authorization
         self.register = register
         self.signOut = signOut
+        self.signOutEverywhere = signOutEverywhere
         self.showError = showError
         self.viewerID = viewerID
         self.open = open
@@ -207,6 +221,8 @@ struct SettingsList: View {
             )
         case .signOut:
             signOutPanel
+        case .signOutEverywhere:
+            signOutEverywherePanel
         }
     }
 
@@ -337,15 +353,39 @@ extension SettingsList {
     }
 
     private var signOutPanel: some View {
+        confirmationPanel(
+            title: SettingsCopy.signOutTitle, message: SettingsCopy.signOutMessage, confirm: SettingsCopy.signOut,
+            identifier: "profile-sign-out"
+        ) {
+            await signOut()
+            return true
+        }
+    }
+
+    private var signOutEverywherePanel: some View {
+        confirmationPanel(
+            title: SettingsCopy.signOutEverywhereTitle, message: SettingsCopy.signOutEverywhereMessage,
+            confirm: SettingsCopy.signOutEverywhere, identifier: "profile-sign-out-everywhere"
+        ) {
+            let ended = await signOutEverywhere()
+            if !ended { showError(.transport(URLError(.notConnectedToInternet))) }
+            return ended
+        }
+    }
+
+    private func confirmationPanel(
+        title: String, message: String, confirm: String, identifier: String,
+        action: @escaping () async -> Bool
+    ) -> some View {
         MonacoCard {
             VStack(alignment: .leading, spacing: 0) {
-                Text(SettingsCopy.signOutTitle)
+                Text(title)
                     .font(MonacoTheme.Typo.section)
                     .foregroundStyle(MonacoTheme.primaryText)
                     .accessibilityAddTraits(.isHeader)
                     .accessibilityFocused($panelTitleFocused)
-                    .accessibilityIdentifier("profile-sign-out-title")
-                Text(SettingsCopy.signOutMessage)
+                    .accessibilityIdentifier("\(identifier)-title")
+                Text(message)
                     .font(MonacoTheme.Typo.subhead)
                     .foregroundStyle(MonacoTheme.muted)
                     .fixedSize(horizontal: false, vertical: true)
@@ -355,21 +395,22 @@ extension SettingsList {
                         guard !isSigningOut else { return }
                         isSigningOut = true
                         Task {
-                            await signOut()
+                            let ended = await action()
                             isSigningOut = false
+                            if !ended { phase = .ready }
                         }
                     } label: {
-                        SubmitLabel(isWorking: isSigningOut, idle: SettingsCopy.signOut, working: "Signing out…")
+                        SubmitLabel(isWorking: isSigningOut, idle: confirm, working: "Signing out…")
                     }
                     .buttonStyle(.monacoPrimary)
                     .disabled(isSigningOut)
-                    .accessibilityIdentifier("profile-sign-out-confirm")
+                    .accessibilityIdentifier("\(identifier)-confirm")
                     Button(SettingsCopy.stayLabel) {
                         phase = .ready
                     }
                     .buttonStyle(.monacoOutline)
                     .disabled(isSigningOut)
-                    .accessibilityIdentifier("profile-sign-out-cancel")
+                    .accessibilityIdentifier("\(identifier)-cancel")
                 }
                 .padding(.top, MonacoTheme.Space.l)
             }
@@ -390,7 +431,7 @@ extension SettingsList {
         case .withdraw: WithdrawRoute()
         case .blockedPeople: BlockedPeopleRoute()
         case .deleteAccount: DeleteAccountRoute()
-        case .notifications, .advanced, .contactSupport, .signOut: nil
+        case .notifications, .advanced, .contactSupport, .signOutEverywhere, .signOut: nil
         }
     }
 
@@ -414,6 +455,15 @@ extension SettingsList {
                 label(for: row, isLast: isLast)
             }
             .buttonStyle(.monacoRow)
+            .accessibilityIdentifier(row.identifier)
+        case .signOutEverywhere:
+            Button {
+                phase = .signOutEverywhere
+            } label: {
+                label(for: row, isLast: isLast)
+            }
+            .buttonStyle(.monacoRow)
+            .disabled(isSigningOut)
             .accessibilityIdentifier(row.identifier)
         case .signOut:
             Button {
@@ -440,7 +490,7 @@ extension SettingsList {
             title: row.title,
             titleColor: row == .deleteAccount ? MonacoTheme.destructive : MonacoTheme.primaryText,
             subtitle: row.subtitle,
-            chevron: row != .signOut && row != .deleteAccount,
+            chevron: row != .signOut && row != .signOutEverywhere && row != .deleteAccount,
             isLast: isLast,
             leading: { SunkenGlyphMark(systemImage: row.systemImage) }
         )
