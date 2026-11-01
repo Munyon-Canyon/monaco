@@ -170,6 +170,18 @@ func TestJustRun_failedFundPageInstallStillStopsTheBackendOnCtrlC(t *testing.T) 
 	r.waitExit(t)
 }
 
+// Ctrl-C lands after worker is up but before api has exec'd: `just stop backend` finds no api by
+// name, so the api that starts afterwards must still be stopped.
+func TestJustRun_ctrlCWhileAPIIsStartingStillStopsIt(t *testing.T) {
+	t.Parallel()
+	r := startJustRun(t, "NPM_EXIT=1", "API_START_DELAY=1")
+
+	if err := syscall.Kill(-r.cmd.Process.Pid, syscall.SIGINT); err != nil {
+		t.Fatal(err)
+	}
+	r.waitExit(t)
+}
+
 func waitFor(t *testing.T, what string, ok func() bool) {
 	t.Helper()
 	deadline := time.Now().Add(15 * time.Second)

@@ -28,6 +28,7 @@ done
 const fakeDotenvx = `#!/usr/bin/env bash
 while [[ "$1" != "--" ]]; do shift; done
 shift
+if [[ -n "${API_START_DELAY:-}" && "$1" == */bin/api ]]; then sleep "$API_START_DELAY"; fi
 exec "$@"
 `
 

@@ -152,9 +152,12 @@ run *args:
     esac
     if [[ -z "$app" ]]; then
       # Bash starts a background job with SIGINT ignored, so Ctrl-C never reaches the
-      # backend. Stop it by name on every exit instead: Ctrl-C, a failed mobile build, or
-      # the backend exiting on its own.
-      trap 'just stop backend >/dev/null 2>&1 || true' EXIT
+      # backend. On every exit (Ctrl-C, a failed mobile build, or the backend exiting on its
+      # own) send the backend job SIGTERM instead: just forwards it to the recipe, which stops
+      # the api and worker it started, even one still starting. Then stop any left by name.
+      backend_pid=""
+      trap 'if [[ -n "$backend_pid" ]]; then kill -TERM "$backend_pid" 2>/dev/null || true; wait "$backend_pid" 2>/dev/null || true; fi
+        just stop backend >/dev/null 2>&1 || true' EXIT
       trap 'exit 130' INT
       trap 'exit 143' TERM
       source ./scripts/run-with-logs.sh
@@ -176,15 +179,26 @@ run *args:
         docker compose up -d --wait postgres nats
         monaco_init_logs
         monaco_step "backend: starting api and worker"
-        # Set before anything can fail or block, so a failing step never orphans api or worker. By
-        # name, not by pid: the pids are the dotenvx wrappers, and the INT trap never fires when
-        # `just run` started this as a background job (SIGINT ignored). The fund page is stopped only
-        # when this run started it, and only this checkout's Vite.
+        # Set before anything can fail or block, so a failing step never orphans api or worker. By pid
+        # and by name: the pids are the dotenvx wrappers, so killing them stops an api or worker that
+        # has not exec'd its binary yet, and the name catches one that has. `just run` stops this
+        # background job with SIGTERM (its SIGINT is ignored). The fund page is stopped only when this
+        # run started it, and only this checkout's Vite.
         ready_pid=""
         fund_pid=""
+        api_pid=""
+        worker_pid=""
         fund_vite="^(node )?${PWD}/apps/web/node_modules/.bin/vite( |$)"
-        trap 'if [[ -n "$ready_pid" ]]; then kill "$ready_pid" 2>/dev/null || true; fi; pkill -TERM -f "^${PWD}/bin/(api|worker)$" || true
-          if [[ -n "$fund_pid" ]]; then kill "$fund_pid" 2>/dev/null || true; pkill -TERM -f "$fund_vite" || true; fi' INT TERM EXIT
+        stop_started() {
+          if [[ -n "$ready_pid" ]]; then kill "$ready_pid" 2>/dev/null || true; fi
+          for pid in $api_pid $worker_pid; do kill "$pid" 2>/dev/null || true; done
+          pkill -TERM -f "^${PWD}/bin/(api|worker)$" || true
+          if [[ -n "$fund_pid" ]]; then kill "$fund_pid" 2>/dev/null || true; pkill -TERM -f "$fund_vite" || true; fi
+          for pid in $api_pid $worker_pid; do wait "$pid" 2>/dev/null || true; done
+        }
+        trap stop_started EXIT
+        trap 'exit 130' INT
+        trap 'exit 143' TERM
         # MONACO_FUND_PAGE_PORT is ours, and the backend refuses unknown MONACO_ variables at boot.
         env -u MONACO_LOG_DIR -u MONACO_DOTENVX -u MONACO_FUND_PAGE_PORT {{_dotenvx}} "$PWD/bin/api" > >(tee -a "${MONACO_LOG_DIR}/api.log") 2>&1 &
         api_pid=$!
