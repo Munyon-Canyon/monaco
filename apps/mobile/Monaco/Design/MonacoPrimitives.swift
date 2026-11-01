@@ -23,6 +23,7 @@ struct MonacoScreen<Content: View>: View {
 enum MonacoSearchFieldMetrics {
     static let minHeight: CGFloat = 48
     static let iconSize: CGFloat = 18
+    static let clearCeiling: CGFloat = 24
 }
 
 struct MonacoSearchField: View {
@@ -53,6 +54,7 @@ struct MonacoSearchField: View {
                     text = ""
                 } label: {
                     Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: min(iconSize, MonacoSearchFieldMetrics.clearCeiling)))
                         .foregroundStyle(MonacoTheme.tertiaryText)
                         .frame(width: 44, height: 44)
                         .contentShape(Rectangle())
