@@ -64,13 +64,14 @@ type EVMDepositForwardDeps struct {
 }
 
 type EVMDepositForwardPoller struct {
-	d       EVMDepositForwardDeps
-	mu      sync.Mutex
-	alerted map[uuid.UUID]bool
+	d         EVMDepositForwardDeps
+	mu        sync.Mutex
+	alerted   map[uuid.UUID]bool
+	reindexed map[string]bool
 }
 
 func NewEVMDepositForwardPoller(d EVMDepositForwardDeps) *EVMDepositForwardPoller {
-	return &EVMDepositForwardPoller{d: d, alerted: map[uuid.UUID]bool{}}
+	return &EVMDepositForwardPoller{d: d, alerted: map[uuid.UUID]bool{}, reindexed: map[string]bool{}}
 }
 
 func (*EVMDepositForwardPoller) Name() string { return "funding.evm_deposit_forward" }
@@ -142,9 +143,12 @@ func (p *EVMDepositForwardPoller) record(
 	if err := checkExecution(ex); err != nil {
 		return 0, err
 	}
-	if ex.State == multichain.ActionFailed && ex.ActionID == "" {
+	if isUnrouted(ex) {
 		if err := p.reindexUnrouted(ctx, w, ex); err != nil {
 			return 0, err
+		}
+		if ex.AmountMicros.IsZero() {
+			return 0, nil
 		}
 	}
 	var change forwardChange
@@ -166,6 +170,10 @@ func (p *EVMDepositForwardPoller) record(
 	return 1, nil
 }
 
+func isUnrouted(ex multichain.Execution) bool {
+	return ex.State == multichain.ActionFailed && ex.ActionID == ""
+}
+
 func checkExecution(ex multichain.Execution) error {
 	const op = "funding.EVMDepositForward.execution"
 	switch {
@@ -174,7 +182,7 @@ func checkExecution(ex multichain.Execution) error {
 	case !ex.Network.IsEVM() || ex.Network.Cash().Symbol != "USDC":
 		return errs.New(errs.CodeDecodeFailed, op, slog.String("execution_id", ex.ID),
 			slog.String("network", string(ex.Network)))
-	case ex.AmountMicros.IsZero():
+	case ex.AmountMicros.IsZero() && !isUnrouted(ex):
 		return errs.New(errs.CodeDecodeFailed, op, slog.String("execution_id", ex.ID),
 			slog.String("reason", "zero amount"))
 	}
@@ -286,6 +294,9 @@ func (p *EVMDepositForwardPoller) reindexUnrouted(
 	case status != forwardPending:
 		return nil
 	}
+	if p.reindexedOnce(ex.ID) {
+		return nil
+	}
 	reindexErr := p.d.Feed.Reindex(ctx, w.WalletID, ex.Network)
 	observability.Alert(ctx, observability.FundingEVMForwardUnrouted,
 		slog.String("execution_id", ex.ID), slog.String("wallet_id", w.WalletID),
@@ -293,7 +304,20 @@ func (p *EVMDepositForwardPoller) reindexUnrouted(
 	if reindexErr != nil {
 		return errs.Wrap(reindexErr, errs.CodeOf(reindexErr), "funding.EVMDepositForward.reindex")
 	}
+	p.markReindexed(ex.ID)
 	return nil
+}
+
+func (p *EVMDepositForwardPoller) reindexedOnce(executionID string) bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.reindexed[executionID]
+}
+
+func (p *EVMDepositForwardPoller) markReindexed(executionID string) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.reindexed[executionID] = true
 }
 
 func (p *EVMDepositForwardPoller) alertStuck(ctx context.Context) error {

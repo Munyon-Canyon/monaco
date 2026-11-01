@@ -155,8 +155,11 @@ func TestEVMDepositForward_FailedExecutionWithoutActionReindexesOnce(t *testing.
 	if got := f.logged(observability.FundingEVMForwardUnrouted); got != 1 {
 		t.Fatalf("unrouted alerts = %d, want 1", got)
 	}
-	if got := f.forwards(t, "failed"); got != 2 || f.forwarded(t) != 0 {
-		t.Fatalf("failed rows = %d, events = %d, want 2 failed rows and no event", got, f.forwarded(t))
+	if got := f.forwards(t, "failed"); got != 1 || f.forwarded(t) != 0 {
+		t.Fatalf("failed rows = %d, events = %d, want the rejected row failed and no event", got, f.forwarded(t))
+	}
+	if got := f.count(t, `SELECT count(*) FROM evm_deposit_forwards WHERE privy_execution_id = 'c'`); got != 0 {
+		t.Fatalf("rows for the zero-amount unrouted execution = %d, want none", got)
 	}
 }
 
@@ -265,6 +268,7 @@ func TestEVMDepositForward_FollowsTheExecutionCursor(t *testing.T) {
 func unrouted(id string) mc.Execution {
 	ex := execution(id, mc.ActionFailed)
 	ex.ActionID = ""
+	ex.AmountMicros = money.Micros{}
 	return ex
 }
 
