@@ -423,7 +423,9 @@ func confirmed(req SwapRequest, id uuid.UUID, signature chain.Signature, outAmou
 		id: id, from: domain.StatusSubmitted,
 		status: domain.StatusConfirmed,
 		apply: func(ctx context.Context, q *sqlc.Queries, at time.Time) (int64, error) {
-			return q.FinishConfirmed(ctx, sqlc.FinishConfirmedParams{ID: id, OutAmount: column, ConfirmedAt: at})
+			return q.FinishConfirmedFeeUnrecorded(
+				ctx, sqlc.FinishConfirmedFeeUnrecordedParams{ID: id, OutAmount: column, ConfirmedAt: at},
+			)
 		},
 		event: func(at time.Time) events.Event {
 			return events.TradeConfirmed{

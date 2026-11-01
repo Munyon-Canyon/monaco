@@ -124,3 +124,29 @@ func TestSwapLayer_ConfirmRefusesAZeroDeltaAReaderLetThrough(t *testing.T) {
 		t.Fatalf("Run = %+v, %v; want the buy left submitted", got, err)
 	}
 }
+
+func TestSwapLayer_ASolanaFillRecordsNoFeeRatherThanAZeroOne(t *testing.T) {
+	t.Parallel()
+	for name, req := range map[string]func(*layerEnv) app.SwapRequest{
+		"buy":  func(e *layerEnv) app.SwapRequest { return e.request(e.source()) },
+		"sell": func(e *layerEnv) app.SwapRequest { return e.sell(4_885_867) },
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			e := newLayerEnv(t)
+			if name == "buy" {
+				e.jup.SetExecute("req-1", jupiter.ExecuteResult{Status: jupiter.StatusSuccess, OutAmount: 105_000_000})
+			}
+			got := e.settled(t, req(e))
+			var unrecorded bool
+			if err := e.pool.QueryRow(t.Context(),
+				`SELECT fee_micros IS NULL FROM swaps WHERE id = $1`, got.ID.UUID()).Scan(&unrecorded); err != nil {
+				t.Fatal(err)
+			}
+			if got.Status != domain.StatusConfirmed || got.FeeMicros != nil || !unrecorded {
+				t.Fatalf("view fee = %v, fee_micros null = %v; want a confirmed swap with no recorded fee",
+					got.FeeMicros, unrecorded)
+			}
+		})
+	}
+}

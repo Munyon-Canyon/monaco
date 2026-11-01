@@ -343,18 +343,6 @@ func (h *ExecuteTradeHandler) funds(ctx context.Context, cmd ExecuteTrade, req *
 		return refusal{}, err
 	}
 	need := req.InAmount
-	if cmd.Action == domain.ActionBuy {
-		cfg, err := h.d.Ports.Balances.MintConfig(ctx, req.OutMint.Address)
-		if err != nil {
-			return refusal{}, err
-		}
-		headroom := cfg.FeeHeadroom(req.InAmount)
-		total, err := cmd.USDCMicros.Add(money.MicrosFromUint64(headroom))
-		if err != nil {
-			return refusal{}, err
-		}
-		need = total.Uint64()
-	}
 	if have.Uint64() < need {
 		code := errs.CodeInsufficientFunds
 		if cmd.Action == domain.ActionSell {

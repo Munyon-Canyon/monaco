@@ -64,6 +64,27 @@ func (q *Queries) FinishConfirmed(ctx context.Context, arg FinishConfirmedParams
 	return result.RowsAffected(), nil
 }
 
+const finishConfirmedFeeUnrecorded = `-- name: FinishConfirmedFeeUnrecorded :execrows
+UPDATE swaps
+SET status = 'confirmed', out_amount = $1::bigint, fee_micros = NULL,
+  confirmed_at = $2::timestamptz, updated_at = $2::timestamptz
+WHERE id = $3 AND status = 'submitted'
+`
+
+type FinishConfirmedFeeUnrecordedParams struct {
+	OutAmount   int64
+	ConfirmedAt time.Time
+	ID          uuid.UUID
+}
+
+func (q *Queries) FinishConfirmedFeeUnrecorded(ctx context.Context, arg FinishConfirmedFeeUnrecordedParams) (int64, error) {
+	result, err := q.db.Exec(ctx, finishConfirmedFeeUnrecorded, arg.OutAmount, arg.ConfirmedAt, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const finishFailed = `-- name: FinishFailed :execrows
 UPDATE swaps
 SET status = 'failed', failure_code = $1::text,

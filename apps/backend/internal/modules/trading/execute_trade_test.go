@@ -14,7 +14,6 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/app"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/jupiter"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
-	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/marketfake"
 )
 
@@ -86,10 +85,6 @@ func refusalCases() []refusalCase {
 		{"mint differs from the catalog's", func(_ *engineEnv, cmd *app.ExecuteTrade) {
 			cmd.Mint = marketfake.TSLAx().Mint.Address()
 		}, errs.CodeAssetUntradable, "0", "0"},
-		{"buy short of the amount plus the transfer fee", func(e *engineEnv, _ *app.ExecuteTrade) {
-			e.ledger.SetTokens(e.wallet.Address, usdcToken(), 25_249_999)
-			e.balances.setFee(aaplxMint, 100, math.MaxUint64)
-		}, errs.CodeInsufficientFunds, "25249999", "25250000"},
 		{"buy over the ledger cash while the chain holds more", func(e *engineEnv, _ *app.ExecuteTrade) {
 			e.positions.units = buyMicros - 1
 		}, errs.CodeInsufficientFunds, "24999999", "25000000"},
@@ -202,17 +197,17 @@ func TestExecuteTrade_eachRefusalBlocksOnceRecordsTheDeliveryAndNeverSwaps(t *te
 	}
 }
 
-func TestExecuteTrade_buyWithExactlyTheAmountPlusFeePasses(t *testing.T) {
+func TestExecuteTrade_aBuyNeedsOnlyTheUSDCItSpendsWhateverFeeTheBoughtTokenCharges(t *testing.T) {
 	t.Parallel()
 	e := newEngineEnv(t)
-	e.ledger.SetTokens(e.wallet.Address, usdcToken(), 25_001_000)
-	e.balances.setFee(aaplxMint, 100, 1_000)
+	e.ledger.SetTokens(e.wallet.Address, usdcToken(), buyMicros)
+	e.balances.setFee(aaplxMint, 100, math.MaxUint64)
 	e.quote(usdcToken(), aaplxToken(), 20_790_000, true)
 	cmd := e.buy()
 
 	if err := e.handle(t, e.delivery(t, cmd), cmd); err != nil || len(e.blocked(t, cmd.ProposalID)) != 0 {
-		t.Fatalf("err %v, %d blocked; want the capped fee and the floor quote both to pass", err,
-			len(e.blocked(t, cmd.ProposalID)))
+		t.Fatalf("err %v, %d blocked; want a 1%% fee on the tokens bought to leave the USDC need at the trade amount",
+			err, len(e.blocked(t, cmd.ProposalID)))
 	}
 }
 
@@ -225,7 +220,6 @@ func TestExecuteTrade_anUpstreamFailureReturnsItsCodeAndWritesNothing(t *testing
 		"catalog":       func(e *engineEnv) { e.catalog.Fail("AssetBySymbol", rpc) },
 		"wallet":        func(e *engineEnv) { e.cabals.Fail("TreasuryWallet", rpc) },
 		"balance":       func(e *engineEnv) { e.balances.Fail("TokenBalance", rpc) },
-		"mint config":   func(e *engineEnv) { e.balances.Fail("MintConfig", rpc) },
 		"slippage":      func(e *engineEnv) { e.cabals.Fail("SlippageBps", rpc) },
 		"cabal status":  func(e *engineEnv) { e.cabals.Fail("Status", rpc) },
 		"pause":         func(e *engineEnv) { e.pauses.Fail("IsPaused", rpc) },
@@ -249,19 +243,6 @@ func TestExecuteTrade_anUpstreamFailureReturnsItsCodeAndWritesNothing(t *testing
 				t.Fatal("an upstream failure recorded the delivery or blocked the trade")
 			}
 		})
-	}
-}
-
-func TestExecuteTrade_aBuyAmountThatOverflowsWithTheFeeFails(t *testing.T) {
-	t.Parallel()
-	e := newEngineEnv(t)
-	e.balances.setFee(aaplxMint, 100, math.MaxUint64)
-	cmd := e.buy()
-	cmd.USDCMicros = money.MicrosFromUint64(math.MaxUint64)
-
-	if err := e.handle(t, e.delivery(t, cmd), cmd); err != nil || e.blockedCodes(t, cmd) != "trade_not_started" {
-		t.Fatalf("err = %v, blocked %q; want the overflow, which no retry fixes, blocked as trade_not_started",
-			err, e.blockedCodes(t, cmd))
 	}
 }
 
