@@ -39,8 +39,9 @@ func TestLoadFillsDefaultsFromTheRFC(t *testing.T) {
 		Env:  config.EnvLocal,
 		HTTP: config.HTTP{Addr: ":8080", MaxBodyBytes: 1 << 20},
 		Worker: config.Worker{
-			HealthAddr: ":8081", FundSendWindow: 2 * time.Minute, WithdrawalUnsentAge: 2 * time.Minute,
-			PollerBackoffMax: 5 * time.Minute,
+			HealthAddr: ":8081", FundSendWindow: 2 * time.Minute, FundSigningLease: 30 * time.Second,
+			WithdrawalUnsentAge: 2 * time.Minute,
+			PollerBackoffMax:    5 * time.Minute,
 		},
 		DB:   config.DB{URL: "postgres://monaco@localhost:54322/monaco", MaxConns: 11},
 		NATS: config.NATS{URL: "nats://localhost:4222"},
@@ -223,6 +224,7 @@ func TestLoadReadsEveryKey(t *testing.T) {
 		"TRUST_PROXY_HEADERS=true",
 		"MONACO_WORKER_HEALTH_ADDR=127.0.0.1:9001",
 		"FUND_SEND_WINDOW=5s",
+		"FUND_SIGNING_LEASE=2s",
 		"WITHDRAWAL_UNSENT_AGE=6s",
 		"MONACO_POLLER_BACKOFF_MAX=7s",
 		"DATABASE_URL=postgres://prod",
@@ -336,8 +338,9 @@ func TestLoadReadsEveryKey(t *testing.T) {
 		Env:  config.EnvProduction,
 		HTTP: config.HTTP{Addr: "127.0.0.1:9000", MaxBodyBytes: 4096, TrustProxyHeaders: true},
 		Worker: config.Worker{
-			HealthAddr: "127.0.0.1:9001", FundSendWindow: 5 * time.Second, WithdrawalUnsentAge: 6 * time.Second,
-			PollerBackoffMax: 7 * time.Second,
+			HealthAddr: "127.0.0.1:9001", FundSendWindow: 5 * time.Second, FundSigningLease: 2 * time.Second,
+			WithdrawalUnsentAge: 6 * time.Second,
+			PollerBackoffMax:    7 * time.Second,
 		},
 		DB: config.DB{
 			URL: "postgres://prod", MaxConns: 40, StatementTimeout: 9 * time.Second, IdleTxTimeout: 11 * time.Second,
@@ -553,6 +556,16 @@ func TestLoadFailures(t *testing.T) {
 			want:    "config.Load: invalid_input: invalid TRADE_ENGINE (live or stub)",
 		},
 		{
+			name:    "signing lease as long as the send window",
+			environ: append(required(), "FUND_SEND_WINDOW=30s"),
+			want:    "config.Load: invalid_input: invalid FUND_SIGNING_LEASE (shorter than FUND_SEND_WINDOW)",
+		},
+		{
+			name:    "signing lease longer than the send window",
+			environ: append(required(), "FUND_SEND_WINDOW=10s", "FUND_SIGNING_LEASE=1m"),
+			want:    "config.Load: invalid_input: invalid FUND_SIGNING_LEASE (shorter than FUND_SEND_WINDOW)",
+		},
+		{
 			name:    "stub trade engine outside local dev",
 			environ: append(required(), "MONACO_ENV=test", "TRADE_ENGINE=stub"),
 			want:    "config.Load: invalid_input: invalid TRADE_ENGINE (stub runs only in local dev)",
@@ -718,6 +731,7 @@ func TestRedactedHidesSecretsAndShowsTheRest(t *testing.T) {
 		{"MONACO_HTTP_MAX_BODY_BYTES", "1048576"},
 		{"MONACO_WORKER_HEALTH_ADDR", ":8081"},
 		{"FUND_SEND_WINDOW", "2m0s"},
+		{"FUND_SIGNING_LEASE", "30s"},
 		{"WITHDRAWAL_UNSENT_AGE", "2m0s"},
 		{"MONACO_POLLER_BACKOFF_MAX", "5m0s"},
 		{"MONACO_DB_MAX_CONNS", "11"},
