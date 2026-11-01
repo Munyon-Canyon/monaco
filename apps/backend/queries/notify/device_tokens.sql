@@ -20,3 +20,7 @@ ORDER BY last_seen_at DESC, token;
 -- name: DisableToken :execrows
 UPDATE device_tokens SET disabled_at = sqlc.arg(disabled_at)::timestamptz
 WHERE token = sqlc.arg(token) AND disabled_at IS NULL;
+
+-- name: DisableTokensForUser :execrows
+UPDATE device_tokens SET disabled_at = sqlc.arg(disabled_at)::timestamptz
+WHERE user_id = sqlc.arg(user_id) AND disabled_at IS NULL;

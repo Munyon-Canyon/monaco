@@ -1079,6 +1079,17 @@ Subject `events.user.profile_updated`, version 1.
 | `display_name` | `string` |
 | `photo_url` | `string` |
 
+## `user.sessions_revoked`
+
+Subject `events.user.sessions_revoked`, version 1.
+
+| Field | Go type |
+| --- | --- |
+| `v` | `int` |
+| `user_id` | `uuid.UUID` |
+| `scope` | `string` |
+| `at` | `time.Time` |
+
 ## `vote.cast`
 
 Subject `events.vote.cast`, version 1.

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
+	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/modules/identity/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
@@ -49,7 +50,12 @@ func (h *RevokeSessionsHandler) Handle(ctx context.Context, cmd RevokeSessions) 
 	err := h.d.UoW.Do(ctx, func(ctx context.Context, tx db.Tx) error {
 		q := sqlc.New(tx.Queries())
 		if cmd.Scope == RevokeAllSessions {
-			return revokeAll(ctx, q, cmd, now)
+			if err := revokeAll(ctx, q, cmd, now); err != nil {
+				return err
+			}
+			return tx.Events.Append(ctx, events.UserSessionsRevoked{
+				V: 1, UserID: cmd.UserID.UUID(), Scope: string(cmd.Scope), At: now,
+			})
 		}
 		_, err := q.RevokeSession(ctx, sqlc.RevokeSessionParams{
 			PrivySessionID: cmd.SessionID, UserID: cmd.UserID.UUID(), RevokedAt: now,

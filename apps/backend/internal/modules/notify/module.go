@@ -183,6 +183,9 @@ func (m *Module) Consumers() []bus.Consumer {
 	}}, {
 		Durable:  adapters.CatchUpDurable,
 		Handlers: adapters.CatchUpHandlers(app.NewCatchUpClears(m.catchUp(), m.cabals, m.deps.Bus)),
+	}, {
+		Durable:  adapters.DisableDevicesDurable,
+		Handlers: adapters.DisableDevicesHandlers(),
 	}}
 }
 

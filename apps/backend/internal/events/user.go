@@ -12,6 +12,7 @@ const (
 	TypeUserProfileUpdated   Type = "user.profile_updated"
 
 	TypeUserAccountStatusChanged Type = "user.account_status_changed"
+	TypeUserSessionsRevoked      Type = "user.sessions_revoked"
 )
 
 const userAggregate = "user"
@@ -73,3 +74,16 @@ func (UserAccountStatusChanged) Type() Type { return TypeUserAccountStatusChange
 func (UserAccountStatusChanged) AggregateType() string { return userAggregate }
 
 func (e UserAccountStatusChanged) AggregateID() uuid.UUID { return e.UserID }
+
+type UserSessionsRevoked struct {
+	V      int       `json:"v"`
+	UserID uuid.UUID `json:"user_id" pii:"true"`
+	Scope  string    `json:"scope"`
+	At     time.Time `json:"at"`
+}
+
+func (UserSessionsRevoked) Type() Type { return TypeUserSessionsRevoked }
+
+func (UserSessionsRevoked) AggregateType() string { return userAggregate }
+
+func (e UserSessionsRevoked) AggregateID() uuid.UUID { return e.UserID }
