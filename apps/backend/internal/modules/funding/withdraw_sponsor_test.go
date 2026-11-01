@@ -1,6 +1,7 @@
 package funding_test
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -39,14 +40,8 @@ func (f *withdrawFixture) reservations(t *testing.T) (live, released int) {
 
 func (f *withdrawFixture) wantSkipped(t *testing.T, want ...bool) {
 	t.Helper()
-	got := f.skipped(t)
-	if len(got) != len(want) {
+	if got := f.skipped(t); !slices.Equal(got, want) {
 		t.Fatalf("builds skip create = %v, want %v", got, want)
-	}
-	for i := range got {
-		if got[i] != want[i] {
-			t.Fatalf("builds skip create = %v, want %v", got, want)
-		}
 	}
 }
 

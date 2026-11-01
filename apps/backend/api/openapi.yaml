@@ -7495,6 +7495,7 @@ components:
         - version_conflict
         - vote_not_found
         - wallet_mismatch
+        - withdraw_no_usdc_account
         - withdraw_not_allowed
         - withdraw_to_own_wallet
         - x_linked_elsewhere

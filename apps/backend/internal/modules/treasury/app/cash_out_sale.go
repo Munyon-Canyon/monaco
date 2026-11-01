@@ -168,6 +168,7 @@ func (s CashOutSales) apply(
 	ctx context.Context, tx db.Tx, cabal ids.CabalID, user ids.UserID, job uuid.UUID, units money.SharesUnits,
 	to domain.CashOutStatus, settled domain.SaleSettlement, cause string, at time.Time,
 ) error {
+	settled.PendingFailed = to == domain.CashOutFailed
 	if err := s.giveBack(ctx, tx, cabal, user, settled, at); err != nil {
 		return err
 	}

@@ -58,6 +58,16 @@ func (s *stubQARPC) LatestBlockhash(context.Context) (solana.Blockhash, error) {
 	return solana.Blockhash{Hash: [32]byte{9}, LastValidBlockHeight: 100}, s.fail["LatestBlockhash"]
 }
 
+func (s *stubQARPC) Accounts(
+	_ context.Context, addrs []chain.SolanaAddress, _ uint64,
+) (uint64, []solana.TokenAccountState, error) {
+	out := make([]solana.TokenAccountState, len(addrs))
+	for i, a := range addrs {
+		out[i] = solana.TokenAccountState{Address: a, Exists: true}
+	}
+	return 1, out, s.fail["Accounts"]
+}
+
 func (s *stubQARPC) SendTransaction(_ context.Context, raw []byte) (chain.Signature, error) {
 	if err := s.fail["SendTransaction"]; err != nil {
 		return "", err

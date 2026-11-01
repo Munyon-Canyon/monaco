@@ -56,12 +56,45 @@ func (t *Transfers) Build(ctx context.Context, spec TransferSpec) (SignedTx, err
 	if mint.Mint.Decimals != spec.Mint.Decimals {
 		return SignedTx{}, errs.New(errs.CodeInvalidInput, op, slog.String("reason", "mint decimals"))
 	}
+	if spec.SkipCreate {
+		if err := t.requireAccount(ctx, op, spec.To, spec.Mint.Address, mint.TokenProgram); err != nil {
+			return SignedTx{}, err
+		}
+	}
 	hash, err := t.relayer.rpc.LatestBlockhash(ctx)
 	if err != nil {
 		return SignedTx{}, err
 	}
 	msg := TransferMessage(t.relayer.address, spec, mint.TokenProgram, hash.Hash)
 	return t.sign(ctx, op, spec.FromWallet.ID, msg, hash.LastValidBlockHeight)
+}
+
+func (t *Transfers) HasTokenAccount(ctx context.Context, owner chain.SolanaAddress, mint chain.Mint) (bool, error) {
+	cfg, err := t.relayer.rpc.MintConfig(ctx, mint.Address)
+	if err != nil {
+		return false, err
+	}
+	return t.accountExists(ctx, owner, mint.Address, cfg.TokenProgram)
+}
+
+func (t *Transfers) requireAccount(ctx context.Context, op string, owner, mint, program chain.SolanaAddress) error {
+	exists, err := t.accountExists(ctx, owner, mint, program)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return errs.New(errs.CodeWithdrawNoUSDCAccount, op, slog.String("destination", string(owner)))
+	}
+	return nil
+}
+
+func (t *Transfers) accountExists(ctx context.Context, owner, mint, program chain.SolanaAddress) (bool, error) {
+	account, _ := chain.AssociatedTokenAccount(owner, mint, program)
+	_, states, err := t.relayer.rpc.Accounts(ctx, []chain.SolanaAddress{account}, 0)
+	if err != nil {
+		return false, err
+	}
+	return len(states) == 1 && states[0].Exists, nil
 }
 
 type ConsolidationSpec struct {

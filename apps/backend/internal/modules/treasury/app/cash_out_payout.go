@@ -272,7 +272,7 @@ func (p *CashOutPayouts) giveBack(ctx context.Context, tx db.Tx, job payoutJob) 
 	}
 	txn, err := domain.CashOutReturn(domain.UserTxnHeader{
 		ID: p.d.IDs.NewV7(), UserID: job.user, CabalID: job.cabal, Kind: domain.UserCashOut, Status: domain.TxnSettled,
-	}, domain.MintAsset(p.d.USDC.Address), domain.SaleSettlement{Unpaid: job.payout, Returned: job.units})
+	}, domain.MintAsset(p.d.USDC.Address), domain.SaleSettlement{Unpaid: job.payout, Returned: job.units, PendingFailed: true})
 	if err != nil {
 		return err
 	}
