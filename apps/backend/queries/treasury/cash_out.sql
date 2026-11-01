@@ -56,7 +56,7 @@ WITH raised AS (
   WHERE j.id = sqlc.arg(id)::uuid
   GROUP BY j.id
 ), settled AS (
-  SELECT r.*, least(r.slice_micros, r.covered) AS paid,
+  SELECT r.id, r.cabal_id, r.results, r.batch_size, least(r.slice_micros, r.covered) AS paid,
     CASE WHEN NOT EXISTS (SELECT 1 FROM user_positions AS p WHERE p.cabal_id = r.cabal_id AND p.share_units > 0)
       AND NOT EXISTS (SELECT 1 FROM cash_out_jobs AS o WHERE o.cabal_id = r.cabal_id AND o.id <> r.id
         AND o.status IN ('started', 'selling', 'paying'))
