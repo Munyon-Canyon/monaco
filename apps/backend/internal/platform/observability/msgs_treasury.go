@@ -69,3 +69,8 @@ var TreasuryWindDownMemberFailed = Msg{
 	Name:     "treasury.winddown_member_failed",
 	Required: []string{"cabal_id", "user_id", "code"},
 }
+
+var TreasuryLedgerUnbooked = Msg{
+	Name:     "treasury.ledger.unbooked",
+	Required: []string{"kind", "id", "cabal_id", "since", "unbooked_total"},
+}

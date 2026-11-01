@@ -23,11 +23,17 @@ const (
 	pgIdleInTransaction    = "25P03"
 	pgUndefinedTable       = "42P01"
 	pgUniqueViolation      = "23505"
+	pgIntegrityClass       = "23"
 )
 
 func IsUniqueViolation(err error) bool {
 	var pg *pgconn.PgError
 	return errors.As(err, &pg) && pg.Code == pgUniqueViolation
+}
+
+func IsIntegrityViolation(err error) bool {
+	var pg *pgconn.PgError
+	return errors.As(err, &pg) && strings.HasPrefix(pg.Code, pgIntegrityClass)
 }
 
 func transient(err error) bool {
