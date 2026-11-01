@@ -107,6 +107,18 @@ func (r Postgres) LockMember(
 	return true, nil
 }
 
+func (r Postgres) LockStatus(ctx context.Context, q dbsqlc.DBTX, id ids.CabalID) (port.Status, error) {
+	const op = "cabal.LockStatus"
+	status, err := sqlc.New(q).LockCabalStatus(ctx, id.UUID())
+	switch {
+	case errors.Is(err, sql.ErrNoRows):
+		return "", errs.New(errs.CodeCabalNotFound, op)
+	case err != nil:
+		return "", errs.Wrap(err, errs.CodeInternal, op)
+	}
+	return port.Status(status), nil
+}
+
 func (r Postgres) Member(ctx context.Context, id ids.CabalID, user ids.UserID) (port.MemberView, error) {
 	const op = "cabal.Member"
 	row, err := r.q.FindMember(ctx, sqlc.FindMemberParams{CabalID: id.UUID(), UserID: user.UUID()})

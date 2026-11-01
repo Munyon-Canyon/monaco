@@ -145,6 +145,13 @@ func (f *Cabal) LockMember(
 	return f.IsMember(ctx, id, user)
 }
 
+func (f *Cabal) LockStatus(ctx context.Context, _ dbsqlc.DBTX, id ids.CabalID) (cabal.Status, error) {
+	if err := f.Check("LockStatus"); err != nil {
+		return "", err
+	}
+	return f.Status(ctx, id)
+}
+
 func (f *Cabal) Member(_ context.Context, id ids.CabalID, user ids.UserID) (cabal.MemberView, error) {
 	const op = "Member"
 	if err := f.Check(op); err != nil {

@@ -81,6 +81,7 @@ type MemberReader interface {
 
 type MemberLocker interface {
 	LockMember(ctx context.Context, q dbsqlc.DBTX, id ids.CabalID, user ids.UserID) (bool, error)
+	LockStatus(ctx context.Context, q dbsqlc.DBTX, id ids.CabalID) (Status, error)
 }
 
 type BatchReader interface {

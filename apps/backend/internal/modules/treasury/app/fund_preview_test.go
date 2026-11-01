@@ -42,6 +42,10 @@ func (f *previewFake) LockMember(context.Context, dbsqlc.DBTX, ids.CabalID, ids.
 	return f.member, nil
 }
 
+func (f *previewFake) LockStatus(context.Context, dbsqlc.DBTX, ids.CabalID) (cabalport.Status, error) {
+	return f.status, f.fail("LockStatus")
+}
+
 func (f *previewFake) Status(context.Context, ids.CabalID) (cabalport.Status, error) {
 	return f.status, f.fail("Status")
 }

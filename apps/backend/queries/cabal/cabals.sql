@@ -118,3 +118,6 @@ FROM sizes;
 
 -- name: BanCabal :execrows
 UPDATE cabals SET status = 'banned', updated_at = sqlc.arg(now) WHERE id = sqlc.arg(id) AND status = 'active';
+
+-- name: LockCabalStatus :one
+SELECT status FROM cabals WHERE id = $1 FOR SHARE;
