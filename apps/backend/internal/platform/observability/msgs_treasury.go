@@ -90,6 +90,11 @@ var TreasuryWindDownStuck = Msg{
 	Required: []string{"cabal_id", "attempts", "holders"},
 }
 
+var TreasuryWindDownReopened = Msg{
+	Name:     "treasury.winddown_reopened",
+	Required: []string{"cabal_id", "transfer_id", "reason"},
+}
+
 var TreasuryWindDownMemberFailed = Msg{
 	Name:     "treasury.winddown_member_failed",
 	Required: []string{"cabal_id", "user_id", "code"},

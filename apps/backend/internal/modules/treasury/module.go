@@ -18,6 +18,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/sqlc"
+	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
@@ -211,6 +212,11 @@ func (m *Module) cashOutHandler() *app.CashOutHandler {
 	return app.NewCashOutHandler(
 		m.deps.UoW, m.ledger(), m.strictReads(), m.pauses, m.deps.Clock, m.deps.IDs, m.deps.Pool, m.deps.Bus,
 	)
+}
+
+func (m *Module) ResumeWindDown(ctx context.Context, cabal ids.CabalID) (string, error) {
+	ctx = auth.WithActor(ctx, auth.Actor{Kind: auth.ActorSystem, ID: "monacoctl"})
+	return app.NewWindDown(m.deps.UoW, nil, m.deps.Pool, m.deps.Clock).Resume(ctx, cabal)
 }
 
 func (m *Module) windDown() *app.WindDown {

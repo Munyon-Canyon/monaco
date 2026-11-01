@@ -181,6 +181,7 @@ For a stuck money row, [Money runbook](../how-to/money-runbook.md) maps the sign
 | `treasury.ledger.unbooked` | `kind`, `id`, `cabal_id`, `since`, `unbooked_total` |
 | `treasury.winddown_completed` | `cabal_id`, `members_paid`, `returned_micros` |
 | `treasury.winddown_member_failed` | `cabal_id`, `user_id`, `code` |
+| `treasury.winddown_reopened` | `cabal_id`, `transfer_id`, `reason` |
 | `treasury.winddown_started` | `cabal_id`, `holders`, `started` |
 | `treasury.winddown_stuck` | `cabal_id`, `attempts`, `holders` |
 | `tx.committed` | `event_ids`, `attempt` |

@@ -90,7 +90,7 @@ A banned cabal winds down by selling its holdings and paying members pro rata.
 
 | Signal | What to do |
 | --- | --- |
-| `kind=wind_down`, `treasury.winddown_stuck` | The wind-down retries each member and logs the attempts and holders left. `treasury.winddown_member_failed` names the member and the code, but it logs at debug level, so production logs do not show it. |
+| `kind=wind_down`, `treasury.winddown_stuck` | The wind-down retries each member with a doubling wait past 10 attempts and logs the attempts and holders left. After fixing the cause, run `monacoctl ops winddown --cabal <id>` to reset the attempts (it also reopens a completed one). `treasury.winddown_member_failed` names the member and the code, but it logs at debug level, so production logs do not show it. |
 
 There is no operator command. Escalate with the cabal id.
 

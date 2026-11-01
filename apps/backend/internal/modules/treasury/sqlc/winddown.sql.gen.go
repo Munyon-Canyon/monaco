@@ -32,6 +32,10 @@ WHERE cabal_id = $2::uuid AND status = 'running'
     SELECT 1 FROM cash_out_jobs
     WHERE cabal_id = $2::uuid AND status NOT IN ('completed', 'partial', 'failed')
   )
+  AND NOT EXISTS (
+    SELECT 1 FROM fund_transfers
+    WHERE cabal_id = $2::uuid AND status IN ('created', 'submitted', 'landed')
+  )
 RETURNING
   (SELECT count(DISTINCT user_id) FROM cash_out_jobs
     WHERE cabal_id = $2::uuid AND cause = 'wind_down' AND status IN ('completed', 'partial')
@@ -59,14 +63,53 @@ func (q *Queries) CompleteWindDown(ctx context.Context, arg CompleteWindDownPara
 	return i, err
 }
 
+const reopenWindDown = `-- name: ReopenWindDown :execrows
+UPDATE cabal_winddowns
+SET status = 'running', attempts = 0, started_at = $1::timestamptz, completed_at = NULL
+WHERE cabal_id = $2::uuid AND status = 'completed'
+`
+
+type ReopenWindDownParams struct {
+	At      time.Time
+	CabalID uuid.UUID
+}
+
+func (q *Queries) ReopenWindDown(ctx context.Context, arg ReopenWindDownParams) (int64, error) {
+	result, err := q.db.Exec(ctx, reopenWindDown, arg.At, arg.CabalID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const resetWindDownAttempts = `-- name: ResetWindDownAttempts :execrows
+UPDATE cabal_winddowns SET attempts = 0 WHERE cabal_id = $1::uuid AND status = 'running'
+`
+
+func (q *Queries) ResetWindDownAttempts(ctx context.Context, cabalID uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, resetWindDownAttempts, cabalID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const runningWindDowns = `-- name: RunningWindDowns :many
-SELECT cabal_id, attempts, started_at FROM cabal_winddowns WHERE status = 'running' ORDER BY started_at, cabal_id
+SELECT w.cabal_id, w.attempts, w.started_at,
+  coalesce(
+    (SELECT max(j.created_at) FROM cash_out_jobs j WHERE j.cabal_id = w.cabal_id AND j.cause = 'wind_down'),
+    w.started_at
+  )::timestamptz AS last_issued_at
+FROM cabal_winddowns w
+WHERE w.status = 'running'
+ORDER BY w.started_at, w.cabal_id
 `
 
 type RunningWindDownsRow struct {
-	CabalID   uuid.UUID
-	Attempts  int32
-	StartedAt time.Time
+	CabalID      uuid.UUID
+	Attempts     int32
+	StartedAt    time.Time
+	LastIssuedAt time.Time
 }
 
 func (q *Queries) RunningWindDowns(ctx context.Context) ([]RunningWindDownsRow, error) {
@@ -78,7 +121,12 @@ func (q *Queries) RunningWindDowns(ctx context.Context) ([]RunningWindDownsRow, 
 	var items []RunningWindDownsRow
 	for rows.Next() {
 		var i RunningWindDownsRow
-		if err := rows.Scan(&i.CabalID, &i.Attempts, &i.StartedAt); err != nil {
+		if err := rows.Scan(
+			&i.CabalID,
+			&i.Attempts,
+			&i.StartedAt,
+			&i.LastIssuedAt,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
