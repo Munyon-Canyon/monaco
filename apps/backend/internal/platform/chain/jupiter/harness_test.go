@@ -168,3 +168,10 @@ func attr(err error, key string) string {
 }
 
 func now() time.Time { return clock.Real{}.Now() }
+
+func replyingWith(body func() string) *upstream {
+	return &upstream{handler: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = io.WriteString(w, body())
+	})}
+}

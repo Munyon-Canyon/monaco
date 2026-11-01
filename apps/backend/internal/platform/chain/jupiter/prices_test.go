@@ -128,12 +128,23 @@ func TestPrices_stockDataPriceWhenUSDPriceIsAbsent(t *testing.T) {
 
 func TestPrices_unpriceableEntryIsSkippedAndTheBatchKept(t *testing.T) {
 	t.Parallel()
-	good, negative, empty, nothing := fixtureMint(1), fixtureMint(2), fixtureMint(3), fixtureMint(4)
+	good, negative, empty, nothing, notObject := fixtureMint(
+		1,
+	), fixtureMint(
+		2,
+	), fixtureMint(
+		3,
+	), fixtureMint(
+		4,
+	), fixtureMint(
+		5,
+	)
 	u := replying(http.StatusOK, `{"`+good.Address+`":{"stockData":{"price":0.000123}},`+
 		`"`+negative.Address+`":{"usdPrice":-1},`+
 		`"`+empty.Address+`":{"stockData":{"price":"abc"}},`+
+		`"`+notObject.Address+`":"oops",`+
 		`"`+nothing.Address+`":{"decimals":8}}`)
-	got, err := client(u).Prices(t.Context(), []jupiter.Mint{good, negative, empty, nothing})
+	got, err := client(u).Prices(t.Context(), []jupiter.Mint{good, negative, empty, nothing, notObject})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -13,6 +13,21 @@ struct ProposeBuyStockTests {
         #expect(selected == nil)
     }
 
+    @Test func aStockWithoutAPriceDoesNotAdvanceWhenTapped() {
+        var selected: ProposeStock?
+        let unpriced = asset(tradable: true, quotable: false)
+        ProposeBuyStockSelection.select(unpriced) { selected = $0 }
+        #expect(selected == nil)
+        #expect(!ProposeBuyStockSelection.canSelect(unpriced))
+        #expect(ProposeBuyStockSelection.unavailableHint(unpriced) == "No price right now")
+    }
+
+    @Test func aPricedTradableStockCanBePicked() {
+        let priced = asset(tradable: true, quotable: true)
+        #expect(ProposeBuyStockSelection.canSelect(priced))
+        #expect(ProposeBuyStockSelection.unavailableHint(priced) == nil)
+    }
+
     @Test func theStockPickedFromTheListKeepsItsLogo() {
         let logo = URL(string: "https://logos.example/AMBRx.png")
         var selected: ProposeStock?
@@ -40,12 +55,12 @@ struct ProposeBuyStockTests {
         #expect(ProposeStock(holding: holding).logoURL == nil)
     }
 
-    private func asset(tradable: Bool, logoURL: URL? = nil) -> MarketAsset {
+    private func asset(tradable: Bool, quotable: Bool = true, logoURL: URL? = nil) -> MarketAsset {
         MarketAsset(
             symbol: "AMBRx", ticker: "AMBR", name: "Amber", issuer: .xstocks, kind: .stock, logoURL: logoURL,
             priceMicros: 25_000_000, priceText: "$25.00", changeBasisPoints: nil, changeText: "—", sparkline: nil,
             session: .open, status: .init(session: .open, isOpen: true, afterHours: false), showsSessionChip: false,
-            isTradable: tradable
+            isTradable: tradable, isQuotable: quotable
         )
     }
 }

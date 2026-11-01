@@ -122,7 +122,8 @@ struct ProposeBuyStockView: View {
                         isLast: index == assets.count - 1)
                 }
                 .buttonStyle(.monacoRow)
-                .disabled(!asset.isTradable)
+                .disabled(!ProposeBuyStockSelection.canSelect(asset))
+                .accessibilityHint(ProposeBuyStockSelection.unavailableHint(asset) ?? "")
                 .accessibilityActivationPoint(.center)
                 .accessibilityIdentifier("propose-buy-stock-\(asset.symbol)")
             }
@@ -131,8 +132,17 @@ struct ProposeBuyStockView: View {
 }
 
 enum ProposeBuyStockSelection {
+    static func canSelect(_ asset: MarketAsset) -> Bool {
+        asset.isTradable && asset.isQuotable
+    }
+
+    static func unavailableHint(_ asset: MarketAsset) -> String? {
+        guard !canSelect(asset) else { return nil }
+        return asset.isTradable ? "No price right now" : "Not tradable"
+    }
+
     static func select(_ asset: MarketAsset, pick: (ProposeStock) -> Void) {
-        guard asset.isTradable else { return }
+        guard canSelect(asset) else { return }
         pick(
             ProposeStock(
                 symbol: asset.symbol, name: asset.name, priceMicros: asset.priceMicros,

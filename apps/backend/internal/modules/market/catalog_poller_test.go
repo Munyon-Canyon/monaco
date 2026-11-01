@@ -140,6 +140,7 @@ func (r *catalogRig) asset(t *testing.T, symbol string) market.Asset {
 
 func (r *catalogRig) tradable(t *testing.T) []string {
 	t.Helper()
+	r.exec(t, `UPDATE assets SET last_quoted_at = now() WHERE last_quoted_at IS NULL`)
 	all, err := r.catalog.ListTradable(t.Context())
 	if err != nil {
 		t.Fatal(err)
@@ -295,6 +296,7 @@ func TestCatalogPoller_ProviderFailureKeepsRows(t *testing.T) {
 	rig := newRig(t, xs, tessera)
 	rig.facts.Put(spacex.Mint, spacex.Decimals, 1, 1)
 	rig.tick(t)
+	rig.tradable(t)
 	before := rig.asset(t, "SPACEX")
 	for name, fault := range map[string]func(){
 		"error":         func() { tessera.serve(errs.New(errs.CodeUpstreamTimeout, "test")) },

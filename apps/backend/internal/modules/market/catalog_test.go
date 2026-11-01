@@ -20,7 +20,7 @@ import (
 
 func insert(t *testing.T, pool *pgxpool.Pool, a market.Asset, override *bool) {
 	t.Helper()
-	var logo, rank, checked any
+	var logo, rank, checked, quoted any
 	if a.LogoURL != "" {
 		logo = a.LogoURL
 	}
@@ -30,12 +30,15 @@ func insert(t *testing.T, pool *pgxpool.Pool, a market.Asset, override *bool) {
 	if a.ChainChecked {
 		checked = a.UpdatedAt
 	}
+	if !a.LastQuotedAt.IsZero() {
+		quoted = a.LastQuotedAt
+	}
 	_, err := pool.Exec(t.Context(), `INSERT INTO assets (id, symbol, mint, decimals, issuer, kind, display_name,
 		logo_url, issuer_tradable, tradable_override, popular_rank, company_key, first_seen_at, updated_at,
-		chain_checked_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
+		chain_checked_at, last_quoted_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`,
 		a.ID.UUID(), a.Symbol, a.Mint.String(), int16(a.Decimals), string(a.Issuer), string(a.Kind), a.DisplayName,
-		logo, a.IssuerTradable, override, rank, a.CompanyKey, a.FirstSeenAt, a.UpdatedAt, checked)
+		logo, a.IssuerTradable, override, rank, a.CompanyKey, a.FirstSeenAt, a.UpdatedAt, checked, quoted)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -43,6 +46,7 @@ func insert(t *testing.T, pool *pgxpool.Pool, a market.Asset, override *bool) {
 
 func stamped(a market.Asset, at time.Time) market.Asset {
 	a.FirstSeenAt, a.UpdatedAt = at, at
+	a.LastQuotedAt = at.Add(-24 * time.Hour)
 	return a
 }
 
@@ -73,7 +77,7 @@ func TestCatalog_readsAnAssetByIDMintAndSymbol(t *testing.T) {
 		if !got.FirstSeenAt.Equal(at) || !got.UpdatedAt.Equal(at) {
 			t.Fatalf("by %s: timestamps = %v, %v, want %v", by, got.FirstSeenAt, got.UpdatedAt, at)
 		}
-		got.FirstSeenAt, got.UpdatedAt = want.FirstSeenAt, want.UpdatedAt
+		got.FirstSeenAt, got.UpdatedAt, got.LastQuotedAt = want.FirstSeenAt, want.UpdatedAt, want.LastQuotedAt
 		if got != want {
 			t.Fatalf("by %s = %+v, want %+v", by, got, want)
 		}
@@ -223,6 +227,7 @@ func TestSiblings_SpaceX(t *testing.T) {
 			t.Fatalf("Siblings(%s) = %+v, %v, want only %s", tc.of.Symbol, got, err, tc.want.Symbol)
 		}
 		got[0].FirstSeenAt, got[0].UpdatedAt = tc.want.FirstSeenAt, tc.want.UpdatedAt
+		got[0].LastQuotedAt = tc.want.LastQuotedAt
 		if got[0] != tc.want {
 			t.Fatalf("Siblings(%s) = %+v, want %+v", tc.of.Symbol, got[0], tc.want)
 		}
