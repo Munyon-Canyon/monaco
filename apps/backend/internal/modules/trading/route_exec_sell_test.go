@@ -266,3 +266,7 @@ func TestExecuteTrade_anEVMSellRefusesAPositionItCannotRead(t *testing.T) {
 		t.Fatalf("unwired EVMPositions err = %v, want upstream_unavailable", err)
 	}
 }
+
+func (h *heldFake) CashOutReservations(context.Context) (map[ids.CabalID]money.Micros, error) {
+	return map[ids.CabalID]money.Micros{}, h.Check("CashOutReservations")
+}

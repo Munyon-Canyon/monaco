@@ -3,6 +3,7 @@ package fakes
 import (
 	"cmp"
 	"context"
+	"maps"
 	"slices"
 	"sync"
 	"time"
@@ -22,6 +23,8 @@ type Treasury struct {
 	testkit.Faults
 	mu               sync.Mutex
 	positions        map[ids.CabalID][]treasury.Position
+	cash             map[ids.CabalID]treasury.Position
+	reserved         map[ids.CabalID]money.Micros
 	unposted         map[uuid.UUID]bool
 	potValues        map[ids.CabalID]money.Micros
 	totalShares      map[ids.CabalID]money.SharesUnits
@@ -55,6 +58,8 @@ func (f *Treasury) WalletLedgerMicros(
 func NewTreasury() *Treasury {
 	return &Treasury{
 		positions:     map[ids.CabalID][]treasury.Position{},
+		cash:          map[ids.CabalID]treasury.Position{},
+		reserved:      map[ids.CabalID]money.Micros{},
 		potValues:     map[ids.CabalID]money.Micros{},
 		openFunds:     map[[2]uuid.UUID]bool{},
 		unposted:      map[uuid.UUID]bool{},
@@ -68,6 +73,18 @@ func (f *Treasury) SetPositions(cabalID ids.CabalID, positions []treasury.Positi
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.positions[cabalID] = slices.Clone(positions)
+}
+
+func (f *Treasury) SetCash(cabalID ids.CabalID, mint chain.SolanaAddress, micros uint64) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.cash[cabalID] = treasury.Position{Mint: mint, Units: money.NewBaseUnits(micros, 6)}
+}
+
+func (f *Treasury) SetCashOutReservation(cabalID ids.CabalID, micros money.Micros) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.reserved[cabalID] = micros
 }
 
 func (f *Treasury) SetPotValue(cabalID ids.CabalID, value money.Micros) {
@@ -156,7 +173,11 @@ func (f *Treasury) SolanaPositions(_ context.Context, cabalID ids.CabalID) ([]tr
 	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	return slices.Clone(f.positions[cabalID]), nil
+	held := slices.Clone(f.positions[cabalID])
+	if cash, ok := f.cash[cabalID]; ok {
+		held = append(held, cash)
+	}
+	return held, nil
 }
 
 func (f *Treasury) SetSwapUnposted(swapID uuid.UUID) {
@@ -320,7 +341,12 @@ func (f *Treasury) MemberFlowsBetween(_ context.Context, from, to time.Time) ([]
 }
 
 func (f *Treasury) CashOutReservations(context.Context) (map[ids.CabalID]money.Micros, error) {
-	return map[ids.CabalID]money.Micros{}, f.Check("CashOutReservations")
+	if err := f.Check("CashOutReservations"); err != nil {
+		return nil, err
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return maps.Clone(f.reserved), nil
 }
 
 func (f *Treasury) stake(cabalID ids.CabalID, user ids.UserID) treasury.Stake {

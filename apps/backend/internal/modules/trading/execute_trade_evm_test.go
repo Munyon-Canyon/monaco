@@ -35,6 +35,22 @@ func TestExecuteTrade_anEVMWinnerRunsTheRoutedBuyAndRecordsTheDelivery(t *testin
 	e.wantEVMRow(t, swaps[0], swapHash)
 }
 
+func TestExecuteTrade_anEVMWinnerChecksTheLedgerCashNotJustTheChain(t *testing.T) {
+	t.Parallel()
+	e := newRouteEnv(t)
+	e.positions.units = buyMicros - 1
+	cmd := e.engineEnv.buy()
+	cmd.Route = e.route
+	d := e.delivery(t, cmd)
+
+	if err := e.tradeHandler().Handle(actorContext(t.Context()), d, cmd, nil); err != nil {
+		t.Fatal(err)
+	}
+	if code := e.deliveryCode(t, d); code != string(errs.CodeInsufficientFunds) || len(e.privy.calls()) != 0 {
+		t.Fatalf("delivery %s after %d transfers, want insufficient_funds and no bridge", code, len(e.privy.calls()))
+	}
+}
+
 func TestExecuteTrade_anEVMWinnerStillChecksTheSolanaFunds(t *testing.T) {
 	t.Parallel()
 	e := newRouteEnv(t)

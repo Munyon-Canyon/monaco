@@ -132,7 +132,10 @@ func newTradeWorld(t *testing.T) *tradeWorld {
 	return w
 }
 
-func (w *tradeWorld) holdCash(micros uint64) { w.chain.SetTokens(treasuryAddress, usdcMint(), micros) }
+func (w *tradeWorld) holdCash(micros uint64) {
+	w.chain.SetTokens(treasuryAddress, usdcMint(), micros)
+	w.treasury.SetCash(w.cabal, usdcAddress, micros)
+}
 
 func (w *tradeWorld) holdOnChain(units uint64) {
 	aapl := marketfake.AAPLx()

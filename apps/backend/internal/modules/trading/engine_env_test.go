@@ -7,12 +7,14 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/monaco/monaco/apps/backend/internal/errs"
 	busevents "github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal"
 	governance "github.com/monaco/monaco/apps/backend/internal/modules/governance/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/domain"
+	treasuryport "github.com/monaco/monaco/apps/backend/internal/modules/treasury/port"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	platform "github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/jupiter"
@@ -64,6 +66,32 @@ func (b *balancesFake) setFee(mint platform.SolanaAddress, bps uint16, maxFee ui
 	b.mints[mint] = solana.MintConfig{TransferFeeBps: bps, MaxFee: money.NewBaseUnits(maxFee, 8)}
 }
 
+type cashLedger struct {
+	cabal    ids.CabalID
+	mint     platform.SolanaAddress
+	units    uint64
+	reserved uint64
+	failing  string
+}
+
+func (c cashLedger) SolanaPositions(context.Context, ids.CabalID) ([]treasuryport.Position, error) {
+	if c.failing == "SolanaPositions" {
+		return nil, errs.New(errs.CodeDBUnavailable, "test")
+	}
+	return []treasuryport.Position{{Mint: c.mint, Units: money.NewBaseUnits(c.units, 6)}}, nil
+}
+
+func (cashLedger) EVMPositions(context.Context, ids.CabalID) ([]treasuryport.ListingPosition, error) {
+	return nil, nil
+}
+
+func (c cashLedger) CashOutReservations(context.Context) (map[ids.CabalID]money.Micros, error) {
+	if c.failing == "CashOutReservations" {
+		return nil, errs.New(errs.CodeDBUnavailable, "test")
+	}
+	return map[ids.CabalID]money.Micros{c.cabal: money.MicrosFromUint64(c.reserved)}, nil
+}
+
 type proposalsFake struct {
 	testkit.Faults
 	mu     sync.Mutex
@@ -112,6 +140,7 @@ type engineEnv struct {
 	pauses    *fakes.Pauses
 	proposals *proposalsFake
 	balances  *balancesFake
+	positions cashLedger
 	ledger    *chainfake.Ledger
 	winners   listingsFake
 	options   []trading.Option
@@ -134,6 +163,7 @@ func newEngineEnvOn(layer *layerEnv) *engineEnv {
 	e.proposals = &proposalsFake{status: governance.StatusPassed}
 	e.ledger = chainfake.NewLedger(e.clk)
 	e.ledger.SetTokens(e.wallet.Address, usdcToken(), 100_000_000)
+	e.positions = cashLedger{cabal: e.cabal, mint: usdcToken().Address, units: 100_000_000}
 	e.balances = &balancesFake{ledger: e.ledger, mints: map[platform.SolanaAddress]solana.MintConfig{}}
 	e.quote(usdcToken(), aaplxToken(), quotedOut, true)
 	return e
@@ -173,6 +203,7 @@ func (c liveCabals) IsMember(ctx context.Context, id ids.CabalID, user ids.UserI
 func (e *engineEnv) ports() app.EnginePorts {
 	return app.EnginePorts{
 		Catalog: e.catalog, Cabals: liveCabals{e: e}, Pauses: e.pauses, Proposals: e.proposals, Balances: e.balances,
+		Positions: e.positions,
 	}
 }
 

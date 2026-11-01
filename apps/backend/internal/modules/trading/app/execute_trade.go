@@ -268,7 +268,36 @@ func (h *ExecuteTradeHandler) routedFunds(ctx context.Context, cmd ExecuteTrade,
 	case have.Uint64() < req.InAmount:
 		return refusal{code: errs.CodeInsufficientFunds, have: have.Uint64(), need: req.InAmount}, nil
 	}
-	return refusal{}, nil
+	return h.ledgerCovers(ctx, cmd, req)
+}
+
+func (h *ExecuteTradeHandler) ledgerCovers(ctx context.Context, cmd ExecuteTrade, req *SwapRequest) (refusal, error) {
+	positions, err := h.d.Ports.Positions.SolanaPositions(ctx, cmd.CabalID)
+	if err != nil {
+		return refusal{}, err
+	}
+	var cash money.Micros
+	for _, position := range positions {
+		if position.Mint == h.d.USDC.Address {
+			cash = money.MicrosFromUint64(position.Units.Uint64())
+		}
+	}
+	reserved, err := h.d.Ports.Positions.CashOutReservations(ctx)
+	if err != nil {
+		return refusal{}, err
+	}
+	have, err := availableCash(cash, reserved[cmd.CabalID])
+	if have.Uint64() >= req.InAmount || err != nil {
+		return refusal{}, err
+	}
+	return refusal{code: errs.CodeInsufficientFunds, have: have.Uint64(), need: req.InAmount}, nil
+}
+
+func availableCash(cash, reserved money.Micros) (money.Micros, error) {
+	if reserved.Cmp(cash) >= 0 {
+		return money.Micros{}, nil
+	}
+	return cash.Sub(reserved)
 }
 
 func (h *ExecuteTradeHandler) request(cmd ExecuteTrade, asset market.Asset, w cabalport.TreasuryWallet) SwapRequest {
@@ -316,6 +345,9 @@ func (h *ExecuteTradeHandler) funds(ctx context.Context, cmd ExecuteTrade, req *
 			code = errs.CodeCabalSharesShort
 		}
 		return refusal{code: code, have: have.Uint64(), need: need}, nil
+	}
+	if cmd.Action == domain.ActionBuy {
+		return h.ledgerCovers(ctx, cmd, req)
 	}
 	return refusal{}, nil
 }

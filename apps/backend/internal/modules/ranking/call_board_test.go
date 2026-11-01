@@ -142,7 +142,7 @@ func boardModule(t *testing.T, d deliverer) (*ranking.Module, context.Context) {
 	t.Helper()
 	named := func(name string) uuid.UUID { return uuid.NewSHA1(uuid.Nil, []byte("board/"+name)) }
 	user, cabal := ids.UserIDFrom(named("kai")), ids.CabalIDFrom(named("pilates"))
-	seedFiveResolvedCalls(t, d, user.UUID(), cabal.UUID(), d.clock.Now().Add(-time.Hour))
+	seedFiveResolvedCalls(t, d, user.UUID(), cabal.UUID(), d.clock.Now().Add(-time.Second))
 	cards := soloCards{user: user, cabal: cabal}
 	deps := module.Deps{Pool: d.pool, UoW: d.uow, IDs: d.gen, Clock: d.clock, Bus: d.conn}
 	m := ranking.New(deps, ranking.WithPorts(app.Ports{Users: cards, Cabals: cards}))

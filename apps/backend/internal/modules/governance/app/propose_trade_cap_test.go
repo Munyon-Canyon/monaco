@@ -44,8 +44,11 @@ func capPorts(cash uint64, cfg solana.MintConfig, bps *int32) (TradePorts, ids.C
 		Wallet: cabalport.TreasuryWallet{CabalID: id, Address: capTreasury},
 	}
 	seed.View.ID = id
+	treasury := fakes.NewTreasury()
+	treasury.SetCash(id, capUSDC, cash)
 	return TradePorts{
 		Cabals: fakes.NewCabal([]fakes.CabalSeed{seed}, nil), Balances: capLedger{Ledger: ledger, cfg: cfg}, USDC: usdc,
+		Treasury: treasury,
 	}, id
 }
 

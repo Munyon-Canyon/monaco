@@ -310,6 +310,25 @@ func TestProposeTrade_refusesWhatThePortsRefuse(t *testing.T) {
 		"buy over the cash, within the pot": {
 			func(w *tradeWorld) { w.holdCash(potMicros / 4) }, buyAAPLFor(potMicros / 2), errs.CodePotCashShort,
 		},
+		"buy over the ledger cash while the chain holds more": {
+			func(w *tradeWorld) {
+				w.holdCash(potMicros)
+				w.treasury.SetCash(w.cabal, usdcAddress, potMicros/4)
+			}, buyAAPLFor(potMicros / 2), errs.CodePotCashShort,
+		},
+		"buy over the ledger cash left after a cash-out reservation": {
+			func(w *tradeWorld) {
+				w.treasury.SetCashOutReservation(w.cabal, money.MicrosFromUint64(potMicros/2))
+			}, buyAAPLFor(potMicros/2 + 1), errs.CodePotCashShort,
+		},
+		"ledger positions unknown on a buy": {
+			func(w *tradeWorld) { w.treasury.Fail("SolanaPositions", failed) },
+			buyAAPLFor(1), errs.CodeUpstreamUnavailable,
+		},
+		"reservations unknown": {
+			func(w *tradeWorld) { w.treasury.Fail("CashOutReservations", failed) },
+			buyAAPLFor(1), errs.CodeUpstreamUnavailable,
+		},
 		"buy that leaves no room for the transfer fee": {
 			func(w *tradeWorld) {
 				w.holdCash(25_000_000)
