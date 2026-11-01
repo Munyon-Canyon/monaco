@@ -239,6 +239,57 @@ func TestForceResolve_ChainReadFailures(t *testing.T) {
 	}
 }
 
+func TestForceResolve_SwapVanishesAfterTheChainCheck(t *testing.T) {
+	t.Parallel()
+	e := newSweeperEnv(t)
+	row := e.submit(t)
+	e.read.onStatus = func() {
+		if _, err := e.pool.Exec(t.Context(), `DELETE FROM swaps WHERE id = $1`, row.ID); err != nil {
+			t.Error(err)
+		}
+	}
+	_, err := e.force().Handle(t.Context(), forceCommand(chain.Signature("sig-"+row.ID.String()), domain.StatusFailed))
+	if errs.CodeOf(err) != errs.CodeSwapNotFound {
+		t.Fatalf("Handle = %v, want swap_not_found", err)
+	}
+}
+
+func TestForceResolve_OverrideStillChecksTheUnits(t *testing.T) {
+	t.Parallel()
+	e := newSweeperEnv(t)
+	row := e.submit(t)
+	cmd := forceCommand(chain.Signature("sig-"+row.ID.String()), domain.StatusConfirmed)
+	cmd.OutAmount, cmd.Override = money.NewBaseUnits(104_000_000, 6), true
+	_, err := e.force().Handle(t.Context(), cmd)
+	if errs.CodeOf(err) != errs.CodeInvalidInput || e.status(t, row.ID) != "submitted" || e.auditRows(t, row.ID) != 0 {
+		t.Fatalf("Handle = %v, status = %s", err, e.status(t, row.ID))
+	}
+}
+
+func TestForceResolve_RollsBackWhenTheAuditRowCannotBeWritten(t *testing.T) {
+	t.Parallel()
+	e := newSweeperEnv(t)
+	row := e.submit(t)
+	const fn = `CREATE FUNCTION audit_blocker() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN RAISE EXCEPTION 'audit refused'; END; $$`
+	const trg = `CREATE TRIGGER audit_blocker BEFORE INSERT ON swap_operator_actions
+FOR EACH ROW EXECUTE FUNCTION audit_blocker()`
+	for _, stmt := range []string{fn, trg} {
+		if _, err := e.pool.Exec(t.Context(), stmt); err != nil {
+			t.Fatal(err)
+		}
+	}
+	_, err := e.force().Handle(t.Context(), forceCommand(chain.Signature("sig-"+row.ID.String()), domain.StatusFailed))
+	if err == nil || e.status(t, row.ID) != "submitted" || e.terminalEvents(t, row.ID) != 0 {
+		t.Fatalf(
+			"Handle = %v, status = %s, terminal events = %d",
+			err,
+			e.status(t, row.ID),
+			e.terminalEvents(t, row.ID),
+		)
+	}
+}
+
 func TestForceResolve_RejectsAnActorThatIsNotAnOperator(t *testing.T) {
 	t.Parallel()
 	for _, actor := range []string{"system:monacoctl", "operator:"} {
