@@ -729,7 +729,7 @@ func (f *countingPorts) MemberFlowsBetween(context.Context, time.Time, time.Time
 	return f.flowRows, f.flowsErr
 }
 
-func (f *countingPorts) SnapshotsAt(context.Context, []time.Time) ([]sqlc.SnapshotsAtRow, error) {
+func (f *countingPorts) SnapshotsAt(context.Context, sqlc.SnapshotsAtParams) ([]sqlc.SnapshotsAtRow, error) {
 	f.snapshotCalls++
 	return f.snapshotRows, f.snapshotsErr
 }
@@ -843,5 +843,22 @@ func TestRunValuation_readsEveryTreasuryInputAtTheSameInstantInOneCall(t *testin
 	}
 	if len(f.inputsAt) != 1 || !f.inputsAt[0].Equal(at) {
 		t.Fatalf("ValuationInputsAt instants = %v, want exactly [%v]", f.inputsAt, at)
+	}
+}
+
+func TestRunValuation_pricesAsOfIsTheOldestPriceUsed(t *testing.T) {
+	t.Parallel()
+	f, usdc := heldAssetPorts(t, 1)
+	oldest := valuationTime().Add(-90 * time.Second)
+	price := f.asOfRows[f.assetRows[1].ID]
+	price.ObservedAt = oldest
+	f.asOfRows[f.assetRows[1].ID] = price
+	got, err := NewRunValuation(
+		Ports{Market: f, Treasury: f, Funding: f, Cabals: f, Users: f, Previous: f, Snapshots: f},
+		usdc,
+	).Run(t.Context(), valuationTime())
+	if err != nil || len(got.Cabals) != 1 || !got.AsOf.Equal(valuationTime()) || !got.PricesAsOf.Equal(oldest) {
+		t.Fatalf("Run() = AsOf %v PricesAsOf %v cabals %d, %v, want PricesAsOf %v",
+			got.AsOf, got.PricesAsOf, len(got.Cabals), err, oldest)
 	}
 }

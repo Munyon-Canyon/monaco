@@ -23,3 +23,5 @@ func MaxSnapshotGap(r Range) time.Duration {
 	}
 	return 3 * RunEvery
 }
+
+const SnapshotLookback = time.Hour + 2*RunEvery

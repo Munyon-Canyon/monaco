@@ -6,7 +6,7 @@ public enum HomeVariant: Equatable, Sendable {
     public init(summary: PortfolioSummary, cashMicros: Int64) {
         if summary.isEmpty && cashMicros <= 0 {
             self = .empty
-        } else if summary.totalMicros <= 0 {
+        } else if summary.totalMicros + summary.arrivingMicros <= 0 {
             self = .cashOnly
         } else {
             self = .invested

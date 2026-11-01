@@ -2,6 +2,7 @@ package ranking_test
 
 import (
 	"context"
+	"math"
 	"math/big"
 	"testing"
 	"time"
@@ -90,7 +91,7 @@ func (c *ledgerChain) MemberFlowsBetween(context.Context, time.Time, time.Time) 
 	return c.flows, c.fails("flows")
 }
 
-func (c *ledgerChain) SnapshotsAt(context.Context, []time.Time) ([]sqlc.SnapshotsAtRow, error) {
+func (c *ledgerChain) SnapshotsAt(context.Context, sqlc.SnapshotsAtParams) ([]sqlc.SnapshotsAtRow, error) {
 	return c.rows, c.fails("snaps")
 }
 
@@ -196,7 +197,7 @@ func TestLedgerWindow_ADepositAtWindowStartIsOutsideAndAtWindowEndInside(t *test
 	if err != nil {
 		t.Fatal(err)
 	}
-	wantBps(t, got, -4000)
+	wantBps(t, got, -2667)
 }
 
 func TestLedgerWindow_JoinMidWeekHasAZeroStart(t *testing.T) {
@@ -423,7 +424,7 @@ func TestLedgerWindow_ADegenerateWindowSurfaces(t *testing.T) {
 	}
 }
 
-func TestLedgerWindow_AReturnTooLargeForBpsSurfaces(t *testing.T) {
+func TestLedgerWindow_AGainTooLargeForSignedMicrosSurfaces(t *testing.T) {
 	t.Parallel()
 	w := seedWeek42(t)
 	c := newChain(w.andres, chainCabal{w.degens, 1000, 1100})
@@ -431,11 +432,26 @@ func TestLedgerWindow_AReturnTooLargeForBpsSurfaces(t *testing.T) {
 	for i := range snaps {
 		value := uint64(1)
 		if snaps[i].At.After(windowStart().Add(time.Hour)) {
-			value = 1 << 62
+			value = math.MaxUint64
 		}
 		snaps[i].Value = money.MicrosFromUint64(value)
 	}
 	if _, ok, err := build(t, w, c); err == nil || ok {
-		t.Fatalf("BuildLedger = %v, %v, want the bps overflow", ok, err)
+		t.Fatalf("BuildLedger = %v, %v, want the gain overflow", ok, err)
+	}
+}
+
+func TestLedgerWindow_AMidWeekGainTooLargeForSignedMicrosSurfaces(t *testing.T) {
+	t.Parallel()
+	w := seedWeek42(t)
+	c := newChain(w.andres, chainCabal{w.degens, 1000, 1100})
+	snaps := c.curve[w.degens]
+	for i := range snaps {
+		if snaps[i].At.Equal(windowStart().Add(8 * time.Hour)) {
+			snaps[i].Value = money.MicrosFromUint64(math.MaxUint64)
+		}
+	}
+	if _, ok, err := build(t, w, c); err == nil || ok {
+		t.Fatalf("BuildLedger = %v, %v, want the series point's gain overflow", ok, err)
 	}
 }

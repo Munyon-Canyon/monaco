@@ -77,7 +77,7 @@ func heldAt(
 		}
 		snap := LastAtOrBefore(snaps[cabal], end, func(s Snapshot) time.Time { return s.At })
 		if snap == nil {
-			return held{}, false, nil
+			continue
 		}
 		stake := LastAtOrBefore(stakes, snap.At, func(s StakePoint) time.Time { return s.At })
 		if stake == nil {

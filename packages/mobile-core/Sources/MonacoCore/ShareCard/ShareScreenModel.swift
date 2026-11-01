@@ -364,7 +364,8 @@ extension ShareScreenModel {
     }
 
     private nonisolated static func curveReturn(_ curve: Components.Schemas.MyPnlHistory) -> Int64? {
-        curve.points.count >= 2 && curve.returnBps != 0 ? curve.returnBps : nil
+        guard curve.points.count >= 2, curve.returnKnown ?? (curve.returnBps != 0) else { return nil }
+        return curve.returnBps
     }
 
     private nonisolated static func fetchTrades(

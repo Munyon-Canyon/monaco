@@ -25,6 +25,8 @@ public struct PortfolioSummary: Equatable, Sendable {
         public let pictureURL: String?
         public let valueMicros: Int64
         public let value: String
+        public let arrivingMicros: Int64
+        public let isStale: Bool
         public let pnlMicros: Int64
         public let pnl: String
         public let returnText: String
@@ -40,7 +42,9 @@ public struct PortfolioSummary: Equatable, Sendable {
             name = cabal.cabal.name
             pictureURL = cabal.cabal.pictureUrl
             valueMicros = cabal.valueMicros
-            value = UsdAmountFormatter.format(micros: cabal.valueMicros)
+            value = UsdAmountFormatter.format(flooredMicros: cabal.valueMicros)
+            arrivingMicros = cabal.arrivingMicros ?? 0
+            isStale = cabal.stale ?? false
             pnlMicros = cabal.pnlMicros
             pnl = UsdAmountFormatter.format(signedMicros: cabal.pnlMicros)
             returnText = PortfolioSummary.percent(cabal.returnBps)
@@ -57,6 +61,7 @@ public struct PortfolioSummary: Equatable, Sendable {
     }
 
     public let totalMicros: Int64
+    public let arrivingMicros: Int64
     public let netWorth: Int64
     public let cash: Int64
     public let total: String
@@ -69,17 +74,20 @@ public struct PortfolioSummary: Equatable, Sendable {
 
     public var isEmpty: Bool { rows.isEmpty }
 
+    public var hasStaleCabal: Bool { rows.contains { $0.isStale } }
+
     public func netWorthMicros(cashMicros: Int64) -> Int64 {
-        totalMicros + cashMicros
+        max(0, totalMicros + arrivingMicros + cashMicros)
     }
 
     public init(_ portfolio: Components.Schemas.MyPortfolio) {
         rows = portfolio.cabals.map { Row($0, cabalCount: portfolio.cabals.count) }
         stats = ProfileStats(portfolio)
         totalMicros = portfolio.totalValueMicros
+        arrivingMicros = portfolio.arrivingMicros ?? 0
         netWorth = portfolio.netWorthMicros
         cash = portfolio.cashMicros
-        total = UsdAmountFormatter.format(micros: portfolio.totalValueMicros)
+        total = UsdAmountFormatter.format(flooredMicros: portfolio.totalValueMicros)
         pnl = UsdAmountFormatter.format(signedMicros: portfolio.pnlMicros)
         returnText = Self.percent(portfolio.returnBps)
         direction = Direction(signedMicros: portfolio.pnlMicros)

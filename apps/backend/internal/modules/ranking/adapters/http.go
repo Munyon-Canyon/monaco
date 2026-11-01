@@ -150,8 +150,9 @@ func (h HTTP) GetMyPnlHistory(
 	if err != nil {
 		return nil, err
 	}
+	known := bps != nil
 	out := api.MyPnlHistory{
-		Range: api.MyPnlHistoryRange(rng), PnlMicros: gain.Int64(), ReturnBps: int64(bps),
+		Range: api.MyPnlHistoryRange(rng), PnlMicros: gain.Int64(), ReturnBps: int64(bps.OrZero()), ReturnKnown: &known,
 		Points: make([]api.PnlPoint, 0, len(points)),
 	}
 	for _, p := range points {
@@ -261,10 +262,12 @@ func wirePortfolio(view app.PortfolioView) (api.MyPortfolio, error) {
 	if cash > math.MaxInt64 || netWorth > math.MaxInt64 {
 		return api.MyPortfolio{}, errs.New(errs.CodeInternal, op, slog.Uint64("cash", cash))
 	}
+	arriving := view.Arriving.Int64()
 	out := api.MyPortfolio{
 		CashMicros: int64(cash), NetWorthMicros: int64(netWorth),
 		TotalValueMicros: int64(total), PnlMicros: view.PnL.Int64(), ReturnBps: bpsOf(view.Return),
-		ComputedAt: view.ComputedAt, PricesAsOf: view.PricesAsOf, Cabals: make([]api.PortfolioCabal, 0, len(view.Rows)),
+		ArrivingMicros: &arriving, ComputedAt: view.ComputedAt, PricesAsOf: view.PricesAsOf,
+		Cabals: make([]api.PortfolioCabal, 0, len(view.Rows)),
 	}
 	for _, row := range view.Rows {
 		value, shares, pot := row.Value.Uint64(), row.Shares.Uint64(), row.PotValue.Uint64()
@@ -281,7 +284,9 @@ func wirePortfolio(view app.PortfolioView) (api.MyPortfolio, error) {
 		}
 		ref := cabalRef(card)
 		member := view.Members[row.CabalID]
+		rowArriving, stale := row.Arriving.Int64(), row.Stale
 		out.Cabals = append(out.Cabals, api.PortfolioCabal{
+			ArrivingMicros: &rowArriving, Stale: &stale,
 			Cabal: ref, ValueMicros: int64(value), ShareUnits: int64(shares), NetContributedMicros: row.Net.Int64(),
 			PnlMicros: row.PnL.Int64(), ReturnBps: bpsOf(row.Return), SliceBps: int64(row.SliceBps),
 			OwnershipBps: row.OwnershipBps, Role: api.PortfolioCabalRole(member.Role), CanVote: member.CanVote,

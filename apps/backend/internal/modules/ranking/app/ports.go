@@ -71,7 +71,7 @@ func (UnwiredFollows) FollowingIDs(context.Context, ids.UserID) ([]ids.UserID, e
 }
 
 type RangeSnapshots interface {
-	SnapshotsAt(context.Context, []time.Time) ([]sqlc.SnapshotsAtRow, error)
+	SnapshotsAt(context.Context, sqlc.SnapshotsAtParams) ([]sqlc.SnapshotsAtRow, error)
 }
 
 type Ports struct {

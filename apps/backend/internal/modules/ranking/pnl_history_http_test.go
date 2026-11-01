@@ -97,9 +97,17 @@ func TestPnLHistory_TwoCabalsSumAndAnEmptyCallerHasNoPoints(t *testing.T) {
 	if len(got.Points) == 0 || last.EquityMicros != 160_000_000 || last.PnlMicros != 10_000_000 {
 		t.Fatalf("last point = %+v of %d, want equity 160M and P&L 10M across both cabals", last, len(got.Points))
 	}
+	if got.ReturnKnown == nil || !*got.ReturnKnown {
+		t.Fatalf("return_known = %v, want true with a base", got.ReturnKnown)
+	}
 	stranger := ids.UserIDFrom(ids.Real{}.NewV7())
-	if empty := pnlHistory(t, s, stranger, ""); empty.Points == nil || len(empty.Points) != 0 {
+	empty := pnlHistory(t, s, stranger, "")
+	if empty.Points == nil || len(empty.Points) != 0 {
 		t.Fatalf("a caller with no stake = %+v, want empty points", empty)
+	}
+	if empty.ReturnKnown == nil || *empty.ReturnKnown || empty.ReturnBps != 0 {
+		t.Fatalf("a caller with no stake = %v known, %d bps, want no return rather than 0.0%%",
+			empty.ReturnKnown, empty.ReturnBps)
 	}
 }
 

@@ -15,5 +15,7 @@ SELECT DISTINCT ON (snapshots.cabal_id, bucket.idx)
   (bucket.idx - 1)::int AS bucket, snapshots.cabal_id, snapshots.at, snapshots.value_micros,
   snapshots.nav_per_share_micros, snapshots.total_shares
 FROM unnest(sqlc.arg(ts)::timestamptz[]) WITH ORDINALITY AS bucket(t, idx)
-JOIN cabal_value_snapshots AS snapshots ON snapshots.at <= bucket.t
+JOIN cabal_value_snapshots AS snapshots
+  ON snapshots.at <= bucket.t
+  AND snapshots.at >= bucket.t - sqlc.arg(lookback_seconds)::bigint * interval '1 second'
 ORDER BY snapshots.cabal_id, bucket.idx, snapshots.at DESC;
