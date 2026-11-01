@@ -44,6 +44,30 @@ func newAccess(t *testing.T) accessFixture {
 	}
 }
 
+type sqlBlocks struct{ pool *pgxpool.Pool }
+
+func (b sqlBlocks) BlockedEitherWay(ctx context.Context, a, c ids.UserID) (bool, error) {
+	var blocked bool
+	err := b.pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM user_blocks
+		WHERE (blocker_id = $1 AND blocked_id = $2) OR (blocker_id = $2 AND blocked_id = $1))`,
+		a.UUID(), c.UUID()).Scan(&blocked)
+	return blocked, err
+}
+
+func (f accessFixture) blocks() sqlBlocks { return sqlBlocks{pool: f.pool} }
+
+type failingBlocks struct{}
+
+func (failingBlocks) BlockedEitherWay(context.Context, ids.UserID, ids.UserID) (bool, error) {
+	return false, errs.New(errs.CodeInternal, "test.Blocks")
+}
+
+func (f accessFixture) block(t *testing.T, blocker, blocked ids.UserID) {
+	t.Helper()
+	f.exec(t, `INSERT INTO user_blocks (id, blocker_id, blocked_id, created_at) VALUES ($1, $2, $3, $4)`,
+		ids.Real{}.NewV7(), blocker.UUID(), blocked.UUID(), f.clock.Now())
+}
+
 func as(ctx context.Context, user ids.UserID) context.Context {
 	return auth.WithActor(ctx, auth.Actor{Kind: auth.ActorUser, ID: user.String(), Standing: auth.StandingActive})
 }
@@ -280,7 +304,7 @@ func (f accessFixture) routes(users app.UserCards) adapters.HTTP {
 		Join:    app.NewJoinCabalHandler(f.uow, f.clock),
 		Request: app.NewRequestAccessHandler(f.uow, f.ids, f.clock, nil),
 		Revoke:  app.NewRevokeAccessHandler(f.uow, f.clock),
-		Decide:  app.NewDecideAccessHandler(f.uow, f.clock),
+		Decide:  app.NewDecideAccessHandler(f.uow, f.blocks(), f.clock),
 		Update:  app.NewUpdateCabalHandler(f.uow, f.clock),
 		Picture: app.NewSetCabalPictureHandler(f.uow, f.pool, f.ids, f.clock, nil),
 		Invite:  f.inviteHandler(),

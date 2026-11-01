@@ -294,6 +294,12 @@ func (m *Module) Chat() interface {
 	return app.NewUnread(m.deps.Pool)
 }
 
+func (m *Module) Blocks() interface {
+	BlockedEitherWay(context.Context, ids.UserID, ids.UserID) (bool, error)
+} {
+	return app.NewActivityStore(m.deps.Pool)
+}
+
 func (m *Module) CommentPreviews() app.CommentPreviews {
 	return app.NewCommentPreviews(m.deps.Pool, m.users)
 }

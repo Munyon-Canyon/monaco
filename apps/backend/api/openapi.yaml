@@ -806,6 +806,11 @@ paths:
       operationId: postCabalAccessRequest
       tags: [cabal]
       x-idempotent: true
+      x-rate-limit:
+        actor:
+          rate: 20
+          per: 1h
+          burst: 20
       summary: Ask to join a request cabal.
       description: >-
         Files a pending request that the creator approves or denies. An open cabal refuses with
@@ -841,9 +846,14 @@ paths:
       operationId: deleteCabalAccessRequest
       tags: [cabal]
       x-idempotent: true
+      x-rate-limit:
+        actor:
+          rate: 20
+          per: 1h
+          burst: 20
       summary: Withdraw a pending request or invite.
       description: >-
-        The requester withdraws their own request. The inviter or the creator withdraws an invite.
+        The requester withdraws their own request. A current admin withdraws an invite.
         A replay returns the first response.
       parameters:
         - name: id
@@ -875,8 +885,10 @@ paths:
       summary: Approve or deny a pending request or invite.
       description: >-
         The creator decides a request. The invitee accepts or declines an invite. Approving adds the
-        member in the same transaction; the member can vote when the cabal's voter_mode is all.
-        A replay returns the first response.
+        member in the same transaction; the member can vote when the cabal's voter_mode is all. An invite
+        whose inviter has left, lost the admin role or is blocked by or has blocked the invitee can be declined
+        but not accepted: accepting refuses with access_request_not_pending. Approving the request of someone
+        who already joined closes it as approved without a second join. A replay returns the first response.
       parameters:
         - name: id
           in: path
@@ -948,8 +960,8 @@ paths:
       description: >-
         Only an admin of the cabal invites, whatever its join mode. The invite
         stays pending for 7 days, and the invitee accepts or declines it through the decision route.
-        A user with a pending request or invite is refused with request_pending. A replay returns the
-        first response.
+        A user with a pending request or invite is refused with request_pending. A user who blocked the
+        caller, or whom the caller blocked, is refused with user_not_found. A replay returns the first response.
       parameters:
         - name: id
           in: path
@@ -1023,6 +1035,11 @@ paths:
       operationId: postCabalMember
       tags: [cabal]
       x-idempotent: true
+      x-rate-limit:
+        actor:
+          rate: 20
+          per: 1h
+          burst: 20
       summary: Join an open cabal.
       description: >-
         Adds the caller as a member of an open cabal at once. The caller can vote when the cabal's voter_mode is all.
@@ -1050,6 +1067,11 @@ paths:
       operationId: deleteCabalMemberMe
       tags: [cabal]
       x-idempotent: true
+      x-rate-limit:
+        actor:
+          rate: 20
+          per: 1h
+          burst: 20
       summary: Leave a cabal.
       description: >-
         Removes the caller from the cabal, banned or not. A caller holding shares is refused with

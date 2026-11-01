@@ -165,16 +165,33 @@ func TestRevokeAccess_withdrawsTheRequestersPendingRequest(t *testing.T) {
 	}
 }
 
-func TestRevokeAccess_letsTheInviterOrTheCreatorWithdrawAnInvite(t *testing.T) {
+func TestRevokeAccess_letsOnlyACurrentAdminWithdrawAnInvite(t *testing.T) {
 	t.Parallel()
 	f := newAccess(t)
-	c := testkit.NewCabal(t, f.pool, testkit.WithMembers(2))
-	inviter := c.Members[1].ID
+	c := testkit.NewCabal(t, f.pool, testkit.WithMembers(3))
+	inviter, plain := c.Members[1].ID, c.Members[2].ID
+	f.makeAdmin(t, c.ID, inviter)
 	for _, by := range []ids.UserID{inviter, c.Creator.ID} {
 		invite := f.invite(t, c.ID, f.user(t), inviter)
 		if got, err := f.revoke(t.Context(), by, c.ID, invite); err != nil || got.Status != "revoked" {
 			t.Fatalf("revoke by %s = %+v, %v", by, got, err)
 		}
+	}
+	invite := f.invite(t, c.ID, f.user(t), inviter)
+	if _, err := f.revoke(t.Context(), plain, c.ID, invite); errs.CodeOf(err) != errs.CodeCannotRevokeAccess {
+		t.Fatalf("revoke by a plain member: err = %v, want %s", err, errs.CodeCannotRevokeAccess)
+	}
+	f.exec(t, `UPDATE cabal_members SET role = 'member' WHERE cabal_id = $1 AND user_id = $2`,
+		c.ID.UUID(), inviter.UUID())
+	if _, err := f.revoke(t.Context(), inviter, c.ID, invite); errs.CodeOf(err) != errs.CodeCannotRevokeAccess {
+		t.Fatalf("revoke by a demoted inviter: err = %v, want %s", err, errs.CodeCannotRevokeAccess)
+	}
+	f.exec(t, `DELETE FROM cabal_members WHERE cabal_id = $1 AND user_id = $2`, c.ID.UUID(), inviter.UUID())
+	if _, err := f.revoke(t.Context(), inviter, c.ID, invite); errs.CodeOf(err) != errs.CodeCannotRevokeAccess {
+		t.Fatalf("revoke by an inviter who left: err = %v, want %s", err, errs.CodeCannotRevokeAccess)
+	}
+	if got := f.accessRow(t, invite).status; got != "pending" {
+		t.Fatalf("invite status = %s, want it still pending", got)
 	}
 }
 
