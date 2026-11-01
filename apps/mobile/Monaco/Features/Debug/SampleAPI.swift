@@ -620,7 +620,8 @@ nonisolated extension SampleAPIProtocol {
         id: String, name: String = "QA pot", _ script: SampleAPIScript
     ) -> Components.Schemas.MyCabal {
         Components.Schemas.MyCabal(
-            id: id, name: name, pictureUrl: script.pictureURL, role: script.role ?? "member", canVote: true,
+            id: id, name: name, pictureUrl: script.pictureURL,
+            status: "active", role: script.role ?? "member", canVote: true,
             memberCount: 3,
             joinedAt: Date(timeIntervalSince1970: 1_790_000_000), pendingRequestCount: 0,
             unreadCount: script.unreadCount)

@@ -23,6 +23,7 @@ public final class ProposeFromAssetModel {
         if case .loaded = state {} else { state = .loading }
         do {
             let mine = try await api.read { try await $0.getMyCabals().ok.body.json }
+                .filter { !CabalClosedModel.isReadOnly($0.status) }
             var voting = mine.filter(\.canVote)
             if kind == .sell { voting = try await holding(voting, symbol: symbol) }
             memberOfAnyCabal = !mine.isEmpty

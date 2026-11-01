@@ -15,7 +15,8 @@ final class ProfileCabalsModelTests: XCTestCase {
     private func cabals() throws -> String {
         try json([
             Components.Schemas.MyCabal(
-                id: Components.Schemas.CabalRef.sampleAlpha.id, name: "Alpha", pictureUrl: nil, role: "admin",
+                id: Components.Schemas.CabalRef.sampleAlpha.id, name: "Alpha", pictureUrl: nil,
+                status: "active", role: "admin",
                 canVote: true, memberCount: 3, joinedAt: Date(timeIntervalSince1970: 0), pendingRequestCount: 0,
                 unreadCount: 0)
         ])

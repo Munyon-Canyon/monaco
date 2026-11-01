@@ -30,7 +30,13 @@ extension Components.Schemas.Cabal {
 
     public static func sampleBanned(role: String?) -> Self {
         var cabal = sample(role: role)
-        cabal.status = "banned"
+        cabal.status = "winding_down"
+        return cabal
+    }
+
+    public static func sampleClosed(role: String?) -> Self {
+        var cabal = sample(role: role)
+        cabal.status = "closed"
         return cabal
     }
 

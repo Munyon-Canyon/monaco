@@ -20,7 +20,7 @@ private struct CabalChatPreviewLive: View {
 
     private var isMember: Bool {
         guard let cabal = cabalModel?.cabal else { return false }
-        return cabal.me != nil && cabal.status != CabalClosedModel.closedStatus
+        return cabal.me != nil && !CabalClosedModel.isReadOnly(cabal.status)
     }
 
     var body: some View {

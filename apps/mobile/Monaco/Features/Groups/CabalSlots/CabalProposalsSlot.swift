@@ -16,6 +16,7 @@ struct CabalProposals: View {
     @Environment(ToastCenter.self) private var toasts
     @Environment(\.hostMainTab) private var hostMainTab
     @Environment(ScreenRefresh.self) private var refresh: ScreenRefresh?
+    @Environment(\.cabalModel) private var cabalModel
     @State private var model: ProposalListModel?
     @State private var assets = CabalProposalAssets()
     private let makeModel: @MainActor (AppEnvironment, String) -> ProposalListModel
@@ -41,8 +42,12 @@ struct CabalProposals: View {
             .onScreenVisibilityChange { model?.setVisible($0) }
     }
 
+    private var isReadOnly: Bool {
+        cabalModel?.cabal.map { CabalClosedModel.isReadOnly($0.status) } ?? false
+    }
+
     @ViewBuilder private var content: some View {
-        if let model {
+        if let model, !isReadOnly {
             let open = Self.open(model.pager.items)
             if open.isEmpty {
                 switch model.pager.phase {

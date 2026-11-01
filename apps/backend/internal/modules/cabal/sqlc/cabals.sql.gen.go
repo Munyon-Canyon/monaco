@@ -208,6 +208,23 @@ func (q *Queries) FindCabal(ctx context.Context, id uuid.UUID) (FindCabalRow, er
 	return i, err
 }
 
+const findCabalLifecycle = `-- name: FindCabalLifecycle :one
+SELECT CASE
+    WHEN c.status <> 'banned' THEN 'active'
+    WHEN EXISTS (SELECT 1 FROM cabal_winddowns w WHERE w.cabal_id = c.id AND w.status = 'completed') THEN 'closed'
+    ELSE 'winding_down'
+  END::text AS lifecycle
+FROM cabals c
+WHERE c.id = $1
+`
+
+func (q *Queries) FindCabalLifecycle(ctx context.Context, id uuid.UUID) (string, error) {
+	row := q.db.QueryRow(ctx, findCabalLifecycle, id)
+	var lifecycle string
+	err := row.Scan(&lifecycle)
+	return lifecycle, err
+}
+
 const insertCabal = `-- name: InsertCabal :execrows
 INSERT INTO cabals (id, name, creator_id, join_mode, voter_mode, threshold, proposal_expiry_seconds, slippage_bps,
   show_sides, show_sides_changed_at, max_trade_bps, created_at, updated_at)
@@ -323,6 +340,11 @@ func (q *Queries) ListCabals(ctx context.Context, cabalIds []uuid.UUID) ([]ListC
 
 const listMyCabals = `-- name: ListMyCabals :many
 SELECT c.id, c.name, c.picture_url, m.role, m.can_vote, m.joined_at,
+  CASE
+    WHEN c.status <> 'banned' THEN 'active'
+    WHEN EXISTS (SELECT 1 FROM cabal_winddowns w WHERE w.cabal_id = c.id AND w.status = 'completed') THEN 'closed'
+    ELSE 'winding_down'
+  END::text AS lifecycle,
   (SELECT count(*) FROM cabal_members cm WHERE cm.cabal_id = c.id)::int AS member_count,
   CASE WHEN m.role IN ('creator', 'admin') AND c.join_mode = 'request' THEN
     (SELECT count(*) FROM cabal_access_requests ar
@@ -348,6 +370,7 @@ type ListMyCabalsRow struct {
 	Role                string
 	CanVote             bool
 	JoinedAt            time.Time
+	Lifecycle           string
 	MemberCount         int32
 	PendingRequestCount int32
 }
@@ -368,6 +391,7 @@ func (q *Queries) ListMyCabals(ctx context.Context, userID uuid.UUID) ([]ListMyC
 			&i.Role,
 			&i.CanVote,
 			&i.JoinedAt,
+			&i.Lifecycle,
 			&i.MemberCount,
 			&i.PendingRequestCount,
 		); err != nil {

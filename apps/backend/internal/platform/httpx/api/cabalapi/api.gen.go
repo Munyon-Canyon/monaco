@@ -193,7 +193,7 @@ type Cabal struct {
 	// Examples: {"join_mode":"open","max_trade_bps":null,"proposal_expiry_seconds":86400,"show_sides":false,"show_sides_since":null,"slippage_bps":100,"threshold":"majority","voter_mode":"all","who_can_propose":"voters"}
 	Rules CabalRules `json:"rules"`
 
-	// Status `active` or `banned`.
+	// Status `active`, `winding_down` while a banned cabal pays its members out, or `closed` once the wind-down has completed. A cabal that is not `active` is read-only: it refuses proposals, votes, funds and invites, and a member can still cash out while it is winding down.
 	//
 	// Examples: active
 	Status string `json:"status"`
@@ -630,6 +630,11 @@ type MyCabal struct {
 	//
 	// Examples: creator
 	Role string `json:"role"`
+
+	// Status `active`, `winding_down` while a banned cabal pays its members out, or `closed` once the wind-down has completed. A cabal that is not `active` is read-only.
+	//
+	// Examples: active
+	Status string `json:"status"`
 
 	// UnreadCount Chat messages in the channel the caller has not seen, at most 100.
 	//

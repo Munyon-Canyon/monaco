@@ -129,6 +129,10 @@ The `cabal_standing` consumer keeps both out of every electorate, so a cabal's v
 - When a cabal then has no `creator` or `admin`, the longest-standing member who is not suspended becomes `admin` (`joined_at`, then `user_id`) and `cabal.updated` carries them in `admin_ids`. A cabal with no such member stays without one.
 - Proposals already open keep the electorate they were created with.
 
+### Cabal status
+
+`GET /v1/cabals/{id}` and each `GET /v1/me/cabals` row carry a `status` of `active`, `winding_down` or `closed`. The `cabals.status` column stays `active` or `banned`; the read derives the rest. A banned cabal is `winding_down` until its `cabal_winddowns` row is `completed`, then `closed`, and a reopened wind-down reads `winding_down` again. A member of a banned cabal still reads the cabal and the pot with their stake (neither read checks the ban), so the app shows it read-only: no propose, vote, fund or invite, with cash out still open.
+
 ### Treasury wallet
 
 - `CreateCabal` creates the treasury synchronously through `platform/chain`, as an app-owned Privy wallet ([backend-platform.md](backend-platform.md#table-ownership)).

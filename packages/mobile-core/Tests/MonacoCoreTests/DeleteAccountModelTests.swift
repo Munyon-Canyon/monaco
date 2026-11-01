@@ -243,7 +243,7 @@ final class DeleteAccountModelTests: XCTestCase {
 
     private static func cabals(_ names: [String]) -> String {
         let rows = names.enumerated().map { index, name in
-            #"{"id":"\#(cabalID(60 + index))","name":"\#(name)","picture_url":null,"#
+            #"{"id":"\#(cabalID(60 + index))","name":"\#(name)","picture_url":null,"status":"active","#
                 + #""role":"member","can_vote":true,"member_count":2,"joined_at":"2026-10-02T15:00:00Z","#
                 + #""pending_request_count":0,"unread_count":0}"#
         }

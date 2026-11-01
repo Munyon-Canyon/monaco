@@ -76,7 +76,7 @@ struct CabalActionsRow: View {
 
     @ViewBuilder private var content: some View {
         CabalEmptyReader { isEmpty in
-            if isEmpty || cabalModel?.cabal?.status == CabalClosedModel.closedStatus {
+            if isEmpty || cabalModel?.cabal.map({ CabalClosedModel.isReadOnly($0.status) }) == true {
                 Color.clear.frame(height: 0)
             } else {
                 actionsContent
