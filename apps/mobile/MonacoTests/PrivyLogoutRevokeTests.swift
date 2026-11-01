@@ -1,3 +1,4 @@
+import MonacoAPI
 import MonacoCore
 import Synchronization
 import Testing
@@ -26,6 +27,7 @@ private nonisolated struct RecordingDevices: DeviceRegistering {
 }
 
 @MainActor
+@Suite(.serialized)
 struct PrivyLogoutRevokeTests {
     private func service(recording revoked: RevokedTokens) -> PrivyAuthService {
         let auth = PrivyAuthService.processInstance ?? PrivyAuthService()
@@ -137,6 +139,40 @@ struct PrivyLogoutRevokeTests {
         let ended = await auth.endAllSessions()
 
         #expect(!ended)
+    }
+
+    @Test func signingOutOfAllDevicesEndsTheSessionOnlyAfterTheServerEndedThem() async {
+        var ended: [String] = []
+        let auth = PrivyAuthService.processInstance ?? PrivyAuthService()
+        auth.adoptDevAccessToken("copied-token")
+        auth.revokeEverywhere = { _ in true }
+        let environment = AppEnvironment(
+            auth: auth, hints: FakeHintSource(), isAuthenticated: { true },
+            endAuthSession: { ended.append("member") }, endExpiredSession: { ended.append($0) })
+        environment.viewer = Viewer(userID: "u-1", handle: nil)
+
+        let result = await environment.signOutEverywhere()
+
+        #expect(result)
+        #expect(ended == ["member"])
+        #expect(environment.viewer == nil)
+    }
+
+    @Test func aFailedSignOutOfAllDevicesKeepsTheMemberSignedIn() async {
+        var ended: [String] = []
+        let auth = PrivyAuthService.processInstance ?? PrivyAuthService()
+        auth.adoptDevAccessToken("copied-token")
+        auth.revokeEverywhere = { _ in false }
+        let environment = AppEnvironment(
+            auth: auth, hints: FakeHintSource(), isAuthenticated: { true },
+            endAuthSession: { ended.append("member") }, endExpiredSession: { ended.append($0) })
+        environment.viewer = Viewer(userID: "u-1", handle: nil)
+
+        let result = await environment.signOutEverywhere()
+
+        #expect(!result)
+        #expect(ended.isEmpty)
+        #expect(environment.viewer != nil)
     }
 }
 #endif
