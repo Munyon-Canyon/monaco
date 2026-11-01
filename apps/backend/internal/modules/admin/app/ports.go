@@ -17,6 +17,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
 type UserReader interface {
@@ -104,6 +105,6 @@ type EventQueue interface {
 	CountUnpublished(ctx context.Context, olderThan time.Duration) (int, error)
 }
 
-type DeadLetterCounter interface {
-	CountOpen(ctx context.Context) (int, error)
+type QueueSummary interface {
+	Summarize(ctx context.Context, olderThan time.Duration) ([]money.StuckSummary, error)
 }

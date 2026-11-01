@@ -2,23 +2,38 @@ package adapters
 
 import (
 	"context"
+	"time"
+
+	"github.com/google/uuid"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/admin/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/admin/sqlc"
+	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	api "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/adminapi"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
 const defaultQueuePage = 50
 
-type DeadLetterCount struct{ DB sqlc.DBTX }
+type QueueSummary struct {
+	DB    sqlc.DBTX
+	Clock clock.Clock
+}
 
-func (c DeadLetterCount) CountOpen(ctx context.Context) (int, error) {
-	n, err := sqlc.New(c.DB).CountOpenDeadLetters(ctx)
+func (s QueueSummary) Summarize(ctx context.Context, olderThan time.Duration) ([]money.StuckSummary, error) {
+	now := s.Clock.Now()
+	rows, err := sqlc.New(s.DB).SummarizeAdminQueues(ctx, sqlc.SummarizeAdminQueuesParams{
+		Now: now, CreatedBefore: now.Add(-olderThan),
+	})
 	if err != nil {
-		return 0, errs.Wrap(err, errs.CodeDBUnavailable, "admin.DeadLetterCount.CountOpen")
+		return nil, errs.Wrap(err, errs.CodeDBUnavailable, "admin.QueueSummary.Summarize")
 	}
-	return int(n), nil
+	out := make([]money.StuckSummary, len(rows))
+	for i, r := range rows {
+		out[i] = money.StuckSummary{Kind: r.Kind, Count: int(r.Total), Oldest: r.Oldest}
+	}
+	return out, nil
 }
 
 func (h HTTP) GetAdminQueues(
@@ -31,6 +46,10 @@ func (h HTTP) GetAdminQueues(
 	body := api.AdminQueues{Queues: make([]api.AdminQueue, len(counts))}
 	for i, c := range counts {
 		body.Queues[i] = api.AdminQueue{Name: c.Name, Count: int64(c.Count), Href: c.Href}
+		if c.Oldest > 0 {
+			age := int64(c.Oldest.Seconds())
+			body.Queues[i].OldestAgeSeconds = &age
+		}
 	}
 	return api.GetAdminQueues200JSONResponse(body), nil
 }
@@ -62,6 +81,35 @@ func (h HTTP) GetStuckTxns(
 		}
 	}
 	return api.GetStuckTxns200JSONResponse(body), nil
+}
+
+func (h HTTP) GetStuckMoney(
+	ctx context.Context, req api.GetStuckMoneyRequestObject,
+) (api.GetStuckMoneyResponseObject, error) {
+	olderThan, err := app.ParseOlderThan(derefString(req.Params.OlderThan), app.StuckAfter)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := h.Queues.StuckMoney(ctx, derefString(req.Params.Kind), olderThan, queuePage(req.Params.Limit))
+	if err != nil {
+		return nil, err
+	}
+	body := api.StuckMoneyRows{Items: make([]api.StuckMoneyRow, len(rows))}
+	for i, r := range rows {
+		body.Items[i] = api.StuckMoneyRow{
+			Kind: api.StuckMoneyKind(r.Kind), Ref: r.Ref, UserId: nilUnlessSet(r.UserID),
+			CabalId: nilUnlessSet(r.CabalID), Status: r.Status, Since: r.Since.UTC(),
+			AgeSeconds: int64(r.Age.Seconds()),
+		}
+	}
+	return api.GetStuckMoney200JSONResponse(body), nil
+}
+
+func nilUnlessSet(id uuid.UUID) *uuid.UUID {
+	if id == uuid.Nil {
+		return nil
+	}
+	return &id
 }
 
 func (h HTTP) GetUnpublishedEvents(

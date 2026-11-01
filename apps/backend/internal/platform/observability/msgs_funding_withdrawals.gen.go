@@ -8,5 +8,6 @@ func init() {
 		FundingWithdrawalBroadcastFailed,
 		FundingWithdrawalNeedsSupport,
 		FundingWithdrawalAuthorized,
+		FundingWithdrawalEVMPending,
 	)
 }

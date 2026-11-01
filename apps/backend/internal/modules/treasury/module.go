@@ -364,6 +364,10 @@ func (m *Module) DashboardOn(db dbsqlc.DBTX) adapters.Dashboard {
 	return adapters.NewDashboard(db, chain.SolanaAddress(m.deps.Config.Solana.USDCMint))
 }
 
+func (m *Module) StuckMoney() app.StuckMoney {
+	return app.StuckMoney{Reads: m.deps.Pool, Clock: m.deps.Clock}
+}
+
 func (m *Module) TopHoldings() *app.TopHoldings { return app.NewTopHoldings(m.deps.Pool) }
 
 func (m *Module) Ledger() *app.LedgerReads { return app.NewLedgerReads(m.deps.Pool) }

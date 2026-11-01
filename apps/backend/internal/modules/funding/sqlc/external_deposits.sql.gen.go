@@ -183,6 +183,60 @@ func (q *Queries) InsertExternalDeposit(ctx context.Context, arg InsertExternalD
 	return result.RowsAffected(), nil
 }
 
+const listExternalDepositsByStatus = `-- name: ListExternalDepositsByStatus :many
+SELECT id, cabal_id, status, coalesce(return_address, '')::text AS return_address, mint, amount::text AS amount,
+  bounce_attempts, detected_at
+FROM external_deposits
+WHERE status = ANY($1::text[])
+ORDER BY detected_at, id
+LIMIT $2::bigint
+`
+
+type ListExternalDepositsByStatusParams struct {
+	Statuses []string
+	RowLimit int64
+}
+
+type ListExternalDepositsByStatusRow struct {
+	ID             uuid.UUID
+	CabalID        uuid.UUID
+	Status         string
+	ReturnAddress  string
+	Mint           string
+	Amount         string
+	BounceAttempts int32
+	DetectedAt     time.Time
+}
+
+func (q *Queries) ListExternalDepositsByStatus(ctx context.Context, arg ListExternalDepositsByStatusParams) ([]ListExternalDepositsByStatusRow, error) {
+	rows, err := q.db.Query(ctx, listExternalDepositsByStatus, arg.Statuses, arg.RowLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListExternalDepositsByStatusRow
+	for rows.Next() {
+		var i ListExternalDepositsByStatusRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.CabalID,
+			&i.Status,
+			&i.ReturnAddress,
+			&i.Mint,
+			&i.Amount,
+			&i.BounceAttempts,
+			&i.DetectedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listStaleBounces = `-- name: ListStaleBounces :many
 SELECT id FROM external_deposits
 WHERE status = 'bouncing' AND detected_at < $1::timestamptz

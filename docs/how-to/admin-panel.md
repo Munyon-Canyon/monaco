@@ -45,7 +45,7 @@ Both send `Authorization: Bearer {{ privyToken.value }}`. Every mutating query a
 | Lookups: cabal | `GET /cabals/{id}`, `GET /cabals/{id}/proposals` |
 | Lookups: proposal | `GET /proposals/{id}` |
 | Lookups: transaction | `GET /txns/{id}` by id, `GET /txns?signature=` by signature, with a Solscan link |
-| Queues | `GET /queues/stuck-txns`, `GET /queues/unpublished-events`, `GET /queues/bounces`, `GET /dead-letters` (filters `status`, default `open`, and `consumer`) |
+| Queues | `GET /queues/stuck-txns`, `GET /queues/stuck-money` (see the [money runbook](money-runbook.md)), `GET /queues/unpublished-events`, `GET /queues/bounces`, `GET /dead-letters` (filters `status`, default `open`, and `consumer`) |
 | Approvals | `GET /approvals` (`status`, default `pending`) |
 | Audit | `GET /actions` with filters `admin_id`, `target_type`, `target_id`, `action`, paged with `cursor` and `limit` |
 

@@ -116,3 +116,145 @@ func TestFundingBounce_reportsAnUnreachableDatabase(t *testing.T) {
 		t.Fatalf("hold with no database = %d, stderr %q, want 1 and db.Open", code, stderr.String())
 	}
 }
+
+func TestFundingBounceList_printsTheOpenDepositsByDefault(t *testing.T) {
+	t.Parallel()
+	bounce, id, _ := seededBounce(t)
+	code, stdout, stderr := runOpsTool(t, bounce, "bounce", "list")
+	fields := strings.Split(strings.TrimSuffix(stdout, "\n"), "\t")
+	if code != 0 || len(fields) != 8 || fields[0] != id || fields[2] != "detected" || fields[3] != "25000000" ||
+		fields[4] != "mint" || fields[5] != "-" || fields[6] != "0" {
+		t.Fatalf(
+			"list = %d, stdout %q, stderr %q, want the detected deposit on one tab-separated line",
+			code,
+			stdout,
+			stderr,
+		)
+	}
+}
+
+func TestFundingBounceList_filtersByStatusAndRefusesAnUnknownOne(t *testing.T) {
+	t.Parallel()
+	bounce, _, pool := seededBounce(t)
+	if _, err := pool.Exec(t.Context(),
+		`UPDATE external_deposits SET status = 'bounce_failed', return_address = 'Return1'`); err != nil {
+		t.Fatal(err)
+	}
+	if code, stdout, _ := runOpsTool(t, bounce, "bounce", "list", "bounce_failed", "held"); code != 0 ||
+		!strings.Contains(stdout, "\tbounce_failed\t") || !strings.Contains(stdout, "\tReturn1\t") {
+		t.Fatalf("list bounce_failed = %d, stdout %q, want the failed deposit with its return address", code, stdout)
+	}
+	if code, stdout, _ := runOpsTool(t, bounce, "bounce", "list", "held"); code != 0 || stdout != "" {
+		t.Fatalf("list held = %d, stdout %q, want nothing held", code, stdout)
+	}
+	if code, _, stderr := runOpsTool(t, bounce, "bounce", "list", "bogus"); code != 2 ||
+		!strings.Contains(stderr, fundingUsage) {
+		t.Fatalf("list bogus = %d, stderr %q, want 2 and the usage", code, stderr)
+	}
+}
+
+func seededWatchWallet(t *testing.T, pool *pgxpool.Pool) testkit.SeededUser {
+	t.Helper()
+	user := testkit.SeedUser(t, pool, testkit.UserOpts{WithWallet: true})
+	if _, err := pool.Exec(t.Context(), `INSERT INTO deposit_watch_wallets (wallet_address, user_id, first_seen_slot,
+		first_seen_at) VALUES ($1, $2, 0, now())`, user.Address, user.ID.UUID()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(t.Context(), `INSERT INTO deposit_watch_accounts (token_account, wallet_address, canonical,
+		state, high_signature, recovery_due_at) VALUES ('ata', $1, true, 'open', 'baseline', now())`, user.Address); err != nil {
+		t.Fatal(err)
+	}
+	return user
+}
+
+func watchAccount(t *testing.T, pool *pgxpool.Pool) (high string, dirty, clean int64) {
+	t.Helper()
+	if err := pool.QueryRow(t.Context(), `SELECT coalesce(high_signature, ''), dirty_gen, clean_gen
+		FROM deposit_watch_accounts WHERE token_account = 'ata'`).Scan(&high, &dirty, &clean); err != nil {
+		t.Fatal(err)
+	}
+	return high, dirty, clean
+}
+
+func TestFundingDepositRescan_marksTheWalletForAScan(t *testing.T) {
+	t.Parallel()
+	tl, _, pool := seededBounce(t)
+	user := seededWatchWallet(t, pool)
+	if code, stdout, stderr := runOpsTool(
+		t,
+		tl,
+		"deposit",
+		"rescan",
+		string(user.Address),
+		"--from",
+		"sigX",
+	); code != 0 ||
+		stdout != "rescan "+string(user.Address)+" 1\n" {
+		t.Fatalf("rescan = %d, stdout %q, stderr %q", code, stdout, stderr)
+	}
+	if high, dirty, clean := watchAccount(t, pool); high != "sigX" || dirty <= clean {
+		t.Fatalf("account = %q dirty %d clean %d, want the cursor at sigX and the account dirty", high, dirty, clean)
+	}
+	if code, _, stderr := runOpsTool(t, tl, "deposit", "rescan", string(user.Address)); code != 0 {
+		t.Fatalf("rescan without --from = %d, stderr %q", code, stderr)
+	}
+	if high, _, _ := watchAccount(t, pool); high != "" {
+		t.Fatalf("high_signature = %q, want it cleared", high)
+	}
+}
+
+func TestFundingDepositRescan_refusesAnUnwatchedWalletAndBadArguments(t *testing.T) {
+	t.Parallel()
+	tl, _, pool := seededBounce(t)
+	user := seededWatchWallet(t, pool)
+	stranger := testkit.SeedUser(t, pool, testkit.UserOpts{WithWallet: true})
+	if code, _, stderr := runOpsTool(t, tl, "deposit", "rescan", string(stranger.Address)); code != 1 ||
+		!strings.Contains(stderr, "not_found") {
+		t.Fatalf("rescan of an unwatched wallet = %d, stderr %q, want 1 and not_found", code, stderr)
+	}
+	if code, _, stderr := runOpsTool(t, tl, "deposit", "rescan", "not-an-address"); code != 1 || stderr == "" {
+		t.Fatalf("rescan of a bad address = %d, stderr %q, want 1", code, stderr)
+	}
+	for _, args := range [][]string{
+		{"deposit"},
+		{"deposit", "rescan"},
+		{"deposit", "bogus", "x"},
+		{"deposit", "rescan", string(user.Address), "--since", "sig"},
+		{"deposit", "rescan", string(user.Address), "--from"},
+	} {
+		if code, _, stderr := runOpsTool(t, tl, args...); code != 2 || !strings.Contains(stderr, fundingUsage) {
+			t.Errorf("funding %v = %d, stderr %q, want 2 and the usage", args, code, stderr)
+		}
+	}
+}
+
+func TestFunding_reportsAnUnreachableDatabase(t *testing.T) {
+	t.Parallel()
+	environ := []string{
+		"MONACO_ENV=test", "DATABASE_URL=postgres://127.0.0.1:1/monaco?connect_timeout=1", "NATS_URL=nats://unused",
+	}
+	tl := fundingTool(environ, testkit.NewClock(clock.Real{}.Now().UTC()))
+	for _, args := range [][]string{
+		{"bounce", "list"},
+		{"deposit", "rescan", string(testkit.SeedUser(t, testkit.DB(t), testkit.UserOpts{WithWallet: true}).Address)},
+	} {
+		if code, _, stderr := runOpsTool(
+			t,
+			tl,
+			args...); code != 1 ||
+			!strings.Contains(stderr, "monacoctl: db.Open: ") {
+			t.Errorf("funding %v with no database = %d, stderr %q, want 1 and db.Open", args, code, stderr)
+		}
+	}
+}
+
+func TestFundingBounceList_reportsAFailedRead(t *testing.T) {
+	t.Parallel()
+	bounce, _, pool := seededBounce(t)
+	if _, err := pool.Exec(t.Context(), `ALTER TABLE external_deposits RENAME TO external_deposits_gone`); err != nil {
+		t.Fatal(err)
+	}
+	if code, _, stderr := runOpsTool(t, bounce, "bounce", "list"); code != 1 || stderr == "" {
+		t.Fatalf("list with the table gone = %d, stderr %q, want 1", code, stderr)
+	}
+}

@@ -19,3 +19,8 @@ var FundingWithdrawalAuthorized = Msg{
 	Name:     "funding.withdrawal.authorized",
 	Required: []string{"authorization_id", "user_id", "amount_micros", "network"},
 }
+
+var FundingWithdrawalEVMPending = Msg{
+	Name:     "funding.withdrawal.evm_pending",
+	Required: []string{"withdrawal_id", "user_id", "privy_action_id", "submitted_at"},
+}

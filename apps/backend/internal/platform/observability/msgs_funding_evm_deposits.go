@@ -19,3 +19,8 @@ var FundingEVMForwardArrivingUnavailable = Msg{
 	Name:     "funding.evm_forward.arriving_unavailable",
 	Required: []string{"user_id", "code"},
 }
+
+var FundingEVMForwardFailed = Msg{
+	Name:     "funding.evm_forward.failed",
+	Required: []string{"forward_id", "user_id", "network", "failed_since"},
+}

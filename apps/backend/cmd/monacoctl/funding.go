@@ -6,11 +6,14 @@ import (
 	"io"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding"
+	fundingapp "github.com/monaco/monaco/apps/backend/internal/modules/funding/app"
 	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
@@ -21,7 +24,16 @@ import (
 const fundingUsage = `usage: monacoctl funding bounce <command> <external-deposit-id> [args]
   set-return-address <id> <address>  send the bounce to <address>; only while detected or bounce_failed
   retry <id>                         sign and send a new bounce for a bounce_failed deposit
-  hold <id>                          keep a detected or bounce_failed deposit as unclaimed and end its pause`
+  hold <id>                          keep a detected or bounce_failed deposit as unclaimed and end its pause
+
+usage: monacoctl funding bounce list [status ...]
+  lists external deposits by status, oldest first: id, cabal, status, amount, mint, return address, attempts,
+  detected at. The default is detected, bouncing and bounce_failed.
+
+usage: monacoctl funding deposit rescan <wallet> [--from <signature>]
+  scans the wallet again from its first sight, or after <signature>; credits stay idempotent`
+
+const bounceListLimit = 200
 
 func toolFunding(env toolEnv) tool { return fundingTool(env.environ, clock.Real{}) }
 
@@ -64,6 +76,9 @@ func operatorOf(environ []string) string {
 
 func fundingTool(environ []string, clk clock.Clock) tool {
 	bounce := func(cfg config.Config, args []string, stdout, stderr io.Writer) int {
+		if firstArg(args) == "list" {
+			return listBounces(cfg, args[1:], stdout, stderr)
+		}
 		action, ok := bounceActions()[firstArg(args)]
 		if !ok || len(args) != 2+action.args {
 			_, _ = fmt.Fprintln(stderr, fundingUsage)
@@ -93,7 +108,12 @@ func fundingTool(environ []string, clk clock.Clock) tool {
 			return 0
 		}
 		return run(
-			map[string]command{"bounce": bounce},
+			map[string]command{
+				"bounce": bounce,
+				"deposit": func(cfg config.Config, args []string, stdout, stderr io.Writer) int {
+					return depositCommand(cfg, clk, args, stdout, stderr)
+				},
+			},
 			nil,
 			environ,
 			args,
@@ -108,4 +128,73 @@ func firstArg(args []string) string {
 		return ""
 	}
 	return args[0]
+}
+
+func listBounces(cfg config.Config, args []string, stdout, stderr io.Writer) int {
+	statuses := args
+	if len(statuses) == 0 {
+		statuses = fundingapp.OpenBounceStatuses()
+	}
+	for _, status := range statuses {
+		if !slices.Contains(fundingapp.ExternalDepositStatuses(), status) {
+			_, _ = fmt.Fprintf(stderr, "unknown status %q\n%s\n", status, fundingUsage)
+			return 2
+		}
+	}
+	ctx := auth.WithActor(context.Background(), auth.Actor{Kind: auth.ActorSystem, ID: "monacoctl"})
+	pool, err := db.Open(ctx, cfg.DB)
+	if err != nil {
+		return fail(stderr, err)
+	}
+	defer pool.Close()
+	rows, err := fundingapp.BounceQueue(ctx, pool, statuses, bounceListLimit)
+	if err != nil {
+		return fail(stderr, err)
+	}
+	for _, r := range rows {
+		returnAddress := r.ReturnAddress
+		if returnAddress == "" {
+			returnAddress = "-"
+		}
+		_, _ = fmt.Fprintf(stdout, "%s\t%s\t%s\t%s\t%s\t%s\t%d\t%s\n", r.ExternalDepositID, r.CabalID.UUID(), r.Status,
+			r.Amount, r.Mint, returnAddress, r.Attempts, r.Since.UTC().Format(time.RFC3339))
+	}
+	return 0
+}
+
+func depositCommand(cfg config.Config, clk clock.Clock, args []string, stdout, stderr io.Writer) int {
+	if firstArg(args) != "rescan" || len(args) < 2 {
+		_, _ = fmt.Fprintln(stderr, fundingUsage)
+		return 2
+	}
+	var from chain.Signature
+	switch len(args) {
+	case 2:
+	case 4:
+		if args[2] != "--from" {
+			_, _ = fmt.Fprintln(stderr, fundingUsage)
+			return 2
+		}
+		from = chain.Signature(args[3])
+	default:
+		_, _ = fmt.Fprintln(stderr, fundingUsage)
+		return 2
+	}
+	wallet, err := chain.ParseAddress(args[1])
+	if err != nil {
+		return fail(stderr, err)
+	}
+	ctx := auth.WithActor(context.Background(), auth.Actor{Kind: auth.ActorSystem, ID: "monacoctl"})
+	pool, err := db.Open(ctx, cfg.DB)
+	if err != nil {
+		return fail(stderr, err)
+	}
+	defer pool.Close()
+	rescan := fundingapp.DepositRescan{UoW: db.New(pool, ids.Real{}, clk)}
+	accounts, err := rescan.Rescan(ctx, wallet, from)
+	if err != nil {
+		return fail(stderr, err)
+	}
+	_, _ = fmt.Fprintf(stdout, "rescan %s %d\n", wallet, accounts)
+	return 0
 }

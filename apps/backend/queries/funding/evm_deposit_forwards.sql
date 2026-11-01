@@ -95,3 +95,10 @@ SELECT DISTINCT ON (network) network, fee_micros::text AS fee_micros
 FROM evm_deposit_forwards
 WHERE status = 'arrived' AND fee_micros IS NOT NULL
 ORDER BY network, arrived_at DESC, id DESC;
+
+-- name: ListFailedEVMDepositForwards :many
+SELECT id, user_id, network, privy_execution_id, created_at
+FROM evm_deposit_forwards
+WHERE status = 'failed'
+ORDER BY created_at, id
+LIMIT sqlc.arg(max_rows);

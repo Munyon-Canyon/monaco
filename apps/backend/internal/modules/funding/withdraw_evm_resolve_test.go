@@ -176,3 +176,35 @@ func TestWithdrawEVM_FailedWithABroadcastStepKeepsTheHoldAndFlagsSupportOnce(t *
 		t.Fatalf("needs_support logged %d times, want once:\n%s", n, logs.Bytes())
 	}
 }
+
+func TestWithdrawEVM_PendingPastThirtyMinutesAlertsOnce(t *testing.T) {
+	t.Parallel()
+	actions := &privyActions{status: multichain.ActionStatus{State: multichain.ActionPending}}
+	f := newEVMFixture(t, actions)
+	if _, err := f.withdrawEVM(f.ctx(t.Context())); err != nil {
+		t.Fatal(err)
+	}
+	logs := &testkit.Logs{}
+	ctx := observability.WithLogger(observability.WithActor(t.Context(), "system:poller.funding.withdrawals"),
+		observability.NewLogger(config.Config{Env: config.EnvTest}, logs))
+	alerts := func() int {
+		return strings.Count(string(logs.Bytes()), observability.FundingWithdrawalEVMPending.Name)
+	}
+	p := f.evmPoller(actions)
+	f.clock.Advance(app.EVMWithdrawalPendingAfter - time.Second)
+	if _, err := p.Tick(ctx); err != nil || alerts() != 0 {
+		t.Fatalf("Tick before 30 minutes = %v with %d alerts, want none", err, alerts())
+	}
+	f.clock.Advance(2 * time.Second)
+	for range 3 {
+		if report, err := p.Tick(ctx); err != nil || report.Changed != 0 {
+			t.Fatalf("Tick = %+v, %v", report, err)
+		}
+	}
+	if alerts() != 1 {
+		t.Fatalf("pending alerts = %d, want once:\n%s", alerts(), logs.Bytes())
+	}
+	if row := f.evmRow(t); row.status != "submitted" {
+		t.Fatalf("row = %+v, want it left submitted", row)
+	}
+}

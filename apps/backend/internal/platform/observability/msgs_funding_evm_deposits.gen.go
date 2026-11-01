@@ -8,5 +8,6 @@ func init() {
 		FundingEVMForwardUnrouted,
 		FundingEVMForwardStuck,
 		FundingEVMForwardArrivingUnavailable,
+		FundingEVMForwardFailed,
 	)
 }

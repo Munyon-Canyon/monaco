@@ -417,7 +417,9 @@ paths:
       description: >-
         Returns the size of every queue for the panel's home tiles, each with the route that lists it. Stuck
         transactions use the default age of five minutes, unpublished events thirty seconds, and dead letters
-        count the open ones.
+        count the open ones. Every money state machine has a queue named `stuck_<kind>` (withdrawals, fund
+        transfers, cash-out jobs and payouts, wind-downs, EVM forwards, external deposits, on-ramp sessions and
+        deposit candidates) counted at the five-minute age, with the age of its oldest row.
       responses:
         "200":
           description: The queue sizes.
@@ -456,6 +458,31 @@ paths:
         "200":
           description: The unpublished events.
           content: {application/json: {schema: {$ref: "#/components/schemas/UnpublishedEvents"}}}
+        default: {$ref: "#/components/responses/Problem"}
+  /v1/admin/queues/stuck-money:
+    get:
+      operationId: getStuckMoney
+      tags: [admin]
+      x-admin-role: viewer
+      x-rate-limit: {actor: {rate: 120, per: 1m, burst: 30}}
+      summary: List money rows that have not finished.
+      description: >-
+        Lists the rows of every money state machine that sit in a non-final state longer than `older_than`
+        (default five minutes), oldest first. `kind` narrows it to one machine. A `ref` is the row id, a
+        `<tx signature>:<wallet>` pair for a deposit candidate, `<job id>:<attempt>` for a cash-out payout and the
+        cabal id for a wind-down.
+      parameters:
+        - name: kind
+          in: query
+          required: false
+          description: Only this money state machine.
+          schema: {$ref: "#/components/schemas/StuckMoneyKind"}
+        - $ref: "#/components/parameters/OlderThan"
+        - $ref: "#/components/parameters/QueueLimit"
+      responses:
+        "200":
+          description: The stuck money rows.
+          content: {application/json: {schema: {$ref: "#/components/schemas/StuckMoneyRows"}}}
         default: {$ref: "#/components/responses/Problem"}
 components:
   parameters:
@@ -1179,9 +1206,10 @@ components:
       additionalProperties: false
       required: [name, count, href]
       properties:
-        name: {type: string, description: "The queue: stuck_txns, unpublished_events or dead_letters.", examples: [stuck_txns]}
+        name: {type: string, description: "The queue: stuck_txns, unpublished_events, dead_letters or stuck_<kind> for a money state machine.", examples: [stuck_txns]}
         count: {type: integer, format: int64, description: How many items the queue holds., examples: [0]}
         href: {type: string, description: The route that lists the queue., examples: [/v1/admin/queues/stuck-txns]}
+        oldest_age_seconds: {type: integer, format: int64, description: Seconds since the oldest item entered the queue. Absent when the queue is empty or does not track age., examples: [400]}
     AdminQueues:
       type: object
       description: The size of every queue.
@@ -1217,6 +1245,44 @@ components:
         tx_signature: {type: [string, "null"], description: The Solana signature. Null until the swap is submitted., examples: [null]}
         created_at: {type: string, format: date-time, description: When the swap was created., examples: ["2026-10-06T12:00:00Z"]}
         age_seconds: {type: integer, format: int64, description: Seconds since the swap was created., examples: [400]}
+    StuckMoneyKind:
+      type: string
+      description: A money state machine.
+      enum: [withdrawal, fund_transfer, cash_out_job, cash_out_payout, wind_down, evm_forward, external_deposit, onramp_session, deposit_candidate]
+      examples: [withdrawal]
+    StuckMoneyRow:
+      type: object
+      description: One money row that has not reached a final state.
+      examples:
+        - kind: withdrawal
+          ref: 019cc330-6666-7000-8000-000000000001
+          user_id: 019cc330-1111-7000-8000-000000000001
+          cabal_id: null
+          status: submitted
+          since: "2026-10-06T12:00:00Z"
+          age_seconds: 400
+      additionalProperties: false
+      required: [kind, ref, user_id, cabal_id, status, since, age_seconds]
+      properties:
+        kind: {$ref: "#/components/schemas/StuckMoneyKind"}
+        ref: {type: string, description: The row's reference. See the route description for its form., examples: [019cc330-6666-7000-8000-000000000001]}
+        user_id: {type: [string, "null"], format: uuid, description: The member the row belongs to. Null when the row has none., examples: [019cc330-1111-7000-8000-000000000001]}
+        cabal_id: {type: [string, "null"], format: uuid, description: The cabal the row belongs to. Null when the row has none., examples: [null]}
+        status: {type: string, description: The row's current status., examples: [submitted]}
+        since: {type: string, format: date-time, description: When the row entered its current wait., examples: ["2026-10-06T12:00:00Z"]}
+        age_seconds: {type: integer, format: int64, description: Seconds since `since`., examples: [400]}
+    StuckMoneyRows:
+      type: object
+      description: The stuck money rows, oldest first.
+      examples:
+        - items: []
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          description: The rows.
+          items: {$ref: "#/components/schemas/StuckMoneyRow"}
     StuckTxns:
       type: object
       description: The stuck swaps, oldest first.

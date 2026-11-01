@@ -89,3 +89,11 @@ SELECT coalesce((
 INSERT INTO treasury_token_account_cursors (cabal_id, token_account, last_signature, updated_at)
 VALUES (sqlc.arg(cabal_id)::uuid, sqlc.arg(token_account)::text, sqlc.arg(last_signature)::text, sqlc.arg(updated_at)::timestamptz)
 ON CONFLICT (cabal_id, token_account) DO UPDATE SET last_signature = excluded.last_signature, updated_at = excluded.updated_at;
+
+-- name: ListExternalDepositsByStatus :many
+SELECT id, cabal_id, status, coalesce(return_address, '')::text AS return_address, mint, amount::text AS amount,
+  bounce_attempts, detected_at
+FROM external_deposits
+WHERE status = ANY(sqlc.arg(statuses)::text[])
+ORDER BY detected_at, id
+LIMIT sqlc.arg(row_limit)::bigint;

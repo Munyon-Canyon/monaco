@@ -158,16 +158,16 @@ func (e AdminAuthState) Valid() bool {
 
 // Defines values for AdminCabalPauseReason.
 const (
-	ExternalDeposit AdminCabalPauseReason = "external_deposit"
-	Ops             AdminCabalPauseReason = "ops"
+	AdminCabalPauseReasonExternalDeposit AdminCabalPauseReason = "external_deposit"
+	AdminCabalPauseReasonOps             AdminCabalPauseReason = "ops"
 )
 
 // Valid indicates whether the value is a known member of the AdminCabalPauseReason enum.
 func (e AdminCabalPauseReason) Valid() bool {
 	switch e {
-	case ExternalDeposit:
+	case AdminCabalPauseReasonExternalDeposit:
 		return true
-	case Ops:
+	case AdminCabalPauseReasonOps:
 		return true
 	default:
 		return false
@@ -300,6 +300,45 @@ func (e DeadLetterStatus) Valid() bool {
 	case Redriven:
 		return true
 	case Resolved:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for StuckMoneyKind.
+const (
+	StuckMoneyKindCashOutJob       StuckMoneyKind = "cash_out_job"
+	StuckMoneyKindCashOutPayout    StuckMoneyKind = "cash_out_payout"
+	StuckMoneyKindDepositCandidate StuckMoneyKind = "deposit_candidate"
+	StuckMoneyKindEvmForward       StuckMoneyKind = "evm_forward"
+	StuckMoneyKindExternalDeposit  StuckMoneyKind = "external_deposit"
+	StuckMoneyKindFundTransfer     StuckMoneyKind = "fund_transfer"
+	StuckMoneyKindOnrampSession    StuckMoneyKind = "onramp_session"
+	StuckMoneyKindWindDown         StuckMoneyKind = "wind_down"
+	StuckMoneyKindWithdrawal       StuckMoneyKind = "withdrawal"
+)
+
+// Valid indicates whether the value is a known member of the StuckMoneyKind enum.
+func (e StuckMoneyKind) Valid() bool {
+	switch e {
+	case StuckMoneyKindCashOutJob:
+		return true
+	case StuckMoneyKindCashOutPayout:
+		return true
+	case StuckMoneyKindDepositCandidate:
+		return true
+	case StuckMoneyKindEvmForward:
+		return true
+	case StuckMoneyKindExternalDeposit:
+		return true
+	case StuckMoneyKindFundTransfer:
+		return true
+	case StuckMoneyKindOnrampSession:
+		return true
+	case StuckMoneyKindWindDown:
+		return true
+	case StuckMoneyKindWithdrawal:
 		return true
 	default:
 		return false
@@ -794,10 +833,15 @@ type AdminQueue struct {
 	// Examples: /v1/admin/queues/stuck-txns
 	Href string `json:"href"`
 
-	// Name The queue: stuck_txns, unpublished_events or dead_letters.
+	// Name The queue: stuck_txns, unpublished_events, dead_letters or stuck_<kind> for a money state machine.
 	//
 	// Examples: stuck_txns
 	Name string `json:"name"`
+
+	// OldestAgeSeconds Seconds since the oldest item entered the queue. Absent when the queue is empty or does not track age.
+	//
+	// Examples: 400
+	OldestAgeSeconds *int64 `json:"oldest_age_seconds,omitempty"`
 }
 
 // AdminQueues The size of every queue.
@@ -1152,6 +1196,59 @@ type DeadLetters struct {
 	NextCursor *openapi_types.UUID `json:"next_cursor"`
 }
 
+// StuckMoneyKind A money state machine.
+//
+// Examples: withdrawal
+type StuckMoneyKind string
+
+// StuckMoneyRow One money row that has not reached a final state.
+//
+// Examples: {"age_seconds":400,"cabal_id":null,"kind":"withdrawal","ref":"019cc330-6666-7000-8000-000000000001","since":"2026-10-06T12:00:00Z","status":"submitted","user_id":"019cc330-1111-7000-8000-000000000001"}
+type StuckMoneyRow struct {
+	// AgeSeconds Seconds since `since`.
+	//
+	// Examples: 400
+	AgeSeconds int64 `json:"age_seconds"`
+
+	// CabalId The cabal the row belongs to. Null when the row has none.
+	//
+	// Examples: null
+	CabalId *openapi_types.UUID `json:"cabal_id"`
+
+	// Kind A money state machine.
+	//
+	// Examples: withdrawal
+	Kind StuckMoneyKind `json:"kind"`
+
+	// Ref The row's reference. See the route description for its form.
+	//
+	// Examples: 019cc330-6666-7000-8000-000000000001
+	Ref string `json:"ref"`
+
+	// Since When the row entered its current wait.
+	//
+	// Examples: 2026-10-06T12:00:00Z
+	Since time.Time `json:"since"`
+
+	// Status The row's current status.
+	//
+	// Examples: submitted
+	Status string `json:"status"`
+
+	// UserId The member the row belongs to. Null when the row has none.
+	//
+	// Examples: 019cc330-1111-7000-8000-000000000001
+	UserId *openapi_types.UUID `json:"user_id"`
+}
+
+// StuckMoneyRows The stuck money rows, oldest first.
+//
+// Examples: {"items":[]}
+type StuckMoneyRows struct {
+	// Items The rows.
+	Items []StuckMoneyRow `json:"items"`
+}
+
 // StuckTxn One swap that has not finished.
 //
 // Examples: {"action":"buy","age_seconds":400,"cabal_id":"019cc330-2222-7000-8000-000000000001","created_at":"2026-10-06T12:00:00Z","id":"019cc330-4444-7000-8000-000000000001","status":"submitted","symbol":"AAPLx","tx_signature":null}
@@ -1335,6 +1432,18 @@ type RedriveDeadLetterParams struct {
 	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
 }
 
+// GetStuckMoneyParams defines parameters for GetStuckMoney.
+type GetStuckMoneyParams struct {
+	// Kind Only this money state machine.
+	Kind *StuckMoneyKind `form:"kind,omitempty" json:"kind,omitempty"`
+
+	// OlderThan How old an item must be to count, as a duration such as 30s or 5m. It cannot exceed 24h. Each queue has its own default.
+	OlderThan *OlderThan `form:"older_than,omitempty" json:"older_than,omitempty"`
+
+	// Limit Page size. Defaults to 50 and cannot exceed 200.
+	Limit *QueueLimit `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
 // GetStuckTxnsParams defines parameters for GetStuckTxns.
 type GetStuckTxnsParams struct {
 	// OlderThan How old an item must be to count, as a duration such as 30s or 5m. It cannot exceed 24h. Each queue has its own default.
@@ -1418,6 +1527,9 @@ type ServerInterface interface {
 	// GetAdminQueues Count the items in each queue.
 	// (GET /v1/admin/queues)
 	GetAdminQueues(w http.ResponseWriter, r *http.Request)
+	// GetStuckMoney List money rows that have not finished.
+	// (GET /v1/admin/queues/stuck-money)
+	GetStuckMoney(w http.ResponseWriter, r *http.Request, params GetStuckMoneyParams)
 	// GetStuckTxns List stuck swaps.
 	// (GET /v1/admin/queues/stuck-txns)
 	GetStuckTxns(w http.ResponseWriter, r *http.Request, params GetStuckTxnsParams)
@@ -2014,6 +2126,65 @@ func (siw *ServerInterfaceWrapper) GetAdminQueues(w http.ResponseWriter, r *http
 	handler.ServeHTTP(w, r)
 }
 
+// GetStuckMoney operation middleware
+func (siw *ServerInterfaceWrapper) GetStuckMoney(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetStuckMoneyParams
+
+	// ------------- Optional query parameter "kind" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "kind", r.URL.Query(), &params.Kind, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "kind"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "kind", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "older_than" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "older_than", r.URL.Query(), &params.OlderThan, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "older_than"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "older_than", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetStuckMoney(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetStuckTxns operation middleware
 func (siw *ServerInterfaceWrapper) GetStuckTxns(w http.ResponseWriter, r *http.Request) {
 
@@ -2356,6 +2527,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/admin/dead-letters/{id}/redrive", wrapper.RedriveDeadLetter)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/admin/me", wrapper.GetAdminMe)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/admin/queues", wrapper.GetAdminQueues)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/admin/queues/stuck-money", wrapper.GetStuckMoney)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/admin/queues/stuck-txns", wrapper.GetStuckTxns)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/admin/queues/unpublished-events", wrapper.GetUnpublishedEvents)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/admin/txns", wrapper.FindAdminTxn)
@@ -2829,6 +3001,45 @@ func (response GetAdminQueuesdefaultApplicationProblemPlusJSONResponse) VisitGet
 	return err
 }
 
+type GetStuckMoneyRequestObject struct {
+	Params GetStuckMoneyParams
+}
+
+type GetStuckMoneyResponseObject interface {
+	VisitGetStuckMoneyResponse(w http.ResponseWriter) error
+}
+
+type GetStuckMoney200JSONResponse StuckMoneyRows
+
+func (response GetStuckMoney200JSONResponse) VisitGetStuckMoneyResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetStuckMoneydefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response GetStuckMoneydefaultApplicationProblemPlusJSONResponse) VisitGetStuckMoneyResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetStuckTxnsRequestObject struct {
 	Params GetStuckTxnsParams
 }
@@ -3101,6 +3312,9 @@ type StrictServerInterface interface {
 	// GetAdminQueues Count the items in each queue.
 	// (GET /v1/admin/queues)
 	GetAdminQueues(ctx context.Context, request GetAdminQueuesRequestObject) (GetAdminQueuesResponseObject, error)
+	// GetStuckMoney List money rows that have not finished.
+	// (GET /v1/admin/queues/stuck-money)
+	GetStuckMoney(ctx context.Context, request GetStuckMoneyRequestObject) (GetStuckMoneyResponseObject, error)
 	// GetStuckTxns List stuck swaps.
 	// (GET /v1/admin/queues/stuck-txns)
 	GetStuckTxns(ctx context.Context, request GetStuckTxnsRequestObject) (GetStuckTxnsResponseObject, error)
@@ -3499,6 +3713,32 @@ func (sh *strictHandler) GetAdminQueues(w http.ResponseWriter, r *http.Request) 
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetAdminQueuesResponseObject); ok {
 		if err := validResponse.VisitGetAdminQueuesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetStuckMoney operation middleware
+func (sh *strictHandler) GetStuckMoney(w http.ResponseWriter, r *http.Request, params GetStuckMoneyParams) {
+	var request GetStuckMoneyRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetStuckMoney(ctx, request.(GetStuckMoneyRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetStuckMoney")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetStuckMoneyResponseObject); ok {
+		if err := validResponse.VisitGetStuckMoneyResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

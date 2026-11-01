@@ -368,11 +368,11 @@ paths:
       tags: [funding]
       x-admin-role: viewer
       x-rate-limit: {actor: {rate: 120, per: 1m, burst: 30}}
-      summary: List cabals waiting for a bounce.
+      summary: List direct transfers waiting for a bounce.
       description: >-
-        Lists the open pauses with reason `external_deposit`, oldest first: a direct transfer into a cabal
-        treasury that has not been sent back yet. Each row names the paused cabal, which the cabal lookup
-        resolves. A resume never clears one of these pauses.
+        Lists the external deposits that are still `detected`, `bouncing` or `bounce_failed`, oldest first: a
+        direct transfer into a cabal treasury that has not been sent back yet. Each row carries the external
+        deposit id that `monacoctl funding bounce` takes, and the cabal that received it.
       parameters:
         - name: limit
           in: query
@@ -411,14 +411,27 @@ components:
   schemas:
     PendingBounce:
       type: object
-      description: One cabal paused for a direct transfer that has not been sent back.
+      description: One direct transfer that has not been sent back.
       examples:
-        - {cabal_id: 019cc330-2222-7000-8000-000000000001, since: "2026-10-07T12:00:00Z"}
+        - external_deposit_id: 019cc330-7777-7000-8000-000000000001
+          cabal_id: 019cc330-2222-7000-8000-000000000001
+          status: bounce_failed
+          amount: "5000000"
+          mint: EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
+          return_address: null
+          attempts: 1
+          since: "2026-10-07T12:00:00Z"
       additionalProperties: false
-      required: [cabal_id, since]
+      required: [external_deposit_id, cabal_id, status, amount, mint, return_address, attempts, since]
       properties:
-        cabal_id: {type: string, format: uuid, description: The paused cabal., examples: [019cc330-2222-7000-8000-000000000001]}
-        since: {type: string, format: date-time, description: When the pause began., examples: ["2026-10-07T12:00:00Z"]}
+        external_deposit_id: {type: string, format: uuid, description: The external deposit id that the bounce commands take., examples: [019cc330-7777-7000-8000-000000000001]}
+        cabal_id: {type: string, format: uuid, description: The cabal that received the transfer., examples: [019cc330-2222-7000-8000-000000000001]}
+        status: {type: string, description: "The deposit status: detected, bouncing or bounce_failed.", examples: [bounce_failed]}
+        amount: {type: string, description: The transferred amount in base units., examples: ["5000000"]}
+        mint: {type: string, description: The token mint., examples: [EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v]}
+        return_address: {type: [string, "null"], description: Where the bounce goes. Null while none is set., examples: [null]}
+        attempts: {type: integer, format: int32, description: How many bounces were signed., examples: [1]}
+        since: {type: string, format: date-time, description: When the transfer was detected., examples: ["2026-10-07T12:00:00Z"]}
     BounceQueue:
       type: object
       description: The pending bounces, oldest first.
@@ -429,7 +442,7 @@ components:
       properties:
         items:
           type: array
-          description: The paused cabals.
+          description: The pending transfers.
           items: {$ref: "#/components/schemas/PendingBounce"}
     PauseReason:
       type: string

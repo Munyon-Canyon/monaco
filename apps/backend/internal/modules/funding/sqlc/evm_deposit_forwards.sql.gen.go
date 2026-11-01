@@ -163,6 +163,48 @@ func (q *Queries) LatestEVMDepositForwardFees(ctx context.Context) ([]LatestEVMD
 	return items, nil
 }
 
+const listFailedEVMDepositForwards = `-- name: ListFailedEVMDepositForwards :many
+SELECT id, user_id, network, privy_execution_id, created_at
+FROM evm_deposit_forwards
+WHERE status = 'failed'
+ORDER BY created_at, id
+LIMIT $1
+`
+
+type ListFailedEVMDepositForwardsRow struct {
+	ID               uuid.UUID
+	UserID           uuid.UUID
+	Network          string
+	PrivyExecutionID string
+	CreatedAt        time.Time
+}
+
+func (q *Queries) ListFailedEVMDepositForwards(ctx context.Context, maxRows int32) ([]ListFailedEVMDepositForwardsRow, error) {
+	rows, err := q.db.Query(ctx, listFailedEVMDepositForwards, maxRows)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListFailedEVMDepositForwardsRow
+	for rows.Next() {
+		var i ListFailedEVMDepositForwardsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.Network,
+			&i.PrivyExecutionID,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listStuckEVMDepositForwards = `-- name: ListStuckEVMDepositForwards :many
 SELECT id, user_id, network, privy_execution_id, created_at
 FROM evm_deposit_forwards

@@ -12,6 +12,8 @@ import (
 
 const docsOp = "gen.docs"
 
+const logsIntro = "For a stuck money row, [Money runbook](../how-to/money-runbook.md) maps the signal to the command and its safety notes.\n\n"
+
 func genDocs(refDir string) error {
 	var logs strings.Builder
 	_ = observability.WriteCatalog(&logs)
@@ -23,7 +25,7 @@ func genDocs(refDir string) error {
 	for name, page := range map[string]string{
 		"events.md": docsPage("Event catalog", "the `internal/events` registry", eventCatalog(events.Catalog())),
 		"errors.md": docsPage("Error codes", "the `internal/errs` code table", errorTable(errs.All())),
-		"logs.md":   docsPage("Log messages", "the `internal/platform/observability` message registry", logs.String()),
+		"logs.md":   docsPage("Log messages", "the `internal/platform/observability` message registry", logsIntro+logs.String()),
 	} {
 		if err := dir.WriteFile(name, []byte(page), 0o600); err != nil {
 			return errs.Wrap(err, errs.CodeInternal, docsOp)
