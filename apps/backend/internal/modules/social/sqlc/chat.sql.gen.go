@@ -598,6 +598,31 @@ func (q *Queries) NewestSeenCount(ctx context.Context, cabalID uuid.UUID) (Newes
 	return i, err
 }
 
+const seedChatSeen = `-- name: SeedChatSeen :exec
+INSERT INTO chat_seen (cabal_id, user_id, last_seen_at)
+VALUES (
+  $1, $2,
+  coalesce((
+    SELECT max(m.created_at)
+    FROM cabal_messages m
+    WHERE m.cabal_id = $1 AND m.created_at <= $3::timestamptz
+  ), $3::timestamptz)
+)
+ON CONFLICT (cabal_id, user_id) DO UPDATE
+SET last_seen_at = GREATEST(chat_seen.last_seen_at, EXCLUDED.last_seen_at)
+`
+
+type SeedChatSeenParams struct {
+	CabalID  uuid.UUID
+	UserID   uuid.UUID
+	JoinedAt time.Time
+}
+
+func (q *Queries) SeedChatSeen(ctx context.Context, arg SeedChatSeenParams) error {
+	_, err := q.db.Exec(ctx, seedChatSeen, arg.CabalID, arg.UserID, arg.JoinedAt)
+	return err
+}
+
 const softDeleteChatMessage = `-- name: SoftDeleteChatMessage :execrows
 UPDATE cabal_messages
 SET deleted_at = $1::timestamptz

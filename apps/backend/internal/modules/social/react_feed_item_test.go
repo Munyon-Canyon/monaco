@@ -31,7 +31,7 @@ type reactFixture struct {
 func newReactFixture(t *testing.T) reactFixture {
 	t.Helper()
 	f := reactFixture{likeFixture: newLikeFixture(t)}
-	deps := app.ReactionDeps{UoW: f.uow, Reads: f.pool, Clock: f.clock, Hints: f.hints}
+	deps := app.ReactionDeps{UoW: f.uow, Reads: f.pool, Members: membersOn(f.pool), Clock: f.clock, Hints: f.hints}
 	f.react, f.unreact = app.NewReactFeedItemHandler(deps), app.NewUnreactFeedItemHandler(deps)
 	return f
 }
@@ -346,7 +346,13 @@ func TestReactFeedItem_failWhenAStoreReadFails(t *testing.T) {
 			}
 			t.Cleanup(down.Close)
 			ctx := asUser(t.Context(), me)
-			deps := app.ReactionDeps{UoW: db.New(down, f.gen, f.clock), Reads: down, Clock: f.clock, Hints: f.hints}
+			deps := app.ReactionDeps{
+				UoW:     db.New(down, f.gen, f.clock),
+				Reads:   down,
+				Members: membersOn(down),
+				Clock:   f.clock,
+				Hints:   f.hints,
+			}
 			var herr error
 			if name == "the summary after a removal" {
 				_, herr = app.NewUnreactFeedItemHandler(deps).Handle(

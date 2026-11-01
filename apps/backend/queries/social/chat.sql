@@ -199,3 +199,16 @@ ORDER BY author_id;
 
 -- name: GetChatMessageByID :one
 SELECT id, cabal_id FROM cabal_messages WHERE id = sqlc.arg(id);
+
+-- name: SeedChatSeen :exec
+INSERT INTO chat_seen (cabal_id, user_id, last_seen_at)
+VALUES (
+  sqlc.arg(cabal_id), sqlc.arg(user_id),
+  coalesce((
+    SELECT max(m.created_at)
+    FROM cabal_messages m
+    WHERE m.cabal_id = sqlc.arg(cabal_id) AND m.created_at <= sqlc.arg(joined_at)::timestamptz
+  ), sqlc.arg(joined_at)::timestamptz)
+)
+ON CONFLICT (cabal_id, user_id) DO UPDATE
+SET last_seen_at = GREATEST(chat_seen.last_seen_at, EXCLUDED.last_seen_at);

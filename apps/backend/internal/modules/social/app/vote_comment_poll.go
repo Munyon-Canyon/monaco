@@ -29,10 +29,11 @@ type WithdrawCommentPollVote struct {
 }
 
 type PollDeps struct {
-	UoW   *db.UnitOfWork
-	Reads sqlc.DBTX
-	Clock clock.Clock
-	Hints Hints
+	UoW     *db.UnitOfWork
+	Reads   sqlc.DBTX
+	Members Members
+	Clock   clock.Clock
+	Hints   Hints
 }
 
 type VoteCommentPollHandler struct{ d PollDeps }
@@ -53,7 +54,7 @@ func (h *VoteCommentPollHandler) Handle(ctx context.Context, cmd VoteCommentPoll
 	if err != nil {
 		return PollView{}, err
 	}
-	feedObjectID, attachment, err := requireOpenPoll(ctx, h.d, cmd.Viewer, cmd.CommentID)
+	feedObjectID, attachment, err := requireOpenPoll(ctx, h.d, cmd.Viewer, cmd.CommentID, true)
 	if err != nil {
 		return PollView{}, err
 	}
@@ -82,7 +83,7 @@ func (h *VoteCommentPollHandler) Handle(ctx context.Context, cmd VoteCommentPoll
 
 func (h *WithdrawCommentPollVoteHandler) Handle(ctx context.Context, cmd WithdrawCommentPollVote) (PollView, error) {
 	const op = "social.WithdrawCommentPollVote"
-	_, attachment, err := requireOpenPoll(ctx, h.d, cmd.Viewer, cmd.CommentID)
+	_, attachment, err := requireOpenPoll(ctx, h.d, cmd.Viewer, cmd.CommentID, false)
 	if err != nil {
 		return PollView{}, err
 	}
@@ -105,7 +106,7 @@ func (h *WithdrawCommentPollVoteHandler) Handle(ctx context.Context, cmd Withdra
 }
 
 func requireOpenPoll(
-	ctx context.Context, d PollDeps, viewer ids.UserID, comment uuid.UUID,
+	ctx context.Context, d PollDeps, viewer ids.UserID, comment uuid.UUID, membersOnly bool,
 ) (uuid.UUID, *domain.Attachment, error) {
 	const op = "social.requireOpenPoll"
 	row, err := sqlc.New(d.Reads).GetCommentPoll(ctx, comment)
@@ -115,7 +116,12 @@ func requireOpenPoll(
 	case err != nil:
 		return uuid.Nil, nil, errs.Wrap(err, errs.CodeInternal, op)
 	}
-	if _, err := CanReact(ctx, d.Reads, viewer, row.FeedObjectID); err != nil {
+	if membersOnly {
+		_, err = CanReact(ctx, d.Reads, d.Members, viewer, row.FeedObjectID)
+	} else {
+		_, err = requireVisibleItem(ctx, d.Reads, viewer, row.FeedObjectID)
+	}
+	if err != nil {
 		return uuid.Nil, nil, err
 	}
 	attachment := domain.DecodeAttachment(string(domain.AttachmentPoll), row.Payload)

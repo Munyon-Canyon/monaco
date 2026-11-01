@@ -19,3 +19,13 @@ func (ChatSeenCleanup) Handle(ctx context.Context, tx db.Tx, e events.CabalMembe
 	}
 	return nil
 }
+
+func (ChatSeenCleanup) Joined(ctx context.Context, tx db.Tx, e events.CabalMemberJoined, at time.Time) error {
+	err := sqlc.New(tx.Queries()).SeedChatSeen(ctx, sqlc.SeedChatSeenParams{
+		CabalID: e.CabalID, UserID: e.UserID, JoinedAt: at,
+	})
+	if err != nil {
+		return errs.Wrap(err, errs.CodeInternal, "social.ChatSeenSeed")
+	}
+	return nil
+}

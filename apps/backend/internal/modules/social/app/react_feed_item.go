@@ -31,10 +31,11 @@ type ReactionSummary struct {
 }
 
 type ReactionDeps struct {
-	UoW   *db.UnitOfWork
-	Reads sqlc.DBTX
-	Clock clock.Clock
-	Hints Hints
+	UoW     *db.UnitOfWork
+	Reads   sqlc.DBTX
+	Members Members
+	Clock   clock.Clock
+	Hints   Hints
 }
 
 type ReactFeedItemHandler struct{ d ReactionDeps }
@@ -45,7 +46,7 @@ func NewReactFeedItemHandler(d ReactionDeps) *ReactFeedItemHandler {
 
 func (h *ReactFeedItemHandler) Handle(ctx context.Context, cmd ReactFeedItem) (ReactionSummary, error) {
 	const op = "social.ReactFeedItem"
-	item, err := CanReact(ctx, h.d.Reads, cmd.Viewer, cmd.FeedObjectID)
+	item, err := CanReact(ctx, h.d.Reads, h.d.Members, cmd.Viewer, cmd.FeedObjectID)
 	if err != nil {
 		return ReactionSummary{}, err
 	}

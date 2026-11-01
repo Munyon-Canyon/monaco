@@ -31,3 +31,6 @@ ON CONFLICT (comment_id, user_id) DO UPDATE SET position = EXCLUDED.position, up
 
 -- name: DeleteCommentPollVote :execrows
 DELETE FROM comment_poll_votes WHERE comment_id = sqlc.arg(comment_id) AND user_id = sqlc.arg(user_id);
+
+-- name: DeleteUserPollVotes :exec
+DELETE FROM comment_poll_votes WHERE user_id = sqlc.arg(user_id);

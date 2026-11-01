@@ -297,7 +297,7 @@ func F21bReactCommentUnauthorized(s *scenario.Scenario) {
 
 func F21bReactCommentRateLimited(s *scenario.Scenario) {
 	w := &replyWorld{}
-	s.Given(w.seed(), replyByLee(w), scenario.AsUser("mia")).
+	s.Given(w.seed(), replyByLee(w), scenario.AsUser("kai")).
 		When(scenario.UntilRateLimited(40, reactToReply(party))).
 		Then(scenario.ExpectProblem(errs.CodeRateLimited), replyRowsHold(1))
 }

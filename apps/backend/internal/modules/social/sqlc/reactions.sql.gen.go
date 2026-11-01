@@ -171,6 +171,33 @@ func (q *Queries) DeleteCommentReactions(ctx context.Context, commentID uuid.UUI
 	return result.RowsAffected(), nil
 }
 
+const deleteUserCommentReactions = `-- name: DeleteUserCommentReactions :exec
+DELETE FROM comment_reactions WHERE user_id = $1
+`
+
+func (q *Queries) DeleteUserCommentReactions(ctx context.Context, userID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteUserCommentReactions, userID)
+	return err
+}
+
+const deleteUserItemLikes = `-- name: DeleteUserItemLikes :exec
+DELETE FROM feed_likes WHERE user_id = $1
+`
+
+func (q *Queries) DeleteUserItemLikes(ctx context.Context, userID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteUserItemLikes, userID)
+	return err
+}
+
+const deleteUserItemReactions = `-- name: DeleteUserItemReactions :exec
+DELETE FROM feed_reactions WHERE user_id = $1
+`
+
+func (q *Queries) DeleteUserItemReactions(ctx context.Context, userID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteUserItemReactions, userID)
+	return err
+}
+
 const reactionSummaries = `-- name: ReactionSummaries :many
 WITH counted AS (
   SELECT r.feed_object_id, r.emoji, count(*)::int AS count, bool_or(r.user_id = $1::uuid) AS mine,
