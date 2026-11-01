@@ -99,3 +99,79 @@ func TestSigner_refusesCoSignedBytesThatAreNotATransaction(t *testing.T) {
 		t.Fatalf("junk co-signed bytes = %v, want decode_failed", err)
 	}
 }
+
+func marketMaker() platform.SolanaAddress { return platform.AddressOf(make([]byte, 32)) }
+
+func TestSigner_sendsAMarketMakerRouteTheRelayerIsNotPartOfWithoutCoSigning(t *testing.T) {
+	t.Parallel()
+	tx := chainfake.Unsigned(marketMaker(), chainfake.WalletAddress("wallet-a"))
+	signed, sig, err := chain.NewSigner(&chainfake.Signer{}, chainfake.Relayer()).Sign(t.Context(), "wallet-a", tx)
+	if err != nil {
+		t.Fatalf("Sign = %v, want the Privy-signed transaction", err)
+	}
+	got, err := platform.DecodeTransaction(signed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Signed(0) || !got.Signed(1) {
+		t.Fatalf(
+			"market maker slot signed %v, treasury slot signed %v; want only the treasury",
+			got.Signed(0),
+			got.Signed(1),
+		)
+	}
+	want := platform.StandInSignature(platform.SignatureOf(got.Signatures[1]))
+	if sig != want {
+		t.Fatalf("signature = %q, want the stand-in for the treasury signature %q", sig, want)
+	}
+}
+
+func TestSigner_coSignsAMarketMakerRouteThatNamesTheRelayerAsFunder(t *testing.T) {
+	t.Parallel()
+	relayerAddr, wallet := chainfake.RelayerAddress(), chainfake.WalletAddress("wallet-a")
+	tx := chainfake.Unsigned(marketMaker(), wallet, relayerAddr)
+	signed, sig, err := chain.NewSigner(&chainfake.Signer{}, chainfake.Relayer()).Sign(t.Context(), "wallet-a", tx)
+	if err != nil {
+		t.Fatalf("Sign = %v, want both signatures", err)
+	}
+	got, _ := platform.DecodeTransaction(signed)
+	if got.Signed(0) || !got.Signed(1) || !got.Signed(2) {
+		t.Fatalf("slots signed %v %v %v, want market maker unsigned, treasury and relayer signed",
+			got.Signed(0), got.Signed(1), got.Signed(2))
+	}
+	if !platform.IsStandInSignature(sig) {
+		t.Fatalf("signature = %q, want a stand-in until Jupiter signs the fee payer slot", sig)
+	}
+}
+
+func TestSigner_refusesAMarketMakerRouteTheTreasuryDidNotSign(t *testing.T) {
+	t.Parallel()
+	tx := chainfake.Unsigned(marketMaker(), chainfake.WalletAddress("wallet-a"))
+	_, _, err := chain.NewSigner(passthrough{}, chainfake.Relayer()).Sign(t.Context(), "wallet-a", tx)
+	if errs.CodeOf(err) != errs.CodeDecodeFailed {
+		t.Fatalf("a market maker route with no treasury signature = %v, want decode_failed", err)
+	}
+}
+
+func transferOutOfSecondSigner(relayerAddr, wallet platform.SolanaAddress) []byte {
+	key := func(a platform.SolanaAddress) []byte { b, _ := a.Bytes(); return b }
+	msg := make([]byte, 0, 256)
+	msg = append(msg, 3, 0, 1)
+	msg = append(msg, platform.CompactU16(4)...)
+	for _, a := range []platform.SolanaAddress{marketMaker(), wallet, relayerAddr, platform.SystemProgram} {
+		msg = append(msg, key(a)...)
+	}
+	msg = append(msg, make([]byte, 32)...)
+	msg = append(msg, 1, 3, 2, 2, 0, 1)
+	msg = append(msg, 12, 2, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0)
+	return append(append(platform.CompactU16(3), make([]byte, 3*64)...), msg...)
+}
+
+func TestSigner_refusesARouteThatMakesTheRelayerPayOut(t *testing.T) {
+	t.Parallel()
+	tx := transferOutOfSecondSigner(chainfake.RelayerAddress(), chainfake.WalletAddress("wallet-a"))
+	_, _, err := chain.NewSigner(&chainfake.Signer{}, chainfake.Relayer()).Sign(t.Context(), "wallet-a", tx)
+	if errs.CodeOf(err) != errs.CodeDecodeFailed {
+		t.Fatalf("a transfer out of the relayer on a market maker route = %v, want decode_failed", err)
+	}
+}

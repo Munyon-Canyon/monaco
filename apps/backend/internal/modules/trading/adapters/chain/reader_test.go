@@ -23,6 +23,31 @@ type readerRPC struct {
 	mint        platform.Mint
 	valid       bool
 	blockhash   string
+	recent      []solana.SignatureInfo
+	recentErr   error
+	transaction map[platform.Signature][]platform.Signature
+	asked       []platform.Signature
+}
+
+func (r *readerRPC) SignaturesFor(
+	_ context.Context, owner platform.SolanaAddress, opts solana.SignaturesOpts,
+) ([]solana.SignatureInfo, error) {
+	r.owner = owner
+	if opts.Limit < 1 {
+		return nil, errs.New(errs.CodeInvalidInput, "test")
+	}
+	return r.recent, r.recentErr
+}
+
+func (r *readerRPC) TransactionSignatures(
+	_ context.Context, sig platform.Signature,
+) ([]platform.Signature, error) {
+	r.asked = append(r.asked, sig)
+	signatures, ok := r.transaction[sig]
+	if !ok {
+		return nil, errs.New(errs.CodeNotFound, "test")
+	}
+	return signatures, nil
 }
 
 func (r *readerRPC) BlockhashValid(_ context.Context, hash string) (bool, error) {
@@ -137,4 +162,75 @@ func TestReader_inboundAmountPassesAnyNonZeroDeltaThrough(t *testing.T) {
 			t.Fatalf("InboundAmount = %v, %v, want %d", got, err, want)
 		}
 	})
+}
+
+func TestReader_findSignatureReturnsTheTransactionThatCarriesTheTreasurysSignature(t *testing.T) {
+	t.Parallel()
+	rpc := &readerRPC{
+		recent: []solana.SignatureInfo{
+			{Signature: "other-1"},
+			{Signature: "gone"},
+			{Signature: "real"},
+			{Signature: "later"},
+		},
+		transaction: map[platform.Signature][]platform.Signature{
+			"other-1": {"other-1", "someone"},
+			"real":    {"real", "treasury-sig", "relayer-sig"},
+			"later":   {"later", "treasury-sig"},
+		},
+	}
+	got, found, err := adapter.NewReader(rpc).FindSignature(
+		t.Context(), "treasury-address", platform.StandInSignature("treasury-sig"))
+	if err != nil || !found || got != "real" {
+		t.Fatalf("FindSignature = %q, %v, %v; want real", got, found, err)
+	}
+	if rpc.owner != "treasury-address" || len(rpc.asked) != 3 {
+		t.Fatalf("looked at %q, read %v; want the treasury and a stop at the match", rpc.owner, rpc.asked)
+	}
+}
+
+func TestReader_findSignatureSaysNotFoundWhenNoRecentTransactionCarriesIt(t *testing.T) {
+	t.Parallel()
+	rpc := &readerRPC{
+		recent:      []solana.SignatureInfo{{Signature: "a"}},
+		transaction: map[platform.Signature][]platform.Signature{"a": {"a", "x"}},
+	}
+	got, found, err := adapter.NewReader(rpc).FindSignature(
+		t.Context(), "treasury-address", platform.StandInSignature("treasury-sig"))
+	if err != nil || found || got != "" {
+		t.Fatalf("FindSignature = %q, %v, %v; want nothing and no error", got, found, err)
+	}
+}
+
+func TestReader_findSignatureRefusesARealSignatureAndPassesRPCFailuresThrough(t *testing.T) {
+	t.Parallel()
+	if _, _, err := adapter.NewReader(&readerRPC{}).
+		FindSignature(t.Context(), "o", "real"); errs.CodeOf(
+		err,
+	) != errs.CodeInvalidInput {
+		t.Fatalf("a real signature = %v, want invalid_input", err)
+	}
+	down := errs.New(errs.CodeRPCUnavailable, "test")
+	_, _, err := adapter.NewReader(&readerRPC{recentErr: down}).
+		FindSignature(t.Context(), "o", platform.StandInSignature("t"))
+	if errs.CodeOf(err) != errs.CodeRPCUnavailable {
+		t.Fatalf("listing failure = %v, want rpc_unavailable", err)
+	}
+}
+
+func TestReader_findSignaturePassesATransactionReadFailureThrough(t *testing.T) {
+	t.Parallel()
+	rpc := &readerRPC{recent: []solana.SignatureInfo{{Signature: "a"}}, transaction: nil}
+	rpc.transaction = map[platform.Signature][]platform.Signature{}
+	_, found, err := adapter.NewReader(&failingTransactions{rpc}).FindSignature(
+		t.Context(), "o", platform.StandInSignature("t"))
+	if errs.CodeOf(err) != errs.CodeRPCUnavailable || found {
+		t.Fatalf("FindSignature = %v, %v; want rpc_unavailable", found, err)
+	}
+}
+
+type failingTransactions struct{ *readerRPC }
+
+func (failingTransactions) TransactionSignatures(context.Context, platform.Signature) ([]platform.Signature, error) {
+	return nil, errs.New(errs.CodeRPCUnavailable, "test")
 }

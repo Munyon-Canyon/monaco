@@ -13,6 +13,34 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const adoptSignature = `-- name: AdoptSignature :execrows
+UPDATE swaps
+SET tx_signature = $1::text, updated_at = $2::timestamptz,
+  parked_at = CASE WHEN parked_code = 'swap_signature_unknown' THEN NULL ELSE parked_at END,
+  parked_code = CASE WHEN parked_code = 'swap_signature_unknown' THEN NULL ELSE parked_code END
+WHERE id = $3 AND status = 'submitted' AND tx_signature = $4::text
+`
+
+type AdoptSignatureParams struct {
+	TxSignature string
+	At          time.Time
+	ID          uuid.UUID
+	StandIn     string
+}
+
+func (q *Queries) AdoptSignature(ctx context.Context, arg AdoptSignatureParams) (int64, error) {
+	result, err := q.db.Exec(ctx, adoptSignature,
+		arg.TxSignature,
+		arg.At,
+		arg.ID,
+		arg.StandIn,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const claimLive = `-- name: ClaimLive :one
 SELECT id, status
 FROM swaps

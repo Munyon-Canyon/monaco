@@ -5,6 +5,7 @@ package observability
 func init() {
 	register(
 		TradingSwapFinished,
+		TradingSwapSigned,
 		TradingSwapRefused,
 		TradingSwapFillUnread,
 		TradingSwapForceResolved,

@@ -33,6 +33,12 @@ func (c stubChain) SignatureStatuses(context.Context, []chain.Signature) ([]trad
 	return c.statuses, nil
 }
 
+func (c stubChain) FindSignature(
+	context.Context, chain.SolanaAddress, chain.Signature,
+) (chain.Signature, bool, error) {
+	return "", false, nil
+}
+
 func (c stubChain) BlockhashValid(context.Context, []byte) (bool, error) { return false, nil }
 
 func (c stubChain) InboundAmount(

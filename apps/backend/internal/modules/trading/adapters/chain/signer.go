@@ -3,6 +3,7 @@ package chain
 import (
 	"context"
 	"log/slog"
+	"slices"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/app"
@@ -43,26 +44,43 @@ func (s Signer) Sign(
 	if err != nil {
 		return nil, "", err
 	}
-	signed, err := s.relayer.CoSign(ctx, walletSigned)
-	if err != nil {
+	refuse := func(err error) ([]byte, platform.Signature, error) {
 		return nil, "", errs.Wrap(err, errs.CodeDecodeFailed, op, slog.String("wallet_id", privyWalletID))
 	}
-	tx, err := platform.DecodeTransaction(signed)
+	tx, err := platform.DecodeTransaction(walletSigned)
 	if err != nil {
-		return nil, "", errs.Wrap(err, errs.CodeDecodeFailed, op, slog.String("wallet_id", privyWalletID))
+		return refuse(err)
 	}
-	if !tx.Signed(0) || !walletSignedASlotAfterTheFeePayer(tx) {
+	signed := walletSigned
+	if slices.Contains(tx.Signers, s.relayer.Address()) {
+		if signed, err = s.relayer.CoSign(ctx, walletSigned); err != nil {
+			return refuse(err)
+		}
+		if tx, err = platform.DecodeTransaction(signed); err != nil {
+			return refuse(err)
+		}
+	}
+	signature, ok := s.transactionID(tx)
+	if !ok {
 		return nil, "", errs.New(errs.CodeDecodeFailed, op, slog.String("wallet_id", privyWalletID),
 			slog.String("reason", "fee payer or treasury signature missing"))
 	}
-	return signed, platform.SignatureOf(tx.Signatures[0]), nil
+	return signed, signature, nil
 }
 
-func walletSignedASlotAfterTheFeePayer(tx platform.Transaction) bool {
+func (s Signer) transactionID(tx platform.Transaction) (platform.Signature, bool) {
+	treasury := -1
 	for i := 1; i < len(tx.Signatures); i++ {
-		if tx.Signed(i) {
-			return true
+		if tx.Signers[i] != s.relayer.Address() && tx.Signed(i) {
+			treasury = i
+			break
 		}
 	}
-	return false
+	if treasury < 0 {
+		return "", false
+	}
+	if tx.Signers[0] == s.relayer.Address() {
+		return platform.SignatureOf(tx.Signatures[0]), tx.Signed(0)
+	}
+	return platform.StandInSignature(platform.SignatureOf(tx.Signatures[treasury])), !tx.Signed(0)
 }

@@ -14,6 +14,13 @@ SET status = 'submitted', execute_request_id = @execute_request_id::text, signed
   tx_signature = @tx_signature::text, submitted_at = @submitted_at::timestamptz, updated_at = @submitted_at::timestamptz
 WHERE id = @id AND status = 'created' AND octet_length(@signed_tx::bytea) > 0;
 
+-- name: AdoptSignature :execrows
+UPDATE swaps
+SET tx_signature = @tx_signature::text, updated_at = @at::timestamptz,
+  parked_at = CASE WHEN parked_code = 'swap_signature_unknown' THEN NULL ELSE parked_at END,
+  parked_code = CASE WHEN parked_code = 'swap_signature_unknown' THEN NULL ELSE parked_code END
+WHERE id = @id AND status = 'submitted' AND tx_signature = @stand_in::text;
+
 -- name: FinishConfirmed :execrows
 UPDATE swaps
 SET status = 'confirmed', out_amount = @out_amount::bigint, fee_micros = @fee_micros::bigint,

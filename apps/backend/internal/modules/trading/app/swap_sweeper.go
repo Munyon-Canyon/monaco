@@ -121,6 +121,14 @@ func (p *SwapSweeper) resolve(
 	rows := make([]sqlc.ListStaleSubmittedRow, 0, len(submitted))
 	signatures := make([]chain.Signature, 0, len(submitted))
 	for _, row := range submitted {
+		if chain.IsStandInSignature(chain.Signature(row.TxSignature.String)) {
+			signature, err := p.recoverStandIn(ctx, now, row)
+			if signature == "" {
+				failures = append(failures, errors.Join(err, p.rotate(ctx, row.ID, now)))
+				continue
+			}
+			row.TxSignature.String, row.TxSignature.Valid = string(signature), true
+		}
 		if !row.TxSignature.Valid || row.TxSignature.String == "" {
 			decodeErr := errs.New(
 				errs.CodeDecodeFailed,

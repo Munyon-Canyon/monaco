@@ -179,6 +179,7 @@ func (l *SwapLayer) drive(ctx context.Context, req SwapRequest, id uuid.UUID) er
 	if err != nil {
 		return l.neverSubmitted(ctx, req, id, err)
 	}
+	logSigned(ctx, id, order.Router, signed, signature)
 	moved, err := l.move(ctx, req, id, submitted(req, id, order.RequestID, signed, signature))
 	if err != nil || !moved {
 		return err
@@ -208,6 +209,10 @@ func (l *SwapLayer) settle(
 	if cause != nil {
 		return unfinished(cause)
 	}
+	signature, err := l.adopt(ctx, id, signature, result.Signature)
+	if err != nil {
+		return err
+	}
 	switch result.Status {
 	case ExecuteSuccess:
 		return l.confirm(ctx, req, id, signature)
@@ -231,6 +236,35 @@ func unfinished(cause error) error {
 		return nil
 	}
 	return cause
+}
+
+func (l *SwapLayer) adopt(
+	ctx context.Context, id uuid.UUID, recorded, reported chain.Signature,
+) (chain.Signature, error) {
+	if !chain.IsStandInSignature(recorded) || reported == "" {
+		return recorded, nil
+	}
+	now := l.d.Clock.Now()
+	err := l.d.UoW.Do(ctx, func(ctx context.Context, tx db.Tx) error {
+		_, err := sqlc.New(tx.Queries()).AdoptSignature(ctx, sqlc.AdoptSignatureParams{
+			ID: id, StandIn: string(recorded), TxSignature: string(reported), At: now,
+		})
+		return err
+	})
+	if err != nil {
+		return "", errs.Wrap(err, errs.CodeInternal, "trading.SwapLayer.adopt", slog.String("swap_id", id.String()))
+	}
+	return reported, nil
+}
+
+func logSigned(ctx context.Context, id uuid.UUID, router string, signed []byte, signature chain.Signature) {
+	var feePayer chain.SolanaAddress
+	if tx, err := chain.DecodeTransaction(signed); err == nil {
+		feePayer = tx.Signers[0]
+	}
+	observability.Info(ctx, observability.TradingSwapSigned,
+		slog.String("swap_id", id.String()), slog.String("router", router),
+		slog.String("fee_payer", string(feePayer)), slog.Bool("signature_known", !chain.IsStandInSignature(signature)))
 }
 
 func (l *SwapLayer) confirm(ctx context.Context, req SwapRequest, id uuid.UUID, signature chain.Signature) error {

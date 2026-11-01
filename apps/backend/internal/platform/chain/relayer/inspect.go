@@ -90,7 +90,7 @@ type tally struct {
 	atas      uint64
 }
 
-func (l Limits) inspect(msg []byte) (Spend, error) {
+func (l Limits) inspect(msg []byte, relayerIndex int) (Spend, error) {
 	const op = "relayer.inspect"
 	refuse := func(reason string, attrs ...slog.Attr) (Spend, error) {
 		all := append([]slog.Attr{slog.String("reason", reason)}, attrs...)
@@ -102,26 +102,27 @@ func (l Limits) inspect(msg []byte) (Spend, error) {
 	}
 	t := tally{unitLimit: defaultComputeUnitLimit}
 	for _, ix := range parsed.instructions {
-		if reason := l.count(&t, ix); reason != "" {
+		if reason := l.count(&t, ix, relayerIndex); reason != "" {
 			return refuse(reason, slog.String("program", string(ix.program)))
 		}
+	}
+	if t.atas > l.MaxATACreations {
+		return refuse("relayer funds too many accounts", slog.Uint64("cap", l.MaxATACreations))
+	}
+	spend := Spend{ATACreations: t.atas, RentLamports: t.atas * l.ATARentLamports}
+	if relayerIndex != feePayerIndex {
+		return spend, nil
 	}
 	priority, ok := priorityLamports(t.unitPrice, t.unitLimit)
 	if !ok || priority > l.MaxFeeLamports {
 		return refuse("priority fee over the cap", slog.Uint64("cap_lamports", l.MaxFeeLamports))
 	}
-	if t.atas > l.MaxATACreations {
-		return refuse("relayer funds too many accounts", slog.Uint64("cap", l.MaxATACreations))
-	}
-	return Spend{
-		PriorityFeeLamports: priority,
-		BaseFeeLamports:     uint64(parsed.signers) * baseFeePerSignatureLamports,
-		ATACreations:        t.atas,
-		RentLamports:        t.atas * l.ATARentLamports,
-	}, nil
+	spend.PriorityFeeLamports = priority
+	spend.BaseFeeLamports = uint64(parsed.signers) * baseFeePerSignatureLamports
+	return spend, nil
 }
 
-func (l Limits) count(t *tally, ix swapInstruction) string {
+func (l Limits) count(t *tally, ix swapInstruction, relayerIndex int) string {
 	switch {
 	case ix.program == ComputeBudgetProgram:
 		limit, price, ok := budgetOf(ix.data)
@@ -134,8 +135,9 @@ func (l Limits) count(t *tally, ix swapInstruction) string {
 		if price != nil {
 			t.unitPrice = *price
 		}
-	case !touchesFeePayer(ix), slices.Contains(l.PayerPrograms, ix.program), paysTheRelayer(ix):
-	case isRelayerFundedATA(ix):
+	case !touchesRelayer(ix, relayerIndex), slices.Contains(l.PayerPrograms, ix.program),
+		paysTheRelayer(ix, relayerIndex):
+	case isRelayerFundedATA(ix, relayerIndex):
 		t.atas++
 	default:
 		return "instruction takes the relayer key"
@@ -143,34 +145,29 @@ func (l Limits) count(t *tally, ix swapInstruction) string {
 	return ""
 }
 
-func touchesFeePayer(ix swapInstruction) bool {
-	for _, a := range ix.accounts {
-		if a == feePayerIndex {
-			return true
-		}
-	}
-	return false
+func touchesRelayer(ix swapInstruction, relayerIndex int) bool {
+	return containsAccount(ix.accounts, relayerIndex)
 }
 
-func paysTheRelayer(ix swapInstruction) bool {
+func containsAccount(accounts []byte, index int) bool {
+	return slices.ContainsFunc(accounts, func(a byte) bool { return int(a) == index })
+}
+
+func paysTheRelayer(ix swapInstruction, relayerIndex int) bool {
 	return ix.program == chain.SystemProgram && len(ix.data) == systemTransferDataSize &&
 		binary.LittleEndian.Uint32(ix.data) == systemTransferTag && len(ix.accounts) == systemTransferAccounts &&
-		ix.accounts[ataFunderPosition] != feePayerIndex && ix.accounts[transferRecipientPosition] == feePayerIndex
+		int(ix.accounts[ataFunderPosition]) != relayerIndex &&
+		int(ix.accounts[transferRecipientPosition]) == relayerIndex
 }
 
-func isRelayerFundedATA(ix swapInstruction) bool {
+func isRelayerFundedATA(ix swapInstruction, relayerIndex int) bool {
 	if ix.program != chain.ATAProgram || len(ix.data) != 1 || ix.data[0] != ataCreateIdempotent {
 		return false
 	}
-	if len(ix.accounts) < ataMinAccounts || ix.accounts[ataFunderPosition] != feePayerIndex {
+	if len(ix.accounts) < ataMinAccounts || int(ix.accounts[ataFunderPosition]) != relayerIndex {
 		return false
 	}
-	for _, a := range ix.accounts[ataFunderPosition+1:] {
-		if a == feePayerIndex {
-			return false
-		}
-	}
-	return true
+	return !containsAccount(ix.accounts[ataFunderPosition+1:], relayerIndex)
 }
 
 func logSpend(ctx context.Context, s Spend, l Limits) {

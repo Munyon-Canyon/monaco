@@ -40,6 +40,19 @@ type sweeperReader struct {
 	followupErr error
 	onStatus    func()
 	calls       int
+	found       chain.Signature
+	findErr     error
+	findOwner   chain.SolanaAddress
+	findStandIn chain.Signature
+	findCalls   int
+}
+
+func (r *sweeperReader) FindSignature(
+	_ context.Context, owner chain.SolanaAddress, standIn chain.Signature,
+) (chain.Signature, bool, error) {
+	r.findCalls++
+	r.findOwner, r.findStandIn = owner, standIn
+	return r.found, r.found != "", r.findErr
 }
 
 func (r *sweeperReader) SignatureStatuses(
