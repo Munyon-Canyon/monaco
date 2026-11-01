@@ -18,7 +18,8 @@ WHERE actor_key = $1 AND key = $2 AND status = 1 AND claim_generation = $7;
 DELETE FROM idempotency_keys WHERE actor_key = $1 AND key = $2 AND status = 1 AND claim_generation = $3;
 
 -- name: DeleteIdempotencyKeysBefore :execrows
-DELETE FROM idempotency_keys WHERE created_at < $1;
+DELETE FROM idempotency_keys
+WHERE ctid IN (SELECT ctid FROM idempotency_keys WHERE created_at < @before::timestamptz LIMIT @batch);
 
 -- name: TakeOverIdempotencyKey :one
 UPDATE idempotency_keys SET created_at = $3, claim_generation = claim_generation + 1

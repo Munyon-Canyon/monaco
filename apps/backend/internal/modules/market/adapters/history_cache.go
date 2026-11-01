@@ -13,8 +13,8 @@ import (
 )
 
 const (
-	historyShortTTL = 15 * time.Minute
-	historyLongTTL  = time.Hour
+	historyShortTTL = time.Hour
+	historyLongTTL  = 6 * time.Hour
 	historyMissTTL  = 24 * time.Hour
 )
 
@@ -23,9 +23,19 @@ type historyBox struct {
 	missing bool
 }
 
+type BudgetLevels interface {
+	Level(ctx context.Context) app.BudgetLevel
+}
+
 type CachedHistory struct {
-	next  app.PriceHistory
-	cache *Cache
+	next   app.PriceHistory
+	cache  *Cache
+	budget BudgetLevels
+}
+
+func (h *CachedHistory) WithBudget(b BudgetLevels) *CachedHistory {
+	h.budget = b
+	return h
 }
 
 func CacheHistory(next app.PriceHistory, cache *Cache) *CachedHistory {
@@ -78,6 +88,10 @@ func (h *CachedHistory) loader(ctx context.Context, mint domain.Mint, days int) 
 	return func() (any, error) {
 		if value, ok := h.cache.hit(key); ok {
 			return value, nil
+		}
+		if h.budget != nil && h.budget.Level(ctx) >= app.BudgetSoft {
+			return nil, errs.New(errs.CodeNotFound, "market.CachedHistory", slog.String("mint", mint.String()),
+				slog.Bool("budget", true))
 		}
 		loadCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), loadBudget)
 		defer cancel()

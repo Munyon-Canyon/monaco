@@ -34,6 +34,7 @@ paths:
     post:
       operationId: postSwapRetry
       tags: [trading]
+      x-rate-limit: {actor: {rate: 10, per: 1m, burst: 5}}
       x-idempotent: true
       summary: Retry a failed trade.
       description: >-

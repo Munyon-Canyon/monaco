@@ -89,6 +89,7 @@ paths:
     patch:
       operationId: patchCabal
       tags: [cabal]
+      x-rate-limit: {actor: {rate: 60, per: 1m, burst: 20}}
       x-idempotent: true
       summary: Rename a cabal or change its slippage.
       description: >-
@@ -391,6 +392,7 @@ paths:
     post:
       operationId: postCabalAccessDecision
       tags: [cabal]
+      x-rate-limit: {actor: {rate: 60, per: 1m, burst: 20}}
       x-idempotent: true
       summary: Approve or deny a pending request or invite.
       description: >-
@@ -558,6 +560,7 @@ paths:
     put:
       operationId: putMyCabalOrder
       tags: [cabal]
+      x-rate-limit: {actor: {rate: 60, per: 1m, burst: 20}}
       x-idempotent: true
       summary: Save the order of the caller's cabals.
       description: >-

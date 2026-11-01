@@ -230,7 +230,7 @@ func (m *Module) chartParts() chartParts {
 		cache := adapters.NewCache(m.deps.Clock)
 		chart := app.NewChart(m.deps.Pool, m.deps.Clock)
 		if m.deps.Config.CoinGecko.HistoryEnabled {
-			m.charts.history = adapters.CacheHistory(m.priceHistory(), cache)
+			m.charts.history = adapters.CacheHistory(m.priceHistory(), cache).WithBudget(m.coinGeckoBudget())
 			chart.WithHistory(m.charts.history)
 		}
 		m.charts.chart = adapters.CacheChart(chart, cache)

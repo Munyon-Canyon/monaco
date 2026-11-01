@@ -152,9 +152,13 @@ func startWork(
 		stopConsumers(ctx)
 		return errors.Join(stopPollers(), stopHints())
 	})
+	progress := newDBProgress(d.Pool, d.Bus, d.Clock)
+	if err := exportMoneyIntentGauge(meters.Meter(pollerMeter), progress); err != nil {
+		return health{}, err
+	}
 	return health{
 		connected: d.Bus.Connected, pool: d.Pool, ticks: runner, successes: runner, pollers: pollers, clock: d.Clock,
-		progress: newDBProgress(d.Pool, d.Bus, d.Clock),
+		progress: progress,
 	}, nil
 }
 

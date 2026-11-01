@@ -133,7 +133,7 @@ func (h *harness) successGauge(t *testing.T, name string) (int64, bool) {
 	if err := h.reader.Collect(t.Context(), &rm); err != nil {
 		t.Fatal(err)
 	}
-	want := attribute.NewSet(attribute.String("poller", name))
+	want := attribute.NewSet(attribute.String("poller", name), attribute.Bool("money", poller.IsMoney(name)))
 	for _, sm := range rm.ScopeMetrics {
 		for _, m := range sm.Metrics {
 			gauge, ok := m.Data.(metricdata.Gauge[int64])
@@ -646,6 +646,43 @@ func TestRunner_aConfiguredBackoffCapReplacesTheDefault(t *testing.T) {
 			t.Fatalf("wait = %v, want the configured 2s cap", got)
 		}
 		h.clock.Advance(2 * time.Second)
+	}
+}
+
+func TestRunner_aMoneyPollerBacksOffNoLongerThanAMinuteAndTheGaugeSaysItIsMoney(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t, testkit.DB(t), testkit.NewClock(epoch()))
+	p := &fastPoller{fakePoller{name: "trading.evm_trades", tick: func(int32) (poller.Report, error) {
+		return poller.Report{}, errs.New(errs.CodeUpstreamUnavailable, "test.fetch")
+	}}}
+	afters := make(chan time.Duration, 8)
+	h.clock.NotifyAfters(afters)
+	out, _ := h.start(t, p)
+	want := []time.Duration{
+		5 * time.Second, 10 * time.Second, 20 * time.Second, 40 * time.Second,
+		time.Minute, time.Minute,
+	}
+	for i, w := range want {
+		out.expect(t, "poller.tick.failed")
+		got := <-afters
+		if got != w {
+			t.Fatalf("failure %d waits %v, want %v", i+1, got, w)
+		}
+		h.clock.Advance(got)
+	}
+	if _, ok := h.successGauge(t, p.name); !ok {
+		t.Fatal("no success gauge point labelled money=true for a money poller")
+	}
+}
+
+func TestRunner_anEmptyTickLogsAtDebugOnly(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t, testkit.DB(t), testkit.NewClock(epoch()))
+	p := &fakePoller{name: "test.empty", tick: func(int32) (poller.Report, error) { return poller.Report{}, nil }}
+	out, _ := h.start(t, p)
+	line := out.expect(t, "poller.tick")
+	if line["level"] != "DEBUG" {
+		t.Fatalf("empty tick level = %v, want DEBUG (line %v)", line["level"], line)
 	}
 }
 
