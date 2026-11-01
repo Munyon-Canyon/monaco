@@ -2,9 +2,11 @@ package social
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
@@ -50,6 +52,7 @@ type Module struct {
 	catalog  market.Catalog
 	prices   market.Prices
 	stocks   app.StockCards
+	gauges   sync.Once
 }
 
 type Option func(*Module)
@@ -347,6 +350,8 @@ func (m *Module) http() adapters.HTTP {
 		CreateComment:           app.NewCreateCommentHandler(comments),
 		DeleteComment:           app.NewDeleteCommentHandler(comments),
 		Removal:                 app.NewRemoveCommentHandler(comments),
+		RemoveChat:              app.NewRemoveChatMessageHandler(chat),
+		Resolve:                 app.NewResolveReportHandler(m.deps.UoW, m.deps.IDs, m.deps.Clock),
 		VoteCommentPoll:         app.NewVoteCommentPollHandler(polls),
 		WithdrawCommentPollVote: app.NewWithdrawCommentPollVoteHandler(polls),
 		LikeFeedItem:            app.NewLikeFeedItemHandler(likes),
@@ -375,7 +380,12 @@ func (m *Module) http() adapters.HTTP {
 	}
 }
 
+const reportMeter = "github.com/monaco/monaco/apps/backend/internal/modules/social"
+
 func (m *Module) Consumers() []bus.Consumer {
+	m.gauges.Do(func() {
+		_ = adapters.ExportReportGauges(otel.GetMeterProvider().Meter(reportMeter), m.deps.Pool, m.deps.Clock)
+	})
 	feed := adapters.Feed{
 		Bus: m.deps.Bus, Users: m.users, Cabals: m.cabals, Assets: m.assets, Treasury: m.treasury,
 		Tallies: m.tallies, IDs: m.deps.IDs, UoW: m.deps.UoW,
@@ -429,6 +439,10 @@ func (m *Module) Consumers() []bus.Consumer {
 				bus.HandleFetched("social.realtime_revoke.standing", revoke.Standing, standingSettled),
 				bus.HandleFetched("social.realtime_revoke.deleted", revoke.Deleted, deletedSettled),
 			},
+		},
+		{
+			Durable:  "social_report_alert",
+			Handlers: []bus.HandlerSpec{bus.Handle("social.report_alert", adapters.ReportAlert{}.Handle)},
 		},
 		{
 			Durable: "social_referral_follows",

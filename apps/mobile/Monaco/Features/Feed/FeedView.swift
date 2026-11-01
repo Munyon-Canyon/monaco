@@ -89,6 +89,8 @@ private struct FeedScreen: View {
     @Environment(ToastCenter.self) private var toasts
     @State private var readingID: Components.Schemas.FeedItem.ID?
     @State private var showsMuted = false
+    @State private var reporting: ReportTarget?
+    @State private var blocking: BlockTarget?
 
     var body: some View {
         ScrollView {
@@ -102,6 +104,11 @@ private struct FeedScreen: View {
             ToolbarItem(placement: .topBarTrailing) { filter }
         }
         .navigationDestination(isPresented: $showsMuted) { FeedMutesView() }
+        .reportSheet($reporting)
+        .blockConfirmation($blocking)
+        .onReceive(NotificationCenter.default.publisher(for: .monacoBlocksChanged)) { _ in
+            Task { await model.refresh() }
+        }
         .onChange(of: model.failureTick) { _, _ in
             guard let error = model.lastError else { return }
             toasts.show(error)
@@ -236,6 +243,7 @@ private struct FeedScreen: View {
                             ForEach(model.muteOptions(for: item)) { option in
                                 Button(option.menuTitle) { mute(option) }
                             }
+                            moderation(item)
                         }
                         .onAppear {
                             guard index >= items.count - 5, !model.loadMoreFailed else { return }
@@ -246,6 +254,25 @@ private struct FeedScreen: View {
             .scrollTargetLayout()
             footer
                 .padding(.horizontal, MonacoTheme.Space.gutter)
+        }
+    }
+
+    @ViewBuilder private func moderation(_ item: Components.Schemas.FeedItem) -> some View {
+        if let report = model.reportTarget(for: item) {
+            Button {
+                reporting = ReportTarget(kind: report.kind, targetID: report.targetID)
+            } label: {
+                Label("Report", systemImage: "exclamationmark.bubble")
+            }
+            .accessibilityIdentifier("feed-report")
+        }
+        if let person = model.blockTarget(for: item) {
+            Button(role: .destructive) {
+                blocking = BlockTarget(userID: person.userID, name: person.name)
+            } label: {
+                Label("Block", systemImage: "nosign")
+            }
+            .accessibilityIdentifier("feed-block")
         }
     }
 

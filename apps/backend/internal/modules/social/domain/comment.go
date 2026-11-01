@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
+	"github.com/monaco/monaco/apps/backend/internal/platform/textfilter"
 )
 
 const (
@@ -22,6 +23,9 @@ func ParseCommentBody(raw string) (CommentBody, error) {
 	n := utf8.RuneCountInString(body)
 	if n < 1 || n > CommentBodyMax || !utf8.ValidString(body) {
 		return "", errs.New(errs.CodeInvalidInput, "social.ParseCommentBody", slog.Int("scalars", n))
+	}
+	if err := textfilter.Check("social.ParseCommentBody", body); err != nil {
+		return "", err
 	}
 	return CommentBody(body), nil
 }

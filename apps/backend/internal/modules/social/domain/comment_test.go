@@ -125,3 +125,10 @@ func TestQuoteExcerpt(t *testing.T) {
 		t.Fatalf("missing excerpt = %q, want nil", *got)
 	}
 }
+
+func TestParseCommentBody_refusesAListedWord(t *testing.T) {
+	t.Parallel()
+	if _, err := domain.ParseCommentBody("go kys"); errs.CodeOf(err) != errs.CodeContentNotAllowed {
+		t.Fatalf("ParseCommentBody = %v, want %s", err, errs.CodeContentNotAllowed)
+	}
+}

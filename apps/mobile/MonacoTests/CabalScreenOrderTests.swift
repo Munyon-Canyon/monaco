@@ -63,12 +63,13 @@ struct CabalScreenOrderTests {
         #expect(moved.allSatisfy { !top.contains($0) })
     }
 
-    @Test func theMoreMenuOffersChatEditTreasuryAddressAndLeave() {
+    @Test func theMoreMenuOffersChatEditTreasuryAddressReportAndLeave() {
         #expect(
             CabalMoreItem.items(role: "creator", status: "active") == [.chat, .edit, .treasury, .leave])
-        #expect(CabalMoreItem.items(role: "member", status: "active") == [.chat, .treasury, .leave])
-        #expect(CabalMoreItem.items(role: "member", status: CabalClosedModel.closedStatus) == [.treasury, .leave])
-        #expect(CabalMoreItem.items(role: nil, status: "active").isEmpty)
+        #expect(CabalMoreItem.items(role: "member", status: "active") == [.chat, .treasury, .report, .leave])
+        #expect(
+            CabalMoreItem.items(role: "member", status: CabalClosedModel.closedStatus) == [.treasury, .report, .leave])
+        #expect(CabalMoreItem.items(role: nil, status: "active") == [.report])
         #expect(CabalMoreItem.items(role: "creator", status: "active").last == .leave)
     }
 

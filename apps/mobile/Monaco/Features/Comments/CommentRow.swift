@@ -43,6 +43,7 @@ struct CommentRow: View {
     var onJump: (CommentQuoteRow) -> Void = { _ in }
     var onDelete: (() -> Void)?
     var onReport: (() -> Void)?
+    var onBlock: (() -> Void)?
     var onLongPress: ((CGRect) -> Void)?
 
     @State private var frameBox = RowFrameBox()
@@ -109,7 +110,7 @@ struct CommentRow: View {
         .modifier(
             CommentActions(
                 row: row, canReply: canReply, onReply: onReply, onReact: onDoubleTap, onJump: onJump,
-                onReport: onReport, onDelete: onDelete))
+                onReport: onReport, onBlock: onBlock, onDelete: onDelete))
     }
 
     @ViewBuilder private var avatar: some View {
@@ -230,6 +231,7 @@ private struct CommentActions: ViewModifier {
     let onReact: () -> Void
     let onJump: (CommentQuoteRow) -> Void
     let onReport: (() -> Void)?
+    let onBlock: (() -> Void)?
     let onDelete: (() -> Void)?
 
     func body(content: Content) -> some View {
@@ -241,6 +243,7 @@ private struct CommentActions: ViewModifier {
             }
             .accessibilityAction(named: "Copy") { if !row.isSystem { UIPasteboard.general.string = row.text } }
             .accessibilityAction(named: "Report") { onReport?() }
+            .accessibilityAction(named: "Block") { onBlock?() }
             .accessibilityAction(named: CommentsCopy.delete) { onDelete?() }
     }
 }

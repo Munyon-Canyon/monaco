@@ -9,6 +9,7 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/platform/textfilter"
 )
 
 const ChatBodyMax = 2000
@@ -20,6 +21,9 @@ func ParseChatBody(raw string) (ChatBody, error) {
 	n := utf8.RuneCountInString(body)
 	if n < 1 || n > ChatBodyMax || !utf8.ValidString(body) {
 		return "", errs.New(errs.CodeChatBodyInvalid, "social.ParseChatBody", slog.Int("scalars", n))
+	}
+	if err := textfilter.Check("social.ParseChatBody", body); err != nil {
+		return "", err
 	}
 	return ChatBody(body), nil
 }

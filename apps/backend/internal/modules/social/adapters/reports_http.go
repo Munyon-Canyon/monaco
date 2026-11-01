@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
+	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/domain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
@@ -32,6 +33,43 @@ func (h HTTP) PostReport(
 		return nil, err
 	}
 	return api.PostReport201JSONResponse(api.ReportCreated{Id: id}), nil
+}
+
+func (h HTTP) RemoveChatMessage(
+	ctx context.Context, req api.RemoveChatMessageRequestObject,
+) (api.RemoveChatMessageResponseObject, error) {
+	admin, err := adminCaller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	reason, err := events.NewReason(req.Body.Reason)
+	if err != nil {
+		return nil, err
+	}
+	if err := h.RemoveChat.Handle(
+		ctx,
+		app.RemoveChatMessage{MessageID: req.Id, Reason: reason, Admin: admin},
+	); err != nil {
+		return nil, err
+	}
+	return api.RemoveChatMessage204Response{}, nil
+}
+
+func (h HTTP) ResolveReport(
+	ctx context.Context, req api.ResolveReportRequestObject,
+) (api.ResolveReportResponseObject, error) {
+	admin, err := adminCaller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	reason, err := events.NewReason(req.Body.Reason)
+	if err != nil {
+		return nil, err
+	}
+	if err := h.Resolve.Handle(ctx, app.ResolveReport{ReportID: req.Id, Reason: reason, Admin: admin}); err != nil {
+		return nil, err
+	}
+	return api.ResolveReport204Response{}, nil
 }
 
 func (h HTTP) GetAdminReports(

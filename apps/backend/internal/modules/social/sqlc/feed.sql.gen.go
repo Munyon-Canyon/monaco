@@ -96,6 +96,12 @@ SELECT f.id, f.kind, f.ref_type, f.ref_id, f.cabal_id, f.actor_id, f.symbol, f.t
       SELECT 1 FROM feed_mutes m
       WHERE m.user_id = $1::uuid AND m.target_type = 'item' AND m.target_id = f.id::text
     )
+    AND NOT EXISTS (
+      SELECT 1 FROM user_blocks b
+      WHERE f.actor_id IS NOT NULL
+        AND ((b.blocker_id = $1::uuid AND b.blocked_id = f.actor_id)
+          OR (b.blocker_id = f.actor_id AND b.blocked_id = $1::uuid))
+    )
   )::bool AS visible
 FROM feed_objects f
 LEFT JOIN LATERAL (
@@ -317,6 +323,12 @@ WHERE NOT EXISTS (SELECT 1 FROM feed_cabals fc WHERE fc.cabal_id = f.cabal_id AN
     SELECT 1 FROM feed_mutes m
     WHERE m.user_id = $1::uuid AND m.target_type = 'item' AND m.target_id = f.id::text
   )
+  AND NOT EXISTS (
+    SELECT 1 FROM user_blocks b
+    WHERE f.actor_id IS NOT NULL
+      AND ((b.blocker_id = $1::uuid AND b.blocked_id = f.actor_id)
+        OR (b.blocker_id = f.actor_id AND b.blocked_id = $1::uuid))
+  )
   AND (
     NOT $13::bool
     OR (f.created_at, f.id) < ($14::timestamptz, $15::uuid)
@@ -524,6 +536,12 @@ WHERE NOT EXISTS (SELECT 1 FROM feed_cabals fc WHERE fc.cabal_id = f.cabal_id AN
   AND NOT EXISTS (
     SELECT 1 FROM feed_mutes m
     WHERE m.user_id = $1::uuid AND m.target_type = 'item' AND m.target_id = f.id::text
+  )
+  AND NOT EXISTS (
+    SELECT 1 FROM user_blocks b
+    WHERE f.actor_id IS NOT NULL
+      AND ((b.blocker_id = $1::uuid AND b.blocked_id = f.actor_id)
+        OR (b.blocker_id = f.actor_id AND b.blocked_id = $1::uuid))
   )
   AND f.created_at >= $13::timestamptz
   AND (

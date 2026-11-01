@@ -101,7 +101,7 @@ UPDATE feed_objects SET comment_count = comment_count + 1 WHERE id = :'item'
 SQL
 }
 
-# Only S1 seeds: S2 and S3 continue from the Feed post, its replies and the public cabal it wrote.
+# Only S1 seeds: S2 to S4 continue from the Feed post, its replies and the public cabal it wrote.
 case "$scenario" in
   S1)
     ready_actor A
@@ -140,7 +140,7 @@ SQL
     handoff public_item "$public_item"
     echo "seeded: '$cabal_name' ($item) with A as a member, '$public_name' ($public_item) without A"
     ;;
-  S2 | S3)
+  S2 | S3 | S4)
     echo "seeded in S1: nothing to add for $scenario"
     ;;
   *)

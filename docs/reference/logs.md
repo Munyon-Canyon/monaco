@@ -138,6 +138,7 @@ For a stuck money row, [Money runbook](../how-to/money-runbook.md) maps the sign
 | `social.chat_publish_failed` | `message_id`, `event`, `cause` |
 | `social.comment_created` | `comment_id`, `feed_object_id` |
 | `social.contacts_matched` | `submitted`, `matched` |
+| `social.report_received` | `report_id`, `kind`, `target_id`, `reason`, `link` |
 | `trading.bridge.outcome_unknown` | `swap_id`, `cabal_id`, `step`, `network`, `action_id` |
 | `trading.bridge_back.failed` | `swap_id`, `cabal_id`, `attempt`, `error`, `retrying` |
 | `trading.bridge_back.retried` | `swap_id`, `cabal_id`, `attempt`, `actor`, `reason` |

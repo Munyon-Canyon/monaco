@@ -553,8 +553,8 @@ func TestSystemReply_ABrokenPayloadOrTableFailsWithoutAReply(t *testing.T) {
 func TestSystemReply_ModuleTakesInjectedHoldings(t *testing.T) {
 	t.Parallel()
 	m := social.New(module.Deps{}, social.WithHoldings(brokenHoldings{}))
-	if len(m.Consumers()) != 6 {
-		t.Fatalf("consumers = %d, want 6", len(m.Consumers()))
+	if len(m.Consumers()) != 7 {
+		t.Fatalf("consumers = %d, want 7", len(m.Consumers()))
 	}
 }
 

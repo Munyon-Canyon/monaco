@@ -30,5 +30,11 @@ nonisolated final class FeedReactAndReplyJourneyUITests: XCTestCase {
             FeedReactAndReplyJourney.publicPost(app, item: item, run: run, recorder: recorder)
             attachScreenshot(of: app, named: "S3-A-public-post")
         }
+
+        try session.scenario("S4") {
+            let item = try JourneyHandoff.read("sale_item")
+            FeedReactAndReplyJourney.reportPost(app, item: item, recorder: recorder)
+            attachScreenshot(of: app, named: "S4-A-reported-post")
+        }
     }
 }

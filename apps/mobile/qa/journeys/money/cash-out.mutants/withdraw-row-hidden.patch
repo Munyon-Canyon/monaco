@@ -4,10 +4,9 @@ expect-fail: S2
 Settings has no Withdraw row. S2.1 waits for settings-withdraw, so S2 must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
-diff --git a/apps/mobile/Monaco/Features/Settings/SettingsView.swift b/apps/mobile/Monaco/Features/Settings/SettingsView.swift
 --- a/apps/mobile/Monaco/Features/Settings/SettingsView.swift
 +++ b/apps/mobile/Monaco/Features/Settings/SettingsView.swift
-@@ -70,7 +70,7 @@
+@@ -73,7 +73,7 @@
          case .inviteFriends: "profile-invite-row"
          case .viewAsOthers: "profile-view-as-others"
          case .activity: "settings-activity"
@@ -15,4 +14,4 @@ diff --git a/apps/mobile/Monaco/Features/Settings/SettingsView.swift b/apps/mobi
 +        case .withdraw: "settings-withdraw-gone"
          case .blockedPeople: "settings-blocked-people"
          case .advanced: "settings-advanced"
-         case .signOut: "profileSignOutButton"
+         case .contactSupport: "settings-contact-support"

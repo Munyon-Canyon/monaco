@@ -31,6 +31,8 @@ type HTTP struct {
 	CreateComment           *app.CreateCommentHandler
 	DeleteComment           *app.DeleteCommentHandler
 	Removal                 *app.RemoveCommentHandler
+	RemoveChat              *app.RemoveChatMessageHandler
+	Resolve                 *app.ResolveReportHandler
 	VoteCommentPoll         *app.VoteCommentPollHandler
 	WithdrawCommentPollVote *app.WithdrawCommentPollVoteHandler
 	LikeFeedItem            *app.LikeFeedItemHandler

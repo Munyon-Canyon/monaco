@@ -1,0 +1,17 @@
+journey: feed/react-and-reply
+expect-fail: S4
+
+The Feed card menu's Report loses its identifier, so a member cannot find it. S4.1 waits for feed-report, so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+--- a/apps/mobile/Monaco/Features/Feed/FeedView.swift
++++ b/apps/mobile/Monaco/Features/Feed/FeedView.swift
+@@ -264,7 +264,7 @@
+             } label: {
+                 Label("Report", systemImage: "exclamationmark.bubble")
+             }
+-            .accessibilityIdentifier("feed-report")
++            .accessibilityIdentifier("feed-flag")
+         }
+         if let person = model.blockTarget(for: item) {
+             Button(role: .destructive) {

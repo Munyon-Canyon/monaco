@@ -17,3 +17,14 @@ WHERE status = sqlc.arg(status)::text
   )
 ORDER BY created_at, id
 LIMIT sqlc.arg(row_limit)::int;
+
+-- name: LockReport :one
+SELECT id, status FROM reports WHERE id = sqlc.arg(id) FOR UPDATE;
+
+-- name: ResolveReport :execrows
+UPDATE reports SET status = 'resolved' WHERE id = sqlc.arg(id) AND status = 'open';
+
+-- name: CountOpenReports :one
+SELECT count(*)::bigint AS open_count,
+  coalesce(extract(epoch FROM sqlc.arg(now)::timestamptz - min(created_at)), 0)::bigint AS oldest_seconds
+FROM reports WHERE status = 'open';

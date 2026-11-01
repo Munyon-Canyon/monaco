@@ -8,6 +8,7 @@ struct CommentThreadView: View {
     @Environment(\.sectionScrollProxy) private var scroll
     @State private var deleting: CommentThreadRow?
     @State private var reporting: ReportTarget?
+    @State private var blocking: BlockTarget?
     @State private var actions: CommentActionsTarget?
     @State private var picking: CommentThreadRow?
     @State private var afterDismiss: (() -> Void)?
@@ -25,6 +26,7 @@ struct CommentThreadView: View {
         .accessibilityIdentifier("comment-thread")
         .commentNotices(model)
         .reportSheet($reporting)
+        .blockConfirmation($blocking)
         .fullScreenCover(item: $actions, onDismiss: runAfterDismiss) { target in
             actionsOverlay(target)
                 .presentationBackground(.clear)
@@ -107,6 +109,7 @@ extension CommentThreadView {
             onJump: { model.jump(to: $0) },
             onDelete: deleteAction(row),
             onReport: reportAction(row),
+            onBlock: blockAction(row),
             onLongPress: { frame in present(CommentActionsTarget(row: row, frame: frame)) }
         )
         .id(row.id)
@@ -115,6 +118,12 @@ extension CommentThreadView {
     fileprivate func reportAction(_ row: CommentThreadRow) -> (() -> Void)? {
         guard !row.comment.isMine && !row.isDeleted && !row.isSystem else { return nil }
         return { reporting = ReportTarget(kind: .comment, targetID: row.id) }
+    }
+
+    fileprivate func blockAction(_ row: CommentThreadRow) -> (() -> Void)? {
+        guard !row.comment.isMine && !row.isDeleted && !row.isSystem else { return nil }
+        let author = row.comment.author
+        return { blocking = BlockTarget(userID: row.authorID, name: author.displayName, handle: author.handle ?? "") }
     }
 
     fileprivate func deleteAction(_ row: CommentThreadRow) -> (() -> Void)? {
@@ -153,6 +162,7 @@ extension CommentThreadView {
                 afterDismiss = { toasts.show(success: "Copied") }
             },
             onReport: reportAction(row).map { work in { afterDismiss = work } },
+            onBlock: blockAction(row).map { work in { afterDismiss = work } },
             onDelete: deleteAction(row).map { work in { afterDismiss = work } },
             onDismiss: { dismissActions() }
         )

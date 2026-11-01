@@ -101,7 +101,11 @@ Rules:
 - **Hiding** is a predicate in the module's own SQL, so pages and cursors stay exact: the blocker no longer sees the blocked user's chat messages or comments, and a third member still does. A blocked author's channel message that has replies shows as `deleted: true`, as `GetChatThread` does. `UnreadCounts` skips blocked authors. Realtime `message.created` goes to the shared `cabal:<id>` channel, so clients drop events from authors in `GET /v1/me/blocks` (#4906). `comment_count` and `reply_count` keep counting hidden rows. The feed, mentions, follower lists and leaderboards are unchanged.
 - **Profile** `GET /v1/users/{id}` carries `blocked_by_me`. It says nothing about whether the viewed user blocked the viewer.
 - **Report** `POST /v1/reports` takes a `kind` (message, comment, user or cabal), a `target_id`, a `reason` and an optional note of at most 500 characters. A target that is missing, or a message or proposal comment in a cabal the reporter is not in, answers `ReportTargetNotFound`. A repeat on the same open target returns the same id and appends nothing. `report.created` carries no note text.
-- **Queue** `GET /v1/admin/reports` lists reports oldest first for a `moderator` admin. Resolving a report is not built; it waits for the admin panel (#708).
+- **Queue** `GET /v1/admin/reports` lists reports oldest first for a `moderator` admin. `POST /v1/admin/reports/{id}/resolve` marks one resolved with a reason and appends `admin.action{report_resolve}`; a resolved report answers 204 again and changes nothing.
+- **Feed** `ListFeed`, `ListTopFeed` and `GetFeedItem` skip an item whose actor has a block with the viewer in either direction, so a blocked user's replies leave the feed too.
+- **Alert** the `social.report_alert` consumer logs `social.report_received` for each `report.created`. The gauges `monaco_reports_open` and `monaco_reports_oldest_open_seconds` back two Grafana rules that page the team ([Moderate reported content](../how-to/moderation.md)).
+- **Admin removal** `DELETE /v1/admin/chat-messages/{id}` and `DELETE /v1/admin/cabals/{id}/picture` join the existing comment removal, proposal void and user ban. Each appends `admin.action` without the content.
+- **Word filter** the domain parsers for chat bodies, comment bodies, display names, bios and cabal names refuse a listed word with `content_not_allowed`.
 
 ## Notifications
 

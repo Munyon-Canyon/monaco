@@ -6,6 +6,7 @@ enum CabalMoreItem: CaseIterable {
     case chat
     case edit
     case treasury
+    case report
     case leave
 
     var title: String {
@@ -13,6 +14,7 @@ enum CabalMoreItem: CaseIterable {
         case .chat: "Chat"
         case .edit: "Edit name and picture"
         case .treasury: "Treasury address"
+        case .report: "Report cabal"
         case .leave: "Leave cabal"
         }
     }
@@ -22,6 +24,7 @@ enum CabalMoreItem: CaseIterable {
         case .chat: MonacoIcon.chat.symbol
         case .edit: MonacoIcon.edit.symbol
         case .treasury: MonacoIcon.wallet.symbol
+        case .report: MonacoIcon.report.symbol
         case .leave: MonacoIcon.trash.symbol
         }
     }
@@ -31,16 +34,18 @@ enum CabalMoreItem: CaseIterable {
         case .chat: "cabal-more-chat"
         case .edit: "cabal-more-edit"
         case .treasury: "cabal-more-treasury"
+        case .report: "cabal-more-report"
         case .leave: "cabal-more-leave"
         }
     }
 
     static func items(role: String?, status: String) -> [CabalMoreItem] {
-        guard role != nil else { return [] }
+        guard role != nil else { return [.report] }
         var items: [CabalMoreItem] = []
         if status != CabalClosedModel.closedStatus { items.append(.chat) }
         if role == "creator" { items.append(.edit) }
         items.append(.treasury)
+        if role != "creator" { items.append(.report) }
         items.append(.leave)
         return items
     }
@@ -88,6 +93,7 @@ struct CabalMoreActions: ViewModifier {
     @Environment(\.hostMainTab) private var hostMainTab
     @State private var sheet: CabalMoreSheet?
     @State private var editing = false
+    @State private var reporting: ReportTarget?
 
     func body(content: Content) -> some View {
         content
@@ -96,6 +102,7 @@ struct CabalMoreActions: ViewModifier {
                 pending = nil
                 run(item)
             }
+            .reportSheet($reporting)
             .navigationDestination(isPresented: $editing) {
                 if let loaded = edit.cabal {
                     EditCabalView(
@@ -125,6 +132,7 @@ struct CabalMoreActions: ViewModifier {
                 }
             }
         case .treasury: sheet = .treasury
+        case .report: reporting = ReportTarget(kind: .cabal, targetID: cabalID)
         case .leave: sheet = .leave
         }
     }

@@ -15,6 +15,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
+	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal/sqlc"
@@ -33,6 +34,7 @@ type HTTP struct {
 	Decide  *app.DecideAccessHandler
 	Update  *app.UpdateCabalHandler
 	Picture *app.SetCabalPictureHandler
+	Unpic   *app.RemoveCabalPictureHandler
 	Leave   *app.LeaveCabalHandler
 	Reorder *app.ReorderCabalsHandler
 	Invite  *app.InviteMemberHandler
@@ -370,6 +372,29 @@ func (h HTTP) DeleteCabalPicture(
 		return nil, err
 	}
 	return api.DeleteCabalPicture200JSONResponse(view), nil
+}
+
+func (h HTTP) RemoveAdminCabalPicture(
+	ctx context.Context, req api.RemoveAdminCabalPictureRequestObject,
+) (api.RemoveAdminCabalPictureResponseObject, error) {
+	const op = "cabal.RemoveAdminCabalPicture"
+	actor, ok := auth.ActorFrom(ctx)
+	if !ok || actor.Kind != auth.ActorAdmin {
+		return nil, errs.New(errs.CodeAdminForbidden, op)
+	}
+	admin, err := ids.ParseUserID(actor.ID)
+	if err != nil {
+		return nil, errs.Wrap(err, errs.CodeAdminForbidden, op)
+	}
+	reason, err := events.NewReason(req.Body.Reason)
+	if err != nil {
+		return nil, err
+	}
+	cmd := app.RemoveCabalPicture{CabalID: ids.CabalIDFrom(req.Id), Reason: reason, Admin: admin}
+	if err := h.Unpic.Handle(ctx, cmd); err != nil {
+		return nil, err
+	}
+	return api.RemoveAdminCabalPicture204Response{}, nil
 }
 
 func (h HTTP) setPicture(ctx context.Context, cabalID ids.CabalID, picture *app.Picture) (api.Cabal, error) {

@@ -12,7 +12,8 @@ struct SettingsCopyTests {
         #expect(
             SettingsRow.allCases.map(\.title) == [
                 "Notifications", "Edit profile", "Find friends", "Invite friends", "View as others",
-                "Account activity", "Withdraw", "Blocked people", "Block explorers", "Sign out", "Delete account",
+                "Account activity", "Withdraw", "Blocked people", "Block explorers", "Contact support", "Sign out",
+                "Delete account",
             ])
     }
 
@@ -25,6 +26,13 @@ struct SettingsCopyTests {
                 "Search people and contacts", "Share your invite link", "See your profile as others do",
             ])
         #expect(moved.map(\.systemImage) == ["person.2", "square.and.arrow.up", "eye"])
+    }
+
+    @Test func contactSupportOpensAMailLinkToTheSupportAddress() {
+        #expect(SettingsRow.accountRows.contains(.contactSupport))
+        #expect(SettingsRow.contactSupport.subtitle == "support@monacolabs.xyz")
+        #expect(SettingsRow.contactSupport.identifier == "settings-contact-support")
+        #expect(SettingsCopy.supportURL.absoluteString == "mailto:support@monacolabs.xyz?subject=Monaco%20support")
     }
 
     @Test func theAccountGroupEndsWithSignOutAndDeleteStandsApart() {

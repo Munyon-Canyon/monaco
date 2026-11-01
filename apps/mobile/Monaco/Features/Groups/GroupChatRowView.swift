@@ -46,8 +46,15 @@ struct GroupChatRowView: View {
     @Environment(ToastCenter.self) private var toasts
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var reporting: ReportTarget?
+    @State private var blocking: BlockTarget?
 
     private var message: ChatMessage { row.message }
+
+    private var blockAction: (() -> Void)? {
+        let author = message.author
+        guard !row.isMine, !message.deleted, !author.displayName.isEmpty else { return nil }
+        return { blocking = BlockTarget(userID: author.id, name: author.displayName, handle: author.handle ?? "") }
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -84,9 +91,11 @@ struct GroupChatRowView: View {
                             },
                             delete: row.isMine ? requestDelete.map { request in { request(row.id) } } : nil,
                             report: row.isMine
-                                ? nil : { reporting = ReportTarget(kind: .message, targetID: row.id) })
+                                ? nil : { reporting = ReportTarget(kind: .message, targetID: row.id) },
+                            block: blockAction)
                     )
                     .reportSheet($reporting)
+                    .blockConfirmation($blocking)
                     .modifier(
                         ChatFailedMenu(
                             enabled: row.delivery == .failed, retry: { retry(row.id) },
@@ -363,6 +372,7 @@ struct ChatMessageMenu: ViewModifier {
     let copy: () -> Void
     let delete: (() -> Void)?
     var report: (() -> Void)?
+    var block: (() -> Void)?
 
     @ViewBuilder func body(content: Content) -> some View {
         if enabled {
@@ -381,6 +391,12 @@ struct ChatMessageMenu: ViewModifier {
                     Button(action: report) {
                         Label("Report", systemImage: "exclamationmark.bubble")
                     }
+                }
+                if let block {
+                    Button(role: .destructive, action: block) {
+                        Label("Block", systemImage: "nosign")
+                    }
+                    .accessibilityIdentifier("chat-block")
                 }
                 if let delete {
                     Button(role: .destructive, action: delete) {

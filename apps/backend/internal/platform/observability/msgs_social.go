@@ -9,3 +9,7 @@ var SocialChatAuthorUnreadable = Msg{
 }
 
 var ContactsMatched = Msg{Name: "social.contacts_matched", Required: []string{"submitted", "matched"}}
+
+var SocialReportReceived = Msg{
+	Name: "social.report_received", Required: []string{"report_id", "kind", "target_id", "reason", "link"},
+}

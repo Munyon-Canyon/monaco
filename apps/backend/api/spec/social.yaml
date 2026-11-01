@@ -1164,6 +1164,71 @@ paths:
           description: The comment is removed.
         default:
           $ref: "#/components/responses/Problem"
+  /v1/admin/chat-messages/{id}:
+    delete:
+      operationId: removeChatMessage
+      tags: [social]
+      x-admin-role: moderator
+      x-idempotent: true
+      x-rate-limit: {actor: {rate: 120, per: 1m, burst: 30}}
+      summary: Remove a cabal chat message.
+      description: >-
+        Soft-deletes the message as a moderator and tells the cabal's live channel it is gone. Appends
+        `admin.action` in the same transaction and never copies the body into the audit. A message that is
+        already deleted returns 204 and changes nothing. An unknown message is chat_message_not_found, and a
+        reason shorter than 3 characters is reason_required.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - name: id
+          in: path
+          required: true
+          description: The message's id.
+          schema: {type: string, format: uuid, examples: ["01920000-0000-7000-8000-000000000007"]}
+      requestBody:
+        description: Why the moderator removes the message.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReasonBody"
+            example: {reason: abuse}
+      responses:
+        "204":
+          description: The message is removed.
+        default:
+          $ref: "#/components/responses/Problem"
+  /v1/admin/reports/{id}/resolve:
+    post:
+      operationId: resolveReport
+      tags: [social]
+      x-admin-role: moderator
+      x-idempotent: true
+      x-rate-limit: {actor: {rate: 120, per: 1m, burst: 30}}
+      summary: Resolve a report.
+      description: >-
+        Marks the report resolved after a moderator acted on it or decided no action is needed, and appends
+        `admin.action`. A report that is already resolved returns 204 and changes nothing. An unknown report is
+        report_not_found, and a reason shorter than 3 characters is reason_required.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - name: id
+          in: path
+          required: true
+          description: The report's id.
+          schema: {type: string, format: uuid, examples: ["01920000-0000-7000-8000-000000000009"]}
+      requestBody:
+        description: What the moderator decided.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReasonBody"
+            example: {reason: removed the message}
+      responses:
+        "204":
+          description: The report is resolved.
+        default:
+          $ref: "#/components/responses/Problem"
   /v1/admin/reports:
     get:
       operationId: getAdminReports

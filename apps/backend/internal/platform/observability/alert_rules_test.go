@@ -99,6 +99,8 @@ func TestAlertRules_coverTheLaunchDaySignals(t *testing.T) {
 		"monaco-consumer-backlog":         "monaco_bus_consumer_pending",
 		"monaco-dead-letters-open":        "monaco_dead_letters",
 		"monaco-telemetry-absent":         "absent(",
+		"monaco-reports-open":             "monaco_reports_open",
+		"monaco-reports-overdue":          "monaco_reports_oldest_open_seconds",
 	}
 	exprs := map[string]string{}
 	for _, r := range launchDayGroup(t).Rules {
