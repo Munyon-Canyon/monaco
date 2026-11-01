@@ -145,18 +145,18 @@ func TestEVMDepositForward_ReplayedExecutionsKeepOneRowAndAnnounceOnce(t *testin
 func TestEVMDepositForward_FailedExecutionWithoutActionReindexesOnce(t *testing.T) {
 	t.Parallel()
 	f := newForwardFixture(t)
-	rejected := execution("d", mc.ActionRejected)
-	rejected.ActionID = ""
-	f.tick(t, unrouted("c"), rejected)
-	f.tick(t, unrouted("c"), rejected)
-	if got := f.feed.Reindexes.Calls(); got != 1 {
-		t.Fatalf("Reindex calls = %d, want 1", got)
+	funded := unrouted("d")
+	funded.AmountMicros = money.MicrosFromUint64(1_000_000)
+	f.tick(t, unrouted("c"), funded)
+	f.tick(t, unrouted("c"), funded)
+	if got := f.feed.Reindexes.Calls(); got != 2 {
+		t.Fatalf("Reindex calls = %d, want 1 per execution", got)
 	}
-	if got := f.logged(observability.FundingEVMForwardUnrouted); got != 1 {
-		t.Fatalf("unrouted alerts = %d, want 1", got)
+	if got := f.logged(observability.FundingEVMForwardUnrouted); got != 2 {
+		t.Fatalf("unrouted alerts = %d, want 1 per execution", got)
 	}
 	if got := f.forwards(t, "failed"); got != 1 || f.forwarded(t) != 0 {
-		t.Fatalf("failed rows = %d, events = %d, want the rejected row failed and no event", got, f.forwarded(t))
+		t.Fatalf("failed rows = %d, events = %d, want the funded row failed and no event", got, f.forwarded(t))
 	}
 	if got := f.count(t, `SELECT count(*) FROM evm_deposit_forwards WHERE privy_execution_id = 'c'`); got != 0 {
 		t.Fatalf("rows for the zero-amount unrouted execution = %d, want none", got)
