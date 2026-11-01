@@ -55,13 +55,11 @@ func (h Activity) trade(
 	status domain.ActivityStatus,
 	at time.Time,
 ) error {
-	if source.Kind == cashoutSource {
-		return nil
-	}
 	a, err := domain.TradeActivity(t, status)
 	if err != nil {
 		return err
 	}
+	a.CashOutSale = source.Kind == cashoutSource
 	return h.record(ctx, tx, a, at)
 }
 
@@ -77,8 +75,9 @@ func (h Activity) record(ctx context.Context, tx db.Tx, a domain.Activity, at ti
 		Units:       number(a.Units),
 		TxSignature: text(string(a.TxSignature)),
 		At:          at,
+		CashoutSale: a.CashOutSale,
 	})
-	if err != nil || n == 0 {
+	if err != nil || n == 0 || a.CashOutSale {
 		return err
 	}
 	tx.AfterCommit(func(ctx context.Context) {

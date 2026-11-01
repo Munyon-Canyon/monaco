@@ -114,7 +114,7 @@ func replay(
 ) (*salesTotal, *pnlTimeline, error) {
 	sales := &salesTotal{}
 	positions := map[string]*replayed{}
-	line := &pnlTimeline{}
+	line := &pnlTimeline{held: map[string]*big.Rat{}, perToken: perTokenFor(names, quotes)}
 	for _, row := range rows {
 		tr, err := tradeOf(row)
 		if err != nil {
@@ -129,7 +129,7 @@ func replay(
 		if err := sales.apply(state, tr, shares); err != nil {
 			return nil, nil, err
 		}
-		if err := line.record(tr, shares, positions, sales); err != nil {
+		if err := line.record(tr, row.Asset, positions, sales); err != nil {
 			return nil, nil, err
 		}
 	}
@@ -137,47 +137,67 @@ func replay(
 }
 
 type pnlStep struct {
-	at     time.Time
-	shares *big.Rat
-	net    *big.Int
+	at   time.Time
+	held map[string]*big.Rat
+	net  *big.Int
 }
+
+type perTokenAt func(asset string, at time.Time) (*big.Rat, uint8, error)
 
 type pnlTimeline struct {
-	steps  []pnlStep
-	shares big.Rat
+	steps    []pnlStep
+	held     map[string]*big.Rat
+	perToken perTokenAt
 }
 
-func (l *pnlTimeline) record(
-	tr trade, shares sharesOf, positions map[string]*replayed, sales *salesTotal,
-) error {
-	moved, err := shares(tr)
+func (l *pnlTimeline) record(tr trade, asset string, positions map[string]*replayed, sales *salesTotal) error {
+	_, decimals, err := l.perToken(asset, tr.at)
 	if err != nil {
 		return err
 	}
-	if tr.side == sideBuy {
-		l.shares.Add(&l.shares, moved)
-	} else {
-		l.shares.Sub(&l.shares, moved)
+	whole := new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(decimals)), nil)
+	moved := new(big.Rat).SetFrac(new(big.Int).SetUint64(tr.units), whole)
+	tokens := new(big.Rat)
+	if prior := l.held[asset]; prior != nil {
+		tokens.Set(prior)
 	}
+	if tr.side == sideBuy {
+		tokens.Add(tokens, moved)
+	} else {
+		tokens.Sub(tokens, moved)
+	}
+	l.held[asset] = tokens
 	net := new(big.Int)
 	for _, state := range positions {
 		net.Add(net, new(big.Int).SetUint64(state.cost))
 	}
 	realized := new(big.Int).SetUint64(sales.proceeds.Uint64())
 	realized.Sub(realized, new(big.Int).SetUint64(sales.removed.Uint64()))
-	l.steps = append(l.steps, pnlStep{at: tr.at, shares: new(big.Rat).Set(&l.shares), net: net.Sub(net, realized)})
+	held := make(map[string]*big.Rat, len(l.held))
+	for key, value := range l.held {
+		held[key] = new(big.Rat).Set(value)
+	}
+	l.steps = append(l.steps, pnlStep{at: tr.at, held: held, net: net.Sub(net, realized)})
 	return nil
 }
 
-func (l *pnlTimeline) pnlAt(at time.Time, price money.Micros) money.SignedMicros {
+func (l *pnlTimeline) pnlAt(at time.Time, price money.Micros) (money.SignedMicros, error) {
 	i := sort.Search(len(l.steps), func(i int) bool { return l.steps[i].at.After(at) })
 	if i == 0 {
-		return money.SignedMicrosFromInt64(0)
+		return money.SignedMicrosFromInt64(0), nil
 	}
 	step := l.steps[i-1]
-	value := new(big.Rat).Mul(step.shares, new(big.Rat).SetInt(new(big.Int).SetUint64(price.Uint64())))
+	shares := new(big.Rat)
+	for asset, tokens := range step.held {
+		per, _, err := l.perToken(asset, at)
+		if err != nil {
+			return money.SignedMicros{}, err
+		}
+		shares.Add(shares, new(big.Rat).Mul(tokens, per))
+	}
+	value := new(big.Rat).Mul(shares, new(big.Rat).SetInt(new(big.Int).SetUint64(price.Uint64())))
 	value.Sub(value, new(big.Rat).SetInt(step.net))
-	return money.SignedMicrosFromInt64(new(big.Int).Quo(value.Num(), value.Denom()).Int64())
+	return money.SignedMicrosFromInt64(new(big.Int).Quo(value.Num(), value.Denom()).Int64()), nil
 }
 
 func (r *HoldingPerformanceReads) series(
@@ -197,16 +217,34 @@ func (r *HoldingPerformanceReads) series(
 		if len(prices) == 0 {
 			continue
 		}
-		points := make([]PnLPoint, 0, len(prices)+1)
-		for _, p := range prices {
-			if !p.At.Before(first) && p.At.Before(now) {
-				points = append(points, PnLPoint{At: p.At, PnLMicros: line.pnlAt(p.At, p.PriceMicros)})
-			}
+		points, err := seriesPoints(line, prices, first, now)
+		if err != nil {
+			return nil, err
 		}
-		points = append(points, PnLPoint{At: now, PnLMicros: line.pnlAt(now, prices[len(prices)-1].PriceMicros)})
 		out[name] = thinSeries(points)
 	}
 	return out, nil
+}
+
+func seriesPoints(
+	line *pnlTimeline, prices []PricePoint, first, now time.Time,
+) ([]PnLPoint, error) {
+	points := make([]PnLPoint, 0, len(prices)+1)
+	for _, p := range prices {
+		if p.At.Before(first) || !p.At.Before(now) {
+			continue
+		}
+		pnl, err := line.pnlAt(p.At, p.PriceMicros)
+		if err != nil {
+			return nil, err
+		}
+		points = append(points, PnLPoint{At: p.At, PnLMicros: pnl})
+	}
+	last, err := line.pnlAt(now, prices[len(prices)-1].PriceMicros)
+	if err != nil {
+		return nil, err
+	}
+	return append(points, PnLPoint{At: now, PnLMicros: last}), nil
 }
 
 func thinSeries(points []PnLPoint) []PnLPoint {
@@ -240,6 +278,18 @@ func sharesFor(
 func sharesPerToken(
 	asset string, tr trade, names map[domain.Asset]AssetName, quotes map[string]ListingQuote,
 ) (*big.Rat, uint8, error) {
+	return perTokenFor(names, quotes)(asset, tr.at)
+}
+
+func perTokenFor(names map[domain.Asset]AssetName, quotes map[string]ListingQuote) perTokenAt {
+	return func(asset string, at time.Time) (*big.Rat, uint8, error) {
+		return perTokenAtTime(asset, at, names, quotes)
+	}
+}
+
+func perTokenAtTime(
+	asset string, at time.Time, names map[domain.Asset]AssetName, quotes map[string]ListingQuote,
+) (*big.Rat, uint8, error) {
 	const op = "treasury.HoldingPerformance.shares"
 	if quote, listed := quotes[asset]; listed {
 		if quote.SharesPerToken == nil || quote.SharesPerToken.Sign() <= 0 {
@@ -254,7 +304,7 @@ func sharesPerToken(
 	if name.MultiplierAt == nil {
 		return big.NewRat(1, 1), name.Decimals, nil
 	}
-	num, den := name.MultiplierAt(tr.at)
+	num, den := name.MultiplierAt(at)
 	if num <= 0 || den <= 0 {
 		return nil, 0, errs.New(errs.CodeInternal, op, slog.String("asset", asset))
 	}

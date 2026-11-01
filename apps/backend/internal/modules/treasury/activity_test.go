@@ -207,7 +207,7 @@ func TestActivityConsumer_aFailedSwapHasNoLedgerHeaderAndOneFailedRow(t *testing
 	wantActivity(t, byID[bought], "buy", "failed", nil, str("5000000"), nil, nil)
 }
 
-func TestActivityConsumer_hintsTheCabalOncePerChangeAndSkipsCashOutSells(t *testing.T) {
+func TestActivityConsumer_hintsTheCabalOncePerChangeAndKeepsCashOutSellsOutOfTheHints(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
 	sent := &hints{}
@@ -247,8 +247,25 @@ func TestActivityConsumer_hintsTheCabalOncePerChangeAndSkipsCashOutSells(t *test
 	if got := sent.sent(); !slices.Equal(got, []string{key, key}) {
 		t.Fatalf("hints = %q, want %q twice: the insert and the move to failed", got, key)
 	}
-	if got := f.activity(t); len(got) != 1 || got[0].ID != swap {
-		t.Fatalf("activity = %+v, want only the proposal swap", got)
+	got := f.activity(t)
+	if len(got) != 2 || got[0].ID != swap || got[1].ID != cashout {
+		t.Fatalf("activity = %+v, want the proposal swap and the cash-out sale", got)
+	}
+	var flagged []uuid.UUID
+	rows, err := f.pool.Query(t.Context(), `SELECT id FROM cabal_activity WHERE cashout_sale`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			t.Fatal(err)
+		}
+		flagged = append(flagged, id)
+	}
+	if !slices.Equal(flagged, []uuid.UUID{cashout}) {
+		t.Fatalf("cash-out sales = %v, want only %v", flagged, cashout)
 	}
 }
 

@@ -2,13 +2,14 @@
 SELECT id, kind, status, actor_user_id, asset, usdc_micros, units,
   tx_signature, occurred_at
 FROM cabal_activity
-WHERE cabal_id = @cabal_id
+WHERE cabal_id = @cabal_id AND NOT cashout_sale
   AND (NOT @has_cursor::bool OR (occurred_at, id) < (@cursor_at::timestamptz, @cursor_id::uuid))
 ORDER BY occurred_at DESC, id DESC
 LIMIT @row_limit;
 
 -- name: ListTradesForPairs :many
-SELECT a.id, a.cabal_id, a.kind, a.asset::text AS asset, a.usdc_micros, a.units, a.occurred_at
+SELECT a.id, a.cabal_id, a.kind, a.asset::text AS asset, a.usdc_micros, a.units, a.occurred_at,
+  a.cashout_sale
 FROM cabal_activity AS a
 JOIN (
   SELECT c.cabal_id, k.asset

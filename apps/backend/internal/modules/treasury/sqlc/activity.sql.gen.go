@@ -15,12 +15,14 @@ import (
 
 const upsertActivity = `-- name: UpsertActivity :execrows
 INSERT INTO cabal_activity AS a (
-  id, cabal_id, kind, status, actor_user_id, asset, usdc_micros, units, tx_signature, occurred_at, updated_at
+  id, cabal_id, kind, status, actor_user_id, asset, usdc_micros, units, tx_signature, occurred_at, updated_at,
+  cashout_sale
 ) VALUES (
   $1::uuid, $2::uuid, $3::text, $4::text,
   $5::uuid,
   $6::text, $7::text::numeric,
-  $8::text::numeric, $9::text, $10::timestamptz, $10::timestamptz
+  $8::text::numeric, $9::text, $10::timestamptz, $10::timestamptz,
+  $11::bool
 )
 ON CONFLICT (id) DO UPDATE SET
   status = CASE WHEN a.status = 'pending' THEN excluded.status ELSE a.status END,
@@ -55,6 +57,7 @@ type UpsertActivityParams struct {
 	Units       pgtype.Text
 	TxSignature pgtype.Text
 	At          time.Time
+	CashoutSale bool
 }
 
 func (q *Queries) UpsertActivity(ctx context.Context, arg UpsertActivityParams) (int64, error) {
@@ -69,6 +72,7 @@ func (q *Queries) UpsertActivity(ctx context.Context, arg UpsertActivityParams) 
 		arg.Units,
 		arg.TxSignature,
 		arg.At,
+		arg.CashoutSale,
 	)
 	if err != nil {
 		return 0, err
