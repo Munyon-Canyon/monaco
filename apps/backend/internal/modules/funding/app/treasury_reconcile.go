@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -76,10 +77,22 @@ type TreasuryReconcilePoller struct {
 	mu      sync.Mutex
 	pass    int
 	reached map[ids.CabalID]int
+	short   map[shortKey]bool
+}
+
+type shortKey struct {
+	cabal ids.CabalID
+	mint  chain.SolanaAddress
+}
+
+type deficit struct {
+	mint    chain.SolanaAddress
+	ledger  money.BaseUnits
+	onChain money.BaseUnits
 }
 
 func NewTreasuryReconcilePoller(d TreasuryReconcileDeps) *TreasuryReconcilePoller {
-	return &TreasuryReconcilePoller{d: d, reached: map[ids.CabalID]int{}}
+	return &TreasuryReconcilePoller{d: d, reached: map[ids.CabalID]int{}, short: map[shortKey]bool{}}
 }
 
 func (*TreasuryReconcilePoller) Name() string { return "funding.treasury-reconcile" }
@@ -90,6 +103,7 @@ type reconciled struct {
 	started  bool
 	cut      bool
 	surplus  bool
+	deficits int
 	recorded int
 	err      error
 }
@@ -117,9 +131,9 @@ func (p *TreasuryReconcilePoller) visit(work context.Context, w cabalport.Treasu
 	if work.Err() != nil {
 		return reconciled{}
 	}
-	surplus, recorded, err := p.reconcile(work, w)
+	surplus, deficits, recorded, err := p.reconcile(work, w)
 	cut := err != nil && work.Err() != nil
-	return reconciled{started: true, cut: cut, surplus: surplus, recorded: recorded, err: err}
+	return reconciled{started: true, cut: cut, surplus: surplus, deficits: deficits, recorded: recorded, err: err}
 }
 
 func (p *TreasuryReconcilePoller) order(wallets []cabalport.TreasuryWallet) []cabalport.TreasuryWallet {
@@ -150,7 +164,7 @@ func (p *TreasuryReconcilePoller) report(
 	p.reached = live
 	p.mu.Unlock()
 	report := poller.Report{}
-	var surpluses, failed int
+	var surpluses, deficits, failed int
 	for i, r := range results {
 		if !r.started || r.cut {
 			continue
@@ -160,13 +174,14 @@ func (p *TreasuryReconcilePoller) report(
 		if r.surplus {
 			surpluses++
 		}
+		deficits += r.deficits
 		if r.err != nil {
 			failed++
 			p.failed(ctx, wallets[i].CabalID, r.err)
 		}
 	}
 	report.Attrs = []slog.Attr{
-		slog.Int("surpluses", surpluses), slog.Int("failed", failed),
+		slog.Int("surpluses", surpluses), slog.Int("deficits", deficits), slog.Int("failed", failed),
 		slog.Int("unreached", len(wallets)-report.Scanned),
 	}
 	return report
@@ -200,19 +215,25 @@ func (p *TreasuryReconcilePoller) budgeted(ctx context.Context) (context.Context
 	}
 }
 
-func (p *TreasuryReconcilePoller) reconcile(ctx context.Context, w cabalport.TreasuryWallet) (bool, int, error) {
+func (p *TreasuryReconcilePoller) reconcile(
+	ctx context.Context, w cabalport.TreasuryWallet,
+) (bool, int, int, error) {
 	const op = "funding.TreasuryReconcile.reconcile"
-	surplus, err := p.hasSurplus(ctx, w)
-	if err != nil || !surplus {
-		return false, 0, err
+	surplus, shorts, err := p.compare(ctx, w)
+	if err != nil {
+		return false, 0, 0, err
+	}
+	p.alertDeficits(ctx, w.CabalID, shorts)
+	if !surplus {
+		return false, len(shorts), 0, nil
 	}
 	cursor, err := sqlc.New(p.d.Reads).WatchCursor(ctx, w.CabalID.UUID())
 	if err != nil {
-		return true, 0, errs.Wrap(err, errs.CodeInternal, op)
+		return true, len(shorts), 0, errs.Wrap(err, errs.CodeInternal, op)
 	}
 	sigs, err := p.signaturesSince(ctx, w.Address, chain.Signature(cursor))
 	if err != nil || len(sigs) == 0 {
-		return true, 0, err
+		return true, len(shorts), 0, err
 	}
 	recorded := 0
 	for _, s := range slices.Backward(sigs) {
@@ -223,38 +244,72 @@ func (p *TreasuryReconcilePoller) reconcile(ctx context.Context, w cabalport.Tre
 			Signature: s.Signature, CabalID: w.CabalID, Treasury: w.Address, Source: domain.SourceReconcile,
 		})
 		if err != nil {
-			return true, recorded, err
+			return true, len(shorts), recorded, err
 		}
 		if res.Recorded {
 			recorded++
 		}
 	}
-	return true, recorded, p.d.UoW.Do(ctx, func(ctx context.Context, tx db.Tx) error {
+	return true, len(shorts), recorded, p.d.UoW.Do(ctx, func(ctx context.Context, tx db.Tx) error {
 		return sqlc.New(tx.Queries()).AdvanceWatchCursor(ctx, sqlc.AdvanceWatchCursorParams{
 			CabalID: w.CabalID.UUID(), LastSignature: string(sigs[0].Signature), UpdatedAt: p.d.Clock.Now(),
 		})
 	})
 }
 
-func (p *TreasuryReconcilePoller) hasSurplus(ctx context.Context, w cabalport.TreasuryWallet) (bool, error) {
+func (p *TreasuryReconcilePoller) compare(
+	ctx context.Context, w cabalport.TreasuryWallet,
+) (bool, []deficit, error) {
 	positions, err := p.d.Ledger.SolanaPositions(ctx, w.CabalID)
 	if err != nil {
-		return false, err
+		return false, nil, err
 	}
 	ledger := map[chain.SolanaAddress]money.BaseUnits{p.d.USDC: money.NewBaseUnits(0, usdcDecimals)}
 	for _, pos := range positions {
 		ledger[pos.Mint] = pos.Units
 	}
+	surplus := false
+	var shorts []deficit
 	for mint, units := range ledger {
 		onChain, err := p.d.Chain.TokenBalance(ctx, w.Address, chain.Mint{Address: mint, Decimals: units.Decimals()})
 		if err != nil {
-			return false, err
+			return false, nil, err
 		}
-		if onChain.Uint64() > units.Uint64() {
-			return true, nil
+		switch {
+		case onChain.Uint64() > units.Uint64():
+			surplus = true
+		case onChain.Uint64() < units.Uint64():
+			shorts = append(shorts, deficit{mint: mint, ledger: units, onChain: onChain})
 		}
 	}
-	return false, nil
+	return surplus, shorts, nil
+}
+
+func (p *TreasuryReconcilePoller) alertDeficits(ctx context.Context, cabal ids.CabalID, shorts []deficit) {
+	p.mu.Lock()
+	persisted := make([]deficit, 0, len(shorts))
+	now := make(map[chain.SolanaAddress]bool, len(shorts))
+	for _, d := range shorts {
+		now[d.mint] = true
+		if p.short[shortKey{cabal: cabal, mint: d.mint}] {
+			persisted = append(persisted, d)
+		}
+	}
+	for k := range p.short {
+		if k.cabal == cabal && !now[k.mint] {
+			delete(p.short, k)
+		}
+	}
+	for _, d := range shorts {
+		p.short[shortKey{cabal: cabal, mint: d.mint}] = true
+	}
+	p.mu.Unlock()
+	for _, d := range persisted {
+		observability.Alert(ctx, observability.FundingReconcileDeficit,
+			slog.String("cabal_id", cabal.String()), slog.String("mint", string(d.mint)),
+			slog.String("ledger_units", strconv.FormatUint(d.ledger.Uint64(), 10)),
+			slog.String("chain_units", strconv.FormatUint(d.onChain.Uint64(), 10)))
+	}
 }
 
 func (p *TreasuryReconcilePoller) signaturesSince(

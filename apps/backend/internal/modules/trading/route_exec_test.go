@@ -1,6 +1,7 @@
 package trading_test
 
 import (
+	"bytes"
 	"context"
 	"log/slog"
 	"math/big"
@@ -312,17 +313,63 @@ func TestRouteExec_aPendingBridgeAndAPendingFillResumeWithoutASecondBridgeOrSwap
 	}
 }
 
-func TestRouteExec_aFailedBridgeFailsTheSwapNeverSubmitted(t *testing.T) {
+func TestRouteExec_aBridgeFailedWithNothingBroadcastFailsTheSwapNeverSubmitted(t *testing.T) {
+	t.Parallel()
+	for name, steps := range map[string][]multichain.ActionStep{
+		"no steps":     nil,
+		"refused step": {{Network: chain.NetworkSolana, State: multichain.StepFailed}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			e := newRouteEnv(t)
+			e.privy.script(multichain.ActionFailed)
+			e.privy.failedSteps = steps
+
+			view := e.mustBuy(t, e.request(), domain.StatusFailed)
+
+			if code := e.failure(t, view.ID.UUID()); code != string(domain.FailureNeverSubmitted) {
+				t.Fatalf("failure = %s, want never_submitted", code)
+			}
+			wantSteps(t, e.steps(t, view.ID.UUID()),
+				"bridge_out:pending:0", "bridge_out:submitted:0", "bridge_out:failed:0")
+		})
+	}
+}
+
+func TestRouteExec_aBridgeFailedAfterItBroadcastParksTheSwapAndBooksNoReturn(t *testing.T) {
 	t.Parallel()
 	e := newRouteEnv(t)
-	e.privy.script(multichain.ActionFailed)
-
-	view := e.mustBuy(t, e.request(), domain.StatusFailed)
-
-	if code := e.failure(t, view.ID.UUID()); code != string(domain.FailureNeverSubmitted) {
-		t.Fatalf("failure = %s, want never_submitted", code)
+	e.privy.script(multichain.ActionFailed, multichain.ActionFailed)
+	e.privy.failedSteps = []multichain.ActionStep{
+		{Network: chain.NetworkSolana, TxHash: "solana-hash", State: multichain.StepConfirmed},
+		{State: multichain.StepFailed},
 	}
-	wantSteps(t, e.steps(t, view.ID.UUID()), "bridge_out:pending:0", "bridge_out:submitted:0", "bridge_out:failed:0")
+	var logs bytes.Buffer
+	ctx := observability.WithLogger(t.Context(), slog.New(slog.NewJSONHandler(&logs, nil)))
+
+	view, err := e.buy(ctx, e.request())
+
+	if err != nil || view.Status != domain.StatusCreated {
+		t.Fatalf("Buy = %+v, %v, want the swap left created for an operator", view, err)
+	}
+	var code string
+	if err := e.pool.QueryRow(t.Context(), `SELECT coalesce(parked_code, '') FROM swaps WHERE id = $1`, view.ID.UUID()).
+		Scan(&code); err != nil {
+		t.Fatal(err)
+	}
+	if code != "bridge_outcome_unknown" {
+		t.Fatalf("parked code = %q, want bridge_outcome_unknown", code)
+	}
+	wantSteps(t, e.steps(t, view.ID.UUID()), "bridge_out:pending:0", "bridge_out:submitted:0")
+	for _, want := range []string{"trading.bridge.outcome_unknown", "trading.routed_swap.parked"} {
+		if !strings.Contains(logs.String(), want) {
+			t.Fatalf("logs = %s, want %s", logs.String(), want)
+		}
+	}
+	e.resume(t, view.ID, domain.StatusCreated)
+	if len(e.privy.calls()) != 1 {
+		t.Fatalf("transfers = %v, want the one bridge and no second send", e.privy.calls())
+	}
 }
 
 func TestRouteExec_aRequoteThatFindsNoRouteFailsPriceMovedWithTheCashOnEVM(t *testing.T) {

@@ -46,6 +46,7 @@ type privyFake struct {
 	actionErr     error
 	afterTransfer func()
 	afterAction   func()
+	failedSteps   []multichain.ActionStep
 }
 
 func newPrivyFake() *privyFake {
@@ -94,7 +95,7 @@ func (p *privyFake) Action(
 		state, p.states = p.states[0], p.states[1:]
 	}
 	p.landed[id] = state == multichain.ActionSucceeded
-	noArrival, delivered := p.noArrival, p.delivered
+	noArrival, delivered, failedSteps := p.noArrival, p.delivered, p.failedSteps
 	hook := p.afterAction
 	p.afterAction = nil
 	p.mu.Unlock()
@@ -102,6 +103,9 @@ func (p *privyFake) Action(
 		hook()
 	}
 	status := multichain.ActionStatus{ID: id, State: state, Delivered: money.MicrosFromUint64(delivered)}
+	if state == multichain.ActionFailed {
+		status.Steps = failedSteps
+	}
 	if state == multichain.ActionSucceeded && delivered > 0 {
 		status.Steps = []multichain.ActionStep{
 			{Network: chain.NetworkBase, TxHash: "0xsource", State: multichain.StepConfirmed},

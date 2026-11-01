@@ -1,7 +1,11 @@
 package trading_test
 
 import (
+	"bytes"
 	"context"
+	"log/slog"
+	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -13,6 +17,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
+	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
 
@@ -24,6 +29,8 @@ type bridgeEnv struct {
 	privy  *privyFake
 	topUps *topUpFake
 	leg    app.BridgeLeg
+	unsure *[]multichain.ActionID
+	hook   *error
 }
 
 func newBridgeEnv(t *testing.T) bridgeEnv {
@@ -32,6 +39,8 @@ func newBridgeEnv(t *testing.T) bridgeEnv {
 	e.journal = e.journalOn(steppingClock{e.clk})
 	e.privy = newPrivyFake()
 	e.topUps = &topUpFake{privy: e.privy}
+	e.unsure = &[]multichain.ActionID{}
+	e.hook = new(error)
 	e.leg = app.BridgeLeg{
 		Ref: e.ref, WalletID: treasuryWallet, Source: solanaTreasury, Fee: money.MicrosFromUint64(7_500),
 		Spec: multichain.TransferSpec{
@@ -47,7 +56,11 @@ func (e stepEnv) journalOn(c clock.Clock) app.Journal {
 }
 
 func (e bridgeEnv) run(ctx context.Context) (domain.StepStatus, error) {
-	return app.Bridge{Journal: e.journal, Actions: e.privy, TopUp: e.topUps, Poll: app.DefaultPoll()}.
+	unknown := func(_ context.Context, _ app.BridgeLeg, id multichain.ActionID) error {
+		*e.unsure = append(*e.unsure, id)
+		return *e.hook
+	}
+	return app.Bridge{Journal: e.journal, Actions: e.privy, TopUp: e.topUps, Poll: app.DefaultPoll(), Unknown: unknown}.
 		Run(actorContext(ctx), e.leg)
 }
 
@@ -152,22 +165,107 @@ func TestBridge_anActionStillPendingAfterTheBudgetIsLeftSubmittedForTheResume(t 
 	e.wantOneTransfer(t, 1)
 }
 
-func TestBridge_aFailedOrRejectedActionFailsTheStep(t *testing.T) {
+func TestBridge_aRejectedOrCleanlyFailedActionFailsTheStep(t *testing.T) {
 	t.Parallel()
-	for _, state := range []multichain.ActionState{multichain.ActionFailed, multichain.ActionRejected} {
-		t.Run(string(state), func(t *testing.T) {
+	refusedStep := []multichain.ActionStep{{Network: chain.NetworkSolana, State: multichain.StepFailed}}
+	for name, c := range map[string]struct {
+		state multichain.ActionState
+		steps []multichain.ActionStep
+	}{
+		"rejected":                      {state: multichain.ActionRejected},
+		"failed with no steps":          {state: multichain.ActionFailed},
+		"failed with a refused step":    {state: multichain.ActionFailed, steps: refusedStep},
+		"failed with only refused ones": {state: multichain.ActionFailed, steps: slices.Repeat(refusedStep, 2)},
+	} {
+		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			e := newBridgeEnv(t)
-			e.privy.script(state)
+			e.privy.script(c.state)
+			e.privy.failedSteps = c.steps
 
 			e.wantRun(t.Context(), t, domain.StepFailed)
 			e.wantRun(t.Context(), t, domain.StepFailed)
 
-			if s := e.step(t); s.Error != "privy_"+string(state) || s.PrivyActionID != "privy-action-1" {
-				t.Fatalf("step = %+v, want failed with privy_%s", s, state)
+			if s := e.step(t); s.Error != "privy_"+string(c.state) || s.PrivyActionID != "privy-action-1" {
+				t.Fatalf("step = %+v, want failed with privy_%s", s, c.state)
+			}
+			if len(*e.unsure) != 0 {
+				t.Fatalf("unknown outcome reported %v for a failure with nothing broadcast", *e.unsure)
 			}
 			e.wantOneTransfer(t, 1)
 		})
+	}
+}
+
+func TestBridge_aFailedActionThatBroadcastIsAnUnknownOutcomeNotAReturn(t *testing.T) {
+	t.Parallel()
+	for name, steps := range map[string][]multichain.ActionStep{
+		"confirmed on chain": {{Network: chain.NetworkSolana, TxHash: "solana-hash", State: multichain.StepConfirmed}},
+		"reverted with hash": {{Network: chain.NetworkBase, TxHash: "0xhash", State: multichain.StepFailed}},
+		"still pending":      {{Network: chain.NetworkSolana, State: multichain.StepPending}},
+		"bridge leg":         {{State: multichain.StepFailed}},
+		"after a refused one": {
+			{Network: chain.NetworkSolana, State: multichain.StepFailed},
+			{Network: chain.NetworkSolana, TxHash: "solana-hash", State: multichain.StepConfirmed},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			e := newBridgeEnv(t)
+			e.privy.script(multichain.ActionFailed)
+			e.privy.failedSteps = steps
+			var logs bytes.Buffer
+			ctx := observability.WithLogger(t.Context(), slog.New(slog.NewJSONHandler(&logs, nil)))
+
+			e.wantRun(ctx, t, domain.StepSubmitted)
+
+			if s := e.step(
+				t,
+			); s.Status != domain.StepSubmitted || s.Error != "" ||
+				s.PrivyActionID != "privy-action-1" {
+				t.Fatalf("step = %+v, want submitted with no error so nothing is booked back", s)
+			}
+			e.wantNoFailedEvent(t)
+			if !slices.Equal(*e.unsure, []multichain.ActionID{"privy-action-1"}) {
+				t.Fatalf("unknown outcome reported %v, want the action once", *e.unsure)
+			}
+			e.wantAlert(t, logs.String())
+			e.wantOneTransfer(t, 1)
+		})
+	}
+}
+
+func (e bridgeEnv) wantNoFailedEvent(t *testing.T) {
+	t.Helper()
+	for _, ev := range e.events(t) {
+		if ev.Status == string(domain.StepFailed) {
+			t.Fatalf("events = %+v, want no failed step event", e.events(t))
+		}
+	}
+}
+
+func (bridgeEnv) wantAlert(t *testing.T, logs string) {
+	t.Helper()
+	if !strings.Contains(logs, "trading.bridge.outcome_unknown") || !strings.Contains(logs, `"level":"ERROR"`) ||
+		!strings.Contains(logs, `"action_id":"privy-action-1"`) {
+		t.Fatalf("logs = %s, want an alert naming the action", logs)
+	}
+}
+
+func TestBridge_aRetryAfterAnUnknownOutcomeNeverSendsASecondTransfer(t *testing.T) {
+	t.Parallel()
+	e := newBridgeEnv(t)
+	e.privy.script(multichain.ActionFailed, multichain.ActionFailed)
+	e.privy.failedSteps = []multichain.ActionStep{
+		{Network: chain.NetworkSolana, TxHash: "h", State: multichain.StepConfirmed},
+	}
+
+	e.wantRun(t.Context(), t, domain.StepSubmitted)
+	e.wantRun(t.Context(), t, domain.StepSubmitted)
+
+	e.wantOneTransfer(t, 1)
+	if len(*e.unsure) != 2 {
+		t.Fatalf("unknown outcome reported %v, want it again on the second look", *e.unsure)
 	}
 }
 
@@ -228,5 +326,29 @@ func TestBridge_aLegOnAnotherNetworkThanTheStoredStepIsRefused(t *testing.T) {
 	}
 	if len(e.privy.calls()) != 0 {
 		t.Fatal("a refused leg called Privy")
+	}
+}
+
+func TestBridge_aPriorActionThatBroadcastThenFailedStopsTheLegAndSurfacesAParkFailure(t *testing.T) {
+	t.Parallel()
+	e := newBridgeEnv(t)
+	e.begin(t, 10_000_000)
+	if _, err := e.pool.Exec(t.Context(),
+		`UPDATE trade_steps SET prior_privy_action_ids = ARRAY['privy-action-9'] WHERE trade_id = $1`,
+		e.ref.SwapID.UUID()); err != nil {
+		t.Fatal(err)
+	}
+	e.privy.script(multichain.ActionFailed)
+	e.privy.failedSteps = []multichain.ActionStep{
+		{Network: chain.NetworkSolana, TxHash: "h", State: multichain.StepConfirmed},
+	}
+	*e.hook = errs.New(errs.CodeInternal, "test.park")
+
+	if _, err := e.run(t.Context()); errs.CodeOf(err) != errs.CodeInternal {
+		t.Fatalf("Run err = %v, want the park failure", err)
+	}
+
+	if len(e.privy.calls()) != 0 || !slices.Equal(*e.unsure, []multichain.ActionID{"privy-action-9"}) {
+		t.Fatalf("transfers %v, unknown %v, want no send and the prior action reported", e.privy.calls(), *e.unsure)
 	}
 }
