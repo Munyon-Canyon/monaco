@@ -54,12 +54,14 @@ type ResolveParkedSwapHandler struct {
 	clock clock.Clock
 	ids   ids.Generator
 	hints Hints
+
+	receipts RoutedReceiptReader
 }
 
 func NewResolveParkedSwapHandler(
-	uow *db.UnitOfWork, reads sqlc.DBTX, c clock.Clock, g ids.Generator, hints Hints,
+	uow *db.UnitOfWork, reads sqlc.DBTX, c clock.Clock, g ids.Generator, hints Hints, receipts RoutedReceiptReader,
 ) *ResolveParkedSwapHandler {
-	return &ResolveParkedSwapHandler{uow: uow, reads: reads, clock: c, ids: g, hints: hints}
+	return &ResolveParkedSwapHandler{uow: uow, reads: reads, clock: c, ids: g, hints: hints, receipts: receipts}
 }
 
 func (h *ResolveParkedSwapHandler) ListParked(ctx context.Context) ([]ParkedSwap, error) {
@@ -93,10 +95,14 @@ func (h *ResolveParkedSwapHandler) Handle(ctx context.Context, cmd ResolveParked
 		return ParkedSwap{}, err
 	}
 	ctx = observability.WithActor(ctx, "system:"+cmd.Actor)
+	facts, err := h.receiptFacts(ctx, cmd)
+	if err != nil {
+		return ParkedSwap{}, err
+	}
 	var after ParkedSwap
-	err := h.uow.Do(ctx, func(ctx context.Context, tx db.Tx) error {
+	err = h.uow.Do(ctx, func(ctx context.Context, tx db.Tx) error {
 		var err error
-		after, err = h.resolveTx(ctx, tx, cmd)
+		after, err = h.resolveTx(ctx, tx, cmd, facts)
 		return err
 	})
 	if err != nil {
@@ -105,7 +111,42 @@ func (h *ResolveParkedSwapHandler) Handle(ctx context.Context, cmd ResolveParked
 	return after, nil
 }
 
-func (h *ResolveParkedSwapHandler) resolveTx(ctx context.Context, tx db.Tx, cmd ResolveParkedSwap) (ParkedSwap, error) {
+func (h *ResolveParkedSwapHandler) receiptFacts(ctx context.Context, cmd ResolveParkedSwap) (chainFacts, error) {
+	notChecked := chainFacts{State: "not_checked"}
+	if cmd.Action != ParkedFail {
+		return notChecked, nil
+	}
+	parked, err := h.Parked(ctx, cmd.SwapID)
+	if err != nil {
+		return chainFacts{}, err
+	}
+	if parked.Status != domain.StatusSubmitted || parked.Code != ParkedSwapReceiptMissing || !broadcast(parked.Swap) {
+		return notChecked, nil
+	}
+	if h.receipts == nil {
+		return chainFacts{}, notImplemented("RoutedReceiptReader", "#7557")
+	}
+	fill, err := h.receipts.Receipt(ctx, cmd.SwapID)
+	switch {
+	case err != nil:
+		return chainFacts{}, err
+	case fill.State == FillSucceeded:
+		out := fill.Out
+		return chainFacts{}, fmt.Errorf(
+			"%w: its receipt shows it landed successfully and the treasury received %d; "+
+				"book it with force-resolve --to confirmed",
+			errs.New(errs.CodeInvalidInput, resolveParkedSwapOp, slog.String("swap_id", cmd.SwapID.String())),
+			out,
+		)
+	case fill.State == FillReverted:
+		return chainFacts{State: "failed"}, nil
+	}
+	return chainFacts{State: "not_found"}, nil
+}
+
+func (h *ResolveParkedSwapHandler) resolveTx(
+	ctx context.Context, tx db.Tx, cmd ResolveParkedSwap, facts chainFacts,
+) (ParkedSwap, error) {
 	q := sqlc.New(tx.Queries())
 	row, err := lockedParked(ctx, q, cmd.SwapID.UUID())
 	if err == nil {
@@ -124,7 +165,7 @@ func (h *ResolveParkedSwapHandler) resolveTx(ctx context.Context, tx db.Tx, cmd 
 		err = failParked(ctx, tx, q, row, at)
 	}
 	if err == nil {
-		err = h.record(ctx, q, cmd, before, at)
+		err = h.record(ctx, q, cmd, before, facts, at)
 	}
 	tx.AfterCommit(func(ctx context.Context) { h.committed(ctx, cmd, before) })
 	return after, err
@@ -195,13 +236,14 @@ func failParked(ctx context.Context, tx db.Tx, q *sqlc.Queries, row sqlc.ParkedR
 }
 
 func (h *ResolveParkedSwapHandler) record(
-	ctx context.Context, q *sqlc.Queries, cmd ResolveParkedSwap, before ParkedSwap, at time.Time,
+	ctx context.Context, q *sqlc.Queries, cmd ResolveParkedSwap, before ParkedSwap, facts chainFacts, at time.Time,
 ) error {
 	detail, err := json.Marshal(struct {
 		ParkedCode string    `json:"parked_code"`
 		ParkedAt   time.Time `json:"parked_at"`
 		Status     string    `json:"status"`
-	}{before.Code, before.ParkedAt.UTC(), string(before.Status)})
+		ChainState string    `json:"chain_state"`
+	}{before.Code, before.ParkedAt.UTC(), string(before.Status), facts.State})
 	return errors.Join(err, q.InsertSwapOperatorAction(ctx, sqlc.InsertSwapOperatorActionParams{
 		ID: h.ids.NewV7(), SwapID: cmd.SwapID.UUID(), Action: string(cmd.Action), Actor: cmd.Actor,
 		Reason: cmd.Reason, Detail: detail, CreatedAt: at,

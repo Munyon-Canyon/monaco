@@ -30,6 +30,33 @@ type evmFake struct {
 	chosen       app.EVMSwapPlan
 	chooseErr    error
 	choices      [][]app.EVMSwapCandidate
+	inspects     []app.EVMFill
+	inspectErr   error
+	inspected    []inspectCall
+}
+
+type inspectCall struct {
+	network platform.Network
+	hash    string
+	out     platform.EVMAddress
+	owner   platform.EVMAddress
+}
+
+func (f *evmFake) Inspect(
+	_ context.Context, network platform.Network, hash string, out, owner platform.EVMAddress,
+) (app.EVMFill, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.inspected = append(f.inspected, inspectCall{network: network, hash: hash, out: out, owner: owner})
+	if err := f.inspectErr; err != nil {
+		return app.EVMFill{}, err
+	}
+	if len(f.inspects) == 0 {
+		return app.EVMFill{State: app.FillPending}, nil
+	}
+	fill := f.inspects[0]
+	f.inspects = f.inspects[1:]
+	return fill, nil
 }
 
 func newEVMFake(plan app.EVMSwapPlan) *evmFake {

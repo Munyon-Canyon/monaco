@@ -21,7 +21,7 @@ func (e *sweeperEnv) force() *ForceResolveSwapHandler {
 	if e.read.statuses == nil {
 		e.read.statuses = []SigStatus{{State: SigFinalized, Failed: true}}
 	}
-	return NewForceResolveSwapHandler(e.uow, e.pool, e.clk, e.ids, e.hint, e.read)
+	return NewForceResolveSwapHandler(e.uow, e.pool, e.clk, e.ids, e.hint, e.read, nil)
 }
 
 func (e *sweeperEnv) landed() {
@@ -376,7 +376,7 @@ func TestForceResolve_RaceWithSweeper(t *testing.T) {
 	<-started
 	group.Go(func() error {
 		reader := &sweeperReader{statuses: []SigStatus{{State: SigFinalized, Failed: true}}}
-		forced := NewForceResolveSwapHandler(e.uow, e.pool, e.clk, e.ids, e.hint, reader)
+		forced := NewForceResolveSwapHandler(e.uow, e.pool, e.clk, e.ids, e.hint, reader, nil)
 		_, forceErr = forced.Handle(
 			t.Context(), forceCommand(chain.Signature("sig-"+row.ID.String()), domain.StatusFailed),
 		)

@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal"
+	"github.com/monaco/monaco/apps/backend/internal/modules/market"
 	tradingadapters "github.com/monaco/monaco/apps/backend/internal/modules/trading/adapters"
 	tradingchain "github.com/monaco/monaco/apps/backend/internal/modules/trading/adapters/chain"
 	tradingapp "github.com/monaco/monaco/apps/backend/internal/modules/trading/app"
@@ -27,16 +28,23 @@ type cashAdapters struct {
 	Wallets tradingapp.TreasuryEVM
 	Cash    tradingapp.EVMCash
 	Chain   tradingapp.ChainReader
+
+	Receipts tradingapp.RoutedReceiptReader
 }
 
 type cashPorts func(cfg config.Config, pool *pgxpool.Pool, uow *db.UnitOfWork, clk clock.Clock) cashAdapters
 
 func liveCashPorts(cfg config.Config, pool *pgxpool.Pool, uow *db.UnitOfWork, clk clock.Clock) cashAdapters {
 	deps := module.Deps{Config: cfg, Clock: clk, IDs: ids.Real{}, Pool: pool, UoW: uow, HTTPClient: httpclient.New}
+	wallets := cabal.New(deps).TreasuryEVMWallets()
 	return cashAdapters{
-		Wallets: cabal.New(deps).TreasuryEVMWallets(),
+		Wallets: wallets,
 		Cash:    tradingadapters.NewEVMCash(tradingadapters.EVMRPC(deps)),
 		Chain:   tradingchain.NewReader(solana.New(cfg, clk)),
+		Receipts: tradingapp.RoutedReceipts{
+			Reads: pool, Listings: market.New(deps).Catalog(), Wallets: wallets,
+			Venue: tradingadapters.NewEVMVenue(nil, "", tradingadapters.EVMRPC(deps), clk),
+		},
 	}
 }
 
