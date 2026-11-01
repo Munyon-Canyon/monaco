@@ -141,6 +141,28 @@ public struct AssetTodayMove: Equatable, Sendable {
     }
 }
 
+public struct AssetAfterHoursMove: Equatable, Sendable {
+    public let basisPoints: Int64
+
+    public init?(basisPoints: Int64?) {
+        guard let basisPoints, basisPoints > -10_000 else { return nil }
+        self.basisPoints = basisPoints
+    }
+
+    public var isLoss: Bool { basisPoints < 0 }
+
+    public var line: String {
+        "After hours \(PercentFormatter.format(basisPoints: basisPoints, signed: true, fractionDigits: 1))"
+    }
+
+    public var speech: String {
+        let magnitude = PercentFormatter.format(
+            basisPoints: basisPoints < 0 ? -basisPoints : basisPoints, signed: false, fractionDigits: 1)
+        let direction = basisPoints < 0 ? "down" : "up"
+        return "after hours \(direction) \(magnitude.dropLast()) percent"
+    }
+}
+
 public struct AssetCabalPosition: Equatable, Sendable, Identifiable {
     public let cabalID: String
     public let cabalName: String

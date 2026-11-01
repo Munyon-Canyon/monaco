@@ -468,12 +468,17 @@ type AssetChartRange string
 //
 // Examples: {"attribution":"Data provided by CoinGecko","change_bps":1000,"decimals":8,"display_name":"Apple","id":"01890a5d-ac96-774b-bcce-b302099a8070","issuer":"xstocks","kind":"equity","logo_url":"https://cdn.example.com/AAPLx.png","other_listings":[],"price_as_of":"2026-03-04T14:30:00Z","price_micros":110000000,"price_poll_interval_seconds":120,"price_source":"jupiter","quotable":true,"session":{"continuous":false,"early_close":false,"holiday":"","next_state":"after_hours","next_transition":"2026-03-04T21:00:00Z","state":"open"},"sparkline_micros":[100000000,110000000],"stats":{"held_by_cabals":3,"market_cap_micros":"2970000000000000000","open_micros":108000000,"year_high_micros":224900000,"year_low_micros":86620000},"symbol":"AAPLx","tradable":true,"ui_multiplier":{"den":1,"num":1},"volume_24h_as_of":"2026-03-04T05:00:00Z","volume_24h_micros":2500000000000}
 type AssetDetail struct {
+	// AfterHoursChangeBps The move in basis points against the last session's close, present for an equity when the market is not open and the close is known. Absent or null otherwise.
+	//
+	// Examples: 20
+	AfterHoursChangeBps *int32 `json:"after_hours_change_bps,omitempty"`
+
 	// Attribution The data source line the asset screen shows.
 	//
 	// Examples: Data provided by CoinGecko
 	Attribution string `json:"attribution"`
 
-	// ChangeBps The move in basis points against the last US close for an equity, or against the first sample of the UTC day for a pre-IPO token. Null when that reference does not exist.
+	// ChangeBps The move in basis points against the last US close while the market is open, and against the close before the last session from that session's close until the next open, so the headline keeps describing the session's change after 16:00. For a pre-IPO token it is against the first sample of the UTC day. Null when that reference does not exist.
 	//
 	// Examples: 1000
 	ChangeBps *int32 `json:"change_bps"`
@@ -733,12 +738,17 @@ type AssetListing struct {
 //
 // Examples: {"change_bps":1000,"display_name":"Apple","id":"01890a5d-ac96-774b-bcce-b302099a8070","issuer":"xstocks","kind":"equity","logo_url":"https://cdn.example.com/AAPLx.png","price_as_of":"2026-03-04T14:30:00Z","price_micros":110000000,"quotable":true,"session":{"continuous":false,"early_close":false,"holiday":"","next_state":"after_hours","next_transition":"2026-03-04T21:00:00Z","state":"open"},"sparkline_micros":[100000000,110000000],"symbol":"AAPLx","tradable":true,"volume_24h_as_of":"2026-03-04T05:00:00Z","volume_24h_micros":2500000000000}
 type AssetSummary struct {
+	// AfterHoursChangeBps The move in basis points against the last session's close, present for an equity when the market is not open and the close is known. Absent or null otherwise.
+	//
+	// Examples: 20
+	AfterHoursChangeBps *int32 `json:"after_hours_change_bps,omitempty"`
+
 	// CabalCount How many active cabals hold this asset. Set only on rows of the `in_cabals` filter that ranked by it, never below three, and absent everywhere else.
 	//
 	// Examples: 41
 	CabalCount *int `json:"cabal_count,omitempty"`
 
-	// ChangeBps The move in basis points against the last US close for an equity, or against the first sample of the UTC day for a pre-IPO token. Null when that reference does not exist.
+	// ChangeBps The move in basis points against the last US close while the market is open, and against the close before the last session from that session's close until the next open, so the headline keeps describing the session's change after 16:00. For a pre-IPO token it is against the first sample of the UTC day. Null when that reference does not exist.
 	//
 	// Examples: 1000
 	ChangeBps *int32 `json:"change_bps"`

@@ -14,6 +14,7 @@ import (
 type quotes struct {
 	newest      map[string][]domain.Sample
 	closed      map[string][]domain.Sample
+	lastClosed  map[string][]domain.Sample
 	opened      map[string][]domain.Sample
 	openedSince time.Time
 	spark       map[string][]domain.Sample
@@ -30,8 +31,13 @@ func (l *ListAssets) load(
 	}
 	equity, preIPO := splitMints(assets)
 	closed := map[string][]domain.Sample{}
+	lastClosed := map[string][]domain.Sample{}
 	if len(equity) > 0 {
 		closed, err = closedSamples(ctx, l.read, equity, equitySession)
+		if err != nil {
+			return quotes{}, err
+		}
+		lastClosed, err = lastCloseSamples(ctx, l.read, equity, equitySession)
 		if err != nil {
 			return quotes{}, err
 		}
@@ -53,7 +59,13 @@ func (l *ListAssets) load(
 		return quotes{}, err
 	}
 	return quotes{
-		newest: newest, closed: closed, opened: opened, openedSince: openedSince, spark: spark, volumes: volumes,
+		newest:      newest,
+		closed:      closed,
+		lastClosed:  lastClosed,
+		opened:      opened,
+		openedSince: openedSince,
+		spark:       spark,
+		volumes:     volumes,
 	}, nil
 }
 
@@ -116,8 +128,23 @@ func summary(asset domain.Asset, session domain.SessionInfo, book quotes, now ti
 			out.Change = &bps
 		}
 	}
+	out.AfterHoursChange = afterHours(asset, session, book, accepted.Micros)
 	out.Sparkline = domain.LastSparkline(book.spark[asset.Mint.String()], newest)
 	return out
+}
+
+func afterHours(asset domain.Asset, session domain.SessionInfo, book quotes, price money.Micros) *int32 {
+	if asset.Kind == domain.KindPreIPO || session.State == domain.StateOpen {
+		return nil
+	}
+	closed, ok := domain.Accept(book.lastClosed[asset.Mint.String()])
+	if !ok {
+		return nil
+	}
+	if bps, measured := domain.QuoteBps(price, closed.Micros); measured {
+		return &bps
+	}
+	return nil
 }
 
 func reference(asset domain.Asset, book quotes) (money.Micros, bool) {

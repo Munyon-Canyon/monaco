@@ -38,6 +38,9 @@ func (r chartRead) NewestSamples(_ context.Context, arg sqlc.NewestSamplesParams
 	if r.newestAt != nil {
 		return r.newestAt(arg.At), nil
 	}
+	if r.newest == nil {
+		return nil, nil
+	}
 	return r.newest()
 }
 

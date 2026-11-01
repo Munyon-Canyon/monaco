@@ -25,6 +25,7 @@ type SessionInfo struct {
 	NextState       State
 	NextTransition  time.Time
 	LastClose       time.Time
+	PreviousClose   time.Time
 	LastSessionOpen time.Time
 	TradingDay      Date
 }
@@ -139,6 +140,7 @@ func (c calendar) session(at time.Time) (SessionInfo, error) {
 	if err != nil {
 		return SessionInfo{}, err
 	}
+	previousClose := c.closeBeforeOrZero(lastClose)
 	return SessionInfo{
 		State:           today.stateAt(offset),
 		Holiday:         today.holiday,
@@ -146,6 +148,7 @@ func (c calendar) session(at time.Time) (SessionInfo, error) {
 		NextState:       next.state,
 		NextTransition:  next.at,
 		LastClose:       lastClose,
+		PreviousClose:   previousClose,
 		LastSessionOpen: lastOpen,
 		TradingDay:      date,
 	}, nil
@@ -179,4 +182,23 @@ func (c calendar) lastClose(date Date, today schedule, offset time.Duration) (cl
 			return previous.atExchange(from), previous.atExchange(day.openAt()), nil
 		}
 	}
+}
+
+func (c calendar) closeBeforeOrZero(closed time.Time) time.Time {
+	for previous := dateOf(wallClock(closed)).addDays(-1); ; previous = previous.addDays(-1) {
+		day, err := c.on(previous)
+		if err != nil {
+			return time.Time{}
+		}
+		if from, ok := day.closeAt(); ok {
+			return previous.atExchange(from)
+		}
+	}
+}
+
+func (s SessionInfo) ChangeBase() time.Time {
+	if s.State == StateOpen || s.PreviousClose.IsZero() {
+		return s.LastClose
+	}
+	return s.PreviousClose
 }

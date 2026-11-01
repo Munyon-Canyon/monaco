@@ -17,7 +17,22 @@ type dayBaseReader interface {
 func closedSamples(
 	ctx context.Context, read dayBaseReader, mints []string, session domain.SessionInfo,
 ) (map[string][]domain.Sample, error) {
-	rows, err := read.NewestSamples(ctx, sqlc.NewestSamplesParams{Mints: mints, At: session.LastClose})
+	return samplesAtClose(ctx, read, mints, session.ChangeBase())
+}
+
+func lastCloseSamples(
+	ctx context.Context, read dayBaseReader, mints []string, session domain.SessionInfo,
+) (map[string][]domain.Sample, error) {
+	if session.State == domain.StateOpen {
+		return map[string][]domain.Sample{}, nil
+	}
+	return samplesAtClose(ctx, read, mints, session.LastClose)
+}
+
+func samplesAtClose(
+	ctx context.Context, read dayBaseReader, mints []string, at time.Time,
+) (map[string][]domain.Sample, error) {
+	rows, err := read.NewestSamples(ctx, sqlc.NewestSamplesParams{Mints: mints, At: at})
 	if err != nil {
 		return nil, errs.Wrap(err, errs.CodeOf(err), "market.NewestSamples")
 	}
@@ -26,7 +41,7 @@ func closedSamples(
 		return nil, err
 	}
 	for mint, samples := range grouped {
-		grouped[mint] = domain.WithinOfClose(samples, session.LastClose)
+		grouped[mint] = domain.WithinOfClose(samples, at)
 	}
 	return grouped, nil
 }

@@ -32,6 +32,7 @@ struct AssetDetailHeader: View {
                     change
                 }
             }
+            afterHours
         }
         .padding(.top, MonacoTheme.Space.xs)
         .padding(.bottom, MonacoTheme.Space.m)
@@ -45,7 +46,9 @@ struct AssetDetailHeader: View {
         guard let move = detail.todayMove else {
             return detail.priceMicros.map { "\(detail.name), \(UsdAmountFormatter.format(micros: $0))" } ?? detail.name
         }
-        return "\(detail.name), \(move.speech(priceMicros: detail.priceMicros))"
+        let spoken = "\(detail.name), \(move.speech(priceMicros: detail.priceMicros))"
+        guard let afterHours = detail.afterHoursMove else { return spoken }
+        return "\(spoken), \(afterHours.speech)"
     }
 
     private var identity: some View {
@@ -123,6 +126,17 @@ struct AssetDetailHeader: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
                 .accessibilityIdentifier("asset-detail-range-change")
+        }
+    }
+
+    @ViewBuilder private var afterHours: some View {
+        if scrub == nil, let move = detail.afterHoursMove {
+            Text(move.line)
+                .font(MonacoTheme.Typo.caption.monospacedDigit())
+                .foregroundStyle(move.isLoss ? MonacoTheme.loss : MonacoTheme.profit)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .accessibilityIdentifier("asset-detail-after-hours")
         }
     }
 

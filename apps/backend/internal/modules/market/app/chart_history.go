@@ -24,6 +24,51 @@ func historyDays(span domain.ChartRange) int {
 	return int((window + hoursPerDay*time.Hour - 1) / (hoursPerDay * time.Hour))
 }
 
+func historyDaysAt(asset domain.Asset, span domain.ChartRange, now time.Time) int {
+	days := historyDays(span)
+	if opened, ok := lastSessionOpen(asset, span, now); ok {
+		return max(days, int((now.Sub(opened)+hoursPerDay*time.Hour-1)/(hoursPerDay*time.Hour)))
+	}
+	return days
+}
+
+func (c *AssetChart) tiedToHeadline(
+	ctx context.Context, asset domain.Asset, prices []Sample, req ChartRequest, now time.Time,
+) ([]Sample, error) {
+	if req.Before != nil {
+		return prices, nil
+	}
+	headline, priced, err := c.headline(ctx, asset.Mint.String(), now)
+	if err != nil || !priced {
+		return prices, err
+	}
+	head := Sample{At: headline.accepted.ObservedAt, Price: headline.accepted.Micros}
+	kept := make([]Sample, 0, len(prices)+1)
+	for _, s := range prices {
+		if s.At.Before(head.At) {
+			kept = append(kept, s)
+		}
+	}
+	slices.SortStableFunc(kept, func(a, b Sample) int { return a.At.Compare(b.At) })
+	return append(dropSpikes(kept, head), head), nil
+}
+
+func dropSpikes(sorted []Sample, head Sample) []Sample {
+	out := make([]Sample, 0, len(sorted))
+	for i, s := range sorted {
+		next := head.Price
+		if i+1 < len(sorted) {
+			next = sorted[i+1].Price
+		}
+		if len(out) > 0 && !domain.WithinAFifth(s.Price, out[len(out)-1].Price) &&
+			!domain.WithinAFifth(s.Price, next) {
+			continue
+		}
+		out = append(out, s)
+	}
+	return out
+}
+
 func (c *AssetChart) fromHistory(
 	ctx context.Context,
 	asset domain.Asset,
@@ -39,7 +84,7 @@ func (c *AssetChart) fromHistory(
 	if out, served, err := c.fromColdStart(ctx, asset, req, span, interval, limit, now); served || err != nil {
 		return out, served, err
 	}
-	history, err := c.hist.MarketChart(ctx, asset.Mint, historyDays(span))
+	history, err := c.hist.MarketChart(ctx, asset.Mint, historyDaysAt(asset, span, now))
 	if err != nil || len(history.Prices) == 0 {
 		if errs.CodeOf(err) != errs.CodeNotFound {
 			observability.Degraded(ctx, observability.MarketChartHistoryFailed,
@@ -50,7 +95,11 @@ func (c *AssetChart) fromHistory(
 	}
 	width := interval.Duration()
 	since, until := chartWindow(asset, req, span, interval, now)
-	points, older := bucketHistory(history.Prices, width, since, until, limit)
+	samples, err := c.tiedToHeadline(ctx, asset, history.Prices, req, now)
+	if err != nil {
+		return Chart{}, false, err
+	}
+	points, older := bucketHistory(samples, width, since, until, limit)
 	out := Chart{Range: span, Interval: interval, Bucket: width, Points: points, Empty: len(points) == 0}
 	if older {
 		oldest := points[0].At
@@ -77,7 +126,7 @@ func (c *AssetChart) fromColdStart(
 	if !ok || req.Before != nil {
 		return Chart{}, false, nil
 	}
-	if _, found, _ := peeker.Peek(ctx, asset.Mint, historyDays(span)); found {
+	if _, found, _ := peeker.Peek(ctx, asset.Mint, historyDaysAt(asset, span, now)); found {
 		return Chart{}, false, nil
 	}
 	out, err := c.fromPricePoints(ctx, asset, req, span, interval, limit, now)
