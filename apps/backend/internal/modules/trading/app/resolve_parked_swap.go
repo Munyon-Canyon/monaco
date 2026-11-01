@@ -153,14 +153,19 @@ func resolvable(row sqlc.ParkedRoutedForUpdateRow, action ParkedAction) error {
 	if action == ParkedUnpark {
 		stuck = stuck && row.BridgeBack == "" && !row.Reused
 	} else {
-		stuck = stuck && status == domain.StatusCreated && !broadcast(row.SwapStep) &&
-			row.SwapStep != string(domain.StepSucceeded) && !broadcast(row.BridgeOut)
+		stuck = stuck && (unconfirmedSwap(row, status) || status == domain.StatusCreated && !broadcast(row.SwapStep) &&
+			row.SwapStep != string(domain.StepSucceeded) && !broadcast(row.BridgeOut))
 	}
 	if !stuck {
 		return errs.New(errs.CodeSwapNotStuck, resolveParkedSwapOp,
 			slog.String("swap_id", row.ID.String()), slog.String("action", string(action)))
 	}
 	return nil
+}
+
+func unconfirmedSwap(row sqlc.ParkedRoutedForUpdateRow, status domain.Status) bool {
+	return status == domain.StatusSubmitted && row.ParkedCode.String == ParkedSwapReceiptMissing &&
+		broadcast(row.SwapStep)
 }
 
 func broadcast(step string) bool {
@@ -176,6 +181,10 @@ func failParked(ctx context.Context, tx db.Tx, q *sqlc.Queries, row sqlc.ParkedR
 	req, err := sweepRequest(row.CabalID, row.SourceKind, row.SourceID, row.Action, row.Symbol, row.InMint,
 		row.InAmount, row.SourceBatchSize)
 	s := failed(req, row.ID, domain.FailureNeverSubmitted, "")
+	if unconfirmedSwap(row, domain.Status(row.Status)) {
+		s = failed(req, row.ID, domain.FailureForceResolved, "")
+		err = errors.Join(err, closeSwapStep(ctx, q, row.ID, domain.StatusFailed, at))
+	}
 	if err == nil {
 		_, err = s.apply(ctx, q, at)
 	}

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"time"
 	"unicode/utf8"
 
 	"github.com/google/uuid"
@@ -72,7 +73,7 @@ func (h *ForceResolveSwapHandler) resolveTx(ctx context.Context, tx db.Tx, cmd F
 	if err != nil {
 		return SwapView{}, forceResolveFound(err)
 	}
-	if err := forceResolvable(row); err != nil {
+	if err := h.gate(ctx, sqlc.New(tx.Queries()), row, cmd.To); err != nil {
 		return SwapView{}, err
 	}
 	req, err := sweepRequest(
@@ -148,7 +149,7 @@ func (cmd ForceResolveSwap) step(req SwapRequest, id uuid.UUID) step {
 }
 
 func forceResolvable(row sqlc.SwapForForceResolveRow) error {
-	if row.Status != string(domain.StatusSubmitted) || row.Routed {
+	if row.Status != string(domain.StatusSubmitted) || row.Routed && !row.ReceiptMissing {
 		return errs.New(errs.CodeSwapNotStuck, forceResolveSwapOp, slog.Bool("routed", row.Routed))
 	}
 	return nil
@@ -180,4 +181,22 @@ func (h *ForceResolveSwapHandler) committed(
 		slog.String("to", string(s.status)),
 		slog.String("reason", cmd.Reason),
 	)
+}
+
+func (h *ForceResolveSwapHandler) gate(
+	ctx context.Context, q *sqlc.Queries, row sqlc.SwapForForceResolveRow, to domain.Status,
+) error {
+	if err := forceResolvable(row); err != nil || !row.Routed {
+		return err
+	}
+	return closeSwapStep(ctx, q, row.ID, to, h.clock.Now())
+}
+
+func closeSwapStep(ctx context.Context, q *sqlc.Queries, id uuid.UUID, to domain.Status, at time.Time) error {
+	params := sqlc.CloseSwapStepParams{TradeID: id, Status: string(domain.StepSucceeded), At: at}
+	if to == domain.StatusFailed {
+		params.Status, params.Reason = string(domain.StepFailed), string(domain.FailureForceResolved)
+	}
+	_, err := q.CloseSwapStep(ctx, params)
+	return err
 }
