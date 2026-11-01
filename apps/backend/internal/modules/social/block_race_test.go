@@ -55,7 +55,7 @@ func raceBlockAndFollow(t *testing.T) {
 	}
 }
 
-func TestBlockAndFollow_failWithInternalWhenThePairLockTimesOut(t *testing.T) {
+func TestBlockAndFollow_failAsUnavailableWhenThePairLockTimesOut(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
 	cfg := f.pool.Config()
@@ -77,8 +77,8 @@ func TestBlockAndFollow_failWithInternalWhenThePairLockTimesOut(t *testing.T) {
 			f.alice.UUID(), f.bob.UUID()); err != nil {
 			return err
 		}
-		wantCode(t, blocker.Handle(ctx, app.BlockUser{Blocker: f.alice, Blocked: f.bob}), errs.CodeInternal)
-		wantCode(t, follower.Handle(ctx, cmd), errs.CodeInternal)
+		wantCode(t, blocker.Handle(ctx, app.BlockUser{Blocker: f.alice, Blocked: f.bob}), errs.CodeDBUnavailable)
+		wantCode(t, follower.Handle(ctx, cmd), errs.CodeDBUnavailable)
 		return nil
 	})
 	if err != nil {
