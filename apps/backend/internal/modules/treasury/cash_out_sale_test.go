@@ -328,3 +328,62 @@ func TestCashOutSale_noLegsIgnoresProposalsAndBatchedBlocks(t *testing.T) {
 	r.deliver(t, batched)
 	r.want(t, "selling", "50000000", "0", "", 0)
 }
+
+func newLastMemberRig(t *testing.T, invested uint64) *saleRig {
+	t.Helper()
+	f := newFixture(t)
+	r := &saleRig{f: f, alice: f.user(t), cabal: f.cabal(t)}
+	cashOutFund(t, f, r.alice, r.cabal, 50_000_000)
+	if err := f.confirm(t, buy(r.cabal, f.ids.NewV7(), invested, 1_000, 0)); err != nil {
+		t.Fatal(err)
+	}
+	h := cashOutHandlerWith(f, cashOutPauses{}, cashOutValues{pot: money.MicrosFromUint64(50_000_000)})
+	ctx := observability.WithActor(f.ctx(), "user:"+r.alice.String())
+	result, err := h.Handle(ctx, app.CashOut{CabalID: r.cabal, UserID: r.alice, All: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.job = result.ID
+	r.started = events.CashOutStarted{
+		V: 1, JobID: r.job, CabalID: r.cabal.UUID(), UserID: r.alice.UUID(), ShareUnits: 100,
+		PayoutMicros: money.MicrosFromUint64(50_000_000), SellUSDC: money.MicrosFromUint64(invested),
+	}
+	return r
+}
+
+func (r *saleRig) cashOnHand(t *testing.T) uint64 {
+	t.Helper()
+	var units uint64
+	if err := r.f.pool.QueryRow(t.Context(), `SELECT coalesce((SELECT units FROM cabal_positions
+		WHERE cabal_id = $1 AND asset = $2), 0)::bigint`, r.cabal.UUID(), string(r.f.usdc())).Scan(&units); err != nil {
+		t.Fatal(err)
+	}
+	return units
+}
+
+func TestCashOutSale_theLastMemberIsPaidTheSaleSurplusToo(t *testing.T) {
+	t.Parallel()
+	r := newLastMemberRig(t, 40_000_000)
+	r.deliver(t, r.started)
+	r.deliver(t, r.sold(r.f.ids.NewV7(), 1_000, 41_500_000, 1))
+	r.want(t, "paying", "51500000", "0", "", 0)
+	if cash := r.cashOnHand(t); cash != 51_500_000 {
+		t.Fatalf("the pot holds %d micros of cash, want exactly the 51500000 the last member is paid", cash)
+	}
+}
+
+func TestCashOutSale_aMemberWhoIsNotLastNeverGetsTheSurplus(t *testing.T) {
+	t.Parallel()
+	r := newSaleRig(t, 80_000_000)
+	r.deliver(t, r.started)
+	r.deliver(t, r.sold(r.f.ids.NewV7(), 600, 31_000_000, 1))
+	r.want(t, "paying", "50000000", "0", "", 0)
+}
+
+func TestCashOutSale_aShortSaleForTheLastMemberHasNoSurplus(t *testing.T) {
+	t.Parallel()
+	r := newLastMemberRig(t, 40_000_000)
+	r.deliver(t, r.started)
+	r.deliver(t, r.sold(r.f.ids.NewV7(), 1_000, 30_000_000, 1))
+	r.want(t, "paying", "40000000", "20", "sale_short", 20)
+}

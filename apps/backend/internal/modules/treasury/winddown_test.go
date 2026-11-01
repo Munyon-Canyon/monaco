@@ -733,13 +733,19 @@ func TestWindDown_CashOutByAMemberKeepsTheMemberCause(t *testing.T) {
 	}
 }
 
-func TestWindDown_MemberCashOutsKeepTheMinimum(t *testing.T) {
+func TestWindDown_MemberCashOutsKeepTheMinimumExceptToLeave(t *testing.T) {
 	t.Parallel()
 	r := newWindDownRig(t, deposit{99_000_000, 1_000_000}, deposit{1_000_000, 1})
 	handler := cashOutHandler(r.f, false)
 	ctx := observability.WithActor(r.f.ctx(), "user:"+r.members[1].String())
-	_, err := handler.Handle(ctx, app.CashOut{CabalID: r.cabal, UserID: r.members[1], All: true})
-	if errs.CodeOf(err) != errs.CodePotValueChanged {
-		t.Fatalf("a member cashing out under the minimum = %v, want pot_value_changed", err)
+	_, err := handler.Handle(ctx, app.CashOut{
+		CabalID: r.cabal, UserID: r.members[1], PayoutMicros: money.MicrosFromUint64(99_999),
+	})
+	if errs.CodeOf(err) != errs.CodeInvalidInput {
+		t.Fatalf("a member cashing out part under the minimum = %v, want invalid_input", err)
+	}
+	result, err := handler.Handle(ctx, app.CashOut{CabalID: r.cabal, UserID: r.members[1], All: true})
+	if err != nil || result.ShareUnits.Uint64() != 1 || result.PayoutMicros.Uint64() >= 100_000 {
+		t.Fatalf("a member cashing out all under the minimum = (%#v, %v), want the whole stake to leave", result, err)
 	}
 }

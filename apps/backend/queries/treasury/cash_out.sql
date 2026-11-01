@@ -47,17 +47,30 @@ VALUES (sqlc.arg(swap_id)::uuid, sqlc.arg(job_id)::uuid, sqlc.arg(batch_size)::b
 ON CONFLICT (swap_id) DO NOTHING;
 
 -- name: CashOutSaleTally :one
-SELECT count(s.swap_id)::integer AS results, coalesce(max(s.batch_size), 0)::integer AS batch_size,
-  least(j.slice_micros, j.payout_micros - j.sell_usdc_micros + coalesce(sum(s.usdc_out_micros), 0))::text AS paid
-FROM cash_out_jobs AS j
-LEFT JOIN cash_out_sells AS s ON s.job_id = j.id
-WHERE j.id = sqlc.arg(id)::uuid
-GROUP BY j.id;
+WITH raised AS (
+  SELECT j.id, j.cabal_id, j.slice_micros,
+    j.payout_micros - j.sell_usdc_micros + coalesce(sum(s.usdc_out_micros), 0) AS covered,
+    count(s.swap_id)::integer AS results, coalesce(max(s.batch_size), 0)::integer AS batch_size
+  FROM cash_out_jobs AS j
+  LEFT JOIN cash_out_sells AS s ON s.job_id = j.id
+  WHERE j.id = sqlc.arg(id)::uuid
+  GROUP BY j.id
+), settled AS (
+  SELECT r.id, r.cabal_id, r.results, r.batch_size, least(r.slice_micros, r.covered) AS paid,
+    CASE WHEN NOT EXISTS (SELECT 1 FROM user_positions AS p WHERE p.cabal_id = r.cabal_id AND p.share_units > 0)
+      AND NOT EXISTS (SELECT 1 FROM cash_out_jobs AS o WHERE o.cabal_id = r.cabal_id AND o.id <> r.id
+        AND o.status IN ('started', 'selling', 'paying'))
+      THEN greatest(r.covered - r.slice_micros, 0) ELSE 0 END AS residual
+  FROM raised AS r
+)
+SELECT results, batch_size, paid::text AS paid, residual::text AS residual, (paid + residual)::text AS payout
+FROM settled;
 
 -- name: SettleCashOutSale :one
 WITH settled AS (
   UPDATE cash_out_jobs SET status = sqlc.arg(to_status)::text,
     payout_micros = sqlc.arg(payout_micros)::text::numeric,
+    slice_micros = greatest(slice_micros, sqlc.arg(payout_micros)::text::numeric),
     returned_units = sqlc.arg(returned_units)::text::numeric, result_code = NULLIF(sqlc.arg(result_code)::text, ''),
     updated_at = sqlc.arg(at)::timestamptz
   WHERE id = sqlc.arg(id)::uuid AND status = 'selling'

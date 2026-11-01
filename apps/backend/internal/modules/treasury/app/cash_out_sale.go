@@ -110,18 +110,15 @@ func (s CashOutSales) settle(
 	if err != nil || (!noLegs && (tally.BatchSize == 0 || tally.Results < tally.BatchSize)) {
 		return err
 	}
-	settled, units, slice, err := sale(job, tally)
+	settled, units, err := sale(job, tally)
 	if err != nil {
 		return err
 	}
 	faultpoint.Hit(ctx, faultpoint.AfterSellConfirm)
 	to := settled.Status
-	payout, code := settled.Paid, ""
+	payout, code := settled.Payout, ""
 	if !settled.Unpaid.IsZero() {
 		code = string(errs.CodeSaleShort)
-	}
-	if to == domain.CashOutFailed {
-		payout = slice
 	}
 	if _, err := q.SettleCashOutSale(ctx, sqlc.SettleCashOutSaleParams{
 		ID: jobID, ToStatus: string(to), PayoutMicros: payout.String(), ReturnedUnits: settled.Returned.String(),
@@ -152,31 +149,55 @@ func (s CashOutSales) settle(
 	return nil
 }
 
+func (s CashOutSales) payResidual(
+	ctx context.Context, tx db.Tx, cabal ids.CabalID, user ids.UserID, residual money.Micros, at time.Time,
+) error {
+	if residual.IsZero() {
+		return nil
+	}
+	txn, err := domain.CashOutResidual(domain.UserTxnHeader{
+		ID: s.ids.NewV7(), UserID: user, CabalID: cabal, Kind: domain.UserCashOut, Status: domain.TxnSettled,
+	}, s.ledger.usdc, residual)
+	if err != nil {
+		return err
+	}
+	return s.ledger.At(at).PostUserTxn(ctx, tx, txn)
+}
+
 func (s CashOutSales) apply(
 	ctx context.Context, tx db.Tx, cabal ids.CabalID, user ids.UserID, job uuid.UUID, units money.SharesUnits,
 	to domain.CashOutStatus, settled domain.SaleSettlement, cause string, at time.Time,
 ) error {
-	if err := s.giveBack(ctx, tx, cabal, user, settled, at); err != nil || to != domain.CashOutFailed {
+	if err := s.giveBack(ctx, tx, cabal, user, settled, at); err != nil {
 		return err
+	}
+	if to != domain.CashOutFailed {
+		return s.payResidual(ctx, tx, cabal, user, settled.Residual, at)
 	}
 	return s.fail(ctx, tx, cabal, user, job, units, cause)
 }
 
 func sale(
 	job sqlc.LockCashOutJobRow, tally sqlc.CashOutSaleTallyRow,
-) (domain.SaleSettlement, money.SharesUnits, money.Micros, error) {
+) (domain.SaleSettlement, money.SharesUnits, error) {
 	units, unitsErr := money.ParseSharesUnits(job.ShareUnits)
 	slice, sliceErr := money.ParseMicros(job.SliceMicros)
 	paid, paidErr := money.ParseMicros(tally.Paid)
-	if err := errors.Join(unitsErr, sliceErr, paidErr); err != nil {
-		return domain.SaleSettlement{}, units, slice, errs.Wrap(
+	residual, residualErr := money.ParseMicros(tally.Residual)
+	payout, payoutErr := money.ParseMicros(tally.Payout)
+	if err := errors.Join(unitsErr, sliceErr, paidErr, residualErr, payoutErr); err != nil {
+		return domain.SaleSettlement{}, units, errs.Wrap(
 			err,
 			errs.CodeDecodeFailed,
 			"treasury.CashOutSales.sale",
 		)
 	}
 	settled, err := domain.SettleSale(units, slice, paid)
-	return settled, units, slice, err
+	settled.Residual, settled.Payout = residual, payout
+	if settled.Status == domain.CashOutFailed {
+		settled.Payout = slice
+	}
+	return settled, units, err
 }
 
 func (s CashOutSales) giveBack(

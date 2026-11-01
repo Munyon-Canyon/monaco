@@ -83,6 +83,8 @@ func ParseCashOutStatus(raw string) (CashOutStatus, error) {
 type SaleSettlement struct {
 	Paid     money.Micros
 	Unpaid   money.Micros
+	Residual money.Micros
+	Payout   money.Micros
 	Returned money.SharesUnits
 	Status   CashOutStatus
 }
@@ -111,6 +113,17 @@ func CashOutEnd(paid, slice money.Micros) CashOutEvent {
 		return CashOutCompletePartial
 	}
 	return CashOutComplete
+}
+
+func CashOutResidual(h UserTxnHeader, usdc Asset, residual money.Micros) (UserTxn, error) {
+	paid, err := residual.Delta(money.Micros{})
+	if err != nil {
+		return UserTxn{}, errs.Wrap(err, errs.CodeOf(err), "treasury.CashOutResidual")
+	}
+	return NewUserTxn(h, []UserEntry{
+		{Account: UserCabal, Asset: usdc, Amount: money.SignedMicrosFromInt64(-paid.Int64())},
+		{Account: UserWallet, Asset: usdc, Amount: paid},
+	})
 }
 
 func CashOutReturn(h UserTxnHeader, usdc Asset, s SaleSettlement) (UserTxn, error) {
