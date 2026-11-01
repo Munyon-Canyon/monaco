@@ -80,7 +80,7 @@ func TestFundingBounce_holdsADetectedDepositAndEndsItsPause(t *testing.T) {
 func TestFundingBounce_setsAReturnAddress(t *testing.T) {
 	t.Parallel()
 	bounce, id, pool := seededBounce(t)
-	to := "9xQeWvG816bUx9EPjHmaT23yvVMvM9fQj4a8PHF4H6P"
+	to := "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM"
 	if code, _, stderr := runOpsTool(t, bounce, "bounce", "set-return-address", id, to); code != 0 {
 		t.Fatalf("set-return-address = %d, stderr %q", code, stderr)
 	}
