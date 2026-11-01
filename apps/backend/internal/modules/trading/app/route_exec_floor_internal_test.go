@@ -18,9 +18,7 @@ func TestArrivalFloor_allowsTheQuotedFeePlusTheSlackAndNoMore(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			b := routedBuy{estimate: money.MicrosFromUint64(tc.estimate)}
-
-			got := b.arrivalFloor(money.MicrosFromUint64(tc.sent))
+			got := arrivalFloor(money.MicrosFromUint64(tc.sent), money.MicrosFromUint64(tc.estimate))
 
 			if got != money.MicrosFromUint64(tc.want) {
 				t.Fatalf("arrivalFloor = %v, want %d", got, tc.want)

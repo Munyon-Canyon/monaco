@@ -235,7 +235,7 @@ func TestQueries_reportANullThatTheStatusRequiresAsDecodeFailed(t *testing.T) {
 func TestQueries_reportADatabaseFailureAsInternal(t *testing.T) {
 	t.Parallel()
 	d := newPortDB(t)
-	if _, err := d.pool.Exec(t.Context(), `DROP TABLE swaps CASCADE`); err != nil {
+	if _, err := d.pool.Exec(t.Context(), `DROP TABLE swaps, trade_steps CASCADE`); err != nil {
 		t.Fatal(err)
 	}
 	src := proposal(d.ids.NewV7())
@@ -246,8 +246,9 @@ func TestQueries_reportADatabaseFailureAsInternal(t *testing.T) {
 	_, ownsErr := d.port.OwnsSignature(t.Context(), "sig-1")
 	_, inFlightErr := trading.New(module.Deps{Pool: d.pool}).
 		BridgeBacksInFlight(t.Context(), ids.CabalIDFrom(d.ids.NewV7()))
+	_, claimErr := trading.New(module.Deps{Pool: d.pool}).ClaimArrival(t.Context(), d.ids.NewV7(), "sig-1")
 	for name, err := range map[string]error{
-		"Swap": swapErr, "SwapBySignature": sigErr, "LatestBySource": latestErr, "HasLiveSwap": liveErr,
+		"ClaimArrival": claimErr, "Swap": swapErr, "SwapBySignature": sigErr, "LatestBySource": latestErr, "HasLiveSwap": liveErr,
 		"OwnsSignature": ownsErr, "BridgeBacksInFlight": inFlightErr,
 	} {
 		if errs.CodeOf(err) != errs.CodeInternal {

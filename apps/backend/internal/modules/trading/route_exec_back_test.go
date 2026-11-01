@@ -1,10 +1,14 @@
 package trading_test
 
 import (
+	"errors"
+	"fmt"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	governance "github.com/monaco/monaco/apps/backend/internal/modules/governance/port"
@@ -363,6 +367,63 @@ func TestBridgeBack_theFillIsOwnedOnceTheReturnSucceedsAndExpectedWhileItIsInFli
 	}
 	if bands, err := e.queries().BridgeBacksInFlight(t.Context(), e.cabal); err != nil || len(bands) != 0 {
 		t.Fatalf("bands = %+v, %v, want none once the return succeeded", bands, err)
+	}
+}
+
+func TestBridgeBack_aClaimIsKeptInTheDatabaseAndOnlyOneSignatureHoldsIt(t *testing.T) {
+	t.Parallel()
+	e := newRouteEnv(t)
+	_, _ = e.strand(t)
+	e.mustTick(t, 1, 0)
+	e.proposals.set(governance.Status("cancelled"))
+	e.privy.script(multichain.ActionPending)
+	e.mustTick(t, 1, 1)
+	bands, err := e.queries().BridgeBacksInFlight(t.Context(), e.cabal)
+	if err != nil || len(bands) != 1 || bands[0].Claimed != "" {
+		t.Fatalf("bands = %+v, %v, want one unclaimed band", bands, err)
+	}
+	band := bands[0].ID
+
+	first, firstErr := e.queries().ClaimArrival(t.Context(), band, "first")
+	again, againErr := app.NewQueries(e.pool).ClaimArrival(t.Context(), band, "first")
+	second, secondErr := app.NewQueries(e.pool).ClaimArrival(t.Context(), band, "second")
+
+	if err := errors.Join(firstErr, againErr, secondErr); err != nil || !first || !again || second {
+		t.Fatalf("claims = %t %t %t, %v, want first and again to hold it and second refused", first, again, second, err)
+	}
+	bands, err = app.NewQueries(e.pool).BridgeBacksInFlight(t.Context(), e.cabal)
+	if err != nil || len(bands) != 1 || bands[0].Claimed != "first" {
+		t.Fatalf("bands = %+v, %v, want the band claimed by first for a fresh reader", bands, err)
+	}
+}
+
+func TestBridgeBack_twoClaimersOnOneBandCannotBothWin(t *testing.T) {
+	t.Parallel()
+	e := newRouteEnv(t)
+	_, _ = e.strand(t)
+	e.mustTick(t, 1, 0)
+	e.proposals.set(governance.Status("cancelled"))
+	e.privy.script(multichain.ActionPending)
+	e.mustTick(t, 1, 1)
+	bands, err := e.queries().BridgeBacksInFlight(t.Context(), e.cabal)
+	if err != nil || len(bands) != 1 {
+		t.Fatalf("bands = %+v, %v, want one", bands, err)
+	}
+	var wins atomic.Int32
+	var group errgroup.Group
+	for i := range 8 {
+		sig := chain.Signature(fmt.Sprintf("sig-%d", i))
+		group.Go(func() error {
+			won, err := app.NewQueries(e.pool).ClaimArrival(t.Context(), bands[0].ID, sig)
+			if won {
+				wins.Add(1)
+			}
+			return err
+		})
+	}
+
+	if err := group.Wait(); err != nil || wins.Load() != 1 {
+		t.Fatalf("wins = %d, %v, want exactly one signature to take the band", wins.Load(), err)
 	}
 }
 

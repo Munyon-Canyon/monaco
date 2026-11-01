@@ -171,18 +171,29 @@ func (s Queries) BridgeBacksInFlight(ctx context.Context, cabal ids.CabalID) ([]
 		}
 		bands = append(bands, fundingport.ArrivalBand{
 			ID: r.ID, Min: arrivalFloor(sent, bridgeFee(comparison)), Max: sent,
+			Claimed: chain.Signature(r.ArrivalSignature.String),
 		})
 	}
 	return bands, nil
 }
 
+func (s Queries) ClaimArrival(ctx context.Context, band uuid.UUID, sig chain.Signature) (bool, error) {
+	rows, err := s.q.ClaimBridgeBackArrival(ctx, sqlc.ClaimBridgeBackArrivalParams{
+		ArrivalSignature: string(sig), ID: band,
+	})
+	if err != nil {
+		return false, errs.Wrap(err, errs.CodeInternal, "trading.ClaimArrival")
+	}
+	return rows == 1, nil
+}
+
 const (
-	bandSlackFlat    = 100_000
-	bandSlackDivisor = 100
+	arrivalSlackFlat    = 100_000
+	arrivalSlackDivisor = 100
 )
 
 func arrivalFloor(sent, quotedFee money.Micros) money.Micros {
-	allowed := quotedFee.Uint64() + bandSlackFlat + sent.Uint64()/bandSlackDivisor
+	allowed := quotedFee.Uint64() + arrivalSlackFlat + sent.Uint64()/arrivalSlackDivisor
 	if allowed < quotedFee.Uint64() || allowed >= sent.Uint64() {
 		return money.MicrosFromUint64(1)
 	}

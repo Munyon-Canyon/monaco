@@ -73,12 +73,11 @@ type DetectDeps struct {
 }
 
 type DetectExternalDepositHandler struct {
-	d      DetectDeps
-	claims *bandClaims
+	d DetectDeps
 }
 
 func NewDetectExternalDepositHandler(d DetectDeps) *DetectExternalDepositHandler {
-	return &DetectExternalDepositHandler{d: d, claims: &bandClaims{by: map[uuid.UUID]chain.Signature{}}}
+	return &DetectExternalDepositHandler{d: d}
 }
 
 type inboundTransfer struct {
@@ -135,15 +134,18 @@ func (h *DetectExternalDepositHandler) arriving(
 	if t.Mint.Address != h.d.USDC {
 		return false, nil
 	}
-	var bands []fundingport.ArrivalBand
+	got := money.MicrosFromUint64(t.Net.Uint64())
 	for _, a := range h.d.Arrivals {
-		got, err := a.BridgeBacksInFlight(ctx, cmd.CabalID)
+		bands, err := a.BridgeBacksInFlight(ctx, cmd.CabalID)
 		if err != nil {
 			return false, err
 		}
-		bands = append(bands, got...)
+		claimed, err := claimBand(ctx, a, bands, cmd.Signature, got)
+		if err != nil || claimed {
+			return claimed, err
+		}
 	}
-	return h.claims.claim(bands, cmd.Signature, money.MicrosFromUint64(t.Net.Uint64())), nil
+	return false, nil
 }
 
 func (h *DetectExternalDepositHandler) owned(ctx context.Context, sig chain.Signature) (bool, error) {
