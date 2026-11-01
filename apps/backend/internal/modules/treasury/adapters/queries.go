@@ -430,6 +430,27 @@ func (q *Queries) PotBasis(ctx context.Context, cabalID ids.CabalID) (string, er
 	return hex.EncodeToString(sum[:]), nil
 }
 
+func (q *Queries) HoldsLiveAssets(ctx context.Context, cabalID ids.CabalID) (bool, error) {
+	rows, err := q.transit.CabalValueRows(ctx, cabalID.UUID())
+	if err != nil {
+		return false, errs.Wrap(err, errs.CodeOf(err), "treasury.Queries.HoldsLiveAssets")
+	}
+	for _, row := range rows {
+		if row.Asset.Valid && row.Asset.String != string(q.usdc) {
+			return true, nil
+		}
+	}
+	live, err := micros(rows[0].CashOutReservedMicros)
+	if err != nil {
+		return false, err
+	}
+	transit, err := micros(rows[0].InTransitMicros)
+	if err != nil {
+		return false, err
+	}
+	return !live.IsZero() || !transit.IsZero(), nil
+}
+
 func (q *Queries) TotalShares(ctx context.Context, cabalID ids.CabalID) (money.SharesUnits, error) {
 	value, err := q.q.CabalTotalShares(ctx, cabalID.UUID())
 	if err != nil {

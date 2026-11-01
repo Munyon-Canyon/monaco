@@ -189,10 +189,36 @@ func TestEVMSwap_aCrashAfterTheSendResumesUnderTheSameKeyWithOneSwap(t *testing.
 		t.Fatalf("resumed Run = %+v, %v, want the reverted fill of 0xhash2", got, err)
 	}
 
-	if e.evm.hashes() != 2 || len(e.evm.keys()) != 4 {
-		t.Fatalf("sent %v as %d distinct transactions, want each key sent twice as one", e.evm.keys(), e.evm.hashes())
+	if e.evm.hashes() != 2 || !slices.Equal(e.evm.keys(), []string{e.key() + ":approve:0", e.key(), e.key()}) {
+		t.Fatalf("sent %v as %d distinct transactions, want the swap sent twice as one after one approval",
+			e.evm.keys(), e.evm.hashes())
 	}
 	e.wantSubmittedOnce(t)
+}
+
+func TestEVMSwap_aResumeSendsTheStoredCalldataNotWhatTheVenueBuildsNow(t *testing.T) {
+	t.Parallel()
+	e := newEVMSwapEnv(t)
+	ctx, crash := context.WithCancel(t.Context())
+	e.evm.afterSend[e.key()] = crash
+	e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: 306}}
+
+	if _, err := e.run(ctx); err == nil {
+		t.Fatal("the crashed run returned no error")
+	}
+	e.evm.plan.Swap.Data = []byte{9, 9}
+	e.evm.plan.MinOut = 1
+	if got, err := e.run(t.Context()); err != nil || got.State != app.FillSucceeded {
+		t.Fatalf("resumed Run = %+v, %v, want the swap read to its fill", got, err)
+	}
+
+	sent := e.evm.sentTxs[e.key()]
+	if len(sent) != 2 || !slices.Equal(sent[0].Data, []byte{1}) || !slices.Equal(sent[1].Data, sent[0].Data) {
+		t.Fatalf("swap sent as %+v, want the first calldata both times under one key", sent)
+	}
+	if e.evm.builds != 1 {
+		t.Fatalf("%d builds, want the resume to rebuild nothing", e.evm.builds)
+	}
 }
 
 func TestEVMSwap_aFillReadErrorLeavesTheSubmittedSwapForTheResume(t *testing.T) {

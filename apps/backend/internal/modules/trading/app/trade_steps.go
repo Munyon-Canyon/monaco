@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"log/slog"
 
@@ -11,6 +12,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
@@ -146,6 +148,33 @@ func (j Journal) failed(ctx context.Context, tx db.Tx, ref domain.StepRef, reaso
 		return false, errs.New(errs.CodeInvalidInput, journalOp, slog.String("step", string(ref.Step)))
 	}
 	return j.move(ctx, tx, ref, stepMove{to: domain.StepFailed, reason: reason})
+}
+
+func (j Journal) SentTx(ctx context.Context, ref domain.StepRef) (multichain.EVMTransaction, bool, error) {
+	raw, err := sqlc.New(j.Reads).TradeStepSentTx(ctx, sqlc.TradeStepSentTxParams{
+		TradeID: ref.SwapID.UUID(), Step: string(ref.Step),
+	})
+	var tx multichain.EVMTransaction
+	if err == nil && raw != nil {
+		err = json.Unmarshal(raw, &tx)
+	}
+	if err != nil {
+		return multichain.EVMTransaction{}, false, errs.Wrap(err, errs.CodeInternal, journalOp)
+	}
+	return tx, raw != nil, nil
+}
+
+func (j Journal) RecordSentTx(ctx context.Context, ref domain.StepRef, tx multichain.EVMTransaction) error {
+	raw, err := json.Marshal(tx)
+	if err != nil {
+		return errs.Wrap(err, errs.CodeInternal, journalOp)
+	}
+	return j.UoW.Do(ctx, func(ctx context.Context, tx db.Tx) error {
+		_, err := sqlc.New(tx.Queries()).RecordTradeStepSentTx(ctx, sqlc.RecordTradeStepSentTxParams{
+			SentTx: raw, TradeID: ref.SwapID.UUID(), Step: string(ref.Step),
+		})
+		return err
+	})
 }
 
 func (j Journal) Step(ctx context.Context, swap ids.SwapID, kind domain.StepKind) (domain.TradeStep, bool, error) {
