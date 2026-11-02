@@ -44,6 +44,7 @@ func run(
 	if err != nil {
 		return err
 	}
+	flush = once(flush)
 	var stops shutdown
 	defer func() { err = errors.Join(err, stops.run(ctx, cfg.Timeouts.Shutdown)) }()
 	stops.add(flush)
@@ -59,6 +60,7 @@ func run(
 		return err
 	}
 	stops.add(func(context.Context) error { pool.Close(); return nil })
+	stops.add(flush)
 	conn, err := connectBus(ctx, cfg, meters)
 	if err != nil {
 		return err

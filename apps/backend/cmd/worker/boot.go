@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net"
 	"slices"
+	"sync"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -43,6 +44,15 @@ func load(environ []string) (config.Config, error) {
 type shutdown []func(context.Context) error
 
 func (s *shutdown) add(step func(context.Context) error) { *s = append(*s, step) }
+
+func once(step func(context.Context) error) func(context.Context) error {
+	var o sync.Once
+	return func(ctx context.Context) error {
+		var err error
+		o.Do(func() { err = step(ctx) })
+		return err
+	}
+}
 
 func (s shutdown) run(ctx context.Context, budget time.Duration) error {
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), budget)
