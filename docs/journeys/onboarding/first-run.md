@@ -60,7 +60,7 @@ Starts from S1 (P6).
 | Step | Action | Target | Input | Expect | Old app |
 | --- | --- | --- | --- | --- | --- |
 | S3.1 | relaunch | the app | | The tab bar shows within 30 s, never `onboarding-handle-step` or `onboarding-phone-step`, and on the Profile tab `onboarding-nudge` reads "Add your number to find friends" | The gate skipped `.nameSetup` once the name was set |
-| S3.2 | tap | the Profile tab | | `profile-handle` reads "@qa_cayman" within 15 s | `profile-header` on the Profile tab |
+| S3.2 | tap | the Profile tab | | `profile-handle` reads "@qa_cayman", then "joined" and a month and year, within 15 s | `profile-header` on the Profile tab |
 
 ### S4 Link a number
 

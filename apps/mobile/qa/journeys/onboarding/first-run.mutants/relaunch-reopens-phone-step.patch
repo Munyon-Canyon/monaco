@@ -7,12 +7,14 @@ scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 diff --git a/packages/mobile-core/Sources/MonacoCore/FirstRunGate.swift b/packages/mobile-core/Sources/MonacoCore/FirstRunGate.swift
 --- a/packages/mobile-core/Sources/MonacoCore/FirstRunGate.swift
 +++ b/packages/mobile-core/Sources/MonacoCore/FirstRunGate.swift
-@@ -58,7 +58,7 @@ public enum FirstRunGate {
+@@ -58,7 +58,9 @@ public enum FirstRunGate {
          if profile.accountStatus == .banned { return .restricted(.banned) }
          if profile.accountStatus == .suspended { return .app(restricted: true) }
          if profile.handle == nil { return newAccountConfirmed ? .handle : .newAccount }
 -        if profile.authState == .created { return .phone }
-+        if profile.authState == .created || profile.authState == .awaitingPhone { return .phone }
++        if profile.authState == .created || (onboardingCursor == .start && profile.authState == .awaitingPhone) {
++            return .phone
++        }
          if onboardingCursor == .socials,
              profile.authState == .awaitingSocials || profile.authState == .awaitingPhone
          {

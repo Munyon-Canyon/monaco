@@ -235,8 +235,8 @@ enum FirstRunJourney {
             app.tab("Profile").tap()
             let shown = app.element("profile-handle")
             XCTAssertTrue(
-                waitUntil(15) { shown.exists && shown.label == "@\(handle)" },
-                "S3.2: profile-handle did not read '@\(handle)' within 15 s")
+                waitUntil(15) { shown.exists && shown.label.hasPrefix("@\(handle)") },
+                "S3.2: profile-handle did not start with '@\(handle)' within 15 s, it read '\(shown.label)'")
         }
     }
 

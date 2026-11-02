@@ -25,20 +25,20 @@ enum SignInJourney {
     }
 
     private static let firstRunSignOuts = [
-        "onboarding-handle-step-sign-out", "onboarding-phone-step-sign-out", "onboarding-socials-step-sign-out",
+        "new-account-step-sign-in", "onboarding-handle-step-sign-out", "onboarding-phone-step-sign-out",
+        "onboarding-socials-step-sign-out",
     ]
 
     static func currentScreen(_ app: XCUIApplication, timeout: TimeInterval = launchTimeout) -> Screen? {
-        let candidates: [(XCUIElement, Screen)] = [
-            (app.tab("Home"), .tabs),
-            (app.buttons[firstRunSignOuts[0]], .firstRunStep),
-            (app.buttons[firstRunSignOuts[1]], .firstRunStep),
-            (app.buttons[firstRunSignOuts[2]], .firstRunStep),
+        let home: [(XCUIElement, Screen)] = [(app.tab("Home"), .tabs)]
+        let firstRun: [(XCUIElement, Screen)] = firstRunSignOuts.map { (app.buttons[$0], Screen.firstRunStep) }
+        let others: [(XCUIElement, Screen)] = [
             (app.buttons["friends-not-now"], .findFriends),
             (app.textFields["smsPhoneField"], .login),
             (app.textFields["emailAddressField"], .login),
             (app.element("invite-paste-screen"), .invite),
         ]
+        let candidates = home + firstRun + others
         guard let index = app.waitForFirst(of: candidates.map(\.0), timeout: timeout) else { return nil }
         return candidates[index].1
     }
