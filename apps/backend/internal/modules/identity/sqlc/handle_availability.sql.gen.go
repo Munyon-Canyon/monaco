@@ -17,6 +17,8 @@ SELECT
   u.handle,
   u.handle_changed_at,
   u.x_username,
+  u.auth_state,
+  EXISTS (SELECT 1 FROM referral_codes r WHERE r.code = $1::text) AS referral_code_match,
   EXISTS (
     SELECT 1 FROM users o
     WHERE o.handle = $1::text
@@ -38,11 +40,13 @@ type HandleClaimFactsParams struct {
 }
 
 type HandleClaimFactsRow struct {
-	Handle          pgtype.Text
-	HandleChangedAt pgtype.Timestamptz
-	XUsername       pgtype.Text
-	HandleTaken     bool
-	OtherXMatch     bool
+	Handle            pgtype.Text
+	HandleChangedAt   pgtype.Timestamptz
+	XUsername         pgtype.Text
+	AuthState         string
+	ReferralCodeMatch bool
+	HandleTaken       bool
+	OtherXMatch       bool
 }
 
 func (q *Queries) HandleClaimFacts(ctx context.Context, arg HandleClaimFactsParams) (HandleClaimFactsRow, error) {
@@ -52,6 +56,8 @@ func (q *Queries) HandleClaimFacts(ctx context.Context, arg HandleClaimFactsPara
 		&i.Handle,
 		&i.HandleChangedAt,
 		&i.XUsername,
+		&i.AuthState,
+		&i.ReferralCodeMatch,
 		&i.HandleTaken,
 		&i.OtherXMatch,
 	)
@@ -60,7 +66,8 @@ func (q *Queries) HandleClaimFacts(ctx context.Context, arg HandleClaimFactsPara
 
 const lockedHandleClaimFacts = `-- name: LockedHandleClaimFacts :one
 SELECT
-  u.handle, u.handle_changed_at, u.x_username,
+  u.handle, u.handle_changed_at, u.x_username, u.auth_state,
+  EXISTS (SELECT 1 FROM referral_codes r WHERE r.code = $1::text) AS referral_code_match,
   EXISTS (SELECT 1 FROM users o WHERE o.handle = $1::text AND o.id <> u.id) AS handle_taken,
   EXISTS (SELECT 1 FROM users o WHERE o.x_username IS NOT NULL AND lower(o.x_username) = $1::text AND o.id <> u.id) AS other_x_match
 FROM users u
@@ -74,11 +81,13 @@ type LockedHandleClaimFactsParams struct {
 }
 
 type LockedHandleClaimFactsRow struct {
-	Handle          pgtype.Text
-	HandleChangedAt pgtype.Timestamptz
-	XUsername       pgtype.Text
-	HandleTaken     bool
-	OtherXMatch     bool
+	Handle            pgtype.Text
+	HandleChangedAt   pgtype.Timestamptz
+	XUsername         pgtype.Text
+	AuthState         string
+	ReferralCodeMatch bool
+	HandleTaken       bool
+	OtherXMatch       bool
 }
 
 func (q *Queries) LockedHandleClaimFacts(ctx context.Context, arg LockedHandleClaimFactsParams) (LockedHandleClaimFactsRow, error) {
@@ -88,6 +97,8 @@ func (q *Queries) LockedHandleClaimFacts(ctx context.Context, arg LockedHandleCl
 		&i.Handle,
 		&i.HandleChangedAt,
 		&i.XUsername,
+		&i.AuthState,
+		&i.ReferralCodeMatch,
 		&i.HandleTaken,
 		&i.OtherXMatch,
 	)

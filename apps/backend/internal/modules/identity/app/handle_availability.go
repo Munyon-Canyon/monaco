@@ -82,7 +82,8 @@ func LoadLockedHandleClaimFacts(
 
 func claimFacts(row sqlc.HandleClaimFactsRow, now time.Time) domain.HandleFacts {
 	facts := domain.HandleFacts{
-		OwnXUsername: row.XUsername.String, OtherUserXUsernameMatch: row.OtherXMatch, Now: now,
+		OwnXUsername: row.XUsername.String, OtherUserXUsernameMatch: row.OtherXMatch,
+		ReferralCodeMatch: row.ReferralCodeMatch, FirstRun: row.AuthState == string(domain.AuthCreated), Now: now,
 	}
 	if row.Handle.Valid {
 		facts.CurrentHandle = row.Handle.String

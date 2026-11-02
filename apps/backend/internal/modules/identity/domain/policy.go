@@ -16,6 +16,8 @@ var profanityFile string
 type HandleFacts struct {
 	OwnXUsername            string
 	OtherUserXUsernameMatch bool
+	ReferralCodeMatch       bool
+	FirstRun                bool
 	CurrentHandle           string
 	HandleChangedAt         time.Time
 	Now                     time.Time
@@ -34,13 +36,13 @@ func (HandlePolicy) Check(h Handle, facts HandleFacts) error {
 			return errs.New(errs.CodeHandleReserved, op)
 		case profane(h.String()):
 			return errs.New(errs.CodeHandleReserved, op)
-		case referralCodeShape(h.String()):
+		case facts.ReferralCodeMatch:
 			return errs.New(errs.CodeHandleReserved, op)
 		case facts.OtherUserXUsernameMatch:
 			return errs.New(errs.CodeHandleTaken, op)
 		}
 	}
-	if facts.CurrentHandle != "" && h.String() != facts.CurrentHandle &&
+	if !facts.FirstRun && facts.CurrentHandle != "" && h.String() != facts.CurrentHandle &&
 		facts.Now.Sub(facts.HandleChangedAt) < HandleChangeInterval {
 		return errs.New(errs.CodeHandleTooSoon, op)
 	}
@@ -49,7 +51,7 @@ func (HandlePolicy) Check(h Handle, facts HandleFacts) error {
 
 func reservedHandle(name string) bool {
 	_, ok := reservedHandles()[name]
-	return ok
+	return ok || brandPrefixed(name)
 }
 
 func profane(name string) bool {
@@ -81,20 +83,6 @@ func foldLeet(name string) string {
 			return r
 		}
 	}, name)
-}
-
-const referralCodeLen = 8
-
-func referralCodeShape(name string) bool {
-	if len(name) != referralCodeLen {
-		return false
-	}
-	for _, r := range name {
-		if !strings.ContainsRune(ReferralAlphabet, r) {
-			return false
-		}
-	}
-	return true
 }
 
 func loadProfanity(raw string) []string {
