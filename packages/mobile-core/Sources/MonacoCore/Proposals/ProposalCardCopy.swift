@@ -37,6 +37,7 @@ public enum ProposalCardCopy {
         case .voted: Action(title: "Review vote", isPrimary: false)
         case .viewOnly: Action(title: "Review", isPrimary: false)
         case .approved, .blocked: Action(title: "View status", isPrimary: false)
+        case .applied: Action(title: "View decision", isPrimary: false)
         case .executed: Action(title: "View trade", isPrimary: false)
         case .expired, .rejected, .withdrawn, .voided: Action(title: "View decision", isPrimary: false)
         }
@@ -47,11 +48,13 @@ public enum ProposalCardCopy {
     }
 
     public static func note(
-        _ state: ProposalState, needed: Int, expiresAt: Date, statusMessage: String?, now: Date
+        _ state: ProposalState, needed: Int, expiresAt: Date, statusMessage: String?, now: Date, isRule: Bool = false
     ) -> String {
-        switch state {
+        if isRule, state == .rejected || state == .expired { return "Voting ended. The rule is unchanged." }
+        return switch state {
         case .open, .voted, .viewOnly: "\(neededLabel(needed)) · \(closes(at: expiresAt, now: now))"
         case .approved: "The cabal passed this proposal."
+        case .applied: ProposalRuleCopy.appliedNote
         case .executed: "The trade is complete."
         case .expired: "Voting ended without enough yes votes."
         case .blocked: "Execution was blocked. Review the status."
@@ -65,11 +68,16 @@ public enum ProposalCardCopy {
         "\(tally.yes) yes · \(tally.no) no · \(max(tally.voters - tally.yes - tally.no, 0)) not voted"
     }
 
-    public static func footer(_ state: ProposalState, tally: ProposalTally) -> Footer {
-        switch state {
+    public static func footer(_ state: ProposalState, tally: ProposalTally, isRule: Bool = false) -> Footer {
+        if isRule, state == .rejected || state == .expired || state == .withdrawn || state == .voided {
+            return Footer(icon: .clock, text: "Voting closed · Rule unchanged", tone: .muted)
+        }
+        return switch state {
         case .open, .voted, .viewOnly: Footer(icon: .chat, text: tallyLine(tally), tone: .muted)
         case .approved:
             Footer(icon: .clock, text: "Approved by the cabal · Not completed", tone: .warning)
+        case .applied:
+            Footer(icon: .done, text: "Rule applied · View the original decision", tone: .gain)
         case .executed:
             Footer(icon: .done, text: "Trade confirmed · View the original decision", tone: .gain)
         case .blocked:
@@ -83,6 +91,7 @@ public enum ProposalCardCopy {
         switch state {
         case .open, .voted, .viewOnly: "\(proposer) · Voting open"
         case .approved: "Approved · execution pending"
+        case .applied: "Rule applied"
         case .executed: "Trade confirmed"
         case .expired: "Voting ended without enough yes votes"
         case .blocked: "The trade did not go through"
@@ -100,6 +109,8 @@ public enum ProposalCardCopy {
             return nil
         case .approved:
             return Notice(tone: .warn, message: "The vote passed. Execution is pending.")
+        case .applied:
+            return Notice(tone: .info, message: "The vote passed. The rule is applied.")
         case .executed:
             return Notice(tone: .info, message: "The trade is confirmed.")
         case .expired:

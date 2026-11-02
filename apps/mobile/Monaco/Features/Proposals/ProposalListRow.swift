@@ -28,13 +28,17 @@ struct ProposalListRow: Identifiable, Equatable {
     init(summary: ProposalSummary, asset: ProposalAsset?, proposer: String, now: Date) {
         let state = summary.state(now: now)
         let amount =
-            summary.kind == "sell"
-            ? ProposalCard.shareLabel(summary: summary, asset: asset)
-            : summary.usdcMicros.map { UsdAmountFormatter.format(micros: $0) }
+            summary.isRule
+            ? summary.ruleChange?.title
+            : summary.kind == "sell"
+                ? ProposalCard.shareLabel(summary: summary, asset: asset)
+                : summary.usdcMicros.map { UsdAmountFormatter.format(micros: $0) }
         self.init(
             id: summary.id, symbol: summary.symbol, assetName: asset?.displayName, kind: asset?.kind ?? .stock,
             logoURL: asset?.logoURL,
-            title: [summary.assetName(asset: asset), amount].compactMap { $0 }.joined(separator: " · "),
+            title: [summary.isRule ? ProposalRuleCopy.heroTitle : summary.assetName(asset: asset), amount].compactMap {
+                $0
+            }.joined(separator: " · "),
             subtitle: ProposalCardCopy.rowSubtitle(state, proposer: proposer, statusMessage: summary.statusMessage),
             badge: .listRow(state))
     }
@@ -49,9 +53,13 @@ struct ProposalListRowView: View {
             MonacoRow(
                 title: row.title, subtitle: row.subtitle, chevron: true, isLast: isLast, isPrivate: true,
                 leading: {
-                    StockMark(
-                        symbol: row.symbol, displayName: row.assetName, assetKind: row.kind,
-                        size: MonacoRowLayout.baseMarkSize, logoURL: row.logoURL)
+                    if row.symbol.isEmpty {
+                        SunkenGlyphMark(icon: .thesis, size: MonacoRowLayout.baseMarkSize)
+                    } else {
+                        StockMark(
+                            symbol: row.symbol, displayName: row.assetName, assetKind: row.kind,
+                            size: MonacoRowLayout.baseMarkSize, logoURL: row.logoURL)
+                    }
                 },
                 trailing: { StatusBadge(proposal: row.badge) })
         }

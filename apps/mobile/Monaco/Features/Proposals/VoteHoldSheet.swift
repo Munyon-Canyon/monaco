@@ -93,7 +93,8 @@ struct VoteHoldSheet: View {
     }
 
     static func title(_ summary: ProposalSummary) -> String {
-        title(kind: summary.kind, symbol: summary.symbol, usdcMicros: summary.usdcMicros)
+        if summary.isRule { return ProposalRuleCopy.voteTitle }
+        return title(kind: summary.kind, symbol: summary.symbol, usdcMicros: summary.usdcMicros)
     }
 
     static func title(kind: String, symbol: String, usdcMicros: Int64?) -> String {
@@ -112,14 +113,25 @@ struct VoteHoldSheet: View {
             openProposal()
         } label: {
             HStack(spacing: MonacoTheme.Space.sm) {
-                StockMark(
-                    symbol: summary.symbol, displayName: list.assetName, assetKind: list.kind, size: .row,
-                    logoURL: list.logoURL)
+                if summary.isRule {
+                    SunkenGlyphMark(icon: .thesis, size: StockMarkSize.row.rawValue)
+                } else {
+                    StockMark(
+                        symbol: summary.symbol, displayName: list.assetName, assetKind: list.kind, size: .row,
+                        logoURL: list.logoURL)
+                }
                 VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
                     Text(Self.title(summary))
                         .font(MonacoTheme.Typo.headline)
                         .foregroundStyle(MonacoTheme.primaryText)
                         .fixedSize(horizontal: false, vertical: true)
+                    if let change = summary.ruleChange, summary.isRule {
+                        Text(change.detailLine)
+                            .font(MonacoTheme.Typo.subhead)
+                            .foregroundStyle(MonacoTheme.primaryText)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .accessibilityIdentifier("vote-hold-rule-change")
+                    }
                     Text([summary.cabalName, proposer].compactMap { $0 }.joined(separator: " · "))
                         .font(MonacoTheme.Typo.subhead)
                         .foregroundStyle(MonacoTheme.secondaryText)
@@ -224,7 +236,8 @@ struct VoteHoldSheet: View {
             toasts.show(success: toast.message, action: action)
             let sample = PushSample.afterVote(
                 symbol: summary.symbol, status: outcome.status, tally: outcome.tally, isSell: summary.kind == "sell",
-                usdcMicros: summary.usdcMicros, closesAt: summary.expiresAt, swap: summary.swap, pendingUnits: nil)
+                usdcMicros: summary.usdcMicros, closesAt: summary.expiresAt, swap: summary.swap, pendingUnits: nil,
+                isRule: summary.isRule)
             await environment.pushPrePrompt.noteFirstVote(sample: sample, after: toasts)
         }
     }

@@ -41,6 +41,7 @@ extension ProposalSummary {
     }
 
     func title(asset: ProposalAsset?) -> String {
-        "\(kind == "sell" ? "Sell" : "Buy") \(assetName(asset: asset))"
+        if isRule { return ProposalRuleCopy.heroTitle }
+        return "\(kind == "sell" ? "Sell" : "Buy") \(assetName(asset: asset))"
     }
 }

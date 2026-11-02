@@ -45,11 +45,14 @@ struct ProposalCard: View {
     private var note: String {
         ProposalCardCopy.note(
             state, needed: summary.tally.needed, expiresAt: summary.expiresAt, statusMessage: summary.statusMessage,
-            now: .now)
+            now: .now, isRule: summary.isRule)
     }
-    private var footer: ProposalCardCopy.Footer { ProposalCardCopy.footer(state, tally: summary.tally) }
+    private var footer: ProposalCardCopy.Footer {
+        ProposalCardCopy.footer(state, tally: summary.tally, isRule: summary.isRule)
+    }
 
     private var amountLine: String {
+        if let change = summary.ruleChange, summary.isRule { return change.detailLine }
         if isSell { return "\(Self.shareLabel(summary: summary, asset: asset)) from the cabal's holding" }
         guard let micros = summary.usdcMicros else { return "From the cabal pot" }
         return "\(UsdAmountFormatter.format(micros: micros)) from the cabal pot"
@@ -124,9 +127,13 @@ struct ProposalCard: View {
             : AnyLayout(HStackLayout(spacing: MonacoTheme.Space.sm))
         return layout {
             HStack(spacing: MonacoTheme.Space.sm) {
-                StockMark(
-                    symbol: summary.symbol, displayName: asset?.displayName, assetKind: asset?.kind ?? .stock,
-                    size: .card, logoURL: asset?.logoURL)
+                if summary.isRule {
+                    SunkenGlyphMark(icon: .thesis, size: StockMarkSize.card.rawValue)
+                } else {
+                    StockMark(
+                        symbol: summary.symbol, displayName: asset?.displayName, assetKind: asset?.kind ?? .stock,
+                        size: .card, logoURL: asset?.logoURL)
+                }
                 VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
                     Text(summary.title(asset: asset))
                         .font(MonacoTheme.Typo.headline)

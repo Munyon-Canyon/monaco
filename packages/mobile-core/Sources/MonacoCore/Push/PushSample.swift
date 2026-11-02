@@ -14,8 +14,26 @@ public struct PushSample: Equatable, Sendable {
     public static func afterVote(
         symbol: String, status: ProposalStatus, tally: ProposalTally, isSell: Bool, usdcMicros: Int64?,
         closesAt: Date, swap: ProposalSwap?, pendingUnits: String?, cabalImageURL: URL? = nil,
-        calendar: Calendar = .current
+        calendar: Calendar = .current, isRule: Bool = false
     ) -> PushSample {
+        let score0 = "\(tally.yes)–\(tally.no)"
+        if isRule {
+            switch ProposalResultCopy.seal(status: status) {
+            case .passed:
+                return PushSample(
+                    title: "Rule change passed \(score0)", body: "The rule is applied.", cabalImageURL: cabalImageURL)
+            case .failed:
+                return PushSample(
+                    title: "Rule change failed \(score0)", body: "The rule is unchanged.", cabalImageURL: cabalImageURL)
+            case .neutral:
+                let clock = SharedFormatters.string(
+                    from: closesAt, pattern: .fixed("h:mm a"), locale: Locale(identifier: "en_US_POSIX"),
+                    calendar: calendar)
+                return PushSample(
+                    title: "Rule change · closes \(clock)", body: "We'll tell you how it ends.",
+                    cabalImageURL: cabalImageURL)
+            }
+        }
         let ticker = symbol.hasSuffix("x") ? String(symbol.dropLast()) : symbol
         let score = "\(tally.yes)–\(tally.no)"
         switch ProposalResultCopy.seal(status: status) {

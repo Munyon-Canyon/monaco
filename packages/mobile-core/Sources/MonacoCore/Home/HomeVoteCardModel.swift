@@ -251,19 +251,7 @@ public final class HomeVoteCardModel: Identifiable {
 }
 
 extension HomeVoteCardModel {
-    public static func ruleTitle(_ rule: String?) -> String {
-        switch rule {
-        case "show_sides": "Show who voted what"
-        case "max_trade_bps": "Max per trade"
-        case "threshold": "Votes to pass"
-        case "proposal_expiry_seconds": "Vote window"
-        case "join_mode": "Who can join"
-        case "voter": "Who can vote"
-        case "admin": "Who can manage"
-        case "creator": "Who leads the cabal"
-        default: "Cabal rule"
-        }
-    }
+    public static func ruleTitle(_ rule: String?) -> String { ProposalRuleCopy.title(rule) }
 
     public var headline: String {
         if row.isRule { return "Rule change \u{00B7} \(Self.ruleTitle(row.rule))" }
@@ -297,7 +285,7 @@ extension HomeVoteCardModel {
     private func settledFacts(_ outcome: CastOutcome) -> [String] {
         var facts = ProposalVoteCopy.settledFacts(
             status: outcome.status, tally: outcome.tally, voted: outcome.tally.yes + outcome.tally.no,
-            voters: outcome.tally.voters, sharesEstimate: sharesEstimate, isSell: row.isSell)
+            voters: outcome.tally.voters, sharesEstimate: sharesEstimate, isSell: row.isSell, isRule: row.isRule)
         if facts.count > 1 { facts.remove(at: 1) }
         if let first = facts.first { facts[0] = first.prefix(1).lowercased() + first.dropFirst() }
         return facts

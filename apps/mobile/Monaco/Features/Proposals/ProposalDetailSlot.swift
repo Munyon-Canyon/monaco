@@ -127,7 +127,7 @@ struct ProposalDetailSlotView: View {
                 subtitle: model.asset?.preIpo == nil ? nil : PreIpoCopy.proposalSubtitle
             )
             .padding(.horizontal, MonacoTheme.Space.gutter)
-            if let stats = model.stats {
+            if !summary.isRule, let stats = model.stats {
                 ProposalStatRow(
                     stats: stats,
                     onInfo: { infoSheet = model.asset?.preIpo == nil ? .price : .estimate })
@@ -162,11 +162,12 @@ struct ProposalDetailSlotView: View {
             status: summary.status, tally: summary.tally,
             caption: ProposalResultCopy.caption(
                 status: summary.status, tally: summary.tally, swap: summary.swap, isSell: isSell,
-                pendingUnits: units, statusMessage: summary.statusMessage),
+                pendingUnits: units, statusMessage: summary.statusMessage, isRule: summary.isRule),
             accessibilitySummary: ProposalStepper.make(
                 status: summary.status, isSell: isSell, swapFailed: summary.swap?.status == "failed",
                 expiresAt: summary.expiresAt, failureMessage: summary.swap?.failureMessage,
-                statusMessage: summary.statusMessage, priceMoved: summary.swap?.isPriceMoved == true
+                statusMessage: summary.statusMessage, priceMoved: summary.swap?.isPriceMoved == true,
+                isRule: summary.isRule
             ).accessibilityLabel
         ) {
             EmptyView()
@@ -177,7 +178,7 @@ struct ProposalDetailSlotView: View {
 
     @ViewBuilder private func resultAction(_ summary: ProposalSummary, _ model: ProposalDetailModel) -> some View {
         let isMember = model.members.contains { $0.id == environment.viewer?.userID }
-        switch ProposalResultCopy.action(status: summary.status, canPropose: isMember) {
+        switch ProposalResultCopy.action(status: summary.status, canPropose: isMember, isRule: summary.isRule) {
         case .share:
             ShareLink(item: SharePayload.fallbackURL) {
                 Label("Share result", systemImage: MonacoIcon.share.symbol)

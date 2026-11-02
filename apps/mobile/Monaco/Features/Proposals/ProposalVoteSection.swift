@@ -167,7 +167,7 @@ struct ProposalVoteSection: View {
 
     private var settledMark: VoteResultMark {
         guard model.lastVote?.status == .passed else { return .failed }
-        return summary.status == .executed ? .passed : .executing
+        return summary.status == .executed || summary.isRule ? .passed : .executing
     }
 
     @ViewBuilder private var hint: some View {
@@ -237,7 +237,8 @@ struct ProposalVoteSection: View {
         guard let prompt = environment?.pushPrePrompt else { return }
         let sample = PushSample.afterVote(
             symbol: summary.symbol, status: outcome.status, tally: outcome.tally, isSell: summary.kind == "sell",
-            usdcMicros: summary.usdcMicros, closesAt: summary.expiresAt, swap: summary.swap, pendingUnits: nil)
+            usdcMicros: summary.usdcMicros, closesAt: summary.expiresAt, swap: summary.swap, pendingUnits: nil,
+            isRule: summary.isRule)
         Task { await prompt.noteFirstVote(sample: sample, after: toasts) }
     }
 

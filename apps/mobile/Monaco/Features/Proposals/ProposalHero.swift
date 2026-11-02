@@ -14,6 +14,7 @@ struct ProposalHero: View {
     private var proposer: ProposalMember? { members.first { $0.id == summary.proposerID } }
     private var cabalLabel: String { summary.cabalName.isEmpty ? "Your cabal" : summary.cabalName }
     private var kindLabel: String { summary.kind == "sell" ? "Sell" : "Buy" }
+    private var ruleChange: ProposalRuleChange? { summary.isRule ? summary.ruleChange : nil }
     private var ticker: String {
         asset?.kind == .preIpo
             ? summary.assetName(asset: asset)
@@ -96,21 +97,36 @@ struct ProposalHero: View {
         }
     }
 
-    private var mark: some View {
+    @ViewBuilder private var mark: some View {
+        if summary.isRule {
+            SunkenGlyphMark(icon: .thesis, size: StockMarkSize.review.rawValue)
+        } else {
+            stockMark
+        }
+    }
+
+    private var stockMark: some View {
         StockMark(
             symbol: summary.symbol, displayName: asset?.displayName, assetKind: asset?.kind ?? .stock,
             size: .review, logoURL: asset?.logoURL)
     }
 
     private var title: some View {
-        Text("\(kindLabel) \(ticker)")
+        Text(summary.isRule ? ProposalRuleCopy.heroTitle : "\(kindLabel) \(ticker)")
             .font(MonacoTheme.Typo.title)
             .foregroundStyle(MonacoTheme.ink)
             .fixedSize(horizontal: false, vertical: true)
     }
 
     @ViewBuilder private var amount: some View {
-        if let micros = amountMicros {
+        if let ruleChange {
+            Text(ruleChange.changeLine)
+                .font(MonacoTheme.Typo.subhead)
+                .foregroundStyle(MonacoTheme.ink)
+                .multilineTextAlignment(.trailing)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("proposal-hero-rule-change")
+        } else if let micros = amountMicros {
             Text(Self.amountLabel(micros: micros))
                 .moneyFigure(.card)
                 .foregroundStyle(MonacoTheme.ink)
@@ -120,7 +136,7 @@ struct ProposalHero: View {
 
     @ViewBuilder private var subline: some View {
         let isAccessibility = dynamicTypeSize.isAccessibilitySize
-        let line = Text(subtitle ?? summary.assetName(asset: asset))
+        let line = Text(subtitle ?? ruleChange?.title ?? summary.assetName(asset: asset))
             .font(MonacoTheme.Typo.subhead)
             .foregroundStyle(MonacoTheme.secondaryText)
             .lineLimit(isAccessibility ? nil : 1)
