@@ -57,6 +57,7 @@ struct CabalScreen: View {
         let sections = sections.map { $0.erased }
         let (cabal, pot) = models.prepared(cabalID: context.cabalID, environment: environment)
         let empty = models.preparedEmpty(cabalID: context.cabalID, environment: environment)
+        let chart = models.preparedChart(cabalID: context.cabalID, environment: environment)
         Group {
             if SectionStack<CabalContext>.live(sections).isEmpty {
                 NotMigratedView(screen: "Cabal")
@@ -75,6 +76,7 @@ struct CabalScreen: View {
                     .environment(\.cabalModel, cabal)
                     .environment(\.cabalPotModel, pot)
                     .environment(\.cabalEmptyModel, empty)
+                    .environment(\.cabalValueChart, chart)
                     .environment(\.cabalTabSelection, selection)
                     .environment(refresh)
                     .refreshable {
@@ -87,7 +89,11 @@ struct CabalScreen: View {
         .onPreferenceChange(CabalTabsTop.self) { tabsTop = $0 }
         .onPreferenceChange(CabalPotBottom.self) { potBottom = $0 }
         .overlay(alignment: .top) {
-            if cabal.cabal?.me != nil { pinnedHeader(pot: pot, memberCount: cabal.cabal?.memberCount) }
+            if cabal.cabal?.me != nil {
+                pinnedHeader(pot: pot, memberCount: cabal.cabal?.memberCount)
+                    .environment(\.cabalModel, cabal)
+                    .environment(\.cabalValueChart, chart)
+            }
         }
         .cabalMoreActions(
             cabalID: context.cabalID, cabal: cabal,
@@ -110,15 +116,22 @@ struct CabalScreen: View {
             async let loadedPot: Void = pot.load()
             async let loadedEmpty: Void = empty.load()
             _ = await (loadedCabal, loadedPot, loadedEmpty)
+            let isMember = cabal.cabal?.me != nil
+            async let sharedMonthRead: Void = {
+                guard isMember else { return }
+                await chart.load()
+                await chart.observe()
+            }()
             async let observedCabal: Void = cabal.observe()
             async let observedPot: Void = pot.observe()
             async let observedEmpty: Void = empty.observe()
-            _ = await (observedCabal, observedPot, observedEmpty)
+            _ = await (observedCabal, observedPot, observedEmpty, sharedMonthRead)
         }
         .onScreenVisibilityChange { visible in
             cabal.setVisible(visible)
             pot.setVisible(visible)
             empty.setVisible(visible)
+            chart.setVisible(visible)
         }
         .toolbar {
             if let loaded = cabal.cabal {
@@ -230,6 +243,17 @@ final class CabalScreenModels {
     private var pot: CabalPotModel?
     private var edit: CabalEditModel?
     private var empty: CabalEmptyModel?
+    private var chart: ValueChartModel?
+
+    func preparedChart(cabalID: String, environment: AppEnvironment) -> ValueChartModel {
+        let created =
+            chart
+            ?? ValueChartModel(
+                subjects: [.cabal(id: cabalID)], ranges: [.oneMonth], range: .oneMonth, api: environment.api,
+                hints: environment.hints)
+        chart = created
+        return created
+    }
 
     func preparedEmpty(cabalID: String, environment: AppEnvironment) -> CabalEmptyModel {
         let created = empty ?? CabalEmptyModel(cabalID: cabalID, api: environment.api, hints: environment.hints)
@@ -270,6 +294,7 @@ extension EnvironmentValues {
     @Entry var cabalModel: CabalModel? = nil
     @Entry var cabalPotModel: CabalPotModel? = nil
     @Entry var cabalEmptyModel: CabalEmptyModel? = nil
+    @Entry var cabalValueChart: ValueChartModel? = nil
     @Entry var cabalShare: CabalShare? = nil
     @Entry var cabalEditModel: CabalEditModel? = nil
     @Entry var cabalInfoSaving = false

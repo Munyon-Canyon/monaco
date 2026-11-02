@@ -46,16 +46,18 @@ struct CabalMoveReader<Content: View>: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(\.cabalRetry) private var retry
     @Environment(\.cabalModel) private var cabalModel
+    @Environment(\.cabalValueChart) private var shared
     @State private var chart: ValueChartModel?
 
     private var move: CabalHeaderCopy.Move? {
         guard let createdAt = cabalModel?.cabal?.createdAt else { return nil }
-        return CabalHeaderCopy.move(chart?.curve, createdAt: createdAt, now: .now)
+        return CabalHeaderCopy.move((shared ?? chart)?.curve, createdAt: createdAt, now: .now)
     }
 
     var body: some View {
         content(move)
             .task(id: retry.tick) {
+                guard shared == nil else { return }
                 let chart = prepared()
                 await withTaskGroup(of: Void.self) { group in
                     group.addTask { await chart.load() }
