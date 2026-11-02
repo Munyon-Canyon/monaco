@@ -22,7 +22,7 @@ public enum MarketMapping {
             changeText: changeText(changeBasisPoints),
             sparkline: SparklineSeries(usdcMicros: summary.sparklineMicros ?? []),
             session: session,
-            status: status(summary.session, session: session),
+            status: status(summary.session, session: session, asOf: now),
             showsSessionChip: !summary.session.continuous,
             isTradable: summary.tradable ?? false,
             isQuotable: summary.quotable,
@@ -60,7 +60,7 @@ public enum MarketMapping {
             changeText: changeText(changeBasisPoints),
             sparkline: SparklineSeries(usdcMicros: value.sparklineMicros ?? []),
             session: session,
-            status: status(value.session, session: session),
+            status: status(value.session, session: session, asOf: now),
             showsSessionChip: !value.session.continuous,
             isTradable: value.tradable,
             isQuotable: value.quotable,
@@ -122,7 +122,8 @@ public enum MarketMapping {
 
     public static func status(
         _ wire: Components.Schemas.MarketSession,
-        session: MarketSession
+        session: MarketSession,
+        asOf: Date? = nil
     ) -> MarketStatus {
         let open = session == .open && !wire.continuous
         return MarketStatus(
@@ -131,6 +132,7 @@ public enum MarketMapping {
             afterHours: !wire.continuous && !open,
             nextSession: nextSession(wire.nextState),
             nextTransition: wire.nextTransition,
+            asOf: asOf,
             holiday: wire.holiday.isEmpty ? nil : wire.holiday,
             earlyClose: wire.earlyClose
         )

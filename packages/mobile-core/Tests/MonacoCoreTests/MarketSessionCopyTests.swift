@@ -10,8 +10,8 @@ final class MarketSessionCopyTests: XCTestCase {
     private let easternUS = Locale(identifier: "en_US@hours=h12")
     private let newYork = TimeZone(identifier: "America/New_York")!
 
-    private func chip(_ market: MarketStatus?) -> MarketSessionChipCopy? {
-        MarketSessionCopy.chip(for: market, locale: easternUS, timeZone: newYork)
+    private func chip(_ market: MarketStatus?, now: Date? = nil) -> MarketSessionChipCopy? {
+        MarketSessionCopy.chip(for: market, locale: easternUS, timeZone: newYork, now: now)
     }
 
     func testOpenSaysNothingAboutSolanaBecauseThereIsNothingToExplain() throws {
@@ -34,11 +34,20 @@ final class MarketSessionCopyTests: XCTestCase {
         XCTAssertTrue(detail.uppercased().contains("PM"), detail)
     }
 
-    func testAHalfDaySaysSoInsteadOfNamingAnHour() throws {
+    func testAHalfDayNamesTheEarlyBell() throws {
         let copy = try XCTUnwrap(chip(Sessions.sessionEarlyClose))
+        let detail = try XCTUnwrap(copy.detail)
 
         XCTAssertEqual(copy.title, "Market open")
-        XCTAssertEqual(copy.detail, "Closes early today")
+        XCTAssertTrue(detail.hasPrefix("Closes early at "), detail)
+        XCTAssertTrue(detail.contains("1:00"), detail)
+    }
+
+    func testAHalfDayWithNoBellTimeStillSaysItClosesEarly() throws {
+        let market = MarketStatus(
+            session: .open, isOpen: true, afterHours: false, nextSession: .afterHours, earlyClose: true)
+
+        XCTAssertEqual(try XCTUnwrap(chip(market)).detail, "Closes early today")
     }
 
     func testAfterHoursIsTheStateTheWholeChipExistsFor() throws {
@@ -73,6 +82,64 @@ final class MarketSessionCopyTests: XCTestCase {
         let copy = try XCTUnwrap(chip(market))
 
         XCTAssertEqual(copy.detail, "Trading 24/7 on Solana")
+    }
+
+    func testThePreMarketChipTurnsToOpenAtTheBellWithoutAFreshPayload() throws {
+        let bell = try XCTUnwrap(Sessions.sessionPreMarket.nextTransition)
+
+        let before = try XCTUnwrap(chip(Sessions.sessionPreMarket, now: bell.addingTimeInterval(-1)))
+        let at = try XCTUnwrap(chip(Sessions.sessionPreMarket, now: bell))
+        let after = try XCTUnwrap(chip(Sessions.sessionPreMarket, now: bell.addingTimeInterval(600)))
+
+        XCTAssertEqual(before.title, "Pre-market")
+        XCTAssertTrue(try XCTUnwrap(before.detail).hasPrefix("Opens "))
+        XCTAssertEqual(at.title, "Market open")
+        XCTAssertTrue(at.isLive)
+        XCTAssertEqual(after.title, "Market open")
+        XCTAssertNil(after.detail)
+    }
+
+    func testTheOpenChipTurnsToAfterHoursAtTheBell() throws {
+        let bell = try XCTUnwrap(Sessions.sessionOpen.nextTransition)
+
+        let copy = try XCTUnwrap(chip(Sessions.sessionOpen, now: bell))
+
+        XCTAssertEqual(copy.title, "After hours")
+        XCTAssertEqual(copy.detail, "Trading 24/7 on Solana")
+        XCTAssertFalse(copy.isLive)
+    }
+
+    func testAnEarlyCloseOpenChipRollsToAfterHoursAndDropsTheEarlyCloseLine() throws {
+        let bell = try XCTUnwrap(Sessions.sessionEarlyClose.nextTransition)
+
+        let copy = try XCTUnwrap(chip(Sessions.sessionEarlyClose, now: bell))
+
+        XCTAssertEqual(copy.title, "After hours")
+        XCTAssertEqual(copy.detail, "Trading 24/7 on Solana")
+    }
+
+    func testTheClosedChipTurnsToPreMarketAndForgetsTheHoliday() throws {
+        let bell = try XCTUnwrap(Sessions.sessionHoliday.nextTransition)
+
+        let copy = try XCTUnwrap(chip(Sessions.sessionHoliday, now: bell))
+
+        XCTAssertEqual(copy.title, "Pre-market")
+        XCTAssertEqual(copy.detail, "Trading 24/7 on Solana")
+    }
+
+    func testAChipReadBeforeItsBellIsUnchangedByTheClock() throws {
+        let reported = chip(Sessions.sessionOpen)
+
+        XCTAssertEqual(chip(Sessions.sessionOpen, now: Sessions.tradingTuesday), reported)
+    }
+
+    func testTheNextChangeIsTheServersTransitionWhileItIsStillAhead() throws {
+        let bell = try XCTUnwrap(Sessions.sessionPreMarket.nextTransition)
+
+        XCTAssertEqual(
+            MarketSessionCopy.nextChange(for: Sessions.sessionPreMarket, after: bell.addingTimeInterval(-60)), bell)
+        XCTAssertNil(MarketSessionCopy.nextChange(for: Sessions.sessionPreMarket, after: bell))
+        XCTAssertNil(MarketSessionCopy.nextChange(for: nil, after: bell))
     }
 
     func testAHolidayIsNamed() throws {

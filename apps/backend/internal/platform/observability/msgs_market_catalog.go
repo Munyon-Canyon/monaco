@@ -1,6 +1,10 @@
 package observability
 
 var (
+	MarketCalendarEnding = Msg{
+		Name:     "market.calendar.ending",
+		Required: []string{"ends_at", "days_left"},
+	}
 	MarketDecimalsCorrected = Msg{
 		Name:     "market.catalog.decimals_corrected",
 		Required: []string{"symbol", "mint", "issuer_decimals", "chain_decimals"},

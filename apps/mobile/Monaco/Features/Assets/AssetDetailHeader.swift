@@ -149,10 +149,17 @@ struct AssetDetailHeader: View {
     }
 
     @ViewBuilder private var session: some View {
-        if detail.market.showsSessionChip, let copy = MarketSessionCopy.chip(for: detail.market.status), !copy.isLive {
-            MarketSessionChip(session: copy)
-                .accessibilityIdentifier("asset-detail-session")
-                .padding(.bottom, MonacoTheme.Space.s)
+        if detail.market.showsSessionChip {
+            let status = detail.market.status
+            let start = WallClock.now()
+            let changes = MarketSessionCopy.nextChange(for: status, after: start).map { [start, $0] } ?? [start]
+            TimelineView(.explicit(changes)) { context in
+                if let copy = MarketSessionCopy.chip(for: status, now: context.date), !copy.isLive {
+                    MarketSessionChip(session: copy)
+                        .accessibilityIdentifier("asset-detail-session")
+                        .padding(.bottom, MonacoTheme.Space.s)
+                }
+            }
         }
     }
 }

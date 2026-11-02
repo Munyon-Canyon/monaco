@@ -68,5 +68,35 @@ func nyseHolidays() map[int][]exception {
 			earlyClose(time.November, 24, "Day after Thanksgiving"),
 			fullClosure(time.December, 25, "Christmas Day"),
 		},
+		2029: {
+			fullClosure(time.January, 1, "New Year's Day"),
+			fullClosure(time.January, 15, "Martin Luther King, Jr. Day"),
+			fullClosure(time.February, 19, "Washington's Birthday"),
+			fullClosure(time.March, 30, "Good Friday"),
+			fullClosure(time.May, 28, "Memorial Day"),
+			fullClosure(time.June, 19, "Juneteenth National Independence Day"),
+			earlyClose(time.July, 3, "Day before Independence Day"),
+			fullClosure(time.July, 4, "Independence Day"),
+			fullClosure(time.September, 3, "Labor Day"),
+			fullClosure(time.November, 22, "Thanksgiving Day"),
+			earlyClose(time.November, 23, "Day after Thanksgiving"),
+			earlyClose(time.December, 24, "Christmas Eve"),
+			fullClosure(time.December, 25, "Christmas Day"),
+		},
 	}
+}
+
+const CalendarWarning = 90 * 24 * time.Hour
+
+func CalendarEnd() time.Time {
+	last := 0
+	for year := range nyseHolidays() {
+		last = max(last, year)
+	}
+	return Date{Year: last + 1, Month: time.January, Day: 1}.Start()
+}
+
+func CalendarEnding(now time.Time) (time.Time, bool) {
+	end := CalendarEnd()
+	return end, !now.Before(end.Add(-CalendarWarning))
 }

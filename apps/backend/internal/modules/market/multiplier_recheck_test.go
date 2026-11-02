@@ -187,3 +187,35 @@ func TestCatalogPoller_aFailedReadOfTheDueMintsFailsTheTickWithoutAskingTheChain
 		t.Fatalf("Tick = %v after %d asks, want the read error before asking the chain", err, rig.facts.Asked())
 	}
 }
+
+func (r *catalogRig) calendarEndings(t *testing.T) []map[string]any {
+	t.Helper()
+	var out []map[string]any
+	for line := range strings.Lines(string(r.logs.Bytes())) {
+		var got map[string]any
+		if json.Unmarshal([]byte(line), &got) == nil && got["msg"] == "market.calendar.ending" {
+			out = append(out, got)
+		}
+	}
+	return out
+}
+
+func TestCatalogPoller_alertsWhenTheCalendarTableEndsWithinNinetyDays(t *testing.T) {
+	t.Parallel()
+	xs := &provider{issuer: domain.IssuerXStocks}
+	xs.serve(nil, listed(marketfake.AAPLx()))
+	rig := newRig(t, xs)
+	end := domain.CalendarEnd()
+	rig.clock.Advance(end.Add(-domain.CalendarWarning - 24*time.Hour).Sub(rig.clock.Now()))
+	rig.tick(t)
+	if got := rig.calendarEndings(t); len(got) != 0 {
+		t.Fatalf("alerts 91 days before the end = %v, want none", got)
+	}
+	rig.clock.Advance(24 * time.Hour)
+	rig.tick(t)
+	got := rig.calendarEndings(t)
+	if len(got) != 1 || got[0]["level"] != "ERROR" || fmt.Sprint(got[0]["days_left"]) != "90" ||
+		got[0]["ends_at"] != end.UTC().Format(time.RFC3339) {
+		t.Fatalf("alerts 90 days before the end = %v, want one error naming the end and 90 days", got)
+	}
+}

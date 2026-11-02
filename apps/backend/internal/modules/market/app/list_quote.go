@@ -14,6 +14,7 @@ import (
 type quotes struct {
 	newest      map[string][]domain.Sample
 	closed      map[string][]domain.Sample
+	closeAt     time.Time
 	lastClosed  map[string][]domain.Sample
 	opened      map[string][]domain.Sample
 	openedSince time.Time
@@ -66,6 +67,7 @@ func (l *ListAssets) load(
 		openedSince: openedSince,
 		spark:       spark,
 		volumes:     volumes,
+		closeAt:     equitySession.ChangeBase(),
 	}, nil
 }
 
@@ -123,17 +125,19 @@ func summary(asset domain.Asset, session domain.SessionInfo, book quotes, now ti
 	out.Priced = true
 	out.Price = accepted
 	out.Stale = accepted.Stale(session, now)
-	if ref, known := reference(asset, book); known {
+	if ref, known := reference(asset, book, now); known {
 		if bps, measured := domain.QuoteBps(accepted.Micros, ref); measured {
 			out.Change = &bps
 		}
 	}
-	out.AfterHoursChange = afterHours(asset, session, book, accepted.Micros)
+	out.AfterHoursChange = afterHours(asset, session, book, accepted.Micros, now)
 	out.Sparkline = domain.LastSparkline(book.spark[asset.Mint.String()], newest)
 	return out
 }
 
-func afterHours(asset domain.Asset, session domain.SessionInfo, book quotes, price money.Micros) *int32 {
+func afterHours(
+	asset domain.Asset, session domain.SessionInfo, book quotes, price money.Micros, now time.Time,
+) *int32 {
 	if asset.Kind == domain.KindPreIPO || session.State == domain.StateOpen {
 		return nil
 	}
@@ -141,19 +145,19 @@ func afterHours(asset domain.Asset, session domain.SessionInfo, book quotes, pri
 	if !ok {
 		return nil
 	}
-	if bps, measured := domain.QuoteBps(price, closed.Micros); measured {
+	if bps, measured := domain.QuoteBps(price, asset.CloseReference(closed.Micros, session.LastClose, now)); measured {
 		return &bps
 	}
 	return nil
 }
 
-func reference(asset domain.Asset, book quotes) (money.Micros, bool) {
+func reference(asset domain.Asset, book quotes, now time.Time) (money.Micros, bool) {
 	if asset.Kind == domain.KindPreIPO {
 		sample, ok := domain.FirstAcceptedOnDay(book.opened[asset.Mint.String()], book.openedSince)
 		return sample.Micros, ok
 	}
 	accepted, ok := domain.Accept(book.closed[asset.Mint.String()])
-	return accepted.Micros, ok
+	return asset.CloseReference(accepted.Micros, book.closeAt, now), ok
 }
 
 func mintsOf(assets []domain.Asset) []string {

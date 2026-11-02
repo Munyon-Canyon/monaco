@@ -49,7 +49,7 @@ func samplesAtClose(
 func openedSamples(
 	ctx context.Context, read dayBaseReader, mints []string, now time.Time,
 ) (map[string][]domain.Sample, time.Time, error) {
-	since := now.UTC().Truncate(24 * time.Hour)
+	since := domain.EasternDay(now).Start()
 	rows, err := read.FirstSamplesSince(ctx, sqlc.FirstSamplesSinceParams{Mints: mints, Since: since, Until: now})
 	if err != nil {
 		return nil, since, errs.Wrap(err, errs.CodeOf(err), "market.FirstSamplesSince")

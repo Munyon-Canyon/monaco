@@ -13,6 +13,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/concurrency"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 	"github.com/monaco/monaco/apps/backend/internal/platform/poller"
 )
 
@@ -70,6 +71,7 @@ func (p *CatalogPoller) Tick(ctx context.Context) (poller.Report, error) {
 		report.Changed += changed
 		report.Attrs = append(report.Attrs, slog.Int(string(c.issuer), len(c.assets)))
 	}
+	p.warnCalendarEnding(ctx)
 	checked, err := p.checkChainFacts(ctx)
 	report.Changed += checked
 	report.Attrs = append(report.Attrs, slog.Int("chain_checked", checked))
@@ -81,6 +83,15 @@ func (p *CatalogPoller) Tick(ctx context.Context) (poller.Report, error) {
 		failed = append(failed, err)
 	}
 	return report, errors.Join(failed...)
+}
+
+func (p *CatalogPoller) warnCalendarEnding(ctx context.Context) {
+	now := p.clock.Now()
+	if end, ending := domain.CalendarEnding(now); ending {
+		observability.Alert(ctx, observability.MarketCalendarEnding,
+			slog.String("ends_at", end.UTC().Format(time.RFC3339)),
+			slog.Int("days_left", int(end.Sub(now)/(24*time.Hour))))
+	}
 }
 
 func fetch(ctx context.Context, provider AssetProvider) (issuerCatalog, error) {

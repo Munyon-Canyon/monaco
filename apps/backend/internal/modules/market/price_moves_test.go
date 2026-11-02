@@ -264,7 +264,7 @@ func TestPriceMoved_aFailedMarkReadFailsTheTick(t *testing.T) {
 func TestPriceMoved_expiredCalendarFailsTheTickAfterTheSample(t *testing.T) {
 	t.Parallel()
 	aapl := marketfake.AAPLx()
-	rig, q := newMoveRig(t, clock.Real{}.Now().AddDate(3, 0, 0), aapl)
+	rig, q := newMoveRig(t, domain.CalendarEnd().AddDate(0, 0, 7), aapl)
 	q.quote(aapl, 220_000_000)
 	_, err := rig.poller.Tick(pollerCtx(t))
 	if errs.CodeOf(err) != errs.CodeCalendarExpired {

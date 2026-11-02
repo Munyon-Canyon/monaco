@@ -3,6 +3,7 @@ package domain
 import (
 	"log/slog"
 	"math"
+	"math/big"
 	"strings"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
 type asset struct{}
@@ -180,4 +182,32 @@ func (a Asset) UIMultiplierAt(t time.Time) Multiplier {
 		return a.NextUIMultiplier.To
 	}
 	return a.UIMultiplier
+}
+
+func (m Multiplier) valid() bool { return m.Num > 0 && m.Den > 0 }
+
+func (m Multiplier) rat() *big.Rat { return big.NewRat(m.Num, m.Den) }
+
+func splitBetween(then, now Multiplier) bool {
+	if !then.valid() || !now.valid() {
+		return false
+	}
+	floor := big.NewRat(11, 10)
+	ratio := new(big.Rat).Quo(now.rat(), then.rat())
+	return ratio.Cmp(floor) >= 0 || ratio.Cmp(new(big.Rat).Inv(floor)) <= 0
+}
+
+func (a Asset) CloseReference(ref money.Micros, closedAt, now time.Time) money.Micros {
+	then, current := a.UIMultiplierAt(closedAt), a.UIMultiplierAt(now)
+	if !splitBetween(then, current) {
+		return ref
+	}
+	scaled := new(big.Rat).SetInt(new(big.Int).SetUint64(ref.Uint64()))
+	scaled.Mul(scaled, then.rat())
+	scaled.Quo(scaled, current.rat())
+	micros := new(big.Int).Quo(scaled.Num(), scaled.Denom())
+	if !micros.IsUint64() {
+		return ref
+	}
+	return money.MicrosFromUint64(micros.Uint64())
 }
