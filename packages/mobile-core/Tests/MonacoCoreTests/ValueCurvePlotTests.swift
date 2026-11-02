@@ -69,6 +69,14 @@ final class ValueCurvePlotTests: XCTestCase {
             value.change(.pnl), ValueCurve.Change(amountText: "$0.00", percentText: "0.00%", direction: .flat))
     }
 
+    func testReadoutDirectionIsFlatUnderHalfACentAndDownAtHalfACent() {
+        let under = curve([(3_000_000, 0, nil), (3_000_000, -4_999, nil)])
+        let at = curve([(3_000_000, 0, nil), (3_000_000, -5_000, nil)])
+
+        XCTAssertEqual(under.readout()?.direction, .flat)
+        XCTAssertEqual(at.readout()?.direction, .down)
+    }
+
     func testHomePillReadsTheAllTimePercentAloneWhenDollarsRoundToZero() {
         let value = curve([(3_003_000, 0, nil), (3_000_000, -3_000, nil)])
 

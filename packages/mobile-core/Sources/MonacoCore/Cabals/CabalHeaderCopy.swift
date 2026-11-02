@@ -60,7 +60,7 @@ public enum CabalHeaderCopy {
         let basisPoints = (scaled >= 0 ? scaled + half : scaled - half) / first
         return Move(
             percent: PercentFormatter.format(basisPoints: basisPoints, signed: true, fractionDigits: 1),
-            direction: PortfolioSummary.Direction(signedMicros: delta))
+            direction: PortfolioSummary.Direction(pnlMicros: delta))
     }
 
     public static func compactDollars(_ micros: Int64) -> String {
