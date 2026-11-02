@@ -29,8 +29,13 @@ type deliverer struct {
 
 func newDeliverer(t *testing.T) deliverer {
 	t.Helper()
+	return newDelivererAt(t, clock.Real{}.Now().UTC().Truncate(time.Second))
+}
+
+func newDelivererAt(t *testing.T, at time.Time) deliverer {
+	t.Helper()
 	g := testkit.NewIDs(618)
-	clk := testkit.NewClock(clock.Real{}.Now().UTC().Truncate(time.Second))
+	clk := testkit.NewClock(at)
 	pool := testkit.DB(t)
 	return deliverer{pool: pool, gen: g, clock: clk, uow: db.New(pool, g, clk)}
 }
