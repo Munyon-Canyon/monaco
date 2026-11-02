@@ -53,6 +53,12 @@ struct CabalRulesTab: View {
     }
 }
 
+enum CabalRulesSidesGate {
+    static func shouldOpen(requested: Bool, current: Bool, isOpen: Bool) -> Bool {
+        requested != current && !isOpen
+    }
+}
+
 enum CabalRulesTabMetrics {
     static let skeletonHeight: CGFloat = 196
 }
@@ -109,10 +115,12 @@ private struct CabalRulesBody: View {
                 trailingIsInteractive: true,
                 leading: { icon(row.kind) },
                 trailing: {
-                    Toggle(row.title, isOn: sidesBinding(current: showSides))
+                    let binding = sidesBinding(current: showSides)
+                    Toggle(row.title, isOn: binding)
                         .labelsHidden()
                         .frame(minHeight: MonacoButtonMetrics.hitTarget)
                         .contentShape(Rectangle())
+                        .onTapGesture { binding.wrappedValue.toggle() }
                         .disabled(!canPropose)
                         .accessibilityHint(canPropose ? "" : CabalRulesTabCopy.readOnlyHint)
                         .accessibilityIdentifier("cabal-rules-show-sides-toggle")
@@ -145,7 +153,8 @@ private struct CabalRulesBody: View {
         Binding(
             get: { current },
             set: { requested in
-                guard requested != current else { return }
+                guard CabalRulesSidesGate.shouldOpen(requested: requested, current: current, isOpen: proposal != nil)
+                else { return }
                 proposal = CabalRuleProposalModel(
                     cabal: cabal, change: .showSides(requested), api: environment.api)
             }
