@@ -18,6 +18,14 @@ struct CashOutView: View {
     @State private var amountText = ""
     @State private var step = CashOutStep.entry
     @State private var startedJob: CashOutJob?
+    @State private var confirmingLeave = false
+
+    private var preview: CashOutPreview? { model?.preview }
+
+    private var enteredMicros: Int64 {
+        let typed = AmountEntryText.micros(amountText) ?? 0
+        return preview?.entered(typedMicros: typed) ?? typed
+    }
 
     var body: some View {
         CashOutContent(
@@ -30,7 +38,7 @@ struct CashOutView: View {
             step: step,
             onReview: { step = .review },
             onBack: { step = .entry },
-            onSubmit: { Task { await submit() } },
+            onSubmit: requestSubmit,
             onFund: {
                 environment.navigator.open(
                     FundRoute(cabalID: cabalID, cabalName: cabal?.cabalName), in: environment.navigator.selectedTab)
@@ -55,6 +63,23 @@ struct CashOutView: View {
             await cabal.load()
         }
         .onScreenVisibilityChange { model?.setVisible($0) }
+        .confirmationDialog(
+            CashOutAmountRule.leavePrompt(sliceMicros: preview?.sliceMicros ?? 0),
+            isPresented: $confirmingLeave, titleVisibility: .visible
+        ) {
+            Button("Leave anyway", role: .destructive) { Task { await submit() } }
+                .accessibilityIdentifier("cash-out-leave-confirm")
+            Button("Cancel", role: .cancel) {}
+                .accessibilityIdentifier("cash-out-leave-cancel")
+        }
+    }
+
+    private func requestSubmit() {
+        if preview?.needsLeaveConfirmation(enteredMicros: enteredMicros) == true {
+            confirmingLeave = true
+        } else {
+            Task { await submit() }
+        }
     }
 
     private var settledNotice: CashOutNotice? {
@@ -67,7 +92,7 @@ struct CashOutView: View {
 
     private func submit() async {
         guard let model else { return }
-        switch await model.submit(enteredMicros: AmountEntryText.micros(amountText) ?? 0) {
+        switch await model.submit(enteredMicros: enteredMicros) {
         case .started(let job):
             environment.cashOuts.track(job)
             Haptics.success()
@@ -97,7 +122,10 @@ struct CashOutContent: View {
     let onFund: () -> Void
     var onActivity: () -> Void = {}
 
-    private var enteredMicros: Int64 { AmountEntryText.micros(amountText) ?? 0 }
+    private var enteredMicros: Int64 {
+        let typed = AmountEntryText.micros(amountText) ?? 0
+        return model?.preview?.entered(typedMicros: typed) ?? typed
+    }
 
     static func shownJob(started: CashOutJob?, running: CashOutJob?) -> CashOutJob? {
         started ?? running
@@ -172,12 +200,6 @@ struct CashOutContent: View {
                     action: onFund
                 )
                 .accessibilityIdentifier("cash-out-empty")
-            } else if preview.sliceIsBelowMinimum {
-                EmptyState(
-                    title: CashOutAmountRule.tooSmall,
-                    message: Self.belowMinimumMessage(preview)
-                )
-                .accessibilityIdentifier("cash-out-below-minimum")
             } else if step == .review {
                 shareStat(preview)
                 review(preview)
@@ -192,8 +214,13 @@ struct CashOutContent: View {
                     CabalPauseRow(pause: pause)
                 }
                 shareStat(preview)
-                amountEntry(preview)
-                entryNotices(preview)
+                if preview.canOnlyCashOutAll {
+                    MonacoNotice(.info, message: CashOutAmountRule.onlyAllMessage)
+                        .accessibilityIdentifier("cash-out-only-all")
+                } else {
+                    amountEntry(preview)
+                    entryNotices(preview)
+                }
             }
         }
         .padding(.horizontal, MonacoTheme.Space.gutter)
@@ -205,12 +232,6 @@ struct CashOutContent: View {
         "Selling assets to fill this request can change what you receive. "
         + "The final amount is known when the request settles, and no arrival time is promised. "
         + "You stay in the cabal."
-
-    static func belowMinimumMessage(_ preview: CashOutPreview) -> String {
-        "Your slice is worth \(UsdAmountFormatter.format(flooredMicros: preview.sliceMicros)). "
-            + "Cash out starts at \(UsdAmountFormatter.format(micros: preview.minMicros)), "
-            + "so this one has to grow first."
-    }
 
     private func shareStat(_ preview: CashOutPreview) -> some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
@@ -275,14 +296,16 @@ struct CashOutContent: View {
     }
 
     static func canEnterAmount(_ preview: CashOutPreview) -> Bool {
-        preview.pause == nil && preview.hasStake && !preview.sliceIsBelowMinimum
+        preview.pause == nil && preview.hasStake
     }
 
     private func dock(_ preview: CashOutPreview) -> some View {
         BottomCTA {
             VStack(spacing: MonacoTheme.Space.s) {
                 if step == .entry {
-                    AmountKeypad(amountText: $amountText)
+                    if !preview.canOnlyCashOutAll {
+                        AmountKeypad(amountText: $amountText)
+                    }
                     Button("Review cash-out", action: onReview)
                         .buttonStyle(.monacoPrimary)
                         .disabled(!(model?.maySubmit(enteredMicros: enteredMicros) ?? false))
@@ -386,6 +409,7 @@ private struct CashOutHarnessScreen: View {
     private var preview: Components.Schemas.CashOutPreview {
         switch mode {
         case "none": .sampleNoStake
+        case "small": .sampleSmallStake
         case "paused": .sampleOpsPause
         case "deposit": .sampleDepositPause
         default: .sample

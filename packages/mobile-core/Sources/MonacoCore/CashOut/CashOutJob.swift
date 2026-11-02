@@ -50,14 +50,26 @@ public struct CashOutPreview: Equatable, Sendable {
         )
     }
 
-    public var hasStake: Bool { sliceMicros > 0 }
+    public var hasStake: Bool { sliceMicros > 0 || shareUnits > 0 }
 
     public var sliceIsBelowMinimum: Bool {
         CashOutAmountRule.sliceIsBelowMinimum(sliceMicros: sliceMicros, minimumMicros: minMicros)
     }
 
+    public var canOnlyCashOutAll: Bool { hasStake && sliceIsBelowMinimum }
+
+    public func entered(typedMicros: Int64) -> Int64 {
+        canOnlyCashOutAll ? sliceMicros : typedMicros
+    }
+
     public func verdict(enteredMicros: Int64) -> CashOutAmountRule.Verdict {
-        CashOutAmountRule.verdict(enteredMicros: enteredMicros, sliceMicros: sliceMicros, minimumMicros: minMicros)
+        CashOutAmountRule.verdict(
+            enteredMicros: enteredMicros, sliceMicros: sliceMicros, minimumMicros: minMicros, holdsShares: hasStake)
+    }
+
+    public func needsLeaveConfirmation(enteredMicros: Int64) -> Bool {
+        CashOutAmountRule.needsLeaveConfirmation(
+            for: verdict(enteredMicros: enteredMicros), sliceMicros: sliceMicros, minimumMicros: minMicros)
     }
 }
 

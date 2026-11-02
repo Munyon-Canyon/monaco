@@ -632,6 +632,7 @@ settings-categories           -settingsHarness on categories
 cash-out-slice                -cashOutHarness slice
 cash-out-deposit              -cashOutHarness deposit
 cash-out-none                 -cashOutHarness none
+cash-out-small                -cashOutHarness small
 cash-out-paused               -cashOutHarness paused
 cash-out-insufficient         -cashOutHarness slice 8000
 cash-out-review               -cashOutHarness review 250

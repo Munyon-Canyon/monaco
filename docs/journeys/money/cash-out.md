@@ -58,5 +58,5 @@ The format of this doc is in [App journeys](../README.md).
 
 ## Not covered
 
-- "Too small to cash out" under $0.10, and "Nothing to cash out yet" / "Fund this cabal first. Your slice shows up here." for a member with no slice. Both need the live screen (#657).
+- Cash-out All on a slice under $0.10 asks "Your share is worth $0.04. Leave anyway?" first, and "Nothing to cash out yet" / "Fund this cabal first. Your slice shows up here." for a member with no slice. Both need the live screen (#657).
 - Inline address errors on Withdraw. `money/withdraw` covers them.

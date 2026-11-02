@@ -103,12 +103,46 @@ final class CashOutAmountRuleTests: XCTestCase {
         XCTAssertEqual(verdict(slice), .sellsWholeSlice)
     }
 
-    func testASliceUnderTheFloorHasNoAmountToType() {
+    func testASliceUnderTheFloorCanOnlyBeCashedOutWhole() {
         XCTAssertTrue(CashOutAmountRule.sliceIsBelowMinimum(sliceMicros: 50_000, minimumMicros: floor))
         XCTAssertFalse(CashOutAmountRule.sliceIsBelowMinimum(sliceMicros: floor, minimumMicros: floor))
-        XCTAssertFalse(CashOutAmountRule.sliceIsBelowMinimum(sliceMicros: 0, minimumMicros: floor))
         XCTAssertEqual(
-            CashOutAmountRule.verdict(enteredMicros: 50_000, sliceMicros: 50_000, minimumMicros: floor), .belowMinimum)
+            CashOutAmountRule.verdict(enteredMicros: 50_000, sliceMicros: 50_000, minimumMicros: floor),
+            .sellsWholeSlice)
+        XCTAssertEqual(
+            CashOutAmountRule.verdict(enteredMicros: 20_000, sliceMicros: 50_000, minimumMicros: floor), .belowMinimum)
+        XCTAssertEqual(
+            CashOutAmountRule.verdict(enteredMicros: 60_000, sliceMicros: 50_000, minimumMicros: floor), .overSlice)
+        XCTAssertEqual(
+            CashOutAmountRule.verdict(enteredMicros: 0, sliceMicros: 50_000, minimumMicros: floor), .noAmount)
+    }
+
+    func testAZeroValueSliceStillLeavesWhenTheMemberHoldsShares() {
+        XCTAssertEqual(
+            CashOutAmountRule.verdict(enteredMicros: 0, sliceMicros: 0, minimumMicros: floor), .sellsWholeSlice)
+        XCTAssertEqual(
+            CashOutAmountRule.verdict(enteredMicros: 0, sliceMicros: 0, minimumMicros: floor, holdsShares: false),
+            .noAmount)
+        let preview = CashOutPreview(sliceMicros: 0, shareUnits: 10, minMicros: floor, pause: nil)
+        XCTAssertTrue(preview.hasStake)
+        XCTAssertTrue(preview.needsLeaveConfirmation(enteredMicros: preview.entered(typedMicros: 0)))
+        XCTAssertEqual(CashOutAmountRule.leavePrompt(sliceMicros: 0), "Your share is worth $0.00. Leave anyway?")
+        let none = CashOutPreview(sliceMicros: 0, shareUnits: 0, minMicros: floor, pause: nil)
+        XCTAssertFalse(none.hasStake)
+        XCTAssertFalse(none.canOnlyCashOutAll)
+    }
+
+    func testOnlyAWholeSliceUnderTheFloorAsksBeforeLeaving() {
+        let small = CashOutPreview(sliceMicros: 40_000, shareUnits: 4, minMicros: floor, pause: nil)
+        XCTAssertTrue(small.needsLeaveConfirmation(enteredMicros: 40_000))
+        XCTAssertFalse(small.needsLeaveConfirmation(enteredMicros: 20_000))
+        XCTAssertEqual(CashOutAmountRule.leavePrompt(sliceMicros: 40_000), "Your share is worth $0.04. Leave anyway?")
+
+        let atFloor = CashOutPreview(sliceMicros: floor, shareUnits: 4, minMicros: floor, pause: nil)
+        XCTAssertFalse(atFloor.needsLeaveConfirmation(enteredMicros: floor))
+        let large = CashOutPreview(sliceMicros: slice, shareUnits: 4, minMicros: floor, pause: nil)
+        XCTAssertFalse(large.needsLeaveConfirmation(enteredMicros: slice))
+        XCTAssertEqual(large.entered(typedMicros: 7), 7)
     }
 
     func testTheSaleEncodesAsAllOrUSDCMicros() throws {

@@ -4,6 +4,8 @@ import Foundation
 extension Components.Schemas.CashOutPreview {
     public static let sample = Self(sliceMicros: "200150000", shareUnits: "200150000", minMicros: "100000", pause: nil)
     public static let sampleNoStake = Self(sliceMicros: "0", shareUnits: "0", minMicros: "100000", pause: nil)
+    public static let sampleSmallStake = Self(
+        sliceMicros: "40000", shareUnits: "40000", minMicros: "100000", pause: nil)
     public static let sampleOpsPause = Self(
         sliceMicros: "200150000", shareUnits: "200150000", minMicros: "100000",
         pause: .init(reasons: ["ops"], since: Date(timeIntervalSince1970: 1_759_579_200))
