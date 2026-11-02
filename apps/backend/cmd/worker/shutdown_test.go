@@ -8,8 +8,10 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/http/httptest"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -263,5 +265,50 @@ func TestStartConsumers_reportsAConsumerThatCannotStartOnAClosedConnection(t *te
 		stop != nil {
 		t.Fatalf("startConsumers on a closed connection = %v (stop set: %v), want upstream_unavailable from Start",
 			err, stop != nil)
+	}
+}
+
+func TestOnce_runsItsStepASingleTimeAndRepeatsTheFirstResult(t *testing.T) {
+	t.Parallel()
+	calls, first := 0, errors.New("first")
+	step := once(func(context.Context) error {
+		calls++
+		return first
+	})
+	if err := step(t.Context()); !errors.Is(err, first) {
+		t.Fatalf("first call = %v, want %v", err, first)
+	}
+	if err := step(t.Context()); err != nil || calls != 1 {
+		t.Fatalf("second call = %v after %d runs, want nil and the step run once", err, calls)
+	}
+}
+
+func TestMain_flushesTelemetryWhileTheBusAndPoolAreStillOpenSoACleanShutdownLogsNoError(t *testing.T) {
+	t.Parallel()
+	var mu sync.Mutex
+	var exported []byte
+	collector := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		if strings.HasSuffix(r.URL.Path, "/v1/metrics") {
+			mu.Lock()
+			exported = append(exported, body...)
+			mu.Unlock()
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(collector.Close)
+	p := testkit.StartMain(
+		t,
+		bootEnv(t, "MONACO_WORKER_HEALTH_ADDR=127.0.0.1:0", "OTEL_EXPORTER_OTLP_ENDPOINT="+collector.URL),
+	)
+	stderr, err := p.Terminate()
+	if err != nil || strings.Contains(stderr, `"msg":"boot.stopped"`) {
+		t.Fatalf("worker after SIGTERM = %v, want a clean exit that logs no error:\n%s", err, stderr)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if !strings.Contains(string(exported), "monaco_money_intent_") {
+		t.Fatalf("the final flush exported no money intent gauge (%d bytes), want it read from the open bus and pool",
+			len(exported))
 	}
 }

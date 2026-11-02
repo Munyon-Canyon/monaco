@@ -44,6 +44,7 @@ func run(
 	if err != nil {
 		return err
 	}
+	flush = once(flush)
 	var stops shutdown
 	defer func() { err = errors.Join(err, stops.run(ctx, cfg.Timeouts.Shutdown)) }()
 	stops.add(flush)
@@ -64,6 +65,7 @@ func run(
 		return err
 	}
 	stops.add(func(ctx context.Context) error { conn.Close(ctx); return nil })
+	stops.add(flush)
 	h, err := startWork(ctx, &stops, meters, mods, module.Deps{Config: cfg, Logger: logger, Pool: pool, Bus: conn})
 	if err != nil {
 		return err
