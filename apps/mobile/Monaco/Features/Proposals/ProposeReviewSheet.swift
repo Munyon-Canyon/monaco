@@ -43,7 +43,7 @@ struct ProposeReviewSheet: View {
         .monacoSheet(
             title: trade.isSell ? "Propose sell" : "Propose buy", titleIdentifier: "propose-review-sheet",
             detents: .tall,
-            showsClose: true
+            showsClose: !isSending
         )
         .interactiveDismissDisabled(isSending)
     }

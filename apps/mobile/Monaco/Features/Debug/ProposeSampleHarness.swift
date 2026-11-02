@@ -204,7 +204,7 @@ struct ProposeReviewSample: View {
                     service: service, cabalID: GroupDetailSampleData.cabalID, draft: draft,
                     preview: preview, trade: trade,
                     buyName: buyName, logoURL: ProposeSampleLogo.url, memory: memory,
-                    sendsOnAppear: sends, onChangeCabal: scenario == .reviewNvidiaTwoCabals ? {} : nil)
+                    sendsOnAppear: sends, onChangeCabal: showsChangeCabal ? {} : nil)
             }
     }
 
@@ -256,6 +256,8 @@ struct ProposeReviewSample: View {
         default: live
         }
     }
+
+    private var showsChangeCabal: Bool { [.reviewNvidiaTwoCabals, .reviewSubmitting].contains(scenario) }
 
     private var sends: Bool { [.reviewSubmitting, .reviewSent, .reviewError].contains(scenario) }
 
