@@ -196,6 +196,13 @@ public final class WithdrawModel {
         return WithdrawCopy.settledCheck(amountMicros: micros, address: to)
     }
 
+    public var pendingMicros: Int64? { withdrawing.pendingMicros }
+
+    public var checkPendingTitle: String? {
+        guard !isLocked, !checkingPending, let micros = pendingMicros else { return nil }
+        return WithdrawCopy.checkPending(amountMicros: micros)
+    }
+
     public var buttonTitle: String? {
         switch state {
         case .failed where checkingPending: WithdrawCopy.checkAgain
@@ -389,6 +396,13 @@ extension WithdrawModel {
                 outcome = .failed(message)
             }
         }
+    }
+
+    public func checkAgain() async {
+        guard !isLocked, let pending = withdrawing.pending else { return }
+        restore(pending)
+        await quoteTask?.value
+        await submit()
     }
 
     private static func addressCopy(_ message: String) -> String {

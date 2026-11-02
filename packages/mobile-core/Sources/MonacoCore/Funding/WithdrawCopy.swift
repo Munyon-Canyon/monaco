@@ -27,6 +27,10 @@ public enum WithdrawCopy {
         return text.hasSuffix(".00") ? String(text.dropLast(3)) : text
     }
 
+    public static func checkPending(amountMicros: Int64) -> String {
+        "Check \(dollars(amountMicros)) again"
+    }
+
     public static func pendingBlocked(amountMicros: Int64, address: String) -> String {
         "Your \(dollars(amountMicros)) withdrawal to \(SolanaAddress.shortened(address)) may still be going through. "
             + "Check it again before sending a different one."
