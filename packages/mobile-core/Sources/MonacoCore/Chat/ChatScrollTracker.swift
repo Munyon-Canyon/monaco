@@ -2,25 +2,26 @@ import Foundation
 
 public struct ChatScrollTracker: Equatable, Sendable {
     public struct Position: Equatable, Sendable {
-        public var offset: Double
-        public var isAtEnd: Bool
+        public var distanceFromEnd: Double
 
-        public init(offset: Double, isAtEnd: Bool) {
-            self.offset = offset
-            self.isAtEnd = isAtEnd
+        public var isAtEnd: Bool { distanceFromEnd <= ChatScrollTracker.pinnedSlack }
+
+        public init(distanceFromEnd: Double) {
+            self.distanceFromEnd = distanceFromEnd
         }
     }
 
     private struct DragOrigin: Equatable, Sendable {
-        let offset: Double
+        let distanceFromEnd: Double
         let wasFollowing: Bool
+        var fingerLiftedInsideSlack = false
     }
 
     public static let pinnedSlack = 40.0
 
     public private(set) var readerControlsScroll = false
     public private(set) var unreadCount = 0
-    private var position = Position(offset: 0, isAtEnd: true)
+    private var position = Position(distanceFromEnd: 0)
     private var dragOrigin: DragOrigin?
 
     public init() {}
@@ -29,25 +30,40 @@ public struct ChatScrollTracker: Equatable, Sendable {
 
     public mutating func positionChanged(_ updated: Position) {
         position = updated
-        if updated.isAtEnd { returnToEnd() }
+        if updated.isAtEnd {
+            returnToEnd()
+            return
+        }
+        guard let origin = dragOrigin, origin.wasFollowing, !origin.fingerLiftedInsideSlack else { return }
+        if updated.distanceFromEnd - origin.distanceFromEnd > Self.pinnedSlack { readerControlsScroll = true }
     }
 
     public mutating func dragBegan() {
-        if dragOrigin == nil {
-            dragOrigin = DragOrigin(offset: position.offset, wasFollowing: isFollowingThread)
+        if dragOrigin == nil || dragOrigin?.fingerLiftedInsideSlack == true {
+            dragOrigin = DragOrigin(distanceFromEnd: position.distanceFromEnd, wasFollowing: isFollowingThread)
         }
-        readerControlsScroll = true
+        if dragOrigin?.wasFollowing != true { readerControlsScroll = true }
     }
 
-    public mutating func scrollSettled() {
+    public mutating func dragEnded() {
+        guard var origin = dragOrigin, origin.wasFollowing, isFollowingThread else { return }
+        origin.fingerLiftedInsideSlack = true
+        dragOrigin = origin
+    }
+
+    @discardableResult
+    public mutating func scrollSettled() -> Bool {
         let origin = dragOrigin
         dragOrigin = nil
         if position.isAtEnd {
             returnToEnd()
-            return
+            return false
         }
-        guard let origin, origin.wasFollowing, abs(position.offset - origin.offset) <= Self.pinnedSlack else { return }
+        guard let origin, origin.wasFollowing else { return false }
+        let moved = position.distanceFromEnd - origin.distanceFromEnd
+        guard origin.fingerLiftedInsideSlack || moved <= Self.pinnedSlack else { return false }
         returnToEnd()
+        return true
     }
 
     public mutating func historyRequested() {

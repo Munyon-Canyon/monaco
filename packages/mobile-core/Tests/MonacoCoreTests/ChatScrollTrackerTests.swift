@@ -14,9 +14,10 @@ final class ChatScrollTrackerTests: XCTestCase {
 
     private func scrolledUp() -> ChatScrollTracker {
         var tracker = ChatScrollTracker()
-        tracker.positionChanged(.init(offset: 500, isAtEnd: false))
+        tracker.positionChanged(.init(distanceFromEnd: 0))
         tracker.dragBegan()
-        tracker.positionChanged(.init(offset: 100, isAtEnd: false))
+        tracker.positionChanged(.init(distanceFromEnd: 400))
+        tracker.dragEnded()
         tracker.scrollSettled()
         return tracker
     }
@@ -57,7 +58,7 @@ final class ChatScrollTrackerTests: XCTestCase {
         var tracker = scrolledUp()
         _ = tracker.arrived(arrival())
 
-        tracker.positionChanged(.init(offset: 500, isAtEnd: true))
+        tracker.positionChanged(.init(distanceFromEnd: 0))
 
         XCTAssertTrue(tracker.isFollowingThread)
         XCTAssertEqual(tracker.unreadCount, 0)
@@ -65,9 +66,9 @@ final class ChatScrollTrackerTests: XCTestCase {
 
     func testASmallDragThatLeavesTheReaderWhereTheyWereKeepsTheThreadFollowing() {
         var tracker = ChatScrollTracker()
-        tracker.positionChanged(.init(offset: 500, isAtEnd: false))
+        tracker.positionChanged(.init(distanceFromEnd: 100))
         tracker.dragBegan()
-        tracker.positionChanged(.init(offset: 510, isAtEnd: false))
+        tracker.positionChanged(.init(distanceFromEnd: 110))
         tracker.scrollSettled()
 
         XCTAssertTrue(tracker.isFollowingThread)
@@ -102,10 +103,96 @@ final class ChatScrollTrackerTests: XCTestCase {
     func testADragThatEndsAtTheEndKeepsTheThreadFollowing() {
         var tracker = ChatScrollTracker()
         tracker.dragBegan()
+        tracker.positionChanged(.init(distanceFromEnd: 300))
         XCTAssertFalse(tracker.isFollowingThread)
+
+        tracker.positionChanged(.init(distanceFromEnd: 0))
+        tracker.scrollSettled()
+
+        XCTAssertTrue(tracker.isFollowingThread)
+    }
+
+    func testASmallDragKeepsFollowingWhileTheFingerIsStillDown() {
+        var tracker = ChatScrollTracker()
+        tracker.positionChanged(.init(distanceFromEnd: 0))
+        tracker.dragBegan()
+        tracker.positionChanged(.init(distanceFromEnd: 20))
+
+        XCTAssertTrue(tracker.isFollowingThread)
+    }
+
+    func testAMessageDuringASmallDragIsFollowedNotParkedBehindThePill() {
+        var tracker = ChatScrollTracker()
+        tracker.positionChanged(.init(distanceFromEnd: 113))
+        tracker.dragBegan()
+        tracker.positionChanged(.init(distanceFromEnd: 123))
+
+        XCTAssertTrue(tracker.arrived(arrival()))
+        XCTAssertEqual(tracker.unreadCount, 0)
 
         tracker.scrollSettled()
 
         XCTAssertTrue(tracker.isFollowingThread)
+        XCTAssertEqual(tracker.unreadCount, 0)
+    }
+
+    func testCoastingAfterASmallDragStillFollowsAndScrollsToTheNewest() {
+        var tracker = ChatScrollTracker()
+        tracker.positionChanged(.init(distanceFromEnd: 116))
+        tracker.dragBegan()
+        tracker.positionChanged(.init(distanceFromEnd: 130))
+        tracker.dragEnded()
+        tracker.positionChanged(.init(distanceFromEnd: 350))
+
+        XCTAssertTrue(tracker.isFollowingThread)
+        XCTAssertTrue(tracker.arrived(arrival()))
+        XCTAssertTrue(tracker.scrollSettled())
+        XCTAssertTrue(tracker.isFollowingThread)
+        XCTAssertEqual(tracker.unreadCount, 0)
+    }
+
+    func testTheOffsetJumpingWhileTheLazyContentIsReestimatedIsNotTheReaderLeaving() {
+        var tracker = ChatScrollTracker()
+        tracker.positionChanged(.init(distanceFromEnd: 113))
+        tracker.dragBegan()
+        tracker.positionChanged(.init(distanceFromEnd: 116))
+
+        XCTAssertTrue(tracker.isFollowingThread)
+    }
+
+    func testSettlingInsideTheSlackAwayFromTheEndAsksForAScrollToTheNewest() {
+        var tracker = ChatScrollTracker()
+        tracker.positionChanged(.init(distanceFromEnd: 100))
+        tracker.dragBegan()
+        tracker.positionChanged(.init(distanceFromEnd: 115))
+
+        XCTAssertTrue(tracker.scrollSettled())
+        XCTAssertFalse(tracker.scrollSettled())
+    }
+
+    func testADragPastTheSlackTakesTheThreadOver() {
+        var tracker = ChatScrollTracker()
+        tracker.positionChanged(.init(distanceFromEnd: 0))
+        tracker.dragBegan()
+        tracker.positionChanged(.init(distanceFromEnd: 200))
+        tracker.dragEnded()
+
+        XCTAssertFalse(tracker.isFollowingThread)
+        XCTAssertFalse(tracker.arrived(arrival()))
+        XCTAssertEqual(tracker.unreadCount, 1)
+        XCTAssertFalse(tracker.scrollSettled())
+        XCTAssertTrue(tracker.readerControlsScroll)
+    }
+
+    func testGrabbingTheThreadAgainWhileItCoastsStartsANewDrag() {
+        var tracker = ChatScrollTracker()
+        tracker.positionChanged(.init(distanceFromEnd: 0))
+        tracker.dragBegan()
+        tracker.positionChanged(.init(distanceFromEnd: 10))
+        tracker.dragEnded()
+        tracker.dragBegan()
+        tracker.positionChanged(.init(distanceFromEnd: 300))
+
+        XCTAssertFalse(tracker.isFollowingThread)
     }
 }
