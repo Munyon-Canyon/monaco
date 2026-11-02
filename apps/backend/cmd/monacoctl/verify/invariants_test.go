@@ -336,6 +336,32 @@ func TestSettle_requiresAWatchingHandlerWhoseEventTheOutcomeWrote(t *testing.T) 
 	}
 }
 
+func TestSettle_ignoresAWatchingHandlerOfAnEventTheFlowDoesNotList(t *testing.T) {
+	t.Parallel()
+	const (
+		tick  = `{"msg":"poller.tick","poller":"market.prices","scanned":3,"changed":2,"duration_ms":1}`
+		relay = `{"msg":"bus.relay.tick","count":1,"first_id":"a","last_id":"a"}`
+	)
+	ignore := func(context.Context, bus.Delivery, events.TradeBlocked) error { return nil }
+	d, res := priceSettle(testkit.DB(t), []string{"asset.price_moved"}, tick, relay)
+	d.env.Consumers = []bus.Consumer{{
+		Durable: "notify", Handlers: []bus.HandlerSpec{bus.HandleOwn("notify.trade_blocked", ignore)},
+	}}
+	res.Unit.Flow.Consumers = []string{"notify"}
+	for _, typ := range []string{"asset.price_moved", "trade.blocked"} {
+		if _, err := d.env.Pool.Exec(t.Context(), `INSERT INTO events (
+			id, aggregate_type, aggregate_id, type, payload, actor_type, actor_id, created_at)
+			VALUES ($1, 'asset', $2, $3, '{"v":1}', 'system', 'test', $4)`,
+			uuid.New(), uuid.New(), typ, res.startedAt.Add(time.Millisecond)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	ctx := settleUntilLogPoll(t, d, 0)
+	if err := d.settle(ctx, res); err != nil {
+		t.Fatalf("settle = %v, want a pass: trade.blocked came from another flow, not this one", err)
+	}
+}
+
 func retrySettle(pool *pgxpool.Pool, lines ...string) (*driver, *Result) {
 	d := &driver{clock: clock.Real{}, env: Env{Pool: pool, Logs: &Logs{}, ProbeTimeout: unboundedProbe}}
 	res := &Result{
