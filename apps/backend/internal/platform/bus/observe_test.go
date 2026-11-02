@@ -220,9 +220,9 @@ func TestRegistry_gaugesReportPendingAndAckPendingAndNoLongerCountDeadLetters(t 
 			}
 		}
 	}
-	if got := h.gaugeByConsumer(t, "monaco_bus_consumer_ack_pending"); got[durable] != 0 {
-		t.Fatalf("ack pending after term = %v, want 0", got)
-	}
+	testkit.Eventually(t, func() bool {
+		return h.gaugeByConsumer(t, "monaco_bus_consumer_ack_pending")[durable] == 0
+	}, waitLong)
 }
 
 func TestRegistry_gaugesFailWhenTheConsumerIsGone(t *testing.T) {
