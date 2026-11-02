@@ -102,7 +102,12 @@ nonisolated final class FAppearanceAuditUITests: XCTestCase {
         ("f__19-permission-sheet", ["-MonacoProposalSample", "permissionSheet"]),
     ]
 
-    private static let realExceptions: [(screen: String, label: String, reason: String)] = []
+    private static let realExceptions: [(screen: String, label: String, reason: String)] = [
+        (
+            screen: "f__14-hold-sheet", label: "Read the thesis",
+            reason: "the audit cannot sample the sheet background; tint on sheetSurface is 6.19:1 in dark"
+        )
+    ]
 
     private static func isTokenText(_ issue: XCUIAccessibilityAuditIssue) -> Bool {
         issue.auditType == .contrast && issue.element?.elementType == .staticText
