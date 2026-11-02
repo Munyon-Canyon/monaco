@@ -262,7 +262,7 @@ func (h *ChooseBridgeArrivalHandler) record(
 func (h *ChooseBridgeArrivalHandler) committed(ctx context.Context, cmd ChooseBridgeArrival, c BridgeArrivalChoice) {
 	observability.Info(ctx, observability.TradingRoutedSwapResolved,
 		slog.String("swap_id", c.SwapID.String()), slog.String("cabal_id", c.CabalID.String()),
-		slog.String("action", actionChooseArrival), slog.String("actor", cmd.Actor),
+		slog.String("action", actionChooseArrival), slog.String("actor", cmd.Actor), slog.String("parked_code", ""),
 		slog.String("reason", cmd.Reason), slog.String("network", string(c.Network)),
 		slog.String("arrival_tx", c.TxHash), slog.String("arrived_micros", c.Amount.String()),
 		slog.String("fee_micros", c.Fee.String()))
