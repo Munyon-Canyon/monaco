@@ -61,8 +61,8 @@ public enum FeedFigureFormat {
     }
 
     static func units(_ item: Components.Schemas.FeedItem) -> String? {
-        guard let amount = item.tokenAmount, let decimals = item.tokenDecimals, amount > 0,
-            let quantity = TokenQuantityFormatter.quantity(fromAtomics: String(amount), decimals: decimals)
+        guard let amount = item.tokenAmountValue, let decimals = item.tokenDecimals, amount > 0,
+            let quantity = TokenQuantityFormatter.quantity(atomics: amount, decimals: decimals)
         else { return nil }
         return TokenQuantityFormatter.label(quantity: quantity, kind: .stock)
             .replacingOccurrences(of: "share", with: "unit")

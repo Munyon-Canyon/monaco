@@ -75,7 +75,7 @@ struct ProposePot: Equatable {
         name = view.name
         totalMicros = ProposeMath.micros(fromUsd: view.resolvedPotTotalUsd) ?? 0
         holdings = view.pot.filter { row in
-            row.symbol.uppercased() != "USDC" && (Int64(row.tokenAmount ?? "0") ?? 0) > 0
+            row.symbol.uppercased() != "USDC" && (TokenAmount.parse(row.tokenAmount ?? "0") ?? 0) > 0
         }
     }
 }

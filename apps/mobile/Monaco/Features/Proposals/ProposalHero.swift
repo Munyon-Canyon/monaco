@@ -1,3 +1,4 @@
+import MonacoAPI
 import MonacoCore
 import SwiftUI
 
@@ -150,7 +151,9 @@ struct ProposalHero: View {
     }
 
     private var amountMicros: Int64? {
-        if summary.kind == "sell" { return summary.quoteOutAmount > 0 ? summary.quoteOutAmount : nil }
+        if summary.kind == "sell" {
+            return summary.quoteOutAmount > 0 ? TokenAmount.int64(summary.quoteOutAmount) : nil
+        }
         return summary.usdcMicros
     }
 }

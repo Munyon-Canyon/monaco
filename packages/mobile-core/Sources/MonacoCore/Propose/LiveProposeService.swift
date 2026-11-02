@@ -48,7 +48,10 @@ extension ProposalDraft {
         case .buy(let symbol, let usdcMicros, _):
             .init(kind: .buy, symbol: symbol, usdcMicros: usdcMicros > 0 ? usdcMicros : nil, network: network)
         case .sell(let symbol, let tokenAmount, _):
-            .init(kind: .sell, symbol: symbol, tokenAmount: tokenAmount, network: network)
+            .init(
+                kind: .sell, symbol: symbol, tokenAmount: TokenAmount.int64(tokenAmount),
+                tokenAmountStr: TokenAmount.int64(tokenAmount) == nil ? TokenAmount.text(tokenAmount) : nil,
+                network: network)
         }
     }
 
@@ -58,7 +61,9 @@ extension ProposalDraft {
             .init(kind: .buy, symbol: symbol, usdcMicros: usdcMicros, thesis: thesis.trimmedOrNil, network: network)
         case .sell(let symbol, let tokenAmount, let thesis):
             .init(
-                kind: .sell, symbol: symbol, tokenAmount: tokenAmount, thesis: thesis.trimmedOrNil, network: network)
+                kind: .sell, symbol: symbol, tokenAmount: TokenAmount.int64(tokenAmount),
+                tokenAmountStr: TokenAmount.int64(tokenAmount) == nil ? TokenAmount.text(tokenAmount) : nil,
+                thesis: thesis.trimmedOrNil, network: network)
         }
     }
 }

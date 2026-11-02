@@ -208,8 +208,8 @@ extension FeedPostFacts {
         if let micros = item.usdcMicros {
             return (wholeDollars(micros), spokenDollars(micros))
         }
-        guard let units = item.tokenAmount, let decimals = item.tokenDecimals, units > 0,
-            let quantity = TokenQuantityFormatter.quantity(fromAtomics: String(units), decimals: decimals)
+        guard let units = item.tokenAmountValue, let decimals = item.tokenDecimals, units > 0,
+            let quantity = TokenQuantityFormatter.quantity(atomics: units, decimals: decimals)
         else { return nil }
         let label = TokenQuantityFormatter.label(quantity: quantity, kind: item.assetKind == .preIpo ? .preIpo : .stock)
         return (label, label)

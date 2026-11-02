@@ -34,9 +34,9 @@ public struct HoldingTrade: Equatable, Sendable, Identifiable {
     public init?(_ activity: Components.Schemas.CabalActivity, symbol: String, decimals: Int) {
         guard activity.status == .confirmed, activity.asset?.symbol == symbol,
             activity.kind == .buy || activity.kind == .sell,
-            let micros = activity.usdcMicros, let baseUnits = activity.units
+            let micros = activity.usdcMicros, let baseUnits = activity.unitsValue
         else { return nil }
-        let units = Self.decimal(baseUnits) / Self.scale(decimals)
+        let units = baseUnits / Self.scale(decimals)
         self.init(
             id: activity.id,
             isBuy: activity.kind == .buy,

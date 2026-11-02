@@ -21,7 +21,7 @@ enum ShareProposalText {
     }
 
     static func amountMicros(_ proposal: Components.Schemas.ProposalDetail) -> Int64? {
-        proposal.kind == .sell ? proposal.quoteOutAmount : proposal.usdcMicros
+        proposal.kind == .sell ? TokenAmount.int64(proposal.quoteOutAmountValue) : proposal.usdcMicros
     }
 
     static func amountText(_ proposal: Components.Schemas.ProposalDetail) -> String {

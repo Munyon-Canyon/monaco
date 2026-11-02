@@ -100,7 +100,7 @@ final class ProposeReviewFrameTests: XCTestCase {
         XCTAssertEqual(ProposeCabalInfo.shortWindow(seconds: 60), "1 h")
     }
 
-    private func makeSellModel(_ holding: ProposeHolding, selling amount: Int64) -> ProposeReviewModel {
+    private func makeSellModel(_ holding: ProposeHolding, selling amount: Decimal) -> ProposeReviewModel {
         let preview = ProposePreview(
             .init(quoteOutAmount: 139_000_000, advisoryCode: nil, advisoryMessage: nil, potValueMicros: 500_000_000))
         return ProposeReviewModel(

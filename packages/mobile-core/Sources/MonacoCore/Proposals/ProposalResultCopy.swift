@@ -1,4 +1,5 @@
 import Foundation
+import MonacoAPI
 
 public enum ProposalResultCopy {
     public enum Seal: Equatable, Sendable { case passed, failed, neutral }
@@ -48,25 +49,20 @@ public enum ProposalResultCopy {
         "✓ \(tally.yes) · \(tally.yes + tally.no) of \(tally.voters) voted · \(tally.no) ✕"
     }
 
-    public static func units(atomics: Int64, decimals: Int) -> String? {
+    public static func units(atomics: Decimal, decimals: Int) -> String? {
         guard atomics >= 0, (0...18).contains(decimals) else { return nil }
-        let hundredths: Int64
-        if decimals <= 2 {
-            hundredths = atomics * Int64(pow10(2 - decimals))
-        } else {
-            let divisor = Int64(pow10(decimals - 2))
-            hundredths = (atomics + divisor / 2) / divisor
-        }
-        let whole = hundredths / 100
-        let cents = hundredths % 100
-        if cents == 0 { return "\(whole)" }
-        if cents % 10 == 0 { return "\(whole).\(cents / 10)" }
-        return cents < 10 ? "\(whole).0\(cents)" : "\(whole).\(cents)"
+        let hundredths = TokenAmount.rounded(atomics / TokenAmount.scale(decimals - 2), .plain)
+        let whole = TokenAmount.rounded(hundredths / 100, .down)
+        guard let cents = TokenAmount.int64(hundredths - whole * 100) else { return nil }
+        let text = TokenAmount.text(whole)
+        if cents == 0 { return text }
+        if cents % 10 == 0 { return "\(text).\(cents / 10)" }
+        return cents < 10 ? "\(text).0\(cents)" : "\(text).\(cents)"
     }
 
     public static func unitName(kind: AssetKind) -> String { kind == .preIpo ? "tokens" : "sh" }
 
-    public static func pendingUnits(atomics: Int64, decimals: Int, exact: Bool, kind: AssetKind) -> String? {
+    public static func pendingUnits(atomics: Decimal, decimals: Int, exact: Bool, kind: AssetKind) -> String? {
         units(atomics: atomics, decimals: decimals).map { "\(exact ? "" : "≈ ")\($0) \(unitName(kind: kind))" }
     }
 
@@ -93,11 +89,11 @@ public enum ProposalResultCopy {
         return "\(isSell ? "Sold" : "Bought") \(count) \(name) at \(UsdAmountFormatter.format(micros: price))"
     }
 
-    public static func passedSheetAmount(isSell: Bool, usdcMicros: Int64?, quoteOutAmount: Int64, swap: ProposalSwap?)
+    public static func passedSheetAmount(isSell: Bool, usdcMicros: Int64?, quoteOutAmount: Decimal, swap: ProposalSwap?)
         -> Int64?
     {
         guard isSell else { return usdcMicros }
-        return swap?.usdcMicros ?? quoteOutAmount
+        return swap?.usdcMicros ?? TokenAmount.int64(quoteOutAmount)
     }
 
     public static func passedSheetTitle(kind: String, symbol: String, assetKind: AssetKind, amountMicros: Int64?)

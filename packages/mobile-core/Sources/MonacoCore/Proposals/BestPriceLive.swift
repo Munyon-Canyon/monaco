@@ -4,12 +4,12 @@ import Observation
 
 public struct LivePriceComparison: Equatable, Sendable {
     public let comparison: Components.Schemas.PriceComparison?
-    public let quoteOutAmount: Int64
+    public let quoteOutAmount: Decimal
     public let quotedAt: Date
 
     public init(_ value: Components.Schemas.ProposalPriceComparison) {
         comparison = value.priceComparison
-        quoteOutAmount = value.quoteOutAmount
+        quoteOutAmount = value.quoteOutAmountValue
         quotedAt = value.quotedAt
     }
 }
@@ -38,11 +38,10 @@ public struct BestPriceRow: Equatable, Sendable {
         venues = nil
     }
 
-    init?(solanaQuote quoteOut: Int64, usdcMicros: Int64?, decimals: Int, isPinned: Bool, caption: String) {
+    init?(solanaQuote quoteOut: Decimal, usdcMicros: Int64?, decimals: Int, isPinned: Bool, caption: String) {
         guard let usdcMicros, quoteOut > 0, (0...18).contains(decimals) else { return nil }
-        var unit: Int64 = 1
-        for _ in 0..<decimals { unit *= 10 }
-        let (priceMicros, _) = quoteOut.dividingFullWidth(usdcMicros.multipliedFullWidth(by: unit))
+        let quotient = TokenAmount.of(usdcMicros) * TokenAmount.scale(decimals) / quoteOut
+        guard let priceMicros = TokenAmount.int64(TokenAmount.rounded(quotient, .down)) else { return nil }
         let price = "\(UsdAmountFormatter.format(micros: priceMicros)) a share"
         let chain = BestPrice.chainName(.solana)
         network = .solana

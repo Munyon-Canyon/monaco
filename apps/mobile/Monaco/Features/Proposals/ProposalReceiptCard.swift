@@ -1,3 +1,4 @@
+import MonacoAPI
 import MonacoCore
 import SwiftUI
 
@@ -13,7 +14,8 @@ struct ProposalReceiptCard: View {
     private var pendingUnits: String? {
         guard let atomics = detail.stats.sharesAtomics else { return nil }
         return ProposalResultCopy.pendingUnits(
-            atomics: atomics, decimals: detail.stats.tokenDecimals, exact: detail.stats.sharesExact || isSell,
+            atomics: TokenAmount.of(atomics), decimals: detail.stats.tokenDecimals,
+            exact: detail.stats.sharesExact || isSell,
             kind: model.asset?.kind ?? .stock)
     }
 

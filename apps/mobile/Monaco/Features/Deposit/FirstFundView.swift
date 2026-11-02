@@ -39,7 +39,7 @@ enum FirstFundCopy {
             isSell
             ? vote.tokenAmount.map {
                 TokenQuantityFormatter.label(
-                    fromAtomics: String($0), decimals: AssetCatalogDefaults.decimals, kind: .stock)
+                    atomics: $0, decimals: AssetCatalogDefaults.decimals, kind: .stock)
             }
             : vote.usdcMicros.map(CabalHeaderCopy.compactDollars)
         return ["\(isSell ? "Sell" : "Buy") \(ticker)", amount].compactMap { $0 }.joined(separator: " \u{00B7} ")

@@ -35,7 +35,8 @@ public struct ChatProposalFacts: Equatable, Sendable {
         self.init(
             proposalID: summary.id, proposerID: summary.proposerID,
             assetName: asset?.displayName ?? AssetSymbolFormatter.display(summary.symbol),
-            isSell: summary.kind == "sell", amountMicros: summary.usdcMicros ?? summary.quoteOutAmount,
+            isSell: summary.kind == "sell",
+            amountMicros: summary.usdcMicros ?? TokenAmount.int64(summary.quoteOutAmount),
             createdAt: summary.createdAt, phase: Self.phase(summary.status))
     }
 

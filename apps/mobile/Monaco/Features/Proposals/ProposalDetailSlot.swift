@@ -1,3 +1,4 @@
+import MonacoAPI
 import MonacoCore
 import SwiftUI
 
@@ -155,7 +156,8 @@ struct ProposalDetailSlotView: View {
         let isSell = summary.kind == "sell"
         let units = detail.stats.sharesAtomics.flatMap {
             ProposalResultCopy.pendingUnits(
-                atomics: $0, decimals: detail.stats.tokenDecimals, exact: detail.stats.sharesExact || isSell,
+                atomics: TokenAmount.of($0), decimals: detail.stats.tokenDecimals,
+                exact: detail.stats.sharesExact || isSell,
                 kind: model.asset?.kind ?? .stock)
         }
         ProposalResultCard(

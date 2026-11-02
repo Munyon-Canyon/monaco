@@ -151,7 +151,7 @@ public final class ProposeAmountModel {
         if let estimate { return estimate }
         guard !isLoading, case .buy(_, let kind, let decimals) = trade, let decimals, let preview,
             previewAmountMicros == amountMicros, amountMicros > 0, let out = preview.quoteOutAmount, out > 0,
-            let quantity = TokenQuantityFormatter.quantity(fromAtomics: String(out), decimals: decimals)
+            let quantity = TokenQuantityFormatter.quantity(atomics: out, decimals: decimals)
         else { return nil }
         let label = "About \(TokenQuantityFormatter.label(quantity: quantity, kind: kind))"
         return previewBestChain.map { "\(label) on \($0.chainName)" } ?? label

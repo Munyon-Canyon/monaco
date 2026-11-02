@@ -1,4 +1,5 @@
 import Foundation
+import MonacoAPI
 
 public enum ProposalCardCopy {
     public static func pausedCaption(isSell: Bool) -> String {
@@ -160,14 +161,14 @@ public enum ProposalCardCopy {
     }
 
     public static func expected(
-        isSell: Bool, quoteOut: Int64, usdcMicros: Int64?, decimals: Int, kind: AssetKind
+        isSell: Bool, quoteOut: Decimal, usdcMicros: Int64?, decimals: Int, kind: AssetKind
     ) -> String? {
         guard quoteOut > 0 else { return nil }
-        if isSell { return "about \(UsdAmountFormatter.format(micros: quoteOut))" }
+        if isSell { return TokenAmount.int64(quoteOut).map { "about \(UsdAmountFormatter.format(micros: $0))" } }
         guard let usdcMicros, usdcMicros > 0 else { return nil }
         let unit = kind == .preIpo ? "tokens" : "shares"
         guard decimals >= 0, decimals <= 18,
-            let shares = TokenQuantityFormatter.quantity(fromAtomics: String(quoteOut), decimals: decimals),
+            let shares = TokenQuantityFormatter.quantity(atomics: quoteOut, decimals: decimals),
             let priceMicros = pricePerShareMicros(usdcMicros: usdcMicros, quoteOut: quoteOut, decimals: decimals)
         else { return nil }
         let priceLabel = UsdAmountFormatter.format(micros: Int64(clamping: priceMicros))
@@ -180,15 +181,9 @@ public enum ProposalCardCopy {
         return "about \(count) \(noun) at \(priceLabel)"
     }
 
-    private static func pricePerShareMicros(usdcMicros: Int64, quoteOut: Int64, decimals: Int) -> UInt64? {
-        var scale: UInt64 = 1
-        for _ in 0..<decimals { scale *= 10 }
-        let divisor = UInt64(quoteOut)
-        let product = UInt64(usdcMicros).multipliedFullWidth(by: scale)
-        let half = divisor / 2
-        let (sum, carried) = product.low.addingReportingOverflow(half)
-        let numerator = (high: product.high + (carried ? 1 : 0), low: sum)
-        guard numerator.high < divisor else { return nil }
-        return divisor.dividingFullWidth(numerator).quotient
+    private static func pricePerShareMicros(usdcMicros: Int64, quoteOut: Decimal, decimals: Int) -> UInt64? {
+        guard quoteOut > 0, usdcMicros > 0 else { return nil }
+        let quotient = TokenAmount.of(usdcMicros) * TokenAmount.scale(decimals) / quoteOut
+        return TokenAmount.int64(TokenAmount.rounded(quotient, .plain)).map { UInt64($0) }
     }
 }

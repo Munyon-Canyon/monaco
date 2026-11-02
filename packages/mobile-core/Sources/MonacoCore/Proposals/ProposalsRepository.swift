@@ -8,7 +8,7 @@ public struct ProposalSwap: Equatable, Sendable {
     public let failureMessage: String?
     public let retryable: Bool
     public let usdcMicros: Int64?
-    public let tokenAmount: Int64?
+    public let tokenAmount: Decimal?
     public let tokenDecimals: Int?
     public let priceMicros: Int64?
     public let feeMicros: Int64?
@@ -24,7 +24,7 @@ public struct ProposalSwap: Equatable, Sendable {
         failureMessage = swap?.failureMessage
         retryable = swap?.retryable ?? false
         usdcMicros = swap?.usdcMicros
-        tokenAmount = swap?.tokenAmount
+        tokenAmount = swap?.tokenAmountValue
         tokenDecimals = swap?.tokenDecimals
         priceMicros = swap?.priceMicros
         feeMicros = swap?.feeMicros
@@ -33,7 +33,7 @@ public struct ProposalSwap: Equatable, Sendable {
 
     public func executionFigures(kind: AssetKind) -> ProposalExecutionFigures? {
         guard status == "confirmed", let priceMicros, let tokenAmount, let tokenDecimals,
-            let quantity = TokenQuantityFormatter.quantity(fromAtomics: String(tokenAmount), decimals: tokenDecimals)
+            let quantity = TokenQuantityFormatter.quantity(atomics: tokenAmount, decimals: tokenDecimals)
         else { return nil }
         return ProposalExecutionFigures(
             price: UsdAmountFormatter.format(micros: priceMicros),
@@ -60,9 +60,9 @@ public struct ProposalSummary: Identifiable, Equatable, Sendable {
     public let proposerID: String
     public let thesis: String?
     public let usdcMicros: Int64?
-    public let tokenAmount: Int64?
+    public let tokenAmount: Decimal?
     public let tokenDecimals: Int?
-    public let quoteOutAmount: Int64
+    public let quoteOutAmount: Decimal
     public let createdAt: Date
     public let tally: ProposalTally
     public let myBallot: String?
@@ -111,7 +111,7 @@ public struct ProposalSummary: Identifiable, Equatable, Sendable {
 
     private init(
         id: String, cabalID: String, cabalName: String, kind: String, symbol: String, proposerID: String,
-        thesis: String?, usdcMicros: Int64?, tokenAmount: Int64?, tokenDecimals: Int?, quoteOutAmount: Int64,
+        thesis: String?, usdcMicros: Int64?, tokenAmount: Decimal?, tokenDecimals: Int?, quoteOutAmount: Decimal,
         createdAt: Date,
         tally: ProposalTally, myBallot: String?, status: ProposalStatus, statusReason: String?, statusMessage: String?,
         expiresAt: Date, canVote: Bool,
@@ -160,9 +160,9 @@ public struct ProposalSummary: Identifiable, Equatable, Sendable {
         proposerID = proposal.proposerId
         thesis = proposal.thesis
         usdcMicros = proposal.usdcMicros
-        tokenAmount = proposal.tokenAmount
+        tokenAmount = proposal.tokenAmountValue
         tokenDecimals = proposal.tokenDecimals
-        quoteOutAmount = proposal.quoteOutAmount ?? 0
+        quoteOutAmount = proposal.quoteOutAmountValue
         createdAt = proposal.createdAt
         tally = ProposalTally(proposal.tally)
         myBallot = proposal.myBallot?.rawValue
@@ -284,7 +284,8 @@ public struct ProposalDetail: Identifiable, Equatable, Sendable {
             priceComparison: value.priceComparison, id: value.id, cabalId: value.cabalId, cabalName: value.cabalName,
             proposerId: value.proposerId, kind: value.kind,
             symbol: value.symbol, usdcMicros: value.usdcMicros, tokenAmount: value.tokenAmount,
-            tokenDecimals: value.tokenDecimals, quoteOutAmount: value.quoteOutAmount, thesis: value.thesis,
+            tokenAmountStr: value.tokenAmountStr, tokenDecimals: value.tokenDecimals,
+            quoteOutAmount: value.quoteOutAmount, quoteOutAmountStr: value.quoteOutAmountStr, thesis: value.thesis,
             status: value.status,
             statusReason: value.statusReason, statusMessage: value.statusMessage, expiresAt: value.expiresAt,
             createdAt: value.createdAt, tally: value.tally,
@@ -520,15 +521,18 @@ public struct ProposalsRepository: Sendable {
         }
     }
 
-    public func liveQuote(for proposal: ProposalSummary) async throws -> Int64? {
+    public func liveQuote(for proposal: ProposalSummary) async throws -> Decimal? {
         let isSell = proposal.kind == "sell"
+        let tokens = isSell ? proposal.tokenAmount : nil
+        let exact = tokens.flatMap(TokenAmount.int64)
+        let text = tokens.flatMap { exact == nil ? TokenAmount.text($0) : nil }
         return try await api.read { client in
             try await client.getCabalProposalPreview(
                 path: .init(id: proposal.cabalID),
                 query: .init(
                     kind: isSell ? .sell : .buy, symbol: proposal.symbol,
-                    usdcMicros: isSell ? nil : proposal.usdcMicros, tokenAmount: isSell ? proposal.tokenAmount : nil)
-            ).ok.body.json.quoteOutAmount
+                    usdcMicros: isSell ? nil : proposal.usdcMicros, tokenAmount: exact, tokenAmountStr: text)
+            ).ok.body.json.quoteOutAmountValue
         }
     }
 

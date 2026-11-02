@@ -343,7 +343,7 @@ actor PreviewService: ProposeService {
     let pinnedCode: String?
     let quoteOut: Int64?
     let cash: (spendable: Int64, maxBuy: Int64)
-    var amounts: [Int64] = []
+    var amounts: [Decimal] = []
     var networks: [Components.Schemas.Network?] = []
     private var failing = false
     private var holding = false
@@ -390,6 +390,6 @@ actor PreviewService: ProposeService {
         "proposal"
     }
     func withdraw(proposalID _: String, submission _: IdempotentSubmission) async throws {}
-    func recordedAmounts() -> [Int64] { amounts }
+    func recordedAmounts() -> [Decimal] { amounts }
     func recordedNetworks() -> [Components.Schemas.Network?] { networks }
 }
