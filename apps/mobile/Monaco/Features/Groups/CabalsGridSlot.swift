@@ -14,6 +14,7 @@ enum CabalsGridMetrics {
     static let columns = 4
     static let accessibilityColumns = 2
     static let invitesFirstRows = 3
+    static let placeholderTiles = 8
 
     static func pinsInvitesFirst(tiles: Int, columns: Int) -> Bool {
         tiles > columns * invitesFirstRows
@@ -55,6 +56,8 @@ struct CabalsGridSection: View {
                 if content.showsReorderHint {
                     hint
                 }
+            } else if store.content == nil, !store.hasFailed {
+                loadingTiles
             }
         }
         .accessibilityElement(children: .contain)
@@ -121,6 +124,27 @@ struct CabalsGridSection: View {
         ForEach(content.invites) { invite in
             invited(invite)
         }
+    }
+
+    private var loadingTiles: some View {
+        LazyVGrid(columns: columns, alignment: .center, spacing: MonacoTheme.Space.m) {
+            ForEach(0..<CabalsGridMetrics.placeholderTiles, id: \.self) { _ in
+                VStack(spacing: MonacoTheme.Space.xs) {
+                    SkeletonBlock(
+                        width: CabalsGridMetrics.crest, height: CabalsGridMetrics.crest,
+                        radius: MonacoTheme.Radius.crest)
+                    SkeletonBlock(
+                        width: CabalsGridMetrics.crest, height: SkeletonMetrics.lineHeight,
+                        radius: SkeletonMetrics.lineRadius)
+                }
+                .frame(maxWidth: .infinity)
+            }
+        }
+        .padding(.horizontal, MonacoTheme.Space.gutter)
+        .padding(.top, MonacoTheme.Space.m)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Loading your cabals")
+        .accessibilityIdentifier("cabals-list-loading")
     }
 
     private var hint: some View {
