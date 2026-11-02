@@ -173,6 +173,7 @@ struct ProposeReviewScreen: View {
             if let onChangeCabal {
                 Button(ProposeFlowCopy.changeCabal, action: onChangeCabal)
                     .buttonStyle(.monacoText)
+                    .disabled(model.isSending)
                     .accessibilityIdentifier("propose-review-change-cabal")
             }
         }
