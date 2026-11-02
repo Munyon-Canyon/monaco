@@ -240,3 +240,17 @@ func TestWireProposal_goldenJSONForAPastInt64Sell(t *testing.T) {
 		t.Fatalf("wireProposal JSON =\n%s\nwant\n%s", gotIndented.String(), wantIndented.String())
 	}
 }
+
+func TestPreviewTrade_readsTheStringAmountAndRefusesBoth(t *testing.T) {
+	t.Parallel()
+	five, text := int64(5), pastInt64
+	trade, err := previewTrade(api.GetCabalProposalPreviewParams{Kind: "sell", Symbol: "AAPLx", TokenAmountStr: &text})
+	if err != nil || trade.TokenAmount.String() != pastInt64 {
+		t.Fatalf("previewTrade(token_amount_str) = %s, %v", trade.TokenAmount, err)
+	}
+	if _, err = previewTrade(api.GetCabalProposalPreviewParams{
+		Kind: "sell", Symbol: "AAPLx", TokenAmount: &five, TokenAmountStr: &text,
+	}); err == nil {
+		t.Fatal("previewTrade with both amounts succeeded, want invalid_input")
+	}
+}

@@ -238,7 +238,6 @@ func TestHTTP_GetCabalProposalPreview_refusesWhatCannotGoOnTheWire(t *testing.T)
 	t.Parallel()
 	h := newProposeHarness(t)
 	usdc := int64(1)
-	huge := money.UnitsFromUint64(math.MaxUint64)
 	for name, tc := range map[string]struct {
 		arrange func(w *tradeWorld)
 		params  api.GetCabalProposalPreviewParams
@@ -261,11 +260,6 @@ func TestHTTP_GetCabalProposalPreview_refusesWhatCannotGoOnTheWire(t *testing.T)
 		},
 		"pot past int64": {
 			func(w *tradeWorld) { w.treasury.SetPotValue(w.cabal, money.MicrosFromUint64(math.MaxUint64)) },
-			api.GetCabalProposalPreviewParams{Kind: "buy", Symbol: "AAPLx", UsdcMicros: &usdc},
-			errs.CodeDecodeFailed,
-		},
-		"quote past int64": {
-			func(w *tradeWorld) { w.routes.Ok(marketfake.AAPLx().ID, market.RouteCheck{OutAmount: huge}) },
 			api.GetCabalProposalPreviewParams{Kind: "buy", Symbol: "AAPLx", UsdcMicros: &usdc},
 			errs.CodeDecodeFailed,
 		},
@@ -315,4 +309,26 @@ func TestPreview_aPinnedBuyQuotesOnlyThePinnedChain(t *testing.T) {
 			}
 		},
 	).Then(scenario.ExpectEvents(events.TypeProposalCreated, 0))
+}
+
+func TestHTTP_GetCabalProposalPreview_aQuotePastInt64IsNullAsAnIntegerAndExactAsAString(t *testing.T) {
+	t.Parallel()
+	h := newProposeHarness(t)
+	h.w = newTradeWorld(t)
+	huge := money.UnitsFromUint64(math.MaxUint64)
+	h.w.routes.Ok(marketfake.AAPLx().ID, market.RouteCheck{OutAmount: huge})
+	usdc := int64(1)
+	member := auth.WithActor(t.Context(), auth.Actor{Kind: auth.ActorUser, ID: h.w.members[0].String()})
+	got, err := adapters.HTTP{Propose: h.handler(h.d.ids)}.GetCabalProposalPreview(member,
+		api.GetCabalProposalPreviewRequestObject{
+			Id:     h.w.cabal.UUID(),
+			Params: api.GetCabalProposalPreviewParams{Kind: "buy", Symbol: "AAPLx", UsdcMicros: &usdc},
+		})
+	if err != nil {
+		t.Fatalf("GetCabalProposalPreview = %v, want the preview", err)
+	}
+	out, ok := got.(api.GetCabalProposalPreview200JSONResponse)
+	if !ok || out.QuoteOutAmount != nil || out.QuoteOutAmountStr == nil || *out.QuoteOutAmountStr != huge.String() {
+		t.Fatalf("preview = %+v, want no integer quote and %s as a string", got, huge)
+	}
 }
