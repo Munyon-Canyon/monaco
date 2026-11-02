@@ -547,7 +547,6 @@ func TestDispatch_undecodableMessagesTermWithDecodeFailed(t *testing.T) {
 		{"not json", &fakeMsg{subject: subject, header: header(id.String()), data: []byte("nope")}, "notify.push"},
 		{"unknown version", &fakeMsg{subject: subject, header: header(id.String()), data: []byte(`{"v":3}`)}, "notify.push"},
 		{"missing msg id", &fakeMsg{subject: subject, header: nats.Header{}, data: payload}, "notify.push"},
-		{"no handler for subject", &fakeMsg{subject: "events.widget.bumped", header: header(id.String()), data: payload}, ""},
 	} {
 		tc.msg.meta = &jetstream.MsgMetadata{NumDelivered: 1}
 		reg.Dispatch(h.ctx(t), durable, tc.msg)
@@ -562,6 +561,43 @@ func TestDispatch_undecodableMessagesTermWithDecodeFailed(t *testing.T) {
 	}
 	if d := h.deliveries(t); len(d) != 0 {
 		t.Fatalf("event_deliveries = %v, want none", d)
+	}
+}
+
+func TestDispatch_aSubjectWithNoHandlerNaksWithADelayUntilMaxDeliver(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	reg := h.registry(t, bus.Consumer{Durable: durable, Handlers: []bus.HandlerSpec{h.recorder("notify.push")}})
+	id, payload := h.appendPing(t)
+	newMsg := func(delivered uint64) *fakeMsg {
+		return &fakeMsg{
+			subject: "events.widget.bumped",
+			header:  nats.Header{jetstream.MsgIDHeader: []string{id.String()}},
+			data:    payload,
+			meta:    &jetstream.MsgMetadata{NumDelivered: delivered},
+		}
+	}
+	for _, delivered := range []uint64{1, 2, bus.MaxDeliver - 1} {
+		msg := newMsg(delivered)
+		reg.Dispatch(h.ctx(t), durable, msg)
+		lines := h.lines(t, "bus.dispatched")
+		last := lines[len(lines)-1]
+		if msg.verdict != "nak" || msg.delay != 30*time.Second ||
+			last["outcome"] != "nak" || last["code"] != "no_handler" {
+			t.Fatalf("delivery %d: verdict %q delay %s line %v, want nak after 30s logged no_handler",
+				delivered, msg.verdict, msg.delay, last)
+		}
+	}
+	if letters := h.deadLetters(t); len(letters) != 0 {
+		t.Fatalf("DEADLETTER = %+v, want none while the retries last", letters)
+	}
+	final := newMsg(bus.MaxDeliver)
+	reg.Dispatch(h.ctx(t), durable, final)
+	if final.verdict != "term" || final.reason != "decode_failed" {
+		t.Fatalf("verdict %q reason %q on the last delivery, want term decode_failed", final.verdict, final.reason)
+	}
+	if got := h.waitDeadLetters(t, 1); len(got) != 1 || got[0].Code != "decode_failed" {
+		t.Fatalf("DEADLETTER = %+v, want one decode_failed letter", got)
 	}
 }
 

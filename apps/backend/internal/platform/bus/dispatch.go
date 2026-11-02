@@ -29,6 +29,8 @@ const (
 	deliveryOK      = "ok"
 	heldLetterSlot  = "/deadletter"
 	letterRetryWait = 5 * time.Second
+	noHandlerCode   = "no_handler"
+	noHandlerWait   = 30 * time.Second
 )
 
 type Outcome string
@@ -49,6 +51,7 @@ type result struct {
 	id      ids.EventID
 	retried bool
 	alert   bool
+	delay   time.Duration
 }
 
 func (r *Registry) Dispatch(ctx context.Context, durable string, msg jetstream.Msg) {
@@ -64,6 +67,8 @@ func (r *Registry) Dispatch(ctx context.Context, durable string, msg jetstream.M
 	results := make([]result, 0, len(handlers))
 	id, ev, err := r.decode(handlers, msg)
 	switch {
+	case err != nil && len(handlers) == 0 && delivery < MaxDeliver:
+		results = append(results, result{outcome: OutcomeNak, code: noHandlerCode, err: err, delay: noHandlerWait})
 	case err != nil && len(handlers) == 0:
 		results = append(results, failed("", err))
 	case err != nil:
@@ -378,6 +383,7 @@ func (r *Registry) respond(
 ) {
 	verdict := OutcomeAck
 	code := ""
+	var delay time.Duration
 	for _, res := range results {
 		if res.retried && delivery >= MaxDeliver {
 			res.outcome, res.alert = OutcomeTerm, true
@@ -385,11 +391,11 @@ func (r *Registry) respond(
 		r.log(ctx, msg.Subject(), res)
 		switch {
 		case res.outcome == OutcomeNak:
-			verdict, code = OutcomeNak, res.code
+			verdict, code, delay = OutcomeNak, res.code, max(delay, res.delay)
 		case res.outcome == OutcomeTerm && verdict != OutcomeNak:
 			verdict, code = OutcomeTerm, res.code
 			if !r.termLetter(ctx, durable, msg, delivery, res) {
-				verdict, code = OutcomeNak, string(errs.CodeUpstreamUnavailable)
+				verdict, code, delay = OutcomeNak, string(errs.CodeUpstreamUnavailable), 0
 			}
 		}
 	}
@@ -401,16 +407,20 @@ func (r *Registry) respond(
 			verdict = OutcomeNak
 		}
 	}
-	r.answer(ctx, durable, msg, delivery, verdict, code)
+	r.answer(ctx, durable, msg, delivery, verdict, code, delay)
 }
 
 func (r *Registry) answer(
 	ctx context.Context, durable string, msg jetstream.Msg, delivery uint64, verdict Outcome, code string,
+	delay time.Duration,
 ) {
 	var err error
 	switch verdict {
 	case OutcomeNak:
-		err = msg.NakWithDelay(r.consumers[durable].nakDelay(delivery))
+		if delay == 0 {
+			delay = r.consumers[durable].nakDelay(delivery)
+		}
+		err = msg.NakWithDelay(delay)
 	case OutcomeTerm:
 		err = msg.TermWithReason(code)
 	case OutcomeAck, OutcomeDuplicate:
