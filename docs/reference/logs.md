@@ -85,6 +85,7 @@ For a stuck money row, [Money runbook](../how-to/money-runbook.md) maps the sign
 | `identity.photo_purge.failed` | `user_id` |
 | `identity.profile.updated` | `user_id` |
 | `identity.session.opened` | `user_id`, `created` |
+| `identity.session.privy_user_unavailable` | `privy_user_id`, `code` |
 | `identity.sessions.revoked` | `user_id`, `scope` |
 | `identity.wallet.signer_missing` | `wallet_id` |
 | `identity.x.conflict` | `user_id` |

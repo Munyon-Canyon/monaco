@@ -11,6 +11,10 @@ var (
 	IdentitySessionOpened       = Msg{Name: "identity.session.opened", Required: []string{"user_id", "created"}}
 	IdentitySessionsRevoked     = Msg{Name: "identity.sessions.revoked", Required: []string{"user_id", "scope"}}
 
+	IdentitySessionPrivyUserUnavailable = Msg{
+		Name: "identity.session.privy_user_unavailable", Required: []string{"privy_user_id", "code"},
+	}
+
 	IdentityOnboardingAdvanced = Msg{
 		Name: "identity.onboarding.advanced", Required: []string{"user_id", "from", "to", "cause"},
 	}

@@ -66,6 +66,7 @@ type session struct {
 	wallet   domain.Wallet
 	known    bool
 	sid      string
+	unsynced bool
 }
 
 func (h *OpenSessionHandler) Handle(ctx context.Context, cmd OpenSession) (Me, error) {
@@ -99,20 +100,28 @@ func (h *OpenSessionHandler) introduce(ctx context.Context, token string) (sessi
 		return session{}, err
 	}
 	privyID := verified.UserID
-	user, err := h.d.Privy.User(ctx, privyID)
-	if errs.CodeOf(err) == errs.CodeNotFound {
-		return session{}, errs.Wrap(err, errs.CodeUnauthorized, "identity.OpenSession")
-	}
-	if err != nil {
-		return session{}, err
-	}
-	provider, err := domain.PickLoginProvider(user.LoginMethods())
-	if err != nil {
-		return session{}, err
+	user, userErr := h.d.Privy.User(ctx, privyID)
+	if errs.CodeOf(userErr) == errs.CodeNotFound {
+		return session{}, errs.Wrap(userErr, errs.CodeUnauthorized, "identity.OpenSession")
 	}
 	stored, known, err := h.stored(ctx, privyID)
 	if err != nil {
 		return session{}, err
+	}
+	unsynced := userErr != nil
+	if unsynced {
+		if stored == nil {
+			return session{}, userErr
+		}
+		observability.Degraded(ctx, observability.IdentitySessionPrivyUserUnavailable,
+			slog.String("privy_user_id", string(privyID)), slog.String("code", string(errs.CodeOf(userErr))))
+	}
+	var provider domain.LoginProvider
+	if !unsynced {
+		provider, err = domain.PickLoginProvider(user.LoginMethods())
+		if err != nil {
+			return session{}, err
+		}
 	}
 	wallet, err := h.d.Wallets.Resolve(ctx, privyID, stored)
 	if err != nil {
@@ -125,6 +134,7 @@ func (h *OpenSessionHandler) introduce(ctx context.Context, token string) (sessi
 		wallet:   wallet,
 		known:    known,
 		sid:      verified.ID,
+		unsynced: unsynced,
 	}, nil
 }
 
@@ -171,9 +181,13 @@ func (h *OpenSessionHandler) settle(ctx context.Context, tx db.Tx, s session) (i
 	if err := h.recordSession(ctx, q, row.ID, s.sid, now); err != nil {
 		return ids.UserID{}, false, err
 	}
-	changed, err := h.syncLinks(ctx, tx, row, s.user.Links(), now)
-	if err != nil {
-		return ids.UserID{}, false, err
+	changed := false
+	if !s.unsynced {
+		var err error
+		changed, err = h.syncLinks(ctx, tx, row, s.user.Links(), now)
+		if err != nil {
+			return ids.UserID{}, false, err
+		}
 	}
 	if created {
 		err := tx.Events.Append(ctx, events.UserCreated{
@@ -203,6 +217,9 @@ func (h *OpenSessionHandler) refresh(
 ) error {
 	if err := h.attach(ctx, q, row, s.wallet, now); err != nil {
 		return err
+	}
+	if s.unsynced {
+		return nil
 	}
 	return h.d.Users.RefreshEmail(ctx, q, row.ID, s.user.ContactEmail(), now)
 }
