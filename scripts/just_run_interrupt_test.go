@@ -170,6 +170,25 @@ func TestJustRun_failedFundPageInstallStillStopsTheBackendOnCtrlC(t *testing.T) 
 	r.waitExit(t)
 }
 
+// Ctrl-C before the dotenvx chain has exec'd bin/api must still stop it: a name kill finds
+// worker but no api, and api would start afterwards with nothing left to stop it.
+func TestJustRun_ctrlCWhileAPIIsStartingStillStopsIt(t *testing.T) {
+	t.Parallel()
+	r := startJustRun(t, "API_START_DELAY=3")
+
+	if exec.Command("pgrep", "-f", strings.Replace(r.backend, "(api|worker)", "api", 1)).Run() == nil {
+		t.Fatal("api was already running; the delay did not hold it back")
+	}
+	if err := syscall.Kill(-r.cmd.Process.Pid, syscall.SIGINT); err != nil {
+		t.Fatal(err)
+	}
+	r.waitExit(t)
+	time.Sleep(4 * time.Second)
+	if exec.Command("pgrep", "-f", r.backend).Run() == nil {
+		t.Fatal("api started after just run exited")
+	}
+}
+
 func waitFor(t *testing.T, what string, ok func() bool) {
 	t.Helper()
 	deadline := time.Now().Add(15 * time.Second)
