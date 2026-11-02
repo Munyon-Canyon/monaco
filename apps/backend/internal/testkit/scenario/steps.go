@@ -483,10 +483,37 @@ func PublishCrashingAt(point faultpoint.Name) Step {
 func ExpectPublished(typ events.Type, n uint64) Step {
 	return func(s *Scenario) {
 		s.t.Helper()
-		if got := s.app.published(s.t, typ, s.app.events(s.t, typ, s.actors())); got != n {
+		got := s.publishedCount(typ)
+		if got < n {
+			got = s.awaitPublished(typ, n)
+		}
+		if got != n {
 			s.t.Fatalf("scenario: %d %s messages on the stream, want %d", got, typ, n)
 		}
 	}
+}
+
+func (s *Scenario) publishedCount(typ events.Type) uint64 {
+	s.t.Helper()
+	return s.app.published(s.t, typ, s.app.events(s.t, typ, s.actors()))
+}
+
+func (s *Scenario) awaitPublished(typ events.Type, n uint64) uint64 {
+	s.t.Helper()
+	ctx, cancel := context.WithTimeout(s.t.Context(), convergeWithin)
+	defer cancel()
+	tick := time.NewTicker(publishPoll)
+	defer tick.Stop()
+	var got uint64
+	for got < n {
+		select {
+		case <-ctx.Done():
+			return got
+		case <-tick.C:
+		}
+		got = s.publishedCount(typ)
+	}
+	return got
 }
 
 func EventuallyPublished(typ events.Type, n uint64) Step {
