@@ -16,6 +16,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 	"github.com/monaco/monaco/apps/backend/internal/platform/poller"
 )
@@ -287,12 +288,11 @@ func (p *SwapSweeper) finalized(
 	if err != nil {
 		return false, err
 	}
-	column, ok := domain.Column(out.Uint64())
-	if !ok {
-		return false, errs.New(errs.CodeDecodeFailed, "trading.SwapSweeper.outAmount",
-			slog.String("swap_id", row.ID.String()), slog.Uint64("out_amount", out.Uint64()))
+	done, err := confirmed(req, row.ID, signature, money.UnitsFromUint64(out.Uint64()))
+	if err != nil {
+		return false, err
 	}
-	return p.move(ctx, now, req, confirmed(req, row.ID, signature, out.Uint64(), column))
+	return p.move(ctx, now, req, done)
 }
 
 func (p *SwapSweeper) move(
@@ -338,7 +338,7 @@ func sweepRequest(
 	sourceKind string,
 	sourceID uuid.UUID,
 	action, symbol, inMint string,
-	inAmount int64,
+	inAmount string,
 	batchSize int32,
 ) (SwapRequest, error) {
 	kind, err := domain.ParseSourceKind(sourceKind)
@@ -349,7 +349,7 @@ func sweepRequest(
 	if err != nil {
 		return SwapRequest{}, err
 	}
-	amount, err := domain.ParseAmount(inAmount)
+	amount, err := domain.ParseTokenAmount(inAmount)
 	if err != nil {
 		return SwapRequest{}, err
 	}

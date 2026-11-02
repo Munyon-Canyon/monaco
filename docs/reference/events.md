@@ -614,7 +614,7 @@ Subject `events.proposal.close_reminder_due`, version 1.
 | `kind` | `string` |
 | `symbol` | `string` |
 | `usdc_micros` | `money.Micros` |
-| `token_amount` | `uint64` |
+| `token_amount` | `money.Units` |
 | `expires_at` | `time.Time` |
 | `yes` | `int` |
 | `no` | `int` |
@@ -635,8 +635,8 @@ Subject `events.proposal.created`, version 1.
 | `symbol` | `string` |
 | `mint` | `chain.SolanaAddress` |
 | `usdc_micros` | `money.Micros` |
-| `token_amount` | `uint64` |
-| `quote_out_amount` | `uint64` |
+| `token_amount` | `money.Units` |
+| `quote_out_amount` | `money.Units` |
 | `expires_at` | `time.Time` |
 | `voter_count` | `int` |
 
@@ -697,8 +697,8 @@ Subject `events.proposal.passed`, version 1.
 | `symbol` | `string` |
 | `mint` | `chain.SolanaAddress` |
 | `usdc_micros` | `money.Micros` |
-| `token_amount` | `uint64` |
-| `quote_out_amount` | `uint64` |
+| `token_amount` | `money.Units` |
+| `quote_out_amount` | `money.Units` |
 | `proposer_id` | `uuid.UUID` |
 | `price_comparison` | `*multichain.Comparison` |
 | `network` | `chain.Network` |
@@ -906,9 +906,9 @@ Subject `events.trade.confirmed`, version 1.
 | `action` | `string` |
 | `symbol` | `string` |
 | `in_mint` | `chain.SolanaAddress` |
-| `in_amount` | `uint64` |
+| `in_amount` | `money.Units` |
 | `out_mint` | `chain.SolanaAddress` |
-| `out_amount` | `uint64` |
+| `out_amount` | `money.Units` |
 | `usdc_micros` | `money.Micros` |
 | `fee_micros` | `money.Micros` |
 | `tx_signature` | `chain.Signature` |
@@ -929,7 +929,7 @@ Subject `events.trade.failed`, version 1.
 | `action` | `string` |
 | `symbol` | `string` |
 | `in_mint` | `chain.SolanaAddress` |
-| `in_amount` | `uint64` |
+| `in_amount` | `money.Units` |
 | `failure_code` | `string` |
 | `jupiter_code` | `string` |
 
@@ -947,8 +947,8 @@ Subject `events.trade.retry_requested`, version 1.
 | `symbol` | `string` |
 | `in_mint` | `chain.SolanaAddress` |
 | `out_mint` | `chain.SolanaAddress` |
-| `in_amount` | `uint64` |
-| `quote_out_amount` | `uint64` |
+| `in_amount` | `money.Units` |
+| `quote_out_amount` | `money.Units` |
 | `slippage_bps` | `int32` |
 | `requested_by` | `uuid.UUID` |
 | `at_current_price` | `bool` |
@@ -1004,7 +1004,7 @@ Subject `events.trade.submitted`, version 1.
 | `symbol` | `string` |
 | `in_mint` | `chain.SolanaAddress` |
 | `out_mint` | `chain.SolanaAddress` |
-| `in_amount` | `uint64` |
+| `in_amount` | `money.Units` |
 | `tx_signature` | `chain.Signature` |
 
 ## `user.account_status_changed`

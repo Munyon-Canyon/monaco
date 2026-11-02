@@ -2,6 +2,7 @@ package domain_test
 
 import (
 	"math"
+	"slices"
 	"testing"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
@@ -14,6 +15,16 @@ import (
 const usdc = domain.Asset("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")
 
 func amount(v int64) money.SignedMicros { return money.SignedMicrosFromInt64(v) }
+
+func units(v int64) money.SignedUnits { return money.SignedUnitsFromInt64(v) }
+
+func wide(v uint64) money.Units { return money.UnitsFromUint64(v) }
+
+func sameEntries(a, b []domain.CabalEntry) bool {
+	return slices.EqualFunc(a, b, func(x, y domain.CabalEntry) bool {
+		return x.Account == y.Account && x.Asset == y.Asset && x.Amount.Equal(y.Amount)
+	})
+}
 
 func wantCode(t *testing.T, err error, code errs.Code) {
 	t.Helper()
@@ -29,10 +40,10 @@ func TestNewCabalTxn_keepsABalancedSwap(t *testing.T) {
 	t.Parallel()
 	aapl := domain.MintAsset("XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp")
 	entries := []domain.CabalEntry{
-		{Account: domain.CabalTreasury, Asset: usdc, Amount: amount(-50_000_000)},
-		{Account: domain.CabalTreasury, Asset: aapl, Amount: amount(210_000)},
-		{Account: domain.CabalVenue, Asset: usdc, Amount: amount(50_000_000)},
-		{Account: domain.CabalVenue, Asset: aapl, Amount: amount(-210_000)},
+		{Account: domain.CabalTreasury, Asset: usdc, Amount: units(-50_000_000)},
+		{Account: domain.CabalTreasury, Asset: aapl, Amount: units(210_000)},
+		{Account: domain.CabalVenue, Asset: usdc, Amount: units(50_000_000)},
+		{Account: domain.CabalVenue, Asset: aapl, Amount: units(-210_000)},
 	}
 	h := domain.CabalTxnHeader{ID: testkit.NewIDs(1).NewV7(), Kind: domain.CabalSwap, Status: domain.TxnSettled}
 	txn, err := domain.NewCabalTxn(h, entries)
@@ -40,8 +51,8 @@ func TestNewCabalTxn_keepsABalancedSwap(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := txn.Entries()
-	got[0].Amount = amount(1)
-	if txn.Entries()[0].Amount != amount(-50_000_000) || txn.CabalTxnHeader != h || len(got) != 4 {
+	got[0].Amount = units(1)
+	if !txn.Entries()[0].Amount.Equal(units(-50_000_000)) || txn.CabalTxnHeader != h || len(got) != 4 {
 		t.Fatalf("txn = %+v, want the header and an unaliased copy of the entries", txn)
 	}
 }
@@ -94,7 +105,11 @@ func cabalID(t *testing.T, seed uint64) ids.CabalID {
 func cabalSide(user []domain.UserEntry) []domain.CabalEntry {
 	out := make([]domain.CabalEntry, len(user))
 	for i, e := range user {
-		out[i] = domain.CabalEntry{Account: domain.CabalMembers, Asset: e.Asset, Amount: e.Amount}
+		out[i] = domain.CabalEntry{
+			Account: domain.CabalMembers,
+			Asset:   e.Asset,
+			Amount:  money.SignedUnitsFromMicros(e.Amount),
+		}
 	}
 	return out
 }

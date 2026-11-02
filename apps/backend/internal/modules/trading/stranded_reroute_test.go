@@ -79,7 +79,7 @@ func TestRetry_aStrandedRetryStaysOnItsChainWhileTheEVMRouteHolds(t *testing.T) 
 	t.Parallel()
 	r := newStrandedRig(t)
 	r.requote()
-	r.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: filledOut}}
+	r.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: money.UnitsFromUint64(filledOut)}}
 	router := r.router(1_000_000, 900_000)
 
 	code := r.retryThrough(t, r.handler(router), r.cmd, r.first)
@@ -171,7 +171,7 @@ func TestRetry_aStrandedRetryStaysWithoutAUsableSolanaQuote(t *testing.T) {
 			t.Parallel()
 			r := newStrandedRig(t)
 			r.requote()
-			r.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: filledOut}}
+			r.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: money.UnitsFromUint64(filledOut)}}
 
 			code := r.retryThrough(t, r.handler(router(r)), r.cmd, r.first)
 
@@ -254,7 +254,7 @@ func TestRetry_aStrandedRetryComparesOnlyWhatIsLeftToSpend(t *testing.T) {
 			t.Parallel()
 			r := newStrandedRig(t)
 			r.requote()
-			r.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: filledOut}}
+			r.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: money.UnitsFromUint64(filledOut)}}
 			r.privy.script(multichain.ActionSucceeded)
 			router := r.router(c.evm, c.solana)
 			router.fresh.Ranked[0].Costs[0].Micros = money.MicrosFromUint64(c.bridgeIn)

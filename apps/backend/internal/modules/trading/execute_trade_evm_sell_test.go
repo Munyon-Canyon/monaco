@@ -75,7 +75,7 @@ func (e *routeEnv) wantSold(t *testing.T, swap uuid.UUID, units uint64) {
 		fmt.Sprint(confirmed["token_decimals"]) != strconv.FormatUint(uint64(e.listing.Decimals), 10) {
 		t.Fatalf("trade.confirmed = %v, want %d token units sold for %d cash", confirmed, units, proceeds)
 	}
-	if len(e.evm.specs) != 1 || e.evm.specs[0].AmountIn != units {
+	if len(e.evm.specs) != 1 || !e.evm.specs[0].AmountIn.Equal(money.UnitsFromUint64(units)) {
 		t.Fatalf("built %+v, want a swap of exactly the proposed %d token units", e.evm.specs, units)
 	}
 	back := multichain.TransferSpec{

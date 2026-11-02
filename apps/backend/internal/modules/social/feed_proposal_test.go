@@ -201,7 +201,7 @@ func TestFeedProposal_sellRendersSelling(t *testing.T) {
 	t.Parallel()
 	r := newProposalRig(t)
 	sell := r.created()
-	sell.Kind, sell.USDCMicros, sell.TokenAmount = "sell", money.Micros{}, 7
+	sell.Kind, sell.USDCMicros, sell.TokenAmount = "sell", money.Micros{}, money.UnitsFromUint64(7)
 	if err := r.deliver(t, func(ctx context.Context, tx db.Tx) error {
 		card, err := r.feed.FetchProposal(ctx, sell)
 		if err != nil {
@@ -531,7 +531,8 @@ func TestFeedProposal_anExpiryBeforeTheCreateNaksThenConverges(t *testing.T) {
 func TestFeedProposal_recordsTheShareOfThePotInBasisPoints(t *testing.T) {
 	t.Parallel()
 	sell := func(e *events.ProposalCreated) {
-		e.Kind, e.USDCMicros, e.TokenAmount, e.QuoteOutAmount = "sell", money.Micros{}, 7, 250_000_000
+		e.Kind, e.USDCMicros = "sell", money.Micros{}
+		e.TokenAmount, e.QuoteOutAmount = money.UnitsFromUint64(7), money.UnitsFromUint64(250_000_000)
 	}
 	for name, tc := range map[string]struct {
 		edit func(*events.ProposalCreated)

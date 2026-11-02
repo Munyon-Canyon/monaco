@@ -17,6 +17,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/chaos"
@@ -109,9 +110,16 @@ func (d outcomeDB) deliverLast(t *testing.T, m *delivery) bus.Outcome {
 
 func (d outcomeDB) confirmed(proposal uuid.UUID, kind string) events.TradeConfirmed {
 	return events.TradeConfirmed{
-		V: 1, SwapID: d.ids.NewV7(), CabalID: d.ids.NewV7(), Source: events.TradeSource{Kind: kind, ID: proposal},
-		SourceBatchSize: 1, Action: "buy", Symbol: "AAPLx", InAmount: 25_000_000, OutAmount: 105_000_000,
-		ConfirmedAt: d.now,
+		V:               1,
+		SwapID:          d.ids.NewV7(),
+		CabalID:         d.ids.NewV7(),
+		Source:          events.TradeSource{Kind: kind, ID: proposal},
+		SourceBatchSize: 1,
+		Action:          "buy",
+		Symbol:          "AAPLx",
+		InAmount:        money.UnitsFromUint64(25_000_000),
+		OutAmount:       money.UnitsFromUint64(105_000_000),
+		ConfirmedAt:     d.now,
 	}
 }
 
@@ -177,8 +185,15 @@ func TestTradeOutcome_Blocked_MarksExecutionBlocked(t *testing.T) {
 
 func (d outcomeDB) failed(proposal uuid.UUID, kind string) events.TradeFailed {
 	return events.TradeFailed{
-		V: 1, SwapID: d.ids.NewV7(), CabalID: d.ids.NewV7(), Source: events.TradeSource{Kind: kind, ID: proposal},
-		SourceBatchSize: 1, Action: "sell", Symbol: "AAPLx", InAmount: 25_000_000, FailureCode: "jupiter_failed",
+		V:               1,
+		SwapID:          d.ids.NewV7(),
+		CabalID:         d.ids.NewV7(),
+		Source:          events.TradeSource{Kind: kind, ID: proposal},
+		SourceBatchSize: 1,
+		Action:          "sell",
+		Symbol:          "AAPLx",
+		InAmount:        money.UnitsFromUint64(25_000_000),
+		FailureCode:     "jupiter_failed",
 	}
 }
 
@@ -205,7 +220,7 @@ func TestTradeOutcome_Failed_MarksExecutionBlockedWithSwapFailed(t *testing.T) {
 func (d outcomeDB) retried(proposal uuid.UUID, kind string) events.TradeRetryRequested {
 	return events.TradeRetryRequested{
 		V: 1, SwapID: d.ids.NewV7(), CabalID: d.ids.NewV7(), Source: events.TradeSource{Kind: kind, ID: proposal},
-		Action: "sell", Symbol: "AAPLx", InAmount: 25_000_000, RequestedBy: d.ids.NewV7(),
+		Action: "sell", Symbol: "AAPLx", InAmount: money.UnitsFromUint64(25_000_000), RequestedBy: d.ids.NewV7(),
 	}
 }
 

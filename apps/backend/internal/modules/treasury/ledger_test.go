@@ -107,8 +107,8 @@ func TestLedger_UnbalancedRejected(t *testing.T) {
 	err := f.do(func(ctx context.Context, tx db.Tx) error {
 		txn, err := domain.NewCabalTxn(domain.CabalTxnHeader{ID: f.ids.NewV7(), CabalID: cabal, Kind: domain.CabalSwap},
 			[]domain.CabalEntry{
-				{Account: domain.CabalTreasury, Asset: usdc, Amount: amount(-60)},
-				{Account: domain.CabalVenue, Asset: usdc, Amount: amount(59)},
+				{Account: domain.CabalTreasury, Asset: usdc, Amount: entryUnits(-60)},
+				{Account: domain.CabalVenue, Asset: usdc, Amount: entryUnits(59)},
 			})
 		if err != nil {
 			return err
@@ -234,12 +234,12 @@ func TestLedger_positionDeltaErrorsStopThePost(t *testing.T) {
 	f := newFixture(t)
 	cabal := f.cabal(t)
 	two, err := domain.NewCabalTxn(domain.CabalTxnHeader{ID: f.ids.NewV7(), CabalID: cabal}, []domain.CabalEntry{
-		{Account: domain.CabalTreasury, Asset: usdc, Amount: amount(-2)},
-		{Account: domain.CabalTreasury, Asset: aapl, Amount: amount(1)},
-		{Account: domain.CabalTreasury, Asset: "XsDoVfqeBukxuZHWhdvWHBhgEHjGNst4MLodqsJHzoB", Amount: amount(1)},
-		{Account: domain.CabalVenue, Asset: usdc, Amount: amount(2)},
-		{Account: domain.CabalVenue, Asset: aapl, Amount: amount(-1)},
-		{Account: domain.CabalVenue, Asset: "XsDoVfqeBukxuZHWhdvWHBhgEHjGNst4MLodqsJHzoB", Amount: amount(-1)},
+		{Account: domain.CabalTreasury, Asset: usdc, Amount: entryUnits(-2)},
+		{Account: domain.CabalTreasury, Asset: aapl, Amount: entryUnits(1)},
+		{Account: domain.CabalTreasury, Asset: "XsDoVfqeBukxuZHWhdvWHBhgEHjGNst4MLodqsJHzoB", Amount: entryUnits(1)},
+		{Account: domain.CabalVenue, Asset: usdc, Amount: entryUnits(2)},
+		{Account: domain.CabalVenue, Asset: aapl, Amount: entryUnits(-1)},
+		{Account: domain.CabalVenue, Asset: "XsDoVfqeBukxuZHWhdvWHBhgEHjGNst4MLodqsJHzoB", Amount: entryUnits(-1)},
 	})
 	if err != nil {
 		t.Fatal(err)

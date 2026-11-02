@@ -237,7 +237,7 @@ func TestHTTP_GetCabalProposalPreview_refusesWhatCannotGoOnTheWire(t *testing.T)
 	t.Parallel()
 	h := newProposeHarness(t)
 	usdc := int64(1)
-	huge := money.NewBaseUnits(math.MaxUint64, marketfake.AAPLx().Decimals)
+	huge := money.UnitsFromUint64(math.MaxUint64)
 	for name, tc := range map[string]struct {
 		arrange func(w *tradeWorld)
 		params  api.GetCabalProposalPreviewParams

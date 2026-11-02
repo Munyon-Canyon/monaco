@@ -653,10 +653,10 @@ func swapForAsset(
 		ID: f.ids.NewV7(), CabalID: cabal, Kind: domain.CabalSwap, Status: domain.TxnSettled, SwapID: f.ids.NewV7(),
 		TxSignature: "5VERv8NMvzbJMEkV8xnrLkEaWRtSz9CosKDYjCJjBRnbJLgp8uirBgmQpjKhoR4tjF3ZrRFMV6UjKdiSZkQUW",
 	}, []domain.CabalEntry{
-		{Account: domain.CabalTreasury, Asset: usdc, Amount: amount(-micros)},
-		{Account: domain.CabalVenue, Asset: usdc, Amount: amount(micros)},
-		{Account: domain.CabalTreasury, Asset: asset, Amount: amount(units)},
-		{Account: domain.CabalVenue, Asset: asset, Amount: amount(-units)},
+		{Account: domain.CabalTreasury, Asset: usdc, Amount: entryUnits(-micros)},
+		{Account: domain.CabalVenue, Asset: usdc, Amount: entryUnits(micros)},
+		{Account: domain.CabalTreasury, Asset: asset, Amount: entryUnits(units)},
+		{Account: domain.CabalVenue, Asset: asset, Amount: entryUnits(-units)},
 	})
 }
 

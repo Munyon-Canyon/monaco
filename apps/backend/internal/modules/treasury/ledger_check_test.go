@@ -226,7 +226,7 @@ func TestLedgerCheck_replaysHeadersWithSeveralTreasuryLegs(t *testing.T) {
 	f.postFund(t, cabal, 100)
 	const bee, cee = domain.Asset("BEE"), domain.Asset("CEE")
 	leg := func(account domain.CabalAccount, asset domain.Asset, v int64) domain.CabalEntry {
-		return domain.CabalEntry{Account: account, Asset: asset, Amount: amount(v)}
+		return domain.CabalEntry{Account: account, Asset: asset, Amount: entryUnits(v)}
 	}
 	for _, entries := range [][]domain.CabalEntry{
 		{

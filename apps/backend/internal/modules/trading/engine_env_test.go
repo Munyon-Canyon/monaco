@@ -282,14 +282,19 @@ func (e *engineEnv) handler() *app.ExecuteTradeHandler {
 
 func (e *engineEnv) buy() app.ExecuteTrade {
 	return app.ExecuteTrade{
-		ProposalID: ids.ProposalIDFrom(e.ids.NewV7()), CabalID: e.cabal, Action: domain.ActionBuy, Symbol: "AAPLx",
-		Mint: aaplxMint, USDCMicros: money.MicrosFromUint64(buyMicros), QuoteOutAmount: quotedOut,
+		ProposalID:     ids.ProposalIDFrom(e.ids.NewV7()),
+		CabalID:        e.cabal,
+		Action:         domain.ActionBuy,
+		Symbol:         "AAPLx",
+		Mint:           aaplxMint,
+		USDCMicros:     money.MicrosFromUint64(buyMicros),
+		QuoteOutAmount: money.UnitsFromUint64(quotedOut),
 	}
 }
 
 func (e *engineEnv) sell(units uint64) app.ExecuteTrade {
 	cmd := e.buy()
-	cmd.Action, cmd.USDCMicros, cmd.TokenAmount = domain.ActionSell, money.Micros{}, units
+	cmd.Action, cmd.USDCMicros, cmd.TokenAmount = domain.ActionSell, money.Micros{}, money.UnitsFromUint64(units)
 	return cmd
 }
 

@@ -14,6 +14,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/app"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpclient"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
 type rpcRequest struct {
@@ -71,13 +72,14 @@ func (v *EVMVenue) Inspect(
 		return app.EVMFill{State: state}, err
 	}
 	total, err := transferTotal(receipt.Logs, out, owner)
-	if err == nil && !total.IsUint64() {
-		err = errs.New(errs.CodeDecodeFailed, evmVenueFillOp, slog.String("total", total.String()))
+	var units money.Units
+	if err == nil {
+		units, err = money.UnitsFromBig(total)
 	}
 	if err != nil {
 		return app.EVMFill{}, errs.Wrap(err, errs.CodeDecodeFailed, evmVenueFillOp, attrs...)
 	}
-	return app.EVMFill{State: app.FillSucceeded, Out: total.Uint64()}, nil
+	return app.EVMFill{State: app.FillSucceeded, Out: units}, nil
 }
 
 func (v *EVMVenue) Receipt(ctx context.Context, network chain.Network, txHash string) (app.EVMFillState, error) {
@@ -162,15 +164,20 @@ func receiptCall[T any](
 	return w, nil
 }
 
-func transferredTo(logs []logWire, token, owner chain.EVMAddress) (uint64, error) {
+func transferredTo(logs []logWire, token, owner chain.EVMAddress) (money.Units, error) {
 	total, err := transferTotal(logs, token, owner)
 	if err != nil {
-		return 0, err
+		return money.Units{}, err
 	}
-	if total.Sign() == 0 || !total.IsUint64() {
-		return 0, errs.New(errs.CodeDecodeFailed, "trading.EVMVenue.transfer", slog.String("total", total.String()))
+	units, err := money.UnitsFromBig(total)
+	if total.Sign() == 0 || err != nil {
+		return money.Units{}, errs.New(
+			errs.CodeDecodeFailed,
+			"trading.EVMVenue.transfer",
+			slog.String("total", total.String()),
+		)
 	}
-	return total.Uint64(), nil
+	return units, nil
 }
 
 func transferTotal(logs []logWire, token, owner chain.EVMAddress) (*big.Int, error) {

@@ -32,9 +32,9 @@ func forceCommand(signature chain.Signature, to domain.Status) ForceResolveSwap 
 	return ForceResolveSwap{
 		Signature: signature,
 		To:        to,
-		OutAmount: money.NewBaseUnits(104_000_000, 8),
-		Reason:    "chain explorer verified it",
-		Actor:     "operator:ops", IdempotencyKey: "force-resolve:" + string(signature) + ":" + string(to),
+		OutAmount: money.UnitsFromUint64(104_000_000), OutDecimals: 8,
+		Reason: "chain explorer verified it",
+		Actor:  "operator:ops", IdempotencyKey: "force-resolve:" + string(signature) + ":" + string(to),
 	}
 }
 
@@ -51,14 +51,14 @@ func TestForceResolve_Confirmed(t *testing.T) {
 	if got.Status != domain.StatusConfirmed {
 		t.Fatalf("status = %s", got.Status)
 	}
-	if got.OutAmount != cmd.OutAmount.Uint64() {
-		t.Fatalf("out amount = %d", got.OutAmount)
+	if !got.OutAmount.Equal(cmd.OutAmount) {
+		t.Fatalf("out amount = %s", got.OutAmount)
 	}
 	event, ok := e.terminalEvent(t, row.ID).(events.TradeConfirmed)
 	if !ok {
 		t.Fatalf("event = %#v", event)
 	}
-	if event.OutAmount != cmd.OutAmount.Uint64() || event.OutMint != "aaplx" || event.TxSignature != cmd.Signature {
+	if !event.OutAmount.Equal(cmd.OutAmount) || event.OutMint != "aaplx" || event.TxSignature != cmd.Signature {
 		t.Fatalf("event = %#v", event)
 	}
 	if e.terminalEvents(t, row.ID) != 1 {
@@ -112,7 +112,7 @@ func TestForceResolve_AuditRow(t *testing.T) {
 		t.Fatal(err)
 	}
 	wantDetail := []string{
-		`"chain_state": "landed"`, `"chain_out_amount": 104000000`, `"override": false`, `"to": "confirmed"`,
+		`"chain_state": "landed"`, `"chain_out_amount": "104000000"`, `"override": false`, `"to": "confirmed"`,
 	}
 	if action != "force_resolve" || actor != "operator:ops" || reason != cmd.Reason ||
 		slices.ContainsFunc(wantDetail, func(want string) bool { return !strings.Contains(detail, want) }) {
@@ -185,7 +185,7 @@ func (tc chainCase) run(t *testing.T) {
 	row := e.submit(t)
 	cmd := forceCommand(chain.Signature("sig-"+row.ID.String()), tc.to)
 	if tc.amount != 0 {
-		cmd.OutAmount = money.NewBaseUnits(tc.amount, 8)
+		cmd.OutAmount, cmd.OutDecimals = money.UnitsFromUint64(tc.amount), 8
 	}
 	_, err := e.force().Handle(t.Context(), cmd)
 	if errs.CodeOf(err) != errs.CodeInvalidInput || err == nil || !strings.Contains(err.Error(), tc.want) ||
@@ -259,7 +259,7 @@ func TestForceResolve_OverrideStillChecksTheUnits(t *testing.T) {
 	e := newSweeperEnv(t)
 	row := e.submit(t)
 	cmd := forceCommand(chain.Signature("sig-"+row.ID.String()), domain.StatusConfirmed)
-	cmd.OutAmount, cmd.Override = money.NewBaseUnits(104_000_000, 6), true
+	cmd.OutAmount, cmd.OutDecimals, cmd.Override = money.UnitsFromUint64(104_000_000), 6, true
 	_, err := e.force().Handle(t.Context(), cmd)
 	if errs.CodeOf(err) != errs.CodeInvalidInput || e.status(t, row.ID) != "submitted" || e.auditRows(t, row.ID) != 0 {
 		t.Fatalf("Handle = %v, status = %s", err, e.status(t, row.ID))
@@ -321,9 +321,9 @@ func TestForceResolve_NotSubmitted(t *testing.T) {
 
 func TestForceResolve_ConfirmedWithoutAmount(t *testing.T) {
 	t.Parallel()
-	for name, amount := range map[string]money.BaseUnits{
+	for name, amount := range map[string]ForceResolveSwap{
 		"missing":        {},
-		"wrong decimals": money.NewBaseUnits(104_000_000, 6),
+		"wrong decimals": {OutAmount: money.UnitsFromUint64(104_000_000), OutDecimals: 6},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -331,7 +331,7 @@ func TestForceResolve_ConfirmedWithoutAmount(t *testing.T) {
 			e.landed()
 			row := e.submit(t)
 			cmd := forceCommand(chain.Signature("sig-"+row.ID.String()), domain.StatusConfirmed)
-			cmd.OutAmount = amount
+			cmd.OutAmount, cmd.OutDecimals = amount.OutAmount, amount.OutDecimals
 			_, err := e.force().Handle(t.Context(), cmd)
 			if errs.CodeOf(err) != errs.CodeInvalidInput || e.status(t, row.ID) != "submitted" {
 				t.Fatalf("Handle = %v, status = %s", err, e.status(t, row.ID))
@@ -405,7 +405,7 @@ func TestForceResolve_ValidationAndLookupFailures(t *testing.T) {
 		func(c *ForceResolveSwap) { c.To = domain.Status("unknown") },
 		func(c *ForceResolveSwap) {
 			c.To = domain.StatusConfirmed
-			c.OutAmount = money.NewBaseUnits(^uint64(0), 8)
+			c.OutAmount = money.Units{}
 		},
 	} {
 		cmd := valid
@@ -523,7 +523,7 @@ func (e *sweeperEnv) setStatus(t *testing.T, id uuid.UUID, status domain.Status)
 		}
 	case domain.StatusConfirmed:
 		if n, err := e.q.FinishConfirmed(t.Context(), sqlc.FinishConfirmedParams{
-			ID: id, OutAmount: 1, ConfirmedAt: e.clk.Now(),
+			ID: id, OutAmount: "1", ConfirmedAt: e.clk.Now(),
 		}); err != nil || n != 1 {
 			t.Fatalf("FinishConfirmed = %d, %v", n, err)
 		}
@@ -553,5 +553,18 @@ $$`
 FOR EACH ROW EXECUTE FUNCTION force_resolve_blocker()`
 	if _, err := e.pool.Exec(t.Context(), trigger); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestForceResolve_aConfirmedAmountPastUint64IsValid(t *testing.T) {
+	t.Parallel()
+	cmd := forceCommand("sig", domain.StatusConfirmed)
+	wide, err := money.ParseUnits("25000000000000000000")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cmd.OutAmount, cmd.OutDecimals = wide, 18
+	if err := cmd.validate(); err != nil {
+		t.Fatalf("validate = %v, want a 25-token amount accepted", err)
 	}
 }

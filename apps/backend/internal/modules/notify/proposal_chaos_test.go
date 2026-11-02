@@ -50,7 +50,7 @@ func chaosProposal(i int) events.Event {
 	}
 	return events.ProposalCreated{
 		V: 1, ProposalID: id, CabalID: cabalID, ProposerID: proposer, Kind: kind, Symbol: symbol, Mint: chaosMint,
-		USDCMicros: usdc, TokenAmount: tokens, QuoteOutAmount: quote,
+		USDCMicros: usdc, TokenAmount: money.UnitsFromUint64(tokens), QuoteOutAmount: money.UnitsFromUint64(quote),
 		ExpiresAt: time.Date(2026, 3, 2, 12, 0, 0, 0, time.UTC), VoterCount: 3,
 	}
 }

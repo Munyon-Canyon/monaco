@@ -184,7 +184,8 @@ func (r *pushRig) createdEvent(t *testing.T, refs proposalRefs, action, symbol s
 	e.ProposalID, e.CabalID, e.ProposerID = refs.proposal, refs.cabal.UUID(), refs.proposer.UUID()
 	e.Kind, e.Symbol, e.ExpiresAt = action, symbol, r.clock.Now().Add(voteWindow)
 	if action == sellKind {
-		e.USDCMicros, e.TokenAmount, e.QuoteOutAmount = money.Micros{}, sellTokens, sellQuote
+		e.USDCMicros, e.TokenAmount = money.Micros{}, money.UnitsFromUint64(sellTokens)
+		e.QuoteOutAmount = money.UnitsFromUint64(sellQuote)
 	}
 	return e
 }
@@ -300,6 +301,46 @@ func TestNotify_ProposalCreated_GroupsThousandsInTheAmount(t *testing.T) {
 		if err != nil || msg.Title != want {
 			t.Errorf("%d micros: title %q, %v, want %q", micros, msg.Title, err, want)
 		}
+	}
+}
+
+func wideTokens(t *testing.T) money.Units {
+	t.Helper()
+	u, err := money.ParseUnits("25000000000000000000")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return u
+}
+
+func TestNotify_ProposalCreated_ASellOfMoreTokensThanUint64HoldsReadsByItsQuote(t *testing.T) {
+	t.Parallel()
+	r := newPushRig(t)
+	refs, ports := goldenProposal(t)
+	kind := ports.created(r)
+	kind.Users = users{cards: map[ids.UserID]identity.UserCard{refs.proposer: {DisplayName: "Dana"}}}
+	e := r.createdEvent(t, refs, sellKind, "AAPLx")
+	e.TokenAmount = wideTokens(t)
+	e.QuoteOutAmount = money.UnitsFromUint64(5_000_000_000)
+
+	msg, err := kind.Render(t.Context(), e, refs.proposer)
+
+	if err != nil || msg.Title != "Dana proposed Sell AAPL $5,000" {
+		t.Fatalf("title %q, %v, want the sell titled by its $5,000 quote", msg.Title, err)
+	}
+}
+
+func TestNotify_ProposalCreated_ASellQuoteThatIsNotMicrosIsAnError(t *testing.T) {
+	t.Parallel()
+	r := newPushRig(t)
+	refs, ports := goldenProposal(t)
+	kind := ports.created(r)
+	kind.Users = users{cards: map[ids.UserID]identity.UserCard{refs.proposer: {DisplayName: "Dana"}}}
+	e := r.createdEvent(t, refs, sellKind, "AAPLx")
+	e.QuoteOutAmount = wideTokens(t)
+
+	if _, err := kind.Render(t.Context(), e, refs.proposer); err == nil {
+		t.Fatal("Render of a sell quoted past uint64 micros = nil, want an error")
 	}
 }
 

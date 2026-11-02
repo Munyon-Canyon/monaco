@@ -94,8 +94,8 @@ func NewBridgeAdjustedTxn(id uuid.UUID, b Bridge, booked money.Micros, usdc Asse
 	_, destination := b.assets(usdc)
 	txn, err := NewCabalTxn(CabalTxnHeader{ID: id, CabalID: b.CabalID, Kind: CabalSwap, Status: TxnSettled},
 		[]CabalEntry{
-			{Account: CabalTreasury, Asset: destination, Amount: fromTreasury},
-			{Account: CabalFees, Asset: destination, Amount: toFees},
+			{Account: CabalTreasury, Asset: destination, Amount: money.SignedUnitsFromMicros(fromTreasury)},
+			{Account: CabalFees, Asset: destination, Amount: money.SignedUnitsFromMicros(toFees)},
 		})
 	return txn, err == nil, err
 }
@@ -115,7 +115,7 @@ func (b Bridge) move(id uuid.UUID, from, to CabalAccount, asset Asset, amount mo
 		return CabalTxn{}, err
 	}
 	return NewCabalTxn(CabalTxnHeader{ID: id, CabalID: b.CabalID, Kind: CabalSwap, Status: TxnSettled}, []CabalEntry{
-		{Account: from, Asset: asset, Amount: debit},
-		{Account: to, Asset: asset, Amount: credit},
+		{Account: from, Asset: asset, Amount: money.SignedUnitsFromMicros(debit)},
+		{Account: to, Asset: asset, Amount: money.SignedUnitsFromMicros(credit)},
 	})
 }

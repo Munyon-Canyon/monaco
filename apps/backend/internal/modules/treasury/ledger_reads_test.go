@@ -17,6 +17,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
 
@@ -137,7 +138,7 @@ func TestLedgerReads_TxnByID_UserEntries(t *testing.T) {
 	if !reflect.DeepEqual(got.UserID, &user) || got.TransferID == nil || got.SwapID != nil {
 		t.Fatalf("user txn links = %+v", got.TxnHeader)
 	}
-	if entry := got.Entries[0]; entry.Account != "wallet" || entry.Amount != -10_000_000 {
+	if entry := got.Entries[0]; entry.Account != "wallet" || !entry.Amount.Equal(entryUnits(-10_000_000)) {
 		t.Fatalf("first entry = %+v", entry)
 	}
 }
@@ -244,12 +245,27 @@ VALUES ($1, $2, 99999999999999999999, 0, 0, $3)`
 	}
 }
 
-func TestLedgerReads_CabalHoldings_DecodeFailure(t *testing.T) {
+func TestLedgerReads_CabalHoldings_DecodesUnitsPastUint64(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
 	cabal := f.cabal(t)
 	const insert = `INSERT INTO cabal_positions (cabal_id, asset, units, cost_basis_micros, updated_at)
 VALUES ($1, 'Mint', 99999999999999999999, 1, $2)`
+	if _, err := f.pool.Exec(t.Context(), insert, cabal.UUID(), f.clock.Now()); err != nil {
+		t.Fatal(err)
+	}
+	got, err := ledgerReads(f).CabalHoldings(t.Context(), cabal)
+	if err != nil || len(got) != 1 || got[0].Units.String() != "99999999999999999999" {
+		t.Fatalf("CabalHoldings() = %+v, %v, want 99999999999999999999 units", got, err)
+	}
+}
+
+func TestLedgerReads_CabalHoldings_DecodeFailure(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	cabal := f.cabal(t)
+	const insert = `INSERT INTO cabal_positions (cabal_id, asset, units, cost_basis_micros, updated_at)
+VALUES ($1, 'Mint', 900000000000000000000000000000000000000000000000000000000000000000000000000000, 1, $2)`
 	if _, err := f.pool.Exec(t.Context(), insert, cabal.UUID(), f.clock.Now()); err != nil {
 		t.Fatal(err)
 	}
@@ -269,7 +285,8 @@ VALUES ($1, 'UnlistedMint1111111111111111111111111111111', 7, 1, $2)`
 		t.Fatal(err)
 	}
 	got, err := ledgerReads(f).CabalHoldings(t.Context(), cabal)
-	if err != nil || len(got) != 2 || got[0].Units.Uint64() != 10_000_000 || got[1].Units.Uint64() != 7 ||
+	if err != nil || len(got) != 2 || !got[0].Units.Equal(money.UnitsFromUint64(10_000_000)) ||
+		!got[1].Units.Equal(money.UnitsFromUint64(7)) ||
 		got[1].Mint != "UnlistedMint1111111111111111111111111111111" {
 		t.Fatalf("CabalHoldings() = %+v, %v", got, err)
 	}

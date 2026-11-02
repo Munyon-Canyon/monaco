@@ -28,14 +28,14 @@ func (h Feed) ApplyTrade(
 	}
 	_, tokens := tradeLeg(e)
 	fill := feed.Fill{
-		TokenAmount: money.NewBaseUnits(tokens, asset.Decimals), USDCMicros: e.USDCMicros, FilledAt: e.ConfirmedAt,
+		TokenAmount: feed.NewTokens(tokens, asset.Decimals), USDCMicros: e.USDCMicros, FilledAt: e.ConfirmedAt,
 	}
 	return h.recordSwap(ctx, tx, e.Source.ID, func(p *feed.Payload) error {
 		return p.RecordFill(e.SwapID, fill, e.SourceBatchSize)
 	}, at)
 }
 
-func tradeLeg(e events.TradeConfirmed) (chain.SolanaAddress, uint64) {
+func tradeLeg(e events.TradeConfirmed) (chain.SolanaAddress, money.Units) {
 	if e.Action == string(feed.ActionSell) {
 		return e.InMint, e.InAmount
 	}

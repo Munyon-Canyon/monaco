@@ -18,7 +18,7 @@ WHERE NOT EXISTS (
 -- name: InsertCabalEntry :exec
 INSERT INTO cabal_txn_entries (txn_id, seq, account, asset, amount)
 VALUES (sqlc.arg(txn_id)::uuid, sqlc.arg(seq)::smallint, sqlc.arg(account)::text, sqlc.arg(asset)::text,
-  sqlc.arg(amount)::bigint);
+  sqlc.arg(amount)::text::numeric);
 
 -- name: InsertUserTxn :execrows
 INSERT INTO user_txns (id, user_id, cabal_id, kind, status, transfer_id, tx_signature, created_at)
@@ -63,10 +63,10 @@ SELECT coalesce((SELECT sum(e.amount) FROM user_txns t JOIN user_txn_entries e O
 -- name: ApplyCabalPosition :one
 WITH updated AS (
   UPDATE cabal_positions AS p SET
-    units = p.units + sqlc.arg(delta)::bigint,
+    units = p.units + sqlc.arg(delta)::text::numeric,
     cost_basis_micros = CASE
-      WHEN sqlc.arg(delta)::bigint < 0
-        THEN p.cost_basis_micros - div(p.cost_basis_micros * -sqlc.arg(delta)::bigint, greatest(p.units, 1))
+      WHEN sqlc.arg(delta)::text::numeric < 0
+        THEN p.cost_basis_micros - div(p.cost_basis_micros * -sqlc.arg(delta)::text::numeric, greatest(p.units, 1))
       ELSE p.cost_basis_micros + sqlc.arg(cost_in)::text::numeric
     END,
     updated_at = sqlc.arg(updated_at)::timestamptz
@@ -74,12 +74,12 @@ WITH updated AS (
   RETURNING p.units
 ), inserted AS (
   INSERT INTO cabal_positions (cabal_id, asset, units, cost_basis_micros, updated_at)
-  SELECT sqlc.arg(cabal_id)::uuid, sqlc.arg(asset)::text, sqlc.arg(delta)::bigint, sqlc.arg(cost_in)::text::numeric,
+  SELECT sqlc.arg(cabal_id)::uuid, sqlc.arg(asset)::text, sqlc.arg(delta)::text::numeric, sqlc.arg(cost_in)::text::numeric,
     sqlc.arg(updated_at)::timestamptz
   WHERE NOT EXISTS (SELECT 1 FROM updated)
   RETURNING units
 )
-SELECT (units - sqlc.arg(delta)::bigint)::text AS before, units::text AS after
+SELECT (units - sqlc.arg(delta)::text::numeric)::text AS before, units::text AS after
 FROM (SELECT units FROM updated UNION ALL SELECT units FROM inserted) AS applied;
 
 -- name: CabalPositions :many

@@ -29,9 +29,18 @@ func TestAnalyticsExport_Trading(t *testing.T) {
 		"trade.confirmed buy": {
 			event: func(s scene, swap uuid.UUID) events.Event {
 				return events.TradeConfirmed{
-					V: 1, SwapID: swap, CabalID: s.cabal, Source: s.source(), SourceBatchSize: 1, Action: "buy",
-					Symbol: "AAPLx", InMint: usdcMint, InAmount: 25_500_001, OutMint: aaplxMint, OutAmount: 105_000_000,
-					USDCMicros: money.MicrosFromUint64(25_500_001),
+					V:               1,
+					SwapID:          swap,
+					CabalID:         s.cabal,
+					Source:          s.source(),
+					SourceBatchSize: 1,
+					Action:          "buy",
+					Symbol:          "AAPLx",
+					InMint:          usdcMint,
+					InAmount:        money.UnitsFromUint64(25_500_001),
+					OutMint:         aaplxMint,
+					OutAmount:       money.UnitsFromUint64(105_000_000),
+					USDCMicros:      money.MicrosFromUint64(25_500_001),
 				}
 			},
 			want: func(s scene) fakes.PostHogCapture {
@@ -44,9 +53,18 @@ func TestAnalyticsExport_Trading(t *testing.T) {
 		"trade.confirmed sell": {
 			event: func(s scene, swap uuid.UUID) events.Event {
 				return events.TradeConfirmed{
-					V: 1, SwapID: swap, CabalID: s.cabal, Source: s.source(), SourceBatchSize: 1, Action: "sell",
-					Symbol: "AAPLx", InMint: aaplxMint, InAmount: 4_000_000, OutMint: usdcMint, OutAmount: 24_750_000,
-					USDCMicros: money.MicrosFromUint64(24_750_000),
+					V:               1,
+					SwapID:          swap,
+					CabalID:         s.cabal,
+					Source:          s.source(),
+					SourceBatchSize: 1,
+					Action:          "sell",
+					Symbol:          "AAPLx",
+					InMint:          aaplxMint,
+					InAmount:        money.UnitsFromUint64(4_000_000),
+					OutMint:         usdcMint,
+					OutAmount:       money.UnitsFromUint64(24_750_000),
+					USDCMicros:      money.MicrosFromUint64(24_750_000),
 				}
 			},
 			want: func(s scene) fakes.PostHogCapture {
@@ -73,9 +91,17 @@ func TestAnalyticsExport_Trading(t *testing.T) {
 		"trade.failed": {
 			event: func(s scene, swap uuid.UUID) events.Event {
 				return events.TradeFailed{
-					V: 1, SwapID: swap, CabalID: s.cabal, Source: s.source(), SourceBatchSize: 1, Action: "buy",
-					Symbol: "AAPLx", InMint: usdcMint, InAmount: 25_000_000, FailureCode: "jupiter_failed",
-					JupiterCode: "6001",
+					V:               1,
+					SwapID:          swap,
+					CabalID:         s.cabal,
+					Source:          s.source(),
+					SourceBatchSize: 1,
+					Action:          "buy",
+					Symbol:          "AAPLx",
+					InMint:          usdcMint,
+					InAmount:        money.UnitsFromUint64(25_000_000),
+					FailureCode:     "jupiter_failed",
+					JupiterCode:     "6001",
 				}
 			},
 			want: func(s scene) fakes.PostHogCapture {
@@ -127,7 +153,7 @@ func TestAnalyticsExport_Trading_CashOutSourceSkipped(t *testing.T) {
 	for _, ev := range []events.Event{
 		events.TradeConfirmed{
 			V: 1, SwapID: e.ids.NewV7(), CabalID: s.cabal, Source: cashOut, SourceBatchSize: 1, Action: "sell",
-			Symbol: "AAPLx", InMint: aaplxMint, InAmount: 4_000_000, OutMint: usdcMint, OutAmount: 24_750_000,
+			Symbol: "AAPLx", InMint: aaplxMint, InAmount: money.UnitsFromUint64(4_000_000), OutMint: usdcMint, OutAmount: money.UnitsFromUint64(24_750_000),
 			USDCMicros: money.MicrosFromUint64(24_750_000),
 		},
 		events.TradeBlocked{
@@ -136,7 +162,7 @@ func TestAnalyticsExport_Trading_CashOutSourceSkipped(t *testing.T) {
 		},
 		events.TradeFailed{
 			V: 1, SwapID: e.ids.NewV7(), CabalID: s.cabal, Source: cashOut, SourceBatchSize: 1, Action: "sell",
-			Symbol: "AAPLx", InMint: aaplxMint, InAmount: 4_000_000, FailureCode: "jupiter_failed",
+			Symbol: "AAPLx", InMint: aaplxMint, InAmount: money.UnitsFromUint64(4_000_000), FailureCode: "jupiter_failed",
 		},
 	} {
 		m := e.messageOf(ev.Type(), e.appendEvent(t, "system:trading.engine", ev))

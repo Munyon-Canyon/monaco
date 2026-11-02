@@ -9,6 +9,7 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/domain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
 func TestActivityPrice_pricesConfirmedTradesAtTheMultiplierOfTheirTime(t *testing.T) {
@@ -19,7 +20,7 @@ func TestActivityPrice_pricesConfirmedTradesAtTheMultiplierOfTheirTime(t *testin
 		NextUIMultiplierAt: change,
 	}
 	asset := &app.AssetName{Symbol: "NVDAx", Decimals: 8, MultiplierAt: split.UIMultiplierAt}
-	usdc, units := int64(300_000_000), int64(200_000_000)
+	usdc, units := int64(300_000_000), money.UnitsFromUint64(200_000_000)
 	buy := app.ActivityView{
 		ID: uuid.UUID{1}, Kind: domain.ActivityBuy, Status: domain.ActivityConfirmed, Asset: asset,
 		USDCMicros: &usdc, Units: &units, OccurredAt: change.Add(-time.Hour),
@@ -45,7 +46,7 @@ func TestActivityPrice_pricesConfirmedTradesAtTheMultiplierOfTheirTime(t *testin
 		"listing stock":   func(v *app.ActivityView) { v.Asset = &app.AssetName{Symbol: "AAPLon"} },
 		"usdc not known":  func(v *app.ActivityView) { v.USDCMicros = nil },
 		"units not known": func(v *app.ActivityView) { v.Units = nil },
-		"no units at all": func(v *app.ActivityView) { zero := int64(0); v.Units = &zero },
+		"no units at all": func(v *app.ActivityView) { zero := money.Units{}; v.Units = &zero },
 	}
 	for name, edit := range unpriced {
 		v := buy
@@ -58,7 +59,7 @@ func TestActivityPrice_pricesConfirmedTradesAtTheMultiplierOfTheirTime(t *testin
 
 func TestActivityPrice_refusesAPriceTheWireCannotHold(t *testing.T) {
 	t.Parallel()
-	one := int64(1)
+	one := money.UnitsFromUint64(1)
 	for name, usdc := range map[string]int64{"past uint64": math.MaxInt64, "past int64": 100_000_000_000} {
 		v := app.ActivityView{
 			Kind: domain.ActivitySell, Status: domain.ActivityConfirmed, USDCMicros: &usdc, Units: &one,

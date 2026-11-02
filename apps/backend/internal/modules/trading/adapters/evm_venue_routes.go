@@ -94,7 +94,7 @@ func simulated(
 	received, met, err := evmsim.Simulate(ctx, client,
 		evmsim.Swap{Owner: spec.Owner, Router: c.Swap.To, Calldata: c.Swap.Data, Direct: direct}, nil, attrs)
 	if met {
-		return new(big.Int).SetUint64(c.OutAmount), nil
+		return c.OutAmount.Big(), nil
 	}
 	return received, err
 }

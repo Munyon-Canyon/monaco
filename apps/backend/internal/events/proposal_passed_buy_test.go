@@ -19,8 +19,17 @@ const buyPassedGolden = "buy/proposal.passed.v1.json"
 func buyPassedFixture() events.ProposalPassed {
 	g := testkit.NewIDs(1102)
 	return events.ProposalPassed{
-		V: 1, ProposalID: g.NewV7(), CabalID: g.NewV7(), Kind: "buy", Symbol: "AAPLx", Mint: aaplxMint,
-		USDCMicros: money.MicrosFromUint64(25_000_000), QuoteOutAmount: 105_000_000, ProposerID: g.NewV7(),
+		V:          1,
+		ProposalID: g.NewV7(),
+		CabalID:    g.NewV7(),
+		Kind:       "buy",
+		Symbol:     "AAPLx",
+		Mint:       aaplxMint,
+		USDCMicros: money.MicrosFromUint64(
+			25_000_000,
+		),
+		QuoteOutAmount: money.UnitsFromUint64(105_000_000),
+		ProposerID:     g.NewV7(),
 	}
 }
 

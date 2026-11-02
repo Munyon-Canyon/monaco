@@ -34,14 +34,26 @@ func (v VoteStates) VoteState(ctx context.Context, id ids.ProposalID) (port.Vote
 	if err != nil {
 		return port.VoteState{}, errs.Wrap(err, errs.CodeDecodeFailed, op)
 	}
+	usdc, err := voteStateMicros(row.UsdcMicros)
+	if err != nil {
+		return port.VoteState{}, errs.Wrap(err, errs.CodeDecodeFailed, op)
+	}
 	eligible := int(row.Eligible)
 	return port.VoteState{
 		CabalID: ids.CabalIDFrom(row.CabalID), Kind: row.Kind, Symbol: row.Symbol, Mint: row.Mint,
-		USDCMicros: money.MicrosFromUint64(uint64(max(row.UsdcMicros, 0))), Status: status,
+		USDCMicros: usdc, Status: status,
 		Yes: int(row.Yes), No: int(row.No), Eligible: eligible,
 		Need:      domain.ThresholdRule(row.Threshold).Needed(eligible),
 		CreatedAt: row.CreatedAt.UTC(), ExpiresAt: row.ExpiresAt.UTC(),
 	}, nil
+}
+
+func voteStateMicros(raw string) (money.Micros, error) {
+	units, err := money.ParseUnits(raw)
+	if err != nil {
+		return money.Micros{}, err
+	}
+	return units.Micros()
 }
 
 func (v VoteStates) DueForReminder(

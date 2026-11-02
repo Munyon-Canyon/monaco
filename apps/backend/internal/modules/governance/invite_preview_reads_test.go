@@ -86,7 +86,7 @@ func TestInviteFacts_NewestOpenProposal_ASellHasNoUSDC(t *testing.T) {
 	t.Parallel()
 	d := newProposalDB(t)
 	p := d.buy(d.ids.NewV7())
-	p.Kind, p.UsdcMicros, p.TokenAmount = "sell", pgtype.Int8{}, pgtype.Int8{Int64: 150_000_000, Valid: true}
+	p.Kind, p.UsdcMicros, p.TokenAmount = "sell", pgtype.Int8{}, "150000000"
 	d.insert(t, p)
 	got, ok, err := d.facts().NewestOpenProposal(t.Context(), ids.CabalIDFrom(p.CabalID))
 	if err != nil || !ok || got.Kind != "sell" || got.USDCMicros != nil {

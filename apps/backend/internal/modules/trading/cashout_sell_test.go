@@ -49,11 +49,11 @@ func newCashOutEnv(t *testing.T) *cashOutEnv {
 	c := &cashOutEnv{layerEnv: newLayerEnv(t)}
 	c.cabal, c.job = ids.CabalIDFrom(c.ids.NewV7()), c.ids.NewV7()
 	c.holdings = []app.Holding{
-		{Mint: usdcToken(), Symbol: "USDC", Units: 900_000_000},
-		{Mint: tslaxToken(), Symbol: "TSLAx", Units: 300},
-		{Mint: nvdaxToken(), Symbol: "NVDAx", Units: 7},
-		{Mint: aaplxToken(), Symbol: "AAPLx", Units: 1_000},
-		{Mint: platform.Mint{Address: "XsEmpty", Decimals: 8}, Symbol: "EMPTYx", Units: 0},
+		{Mint: usdcToken(), Symbol: "USDC", Units: money.UnitsFromUint64(900_000_000)},
+		{Mint: tslaxToken(), Symbol: "TSLAx", Units: money.UnitsFromUint64(300)},
+		{Mint: nvdaxToken(), Symbol: "NVDAx", Units: money.UnitsFromUint64(7)},
+		{Mint: aaplxToken(), Symbol: "AAPLx", Units: money.UnitsFromUint64(1_000)},
+		{Mint: platform.Mint{Address: "XsEmpty", Decimals: 8}, Symbol: "EMPTYx", Units: money.UnitsFromUint64(0)},
 	}
 	c.price(aaplxToken(), 50_000_000)
 	c.price(tslaxToken(), 30_000_000)
@@ -352,8 +352,8 @@ func TestSellForCashOut_NothingSellable_BlocksOnce(t *testing.T) {
 	t.Parallel()
 	c := newCashOutEnv(t)
 	c.holdings = []app.Holding{
-		{Mint: usdcToken(), Symbol: "USDC", Units: 900_000_000},
-		{Mint: nvdaxToken(), Symbol: "NVDAx", Units: 7},
+		{Mint: usdcToken(), Symbol: "USDC", Units: money.UnitsFromUint64(900_000_000)},
+		{Mint: nvdaxToken(), Symbol: "NVDAx", Units: money.UnitsFromUint64(7)},
 	}
 	for range 2 {
 		if err := c.sell(t, 20_000_000); err != nil {

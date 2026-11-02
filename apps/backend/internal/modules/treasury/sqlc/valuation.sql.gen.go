@@ -131,7 +131,7 @@ SELECT a.id, a.kind,
     ) THEN 'pending'
     ELSE a.status
   END::text AS status,
-  a.actor_user_id, a.asset, a.usdc_micros, a.units, a.tx_signature, a.occurred_at
+  a.actor_user_id, a.asset, a.usdc_micros, coalesce(a.units::text, '')::text AS units, a.tx_signature, a.occurred_at
 FROM cabal_activity AS a
 WHERE a.cabal_id = $1 AND NOT a.cashout_sale
   AND (NOT $2::bool OR (a.occurred_at, a.id) < ($3::timestamptz, $4::uuid))
@@ -156,7 +156,7 @@ type ListActivityRoutedRow struct {
 	ActorUserID pgtype.UUID
 	Asset       pgtype.Text
 	UsdcMicros  pgtype.Numeric
-	Units       pgtype.Numeric
+	Units       string
 	TxSignature pgtype.Text
 	OccurredAt  time.Time
 }

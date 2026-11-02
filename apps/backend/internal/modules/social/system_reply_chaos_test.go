@@ -33,7 +33,7 @@ func systemReplyEvent(_ *rand.Rand, i int) events.Event {
 			Action:      "buy",
 			Symbol:      "AAPLx",
 			OutMint:     marketfake.AAPLx().Mint.Address(),
-			OutAmount:   2,
+			OutAmount:   money.UnitsFromUint64(2),
 			ConfirmedAt: time.Date(2026, 10, 22, 9, 41, 0, 0, time.UTC),
 		}
 	case 1:

@@ -104,9 +104,19 @@ func fillEvent(_ *rand.Rand, i int) events.Event {
 	stock := marketfake.AAPLx().Mint.Address()
 	confirmed := func(p, n, batch int) events.Event {
 		return events.TradeConfirmed{
-			V: 1, SwapID: swap(n), CabalID: chaosCabal(2), Source: source(p), SourceBatchSize: batch, Action: "buy",
-			Symbol: "AAPLx", InMint: usdcMint, InAmount: 100, OutMint: stock, OutAmount: 50,
-			USDCMicros: money.MicrosFromUint64(100), ConfirmedAt: time.Date(2026, 10, 3, 8, 41, i, 0, time.UTC),
+			V:               1,
+			SwapID:          swap(n),
+			CabalID:         chaosCabal(2),
+			Source:          source(p),
+			SourceBatchSize: batch,
+			Action:          "buy",
+			Symbol:          "AAPLx",
+			InMint:          usdcMint,
+			InAmount:        money.UnitsFromUint64(100),
+			OutMint:         stock,
+			OutAmount:       money.UnitsFromUint64(50),
+			USDCMicros:      money.MicrosFromUint64(100),
+			ConfirmedAt:     time.Date(2026, 10, 3, 8, 41, i, 0, time.UTC),
 		}
 	}
 	switch i {

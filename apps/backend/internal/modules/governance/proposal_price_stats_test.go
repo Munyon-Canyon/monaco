@@ -47,9 +47,9 @@ func (d readsDB) detailWith(t *testing.T, book *marketfake.PricesFake, p uuid.UU
 
 func (d readsDB) putSwap(source uuid.UUID, s trading.SwapView, fee *money.Micros) {
 	s.ID, s.Source, s.Action = ids.SwapIDFrom(d.ids.NewV7()), trading.Source{Kind: "proposal", ID: source}, "buy"
-	s.InAmount, s.CreatedAt, s.FeeMicros = 25_000_000, d.now, fee
+	s.InAmount, s.CreatedAt, s.FeeMicros = money.UnitsFromUint64(25_000_000), d.now, fee
 	if s.Status == "confirmed" {
-		s.OutAmount, s.ConfirmedAt = filledOut, d.now
+		s.OutAmount, s.ConfirmedAt = money.UnitsFromUint64(filledOut), d.now
 	}
 	d.swaps.Put(s)
 }
@@ -138,7 +138,7 @@ func TestGetProposal_sellSharesExact(t *testing.T) {
 	d := newReadsDB(t)
 	p := d.buy(d.caller)
 	p.CabalID, p.Kind, p.UsdcMicros = d.cabal, "sell", pgtype.Int8{}
-	p.TokenAmount, p.QuoteOutAmount = pgtype.Int8{Int64: 5_000_000, Valid: true}, 40_000_000
+	p.TokenAmount, p.QuoteOutAmount = "5000000", "40000000"
 	d.insert(t, p)
 	got := d.detailWith(t, d.priceBook(livePrice), p.ID).Stats
 	if !equalPtr(got.SharesAtomics, 5_000_000) || !equalPtr(got.SharesExact, true) ||

@@ -13,8 +13,8 @@ import (
 )
 
 const swapForRetry = `-- name: SwapForRetry :one
-SELECT s.id, s.cabal_id, s.source_kind, s.source_id, s.action, s.symbol, s.in_mint, s.out_mint, s.in_amount,
-  s.quote_out_amount, s.slippage_bps, s.failure_code, v.retryable::bool AS retryable
+SELECT s.id, s.cabal_id, s.source_kind, s.source_id, s.action, s.symbol, s.in_mint, s.out_mint, s.in_amount::text AS in_amount,
+  coalesce(s.quote_out_amount::text, '0')::text AS quote_out_amount, s.slippage_bps, s.failure_code, v.retryable::bool AS retryable
 FROM swaps s
 JOIN swap_views v ON v.id = s.id
 WHERE s.id = $1
@@ -29,8 +29,8 @@ type SwapForRetryRow struct {
 	Symbol         string
 	InMint         string
 	OutMint        string
-	InAmount       int64
-	QuoteOutAmount pgtype.Int8
+	InAmount       string
+	QuoteOutAmount string
 	SlippageBps    int32
 	FailureCode    pgtype.Text
 	Retryable      bool

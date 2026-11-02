@@ -13,6 +13,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/domain"
 	platform "github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/jupiter"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
 type venueStub struct {
@@ -50,7 +51,8 @@ func TestSwapLayer_Success(t *testing.T) {
 	e.jup.SetExecute("req-1", jupiter.ExecuteResult{Status: jupiter.StatusSuccess, OutAmount: 105_000_000})
 	req := e.request(e.source())
 	got := e.settled(t, req)
-	if got.Status != domain.StatusConfirmed || got.OutAmount != 105_000_000 || got.ConfirmedAt.IsZero() {
+	if got.Status != domain.StatusConfirmed || !got.OutAmount.Equal(money.UnitsFromUint64(105_000_000)) ||
+		got.ConfirmedAt.IsZero() {
 		t.Fatalf("view = %+v", got)
 	}
 	if want := []string{"trade.submitted", "trade.confirmed"}; !slices.Equal(e.events(t, got.ID.UUID()), want) {
@@ -76,7 +78,9 @@ func TestSwapLayer_SellCountsTheOutAmountAsUSDC(t *testing.T) {
 	})
 	e.jup.SetExecute("req-sell", jupiter.ExecuteResult{Status: jupiter.StatusSuccess, OutAmount: 31_000_000})
 	req := e.request(e.source())
-	req.Action, req.InMint, req.OutMint, req.InAmount = domain.ActionSell, aaplxToken(), usdcToken(), 10_000_000
+	req.Action, req.InMint, req.OutMint, req.InAmount = domain.ActionSell, aaplxToken(), usdcToken(), money.UnitsFromUint64(
+		10_000_000,
+	)
 	got := e.settled(t, req)
 	p := e.payload(t, got.ID.UUID(), "trade.confirmed")
 	if got.Status != domain.StatusConfirmed ||
@@ -239,7 +243,7 @@ func TestSwapLayer_TerminalWriteLosingTheRaceReturnsTheCurrentRowWithoutAnEvent(
 	}
 }
 
-func TestSwapLayer_RefusesAnOutAmountTheColumnCannotHold(t *testing.T) {
+func TestSwapLayer_ConfirmsAnOutAmountPastInt64Exactly(t *testing.T) {
 	t.Parallel()
 	e := newLayerEnv(t)
 	e.stubExecute(func(_ context.Context, _ string, signed []byte) (app.ExecuteResult, error) {
@@ -249,11 +253,12 @@ func TestSwapLayer_RefusesAnOutAmountTheColumnCannotHold(t *testing.T) {
 		return app.ExecuteResult{Status: app.ExecuteSuccess, OutAmount: 1 << 63}, nil
 	})
 	req := e.request(e.source())
-	if _, err := e.run(t, req); errs.CodeOf(err) != errs.CodeDecodeFailed {
-		t.Fatalf("Run = %v, want decode_failed", err)
+	got, err := e.run(t, req)
+	if want := mustUnits(t, "9223372036854775808"); err != nil || !got.OutAmount.Equal(want) {
+		t.Fatalf("Run = %+v, %v, want the out amount %s stored exactly", got, err, want)
 	}
-	if e.terminalEvents(t, e.swapIDs(t, req.Source.ID)[0]) != 0 {
-		t.Fatal("a refused amount produced a terminal event")
+	if e.terminalEvents(t, e.swapIDs(t, req.Source.ID)[0]) != 1 {
+		t.Fatal("the confirm did not append one terminal event")
 	}
 }
 

@@ -33,7 +33,7 @@ func (w voteWorld) closeReminderDue(
 		ExpiresAt: w.r.clock.Now().Add(expires), Yes: 4, No: 1, Voters: 8,
 	}
 	if kind == "sell" {
-		e.TokenAmount = 220_000_000
+		e.TokenAmount = money.UnitsFromUint64(220_000_000)
 		return e
 	}
 	e.USDCMicros = money.MicrosFromUint64(400_000_000)
@@ -96,7 +96,7 @@ func TestCloseReminder_sizesARobinhoodSellByTheListingDecimals(t *testing.T) {
 	w := r.voteWorldOf(t, 8)
 	proposal := w.proposeNow(t)
 	e := w.closeReminderDue(proposal, w.members[5], "sell", "TSLAx", 40*time.Minute)
-	e.TokenAmount, e.TokenDecimals = 500_000_000_000_000_000, 18
+	e.TokenAmount, e.TokenDecimals = money.UnitsFromUint64(500_000_000_000_000_000), 18
 
 	if err := w.deliverCloseReminder(t, e); err != nil {
 		t.Fatal(err)
@@ -105,6 +105,24 @@ func TestCloseReminder_sizesARobinhoodSellByTheListingDecimals(t *testing.T) {
 	sent := r.sender.Sent()
 	if len(sent) != 1 || sent[0].Title != "Sell TSLA 0.5 sh closes in 40m" {
 		t.Fatalf("sent %+v, want the sell title at 0.5 sh", sent)
+	}
+}
+
+func TestCloseReminder_sizesASellPastUint64ByTheListingDecimals(t *testing.T) {
+	t.Parallel()
+	r := newPushRig(t)
+	w := r.voteWorldOf(t, 8)
+	proposal := w.proposeNow(t)
+	e := w.closeReminderDue(proposal, w.members[5], "sell", "TSLAx", 40*time.Minute)
+	e.TokenAmount, e.TokenDecimals = wideTokens(t), 18
+
+	if err := w.deliverCloseReminder(t, e); err != nil {
+		t.Fatal(err)
+	}
+
+	sent := r.sender.Sent()
+	if len(sent) != 1 || sent[0].Title != "Sell TSLA 25 sh closes in 40m" {
+		t.Fatalf("sent %+v, want the sell title at 25 sh", sent)
 	}
 }
 

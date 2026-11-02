@@ -41,9 +41,10 @@ type Draft struct {
 	Symbol      string
 	Mint        chain.SolanaAddress
 	USDCMicros  money.Micros
-	TokenAmount money.BaseUnits
+	TokenAmount money.Units
+	Decimals    uint8
 	Thesis      string
-	QuoteOut    uint64
+	QuoteOut    money.Units
 	ExpiresAt   time.Time
 	Network     chain.Network
 }
@@ -62,26 +63,31 @@ func NewProposal(d Draft) (Proposal, error) {
 func (p Proposal) Draft() Draft { return p.draft }
 
 func invalidField(d Draft) string {
-	if field := tradeField(d.Kind, d.USDCMicros.Uint64(), d.TokenAmount.Uint64(), d.Thesis); field != "" {
+	if field := tradeField(d.Kind, d.USDCMicros, d.TokenAmount, d.Thesis); field != "" {
 		return field
 	}
-	if d.QuoteOut == 0 || d.QuoteOut > math.MaxInt64 {
+	if d.QuoteOut.IsZero() || d.Kind == KindSell && !fitsColumn(d.QuoteOut) {
 		return "quote_out_amount"
 	}
 	return ""
+}
+
+func fitsColumn(v money.Units) bool {
+	_, err := v.Int64()
+	return err == nil
 }
 
 type Trade struct {
 	Kind        Kind
 	Symbol      string
 	USDCMicros  money.Micros
-	TokenAmount uint64
+	TokenAmount money.Units
 	Thesis      string
 	Network     chain.Network
 }
 
 func NewTrade(t Trade) (Trade, error) {
-	field := tradeField(t.Kind, t.USDCMicros.Uint64(), t.TokenAmount, t.Thesis)
+	field := tradeField(t.Kind, t.USDCMicros, t.TokenAmount, t.Thesis)
 	if field == "" && strings.TrimSpace(t.Symbol) == "" {
 		field = "symbol"
 	}
@@ -91,20 +97,20 @@ func NewTrade(t Trade) (Trade, error) {
 	return t, nil
 }
 
-func tradeField(kind Kind, usdc, tokens uint64, thesis string) string {
-	var spends, unused uint64
+func tradeField(kind Kind, usdc money.Micros, tokens money.Units, thesis string) string {
+	var spendsOK bool
 	switch kind {
 	case KindBuy:
-		spends, unused = usdc, tokens
+		spendsOK = usdc.Uint64() != 0 && usdc.Uint64() <= math.MaxInt64 && tokens.IsZero()
 	case KindSell:
-		spends, unused = tokens, usdc
+		spendsOK = !tokens.IsZero() && usdc.IsZero()
 	case KindRule:
 		fallthrough
 	default:
 		return "kind"
 	}
 	switch {
-	case spends == 0 || spends > math.MaxInt64 || unused != 0:
+	case !spendsOK:
 		return "amount"
 	case !utf8.ValidString(thesis) || utf8.RuneCountInString(thesis) > MaxThesisRunes:
 		return "thesis"

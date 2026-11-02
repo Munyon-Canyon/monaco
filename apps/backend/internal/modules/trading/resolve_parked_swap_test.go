@@ -16,6 +16,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
@@ -136,7 +137,7 @@ func TestResolveParkedSwap_unparkReDrivesTheSwapUnderTheSameStepKeys(t *testing.
 		t.Fatalf("swap %s parked %q, want created and unparked", status, code)
 	}
 	e.privy.script(multichain.ActionSucceeded)
-	e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: filledOut}}
+	e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: money.UnitsFromUint64(filledOut)}}
 	e.clk.Advance(app.SwapSweepAge + time.Second)
 	if report, err := e.tick(t.Context(), t); err != nil || report.Changed != 1 {
 		t.Fatalf("Tick = %+v, %v, want the unparked swap resumed", report, err)

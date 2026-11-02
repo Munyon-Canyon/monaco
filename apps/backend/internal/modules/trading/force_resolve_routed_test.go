@@ -30,7 +30,7 @@ func (e *routeEnv) forceRouted(
 		IdempotencyKey: "k1", Override: override,
 	}
 	if to == domain.StatusConfirmed {
-		cmd.OutAmount = money.NewBaseUnits(out, 8)
+		cmd.OutAmount, cmd.OutDecimals = money.UnitsFromUint64(out), 8
 	}
 	handler := app.NewForceResolveSwapHandler(e.uow, e.pool, e.clk, e.ids, e.hints, nil, e.receipts())
 	return handler.Handle(t.Context(), cmd)
@@ -61,7 +61,7 @@ func TestForceResolveRouted_readsTheTreasuryTransferFromTheSwapsOwnReceipt(t *te
 	t.Parallel()
 	e := newRouteEnv(t)
 	swap := e.parkedWithoutReceipt(t)
-	e.evm.inspects = []app.EVMFill{{State: app.FillSucceeded, Out: filledOut}}
+	e.evm.inspects = []app.EVMFill{{State: app.FillSucceeded, Out: money.UnitsFromUint64(filledOut)}}
 
 	if _, err := e.forceRouted(t, swap, domain.StatusConfirmed, filledOut, false); err != nil {
 		t.Fatal(err)
@@ -70,11 +70,11 @@ func TestForceResolveRouted_readsTheTreasuryTransferFromTheSwapsOwnReceipt(t *te
 		network: chain.NetworkBase, hash: string(e.signature(t, swap)), out: evmAddress(t, e.listing.TokenAddress),
 		owner: evmAddress(t, evmTreasury),
 	}
-	if len(e.evm.inspected) != 1 || e.evm.inspected[0] != want {
+	if len(e.evm.inspected) != 1 || !sameJSON(e.evm.inspected[0], want) {
 		t.Fatalf("receipt reads = %+v, want one read %+v", e.evm.inspected, want)
 	}
 	detail := e.audit(t, swap)
-	for _, part := range []string{`"chain_state": "landed"`, `"chain_out_amount": 305000000`, `"override": false`} {
+	for _, part := range []string{`"chain_state": "landed"`, `"chain_out_amount": "305000000"`, `"override": false`} {
 		if !strings.Contains(detail, part) {
 			t.Fatalf("audit = %s, want %s", detail, part)
 		}
@@ -89,9 +89,9 @@ func TestForceResolveRouted_refusesWhatTheReceiptContradicts(t *testing.T) {
 		out  uint64
 		want string
 	}{
-		"failed but it landed":        {app.EVMFill{State: app.FillSucceeded, Out: filledOut}, domain.StatusFailed, 0, "landed successfully"},
+		"failed but it landed":        {app.EVMFill{State: app.FillSucceeded, Out: money.UnitsFromUint64(filledOut)}, domain.StatusFailed, 0, "landed successfully"},
 		"confirmed but it reverted":   {app.EVMFill{State: app.FillReverted}, domain.StatusConfirmed, filledOut, "reverted"},
-		"confirmed with wrong amount": {app.EVMFill{State: app.FillSucceeded, Out: filledOut}, domain.StatusConfirmed, filledOut + 1, "received 305000000, not 305000001"},
+		"confirmed with wrong amount": {app.EVMFill{State: app.FillSucceeded, Out: money.UnitsFromUint64(filledOut)}, domain.StatusConfirmed, filledOut + 1, "received 305000000, not 305000001"},
 		"confirmed with no transfer":  {app.EVMFill{State: app.FillSucceeded}, domain.StatusConfirmed, filledOut, "received 0, not 305000000"},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -114,7 +114,7 @@ func TestForceResolveRouted_overrideBooksTheContradictionAndAuditsTheFacts(t *te
 	t.Parallel()
 	e := newRouteEnv(t)
 	swap := e.parkedWithoutReceipt(t)
-	e.evm.inspects = []app.EVMFill{{State: app.FillSucceeded, Out: filledOut}}
+	e.evm.inspects = []app.EVMFill{{State: app.FillSucceeded, Out: money.UnitsFromUint64(filledOut)}}
 
 	view, err := e.forceRouted(t, swap, domain.StatusFailed, 0, true)
 	if err != nil || view.Status != domain.StatusFailed {
@@ -198,7 +198,7 @@ func TestResolveParkedSwap_failParkedRefusesASwapWhoseReceiptShowsItLanded(t *te
 	t.Parallel()
 	e := newRouteEnv(t)
 	swap := e.parkedWithoutReceipt(t)
-	e.evm.inspects = []app.EVMFill{{State: app.FillSucceeded, Out: filledOut}}
+	e.evm.inspects = []app.EVMFill{{State: app.FillSucceeded, Out: money.UnitsFromUint64(filledOut)}}
 
 	err := e.resolveParked(t, swap, app.ParkedFail)
 	if errs.CodeOf(err) != errs.CodeInvalidInput || err == nil ||
@@ -296,7 +296,7 @@ func TestResolveParkedSwap_aSellsReceiptIsReadForTheCashItPays(t *testing.T) {
 		t.Fatal(err)
 	}
 	e.wantParked(t, swap, app.ParkedSwapReceiptMissing)
-	e.evm.inspects = []app.EVMFill{{State: app.FillSucceeded, Out: proceeds}}
+	e.evm.inspects = []app.EVMFill{{State: app.FillSucceeded, Out: money.UnitsFromUint64(proceeds)}}
 
 	if err := e.resolveParked(t, swap, app.ParkedFail); errs.CodeOf(err) != errs.CodeInvalidInput {
 		t.Fatalf("fail-parked err = %v, want invalid_input for a sell that landed", err)

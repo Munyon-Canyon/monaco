@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"math"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -91,9 +92,9 @@ func (r proposalRig) wantFilledOrder(t *testing.T) {
 	t.Helper()
 	got := r.wantFill(t, feed.FillFilled, "filled")
 	state, tokens, usdc, _, err := feed.DeriveFill(got.Payload)
-	if err != nil || state != feed.FillFilled || tokens.Uint64() != 500_000_000 ||
+	if err != nil || state != feed.FillFilled || !tokens.Amount.Equal(money.UnitsFromUint64(500_000_000)) ||
 		usdc.Uint64() != 750_000_000 {
-		t.Fatalf("derived %s %s %s, %v, want filled 500000000 750000000", state, tokens, usdc, err)
+		t.Fatalf("derived %s %s %s, %v, want filled 500000000 750000000", state, tokens.Amount, usdc, err)
 	}
 	if !strings.HasSuffix(got.Title, "· filled") {
 		t.Fatalf("title = %q, want it to end filled", got.Title)
@@ -130,6 +131,34 @@ func TestFeedResult_oneSwapConfirmedAndOneFailedIsPartialInEitherOrder(t *testin
 	}
 }
 
+func TestFeedResult_aFillPastUint64RoundTripsThroughTheStoredPayloadAndAggregates(t *testing.T) {
+	t.Parallel()
+	r := newProposalRig(t).passedRig(t)
+	swaps := [2]events.TradeConfirmed{r.swap(2), r.swap(2)}
+	first, err := money.ParseUnits("25000000000000000000")
+	if err != nil {
+		t.Fatal(err)
+	}
+	second := money.UnitsFromUint64(5_000_000_000_000_000_000)
+	swaps[0].OutAmount, swaps[1].OutAmount = first, second
+	if err := errors.Join(r.deliverTrade(t, swaps[0]), r.deliverTrade(t, swaps[1])); err != nil {
+		t.Fatal(err)
+	}
+
+	stored, err := feed.ParsePayload(r.resultPayload(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fill := stored.Fills[swaps[0].SwapID.String()]; !fill.TokenAmount.Amount.Equal(first) {
+		t.Fatalf("stored fill = %+v, want the 25e18 fill kept whole", fill)
+	}
+	got := r.wantFill(t, feed.FillFilled, "filled")
+	state, tokens, _, _, err := feed.DeriveFill(got.Payload)
+	if err != nil || state != feed.FillFilled || tokens.Amount.String() != "30000000000000000000" {
+		t.Fatalf("derived %s %s, %v, want filled 30000000000000000000", state, tokens.Amount, err)
+	}
+}
+
 func (r proposalRig) wantPartial(t *testing.T, bad events.TradeConfirmed) {
 	t.Helper()
 	got := r.wantFill(t, feed.FillPartial, "partly filled · trade failed")
@@ -137,8 +166,8 @@ func (r proposalRig) wantPartial(t *testing.T, bad events.TradeConfirmed) {
 		t.Fatalf("title = %q, want it to end trade failed", got.Title)
 	}
 	_, tokens, usdc, _, err := feed.DeriveFill(got.Payload)
-	if err != nil || tokens.Uint64() != 250_000_000 || usdc.Uint64() != 500_000_000 {
-		t.Fatalf("partial sums %s %s, %v, want the confirmed swap only", tokens, usdc, err)
+	if err != nil || !tokens.Amount.Equal(money.UnitsFromUint64(250_000_000)) || usdc.Uint64() != 500_000_000 {
+		t.Fatalf("partial sums %s %s, %v, want the confirmed swap only", tokens.Amount, usdc, err)
 	}
 	if got.Payload.Failures[bad.SwapID.String()] != "price_moved" {
 		t.Fatalf("failures = %v", got.Payload.Failures)
@@ -213,7 +242,7 @@ func TestFeedResult_aReopenAndSecondCloseKeepTheFillAndTheFailure(t *testing.T) 
 	}
 	after := r.wantFill(t, feed.FillPartial, "partly filled · trade failed").Payload
 	if len(after.Fills) != 1 || len(after.Failures) != 1 || after.ExpectedFills != 2 ||
-		after.Fills[ok.SwapID.String()] != before.Fills[ok.SwapID.String()] {
+		!reflect.DeepEqual(after.Fills[ok.SwapID.String()], before.Fills[ok.SwapID.String()]) {
 		t.Fatalf("payload after the second close = %+v, want %+v", after, before)
 	}
 }
@@ -393,7 +422,7 @@ func TestFeedResult_aSellFillRecordsTheTokensSold(t *testing.T) {
 	}
 	got := r.wantFill(t, feed.FillFilled, "filled")
 	_, tokens, _, _, err := feed.DeriveFill(got.Payload)
-	if err != nil || tokens.Uint64() != e.InAmount {
-		t.Fatalf("sold tokens = %s, %v, want %d", tokens, err, e.InAmount)
+	if err != nil || !tokens.Amount.Equal(e.InAmount) {
+		t.Fatalf("sold tokens = %s, %v, want %s", tokens.Amount, err, e.InAmount)
 	}
 }

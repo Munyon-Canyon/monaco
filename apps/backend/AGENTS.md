@@ -16,7 +16,7 @@ New rules go in `docs/agents/rules.yaml`. The list below is rendered from it.
 - App holds commands and queries and defines the ports it needs: enforced by `lint:apps/backend/.golangci.base.yml`.
 - Never edit `.golangci.yml`; it is generated from `.golangci.base.yml`: enforced by `hook:agent-guard.py`.
 - Cross-module means an event, or the other module's query port: enforced by `lint:apps/backend/.golangci.base.yml`.
-- Amounts are `money.Micros`, `money.SignedMicros` or `money.BaseUnits`; floats are banned: enforced by `lint:apps/backend/.golangci.base.yml`.
+- Amounts are `money.Micros`, `money.SignedMicros`, `money.Units`, `money.SignedUnits` or `money.BaseUnits`; floats are banned: enforced by `lint:apps/backend/.golangci.base.yml`.
 - Every balance change and its event commit together inside `db.UnitOfWork.Do`. Read the `money-change` skill first.
 - No comments in Go: a better name, a type, a test or an issue instead: enforced by `hook:agent-guard-go-comments.sh`.
 - Use the generators: `just gen module`, `just gen command`, `just gen query`, `just gen consumer`, `just gen provider` and `just gen flow` write the first copy. Copy what they emit, not what you remember.

@@ -24,12 +24,14 @@ func (h HTTP) GetCabalProposalPriceComparison(
 	if err != nil {
 		return nil, err
 	}
-	quote, err := wireInt(live.QuoteOut, "quote_out_amount")
+	quote, err := wireUnitsInt(live.QuoteOut, "quote_out_amount")
 	if err != nil {
 		return nil, err
 	}
 	return api.GetCabalProposalPriceComparison200JSONResponse{
-		QuoteOutAmount: quote, QuotedAt: live.QuotedAt, PriceComparison: wireComparison(live.Comparison),
+		QuoteOutAmount:  quote,
+		QuotedAt:        live.QuotedAt,
+		PriceComparison: wireComparison(live.Comparison),
 	}, nil
 }
 

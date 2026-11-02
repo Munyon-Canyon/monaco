@@ -45,7 +45,7 @@ type PendingVote struct {
 	Kind          domain.Kind
 	Symbol        string
 	USDC          money.Micros
-	TokenAmount   money.BaseUnits
+	TokenAmount   money.Units
 	TokenDecimals uint8
 	AssetName     string
 	AssetLogo     string
@@ -100,9 +100,9 @@ func (r *PendingVoteReads) PendingVotes(ctx context.Context, voter ids.UserID) (
 		if err != nil {
 			return nil, err
 		}
-		var wireDecimals uint8
-		if network.IsEVM() && row.TokenAmount.Valid {
-			wireDecimals = decimals
+		tokens, wireDecimals, err := pendingTokens(row.TokenAmount, network, decimals)
+		if err != nil {
+			return nil, err
 		}
 		voters := int(row.VoterCount)
 		out[i] = PendingVote{
@@ -113,7 +113,7 @@ func (r *PendingVoteReads) PendingVotes(ctx context.Context, voter ids.UserID) (
 			Symbol:        row.Symbol.String,
 			Rule:          rules[i],
 			USDC:          money.MicrosFromUint64(uint64(max(row.UsdcMicros.Int64, 0))),
-			TokenAmount:   money.NewBaseUnits(uint64(max(row.TokenAmount.Int64, 0)), decimals),
+			TokenAmount:   tokens,
 			TokenDecimals: wireDecimals,
 			AssetName:     nameOr(asset.DisplayName, row.Symbol.String),
 			AssetLogo:     asset.LogoURL,
@@ -203,4 +203,12 @@ func nameOr(name, fallback string) string {
 		return fallback
 	}
 	return name
+}
+
+func pendingTokens(raw string, network chain.Network, decimals uint8) (money.Units, uint8, error) {
+	tokens, err := parseUnits(raw)
+	if err != nil || raw == "" || !network.IsEVM() {
+		return tokens, 0, err
+	}
+	return tokens, decimals, nil
 }

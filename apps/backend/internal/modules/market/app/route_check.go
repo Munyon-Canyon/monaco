@@ -39,8 +39,8 @@ type Quoter interface {
 }
 
 type RouteCheck struct {
-	InAmount       money.BaseUnits
-	OutAmount      money.BaseUnits
+	InAmount       money.Units
+	OutAmount      money.Units
 	PriceImpactBps int64
 	QuotedAt       time.Time
 }
@@ -73,7 +73,7 @@ func NewRouteChecker(assets AssetLookup, prices SampledPrices, quotes Quoter, cl
 }
 
 func (r *RouteChecker) CheckRoute(
-	ctx context.Context, id domain.AssetID, side Side, amount money.BaseUnits,
+	ctx context.Context, id domain.AssetID, side Side, units money.Units,
 ) (RouteCheck, error) {
 	asset, err := r.assets.AssetByID(ctx, id)
 	if err != nil {
@@ -82,17 +82,18 @@ func (r *RouteChecker) CheckRoute(
 	if !asset.Tradable() {
 		return RouteCheck{}, errs.New(errs.CodeAssetUntradable, checkRouteOp, slog.String("symbol", asset.Symbol))
 	}
-	if amount.IsZero() {
-		return RouteCheck{}, errs.New(errs.CodeInvalidInput, checkRouteOp, slog.String("amount", amount.String()))
+	if units.IsZero() {
+		return RouteCheck{}, errs.New(errs.CodeInvalidInput, checkRouteOp, slog.String("amount", units.String()))
 	}
-	in, out, inDec, outDec, err := r.legs(asset, side)
+	in, out, inDec, _, err := r.legs(asset, side)
 	if err != nil {
 		return RouteCheck{}, err
 	}
-	if amount.Decimals() != inDec {
-		return RouteCheck{}, errs.New(errs.CodeInvalidInput, checkRouteOp,
-			slog.String("amount", amount.String()), slog.Int("decimals", int(amount.Decimals())))
+	raw, err := units.Uint64()
+	if err != nil {
+		return RouteCheck{}, errs.Wrap(err, errs.CodeInvalidInput, checkRouteOp, slog.String("amount", units.String()))
 	}
+	amount := money.NewBaseUnits(raw, inDec)
 	q, err := r.quotes.Quote(ctx, in, out, amount)
 	if err != nil {
 		return RouteCheck{}, err
@@ -101,8 +102,8 @@ func (r *RouteChecker) CheckRoute(
 		return RouteCheck{}, r.unrouted(ctx, asset, side, amount, in, out)
 	}
 	return RouteCheck{
-		InAmount:       money.NewBaseUnits(q.InAmount.Uint64(), inDec),
-		OutAmount:      money.NewBaseUnits(q.OutAmount.Uint64(), outDec),
+		InAmount:       money.UnitsFromUint64(q.InAmount.Uint64()),
+		OutAmount:      money.UnitsFromUint64(q.OutAmount.Uint64()),
 		PriceImpactBps: q.PriceImpactBps,
 		QuotedAt:       r.clock.Now(),
 	}, nil

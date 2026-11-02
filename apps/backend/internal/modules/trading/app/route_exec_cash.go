@@ -11,16 +11,17 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
 func (r *RouteExec) CashLeg(
-	ctx context.Context, cabal ids.CabalID, network chain.Network, ledger uint64,
-) (multichain.Listing, uint64, error) {
+	ctx context.Context, cabal ids.CabalID, network chain.Network, ledger money.Units,
+) (multichain.Listing, money.Units, error) {
 	id, err := sqlc.New(r.d.Layer.d.Reads).CashCarrierListing(ctx, sqlc.CashCarrierListingParams{
 		CabalID: cabal.UUID(), Network: string(network),
 	})
 	if errors.Is(err, sql.ErrNoRows) {
-		return multichain.Listing{}, 0, nil
+		return multichain.Listing{}, money.Units{}, nil
 	}
 	var listing multichain.Listing
 	if err == nil {
@@ -31,15 +32,15 @@ func (r *RouteExec) CashLeg(
 		wallet, err = r.d.TreasuryEVM.EnsureTreasuryEVMWallet(ctx, cabal)
 	}
 	if err != nil {
-		return multichain.Listing{}, 0, errs.Wrap(err, errs.CodeOf(err), "trading.RouteExec.CashLeg")
+		return multichain.Listing{}, money.Units{}, errs.Wrap(err, errs.CodeOf(err), "trading.RouteExec.CashLeg")
 	}
 	onChain, err := r.d.Cash.Balance(ctx, network, wallet.Address)
 	if err != nil {
-		return multichain.Listing{}, 0, err
+		return multichain.Listing{}, money.Units{}, err
 	}
 	cash := network.Cash()
 	listing.TokenAddress, listing.Decimals, listing.Symbol = cash.Address, cash.Decimals, cash.Symbol
-	return listing, min(ledger, onChain.Uint64()), nil
+	return listing, minUnits(ledger, money.UnitsFromMicros(onChain)), nil
 }
 
 func (r *RouteExec) cashLeg(ctx context.Context, b routedBuy) error {
@@ -60,4 +61,11 @@ func (r *RouteExec) cashLeg(ctx context.Context, b routedBuy) error {
 	return r.sold(ctx, b, EVMSwapResult{
 		EVMFill: EVMFill{State: FillSucceeded, Out: b.req.InAmount}, Hash: hash,
 	})
+}
+
+func minUnits(a, b money.Units) money.Units {
+	if a.Cmp(b) <= 0 {
+		return a
+	}
+	return b
 }

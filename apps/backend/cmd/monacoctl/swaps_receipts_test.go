@@ -15,6 +15,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
 
@@ -70,7 +71,10 @@ func swapStatus(t *testing.T, pool *pgxpool.Pool, swap uuid.UUID) string {
 
 func TestSwapsForceResolve_refusesARoutedSwapTheReceiptContradictsUntilOverridden(t *testing.T) {
 	t.Parallel()
-	swaps, swap, hash, pool := receiptMissingTool(t, tradingapp.EVMFill{State: tradingapp.FillSucceeded, Out: 7})
+	swaps, swap, hash, pool := receiptMissingTool(
+		t,
+		tradingapp.EVMFill{State: tradingapp.FillSucceeded, Out: money.UnitsFromUint64(7)},
+	)
 	args := []string{"force-resolve", "--signature", hash, "--to", "failed", "--reason", "gone", "--yes"}
 
 	code, _, stderr := runSwaps(t, swaps, args...)
@@ -90,7 +94,10 @@ func TestSwapsForceResolve_refusesARoutedSwapTheReceiptContradictsUntilOverridde
 
 func TestSwapsFailParked_refusesAReceiptMissingSwapThatLanded(t *testing.T) {
 	t.Parallel()
-	swaps, swap, _, pool := receiptMissingTool(t, tradingapp.EVMFill{State: tradingapp.FillSucceeded, Out: 7})
+	swaps, swap, _, pool := receiptMissingTool(
+		t,
+		tradingapp.EVMFill{State: tradingapp.FillSucceeded, Out: money.UnitsFromUint64(7)},
+	)
 
 	code, _, stderr := runSwaps(t, swaps, "fail-parked", "--swap", swap.String(), "--reason", "gone", "--yes")
 

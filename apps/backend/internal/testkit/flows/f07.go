@@ -249,8 +249,8 @@ func drainPot(t testkit.SeedT, pool *pgxpool.Pool, cabal ids.CabalID, micros int
 		ID: ids.Real{}.NewV7(), CabalID: cabal, Kind: domain.CabalSwap, Status: domain.TxnSettled,
 		SwapID: ids.Real{}.NewV7(),
 	}, []domain.CabalEntry{
-		{Account: domain.CabalTreasury, Asset: usdc, Amount: money.SignedMicrosFromInt64(-micros)},
-		{Account: domain.CabalVenue, Asset: usdc, Amount: money.SignedMicrosFromInt64(micros)},
+		{Account: domain.CabalTreasury, Asset: usdc, Amount: money.SignedUnitsFromInt64(-micros)},
+		{Account: domain.CabalVenue, Asset: usdc, Amount: money.SignedUnitsFromInt64(micros)},
 	})
 	if err == nil {
 		ledger := app.NewLedger(testkit.USDCMint, clock.Real{})

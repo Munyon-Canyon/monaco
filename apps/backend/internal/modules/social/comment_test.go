@@ -75,8 +75,16 @@ func (f commentFixture) item(t *testing.T, kind feed.Kind) uuid.UUID {
 		it.Kind, it.CabalID, it.ActorID = kind, f.cabal.ID, f.cabal.Creator.ID
 		if kind == feed.KindProposal {
 			it.Payload = feed.Payload{
-				CabalName: "Alpha Cabal", ActorName: "Ada", Symbol: "AAPLx", AssetName: "Apple", Action: feed.ActionBuy,
-				USDCMicros: money.MicrosFromUint64(250_000_000), TokenAmount: 1_500_000, TokenDecimals: 6,
+				CabalName: "Alpha Cabal",
+				ActorName: "Ada",
+				Symbol:    "AAPLx",
+				AssetName: "Apple",
+				Action:    feed.ActionBuy,
+				USDCMicros: money.MicrosFromUint64(
+					250_000_000,
+				),
+				TokenAmount:   money.UnitsFromUint64(1_500_000),
+				TokenDecimals: 6,
 				ShareOfPotBps: 1000,
 			}
 		}

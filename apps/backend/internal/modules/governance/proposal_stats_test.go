@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -72,7 +73,7 @@ func TestGetProposal_sellTreasuryShare(t *testing.T) {
 	d := newReadsDB(t)
 	p := d.buy(d.caller)
 	p.CabalID, p.Kind, p.UsdcMicros = d.cabal, "sell", pgtype.Int8{}
-	p.TokenAmount, p.QuoteOutAmount = pgtype.Int8{Int64: 5_000_000, Valid: true}, 40_000_000
+	p.TokenAmount, p.QuoteOutAmount = "5000000", "40000000"
 	d.insert(t, p)
 	d.setPot(t, p.ID, 1_000_000_000)
 	got := d.get(t, p.ID, d.caller).Stats.TreasuryShareBps
@@ -131,7 +132,7 @@ func TestGetProposal_refusesAShareThatOverflows(t *testing.T) {
 	d := newReadsDB(t)
 	p := d.buy(d.caller)
 	p.CabalID, p.Kind, p.UsdcMicros = d.cabal, "sell", pgtype.Int8{}
-	p.TokenAmount, p.QuoteOutAmount = pgtype.Int8{Int64: 5_000_000, Valid: true}, math.MaxInt64
+	p.TokenAmount, p.QuoteOutAmount = "5000000", strconv.FormatInt(math.MaxInt64, 10)
 	d.insert(t, p)
 	d.setPot(t, p.ID, 1)
 	req := app.GetProposal{ID: ids.ProposalIDFrom(p.ID), Caller: ids.UserIDFrom(d.caller)}
@@ -146,7 +147,7 @@ func TestOpenProposal_aShareThatOverflowsOpensNothing(t *testing.T) {
 	h := newProposeHarness(t)
 	h.w.treasury.SetPotValue(h.w.cabal, money.MicrosFromUint64(1))
 	aapl := marketfake.AAPLx()
-	h.w.routes.Ok(aapl.ID, market.RouteCheck{OutAmount: money.NewBaseUnits(math.MaxInt64, aapl.Decimals)})
+	h.w.routes.Ok(aapl.ID, market.RouteCheck{OutAmount: money.UnitsFromUint64(math.MaxInt64)})
 	_, err := h.propose(h.d.ids, sellAAPL(heldUnits))
 	if errs.CodeOf(err) != errs.CodeInvalidInput {
 		t.Fatalf("propose sell with a share past uint64 = %v, want invalid_input", err)

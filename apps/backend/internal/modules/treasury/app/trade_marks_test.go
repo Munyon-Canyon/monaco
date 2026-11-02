@@ -9,6 +9,7 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/sqlc"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
 func marksBase() time.Time { return time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC) }
@@ -18,7 +19,7 @@ func marksTrade(i int, side string, units, usdc uint64) trade {
 		id:    uuid.UUID{byte(uint(i) % 200)},
 		at:    marksBase().Add(time.Duration(i) * time.Hour),
 		side:  side,
-		units: units,
+		units: money.UnitsFromUint64(units),
 		usdc:  usdc,
 	}
 }

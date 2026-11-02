@@ -120,7 +120,7 @@ func ProbeFailed(err error) bool { return app.ProbeFailed(err) }
 func ProbeFailure(err error) error { return app.ProbeFailure(err) }
 
 type Routes interface {
-	CheckRoute(ctx context.Context, id AssetID, side Side, amount money.BaseUnits) (RouteCheck, error)
+	CheckRoute(ctx context.Context, id AssetID, side Side, amount money.Units) (RouteCheck, error)
 }
 
 type multichainParts struct {

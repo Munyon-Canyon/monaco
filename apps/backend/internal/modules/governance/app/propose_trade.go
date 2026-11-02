@@ -27,8 +27,6 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
-const usdcDecimals = 6
-
 type Cabals interface {
 	IsMember(ctx context.Context, id ids.CabalID, user ids.UserID) (bool, error)
 	Rules(ctx context.Context, id ids.CabalID) (cabalport.Rules, error)
@@ -159,14 +157,18 @@ func (h *ProposeTradeHandler) Open(ctx context.Context, cmd ProposeTrade) (Opene
 	p, err := domain.NewProposal(domain.Draft{
 		ID: ids.ProposalIDFrom(h.ids.NewV7()), CabalID: cmd.CabalID, ProposerID: cmd.ProposerID, Kind: cmd.Trade.Kind,
 		Symbol: a.asset.Symbol, Mint: a.asset.Mint.Address(), USDCMicros: cmd.Trade.USDCMicros,
-		TokenAmount: money.NewBaseUnits(cmd.Trade.TokenAmount, a.decimals), Thesis: cmd.Trade.Thesis,
+		TokenAmount: cmd.Trade.TokenAmount, Decimals: a.decimals, Thesis: cmd.Trade.Thesis,
 		QuoteOut:  displayQuote(a.asset, a.priced, a.routed, now),
 		ExpiresAt: now.Add(rules.ProposalExpiry), Network: a.network,
 	})
 	if err != nil {
 		return OpenedProposal{}, err
 	}
-	share, err := TreasuryShareBps(shareValue(p.Draft()), a.pot)
+	value, err := shareValue(p.Draft())
+	if err != nil {
+		return OpenedProposal{}, err
+	}
+	share, err := TreasuryShareBps(value, a.pot)
 	if err != nil {
 		return OpenedProposal{}, err
 	}
@@ -180,14 +182,11 @@ func (h *ProposeTradeHandler) Open(ctx context.Context, cmd ProposeTrade) (Opene
 		return OpenedProposal{}, err
 	}
 	h.hints.ProposalCreated(ctx, cmd.CabalID, p.Draft().ID)
-	canVote := false
-	for _, voter := range voters {
-		canVote = canVote || voter == cmd.ProposerID
-	}
 	return OpenedProposal{
-		Draft: p.Draft(), Voters: voters, CreatedAt: now, Needed: rule.Needed(len(voters)), ProposerCanVote: canVote,
-		USDCMicros: decimal(p.Draft().USDCMicros.String()), TokenAmount: decimal(p.Draft().TokenAmount.String()),
-		QuoteOutAmount: decimal(strconv.FormatUint(p.Draft().QuoteOut, 10)), PriceComparison: a.comparison,
+		Draft: p.Draft(), Voters: voters, CreatedAt: now, Needed: rule.Needed(len(voters)),
+		ProposerCanVote: slices.Contains(voters, cmd.ProposerID),
+		USDCMicros:      decimal(p.Draft().USDCMicros.String()), TokenAmount: p.Draft().TokenAmount.Int64OrZero(),
+		QuoteOutAmount: p.Draft().QuoteOut.Int64OrZero(), PriceComparison: a.comparison,
 		Stats: Stats{TreasuryShareBps: share, ClosesAt: p.Draft().ExpiresAt},
 	}, nil
 }
@@ -212,11 +211,11 @@ func decimal(raw string) int64 {
 	return n
 }
 
-func shareValue(d domain.Draft) money.Micros {
+func shareValue(d domain.Draft) (money.Micros, error) {
 	if d.Kind == domain.KindSell {
-		return money.MicrosFromUint64(d.QuoteOut)
+		return d.QuoteOut.Micros()
 	}
-	return d.USDCMicros
+	return d.USDCMicros, nil
 }
 
 func (a assessment) potColumn() string {
@@ -231,7 +230,7 @@ type assessment struct {
 	potKnown   bool
 	asset      market.Asset
 	decimals   uint8
-	routed     uint64
+	routed     money.Units
 	comparison *multichain.Comparison
 	priced     *multichain.Comparison
 	network    chain.Network
@@ -441,26 +440,26 @@ func ledgerCash(ctx context.Context, p TradePorts, cabal ids.CabalID) (money.Mic
 
 func (h *ProposeTradeHandler) route(
 	ctx context.Context, asset market.Asset, trade domain.Trade,
-) (uint64, *multichain.Comparison, error) {
-	side, amount := market.SideSell, money.NewBaseUnits(trade.TokenAmount, asset.Decimals)
+) (money.Units, *multichain.Comparison, error) {
+	side, amount := market.SideSell, trade.TokenAmount
 	if trade.Kind == domain.KindBuy {
 		if h.ports.Router != nil {
 			comparison, err := h.best(ctx, asset, trade)
 			if errs.CodeOf(err) != errs.CodeNoRoute {
-				return 0, comparison, err
+				return money.Units{}, comparison, err
 			}
 		}
-		side, amount = market.SideBuy, money.NewBaseUnits(trade.USDCMicros.Uint64(), usdcDecimals)
+		side, amount = market.SideBuy, money.UnitsFromMicros(trade.USDCMicros)
 	}
 	check, err := h.ports.Routes.CheckRoute(ctx, asset.ID, side, amount)
-	return check.OutAmount.Uint64(), nil, err
+	return check.OutAmount, nil, err
 }
 
 func openParams(d domain.Draft, rule domain.ThresholdRule, voters []ids.UserID, now time.Time) sqlc.OpenProposalParams {
 	params := sqlc.OpenProposalParams{
 		ID: d.ID.UUID(), CabalID: d.CabalID.UUID(), ProposerID: d.ProposerID.UUID(), Kind: string(d.Kind),
 		Symbol: d.Symbol, Mint: string(d.Mint), UsdcMicros: d.USDCMicros.String(), TokenAmount: d.TokenAmount.String(),
-		Thesis: d.Thesis, QuoteOutAmount: strconv.FormatUint(d.QuoteOut, 10), Threshold: string(rule),
+		Thesis: d.Thesis, QuoteOutAmount: d.QuoteOut.String(), Threshold: string(rule),
 		ExpiresAt: d.ExpiresAt, CreatedAt: now, Network: string(d.Network),
 		VoterIds: make([]uuid.UUID, len(voters)),
 	}
@@ -474,6 +473,6 @@ func created(d domain.Draft, voters int) events.ProposalCreated {
 	return events.ProposalCreated{
 		V: 1, ProposalID: d.ID.UUID(), CabalID: d.CabalID.UUID(), ProposerID: d.ProposerID.UUID(),
 		Kind: string(d.Kind), Symbol: d.Symbol, Mint: d.Mint, USDCMicros: d.USDCMicros,
-		TokenAmount: d.TokenAmount.Uint64(), QuoteOutAmount: d.QuoteOut, ExpiresAt: d.ExpiresAt, VoterCount: voters,
+		TokenAmount: d.TokenAmount, QuoteOutAmount: d.QuoteOut, ExpiresAt: d.ExpiresAt, VoterCount: voters,
 	}
 }

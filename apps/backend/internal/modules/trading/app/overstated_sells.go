@@ -4,9 +4,11 @@ import (
 	"context"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
+	"github.com/monaco/monaco/apps/backend/internal/modules/trading/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
 type SellFill struct {
@@ -14,17 +16,23 @@ type SellFill struct {
 	CabalID   ids.CabalID
 	Symbol    string
 	Signature chain.Signature
-	Recorded  uint64
-	OnChain   uint64
+	Recorded  money.Units
+	OnChain   money.Units
 	Code      errs.Code
 }
 
-func (f SellFill) Overstated() uint64 { return f.Recorded - f.OnChain }
+func (f SellFill) Overstated() money.Units {
+	over, err := f.Recorded.Sub(f.OnChain)
+	if err != nil {
+		return money.Units{}
+	}
+	return over
+}
 
 type CabalOverstatement struct {
 	CabalID ids.CabalID
 	Sells   int
-	Micros  uint64
+	Micros  money.Units
 }
 
 type OverstatedSellsReport struct {
@@ -42,9 +50,13 @@ func OverstatedSells(
 	}
 	var report OverstatedSellsReport
 	for _, row := range rows {
+		recorded, _, err := domain.ParseOptionalTokenAmount(row.OutAmount)
+		if err != nil {
+			return OverstatedSellsReport{}, err
+		}
 		fill := SellFill{
 			SwapID: ids.SwapIDFrom(row.ID), CabalID: ids.CabalIDFrom(row.CabalID), Symbol: row.Symbol,
-			Signature: chain.Signature(row.TxSignature.String), Recorded: uint64(max(row.OutAmount.Int64, 0)),
+			Signature: chain.Signature(row.TxSignature.String), Recorded: recorded,
 		}
 		got, err := reader.InboundAmount(ctx, fill.Signature, chain.SolanaAddress(row.TreasuryAddress), usdc)
 		if err != nil {
@@ -52,20 +64,24 @@ func OverstatedSells(
 			report.Unread = append(report.Unread, fill)
 			continue
 		}
-		fill.OnChain = got.Uint64()
-		if fill.Recorded > fill.OnChain {
-			report.add(fill)
+		fill.OnChain = money.UnitsFromUint64(got.Uint64())
+		if fill.Recorded.Cmp(fill.OnChain) > 0 {
+			if err := report.add(fill); err != nil {
+				return OverstatedSellsReport{}, err
+			}
 		}
 	}
 	return report, nil
 }
 
-func (r *OverstatedSellsReport) add(fill SellFill) {
+func (r *OverstatedSellsReport) add(fill SellFill) error {
 	r.Sells = append(r.Sells, fill)
 	if n := len(r.Cabals); n == 0 || r.Cabals[n-1].CabalID != fill.CabalID {
 		r.Cabals = append(r.Cabals, CabalOverstatement{CabalID: fill.CabalID})
 	}
 	last := &r.Cabals[len(r.Cabals)-1]
 	last.Sells++
-	last.Micros += fill.Overstated()
+	total, err := last.Micros.Add(fill.Overstated())
+	last.Micros = total
+	return err
 }

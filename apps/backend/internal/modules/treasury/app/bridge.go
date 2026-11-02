@@ -65,10 +65,15 @@ func bookedFee(ctx context.Context, tx db.Tx, landed uuid.UUID, asset domain.Ass
 	rows, err := sqlc.New(tx.Queries()).AdminTxnByID(ctx, landed)
 	var fee money.Micros
 	for _, r := range rows {
-		if r.Account != string(domain.CabalFees) || r.Asset != string(asset) || r.Amount <= 0 {
+		if r.Account != string(domain.CabalFees) || r.Asset != string(asset) {
 			continue
 		}
-		credit, creditErr := money.SignedMicrosFromInt64(r.Amount).Micros()
+		amount, parseErr := money.ParseSignedUnits(r.Amount)
+		if parseErr != nil || amount.Sign() <= 0 {
+			err = errors.Join(err, parseErr)
+			continue
+		}
+		credit, creditErr := amount.Abs().Micros()
 		sum, sumErr := fee.Add(credit)
 		fee, err = sum, errors.Join(err, creditErr, sumErr)
 	}

@@ -54,10 +54,10 @@ func (h *heldFake) EVMCashPositions(context.Context, ids.CabalID) (map[chain.Net
 }
 
 func (e *routeEnv) selling() app.SwapRequest {
-	e.evm.plan.OutAmount, e.evm.plan.MinOut = quotedSale, saleMinOut
-	e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: proceeds}}
+	e.evm.plan.OutAmount, e.evm.plan.MinOut = money.UnitsFromUint64(quotedSale), money.UnitsFromUint64(saleMinOut)
+	e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: money.UnitsFromUint64(proceeds)}}
 	req := e.request()
-	req.Action, req.InAmount = domain.ActionSell, soldUnits
+	req.Action, req.InAmount = domain.ActionSell, money.UnitsFromUint64(soldUnits)
 	return req
 }
 
@@ -83,9 +83,9 @@ func TestRouteExec_aSellSwapsToEVMCashConfirmsAndBridgesTheProceedsBack(t *testi
 	}
 	spec := app.EVMSwapSpec{
 		Network: chain.NetworkBase, Owner: evmAddress(t, evmTreasury), TokenIn: evmAddress(t, e.listing.TokenAddress),
-		TokenOut: evmAddress(t, baseCash), AmountIn: soldUnits, SlippageBps: 100,
+		TokenOut: evmAddress(t, baseCash), AmountIn: money.UnitsFromUint64(soldUnits), SlippageBps: 100,
 	}
-	if len(e.evm.specs) != 1 || e.evm.specs[0] != spec {
+	if len(e.evm.specs) != 1 || !sameJSON(e.evm.specs[0], spec) {
 		t.Fatalf("built %+v, want the held tokens sold for EVM cash", e.evm.specs)
 	}
 	calls := e.privy.calls()
@@ -115,11 +115,11 @@ func TestRouteExec_aSellsPendingBridgeBackIsFinishedByThePoller(t *testing.T) {
 	}
 }
 
-func TestRouteExec_aSellWithNoQuotedProceedsOrAFillPastTheColumnSendsOrConfirmsNothing(t *testing.T) {
+func TestRouteExec_aSellWithNoQuotedProceedsOrProceedsPastMicrosSendsOrConfirmsNothing(t *testing.T) {
 	t.Parallel()
 	e := newRouteEnv(t)
 	unquoted := e.selling()
-	e.evm.plan.OutAmount = 0
+	e.evm.plan.OutAmount = money.UnitsFromUint64(0)
 
 	view := e.mustBuy(t, unquoted, domain.StatusFailed)
 	if code := e.failure(t, view.ID.UUID()); code != string(domain.FailurePriceMoved) || len(e.evm.keys()) != 0 {
@@ -127,9 +127,9 @@ func TestRouteExec_aSellWithNoQuotedProceedsOrAFillPastTheColumnSendsOrConfirmsN
 	}
 
 	huge := e.selling()
-	e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: 1 << 63}}
-	if _, err := e.buy(t.Context(), huge); errs.CodeOf(err) != errs.CodeDecodeFailed {
-		t.Fatalf("Trade err = %v, want decode_failed", err)
+	e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: mustUnits(t, twoToThe64)}}
+	if _, err := e.buy(t.Context(), huge); errs.CodeOf(err) != errs.CodeInvalidInput {
+		t.Fatalf("Trade err = %v, want invalid_input", err)
 	}
 	if status, _, _, _ := e.row(t, e.swapIDs(t, huge.Source.ID)[0]); status != string(domain.StatusSubmitted) {
 		t.Fatalf("swap is %s, want submitted", status)

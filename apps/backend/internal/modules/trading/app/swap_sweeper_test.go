@@ -146,7 +146,7 @@ func (e *sweeperEnv) insert(t *testing.T) sqlc.InsertCreatedParams {
 	p := sqlc.InsertCreatedParams{
 		ID: e.ids.NewV7(), SourceKind: "proposal", SourceID: e.ids.NewV7(), CabalID: e.ids.NewV7(),
 		TreasuryAddress: "treasury", Action: "buy", Symbol: "AAPLx", InMint: "usdc", OutMint: "aaplx",
-		OutDecimals: 8, InAmount: 25_000_000,
+		OutDecimals: 8, InAmount: "25000000",
 		SlippageBps: 100, SourceBatchSize: 3, CreatedAt: e.clk.Now(),
 	}
 	if err := e.q.InsertCreated(t.Context(), p); err != nil {
@@ -318,7 +318,7 @@ func TestSwapSweeper_acceptsOnlyValidOutputDecimalBounds(t *testing.T) {
 	e := newSweeperEnv(t)
 	row := sqlc.ListStaleSubmittedRow{
 		ID: e.ids.NewV7(), CabalID: e.ids.NewV7(), SourceKind: "proposal", SourceID: e.ids.NewV7(),
-		Action: "buy", Symbol: "AAPLx", InMint: "usdc", InAmount: 1, SourceBatchSize: 1,
+		Action: "buy", Symbol: "AAPLx", InMint: "usdc", InAmount: "1", SourceBatchSize: 1,
 	}
 	for _, decimals := range []int16{256, -1} {
 		row.OutDecimals = decimals
@@ -682,9 +682,9 @@ func TestSwapSweeper_helpersRejectInvalidRows(t *testing.T) {
 	e := newSweeperEnv(t)
 	for _, tc := range []struct {
 		kind, action string
-		amount       int64
+		amount       string
 		batch        int32
-	}{{"bad", "buy", 1, 1}, {"proposal", "bad", 1, 1}, {"proposal", "buy", -1, 1}, {"proposal", "buy", 1, 0}} {
+	}{{"bad", "buy", "1", 1}, {"proposal", "bad", "1", 1}, {"proposal", "buy", "-1", 1}, {"proposal", "buy", "1", 0}} {
 		if _, err := sweepRequest(
 			e.ids.NewV7(), tc.kind, e.ids.NewV7(), tc.action, "AAPLx", "usdc", tc.amount, tc.batch,
 		); errs.CodeOf(err) == "" {
@@ -694,7 +694,7 @@ func TestSwapSweeper_helpersRejectInvalidRows(t *testing.T) {
 	p := e.poller()
 	row := sqlc.ListStaleSubmittedRow{
 		ID: e.ids.NewV7(), CabalID: e.ids.NewV7(), SourceKind: "proposal", SourceID: e.ids.NewV7(),
-		Action: "buy", Symbol: "AAPLx", InMint: "usdc", InAmount: 1, SourceBatchSize: 1, OutDecimals: 300,
+		Action: "buy", Symbol: "AAPLx", InMint: "usdc", InAmount: "1", SourceBatchSize: 1, OutDecimals: 300,
 	}
 	if _, err := p.resolveSubmitted(
 		t.Context(), time.Time{}, row, SigStatus{State: SigFinalized},
@@ -764,8 +764,8 @@ func testSweepResolverFailures(t *testing.T, e *sweeperEnv) {
 		status SigStatus
 		row    sqlc.ListStaleSubmittedRow
 	}{
-		{SigStatus{State: SigNotFound}, sqlc.ListStaleSubmittedRow{CabalID: e.ids.NewV7(), SourceKind: "proposal", SourceID: e.ids.NewV7(), Action: "buy", InMint: "usdc", InAmount: 1, SourceBatchSize: 1, SignedTx: []byte{1}}},
-		{SigStatus{State: SigFinalized}, sqlc.ListStaleSubmittedRow{CabalID: e.ids.NewV7(), SourceKind: "proposal", SourceID: e.ids.NewV7(), Action: "buy", InMint: "usdc", InAmount: 1, SourceBatchSize: 1, OutDecimals: 8, SignedTx: []byte{1}, ID: e.ids.NewV7()}},
+		{SigStatus{State: SigNotFound}, sqlc.ListStaleSubmittedRow{CabalID: e.ids.NewV7(), SourceKind: "proposal", SourceID: e.ids.NewV7(), Action: "buy", InMint: "usdc", InAmount: "1", SourceBatchSize: 1, SignedTx: []byte{1}}},
+		{SigStatus{State: SigFinalized}, sqlc.ListStaleSubmittedRow{CabalID: e.ids.NewV7(), SourceKind: "proposal", SourceID: e.ids.NewV7(), Action: "buy", InMint: "usdc", InAmount: "1", SourceBatchSize: 1, OutDecimals: 8, SignedTx: []byte{1}, ID: e.ids.NewV7()}},
 	} {
 		e.read.validErr, e.read.inboundErr = errs.New(errs.CodeRPCUnavailable, "test"), nil
 		if tc.status.State == SigFinalized {

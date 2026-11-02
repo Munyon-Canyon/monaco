@@ -30,7 +30,7 @@ func NewCashWriteOffTxn(w CashWriteOff) (CabalTxn, error) {
 	asset := EVMCashAsset(w.Network)
 	return NewCabalTxn(CabalTxnHeader{ID: w.TxnID(), CabalID: w.CabalID, Kind: CabalSwap, Status: TxnSettled},
 		[]CabalEntry{
-			{Account: CabalTreasury, Asset: asset, Amount: debit},
-			{Account: CabalFees, Asset: asset, Amount: credit},
+			{Account: CabalTreasury, Asset: asset, Amount: money.SignedUnitsFromMicros(debit)},
+			{Account: CabalFees, Asset: asset, Amount: money.SignedUnitsFromMicros(credit)},
 		})
 }

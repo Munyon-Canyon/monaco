@@ -213,7 +213,7 @@ func wireUserTxn(v app.UserTxnView) api.UserTxn {
 func wireActivity(v app.ActivityView) (api.CabalActivity, error) {
 	out := api.CabalActivity{
 		Id: v.ID, Kind: api.CabalActivityKind(v.Kind), Status: api.CabalActivityStatus(v.Status),
-		UsdcMicros: v.USDCMicros, Units: v.Units, TxSignature: v.TxSignature, OccurredAt: v.OccurredAt,
+		UsdcMicros: v.USDCMicros, Units: fittingInt64(v.Units), TxSignature: v.TxSignature, OccurredAt: v.OccurredAt,
 	}
 	if v.Asset != nil {
 		out.Asset = &api.ActivityAsset{Symbol: v.Asset.Symbol, Name: v.Asset.Name}
@@ -238,13 +238,23 @@ func activityPrice(v app.ActivityView) (int64, bool, error) {
 	}
 	num, den := v.Asset.MultiplierAt(v.OccurredAt)
 	usdc := money.MicrosFromUint64(uint64(max(*v.USDCMicros, 0)))
-	units := money.NewBaseUnits(uint64(max(*v.Units, 0)), v.Asset.Decimals)
-	price, ok, err := domain.TradePriceMicros(usdc, units, num, den)
+	price, ok, err := domain.TradePriceMicros(usdc, *v.Units, v.Asset.Decimals, num, den)
 	if err != nil || !ok {
 		return 0, false, err
 	}
 	var w int64Wire
 	return w.micros(price), w.err == nil, w.err
+}
+
+func fittingInt64(v *money.Units) *int64 {
+	if v == nil {
+		return nil
+	}
+	n, err := v.Int64()
+	if err != nil {
+		return nil
+	}
+	return &n
 }
 
 func caller(ctx context.Context) (ids.UserID, error) {

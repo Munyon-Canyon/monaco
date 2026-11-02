@@ -48,18 +48,38 @@ func (f fixture) funded(t *testing.T) ids.CabalID {
 
 func buy(cabal ids.CabalID, swap uuid.UUID, micros, units, fee uint64) events.TradeConfirmed {
 	return events.TradeConfirmed{
-		V: 1, SwapID: swap, CabalID: cabal.UUID(), Action: "buy", Symbol: "AAPLx",
-		InMint: usdcMint, InAmount: micros, OutMint: chain.SolanaAddress(aapl), OutAmount: units,
-		USDCMicros: money.MicrosFromUint64(micros), FeeMicros: money.MicrosFromUint64(fee),
-		TxSignature: swapSig, ConfirmedAt: confirmedAt(),
+		V:           1,
+		SwapID:      swap,
+		CabalID:     cabal.UUID(),
+		Action:      "buy",
+		Symbol:      "AAPLx",
+		InMint:      usdcMint,
+		InAmount:    money.UnitsFromUint64(micros),
+		OutMint:     chain.SolanaAddress(aapl),
+		OutAmount:   money.UnitsFromUint64(units),
+		USDCMicros:  money.MicrosFromUint64(micros),
+		FeeMicros:   money.MicrosFromUint64(fee),
+		TxSignature: swapSig,
+		ConfirmedAt: confirmedAt(),
 	}
 }
 
 func sell(cabal ids.CabalID, swap uuid.UUID, units, micros uint64) events.TradeConfirmed {
 	return events.TradeConfirmed{
-		V: 1, SwapID: swap, CabalID: cabal.UUID(), Action: "sell", Symbol: "AAPLx",
-		InMint: chain.SolanaAddress(aapl), InAmount: units, OutMint: usdcMint, OutAmount: micros,
-		USDCMicros: money.MicrosFromUint64(micros), TxSignature: swapSig, ConfirmedAt: confirmedAt(),
+		V:       1,
+		SwapID:  swap,
+		CabalID: cabal.UUID(),
+		Action:  "sell",
+		Symbol:  "AAPLx",
+		InMint: chain.SolanaAddress(
+			aapl,
+		),
+		InAmount:    money.UnitsFromUint64(units),
+		OutMint:     usdcMint,
+		OutAmount:   money.UnitsFromUint64(micros),
+		USDCMicros:  money.MicrosFromUint64(micros),
+		TxSignature: swapSig,
+		ConfirmedAt: confirmedAt(),
 	}
 }
 

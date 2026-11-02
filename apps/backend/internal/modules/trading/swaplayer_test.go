@@ -30,7 +30,8 @@ func TestSwapLayer_RunSubmitsTheSignedTransaction(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.Status != domain.StatusSubmitted || got.Source != req.Source || got.InAmount != 25_000_000 {
+	if got.Status != domain.StatusSubmitted || got.Source != req.Source ||
+		!got.InAmount.Equal(money.UnitsFromUint64(25_000_000)) {
 		t.Fatalf("view = %+v", got)
 	}
 	status, signed, requestID, signature := e.row(t, got.ID.UUID())
@@ -71,7 +72,7 @@ func TestSwapLayer_TheRelayerPaysTheFeeAndCoSigns(t *testing.T) {
 	relayer := chainfake.RelayerAddress()
 	want := []app.OrderSpec{{
 		Taker: req.TreasuryWallet.Address, Payer: relayer, InMint: req.InMint, OutMint: req.OutMint,
-		InAmount: req.InAmount, SlippageBps: req.SlippageBps,
+		InAmount: mustUint64(t, req.InAmount), SlippageBps: req.SlippageBps,
 	}}
 	if !slices.Equal(orders.specs, want) {
 		t.Fatalf("orders = %+v, want %+v", orders.specs, want)
@@ -356,7 +357,8 @@ func TestSwapLayer_OrderBelowTheFloorFailsBeforeSigning(t *testing.T) {
 		},
 	)
 	req := e.request(e.source())
-	below := req.QuoteOutAmount - req.QuoteOutAmount/50
+	quote := mustUint64(t, req.QuoteOutAmount)
+	below := quote - quote/50
 	e.jup.SetOrder(jupiterMint(usdcToken()), jupiterMint(aaplxToken()), jupiter.Order{
 		RequestID: "req-1", Transaction: swapTx(), OutAmount: money.NewBaseUnits(below, 6),
 	})
@@ -387,7 +389,7 @@ func TestSwapLayer_OrderAtTheReviewQuoteIsSigned(t *testing.T) {
 	e.jup.SetExecute("req-1", jupiter.ExecuteResult{Status: jupiter.StatusPending})
 	e.jup.SetOrder(jupiterMint(usdcToken()), jupiterMint(aaplxToken()), jupiter.Order{
 		RequestID: "req-1", Transaction: swapTx(),
-		OutAmount: money.NewBaseUnits(req.QuoteOutAmount, 6),
+		OutAmount: money.NewBaseUnits(mustUint64(t, req.QuoteOutAmount), 6),
 	})
 	got, err := e.run(t, req)
 	if err != nil || got.Status != domain.StatusSubmitted {
@@ -404,15 +406,15 @@ func TestSwapLayer_OrderInsideTheCabalSlippageOfTheReviewQuoteIsSigned(t *testin
 	e.jup.SetExecute("req-1", jupiter.ExecuteResult{Status: jupiter.StatusPending})
 	e.jup.SetOrder(jupiterMint(usdcToken()), jupiterMint(aaplxToken()), jupiter.Order{
 		RequestID: "req-1", Transaction: swapTx(),
-		OutAmount: money.NewBaseUnits(req.QuoteOutAmount-req.QuoteOutAmount/200, 6),
+		OutAmount: money.NewBaseUnits(mustUint64(t, req.QuoteOutAmount)-mustUint64(t, req.QuoteOutAmount)/200, 6),
 	})
 	got, err := e.run(t, req)
 	if err != nil || got.Status != domain.StatusSubmitted {
 		t.Fatalf("view = %+v, %v, want submitted for an order 0.5%% under the quote at 100 bps", got, err)
 	}
 	floor := domain.SlippageOf(100).MinOut(req.QuoteOutAmount)
-	if signed := orders.orders[len(orders.orders)-1]; signed.MinOut < floor {
-		t.Fatalf("signed order min out %d, want at least the Review floor %d", signed.MinOut, floor)
+	if signed := orders.orders[len(orders.orders)-1]; money.UnitsFromUint64(signed.MinOut).Cmp(floor) < 0 {
+		t.Fatalf("signed order min out %d, want at least the Review floor %s", signed.MinOut, floor)
 	}
 }
 
@@ -447,8 +449,13 @@ func TestSwapLayer_ReorderStillBelowTheFloorFailsBeforeSigning(t *testing.T) {
 	req := e.request(e.source())
 	floor := domain.SlippageOf(100).MinOut(req.QuoteOutAmount)
 	e.jup.SetOrder(jupiterMint(usdcToken()), jupiterMint(aaplxToken()), jupiter.Order{
-		RequestID: "req-1", Transaction: swapTx(),
-		OutAmount: money.NewBaseUnits(req.QuoteOutAmount, 6), MinOut: money.NewBaseUnits(floor-1, 6),
+		RequestID:   "req-1",
+		Transaction: swapTx(),
+		OutAmount: money.NewBaseUnits(
+			mustUint64(t, req.QuoteOutAmount),
+			6,
+		),
+		MinOut: money.NewBaseUnits(mustUint64(t, floor)-1, 6),
 	})
 	got, err := e.run(t, req)
 	if err != nil {
@@ -483,12 +490,12 @@ func TestSwapLayer_ForeignRowIsReturnedWithoutAnEvent(t *testing.T) {
 	}
 }
 
-func TestSwapLayer_RunRefusesAmountsTheColumnsCannotHold(t *testing.T) {
+func TestSwapLayer_RunRefusesAmountsASolanaSwapCannotCarry(t *testing.T) {
 	t.Parallel()
 	e := newLayerEnv(t)
 	for name, mutate := range map[string]func(*app.SwapRequest){
-		"in amount":        func(r *app.SwapRequest) { r.InAmount = 1 << 63 },
-		"quote out amount": func(r *app.SwapRequest) { r.QuoteOutAmount = 1 << 63 },
+		"in amount":        func(r *app.SwapRequest) { r.InAmount = mustUnits(t, twoToThe64) },
+		"quote out amount": func(r *app.SwapRequest) { r.QuoteOutAmount = mustUnits(t, twoToThe64) },
 		"negative slip":    func(r *app.SwapRequest) { r.SlippageBps = -1 },
 		"huge slip":        func(r *app.SwapRequest) { r.SlippageBps = 1 << 31 },
 	} {
@@ -571,4 +578,13 @@ func TestSwapLayer_HeartbeatTicksWhileTheSwapIsInFlight(t *testing.T) {
 	if _, err := e.layer().Run(actorContext(t.Context()), e.request(e.source()), func() { beats.Add(1) }); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func mustUint64(t *testing.T, u money.Units) uint64 {
+	t.Helper()
+	v, err := u.Uint64()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return v
 }

@@ -30,11 +30,11 @@ func checkEstimate(rt *rapid.T, usdc, price uint64, decimals uint8) {
 			rt.Fatalf("estimate that overflowed = %v with %v, want nil", shares, err)
 		}
 	default:
-		cost := new(big.Int).Mul(new(big.Int).SetUint64(shares.Uint64()), new(big.Int).SetUint64(price))
+		cost := new(big.Int).Mul(shares.Big(), new(big.Int).SetUint64(price))
 		cost.Quo(cost, new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(decimals)), nil))
-		if cost.Cmp(new(big.Int).SetUint64(usdc)) > 0 || shares.Decimals() != decimals {
-			rt.Fatalf("estimate %d at %d micros, %d decimals costs %s, over the %d spent",
-				shares.Uint64(), price, decimals, cost, usdc)
+		if cost.Cmp(new(big.Int).SetUint64(usdc)) > 0 {
+			rt.Fatalf("estimate %s at %d micros, %d decimals costs %s, over the %d spent",
+				shares, price, decimals, cost, usdc)
 		}
 	}
 }

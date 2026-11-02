@@ -49,8 +49,17 @@ func routedPassedFixture(t *testing.T) events.ProposalPassed {
 		}
 	}
 	return events.ProposalPassed{
-		V: 1, ProposalID: g.NewV7(), CabalID: g.NewV7(), Kind: "buy", Symbol: "AAPLx", Mint: aaplxMint,
-		USDCMicros: money.MicrosFromUint64(100_000_000), QuoteOutAmount: 29_610_838, ProposerID: g.NewV7(),
+		V:          1,
+		ProposalID: g.NewV7(),
+		CabalID:    g.NewV7(),
+		Kind:       "buy",
+		Symbol:     "AAPLx",
+		Mint:       aaplxMint,
+		USDCMicros: money.MicrosFromUint64(
+			100_000_000,
+		),
+		QuoteOutAmount: money.UnitsFromUint64(29_610_838),
+		ProposerID:     g.NewV7(),
 		PriceComparison: &multichain.Comparison{
 			StockID: stock, Side: multichain.SideBuy, Winner: base,
 			Ranked: []multichain.Quote{

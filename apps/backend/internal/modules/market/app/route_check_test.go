@@ -39,7 +39,7 @@ func TestCheckRoute_badUSDCMint(t *testing.T) {
 	}
 	checker := NewRouteChecker(listedAsset{asset}, nil, refuseQuote{t}, clock.Real{})
 	checker.usdcAddress = "not-a-mint"
-	_, err = checker.CheckRoute(t.Context(), id, SideBuy, money.NewBaseUnits(1, usdcDecimals))
+	_, err = checker.CheckRoute(t.Context(), id, SideBuy, money.UnitsFromUint64(1))
 	if errs.CodeOf(err) != errs.CodeInvalidAddress {
 		t.Fatalf("err = %v, want invalid_address", err)
 	}

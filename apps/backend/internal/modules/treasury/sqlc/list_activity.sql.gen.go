@@ -14,7 +14,7 @@ import (
 )
 
 const listActivity = `-- name: ListActivity :many
-SELECT id, kind, status, actor_user_id, asset, usdc_micros, units,
+SELECT id, kind, status, actor_user_id, asset, usdc_micros, coalesce(units::text, '')::text AS units,
   tx_signature, occurred_at
 FROM cabal_activity
 WHERE cabal_id = $1 AND NOT cashout_sale
@@ -38,7 +38,7 @@ type ListActivityRow struct {
 	ActorUserID pgtype.UUID
 	Asset       pgtype.Text
 	UsdcMicros  pgtype.Numeric
-	Units       pgtype.Numeric
+	Units       string
 	TxSignature pgtype.Text
 	OccurredAt  time.Time
 }
@@ -82,7 +82,7 @@ func (q *Queries) ListActivity(ctx context.Context, arg ListActivityParams) ([]L
 const listTradesForPairs = `-- name: ListTradesForPairs :many
 SELECT a.id, a.cabal_id, a.kind, a.asset::text AS asset,
   CASE WHEN a.kind = 'sell' THEN greatest(a.usdc_micros - coalesce(f.fee_micros, 0), 0) ELSE a.usdc_micros END::numeric AS usdc_micros,
-  a.units, a.occurred_at, a.cashout_sale
+  a.units::text AS units, a.occurred_at, a.cashout_sale
 FROM cabal_activity AS a
 LEFT JOIN sell_bridge_fees AS f ON f.trade_id = a.id
 JOIN (
@@ -108,7 +108,7 @@ type ListTradesForPairsRow struct {
 	Kind        string
 	Asset       string
 	UsdcMicros  pgtype.Numeric
-	Units       pgtype.Numeric
+	Units       string
 	OccurredAt  time.Time
 	CashoutSale bool
 }

@@ -310,7 +310,7 @@ func (q *Queries) ParkRouted(ctx context.Context, arg ParkRoutedParams) (ParkRou
 }
 
 const parkedRoutedForUpdate = `-- name: ParkedRoutedForUpdate :one
-SELECT s.id, s.cabal_id, s.source_kind, s.source_id, s.action, s.symbol, s.in_mint, s.in_amount,
+SELECT s.id, s.cabal_id, s.source_kind, s.source_id, s.action, s.symbol, s.in_mint, s.in_amount::text AS in_amount,
   s.source_batch_size, s.status, s.parked_at, s.parked_code,
   coalesce((SELECT t.status FROM trade_steps AS t WHERE t.trade_id = s.id AND t.step = 'bridge_out'), '')::text
     AS bridge_out,
@@ -331,7 +331,7 @@ type ParkedRoutedForUpdateRow struct {
 	Action          string
 	Symbol          string
 	InMint          string
-	InAmount        int64
+	InAmount        string
 	SourceBatchSize int32
 	Status          string
 	ParkedAt        pgtype.Timestamptz
@@ -422,7 +422,7 @@ func (q *Queries) ReuseStrandedCash(ctx context.Context, arg ReuseStrandedCashPa
 }
 
 const routedSwap = `-- name: RoutedSwap :one
-SELECT s.id, s.cabal_id, s.source_kind, s.source_id, s.action, s.symbol, s.in_mint, s.out_mint, s.in_amount,
+SELECT s.id, s.cabal_id, s.source_kind, s.source_id, s.action, s.symbol, s.in_mint, s.out_mint, s.in_amount::text AS in_amount,
   s.slippage_bps, s.source_batch_size, s.status, r.comparison
 FROM swaps AS s
 JOIN trade_routes AS r ON r.trade_id = s.id
@@ -438,7 +438,7 @@ type RoutedSwapRow struct {
 	Symbol          string
 	InMint          string
 	OutMint         string
-	InAmount        int64
+	InAmount        string
 	SlippageBps     int32
 	SourceBatchSize int32
 	Status          string

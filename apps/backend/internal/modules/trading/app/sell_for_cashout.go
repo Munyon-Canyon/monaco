@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"strings"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
@@ -59,7 +60,7 @@ type storedLeg struct {
 	Mint      chain.SolanaAddress `json:"mint"`
 	Decimals  uint8               `json:"decimals"`
 	Symbol    string              `json:"symbol"`
-	Units     uint64              `json:"units"`
+	Units     legUnits            `json:"units"`
 	QuoteUSDC uint64              `json:"quote_usdc"`
 	Listing   *storedListing      `json:"listing,omitempty"`
 }
@@ -143,9 +144,17 @@ func (h *SellForCashOutHandler) Handle(ctx context.Context, cmd SellForCashOut, 
 	}
 	for _, leg := range legs {
 		req := SwapRequest{
-			Source: cmd.Source, CabalID: cmd.CabalID, TreasuryWallet: wallet, Action: domain.ActionSell,
-			Symbol: leg.Symbol, InMint: leg.Mint, OutMint: h.d.USDC, InAmount: leg.Units, QuoteOutAmount: leg.QuoteUSDC,
-			SlippageBps: cashOutSlippageBps, SourceBatchSize: len(legs),
+			Source:          cmd.Source,
+			CabalID:         cmd.CabalID,
+			TreasuryWallet:  wallet,
+			Action:          domain.ActionSell,
+			Symbol:          leg.Symbol,
+			InMint:          leg.Mint,
+			OutMint:         h.d.USDC,
+			InAmount:        leg.Units,
+			QuoteOutAmount:  money.UnitsFromUint64(leg.QuoteUSDC),
+			SlippageBps:     cashOutSlippageBps,
+			SourceBatchSize: len(legs),
 		}
 		if err := h.sell(ctx, req, leg.Listing, heartbeat); err != nil {
 			return err
@@ -159,7 +168,11 @@ func (h *SellForCashOutHandler) sell(
 ) error {
 	if listing != nil {
 		req.InMint.Address = chain.SolanaAddress(evmAsset(listing.Network, listing.TokenAddress))
-		req.Route = saleRoute(*listing, req.QuoteOutAmount)
+		quote, err := req.QuoteOutAmount.Uint64()
+		if err != nil {
+			return err
+		}
+		req.Route = saleRoute(*listing, quote)
 	}
 	tried, err := sqlc.New(h.d.Reads).HasSwapForMint(ctx, sqlc.HasSwapForMintParams{
 		SourceKind: string(req.Source.Kind), SourceID: req.Source.ID, InMint: string(req.InMint.Address),
@@ -205,7 +218,11 @@ func (h *SellForCashOutHandler) plan(ctx context.Context, cmd SellForCashOut) ([
 	stored := make([]storedLeg, len(legs))
 	for i, l := range legs {
 		stored[i] = storedLeg{
-			Mint: l.Mint.Address, Decimals: l.Mint.Decimals, Symbol: l.Symbol, Units: l.Units, QuoteUSDC: l.QuoteUSDC,
+			Mint:      l.Mint.Address,
+			Decimals:  l.Mint.Decimals,
+			Symbol:    l.Symbol,
+			Units:     legUnits{l.Units},
+			QuoteUSDC: l.QuoteUSDC,
 		}
 		if l.Listing != nil {
 			stored[i].Listing = &storedListing{
@@ -255,7 +272,7 @@ func (h *SellForCashOutHandler) stored(ctx context.Context, src domain.Source) (
 				Decimals: s.Decimals,
 			},
 			Symbol:    s.Symbol,
-			Units:     s.Units,
+			Units:     s.Units.Units,
 			QuoteUSDC: s.QuoteUSDC,
 		}
 		if s.Listing != nil {
@@ -280,7 +297,7 @@ func (h *SellForCashOutHandler) quote(ctx context.Context, cabal ids.CabalID) ([
 	}
 	lots := make([]domain.Lot, 0, len(holdings))
 	for _, held := range holdings {
-		if held.Mint.Address == h.d.USDC.Address || held.Units == 0 {
+		if held.Mint.Address == h.d.USDC.Address || held.Units.IsZero() {
 			continue
 		}
 		lot, err := h.value(ctx, cabal, held)
@@ -308,7 +325,11 @@ func (h *SellForCashOutHandler) value(ctx context.Context, cabal ids.CabalID, he
 		lot.QuoteUSDC, lot.Listing, lot.Symbol = sale.ProceedsMicros-fee, &sale.Listing, sale.Listing.Symbol
 		return lot, err
 	}
-	q, err := h.d.Venue.Quote(ctx, QuoteSpec{InMint: held.Mint, OutMint: h.d.USDC, InAmount: held.Units})
+	inAmount, err := held.Units.Uint64()
+	if err != nil {
+		return domain.Lot{}, err
+	}
+	q, err := h.d.Venue.Quote(ctx, QuoteSpec{InMint: held.Mint, OutMint: h.d.USDC, InAmount: inAmount})
 	if err != nil || !q.Routable {
 		return domain.Lot{}, err
 	}
@@ -320,11 +341,15 @@ func (h *SellForCashOutHandler) cashLot(
 	ctx context.Context, cabal ids.CabalID, network chain.Network, lot domain.Lot,
 ) (domain.Lot, error) {
 	listing, units, err := h.d.Routes.CashLeg(ctx, cabal, network, lot.Units)
-	if err != nil || units == 0 {
+	if err != nil || units.IsZero() {
 		return domain.Lot{}, err
 	}
-	fee, err := money.MulDiv(units, bridgeBackEstimateBps, bridgeBackEstimateOf)
-	lot.Units, lot.QuoteUSDC, lot.Listing = units, units-fee, &listing
+	cash, err := units.Uint64()
+	if err != nil {
+		return domain.Lot{}, err
+	}
+	fee, err := money.MulDiv(cash, bridgeBackEstimateBps, bridgeBackEstimateOf)
+	lot.Units, lot.QuoteUSDC, lot.Listing = units, cash-fee, &listing
 	return lot, err
 }
 
@@ -349,4 +374,11 @@ func plannedMicros(legs []domain.Lot) uint64 {
 		total += l.QuoteUSDC
 	}
 	return total
+}
+
+type legUnits struct{ money.Units }
+
+func (u *legUnits) UnmarshalJSON(raw []byte) error {
+	text := strings.Trim(string(raw), `"`)
+	return u.UnmarshalText([]byte(text))
 }

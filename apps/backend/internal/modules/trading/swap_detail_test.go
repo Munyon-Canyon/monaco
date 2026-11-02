@@ -69,7 +69,7 @@ func TestGetSwap_confirmedSellSwapsTheAmountsAndIsNotRetryable(t *testing.T) {
 	t.Parallel()
 	s := newRetryServer(t)
 	sell := s.created(s.ids.NewV7(), aaplxMint)
-	sell.CabalID, sell.Action, sell.OutMint, sell.InAmount = s.failed.CabalID, "sell", usdcMint, 50_000_000
+	sell.CabalID, sell.Action, sell.OutMint, sell.InAmount = s.failed.CabalID, "sell", usdcMint, "50000000"
 	s.insert(t, sell)
 	s.submit(t, sell.ID, "req-sell", "sig-sell")
 	s.confirm(t, sell.ID)

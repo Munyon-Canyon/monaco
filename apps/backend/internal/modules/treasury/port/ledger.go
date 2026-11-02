@@ -40,7 +40,7 @@ type TxnEntry struct {
 	Seq     int16
 	Account string
 	Asset   string
-	Amount  int64
+	Amount  money.SignedUnits
 }
 
 type Txn struct {
@@ -68,7 +68,7 @@ type ShareReader interface {
 
 type RawHolding struct {
 	Mint  chain.SolanaAddress
-	Units money.BaseUnits
+	Units money.Units
 }
 
 type HoldingReader interface {

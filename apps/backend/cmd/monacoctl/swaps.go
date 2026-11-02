@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"strconv"
 	"strings"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
@@ -84,13 +83,13 @@ func swapsToolWith(environ []string, clk clock.Clock, stdin io.Reader, ports cas
 	}
 }
 
-func parseForceResolveAmount(raw string) (uint64, error) {
+func parseForceResolveAmount(raw string) (money.Units, error) {
 	if raw == "" {
-		return 0, nil
+		return money.Units{}, nil
 	}
-	amount, err := strconv.ParseUint(raw, 10, 64)
+	amount, err := money.ParseUnits(raw)
 	if err != nil {
-		return 0, fmt.Errorf("parse out amount: %w", err)
+		return money.Units{}, fmt.Errorf("parse out amount: %w", err)
 	}
 	return amount, nil
 }
@@ -98,7 +97,7 @@ func parseForceResolveAmount(raw string) (uint64, error) {
 type forceResolveRequest struct {
 	signature chain.Signature
 	to        domain.Status
-	amount    uint64
+	amount    money.Units
 	reason    string
 	actor     string
 	override  bool
@@ -135,7 +134,7 @@ func resolveSwap(
 		return fail(stderr, err)
 	}
 	defer conn.Close(ctx)
-	units, err := forceResolveUnits(before.OutDecimals, amount, to)
+	units, decimals, err := forceResolveUnits(before.OutDecimals, amount, to)
 	if err != nil {
 		return fail(stderr, err)
 	}
@@ -145,7 +144,13 @@ func resolveSwap(
 		uow, pool, clk, ids.Real{}, conn, adapters.Chain, adapters.Receipts,
 	)
 	after, err := handler.Handle(ctx, tradingapp.ForceResolveSwap{
-		Signature: signature, To: to, OutAmount: units, Reason: req.reason, Actor: req.actor, Override: req.override,
+		Signature:      signature,
+		To:             to,
+		OutAmount:      units,
+		OutDecimals:    decimals,
+		Reason:         req.reason,
+		Actor:          req.actor,
+		Override:       req.override,
 		IdempotencyKey: "force-resolve:" + string(signature) + ":" + string(to),
 	})
 	if errs.CodeOf(err) == errs.CodeSwapNotStuck {
@@ -166,18 +171,18 @@ func resolveSwap(
 	return 0
 }
 
-func matchesResolvedSwap(after trading.SwapView, to domain.Status, amount uint64) bool {
-	return after.Status == to && (to != domain.StatusConfirmed || after.OutAmount == amount)
+func matchesResolvedSwap(after trading.SwapView, to domain.Status, amount money.Units) bool {
+	return after.Status == to && (to != domain.StatusConfirmed || after.OutAmount.Equal(amount))
 }
 
-func forceResolveUnits(decimals int16, amount uint64, to domain.Status) (money.BaseUnits, error) {
+func forceResolveUnits(decimals int16, amount money.Units, to domain.Status) (money.Units, uint8, error) {
 	if to != domain.StatusConfirmed {
-		return money.BaseUnits{}, nil
+		return money.Units{}, 0, nil
 	}
 	if decimals < 0 || decimals > 255 {
-		return money.BaseUnits{}, errs.New(errs.CodeDecodeFailed, "monacoctl.swaps.forceResolve")
+		return money.Units{}, 0, errs.New(errs.CodeDecodeFailed, "monacoctl.swaps.forceResolve")
 	}
-	return money.NewBaseUnits(amount, uint8(decimals)), nil
+	return amount, uint8(decimals), nil
 }
 
 func confirmed(stdin io.Reader, stderr io.Writer, question string) bool {
@@ -187,6 +192,6 @@ func confirmed(stdin io.Reader, stderr io.Writer, question string) bool {
 }
 
 func printSwap(out io.Writer, label string, swap trading.SwapView) {
-	_, _ = fmt.Fprintf(out, "%s swap=%s signature=%s status=%s out_amount=%d decimals=%d\n",
+	_, _ = fmt.Fprintf(out, "%s swap=%s signature=%s status=%s out_amount=%s decimals=%d\n",
 		label, swap.ID, swap.TxSignature, swap.Status, swap.OutAmount, swap.OutDecimals)
 }

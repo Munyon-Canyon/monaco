@@ -13,10 +13,19 @@ import (
 func evmConfirmed(cabal ids.CabalID, swap uuid.UUID, units uint64) events.TradeConfirmed {
 	const landed, fee = 9_992_500, 7_500
 	return events.TradeConfirmed{
-		V: 1, SwapID: swap, CabalID: cabal.UUID(), Action: "buy", Symbol: "AAPLx",
-		InMint: baseCash, InAmount: landed, OutMint: baseAAPL, OutAmount: units,
-		USDCMicros: money.MicrosFromUint64(landed + fee), FeeMicros: money.MicrosFromUint64(fee),
-		TxSignature: "0xswap", ConfirmedAt: confirmedAt(),
+		V:           1,
+		SwapID:      swap,
+		CabalID:     cabal.UUID(),
+		Action:      "buy",
+		Symbol:      "AAPLx",
+		InMint:      baseCash,
+		InAmount:    money.UnitsFromUint64(landed),
+		OutMint:     baseAAPL,
+		OutAmount:   money.UnitsFromUint64(units),
+		USDCMicros:  money.MicrosFromUint64(landed + fee),
+		FeeMicros:   money.MicrosFromUint64(fee),
+		TxSignature: "0xswap",
+		ConfirmedAt: confirmedAt(),
 	}
 }
 

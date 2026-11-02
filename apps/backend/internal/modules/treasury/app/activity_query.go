@@ -15,6 +15,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
 const (
@@ -61,7 +62,7 @@ type ActivityView struct {
 	Status      domain.ActivityStatus
 	Asset       *AssetName
 	USDCMicros  *int64
-	Units       *int64
+	Units       *money.Units
 	Actor       *Actor
 	TxSignature *string
 	OccurredAt  time.Time
@@ -210,8 +211,8 @@ func activityView(
 	if n, err := row.UsdcMicros.Int64Value(); err == nil && n.Valid {
 		v.USDCMicros = &n.Int64
 	}
-	if n, err := row.Units.Int64Value(); err == nil && n.Valid {
-		v.Units = &n.Int64
+	if units, err := money.ParseUnits(row.Units); err == nil && row.Units != "" {
+		v.Units = &units
 	}
 	if row.TxSignature.Valid {
 		v.TxSignature = &row.TxSignature.String

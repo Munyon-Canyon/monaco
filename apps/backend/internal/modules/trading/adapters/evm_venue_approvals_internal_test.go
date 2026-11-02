@@ -11,6 +11,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/app"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	mc "github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
 const (
@@ -55,8 +56,14 @@ func TestCheckApproval_acceptsOnlyAnExactApprovalOrPermitForThisSwap(t *testing.
 	now := time.Date(2026, 10, 11, 12, 0, 0, 0, time.UTC)
 	window := now.Add(permitExpiryWindow).Unix()
 	spec := app.EVMSwapSpec{
-		Network: chain.NetworkBase, Owner: guardAddress(t, "0xf15262a7ee9d20fa690185d58e0eb2aad475bf32"),
-		TokenIn: guardAddress(t, guardUSDC), TokenOut: guardAddress(t, guardToken), AmountIn: guardAmount,
+		Network: chain.NetworkBase,
+		Owner:   guardAddress(t, "0xf15262a7ee9d20fa690185d58e0eb2aad475bf32"),
+		TokenIn: guardAddress(
+			t,
+			guardUSDC,
+		),
+		TokenOut: guardAddress(t, guardToken),
+		AmountIn: money.UnitsFromUint64(guardAmount),
 	}
 	erc20 := func(to, spender string, amount, value int64) mc.EVMTransaction {
 		return guardTx(t, to, erc20ApproveSelector+guardWord(spender)+guardWord(amount), value)

@@ -62,7 +62,7 @@ func seedBanProposals(t *testing.T, h testkit.Harness) {
 		_, err := q.InsertProposal(t.Context(), sqlc.InsertProposalParams{
 			VoterIds: []uuid.UUID{chaosProposal(400 + i)}, ID: id, CabalID: chaosProposal(500 + i),
 			ProposerID: proposer, Kind: "buy", Symbol: "AAPLx", Mint: aaplxMint,
-			UsdcMicros: pgtype.Int8{Int64: 25_000_000, Valid: true}, QuoteOutAmount: 105_000_000,
+			UsdcMicros: pgtype.Int8{Int64: 25_000_000, Valid: true}, QuoteOutAmount: "105000000",
 			ExpiresAt: h.Clock.Now().Add(24 * time.Hour), CreatedAt: h.Clock.Now(), Threshold: "majority",
 		})
 		if err != nil {

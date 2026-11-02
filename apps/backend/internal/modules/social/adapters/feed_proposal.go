@@ -3,7 +3,6 @@ package adapters
 import (
 	"context"
 	"errors"
-	"math"
 	"time"
 
 	"github.com/google/uuid"
@@ -54,22 +53,22 @@ func (h Feed) FetchProposal(ctx context.Context, e events.ProposalCreated) (Prop
 }
 
 func shareOfPotBps(e events.ProposalCreated, pot money.Micros) int64 {
-	amount := e.USDCMicros.Uint64()
+	amount := money.UnitsFromMicros(e.USDCMicros)
 	if e.Kind == string(feed.ActionSell) {
 		amount = e.QuoteOutAmount
 	}
-	bps, err := money.MulDiv(amount, bpsOfWhole, pot.Uint64())
-	if err != nil || bps > math.MaxInt64 {
+	bps, err := money.UnitsMulDiv(amount, money.UnitsFromUint64(bpsOfWhole), money.UnitsFromMicros(pot))
+	if err != nil {
 		return 0
 	}
-	return int64(bps)
+	return bps.Int64OrZero()
 }
 
-func quoteMicros(e events.ProposalCreated) money.Micros {
+func quoteMicros(e events.ProposalCreated) (money.Micros, error) {
 	if e.Kind != string(feed.ActionSell) {
-		return money.Micros{}
+		return money.Micros{}, nil
 	}
-	return money.MicrosFromUint64(e.QuoteOutAmount)
+	return e.QuoteOutAmount.Micros()
 }
 
 func (h Feed) ApplyProposal(
@@ -86,11 +85,15 @@ func (h Feed) ApplyProposal(
 	if err != nil {
 		return err
 	}
+	quote, err := quoteMicros(e)
+	if err != nil {
+		return err
+	}
 	payload := feed.Payload{
 		CabalName: cabal, ActorName: card.ProposerName, Symbol: e.Symbol, AssetName: card.Asset.Name,
 		Action: feed.Action(e.Kind), USDCMicros: e.USDCMicros, TokenAmount: e.TokenAmount,
 		Status: string(feed.StatusOpen), ExpiresAt: e.ExpiresAt, ShareOfPotBps: shareOfPotBps(e, card.Pot),
-		AssetKind: feed.AssetKind(card.Asset.Kind), QuoteMicros: quoteMicros(e),
+		AssetKind: feed.AssetKind(card.Asset.Kind), QuoteMicros: quote,
 	}
 	if err := q.InsertFeedConsumerItem(ctx, sqlc.InsertFeedConsumerItemParams{
 		ID: eventID(ctx), Kind: string(feed.KindProposal), RefType: string(feed.RefProposals), RefID: e.ProposalID,

@@ -148,10 +148,14 @@ func (c *flowChain) Send(_ context.Context, _ string, _ multichain.EVMTransactio
 func (*flowChain) Build(_ context.Context, spec app.EVMSwapSpec) (app.EVMSwapPlan, error) {
 	plan := app.EVMSwapPlan{Swap: multichain.EVMTransaction{Network: spec.Network, To: spec.TokenOut}}
 	if spec.TokenOut.String() == flows.RoutedEVMToken {
-		plan.MinOut = 303_000_000
+		plan.MinOut = money.UnitsFromUint64(303_000_000)
 		return plan, nil
 	}
-	plan.OutAmount, plan.MinOut = flows.RoutedSaleProceeds, flows.RoutedSaleProceeds
+	plan.OutAmount, plan.MinOut = money.UnitsFromUint64(
+		flows.RoutedSaleProceeds,
+	), money.UnitsFromUint64(
+		flows.RoutedSaleProceeds,
+	)
 	return plan, nil
 }
 
@@ -170,9 +174,9 @@ func (*flowChain) Fill(
 	out, _ platform.EVMAddress,
 ) (app.EVMFill, error) {
 	if out.String() == flows.RoutedEVMToken {
-		return app.EVMFill{State: app.FillSucceeded, Out: flows.RoutedFilledUnits}, nil
+		return app.EVMFill{State: app.FillSucceeded, Out: money.UnitsFromUint64(flows.RoutedFilledUnits)}, nil
 	}
-	return app.EVMFill{State: app.FillSucceeded, Out: flows.RoutedSaleProceeds}, nil
+	return app.EVMFill{State: app.FillSucceeded, Out: money.UnitsFromUint64(flows.RoutedSaleProceeds)}, nil
 }
 
 func flow30Modules() []func(module.Deps) module.Module {

@@ -201,8 +201,12 @@ func closeOut(p sqlc.LockProposalRow, verdict domain.Outcome, priced candidate, 
 	if err != nil {
 		return closing{}, err
 	}
+	event, err := passed(p, comparison)
+	if err != nil {
+		return closing{}, err
+	}
 	price, hasPrice := priced.storable(p.Mint.String)
-	return closing{status: domain.StatusPassed, event: passed(p, comparison), price: price, hasPrice: hasPrice}, nil
+	return closing{status: domain.StatusPassed, event: event, price: price, hasPrice: hasPrice}, nil
 }
 
 func rulePassed(p sqlc.LockProposalRow, at time.Time) events.ProposalRulePassed {
@@ -281,13 +285,32 @@ func appendVoteCast(
 	})
 }
 
-func passed(p sqlc.LockProposalRow, comparison *multichain.Comparison) events.ProposalPassed {
+func passed(p sqlc.LockProposalRow, comparison *multichain.Comparison) (events.ProposalPassed, error) {
+	tokens, err := parseUnits(p.TokenAmount)
+	if err != nil {
+		return events.ProposalPassed{}, err
+	}
+	quoteOut, err := parseUnits(p.QuoteOutAmount)
+	if err != nil {
+		return events.ProposalPassed{}, err
+	}
 	return events.ProposalPassed{
 		V: 1, ProposalID: p.ID, CabalID: p.CabalID, ProposerID: p.ProposerID, Kind: p.Kind, Symbol: p.Symbol.String,
 		Mint: chain.SolanaAddress(p.Mint.String), USDCMicros: money.MicrosFromUint64(unsigned(p.UsdcMicros.Int64)),
-		TokenAmount: unsigned(p.TokenAmount.Int64), QuoteOutAmount: unsigned(p.QuoteOutAmount.Int64),
+		TokenAmount: tokens, QuoteOutAmount: quoteOut,
 		PriceComparison: comparison, Network: chain.Network(p.Network),
+	}, nil
+}
+
+func parseUnits(raw string) (money.Units, error) {
+	if raw == "" {
+		return money.Units{}, nil
 	}
+	u, err := money.ParseUnits(raw)
+	if err != nil {
+		return money.Units{}, errs.Wrap(err, errs.CodeDecodeFailed, "governance.parseUnits")
+	}
+	return u, nil
 }
 
 func unsigned(v int64) uint64 {

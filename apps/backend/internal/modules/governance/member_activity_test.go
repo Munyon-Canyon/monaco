@@ -139,7 +139,7 @@ func TestMemberActivity_ProposalSubjects_namesTheCabalKindSymbolAndAmount(t *tes
 	buy := d.buy(d.ids.NewV7())
 	d.insert(t, buy)
 	sell := d.buy(d.ids.NewV7())
-	sell.Kind, sell.UsdcMicros, sell.TokenAmount = "sell", pgtype.Int8{}, pgtype.Int8{Int64: 3, Valid: true}
+	sell.Kind, sell.UsdcMicros, sell.TokenAmount = "sell", pgtype.Int8{}, "3"
 	d.insert(t, sell)
 	got, err := app.NewQueries(d.pool).ProposalSubjects(t.Context(), []ids.ProposalID{
 		ids.ProposalIDFrom(buy.ID), ids.ProposalIDFrom(sell.ID), ids.ProposalIDFrom(d.ids.NewV7()),

@@ -113,7 +113,7 @@ func newRouteEnv(t *testing.T) *routeEnv {
 	e.evm = newEVMFake(app.EVMSwapPlan{
 		Approvals: []multichain.EVMTransaction{{Network: chain.NetworkBase, To: evmAddress(t, baseCash)}},
 		Swap:      multichain.EVMTransaction{Network: chain.NetworkBase, To: evmAddress(t, baseRouter)},
-		MinOut:    302_940_000,
+		MinOut:    money.UnitsFromUint64(302_940_000),
 	})
 	e.requote()
 	return e
@@ -144,9 +144,15 @@ func (e *routeEnv) exec() *app.RouteExec {
 
 func (e *routeEnv) request() app.SwapRequest {
 	return app.SwapRequest{
-		Source:  domain.Source{Kind: domain.SourceProposal, ID: e.ids.NewV7()},
-		CabalID: e.cabal, Action: domain.ActionBuy, Symbol: "AAPLc", InAmount: buyMicros, QuoteOutAmount: quotedOut,
-		SlippageBps: 100, SourceBatchSize: 1, Route: e.route,
+		Source:          domain.Source{Kind: domain.SourceProposal, ID: e.ids.NewV7()},
+		CabalID:         e.cabal,
+		Action:          domain.ActionBuy,
+		Symbol:          "AAPLc",
+		InAmount:        money.UnitsFromUint64(buyMicros),
+		QuoteOutAmount:  money.UnitsFromUint64(quotedOut),
+		SlippageBps:     100,
+		SourceBatchSize: 1,
+		Route:           e.route,
 	}
 }
 
@@ -258,10 +264,22 @@ func (e *routeEnv) wantOneBridgeAndOneBuild(t *testing.T, swap ids.SwapID) {
 		t.Fatalf("transfers = %+v, want one bridge of the trade amount from the Solana treasury", calls)
 	}
 	want := app.EVMSwapSpec{
-		Network: chain.NetworkBase, Owner: evmAddress(t, evmTreasury), TokenIn: evmAddress(t, baseCash),
-		TokenOut: evmAddress(t, e.listing.TokenAddress), AmountIn: landedMicros, MinOut: 302_940_000, SlippageBps: 100,
+		Network: chain.NetworkBase,
+		Owner:   evmAddress(t, evmTreasury),
+		TokenIn: evmAddress(t, baseCash),
+		TokenOut: evmAddress(
+			t,
+			e.listing.TokenAddress,
+		),
+		AmountIn:    money.UnitsFromUint64(landedMicros),
+		MinOut:      money.UnitsFromUint64(302_940_000),
+		SlippageBps: 100,
 	}
-	if !slices.Equal(e.evm.specs, []app.EVMSwapSpec{want}) {
+	if !slices.EqualFunc(
+		e.evm.specs,
+		[]app.EVMSwapSpec{want},
+		func(a, b app.EVMSwapSpec) bool { return sameJSON(a, b) },
+	) {
 		t.Fatalf("built %+v, want the landed amount with a floor from the requote", e.evm.specs)
 	}
 }
@@ -270,7 +288,7 @@ func TestRouteExec_aBuyBridgesRequotesSwapsAndConfirmsInEVMAssets(t *testing.T) 
 	t.Parallel()
 	e := newRouteEnv(t)
 	e.privy.script(multichain.ActionSucceeded)
-	e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: filledOut}}
+	e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: money.UnitsFromUint64(filledOut)}}
 
 	view := e.mustBuy(t, e.request(), domain.StatusConfirmed)
 
@@ -288,12 +306,12 @@ func TestRouteExec_theSwapIsBuiltOnTheRouteTheRequoteChose(t *testing.T) {
 		GrossOutput: big.NewInt(requotedOut), Options: multichain.RouteOptions{HooksOptions: "V4_NO_HOOKS"},
 	}})
 	e.privy.script(multichain.ActionSucceeded)
-	e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: filledOut}}
+	e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: money.UnitsFromUint64(filledOut)}}
 
 	e.mustBuy(t, e.request(), domain.StatusConfirmed)
 
 	if len(e.evm.specs) != 1 || e.evm.specs[0].Route.HooksOptions != "V4_NO_HOOKS" ||
-		e.evm.specs[0].MinOut != 302_940_000 {
+		!e.evm.specs[0].MinOut.Equal(money.UnitsFromUint64(302_940_000)) {
 		t.Fatalf("built %+v, want the hookless route the requote chose, floored from its output", e.evm.specs)
 	}
 }
@@ -305,7 +323,7 @@ func TestRouteExec_aPendingBridgeAndAPendingFillResumeWithoutASecondBridgeOrSwap
 	view := e.mustBuy(t, e.request(), domain.StatusCreated)
 	e.privy.script(multichain.ActionSucceeded)
 	e.resume(t, view.ID, domain.StatusSubmitted)
-	e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: filledOut}}
+	e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: money.UnitsFromUint64(filledOut)}}
 	e.resume(t, view.ID, domain.StatusConfirmed)
 	e.resume(t, view.ID, domain.StatusConfirmed)
 
@@ -413,7 +431,7 @@ func TestRouteExec_aRequoteOutageLeavesTheBridgedSwapForTheResume(t *testing.T) 
 	}
 	id := ids.SwapIDFrom(e.swapIDs(t, req.Source.ID)[0])
 	e.requote()
-	e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: filledOut}}
+	e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: money.UnitsFromUint64(filledOut)}}
 	e.resume(t, id, domain.StatusConfirmed)
 
 	if len(e.privy.calls()) != 1 {
@@ -434,7 +452,7 @@ func TestRouteExec_theSwapOutcomeSettlesTheSwapAndItsStep(t *testing.T) {
 		step    string
 	}{
 		"plan under the floor": {
-			arrange: func(e *routeEnv) { e.evm.plan.MinOut = 302_939_999 },
+			arrange: func(e *routeEnv) { e.evm.plan.MinOut = money.UnitsFromUint64(302_939_999) },
 			failure: domain.FailurePriceMoved, step: "swap:failed:0",
 		},
 		"build refused": {
@@ -493,22 +511,26 @@ func TestRouteExec_anOutageLeavesTheSwapCreatedForTheResume(t *testing.T) {
 	}
 }
 
-func TestRouteExec_aFillPastTheColumnRollsTheConfirmBack(t *testing.T) {
+func TestRouteExec_aFillPastUint64IsConfirmedExactlyAndOnlyOnce(t *testing.T) {
 	t.Parallel()
 	e := newRouteEnv(t)
 	e.bridgedToTheSwap(t)
-	e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: 1 << 63}}
+	e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: mustUnits(t, twentyFiveTokens)}}
 	req := e.request()
 
-	if _, err := e.buy(t.Context(), req); errs.CodeOf(err) != errs.CodeDecodeFailed {
-		t.Fatalf("Buy err = %v, want decode_failed", err)
+	view := e.mustBuy(t, req, domain.StatusConfirmed)
+	if want := mustUnits(t, twentyFiveTokens); !view.OutAmount.Equal(want) {
+		t.Fatalf("out amount = %s, want %s", view.OutAmount, want)
 	}
-	swap := e.swapIDs(t, req.Source.ID)[0]
-	if status, _, _, _ := e.row(t, swap); status != string(domain.StatusSubmitted) {
-		t.Fatalf("swap is %s, want submitted", status)
+	swap := view.ID.UUID()
+	if err := e.exec().Resume(actorContext(t.Context()), view.ID); err != nil {
+		t.Fatal(err)
 	}
-	if got := e.steps(t, swap); got[len(got)-1] != "swap:submitted:0" {
-		t.Fatalf("step events = %v, want the swap step still submitted", got)
+	if n := e.terminalEvents(t, swap); n != 1 {
+		t.Fatalf("%d terminal events after a second confirmation, want one", n)
+	}
+	if got := e.payload(t, swap, "trade.confirmed")["out_amount"]; got != twentyFiveTokens {
+		t.Fatalf("trade.confirmed out_amount = %v, want %s", got, twentyFiveTokens)
 	}
 }
 
@@ -568,9 +590,9 @@ func TestRouteExec_refusesWhatItCannotStartOrLoad(t *testing.T) {
 	}
 	e.treasury.err = nil
 	huge := e.request()
-	huge.InAmount = 1 << 63
+	huge.InAmount = mustUnits(t, twoToThe64)
 	if _, err := e.buy(t.Context(), huge); errs.CodeOf(err) != errs.CodeInvalidInput {
-		t.Fatalf("Buy past the column err = %v, want invalid_input", err)
+		t.Fatalf("Buy past the micros err = %v, want invalid_input", err)
 	}
 	if err := e.exec().Resume(actorContext(t.Context()), ids.SwapIDFrom(e.ids.NewV7())); err == nil {
 		t.Fatal("Resume of an unknown swap succeeded")

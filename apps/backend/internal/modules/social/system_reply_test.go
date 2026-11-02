@@ -96,9 +96,9 @@ func (r systemRig) confirmed(action string, hundredths uint64, source string) ev
 		ConfirmedAt: systemFillAt(),
 	}
 	if action == "sell" {
-		e.InMint, e.InAmount = marketfake.AAPLx().Mint.Address(), amount
+		e.InMint, e.InAmount = marketfake.AAPLx().Mint.Address(), money.UnitsFromUint64(amount)
 	} else {
-		e.OutMint, e.OutAmount = marketfake.AAPLx().Mint.Address(), amount
+		e.OutMint, e.OutAmount = marketfake.AAPLx().Mint.Address(), money.UnitsFromUint64(amount)
 	}
 	return e
 }

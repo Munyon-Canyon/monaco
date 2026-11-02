@@ -156,7 +156,7 @@ func (l *pnlTimeline) record(tr trade, asset string, positions map[string]*repla
 		return err
 	}
 	whole := new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(decimals)), nil)
-	moved := new(big.Rat).SetFrac(new(big.Int).SetUint64(tr.units), whole)
+	moved := new(big.Rat).SetFrac(tr.units.Big(), whole)
 	tokens := new(big.Rat)
 	if prior := l.held[asset]; prior != nil {
 		tokens.Set(prior)
@@ -269,7 +269,7 @@ func sharesFor(
 			return nil, err
 		}
 		whole := new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(decimals)), nil)
-		units := new(big.Int).SetUint64(tr.units)
+		units := tr.units.Big()
 		units.Mul(units, per.Num())
 		return new(big.Rat).SetFrac(units, new(big.Int).Mul(per.Denom(), whole)), nil
 	}

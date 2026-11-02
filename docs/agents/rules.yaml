@@ -505,8 +505,8 @@ rules:
     surface: [backend-agents-md]
     enforced_by: lint:apps/backend/.golangci.base.yml
   - id: B05
-    title: "Amounts are `money.Micros`, `money.SignedMicros` or `money.BaseUnits`; floats are banned"
-    text: "Amounts are `money.Micros`, `money.SignedMicros` or `money.BaseUnits`. Floats are banned."
+    title: "Amounts are `money.Micros`, `money.SignedMicros`, `money.Units`, `money.SignedUnits` or `money.BaseUnits`; floats are banned"
+    text: "Amounts are `money.Micros`, `money.SignedMicros`, `money.Units`, `money.SignedUnits` or `money.BaseUnits`. Floats are banned."
     audience: all
     surface: [backend-agents-md]
     enforced_by: lint:apps/backend/.golangci.base.yml

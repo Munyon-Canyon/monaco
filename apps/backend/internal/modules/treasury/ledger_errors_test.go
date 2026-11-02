@@ -91,8 +91,8 @@ func TestLedger_theDatabaseRefusesUnknownAccountsAndShareOverdrafts(t *testing.T
 	}
 	head := domain.CabalTxnHeader{ID: f.ids.NewV7(), CabalID: cabal, Kind: domain.CabalFund, Status: domain.TxnSettled}
 	bogus, err := domain.NewCabalTxn(head, []domain.CabalEntry{
-		{Account: "vault", Asset: usdc, Amount: amount(1)},
-		{Account: domain.CabalTreasury, Asset: usdc, Amount: amount(-1)},
+		{Account: "vault", Asset: usdc, Amount: entryUnits(1)},
+		{Account: domain.CabalTreasury, Asset: usdc, Amount: entryUnits(-1)},
 	})
 	if err != nil {
 		t.Fatal(err)

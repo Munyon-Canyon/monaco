@@ -61,7 +61,10 @@ func catchUpCard(row sqlc.ProposalCardsRow, extra cardExtras) (port.CatchUpPropo
 	asset := extra.assets[row.Mint]
 	who := extra.proposers[proposer]
 	usdc := positiveAmount(row.UsdcMicros.Valid, row.UsdcMicros.Int64)
-	tokens := positiveAmount(row.TokenAmount.Valid, row.TokenAmount.Int64)
+	tokens, err := positiveTokens(row.TokenAmount)
+	if err != nil {
+		return port.CatchUpProposal{}, err
+	}
 	card := port.CatchUpProposal{
 		ID: ids.ProposalIDFrom(row.ID), CabalID: cabal, CabalName: extra.names[cabal], Kind: string(kind),
 		Symbol: row.Symbol, Mint: row.Mint, AssetName: nameOr(asset.DisplayName, row.Symbol), AssetLogo: asset.LogoURL,
@@ -76,6 +79,14 @@ func catchUpCard(row sqlc.ProposalCardsRow, extra cardExtras) (port.CatchUpPropo
 		card.DecidedBy = &decider
 	}
 	return card, nil
+}
+
+func positiveTokens(raw string) (*uint64, error) {
+	units, err := parseUnits(raw)
+	if err != nil {
+		return nil, err
+	}
+	return positiveAmount(true, units.Int64OrZero()), nil
 }
 
 func positiveAmount(valid bool, amount int64) *uint64 {

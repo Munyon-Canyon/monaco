@@ -9,6 +9,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/domain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	mcfakes "github.com/monaco/monaco/apps/backend/internal/testkit/fakes/multichain"
 )
 
@@ -45,7 +46,7 @@ func TestRouteExec_aRequoteWithin300BpsOfTheSolanaSiblingBuys(t *testing.T) {
 			e := newRouteEnv(t)
 			e.withSibling(siblingOut(units), true)
 			e.privy.script(multichain.ActionSucceeded)
-			e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: filledOut}}
+			e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: money.UnitsFromUint64(filledOut)}}
 
 			e.mustBuy(t, e.request(), domain.StatusConfirmed)
 		})
@@ -95,7 +96,7 @@ func TestRouteExec_aSiblingThatCannotBeComparedDoesNotStopTheBuy(t *testing.T) {
 			e := newRouteEnv(t)
 			e.withSibling(tc.reply, tc.listed)
 			e.privy.script(multichain.ActionSucceeded)
-			e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: filledOut}}
+			e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: money.UnitsFromUint64(filledOut)}}
 
 			e.mustBuy(t, e.request(), domain.StatusConfirmed)
 		})
@@ -140,7 +141,7 @@ func TestRouteExec_aSiblingQuoteTooLargeToCountAsSharesDoesNotStopTheBuy(t *test
 	solana.Decimals = 0
 	e.listings.listings[solana.ID] = solana
 	e.privy.script(multichain.ActionSucceeded)
-	e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: filledOut}}
+	e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: money.UnitsFromUint64(filledOut)}}
 
 	e.mustBuy(t, e.request(), domain.StatusConfirmed)
 }

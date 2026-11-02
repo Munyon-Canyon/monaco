@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"math"
+	"reflect"
 	"strconv"
 	"testing"
 	"time"
@@ -20,10 +21,23 @@ func fillBase() time.Time { return time.Date(2026, 10, 3, 8, 41, 0, 0, time.UTC)
 func swapID(n int) uuid.UUID { return uuid.NewSHA1(uuid.Nil, []byte(strconv.Itoa(n))) }
 
 func fillOf(tokens, micros uint64, minutes int) feed.Fill {
+	return wideFillOf(money.UnitsFromUint64(tokens), micros, minutes)
+}
+
+func wideFillOf(tokens money.Units, micros uint64, minutes int) feed.Fill {
 	return feed.Fill{
-		TokenAmount: money.NewBaseUnits(tokens, 8), USDCMicros: money.MicrosFromUint64(micros),
+		TokenAmount: feed.NewTokens(tokens, 8), USDCMicros: money.MicrosFromUint64(micros),
 		FilledAt: fillBase().Add(time.Duration(minutes) * time.Minute),
 	}
+}
+
+func parseUnits(t *testing.T, raw string) money.Units {
+	t.Helper()
+	u, err := money.ParseUnits(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return u
 }
 
 func passed() feed.Payload { return feed.Payload{Outcome: feed.OutcomePassed} }
@@ -77,17 +91,18 @@ func TestDeriveFill_sumsTheConfirmedSwapsAndNamesTheLatest(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, tokens, usdc, at, err := feed.DeriveFill(p)
-	if err != nil || tokens.Uint64() != 150 || tokens.Decimals() != 8 || usdc.Uint64() != 17 ||
+	if err != nil || !tokens.Amount.Equal(money.UnitsFromUint64(150)) || tokens.Decimals != 8 || usdc.Uint64() != 17 ||
 		!at.Equal(fillBase().Add(9*time.Minute)) {
-		t.Fatalf("sums = %s %s %s, %v", tokens, usdc, at, err)
+		t.Fatalf("sums = %s %s %s, %v", tokens.Amount, usdc, at, err)
 	}
 }
 
 func TestDeriveFill_anOverflowIsAnError(t *testing.T) {
 	t.Parallel()
+	max256 := parseUnits(t, "115792089237316195423570985008687907853269984665640564039457584007913129639935")
 	for name, fills := range map[string][2]feed.Fill{
 		"usdc":   {fillOf(1, math.MaxUint64, 0), fillOf(1, 1, 0)},
-		"tokens": {fillOf(math.MaxUint64, 1, 0), fillOf(1, 1, 0)},
+		"tokens": {wideFillOf(max256, 1, 0), fillOf(1, 1, 0)},
 	} {
 		p := passed()
 		if err := errors.Join(p.RecordFill(swapID(1), fills[0], 2), p.RecordFill(swapID(2), fills[1], 2)); err != nil {
@@ -151,7 +166,7 @@ func TestFill_roundTripsThroughThePayload(t *testing.T) {
 		t.Fatalf("fill wire = %s", got)
 	}
 	back, err := feed.ParsePayload(p.JSON())
-	if err != nil || back.Fills[swapID(1).String()] != p.Fills[swapID(1).String()] {
+	if err != nil || !reflect.DeepEqual(back.Fills[swapID(1).String()], p.Fills[swapID(1).String()]) {
 		t.Fatalf("round trip = %+v, %v", back, err)
 	}
 	if _, err := feed.ParsePayload([]byte(`{"fills":{"a":{"token_amount":"x"}}}`)); err == nil {
@@ -163,5 +178,58 @@ func TestFill_aMalformedFillIsAnError(t *testing.T) {
 	t.Parallel()
 	if _, err := feed.ParsePayload([]byte(`{"fills":{"a":"x"}}`)); err == nil {
 		t.Fatal("ParsePayload of a fill that is not an object = nil, want an error")
+	}
+}
+
+func TestDeriveFill_aFillPastUint64RoundTripsAndAggregates(t *testing.T) {
+	t.Parallel()
+	first, second := parseUnits(t, "25000000000000000000"), parseUnits(t, "5000000000000000000")
+	p := passed()
+	if err := errors.Join(
+		p.RecordFill(swapID(1), wideFillOf(first, 300_000_000, 0), 2),
+		p.RecordFill(swapID(2), wideFillOf(second, 60_000_000, 3), 2),
+	); err != nil {
+		t.Fatal(err)
+	}
+	var wire struct {
+		Fills map[string]json.RawMessage `json:"fills"`
+	}
+	if err := json.Unmarshal(p.JSON(), &wire); err != nil {
+		t.Fatal(err)
+	}
+	if got := string(wire.Fills[swapID(1).String()]); got !=
+		`{"token_amount":"25000000000000000000","token_decimals":8,"usdc_micros":"300000000",`+
+			`"filled_at":"2026-10-03T08:41:00Z"}` {
+		t.Fatalf("fill wire = %s", got)
+	}
+	back, err := feed.ParsePayload(p.JSON())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := back.Fills[swapID(1).String()].TokenAmount.Amount; !got.Equal(first) {
+		t.Fatalf("round trip amount = %s, want %s", got, first)
+	}
+	state, tokens, usdc, _, err := feed.DeriveFill(back)
+	if err != nil || state != feed.FillFilled || tokens.Amount.String() != "30000000000000000000" ||
+		usdc.Uint64() != 360_000_000 {
+		t.Fatalf("DeriveFill = %q %s %s, %v, want filled 30e18 360000000", state, tokens.Amount, usdc, err)
+	}
+}
+
+func TestPayload_aTokenAmountPastUint64RoundTrips(t *testing.T) {
+	t.Parallel()
+	want := feed.Payload{Action: feed.ActionBuy, TokenAmount: parseUnits(t, "25000000000000000000"), TokenDecimals: 18}
+	raw := want.JSON()
+	if got := string(raw); got !=
+		`{"action":"buy","token_amount":"25000000000000000000","token_decimals":18}` {
+		t.Fatalf("JSON() = %s", got)
+	}
+	got, err := feed.ParsePayload(raw)
+	if err != nil || !got.TokenAmount.Equal(want.TokenAmount) || got.TokenDecimals != 18 {
+		t.Fatalf("ParsePayload = %+v, %v", got, err)
+	}
+	old, err := feed.ParsePayload([]byte(`{"token_amount":"18446744073709551615"}`))
+	if err != nil || old.TokenAmount.String() != "18446744073709551615" {
+		t.Fatalf("old payload = %+v, %v", old, err)
 	}
 }

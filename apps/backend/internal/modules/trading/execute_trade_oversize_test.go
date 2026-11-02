@@ -9,6 +9,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/app"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
 func tokens(whole int64) *big.Int {
@@ -47,7 +48,7 @@ func TestExecuteTrade_anEVMBuyQuotedWithinInt64StillSettles(t *testing.T) {
 	t.Parallel()
 	e := newRouteEnv(t)
 	e.privy.script(multichain.ActionSucceeded)
-	e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: filledOut}}
+	e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: money.UnitsFromUint64(filledOut)}}
 	e.quote(usdcToken(), aaplxToken(), 0, false)
 	e.route.Ranked[0].GrossOutput = tokens(5)
 	cmd := e.engineEnv.buy()

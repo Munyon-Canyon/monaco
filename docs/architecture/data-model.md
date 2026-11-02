@@ -88,7 +88,7 @@ Dropped from the 2026-09-26 list:
 These follow [backend-platform.md](backend-platform.md) and are not repeated here:
 
 - IDs are UUIDv7, branded per aggregate in Go ([Money and types](backend-platform.md#money-and-types)).
-- Amounts are integer base units: `money.Micros` for USDC and `money.BaseUnits` for tokens, both unsigned. Ledger entries and P&L use the signed int64 type in `platform/money` (default 2026-09-27). No floats anywhere on the money path.
+- Amounts are integer base units: `money.Micros` for USDC and `money.Units` for tokens (`numeric(78,0)` columns, read and written as text), both unsigned; `money.BaseUnits` stays inside the Solana adapters. User ledger entries and P&L use the signed int64 type in `platform/money` (default 2026-09-27); cabal ledger entries use `money.SignedUnits`. No floats anywhere on the money path.
 - Enums (`status`, `kind`, `direction`, `reason`) are named string types with an exhaustive switch in Go.
 - Queries are `sqlc`, one directory per module under `queries/`, generated into a `sqlc` package inside the owning package (`apps/backend/sqlc.yaml`). The platform's `events` and `event_deliveries` queries live in `queries/platform/` and generate into `internal/platform/db/sqlc`. Run `../../.bin/sqlc generate` from `apps/backend` (the pinned build `just install` puts there); CI fails on `../../.bin/sqlc diff`.
 - Migrations are atlas versioned SQL under `apps/backend/migrations/`, applied in the deploy's pre-deploy step, forward only ([Decided](backend-platform.md#decided)).

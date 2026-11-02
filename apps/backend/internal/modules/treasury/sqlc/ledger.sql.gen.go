@@ -16,10 +16,10 @@ import (
 const applyCabalPosition = `-- name: ApplyCabalPosition :one
 WITH updated AS (
   UPDATE cabal_positions AS p SET
-    units = p.units + $1::bigint,
+    units = p.units + $1::text::numeric,
     cost_basis_micros = CASE
-      WHEN $1::bigint < 0
-        THEN p.cost_basis_micros - div(p.cost_basis_micros * -$1::bigint, greatest(p.units, 1))
+      WHEN $1::text::numeric < 0
+        THEN p.cost_basis_micros - div(p.cost_basis_micros * -$1::text::numeric, greatest(p.units, 1))
       ELSE p.cost_basis_micros + $2::text::numeric
     END,
     updated_at = $3::timestamptz
@@ -27,17 +27,17 @@ WITH updated AS (
   RETURNING p.units
 ), inserted AS (
   INSERT INTO cabal_positions (cabal_id, asset, units, cost_basis_micros, updated_at)
-  SELECT $4::uuid, $5::text, $1::bigint, $2::text::numeric,
+  SELECT $4::uuid, $5::text, $1::text::numeric, $2::text::numeric,
     $3::timestamptz
   WHERE NOT EXISTS (SELECT 1 FROM updated)
   RETURNING units
 )
-SELECT (units - $1::bigint)::text AS before, units::text AS after
+SELECT (units - $1::text::numeric)::text AS before, units::text AS after
 FROM (SELECT units FROM updated UNION ALL SELECT units FROM inserted) AS applied
 `
 
 type ApplyCabalPositionParams struct {
-	Delta     int64
+	Delta     string
 	CostIn    string
 	UpdatedAt time.Time
 	CabalID   uuid.UUID
@@ -608,7 +608,7 @@ func (q *Queries) FailTransfer(ctx context.Context, arg FailTransferParams) ([]F
 const insertCabalEntry = `-- name: InsertCabalEntry :exec
 INSERT INTO cabal_txn_entries (txn_id, seq, account, asset, amount)
 VALUES ($1::uuid, $2::smallint, $3::text, $4::text,
-  $5::bigint)
+  $5::text::numeric)
 `
 
 type InsertCabalEntryParams struct {
@@ -616,7 +616,7 @@ type InsertCabalEntryParams struct {
 	Seq     int16
 	Account string
 	Asset   string
-	Amount  int64
+	Amount  string
 }
 
 func (q *Queries) InsertCabalEntry(ctx context.Context, arg InsertCabalEntryParams) error {

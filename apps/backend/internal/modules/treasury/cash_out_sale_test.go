@@ -90,9 +90,16 @@ func (r *saleRig) sold(swap uuid.UUID, units, micros uint64, batch int) events.T
 
 func (r *saleRig) unsold(swap uuid.UUID, units uint64, batch int) events.TradeFailed {
 	return events.TradeFailed{
-		V: 1, SwapID: swap, CabalID: r.cabal.UUID(), Source: events.TradeSource{Kind: "cashout", ID: r.job},
-		SourceBatchSize: batch, Action: "sell", Symbol: "AAPLx", InMint: chain.SolanaAddress(aapl), InAmount: units,
-		FailureCode: "jupiter_failed",
+		V:               1,
+		SwapID:          swap,
+		CabalID:         r.cabal.UUID(),
+		Source:          events.TradeSource{Kind: "cashout", ID: r.job},
+		SourceBatchSize: batch,
+		Action:          "sell",
+		Symbol:          "AAPLx",
+		InMint:          chain.SolanaAddress(aapl),
+		InAmount:        money.UnitsFromUint64(units),
+		FailureCode:     "jupiter_failed",
 	}
 }
 

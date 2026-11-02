@@ -127,13 +127,11 @@ func (r *LedgerReads) CabalHoldings(ctx context.Context, cabal ids.CabalID) ([]p
 	}
 	out := make([]port.RawHolding, 0, len(rows))
 	for _, row := range rows {
-		units, err := money.ParseMicros(row.Units)
+		units, err := money.ParseUnits(row.Units)
 		if err != nil {
 			return nil, errs.Wrap(err, errs.CodeDecodeFailed, op, slog.String("value", row.Units))
 		}
-		out = append(out, port.RawHolding{
-			Mint: chain.SolanaAddress(row.Asset), Units: money.NewBaseUnits(units.Uint64(), 0),
-		})
+		out = append(out, port.RawHolding{Mint: chain.SolanaAddress(row.Asset), Units: units})
 	}
 	return out, nil
 }
@@ -184,11 +182,16 @@ func assembleTxn(op string, rows []txnRow) (port.Txn, bool, error) {
 		txn.UserID = &userID
 	}
 	for _, row := range rows {
-		if row.HasEntry {
-			txn.Entries = append(txn.Entries, port.TxnEntry{
-				Seq: row.Seq, Account: row.Account, Asset: row.Asset, Amount: row.Amount,
-			})
+		if !row.HasEntry {
+			continue
 		}
+		amount, err := money.ParseSignedUnits(row.Amount)
+		if err != nil {
+			return port.Txn{}, false, errs.Wrap(err, errs.CodeDecodeFailed, op, slog.String("amount", row.Amount))
+		}
+		txn.Entries = append(txn.Entries, port.TxnEntry{
+			Seq: row.Seq, Account: row.Account, Asset: row.Asset, Amount: amount,
+		})
 	}
 	return txn, true, nil
 }

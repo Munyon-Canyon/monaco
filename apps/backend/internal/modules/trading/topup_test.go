@@ -10,6 +10,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/domain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
 const solanaTreasury = chain.SolanaAddress("9ixcyg5nNxGCJLtSyJYibP7EgQBw4BfpNLbDe7GQ14eh")
@@ -44,7 +45,7 @@ func TestRouteExec_topsUpTheCabalsSolanaTreasuryBeforeTheBridgeOut(t *testing.T)
 	t.Parallel()
 	e := newRouteEnv(t)
 	e.privy.script(multichain.ActionSucceeded)
-	e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: filledOut}}
+	e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: money.UnitsFromUint64(filledOut)}}
 
 	e.mustBuy(t, e.request(), domain.StatusConfirmed)
 

@@ -68,9 +68,23 @@ func TestDeriveFill_dependsOnlyOnTheSetOfSwapOutcomes(t *testing.T) {
 		for range 5 {
 			order := shuffledWithDuplicates(rng, set)
 			state, tokens, usdc, at, err := feed.DeriveFill(applyOutcomes(t, batch, order))
-			if err != nil || state != wantState || tokens != wantTokens || usdc != wantUSDC || !at.Equal(wantAt) {
-				t.Fatalf("batch %d set %+v order %+v: got %s %s %s %s %v, want %s %s %s %s",
-					batch, set, order, state, tokens, usdc, at, err, wantState, wantTokens, wantUSDC, wantAt)
+			if err != nil || state != wantState || !tokens.Amount.Equal(wantTokens.Amount) ||
+				tokens.Decimals != wantTokens.Decimals || usdc != wantUSDC || !at.Equal(wantAt) {
+				t.Fatalf(
+					"batch %d set %+v order %+v: got %s %s %s %s %v, want %s %s %s %s",
+					batch,
+					set,
+					order,
+					state,
+					tokens.Amount,
+					usdc,
+					at,
+					err,
+					wantState,
+					wantTokens.Amount,
+					wantUSDC,
+					wantAt,
+				)
 			}
 		}
 	}

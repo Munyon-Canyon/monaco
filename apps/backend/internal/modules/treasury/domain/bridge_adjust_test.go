@@ -41,7 +41,7 @@ func TestBridgeAdjustProperty_theLandingPlusItsAdjustmentBooksTheRealFee(t *test
 		balance := map[domain.CabalAccount]int64{}
 		for _, e := range append(landed.Entries(), adjust.Entries()...) {
 			if e.Asset == cash {
-				balance[e.Account] += e.Amount.Int64()
+				balance[e.Account] += e.Amount.Int64OrZero()
 			}
 		}
 		if !zeroPerAsset(adjust.Entries()) || balance[domain.CabalTreasury] != sent-paid ||

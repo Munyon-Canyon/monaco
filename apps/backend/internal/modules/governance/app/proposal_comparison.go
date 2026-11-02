@@ -26,7 +26,7 @@ type GetProposalComparison struct {
 }
 
 type LiveComparison struct {
-	QuoteOut   uint64
+	QuoteOut   money.Units
 	Comparison *multichain.Comparison
 	QuotedAt   time.Time
 }

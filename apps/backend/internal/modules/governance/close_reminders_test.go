@@ -17,6 +17,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 	"github.com/monaco/monaco/apps/backend/internal/platform/poller"
 )
@@ -357,7 +358,8 @@ func TestCloseReminderPoller_carriesTheListingDecimalsOfARobinhoodSell(t *testin
 	})
 	d.mustRemind(t, reminders, 1, 1)
 	got := d.closeReminderDues(t, p.ID)
-	if len(got) != 1 || got[0].TokenDecimals != 18 || got[0].TokenAmount != 500_000_000_000_000_000 ||
+	if len(got) != 1 || got[0].TokenDecimals != 18 ||
+		!got[0].TokenAmount.Equal(money.UnitsFromUint64(500_000_000_000_000_000)) ||
 		asked != chain.NetworkRobinhood {
 		t.Fatalf("events = %+v (asked %s), want a Robinhood sell of 0.5 at 18 decimals", got, asked)
 	}

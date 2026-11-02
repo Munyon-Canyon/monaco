@@ -34,7 +34,8 @@ const (
 type ForceResolveSwap struct {
 	Signature      chain.Signature
 	To             domain.Status
-	OutAmount      money.BaseUnits
+	OutAmount      money.Units
+	OutDecimals    uint8
 	Reason         string
 	Actor          string
 	IdempotencyKey string
@@ -79,10 +80,10 @@ func (h *ForceResolveSwapHandler) Handle(ctx context.Context, cmd ForceResolveSw
 }
 
 type chainFacts struct {
-	State         string  `json:"chain_state"`
-	ChainOut      *uint64 `json:"chain_out_amount,omitempty"`
-	Contradiction string  `json:"contradiction,omitempty"`
-	Unverified    string  `json:"unverified,omitempty"`
+	State         string       `json:"chain_state"`
+	ChainOut      *money.Units `json:"chain_out_amount,omitempty"`
+	Contradiction string       `json:"contradiction,omitempty"`
+	Unverified    string       `json:"unverified,omitempty"`
 }
 
 func (h *ForceResolveSwapHandler) verify(ctx context.Context, cmd ForceResolveSwap) (chainFacts, error) {
@@ -137,8 +138,8 @@ func (h *ForceResolveSwapHandler) receiptFacts(cmd ForceResolveSwap, fill EVMFil
 	switch {
 	case cmd.To == domain.StatusFailed:
 		facts.Contradiction = "its receipt shows it landed successfully"
-	case out != cmd.OutAmount.Uint64():
-		facts.Contradiction = fmt.Sprintf("the treasury received %d, not %d", out, cmd.OutAmount.Uint64())
+	case !out.Equal(cmd.OutAmount):
+		facts.Contradiction = fmt.Sprintf("the treasury received %s, not %s", out, cmd.OutAmount)
 	}
 	return facts
 }
@@ -203,10 +204,10 @@ func (h *ForceResolveSwapHandler) landed(
 	if err != nil {
 		return chainFacts{}, err
 	}
-	out := got.Uint64()
+	out := money.UnitsFromUint64(got.Uint64())
 	facts.ChainOut = &out
-	if out != cmd.OutAmount.Uint64() {
-		facts.Contradiction = fmt.Sprintf("the treasury received %d, not %d", out, cmd.OutAmount.Uint64())
+	if !out.Equal(cmd.OutAmount) {
+		facts.Contradiction = fmt.Sprintf("the treasury received %s, not %s", out, cmd.OutAmount)
 	}
 	return facts, nil
 }
@@ -254,7 +255,10 @@ func (h *ForceResolveSwapHandler) resolveTx(
 			return SwapView{}, err
 		}
 	}
-	s := cmd.step(req, row.ID)
+	s, err := cmd.step(req, row.ID)
+	if err != nil {
+		return SwapView{}, err
+	}
 	at := h.clock.Now()
 	n, err := s.apply(ctx, sqlc.New(tx.Queries()), at)
 	if err != nil {
@@ -282,10 +286,10 @@ func (h *ForceResolveSwapHandler) record(
 ) error {
 	detail, err := json.Marshal(struct {
 		To        domain.Status `json:"to"`
-		OutAmount uint64        `json:"out_amount"`
+		OutAmount money.Units   `json:"out_amount"`
 		Override  bool          `json:"override"`
 		chainFacts
-	}{cmd.To, cmd.OutAmount.Uint64(), cmd.Override, facts})
+	}{cmd.To, cmd.OutAmount, cmd.Override, facts})
 	return errors.Join(err, q.InsertSwapOperatorAction(ctx, sqlc.InsertSwapOperatorActionParams{
 		ID: h.ids.NewV7(), SwapID: id, Action: actionForceResolve, Actor: cmd.Actor,
 		Reason: cmd.Reason, Detail: detail, CreatedAt: at,
@@ -296,7 +300,7 @@ func confirmedOutMint(row sqlc.SwapForForceResolveRow, cmd ForceResolveSwap) (ch
 	if row.OutDecimals < 0 || row.OutDecimals > 255 {
 		return chain.Mint{}, errs.New(errs.CodeDecodeFailed, forceResolveSwapOp)
 	}
-	if int16(cmd.OutAmount.Decimals()) != row.OutDecimals {
+	if int16(cmd.OutDecimals) != row.OutDecimals {
 		return chain.Mint{}, errs.New(errs.CodeInvalidInput, forceResolveSwapOp)
 	}
 	return chain.Mint{Address: chain.SolanaAddress(row.OutMint), Decimals: uint8(row.OutDecimals)}, nil
@@ -316,9 +320,6 @@ func (cmd ForceResolveSwap) validate() error {
 		if cmd.OutAmount.IsZero() {
 			return errs.New(errs.CodeInvalidInput, forceResolveSwapOp)
 		}
-		if _, ok := domain.Column(cmd.OutAmount.Uint64()); !ok {
-			return errs.New(errs.CodeInvalidInput, forceResolveSwapOp)
-		}
 	case domain.StatusFailed:
 	case domain.StatusCreated, domain.StatusSubmitted:
 		return errs.New(errs.CodeInvalidInput, forceResolveSwapOp)
@@ -328,12 +329,11 @@ func (cmd ForceResolveSwap) validate() error {
 	return nil
 }
 
-func (cmd ForceResolveSwap) step(req SwapRequest, id uuid.UUID) step {
+func (cmd ForceResolveSwap) step(req SwapRequest, id uuid.UUID) (step, error) {
 	if cmd.To == domain.StatusConfirmed {
-		out, _ := domain.Column(cmd.OutAmount.Uint64())
-		return confirmed(req, id, cmd.Signature, cmd.OutAmount.Uint64(), out)
+		return confirmed(req, id, cmd.Signature, cmd.OutAmount)
 	}
-	return failed(req, id, domain.FailureForceResolved, "")
+	return failed(req, id, domain.FailureForceResolved, ""), nil
 }
 
 func forceResolvable(row sqlc.SwapForForceResolveRow) error {

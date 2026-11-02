@@ -11,6 +11,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/app"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
 const (
@@ -22,8 +23,15 @@ const (
 func liveSpec(t *testing.T) app.EVMSwapSpec {
 	t.Helper()
 	return app.EVMSwapSpec{
-		Network: chain.NetworkBase, Owner: evmAddress(t, liveOwner), TokenIn: evmAddress(t, baseCash),
-		TokenOut: evmAddress(t, liveToken), AmountIn: 9_992_500, MinOut: 990_000,
+		Network: chain.NetworkBase,
+		Owner:   evmAddress(t, liveOwner),
+		TokenIn: evmAddress(t, baseCash),
+		TokenOut: evmAddress(
+			t,
+			liveToken,
+		),
+		AmountIn: money.UnitsFromUint64(9_992_500),
+		MinOut:   money.UnitsFromUint64(990_000),
 	}
 }
 
@@ -76,7 +84,7 @@ func TestEVMVenue_buildsItsOwnExactApprovalInsteadOfTheUnlimitedOneAndAsksForThe
 
 	plan, err := e.venue.Build(t.Context(), liveSpec(t))
 
-	if err != nil || len(plan.Approvals) != 2 || plan.MinOut != 990_200 {
+	if err != nil || len(plan.Approvals) != 2 || !plan.MinOut.Equal(money.UnitsFromUint64(990_200)) {
 		t.Fatalf("plan = %+v, %v, want our approval, the permit and the EIP-55 recipient's floor", plan, err)
 	}
 	exact, _ := hex.DecodeString("095ea7b3" + word(permit2) + word("9992500"))

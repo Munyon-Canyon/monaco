@@ -119,7 +119,8 @@ func scriptQuote(t *testing.T, srv *fakes.Server, step fakes.Step) {
 
 func wantCheck(t *testing.T, got app.RouteCheck, err error, want app.RouteCheck) {
 	t.Helper()
-	if err != nil || got != want {
+	if err != nil || !got.InAmount.Equal(want.InAmount) || !got.OutAmount.Equal(want.OutAmount) ||
+		got.PriceImpactBps != want.PriceImpactBps || !got.QuotedAt.Equal(want.QuotedAt) {
 		t.Fatalf("CheckRoute = %+v, %v, want %+v", got, err, want)
 	}
 }
@@ -135,10 +136,10 @@ func TestCheckRoute_Ok_Buy(t *testing.T) {
 	t.Parallel()
 	aapl := marketfake.AAPLx()
 	checker, calls := routeChecker(t, aapl)
-	got, err := checker.CheckRoute(t.Context(), aapl.ID, app.SideBuy, money.NewBaseUnits(25_000_000, 6))
+	got, err := checker.CheckRoute(t.Context(), aapl.ID, app.SideBuy, money.UnitsFromUint64(25_000_000))
 	wantCheck(t, got, err, app.RouteCheck{
-		InAmount:       money.NewBaseUnits(25_000_000, 6),
-		OutAmount:      money.NewBaseUnits(11_000_000, 8),
+		InAmount:       money.UnitsFromUint64(25_000_000),
+		OutAmount:      money.UnitsFromUint64(11_000_000),
 		PriceImpactBps: 12,
 		QuotedAt:       quotedAt(),
 	})
@@ -154,10 +155,10 @@ func TestCheckRoute_Ok_Sell(t *testing.T) {
 	aapl := marketfake.AAPLx()
 	checker, calls := routeChecker(t, aapl)
 	scriptQuote(t, calls.srv, fakes.Step{Route: orderRoute, Action: fakes.ActionSucceed, Fixture: orderRoute + "/sell"})
-	got, err := checker.CheckRoute(t.Context(), aapl.ID, app.SideSell, money.NewBaseUnits(11_000_000, 8))
+	got, err := checker.CheckRoute(t.Context(), aapl.ID, app.SideSell, money.UnitsFromUint64(11_000_000))
 	wantCheck(t, got, err, app.RouteCheck{
-		InAmount:       money.NewBaseUnits(11_000_000, 8),
-		OutAmount:      money.NewBaseUnits(24_870_000, 6),
+		InAmount:       money.UnitsFromUint64(11_000_000),
+		OutAmount:      money.UnitsFromUint64(24_870_000),
 		PriceImpactBps: 9,
 		QuotedAt:       quotedAt(),
 	})
@@ -181,7 +182,7 @@ func TestCheckRoute_NoRoute_WhenTheProbeRoutes(t *testing.T) {
 	aapl := marketfake.AAPLx()
 	checker, calls := routeChecker(t, aapl)
 	noRouteFor(t, calls, "25000000")
-	_, err := checker.CheckRoute(t.Context(), aapl.ID, app.SideBuy, money.NewBaseUnits(25_000_000, 6))
+	_, err := checker.CheckRoute(t.Context(), aapl.ID, app.SideBuy, money.UnitsFromUint64(25_000_000))
 	wantCode(t, err, errs.CodeNoRoute, calls, 2)
 	if got := calls.asked().Get("amount"); got != "1000000" {
 		t.Fatalf("probe amount = %s, want 1 USDC", got)
@@ -198,7 +199,7 @@ func TestCheckRoute_AssetPaused_WhenTheProbeDoesNotRoute(t *testing.T) {
 	scriptQuote(t, calls.srv, fakes.Step{
 		Route: orderRoute, Action: fakes.ActionSucceed, Fixture: orderRoute + "/no-route", Times: 2,
 	})
-	_, err := checker.CheckRoute(t.Context(), aapl.ID, app.SideBuy, money.NewBaseUnits(25_000_000, 6))
+	_, err := checker.CheckRoute(t.Context(), aapl.ID, app.SideBuy, money.UnitsFromUint64(25_000_000))
 	wantCode(t, err, errs.CodeAssetPaused, calls, 2)
 	if errs.KindOf(errs.CodeAssetPaused) != errs.KindBlocked || errs.Message(errs.CodeAssetPaused) !=
 		"This stock can't be traded right now." {
@@ -211,12 +212,12 @@ func TestCheckRoute_NoRoute_WithoutAProbeWhenTheAmountIsAtOrBelowIt(t *testing.T
 	t.Parallel()
 	for name, tc := range map[string]struct {
 		side   app.Side
-		amount money.BaseUnits
+		amount money.Units
 	}{
-		"buy at the probe":     {app.SideBuy, money.NewBaseUnits(1_000_000, 6)},
-		"buy below the probe":  {app.SideBuy, money.NewBaseUnits(250_000, 6)},
-		"sell at one token":    {app.SideSell, money.NewBaseUnits(100_000_000, 8)},
-		"sell below one token": {app.SideSell, money.NewBaseUnits(5_000_000, 8)},
+		"buy at the probe":     {app.SideBuy, money.UnitsFromUint64(1_000_000)},
+		"buy below the probe":  {app.SideBuy, money.UnitsFromUint64(250_000)},
+		"sell at one token":    {app.SideSell, money.UnitsFromUint64(100_000_000)},
+		"sell below one token": {app.SideSell, money.UnitsFromUint64(5_000_000)},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -236,7 +237,7 @@ func TestCheckRoute_SellProbesAtMostOneWholeToken(t *testing.T) {
 	aapl := marketfake.AAPLx()
 	checker, calls := routeChecker(t, aapl)
 	noRouteFor(t, calls, "500000000")
-	_, err := checker.CheckRoute(t.Context(), aapl.ID, app.SideSell, money.NewBaseUnits(500_000_000, 8))
+	_, err := checker.CheckRoute(t.Context(), aapl.ID, app.SideSell, money.UnitsFromUint64(500_000_000))
 	wantCode(t, err, errs.CodeNoRoute, calls, 2)
 	if got := calls.asked().Get("amount"); got != "100000000" {
 		t.Fatalf("probe amount = %s, want one whole AAPLx", got)
@@ -252,7 +253,7 @@ func TestCheckRoute_AFailedProbeIsNeitherNoRouteNorPaused(t *testing.T) {
 		Route: orderRoute, Action: fakes.ActionFail, Status: http.StatusInternalServerError,
 		Query: map[string]string{"amount": "1000000"},
 	})
-	_, err := checker.CheckRoute(t.Context(), aapl.ID, app.SideBuy, money.NewBaseUnits(25_000_000, 6))
+	_, err := checker.CheckRoute(t.Context(), aapl.ID, app.SideBuy, money.UnitsFromUint64(25_000_000))
 	wantCode(t, err, errs.CodeJupiterUnavailable, calls, 2)
 	if !app.ProbeFailed(err) {
 		t.Fatal("a failed probe must be marked so preview can advise no_route")
@@ -266,7 +267,7 @@ func TestCheckRoute_FullQuoteFailureIsNotAProbeFailure(t *testing.T) {
 	scriptQuote(t, calls.srv, fakes.Step{
 		Route: orderRoute, Action: fakes.ActionFail, Status: http.StatusInternalServerError,
 	})
-	_, err := checker.CheckRoute(t.Context(), aapl.ID, app.SideBuy, money.NewBaseUnits(25_000_000, 6))
+	_, err := checker.CheckRoute(t.Context(), aapl.ID, app.SideBuy, money.UnitsFromUint64(25_000_000))
 	if app.ProbeFailed(err) {
 		t.Fatal("the full quote failing is not a probe failure")
 	}
@@ -277,7 +278,7 @@ func TestCheckRoute_SellProbeIsOneDollarOfTokensAtTheSampledPrice(t *testing.T) 
 	aapl := marketfake.AAPLx()
 	checker, calls := pricedRouteChecker(t, sampledPrice{micros: 230_000_000}, aapl)
 	noRouteFor(t, calls, "500000000")
-	_, err := checker.CheckRoute(t.Context(), aapl.ID, app.SideSell, money.NewBaseUnits(500_000_000, 8))
+	_, err := checker.CheckRoute(t.Context(), aapl.ID, app.SideSell, money.UnitsFromUint64(500_000_000))
 	wantCode(t, err, errs.CodeNoRoute, calls, 2)
 	if got := calls.asked().Get("amount"); got != "434782" {
 		t.Fatalf("probe amount = %s, want $1 of AAPLx at $230", got)
@@ -301,7 +302,7 @@ func TestCheckRoute_SellProbeAppliesTheUIMultiplier(t *testing.T) {
 			aapl.UIMultiplier = tc.m
 			checker, calls := pricedRouteChecker(t, sampledPrice{micros: 230_000_000}, aapl)
 			noRouteFor(t, calls, "500000000")
-			_, err := checker.CheckRoute(t.Context(), aapl.ID, app.SideSell, money.NewBaseUnits(500_000_000, 8))
+			_, err := checker.CheckRoute(t.Context(), aapl.ID, app.SideSell, money.UnitsFromUint64(500_000_000))
 			wantCode(t, err, errs.CodeNoRoute, calls, 2)
 			if got := calls.asked().Get("amount"); got != tc.want {
 				t.Fatalf("probe amount = %s, want %s", got, tc.want)
@@ -315,7 +316,7 @@ func TestCheckRoute_SellAtOrBelowTheDollarProbeIsNoRouteWithoutAProbe(t *testing
 	aapl := marketfake.AAPLx()
 	checker, calls := pricedRouteChecker(t, sampledPrice{micros: 230_000_000}, aapl)
 	noRouteFor(t, calls, "434782")
-	_, err := checker.CheckRoute(t.Context(), aapl.ID, app.SideSell, money.NewBaseUnits(434_782, 8))
+	_, err := checker.CheckRoute(t.Context(), aapl.ID, app.SideSell, money.UnitsFromUint64(434_782))
 	wantCode(t, err, errs.CodeNoRoute, calls, 1)
 }
 
@@ -331,7 +332,7 @@ func TestCheckRoute_SellProbeFallsBackToOneTokenWhenThePriceIsUnknown(t *testing
 			aapl := marketfake.AAPLx()
 			checker, calls := pricedRouteChecker(t, prices, aapl)
 			noRouteFor(t, calls, "500000000")
-			_, err := checker.CheckRoute(t.Context(), aapl.ID, app.SideSell, money.NewBaseUnits(500_000_000, 8))
+			_, err := checker.CheckRoute(t.Context(), aapl.ID, app.SideSell, money.UnitsFromUint64(500_000_000))
 			wantCode(t, err, errs.CodeNoRoute, calls, 2)
 			if got := calls.asked().Get("amount"); got != "100000000" {
 				t.Fatalf("probe amount = %s, want one whole AAPLx", got)
@@ -344,7 +345,7 @@ func TestCheckRoute_RoutedQuoteMakesNoProbe(t *testing.T) {
 	t.Parallel()
 	aapl := marketfake.AAPLx()
 	checker, calls := routeChecker(t, aapl)
-	_, err := checker.CheckRoute(t.Context(), aapl.ID, app.SideBuy, money.NewBaseUnits(25_000_000, 6))
+	_, err := checker.CheckRoute(t.Context(), aapl.ID, app.SideBuy, money.UnitsFromUint64(25_000_000))
 	if err != nil || calls.calls.Load() != 1 {
 		t.Fatalf("err = %v after %d quotes, want none after the one quote", err, calls.calls.Load())
 	}
@@ -354,7 +355,7 @@ func TestCheckRoute_AssetUntradable(t *testing.T) {
 	t.Parallel()
 	halted := marketfake.JPSTx()
 	checker, calls := routeChecker(t, halted)
-	_, err := checker.CheckRoute(t.Context(), halted.ID, app.SideBuy, money.NewBaseUnits(1, 6))
+	_, err := checker.CheckRoute(t.Context(), halted.ID, app.SideBuy, money.UnitsFromUint64(1))
 	wantCode(t, err, errs.CodeAssetUntradable, calls, 0)
 	if errs.KindOf(errs.CodeAssetUntradable) != errs.KindBlocked || errs.Retryable(errs.CodeAssetUntradable) {
 		t.Fatal("asset_untradable must be blocked and not retryable")
@@ -369,7 +370,7 @@ func TestCheckRoute_OverrideOff(t *testing.T) {
 	aapl := marketfake.AAPLx()
 	aapl.Override = domain.OverrideOff
 	checker, calls := routeChecker(t, aapl)
-	_, err := checker.CheckRoute(t.Context(), aapl.ID, app.SideSell, money.NewBaseUnits(1, 8))
+	_, err := checker.CheckRoute(t.Context(), aapl.ID, app.SideSell, money.UnitsFromUint64(1))
 	wantCode(t, err, errs.CodeAssetUntradable, calls, 0)
 }
 
@@ -380,7 +381,7 @@ func TestCheckRoute_AssetNotFound(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = checker.CheckRoute(t.Context(), missing, app.SideBuy, money.NewBaseUnits(1, 6))
+	_, err = checker.CheckRoute(t.Context(), missing, app.SideBuy, money.UnitsFromUint64(1))
 	wantCode(t, err, errs.CodeAssetNotFound, calls, 0)
 }
 
@@ -388,15 +389,19 @@ func TestCheckRoute_ZeroAmount(t *testing.T) {
 	t.Parallel()
 	aapl := marketfake.AAPLx()
 	checker, calls := routeChecker(t, aapl)
-	_, err := checker.CheckRoute(t.Context(), aapl.ID, app.SideBuy, money.NewBaseUnits(0, 6))
+	_, err := checker.CheckRoute(t.Context(), aapl.ID, app.SideBuy, money.UnitsFromUint64(0))
 	wantCode(t, err, errs.CodeInvalidInput, calls, 0)
 }
 
-func TestCheckRoute_WrongDecimals(t *testing.T) {
+func TestCheckRoute_AmountPastUint64(t *testing.T) {
 	t.Parallel()
 	aapl := marketfake.AAPLx()
 	checker, calls := routeChecker(t, aapl)
-	_, err := checker.CheckRoute(t.Context(), aapl.ID, app.SideSell, money.NewBaseUnits(1_000_000, 6))
+	wide, err := money.UnitsFromUint64(math.MaxUint64).Add(money.UnitsFromUint64(1))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = checker.CheckRoute(t.Context(), aapl.ID, app.SideSell, wide)
 	wantCode(t, err, errs.CodeInvalidInput, calls, 0)
 }
 
@@ -404,7 +409,7 @@ func TestCheckRoute_BadSide(t *testing.T) {
 	t.Parallel()
 	aapl := marketfake.AAPLx()
 	checker, calls := routeChecker(t, aapl)
-	_, err := checker.CheckRoute(t.Context(), aapl.ID, app.Side("hold"), money.NewBaseUnits(1, 6))
+	_, err := checker.CheckRoute(t.Context(), aapl.ID, app.Side("hold"), money.UnitsFromUint64(1))
 	wantCode(t, err, errs.CodeInvalidInput, calls, 0)
 }
 
@@ -415,7 +420,7 @@ func TestCheckRoute_JupiterUnavailable(t *testing.T) {
 	scriptQuote(t, calls.srv, fakes.Step{
 		Route: orderRoute, Action: fakes.ActionFail, Status: http.StatusInternalServerError,
 	})
-	_, err := checker.CheckRoute(t.Context(), aapl.ID, app.SideBuy, money.NewBaseUnits(25_000_000, 6))
+	_, err := checker.CheckRoute(t.Context(), aapl.ID, app.SideBuy, money.UnitsFromUint64(25_000_000))
 	var got *errs.Error
 	if !errors.As(err, &got) || got.Code != errs.CodeJupiterUnavailable || got.Op != "jupiter.Quote" {
 		t.Fatalf("err = %#v, want jupiter.Quote's jupiter_unavailable unchanged", err)

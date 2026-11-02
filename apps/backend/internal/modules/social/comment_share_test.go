@@ -117,8 +117,16 @@ func newShareThread(t *testing.T, thesis string) shareThread {
 	item := feedtest.Item(t, base.pool, base.clock, base.gen, func(it *feed.Item) {
 		it.Kind, it.CabalID, it.ActorID, it.RefID, it.Body = feed.KindProposal, base.cabal.ID, base.cabal.Creator.ID, ref, thesis
 		it.Payload = feed.Payload{
-			CabalName: "Alpha Cabal", ActorName: "Ada", Symbol: "AAPLx", AssetName: "Apple", Action: feed.ActionBuy,
-			USDCMicros: money.MicrosFromUint64(250_000_000), TokenAmount: 1_500_000, TokenDecimals: 6,
+			CabalName: "Alpha Cabal",
+			ActorName: "Ada",
+			Symbol:    "AAPLx",
+			AssetName: "Apple",
+			Action:    feed.ActionBuy,
+			USDCMicros: money.MicrosFromUint64(
+				250_000_000,
+			),
+			TokenAmount:   money.UnitsFromUint64(1_500_000),
+			TokenDecimals: 6,
 			ShareOfPotBps: 1000,
 		}
 	})

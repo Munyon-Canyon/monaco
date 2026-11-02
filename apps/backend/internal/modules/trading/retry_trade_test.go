@@ -16,6 +16,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
@@ -96,13 +97,23 @@ func TestRetryTrade_appendsTheFailedSwapsParameters(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := e.requests(t, e.failed.ID)
-	want := []busevents.TradeRetryRequested{{
-		V: 1, SwapID: e.failed.ID, CabalID: e.failed.CabalID,
-		Source: busevents.TradeSource{Kind: "proposal", ID: e.failed.SourceID}, Action: "buy", Symbol: "AAPLx",
-		InMint: usdcMint, OutMint: aaplxMint, InAmount: 25_000_000, QuoteOutAmount: 105_000_000, SlippageBps: 100,
-		RequestedBy: e.member.UUID(),
-	}}
-	if len(got) != 1 || got[0] != want[0] {
+	want := []busevents.TradeRetryRequested{
+		{
+			V:              1,
+			SwapID:         e.failed.ID,
+			CabalID:        e.failed.CabalID,
+			Source:         busevents.TradeSource{Kind: "proposal", ID: e.failed.SourceID},
+			Action:         "buy",
+			Symbol:         "AAPLx",
+			InMint:         usdcMint,
+			OutMint:        aaplxMint,
+			InAmount:       money.UnitsFromUint64(25_000_000),
+			QuoteOutAmount: money.UnitsFromUint64(105_000_000),
+			SlippageBps:    100,
+			RequestedBy:    e.member.UUID(),
+		},
+	}
+	if len(got) != 1 || !sameJSON(got[0], want[0]) {
 		t.Fatalf("trade.retry_requested = %+v, want %+v", got, want)
 	}
 }
@@ -268,7 +279,7 @@ func TestRetryTrade_AtCurrentPrice_RidesTheEventAndKeepsTheVotedQuote(t *testing
 		t.Fatal(err)
 	}
 	got := e.requests(t, swap)
-	if len(got) != 1 || !got[0].AtCurrentPrice || got[0].QuoteOutAmount == 0 {
+	if len(got) != 1 || !got[0].AtCurrentPrice || got[0].QuoteOutAmount.Equal(money.UnitsFromUint64(0)) {
 		t.Fatalf("requests = %+v, want one flagged at_current_price that keeps the stored voted quote", got)
 	}
 }

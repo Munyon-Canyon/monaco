@@ -7,6 +7,7 @@ package sqlc
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -90,7 +91,7 @@ func (q *Queries) HasLiveSwap(ctx context.Context, arg HasLiveSwapParams) (bool,
 }
 
 const latestBySource = `-- name: LatestBySource :one
-SELECT id, cabal_id, source_kind, source_id, action, symbol, in_amount, out_decimals, out_amount, status, failure_code, tx_signature, created_at, confirmed_at, retryable, fee_micros FROM swap_views
+SELECT id, cabal_id, source_kind, source_id, action, symbol, in_amount::text AS in_amount, out_decimals, coalesce(out_amount::text, '')::text AS out_amount, status, failure_code, tx_signature, created_at, confirmed_at, retryable, fee_micros FROM swap_views
 WHERE source_kind = $1 AND source_id = $2
 ORDER BY created_at DESC, id DESC
 LIMIT 1
@@ -101,9 +102,28 @@ type LatestBySourceParams struct {
 	SourceID   uuid.UUID
 }
 
-func (q *Queries) LatestBySource(ctx context.Context, arg LatestBySourceParams) (SwapView, error) {
+type LatestBySourceRow struct {
+	ID          uuid.UUID
+	CabalID     uuid.UUID
+	SourceKind  string
+	SourceID    uuid.UUID
+	Action      string
+	Symbol      string
+	InAmount    string
+	OutDecimals int16
+	OutAmount   string
+	Status      string
+	FailureCode pgtype.Text
+	TxSignature pgtype.Text
+	CreatedAt   time.Time
+	ConfirmedAt pgtype.Timestamptz
+	Retryable   pgtype.Bool
+	FeeMicros   pgtype.Int8
+}
+
+func (q *Queries) LatestBySource(ctx context.Context, arg LatestBySourceParams) (LatestBySourceRow, error) {
 	row := q.db.QueryRow(ctx, latestBySource, arg.SourceKind, arg.SourceID)
-	var i SwapView
+	var i LatestBySourceRow
 	err := row.Scan(
 		&i.ID,
 		&i.CabalID,
@@ -141,12 +161,31 @@ func (q *Queries) OwnsSignature(ctx context.Context, txSignature string) (bool, 
 }
 
 const swapByID = `-- name: SwapByID :one
-SELECT id, cabal_id, source_kind, source_id, action, symbol, in_amount, out_decimals, out_amount, status, failure_code, tx_signature, created_at, confirmed_at, retryable, fee_micros FROM swap_views WHERE id = $1
+SELECT id, cabal_id, source_kind, source_id, action, symbol, in_amount::text AS in_amount, out_decimals, coalesce(out_amount::text, '')::text AS out_amount, status, failure_code, tx_signature, created_at, confirmed_at, retryable, fee_micros FROM swap_views WHERE id = $1
 `
 
-func (q *Queries) SwapByID(ctx context.Context, id uuid.UUID) (SwapView, error) {
+type SwapByIDRow struct {
+	ID          uuid.UUID
+	CabalID     uuid.UUID
+	SourceKind  string
+	SourceID    uuid.UUID
+	Action      string
+	Symbol      string
+	InAmount    string
+	OutDecimals int16
+	OutAmount   string
+	Status      string
+	FailureCode pgtype.Text
+	TxSignature pgtype.Text
+	CreatedAt   time.Time
+	ConfirmedAt pgtype.Timestamptz
+	Retryable   pgtype.Bool
+	FeeMicros   pgtype.Int8
+}
+
+func (q *Queries) SwapByID(ctx context.Context, id uuid.UUID) (SwapByIDRow, error) {
 	row := q.db.QueryRow(ctx, swapByID, id)
-	var i SwapView
+	var i SwapByIDRow
 	err := row.Scan(
 		&i.ID,
 		&i.CabalID,
@@ -169,12 +208,31 @@ func (q *Queries) SwapByID(ctx context.Context, id uuid.UUID) (SwapView, error) 
 }
 
 const swapBySignature = `-- name: SwapBySignature :one
-SELECT id, cabal_id, source_kind, source_id, action, symbol, in_amount, out_decimals, out_amount, status, failure_code, tx_signature, created_at, confirmed_at, retryable, fee_micros FROM swap_views WHERE tx_signature = $1::text
+SELECT id, cabal_id, source_kind, source_id, action, symbol, in_amount::text AS in_amount, out_decimals, coalesce(out_amount::text, '')::text AS out_amount, status, failure_code, tx_signature, created_at, confirmed_at, retryable, fee_micros FROM swap_views WHERE tx_signature = $1::text
 `
 
-func (q *Queries) SwapBySignature(ctx context.Context, txSignature string) (SwapView, error) {
+type SwapBySignatureRow struct {
+	ID          uuid.UUID
+	CabalID     uuid.UUID
+	SourceKind  string
+	SourceID    uuid.UUID
+	Action      string
+	Symbol      string
+	InAmount    string
+	OutDecimals int16
+	OutAmount   string
+	Status      string
+	FailureCode pgtype.Text
+	TxSignature pgtype.Text
+	CreatedAt   time.Time
+	ConfirmedAt pgtype.Timestamptz
+	Retryable   pgtype.Bool
+	FeeMicros   pgtype.Int8
+}
+
+func (q *Queries) SwapBySignature(ctx context.Context, txSignature string) (SwapBySignatureRow, error) {
 	row := q.db.QueryRow(ctx, swapBySignature, txSignature)
-	var i SwapView
+	var i SwapBySignatureRow
 	err := row.Scan(
 		&i.ID,
 		&i.CabalID,

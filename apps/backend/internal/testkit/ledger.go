@@ -110,21 +110,24 @@ func (l *Ledger) fundTxns(
 	inflow, err := domain.NewCabalTxn(domain.CabalTxnHeader{
 		ID: l.ids.NewV7(), CabalID: cabal, Kind: domain.CabalFund, Status: domain.TxnSettled, TransferID: transfer,
 	}, []domain.CabalEntry{
-		{Account: domain.CabalMembers, Asset: usdc, Amount: out},
-		{Account: domain.CabalTreasury, Asset: usdc, Amount: in},
+		{Account: domain.CabalMembers, Asset: usdc, Amount: money.SignedUnitsFromMicros(out)},
+		{Account: domain.CabalTreasury, Asset: usdc, Amount: money.SignedUnitsFromMicros(in)},
 	})
 	return deposit, fund, inflow, err
 }
 
 func (l *Ledger) WithHolding(cabal ids.CabalID, mint chain.SolanaAddress, units money.BaseUnits) *Ledger {
 	l.t.Helper()
-	in, out := l.signed(units.Uint64())
-	asset := domain.MintAsset(mint)
+	return l.WithHoldingAsset(cabal, domain.MintAsset(mint), money.UnitsFromUint64(units.Uint64()))
+}
+
+func (l *Ledger) WithHoldingAsset(cabal ids.CabalID, asset domain.Asset, units money.Units) *Ledger {
+	l.t.Helper()
 	txn, err := domain.NewCabalTxn(domain.CabalTxnHeader{
 		ID: l.ids.NewV7(), CabalID: cabal, Kind: domain.CabalSwap, Status: domain.TxnSettled, SwapID: l.ids.NewV7(),
 	}, []domain.CabalEntry{
-		{Account: domain.CabalVenue, Asset: asset, Amount: out},
-		{Account: domain.CabalTreasury, Asset: asset, Amount: in},
+		{Account: domain.CabalVenue, Asset: asset, Amount: units.Signed().Neg()},
+		{Account: domain.CabalTreasury, Asset: asset, Amount: units.Signed()},
 	})
 	if err != nil {
 		l.t.Fatalf("testkit.Ledger.WithHolding: %v", err)

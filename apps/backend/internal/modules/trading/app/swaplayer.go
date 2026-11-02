@@ -43,8 +43,8 @@ type SwapRequest struct {
 	Symbol          string
 	InMint          chain.Mint
 	OutMint         chain.Mint
-	InAmount        uint64
-	QuoteOutAmount  uint64
+	InAmount        money.Units
+	QuoteOutAmount  money.Units
 	SlippageBps     int64
 	SourceBatchSize int
 	StillWanted     func(ctx context.Context) (bool, error)
@@ -77,6 +77,9 @@ type SwapLayer struct {
 func NewSwapLayer(d SwapLayerDeps) *SwapLayer { return &SwapLayer{d: d} }
 
 func (l *SwapLayer) Run(ctx context.Context, req SwapRequest, heartbeat func()) (SwapView, error) {
+	if err := errors.Join(uint64Fits(req.InAmount), uint64Fits(req.QuoteOutAmount)); err != nil {
+		return SwapView{}, err
+	}
 	insert, err := req.insertParams(l.d.IDs.NewV7(), l.d.Clock.Now())
 	if err != nil {
 		return SwapView{}, err
@@ -90,6 +93,11 @@ func (l *SwapLayer) Run(ctx context.Context, req SwapRequest, heartbeat func()) 
 		return SwapView{}, err
 	}
 	return NewQueries(l.d.Reads).Swap(ctx, ids.SwapIDFrom(id))
+}
+
+func uint64Fits(u money.Units) error {
+	_, err := u.Uint64()
+	return err
 }
 
 func (l *SwapLayer) claim(
@@ -160,13 +168,13 @@ func (l *SwapLayer) drive(ctx context.Context, req SwapRequest, id uuid.UUID) er
 	}
 	floor := domain.SlippageOf(int32(min(max(req.SlippageBps, 0), math.MaxInt32))).MinOut(req.QuoteOutAmount)
 	order, err := l.order(ctx, req, payer, req.SlippageBps)
-	if err == nil && order.OutAmount >= floor && order.MinOut < floor {
-		order, err = l.order(ctx, req, payer, domain.SlippageKeeping(order.OutAmount, floor))
+	if err == nil && order.outUnits().Cmp(floor) >= 0 && order.minOutUnits().Cmp(floor) < 0 {
+		order, err = l.order(ctx, req, payer, domain.SlippageKeeping(order.outUnits(), floor))
 	}
 	if err != nil {
 		return l.orderFailed(ctx, req, id, err)
 	}
-	if order.OutAmount < floor || order.MinOut < floor {
+	if order.outUnits().Cmp(floor) < 0 || order.minOutUnits().Cmp(floor) < 0 {
 		_, err := l.move(ctx, req, id, failed(req, id, domain.FailurePriceMoved, ""))
 		return err
 	}
@@ -193,10 +201,14 @@ func (l *SwapLayer) drive(ctx context.Context, req SwapRequest, id uuid.UUID) er
 func (l *SwapLayer) order(
 	ctx context.Context, req SwapRequest, payer chain.SolanaAddress, slippageBps int64,
 ) (order Order, err error) {
+	inAmount, err := req.InAmount.Uint64()
+	if err != nil {
+		return Order{}, err
+	}
 	err = retryBriefly(ctx, l.d.Clock, func() (err error) {
 		order, err = l.d.Venue.Order(ctx, OrderSpec{
 			Taker: req.TreasuryWallet.Address, Payer: payer, InMint: req.InMint, OutMint: req.OutMint,
-			InAmount: req.InAmount, SlippageBps: slippageBps,
+			InAmount: inAmount, SlippageBps: slippageBps,
 		})
 		return err
 	})
@@ -277,12 +289,11 @@ func (l *SwapLayer) confirm(ctx context.Context, req SwapRequest, id uuid.UUID, 
 			slog.String("swap_id", id.String()), slog.String("code", string(errs.CodeOf(err))))
 		return nil
 	}
-	fill := received.Uint64()
-	out, ok := domain.Column(fill)
-	if !ok {
-		return errs.New(errs.CodeDecodeFailed, "trading.SwapLayer.confirm", slog.Uint64("out_amount", fill))
+	done, err := confirmed(req, id, signature, money.UnitsFromUint64(received.Uint64()))
+	if err != nil {
+		return err
 	}
-	_, err = l.move(ctx, req, id, confirmed(req, id, signature, fill, out))
+	_, err = l.move(ctx, req, id, done)
 	return err
 }
 
@@ -389,22 +400,19 @@ func (l *SwapLayer) beating(ctx context.Context, beat func(), work func(ctx cont
 }
 
 func (r SwapRequest) insertParams(id uuid.UUID, now time.Time) (sqlc.InsertCreatedParams, error) {
-	in, inOK := domain.Column(r.InAmount)
-	quote, quoteOK := domain.Column(r.QuoteOutAmount)
-	if !inOK || !quoteOK || r.SourceBatchSize < 1 || r.SourceBatchSize > math.MaxInt32 ||
-		r.SlippageBps < 0 || r.SlippageBps > math.MaxInt32 {
+	if r.SourceBatchSize < 1 || r.SourceBatchSize > math.MaxInt32 || r.SlippageBps < 0 ||
+		r.SlippageBps > math.MaxInt32 {
 		return sqlc.InsertCreatedParams{}, errs.New(errs.CodeInvalidInput, "trading.SwapLayer.Run",
-			slog.Uint64("in_amount", r.InAmount), slog.Uint64("quote_out_amount", r.QuoteOutAmount),
+			slog.String("in_amount", r.InAmount.String()), slog.String("quote_out_amount", r.QuoteOutAmount.String()),
 			slog.Int64("slippage_bps", r.SlippageBps), slog.Int("source_batch_size", r.SourceBatchSize))
 	}
-	p := sqlc.InsertCreatedParams{
+	return sqlc.InsertCreatedParams{
 		ID: id, SourceKind: string(r.Source.Kind), SourceID: r.Source.ID, CabalID: r.CabalID.UUID(),
 		TreasuryAddress: string(r.TreasuryWallet.Address), Action: string(r.Action), Symbol: r.Symbol,
 		InMint: string(r.InMint.Address), OutMint: string(r.OutMint.Address), OutDecimals: int16(r.OutMint.Decimals),
-		InAmount: in, SlippageBps: int32(r.SlippageBps), SourceBatchSize: int32(r.SourceBatchSize), CreatedAt: now,
-	}
-	p.QuoteOutAmount.Int64, p.QuoteOutAmount.Valid = quote, true
-	return p, nil
+		InAmount: r.InAmount.String(), QuoteOutAmount: r.QuoteOutAmount.String(), SlippageBps: int32(r.SlippageBps),
+		SourceBatchSize: int32(r.SourceBatchSize), CreatedAt: now,
+	}, nil
 }
 
 func (r SwapRequest) recordRoute(ctx context.Context, tx db.Tx, insert sqlc.InsertCreatedParams) error {
@@ -461,17 +469,19 @@ func (r SwapRequest) submittedEvent(id uuid.UUID, signature chain.Signature) eve
 	}
 }
 
-func confirmed(req SwapRequest, id uuid.UUID, signature chain.Signature, outAmount uint64, column int64) step {
-	usdc := req.InAmount
-	if req.Action == domain.ActionSell {
-		usdc = outAmount
+func confirmed(
+	req SwapRequest, id uuid.UUID, signature chain.Signature, outAmount money.Units,
+) (step, error) {
+	usdc, err := usdcOf(req, outAmount)
+	if err != nil {
+		return step{}, err
 	}
 	return step{
 		id: id, from: domain.StatusSubmitted,
 		status: domain.StatusConfirmed,
 		apply: func(ctx context.Context, q *sqlc.Queries, at time.Time) (int64, error) {
 			return q.FinishConfirmedFeeUnrecorded(
-				ctx, sqlc.FinishConfirmedFeeUnrecordedParams{ID: id, OutAmount: column, ConfirmedAt: at},
+				ctx, sqlc.FinishConfirmedFeeUnrecordedParams{ID: id, OutAmount: outAmount.String(), ConfirmedAt: at},
 			)
 		},
 		event: func(at time.Time) events.Event {
@@ -479,11 +489,18 @@ func confirmed(req SwapRequest, id uuid.UUID, signature chain.Signature, outAmou
 				V: 1, SwapID: id, CabalID: req.CabalID.UUID(), Source: req.tradeSource(),
 				SourceBatchSize: req.SourceBatchSize, Action: string(req.Action), Symbol: req.Symbol,
 				InMint: req.InMint.Address, InAmount: req.InAmount, OutMint: req.OutMint.Address, OutAmount: outAmount,
-				USDCMicros: money.MicrosFromUint64(usdc), FeeMicros: money.MicrosFromUint64(0),
+				USDCMicros: usdc, FeeMicros: money.MicrosFromUint64(0),
 				TxSignature: signature, ConfirmedAt: at,
 			}
 		},
+	}, nil
+}
+
+func usdcOf(req SwapRequest, outAmount money.Units) (money.Micros, error) {
+	if req.Action == domain.ActionSell {
+		return outAmount.Micros()
 	}
+	return req.InAmount.Micros()
 }
 
 func failed(req SwapRequest, id uuid.UUID, code domain.FailureCode, jupiterCode string) step {

@@ -17,6 +17,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
 
@@ -49,19 +50,26 @@ func TestTradeOutcome_convergesUnderChaos(t *testing.T) {
 		switch i % 4 {
 		case 0:
 			return events.TradeConfirmed{
-				V: 1, SwapID: random(), CabalID: random(), Source: source, SourceBatchSize: 1, Action: "buy",
-				Symbol: "AAPLx", InAmount: 25_000_000, OutAmount: rng.Uint64N(1e9),
-				ConfirmedAt: time.Date(2026, 3, 1, 12, 0, i, 0, time.UTC),
+				V:               1,
+				SwapID:          random(),
+				CabalID:         random(),
+				Source:          source,
+				SourceBatchSize: 1,
+				Action:          "buy",
+				Symbol:          "AAPLx",
+				InAmount:        money.UnitsFromUint64(25_000_000),
+				OutAmount:       money.UnitsFromUint64(rng.Uint64N(1e9)),
+				ConfirmedAt:     time.Date(2026, 3, 1, 12, 0, i, 0, time.UTC),
 			}
 		case 3:
 			return events.TradeRetryRequested{
 				V: 1, SwapID: random(), CabalID: random(), Source: source, Action: "sell", Symbol: "AAPLx",
-				InAmount: 25_000_000, RequestedBy: random(),
+				InAmount: money.UnitsFromUint64(25_000_000), RequestedBy: random(),
 			}
 		case 1:
 			return events.TradeFailed{
 				V: 1, SwapID: random(), CabalID: random(), Source: source, SourceBatchSize: 1, Action: "sell",
-				Symbol: "AAPLx", InAmount: 25_000_000, FailureCode: "jupiter_failed",
+				Symbol: "AAPLx", InAmount: money.UnitsFromUint64(25_000_000), FailureCode: "jupiter_failed",
 			}
 		}
 		codes := []errs.Code{errs.CodeInsufficientFunds, errs.CodeSlippageExceeded, errs.CodeNoRoute}
@@ -79,7 +87,7 @@ func seedChaosProposals(t *testing.T, h testkit.Harness) {
 		_, err := q.InsertProposal(t.Context(), sqlc.InsertProposalParams{
 			VoterIds: []uuid.UUID{chaosProposal(100 + i)}, ID: chaosProposal(i), CabalID: chaosProposal(200 + i),
 			ProposerID: chaosProposal(100 + i), Kind: "buy", Symbol: "AAPLx", Mint: aaplxMint,
-			UsdcMicros: pgtype.Int8{Int64: 25_000_000, Valid: true}, QuoteOutAmount: 105_000_000,
+			UsdcMicros: pgtype.Int8{Int64: 25_000_000, Valid: true}, QuoteOutAmount: "105000000",
 			ExpiresAt: h.Clock.Now().Add(24 * time.Hour), CreatedAt: h.Clock.Now(),
 			Threshold: "majority",
 		})

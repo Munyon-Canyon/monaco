@@ -63,10 +63,10 @@ func (r *raceRig) bookProceeds(t *testing.T) {
 		ID: r.f.ids.NewV7(), CabalID: r.cabal, Kind: domain.CabalSwap, Status: domain.TxnSettled,
 		SwapID: r.f.ids.NewV7(),
 	}, []domain.CabalEntry{
-		{Account: domain.CabalTreasury, Asset: aapl, Amount: amount(-1_010_000)},
-		{Account: domain.CabalVenue, Asset: aapl, Amount: amount(1_010_000)},
-		{Account: domain.CabalTreasury, Asset: r.f.usdc(), Amount: amount(101_000_000)},
-		{Account: domain.CabalVenue, Asset: r.f.usdc(), Amount: amount(-101_000_000)},
+		{Account: domain.CabalTreasury, Asset: aapl, Amount: entryUnits(-1_010_000)},
+		{Account: domain.CabalVenue, Asset: aapl, Amount: entryUnits(1_010_000)},
+		{Account: domain.CabalTreasury, Asset: r.f.usdc(), Amount: entryUnits(101_000_000)},
+		{Account: domain.CabalVenue, Asset: r.f.usdc(), Amount: entryUnits(-101_000_000)},
 	})
 	if err != nil {
 		t.Fatal(err)

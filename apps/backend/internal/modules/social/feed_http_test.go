@@ -381,13 +381,18 @@ func TestGetFeed_sendsTheFiguresOfProposalsAndTrades(t *testing.T) {
 		ShareOfPotBps: 1000, Status: "open",
 	}
 	sell := feed.Payload{
-		Symbol: "AAPLx", AssetName: "Apple", Action: feed.ActionSell, TokenAmount: 7, TokenDecimals: 8,
-		ShareOfPotBps: 250, Status: "open",
+		Symbol:        "AAPLx",
+		AssetName:     "Apple",
+		Action:        feed.ActionSell,
+		TokenAmount:   money.UnitsFromUint64(7),
+		TokenDecimals: 8,
+		ShareOfPotBps: 250,
+		Status:        "open",
 	}
 	trade := func(action feed.Action, usdc, tokens uint64) feed.Payload {
 		return feed.Payload{
 			Symbol: "AAPLx", AssetName: "Apple", Action: action, USDCMicros: money.MicrosFromUint64(usdc),
-			TokenAmount: tokens, TokenDecimals: 8, ProposalID: proposal,
+			TokenAmount: money.UnitsFromUint64(tokens), TokenDecimals: 8, ProposalID: proposal,
 			PriceMicros: money.PricePerUnit(money.MicrosFromUint64(usdc), tokens, 8),
 		}
 	}

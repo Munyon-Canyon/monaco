@@ -42,7 +42,7 @@ func (d proposalDB) buy(voters ...uuid.UUID) sqlc.InsertProposalParams {
 	return sqlc.InsertProposalParams{
 		VoterIds: voters, ID: d.ids.NewV7(), CabalID: d.ids.NewV7(), ProposerID: d.ids.NewV7(),
 		Kind: "buy", Symbol: "AAPLx", Mint: aaplxMint, UsdcMicros: pgtype.Int8{Int64: 25_000_000, Valid: true},
-		Thesis: pgtype.Text{String: "Earnings next week.", Valid: true}, QuoteOutAmount: 105_000_000,
+		Thesis: pgtype.Text{String: "Earnings next week.", Valid: true}, QuoteOutAmount: "105000000",
 		ExpiresAt: d.now.Add(24 * time.Hour), CreatedAt: d.now, Threshold: "majority",
 	}
 }
@@ -143,22 +143,26 @@ func TestInsertProposal_needsExactlyOnePositiveAmount(t *testing.T) {
 	t.Parallel()
 	d := newProposalDB(t)
 	set := func(v int64) pgtype.Int8 { return pgtype.Int8{Int64: v, Valid: true} }
-	for name, amounts := range map[string][2]pgtype.Int8{
+	type amounts struct {
+		usdc   pgtype.Int8
+		tokens string
+	}
+	for name, a := range map[string]amounts{
 		"neither":        {},
-		"both":           {set(1), set(1)},
-		"zero usdc":      {set(0), {}},
-		"negative usdc":  {set(-1), {}},
-		"zero tokens":    {{}, set(0)},
-		"negative token": {{}, set(-5)},
+		"both":           {set(1), "1"},
+		"zero usdc":      {set(0), ""},
+		"negative usdc":  {set(-1), ""},
+		"zero tokens":    {pgtype.Int8{}, "0"},
+		"negative token": {pgtype.Int8{}, "-5"},
 	} {
 		p := d.buy(d.ids.NewV7())
-		p.UsdcMicros, p.TokenAmount = amounts[0], amounts[1]
+		p.UsdcMicros, p.TokenAmount = a.usdc, a.tokens
 		if _, err := d.q.InsertProposal(t.Context(), p); !isCheckViolation(err, "proposals_one_amount_check") {
 			t.Errorf("%s: err = %v, want a check violation on proposals_one_amount_check", name, err)
 		}
 	}
 	sell := d.buy(d.ids.NewV7())
-	sell.Kind, sell.UsdcMicros, sell.TokenAmount = "sell", pgtype.Int8{}, set(3_000_000)
+	sell.Kind, sell.UsdcMicros, sell.TokenAmount = "sell", pgtype.Int8{}, "3000000"
 	d.insert(t, sell)
 }
 

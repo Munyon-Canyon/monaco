@@ -37,7 +37,11 @@ func causalChains() []events.Event {
 	out := bridgeRun{cabal: bridged, swap: chaosSwap(2), step: "bridge_out"}
 	sellSwap := chaosSwap(3)
 	sale := evmConfirmed(sold, sellSwap, 0)
-	sale.Action, sale.InMint, sale.InAmount, sale.OutMint, sale.OutAmount = "sell", baseAAPL, 400_000_000, baseCash, 9_900_000
+	sale.Action, sale.InMint, sale.InAmount, sale.OutMint, sale.OutAmount = "sell", baseAAPL, money.UnitsFromUint64(
+		400_000_000,
+	), baseCash, money.UnitsFromUint64(
+		9_900_000,
+	)
 	sale.USDCMicros, sale.FeeMicros = money.MicrosFromUint64(9_900_000), money.MicrosFromUint64(0)
 	back := bridgeRun{cabal: sold, swap: sellSwap, step: "bridge_back"}
 	return []events.Event{

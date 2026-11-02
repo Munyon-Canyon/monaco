@@ -12,6 +12,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/domain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/platform/poller"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
@@ -30,7 +31,7 @@ func TestEVMTrades_resumesARoutedSwapOnceItIsOlderThanTheSweepAge(t *testing.T) 
 	e := newRouteEnv(t)
 	view := e.mustBuy(t, e.request(), domain.StatusCreated)
 	e.privy.script(multichain.ActionSucceeded)
-	e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: filledOut}}
+	e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: money.UnitsFromUint64(filledOut)}}
 
 	if report, err := e.tick(t.Context(), t); err != nil || report.Scanned != 0 ||
 		e.poller().Interval() != app.SwapSweepInterval {

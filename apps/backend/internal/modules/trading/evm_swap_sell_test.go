@@ -7,6 +7,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/app"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
 func newSellSwapEnv(t *testing.T) evmSwapEnv {
@@ -14,18 +15,26 @@ func newSellSwapEnv(t *testing.T) evmSwapEnv {
 	e := newEVMSwapEnv(t)
 	swap := e.evm.plan.Swap
 	e.evm.plan = app.EVMSwapPlan{Approvals: e.evm.plan.Approvals, Candidates: []app.EVMSwapCandidate{
-		{Swap: swap, OutAmount: 310},
-		{Route: multichain.RouteOptions{HooksOptions: multichain.NoHooks}, Swap: swap, OutAmount: 305},
+		{Swap: swap, OutAmount: money.UnitsFromUint64(310)},
+		{
+			Route:     multichain.RouteOptions{HooksOptions: multichain.NoHooks},
+			Swap:      swap,
+			OutAmount: money.UnitsFromUint64(305),
+		},
 	}}
-	e.evm.chosen = app.EVMSwapPlan{Swap: swap, OutAmount: 306, MinOut: 303}
-	e.leg.Spec.MinOut, e.leg.Spec.SlippageBps = 0, 100
+	e.evm.chosen = app.EVMSwapPlan{
+		Swap:      swap,
+		OutAmount: money.UnitsFromUint64(306),
+		MinOut:    money.UnitsFromUint64(303),
+	}
+	e.leg.Spec.MinOut, e.leg.Spec.SlippageBps = money.UnitsFromUint64(0), 100
 	return e
 }
 
 func TestEVMSwap_aSellSendsItsApprovalsOnceBeforeChoosingARoute(t *testing.T) {
 	t.Parallel()
 	e := newSellSwapEnv(t)
-	e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: 306}}
+	e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: money.UnitsFromUint64(306)}}
 
 	if got, err := e.run(t.Context()); err != nil || got.State != app.FillSucceeded {
 		t.Fatalf("Run = %+v, %v, want the fill", got, err)
@@ -45,7 +54,7 @@ func TestEVMSwap_aSellWithNoRouteThatSimulatesSendsNoSwap(t *testing.T) {
 	t.Parallel()
 	for name, fail := range map[string]func(e evmSwapEnv){
 		"no route":     func(e evmSwapEnv) { e.evm.chooseErr = errs.New(errs.CodeNoRoute, "evm.Choose") },
-		"under floor":  func(e evmSwapEnv) { e.evm.chosen.MinOut = 301 },
+		"under floor":  func(e evmSwapEnv) { e.evm.chosen.MinOut = money.UnitsFromUint64(301) },
 		"rpc down":     func(e evmSwapEnv) { e.evm.chooseErr = errs.New(errs.CodeRPCUnavailable, "evm.Choose") },
 		"empty choice": func(e evmSwapEnv) { e.evm.chosen = app.EVMSwapPlan{} },
 	} {
@@ -69,7 +78,7 @@ func TestEVMSwap_aBuyNeverAsksTheVenueToChoose(t *testing.T) {
 	t.Parallel()
 	e := newEVMSwapEnv(t)
 	e.leg.Spec.Route = multichain.RouteOptions{HooksOptions: multichain.NoHooks}
-	e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: 306}}
+	e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: money.UnitsFromUint64(306)}}
 
 	if _, err := e.run(t.Context()); err != nil {
 		t.Fatal(err)

@@ -101,8 +101,8 @@ func TestFillPrice(t *testing.T) {
 	buy := events.TradeConfirmed{
 		Action:     "buy",
 		USDCMicros: money.MicrosFromUint64(716_520_000),
-		OutAmount:  1_000_000,
-		InAmount:   7,
+		OutAmount:  money.UnitsFromUint64(1_000_000),
+		InAmount:   money.UnitsFromUint64(7),
 	}
 	if got, err := domain.FillPrice(buy, 6); err != nil || got.Uint64() != 716_520_000 {
 		t.Errorf("FillPrice(buy) = %v, %v, want 716520000", got, err)
@@ -110,8 +110,8 @@ func TestFillPrice(t *testing.T) {
 	sell := events.TradeConfirmed{
 		Action:     "sell",
 		USDCMicros: money.MicrosFromUint64(100_000_000),
-		InAmount:   500_000_000,
-		OutAmount:  9,
+		InAmount:   money.UnitsFromUint64(500_000_000),
+		OutAmount:  money.UnitsFromUint64(9),
 	}
 	if got, err := domain.FillPrice(sell, 8); err != nil || got.Uint64() != 20_000_000 {
 		t.Errorf("FillPrice(sell) = %v, %v, want 20000000 from the in side at 8 decimals", got, err)
@@ -122,8 +122,31 @@ func TestFillPrice(t *testing.T) {
 	); err == nil {
 		t.Error("FillPrice with a zero token amount error = nil")
 	}
-	if _, err := domain.FillPrice(events.TradeConfirmed{Action: "sell", OutAmount: 5}, 6); err == nil {
+	if _, err := domain.FillPrice(
+		events.TradeConfirmed{Action: "sell", OutAmount: money.UnitsFromUint64(5)},
+		6,
+	); err == nil {
 		t.Error("FillPrice of a sell with a zero in amount error = nil")
+	}
+}
+
+func TestFillPrice_pricesTokensPastUint64Exactly(t *testing.T) {
+	t.Parallel()
+	tokens, err := money.ParseUnits("25000000000000000000")
+	if err != nil {
+		t.Fatal(err)
+	}
+	buy := events.TradeConfirmed{
+		Action: "buy", USDCMicros: money.MicrosFromUint64(5_000_000_000), OutAmount: tokens,
+	}
+	if got, err := domain.FillPrice(buy, 18); err != nil || got.Uint64() != 200_000_000 {
+		t.Errorf("FillPrice(buy 25 tokens at 18 decimals) = %v, %v, want 200000000", got, err)
+	}
+	sell := events.TradeConfirmed{
+		Action: "sell", USDCMicros: money.MicrosFromUint64(5_000_000_000), InAmount: tokens,
+	}
+	if got, err := domain.FillPrice(sell, 18); err != nil || got.Uint64() != 200_000_000 {
+		t.Errorf("FillPrice(sell 25 tokens at 18 decimals) = %v, %v, want 200000000", got, err)
 	}
 }
 

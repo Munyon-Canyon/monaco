@@ -445,7 +445,12 @@ func TestGetFeed_aChartReadErrorFailsTheList(t *testing.T) {
 		}
 		it.Payload.Fills = map[string]feed.Fill{
 			f.gen.NewV7().String(): {
-				TokenAmount: money.NewBaseUnits(1_000_000, 6), USDCMicros: micros(2_000_000), FilledAt: f.clock.Now(),
+				TokenAmount: feed.NewTokens(
+					money.UnitsFromUint64(1_000_000),
+					6,
+				),
+				USDCMicros: micros(2_000_000),
+				FilledAt:   f.clock.Now(),
 			},
 		}
 	})

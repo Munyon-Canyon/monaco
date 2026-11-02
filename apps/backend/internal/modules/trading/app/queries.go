@@ -28,9 +28,9 @@ type SwapView struct {
 	Source      domain.Source
 	Action      domain.Action
 	Symbol      string
-	InAmount    uint64
+	InAmount    money.Units
 	OutDecimals int16
-	OutAmount   uint64
+	OutAmount   money.Units
 	Status      domain.Status
 	FailureCode domain.FailureCode
 	TxSignature chain.Signature
@@ -61,7 +61,7 @@ func (s Queries) Swap(ctx context.Context, id ids.SwapID) (SwapView, error) {
 
 func (s Queries) SwapBySignature(ctx context.Context, sig chain.Signature) (SwapView, error) {
 	row, err := s.q.SwapBySignature(ctx, string(sig))
-	return found("trading.SwapBySignature", row, err)
+	return found("trading.SwapBySignature", swapRow(row), err)
 }
 
 func (s Queries) LatestBySource(ctx context.Context, src domain.Source) (SwapView, bool, error) {
@@ -73,7 +73,7 @@ func (s Queries) LatestBySource(ctx context.Context, src domain.Source) (SwapVie
 	case err != nil:
 		return SwapView{}, false, errs.Wrap(err, errs.CodeInternal, op)
 	}
-	v, err := view(op, row)
+	v, err := view(op, swapRow(row))
 	return v, err == nil, err
 }
 
@@ -121,7 +121,7 @@ func (s Queries) Stuck(ctx context.Context, olderThan time.Duration, limit int) 
 	}
 	out := make([]SwapView, len(rows))
 	for i, row := range rows {
-		if out[i], err = view(op, row); err != nil {
+		if out[i], err = view(op, swapRow(row)); err != nil {
 			return nil, err
 		}
 	}
@@ -200,7 +200,9 @@ func arrivalFloor(sent, quotedFee money.Micros) money.Micros {
 	return money.MicrosFromUint64(sent.Uint64() - allowed)
 }
 
-func found(op string, row sqlc.SwapView, err error) (SwapView, error) {
+type swapRow = sqlc.SwapByIDRow
+
+func found(op string, row swapRow, err error) (SwapView, error) {
 	switch {
 	case errors.Is(err, sql.ErrNoRows):
 		return SwapView{}, errs.New(errs.CodeSwapNotFound, op)
@@ -210,13 +212,13 @@ func found(op string, row sqlc.SwapView, err error) (SwapView, error) {
 	return view(op, row)
 }
 
-func view(op string, r sqlc.SwapView) (SwapView, error) {
+func view(op string, r swapRow) (SwapView, error) {
 	kind, kindErr := domain.ParseSourceKind(r.SourceKind)
 	action, actionErr := domain.ParseAction(r.Action)
 	status, statusErr := domain.ParseStatus(r.Status)
 	failure, failureErr := optionalFailure(r.FailureCode.String, r.FailureCode.Valid)
-	in, inErr := domain.ParseAmount(r.InAmount)
-	out, outErr := optionalAmount(r.OutAmount.Int64, r.OutAmount.Valid)
+	in, inErr := domain.ParseTokenAmount(r.InAmount)
+	out, _, outErr := domain.ParseOptionalTokenAmount(r.OutAmount)
 	requiredErr := requireColumns(op, status, r)
 	if err := errors.Join(kindErr, actionErr, statusErr, failureErr, inErr, outErr, requiredErr); err != nil {
 		return SwapView{}, errs.Wrap(err, errs.CodeDecodeFailed, op)
@@ -251,12 +253,12 @@ func view(op string, r sqlc.SwapView) (SwapView, error) {
 	}, nil
 }
 
-func requireColumns(op string, status domain.Status, r sqlc.SwapView) error {
+func requireColumns(op string, status domain.Status, r swapRow) error {
 	var missing []string
 	if (status == domain.StatusSubmitted || status == domain.StatusConfirmed) && !r.TxSignature.Valid {
 		missing = append(missing, "tx_signature")
 	}
-	if status == domain.StatusConfirmed && !r.OutAmount.Valid {
+	if status == domain.StatusConfirmed && r.OutAmount == "" {
 		missing = append(missing, "out_amount")
 	}
 	if status == domain.StatusConfirmed && !r.ConfirmedAt.Valid {
@@ -277,11 +279,4 @@ func optionalFailure(raw string, ok bool) (domain.FailureCode, error) {
 		return "", nil
 	}
 	return domain.ParseFailureCode(raw)
-}
-
-func optionalAmount(v int64, ok bool) (uint64, error) {
-	if !ok {
-		return 0, nil
-	}
-	return domain.ParseAmount(v)
 }

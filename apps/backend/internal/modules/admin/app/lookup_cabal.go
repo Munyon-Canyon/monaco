@@ -23,7 +23,7 @@ type MemberDetail struct {
 type HoldingDetail struct {
 	Mint   string
 	Symbol string
-	Units  money.BaseUnits
+	Units  money.Units
 }
 
 type Valuation struct {

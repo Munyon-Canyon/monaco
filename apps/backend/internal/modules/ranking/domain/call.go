@@ -97,10 +97,11 @@ func FillPrice(e events.TradeConfirmed, decimals uint8) (money.Micros, error) {
 	if e.Action == CallSell {
 		tokens = e.InAmount
 	}
-	price := money.PricePerUnit(e.USDCMicros, tokens, decimals)
-	if tokens == 0 || price.IsZero() {
+	price := money.PricePerUnits(e.USDCMicros, tokens, decimals)
+	if tokens.IsZero() || price.IsZero() {
 		return money.Micros{}, errs.New(errs.CodeInvalidInput, "ranking.FillPrice",
-			slog.String("action", e.Action), slog.Uint64("tokens", tokens), slog.Int("decimals", int(decimals)))
+			slog.String("action", e.Action), slog.String("tokens", tokens.String()),
+			slog.Int("decimals", int(decimals)))
 	}
 	return price, nil
 }

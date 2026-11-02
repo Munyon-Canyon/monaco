@@ -87,7 +87,7 @@ func wordAddress(args []byte, index int, ok bool) (chain.EVMAddress, bool) {
 }
 
 func approved(ok bool, amount *big.Int, spec app.EVMSwapSpec, refused error) error {
-	if !ok || amount.Cmp(new(big.Int).SetUint64(spec.AmountIn)) > 0 {
+	if !ok || amount.Cmp(spec.AmountIn.Big()) > 0 {
 		return refused
 	}
 	return nil
@@ -97,7 +97,7 @@ func exactApproval(spec app.EVMSwapSpec) mc.EVMTransaction {
 	selector, _ := hex.DecodeString(erc20ApproveSelector)
 	permit2, _ := chain.ParseEVMAddress(permit2Address)
 	data := slices.Concat(selector, make([]byte, addressPadding), permit2[:],
-		new(big.Int).SetUint64(spec.AmountIn).FillBytes(make([]byte, abiWord)))
+		spec.AmountIn.Big().FillBytes(make([]byte, abiWord)))
 	return mc.EVMTransaction{Network: spec.Network, To: spec.TokenIn, Data: data, Value: new(big.Int)}
 }
 
@@ -123,7 +123,7 @@ func ownPermit(spec app.EVMSwapSpec, raw txWire, now time.Time) (mc.EVMTransacti
 	selector, _ := hex.DecodeString(permit2ApproveSelector)
 	expiry := big.NewInt(now.Add(permitExpiryWindow).Unix())
 	data := slices.Concat(selector, make([]byte, addressPadding), spec.TokenIn[:], make([]byte, addressPadding),
-		spender[:], new(big.Int).SetUint64(spec.AmountIn).FillBytes(make([]byte, abiWord)),
+		spender[:], spec.AmountIn.Big().FillBytes(make([]byte, abiWord)),
 		expiry.FillBytes(make([]byte, abiWord)))
 	return mc.EVMTransaction{Network: spec.Network, To: permit2, Data: data, Value: new(big.Int)}, nil
 }

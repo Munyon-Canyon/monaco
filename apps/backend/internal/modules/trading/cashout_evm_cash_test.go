@@ -40,8 +40,8 @@ func newEVMCashOutWithCash(t *testing.T) (*evmCashOut, *cashOnlyLedger) {
 	e.ledger = ledger
 	e.listing.StockID = e.route.StockID
 	e.listings.listings[e.listing.ID] = e.listing
-	e.evm.plan.OutAmount, e.evm.plan.MinOut = requotedOut, 302_940_000
-	e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: filledOut}}
+	e.evm.plan.OutAmount, e.evm.plan.MinOut = money.UnitsFromUint64(requotedOut), money.UnitsFromUint64(302_940_000)
+	e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: money.UnitsFromUint64(filledOut)}}
 	e.requote()
 	e.quote(usdcToken(), aaplxToken(), 0, false)
 	e.privy.script(multichain.ActionSucceeded)
@@ -191,8 +191,11 @@ func TestLedgerHoldings_listsEVMCashAsAHolding(t *testing.T) {
 			cash = append(cash, h)
 		}
 	}
-	if err != nil || len(cash) != 2 || cash[0].Mint.Address != "base:"+baseCash || cash[0].Units != 5 ||
-		cash[1].Mint.Address != "robinhood:"+rhUSDG || cash[1].Units != 7 || cash[1].Mint.Decimals != 6 {
+	if err != nil || len(cash) != 2 || cash[0].Mint.Address != "base:"+baseCash ||
+		!cash[0].Units.Equal(money.UnitsFromUint64(5)) ||
+		cash[1].Mint.Address != "robinhood:"+rhUSDG ||
+		!cash[1].Units.Equal(money.UnitsFromUint64(7)) ||
+		cash[1].Mint.Decimals != 6 {
 		t.Fatalf("cash holdings = %+v, %v, want Base then Robinhood cash and no zero balance", cash, err)
 	}
 }

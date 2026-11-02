@@ -51,7 +51,7 @@ func (c *cashOutLots) EVMCashPositions(context.Context, ids.CabalID) (map[chain.
 	return c.cash, c.cashErr
 }
 
-func (c *cashOutLots) Sale(_ context.Context, asset string, _ uint64) (app.EVMSale, error) {
+func (c *cashOutLots) Sale(_ context.Context, asset string, _ money.Units) (app.EVMSale, error) {
 	c.asked = append(c.asked, asset)
 	return c.sale, c.err
 }
@@ -79,8 +79,8 @@ func newEVMCashOut(t *testing.T, solanaUSDC uint64) *evmCashOut {
 		RequestID: "req-sell", Transaction: swapTx(),
 	})
 	e.jup.SetExecute("req-sell", jupiter.ExecuteResult{Status: jupiter.StatusSuccess, OutAmount: solanaUSDC})
-	e.evm.plan.OutAmount, e.evm.plan.MinOut = evmProceeds, evmProceeds
-	e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: evmProceeds}}
+	e.evm.plan.OutAmount, e.evm.plan.MinOut = money.UnitsFromUint64(evmProceeds), money.UnitsFromUint64(evmProceeds)
+	e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: money.UnitsFromUint64(evmProceeds)}}
 	e.privy.script(multichain.ActionSucceeded)
 	e.arrivals.short = cashOutBridgeFee
 	return e
@@ -191,7 +191,13 @@ func TestSellForCashOut_anEVMSaleQuoteErrorStopsThePlan(t *testing.T) {
 
 func TestUnwired_theEVMSaleQuotesAreNotImplementedYet(t *testing.T) {
 	t.Parallel()
-	if _, err := (app.UnwiredEVMSales{}).Sale(t.Context(), "base:0x", 1); errs.CodeOf(err) != errs.CodeNotImplemented {
+	if _, err := (app.UnwiredEVMSales{}).Sale(
+		t.Context(),
+		"base:0x",
+		money.UnitsFromUint64(1),
+	); errs.CodeOf(
+		err,
+	) != errs.CodeNotImplemented {
 		t.Fatalf("Sale err = %v, want not_implemented", err)
 	}
 }

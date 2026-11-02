@@ -1,8 +1,11 @@
 package domain
 
 import (
+	"log/slog"
+
 	"github.com/google/uuid"
 
+	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
@@ -10,7 +13,7 @@ import (
 
 type Leg struct {
 	Asset  Asset
-	Amount uint64
+	Amount money.Units
 }
 
 type Swap struct {
@@ -29,28 +32,25 @@ func NewSwapTxn(id uuid.UUID, s Swap, usdc Asset) (CabalTxn, error) {
 	}{
 		{CabalTreasury, CabalVenue, s.In},
 		{CabalVenue, CabalTreasury, s.Out},
-		{CabalTreasury, CabalFees, Leg{Asset: usdc, Amount: s.Fee.Uint64()}},
+		{CabalTreasury, CabalFees, Leg{Asset: usdc, Amount: money.UnitsFromMicros(s.Fee)}},
 	}
 	if s.In.Asset != usdc && IsCash(s.In.Asset, usdc) {
 		legs[2].from, legs[2].to, legs[2].leg.Asset = CabalFees, CabalVenue, s.In.Asset
 	}
 	var entries []CabalEntry
 	for _, l := range legs {
-		if l.leg.Amount == 0 {
+		if l.leg.Amount.IsZero() {
 			continue
 		}
-		amount := money.MicrosFromUint64(l.leg.Amount)
-		debit, err := money.Micros{}.Delta(amount)
-		if err != nil {
-			return CabalTxn{}, err
-		}
-		credit, err := amount.Delta(money.Micros{})
-		if err != nil {
-			return CabalTxn{}, err
+		if IsCash(l.leg.Asset, usdc) {
+			if _, err := l.leg.Amount.Int64(); err != nil {
+				return CabalTxn{}, errs.Wrap(err, errs.CodeInvalidInput, "treasury.NewSwapTxn",
+					slog.String("asset", string(l.leg.Asset)))
+			}
 		}
 		entries = append(entries,
-			CabalEntry{Account: l.from, Asset: l.leg.Asset, Amount: debit},
-			CabalEntry{Account: l.to, Asset: l.leg.Asset, Amount: credit})
+			CabalEntry{Account: l.from, Asset: l.leg.Asset, Amount: l.leg.Amount.Signed().Neg()},
+			CabalEntry{Account: l.to, Asset: l.leg.Asset, Amount: l.leg.Amount.Signed()})
 	}
 	return NewCabalTxn(CabalTxnHeader{
 		ID: id, CabalID: s.CabalID, Kind: CabalSwap, Status: TxnSettled, SwapID: s.ID, TxSignature: s.TxSignature,

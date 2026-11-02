@@ -1,6 +1,6 @@
 -- name: ListProposals :many
 SELECT
-  p.id, p.cabal_id, p.proposer_id, p.kind, p.symbol, p.usdc_micros, p.token_amount, p.quote_out_amount,
+  p.id, p.cabal_id, p.proposer_id, p.kind, p.symbol, p.usdc_micros, coalesce(p.token_amount::text, '')::text AS token_amount, coalesce(p.quote_out_amount::text, '')::text AS quote_out_amount,
   p.thesis, p.threshold, p.status, p.status_reason, p.expires_at, p.created_at, p.rule_change,
   coalesce(mine.choice, '')::text AS my_ballot, p.price_comparison, coalesce(p.network, '')::text AS network
 FROM proposals AS p
@@ -33,7 +33,7 @@ GROUP BY proposal_voters.proposal_id;
 
 -- name: ListMyProposals :many
 SELECT
-  p.id, p.cabal_id, p.proposer_id, p.kind, p.symbol, p.usdc_micros, p.token_amount, p.quote_out_amount,
+  p.id, p.cabal_id, p.proposer_id, p.kind, p.symbol, p.usdc_micros, coalesce(p.token_amount::text, '')::text AS token_amount, coalesce(p.quote_out_amount::text, '')::text AS quote_out_amount,
   p.thesis, p.threshold, p.status, p.status_reason, p.expires_at, p.created_at, p.rule_change,
   coalesce(mine.choice, '')::text AS my_ballot, p.price_comparison, coalesce(p.network, '')::text AS network
 FROM proposals AS p

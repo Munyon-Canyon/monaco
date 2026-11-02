@@ -58,7 +58,7 @@ type FeedItem struct {
 	Action             feed.Action
 	USDCMicros         money.Micros
 	AssetName          string
-	TokenAmount        uint64
+	TokenAmount        money.Units
 	TokenDecimals      *uint8
 	PriceMicros        money.Micros
 	ShareOfPotBps      int64
@@ -72,7 +72,7 @@ type FeedItem struct {
 	Shape              feed.Shape
 	Caller             *FeedCaller
 	FillState          string
-	FilledTokens       money.BaseUnits
+	FilledTokens       feed.Tokens
 	FilledUSDCMicros   money.Micros
 	FilledAt           *time.Time
 	TradeFailed        bool
@@ -219,7 +219,7 @@ func feedItemOf(row sqlc.ListFeedRow) (FeedItem, error) {
 		UpdatedAt: row.UpdatedAt.UTC(), Action: payload.Action, USDCMicros: payload.USDCMicros,
 		AssetName: payload.AssetName, TokenAmount: payload.TokenAmount, ProposalID: payload.ProposalID,
 	}
-	if payload.TokenAmount != 0 {
+	if !payload.TokenAmount.IsZero() {
 		item.TokenDecimals = &payload.TokenDecimals
 	}
 	if kind == feed.KindTrade {
@@ -272,7 +272,7 @@ func resultFacts(item *FeedItem, payload feed.Payload, proposal uuid.UUID) error
 	}
 	item.FillState, item.FilledTokens, item.FilledUSDCMicros = state, tokens, usdc
 	if item.TokenDecimals == nil && !tokens.IsZero() {
-		decimals := tokens.Decimals()
+		decimals := tokens.Decimals
 		item.TokenDecimals = &decimals
 	}
 	item.TradeFailed = state == feed.FillPartial || state == feed.FillFailed
@@ -281,7 +281,7 @@ func resultFacts(item *FeedItem, payload feed.Payload, proposal uuid.UUID) error
 		item.FilledAt = &at
 	}
 	if state == feed.FillFilled || state == feed.FillPartial {
-		item.PriceMicros = money.PricePerUnit(usdc, tokens.Uint64(), tokens.Decimals())
+		item.PriceMicros = tokens.PriceFor(usdc)
 	}
 	return nil
 }

@@ -77,7 +77,7 @@ func wireStats(s app.Stats) api.ProposalStats {
 		out.PriceMicros = baseAmount(s.PriceMicros.Uint64())
 	}
 	if s.Shares != nil {
-		out.SharesAtomics = baseAmount(s.Shares.Uint64())
+		out.SharesAtomics = unitsAmount(*s.Shares)
 	}
 	return out
 }
@@ -252,8 +252,9 @@ func (h HTTP) PostCabalProposal(
 	}
 	trade, err := domain.NewTrade(domain.Trade{
 		Kind: domain.Kind(req.Body.Kind), Symbol: req.Body.Symbol,
-		USDCMicros: money.MicrosFromUint64(amount(req.Body.UsdcMicros)), TokenAmount: amount(req.Body.TokenAmount),
-		Thesis: deref(req.Body.Thesis), Network: network(req.Body.Network),
+		USDCMicros:  money.MicrosFromUint64(amount(req.Body.UsdcMicros)),
+		TokenAmount: money.UnitsFromUint64(amount(req.Body.TokenAmount)),
+		Thesis:      deref(req.Body.Thesis), Network: network(req.Body.Network),
 	})
 	if err != nil {
 		return nil, err
@@ -321,12 +322,14 @@ func (h HTTP) GetCabalProposalPreview(
 	if err != nil {
 		return nil, err
 	}
-	quote, err := wireInt(got.QuoteOut, "quote_out_amount")
+	quote, err := wireUnitsInt(got.QuoteOut, "quote_out_amount")
 	if err != nil {
 		return nil, err
 	}
 	out := api.GetCabalProposalPreview200JSONResponse{
-		PotValueMicros: pot, QuoteOutAmount: positive(quote), PriceComparison: wireComparison(got.PriceComparison),
+		PotValueMicros:  pot,
+		QuoteOutAmount:  positive(quote),
+		PriceComparison: wireComparison(got.PriceComparison),
 	}
 	if err := wireSpendable(&out, got.Spendable); err != nil {
 		return nil, err
@@ -340,8 +343,9 @@ func (h HTTP) GetCabalProposalPreview(
 func previewTrade(params api.GetCabalProposalPreviewParams) (domain.Trade, error) {
 	trade := domain.Trade{
 		Kind: domain.Kind(params.Kind), Symbol: params.Symbol,
-		USDCMicros: money.MicrosFromUint64(amount(params.UsdcMicros)), TokenAmount: amount(params.TokenAmount),
-		Network: network(params.Network),
+		USDCMicros:  money.MicrosFromUint64(amount(params.UsdcMicros)),
+		TokenAmount: money.UnitsFromUint64(amount(params.TokenAmount)),
+		Network:     network(params.Network),
 	}
 	amountless := trade.Kind == domain.KindBuy && params.UsdcMicros == nil && params.TokenAmount == nil
 	if amountless && strings.TrimSpace(trade.Symbol) != "" {
@@ -361,6 +365,14 @@ func wireSpendable(out *api.GetCabalProposalPreview200JSONResponse, s *app.Spend
 	}
 	out.SpendableCashMicros, out.MaxBuyMicros = &cash, &maxBuy
 	return nil
+}
+
+func wireUnitsInt(u money.Units, field string) (int64, error) {
+	v, err := u.Int64()
+	if err != nil {
+		return 0, errs.Wrap(err, errs.CodeDecodeFailed, "governance.wireInt", slog.String("field", field))
+	}
+	return v, nil
 }
 
 func wireInt(v uint64, field string) (int64, error) {
@@ -460,7 +472,7 @@ func wireVoter(v app.Voter) api.ProposalVoter {
 }
 
 func wireFill(out *api.LinkedSwap, f app.Fill) {
-	out.UsdcMicros, out.TokenAmount = baseAmount(f.USDCMicros), baseAmount(f.TokenAmount)
+	out.UsdcMicros, out.TokenAmount = baseAmount(f.USDCMicros), unitsAmount(f.TokenAmount)
 	out.TokenDecimals = int(f.TokenDecimals)
 	if f.Confirmed {
 		out.PriceMicros = baseAmount(f.PriceMicros)
@@ -486,6 +498,14 @@ func decimalsOf(n uint8) *int {
 		return nil
 	}
 	v := int(n)
+	return &v
+}
+
+func unitsAmount(u money.Units) *int64 {
+	v := u.Int64OrZero()
+	if v == 0 {
+		return nil
+	}
 	return &v
 }
 
@@ -522,7 +542,7 @@ func (h HTTP) GetMyPendingVotes(
 			ExpiresAt:     v.ExpiresAt,
 			CreatedAt:     v.CreatedAt,
 			UsdcMicros:    baseAmount(v.USDC.Uint64()),
-			TokenAmount:   baseAmount(v.TokenAmount.Uint64()),
+			TokenAmount:   unitsAmount(v.TokenAmount),
 			TokenDecimals: decimalsOf(v.TokenDecimals),
 			AssetName:     present(v.AssetName),
 			AssetLogoUrl:  present(v.AssetLogo),
@@ -550,9 +570,9 @@ func wireProposal(v app.ProposalView) api.Proposal {
 		Symbol:          present(v.Symbol),
 		RuleChange:      wireRuleChange(v.Rule),
 		UsdcMicros:      positive(v.USDCMicros),
-		TokenAmount:     positive(v.TokenAmount),
+		TokenAmount:     positive(v.TokenAmount.Int64OrZero()),
 		TokenDecimals:   decimalsOf(v.TokenDecimals),
-		QuoteOutAmount:  positive(v.QuoteOut),
+		QuoteOutAmount:  positive(v.QuoteOut.Int64OrZero()),
 		Status:          api.ProposalStatus(v.Status),
 		ExpiresAt:       v.ExpiresAt,
 		CreatedAt:       v.CreatedAt,

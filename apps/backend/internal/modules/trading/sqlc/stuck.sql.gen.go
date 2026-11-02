@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const countStuckSwaps = `-- name: CountStuckSwaps :one
@@ -51,7 +52,7 @@ WITH stuck AS (
   ORDER BY u.since, u.id
   LIMIT $2::bigint
 )
-SELECT v.id, v.cabal_id, v.source_kind, v.source_id, v.action, v.symbol, v.in_amount, v.out_decimals, v.out_amount,
+SELECT v.id, v.cabal_id, v.source_kind, v.source_id, v.action, v.symbol, v.in_amount::text AS in_amount, v.out_decimals, coalesce(v.out_amount::text, '')::text AS out_amount,
   v.status, v.failure_code, v.tx_signature, v.created_at, v.confirmed_at, v.retryable, v.fee_micros
 FROM stuck
 JOIN swap_views AS v ON v.id = stuck.id
@@ -63,15 +64,34 @@ type StuckSwapsParams struct {
 	RowLimit int64
 }
 
-func (q *Queries) StuckSwaps(ctx context.Context, arg StuckSwapsParams) ([]SwapView, error) {
+type StuckSwapsRow struct {
+	ID          uuid.UUID
+	CabalID     uuid.UUID
+	SourceKind  string
+	SourceID    uuid.UUID
+	Action      string
+	Symbol      string
+	InAmount    string
+	OutDecimals int16
+	OutAmount   string
+	Status      string
+	FailureCode pgtype.Text
+	TxSignature pgtype.Text
+	CreatedAt   time.Time
+	ConfirmedAt pgtype.Timestamptz
+	Retryable   pgtype.Bool
+	FeeMicros   pgtype.Int8
+}
+
+func (q *Queries) StuckSwaps(ctx context.Context, arg StuckSwapsParams) ([]StuckSwapsRow, error) {
 	rows, err := q.db.Query(ctx, stuckSwaps, arg.Cutoff, arg.RowLimit)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []SwapView
+	var items []StuckSwapsRow
 	for rows.Next() {
-		var i SwapView
+		var i StuckSwapsRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.CabalID,

@@ -6,6 +6,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/app"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
 func (e *routeEnv) tradeHandler() *app.ExecuteTradeHandler {
@@ -19,7 +20,7 @@ func TestExecuteTrade_anEVMWinnerRunsTheRoutedBuyAndRecordsTheDelivery(t *testin
 	t.Parallel()
 	e := newRouteEnv(t)
 	e.privy.script(multichain.ActionSucceeded)
-	e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: filledOut}}
+	e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: money.UnitsFromUint64(filledOut)}}
 	e.quote(usdcToken(), aaplxToken(), 0, false)
 	cmd := e.engineEnv.buy()
 	cmd.Route = e.route

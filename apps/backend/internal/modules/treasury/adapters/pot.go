@@ -337,7 +337,13 @@ func (q *Queries) holding(
 		Units:       displayUnits(position.Units, num, den),
 		PriceMicros: price.Micros, ValueMicros: value, CostBasisMicros: position.CostBasis, PnLMicros: pnl,
 	}
-	avg, ok, err := domain.TradePriceMicros(position.CostBasis, position.Units, num, den)
+	avg, ok, err := domain.TradePriceMicros(
+		position.CostBasis,
+		money.UnitsFromUint64(position.Units.Uint64()),
+		position.Units.Decimals(),
+		num,
+		den,
+	)
 	if err == nil && ok {
 		out.AvgEntryMicros = &avg
 	}

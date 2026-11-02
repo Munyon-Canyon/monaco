@@ -7,6 +7,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/app"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
 func (e *venueEnv) inspect(t *testing.T, replies ...string) (app.EVMFill, error) {
@@ -27,7 +28,7 @@ func TestEVMVenue_inspectReportsTheReceiptWithoutDemandingATransfer(t *testing.T
 		"reverted":   {[]string{receiptReply("0x0")}, app.EVMFill{State: app.FillReverted}},
 		"landed with a transfer": {
 			[]string{receiptReply("0x1", transferLog(venueToken, venueOwner, "f4240"))},
-			app.EVMFill{State: app.FillSucceeded, Out: 1_000_000},
+			app.EVMFill{State: app.FillSucceeded, Out: money.UnitsFromUint64(1_000_000)},
 		},
 		"landed with no transfer to the owner": {
 			[]string{receiptReply("0x1", transferLog(venueToken, "0x00000000000000000000000000000000000000cc", "64"))},
@@ -37,7 +38,7 @@ func TestEVMVenue_inspectReportsTheReceiptWithoutDemandingATransfer(t *testing.T
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			got, err := newVenueEnv(t).inspect(t, tc.replies...)
-			if err != nil || got != tc.want {
+			if err != nil || !sameJSON(got, tc.want) {
 				t.Fatalf("Inspect = %+v, %v, want %+v", got, err, tc.want)
 			}
 		})
@@ -52,7 +53,7 @@ func TestEVMVenue_inspectRefusesWhatItCannotRead(t *testing.T) {
 	}{
 		"rpc error": {`{"jsonrpc":"2.0","id":1,"error":{"code":-32000,"message":"header not found"}}`, errs.CodeRPCUnavailable},
 		"overflow": {
-			receiptReply("0x1", transferLog(venueToken, venueOwner, strings.Repeat("f", 16)),
+			receiptReply("0x1", transferLog(venueToken, venueOwner, strings.Repeat("f", 64)),
 				transferLog(venueToken, venueOwner, "1")), errs.CodeDecodeFailed,
 		},
 		"short data": {

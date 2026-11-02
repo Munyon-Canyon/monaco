@@ -270,10 +270,20 @@ func (w *backfillWorld) seedEvents(t *testing.T) {
 		}
 		if s.fill > 0 {
 			add(events.TradeConfirmed{
-				V: 1, SwapID: backfillID("swap", s.name), CabalID: cabal,
-				Source: events.TradeSource{Kind: "proposal", ID: proposal}, Action: s.kind, Symbol: symbol,
-				InMint: chain.SolanaAddress(callsUSDC), InAmount: uint64(s.fill), OutMint: mint, OutAmount: 1_000_000,
-				USDCMicros: money.MicrosFromUint64(uint64(s.fill)), ConfirmedAt: w.decided.Add(5 * time.Minute),
+				V:       1,
+				SwapID:  backfillID("swap", s.name),
+				CabalID: cabal,
+				Source:  events.TradeSource{Kind: "proposal", ID: proposal},
+				Action:  s.kind,
+				Symbol:  symbol,
+				InMint: chain.SolanaAddress(
+					callsUSDC,
+				),
+				InAmount:    money.UnitsFromUint64(uint64(s.fill)),
+				OutMint:     mint,
+				OutAmount:   money.UnitsFromUint64(1_000_000),
+				USDCMicros:  money.MicrosFromUint64(uint64(s.fill)),
+				ConfirmedAt: w.decided.Add(5 * time.Minute),
 			})
 		}
 	}

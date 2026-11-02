@@ -168,8 +168,8 @@ WITH proposal AS (
     quote_out_amount, threshold, status, expires_at, created_at, updated_at, sides_after_close
   )
   VALUES (
-    $2, $3, $4, $5, $6::text, $7::text, $8, $9, $10,
-    $11::bigint, $12, 'open', $13, $14, $14, $15
+    $2, $3, $4, $5, $6::text, $7::text, $8, NULLIF(NULLIF($9::text, ''), '0')::numeric, $10,
+    $11::text::numeric, $12, 'open', $13, $14, $14, $15
   )
   RETURNING id
 )
@@ -187,9 +187,9 @@ type InsertProposalParams struct {
 	Symbol          string
 	Mint            string
 	UsdcMicros      pgtype.Int8
-	TokenAmount     pgtype.Int8
+	TokenAmount     string
 	Thesis          pgtype.Text
-	QuoteOutAmount  int64
+	QuoteOutAmount  string
 	Threshold       string
 	ExpiresAt       time.Time
 	CreatedAt       time.Time
@@ -339,7 +339,7 @@ func (q *Queries) LockForWithdraw(ctx context.Context, id uuid.UUID) (LockForWit
 
 const lockProposal = `-- name: LockProposal :one
 SELECT
-  p.id, p.cabal_id, p.proposer_id, p.kind, p.symbol, p.mint, p.usdc_micros, p.token_amount, p.quote_out_amount,
+  p.id, p.cabal_id, p.proposer_id, p.kind, p.symbol, p.mint, p.usdc_micros, coalesce(p.token_amount::text, '')::text AS token_amount, coalesce(p.quote_out_amount::text, '')::text AS quote_out_amount,
   p.status, p.threshold, p.expires_at, p.price_comparison, coalesce(p.network, '')::text AS network,
   p.rule_change,
   EXISTS (
@@ -363,8 +363,8 @@ type LockProposalRow struct {
 	Symbol          pgtype.Text
 	Mint            pgtype.Text
 	UsdcMicros      pgtype.Int8
-	TokenAmount     pgtype.Int8
-	QuoteOutAmount  pgtype.Int8
+	TokenAmount     string
+	QuoteOutAmount  string
 	Status          string
 	Threshold       string
 	ExpiresAt       time.Time
@@ -419,8 +419,8 @@ WITH proposal AS (
   )
   VALUES (
     $2, $3, $4, $5, $6::text, $7::text,
-    NULLIF($8::text, '0')::bigint, NULLIF($9::text, '0')::bigint,
-    NULLIF($10::text, ''), $11::text::bigint, $12, 'open', $13,
+    NULLIF($8::text, '0')::bigint, NULLIF(NULLIF($9::text, ''), '0')::numeric,
+    NULLIF($10::text, ''), $11::text::numeric, $12, 'open', $13,
     $14, $14, $15::jsonb,
     NULLIF($16::text, ''), NULLIF($17::text, '')::bigint,
     $18::boolean
@@ -552,8 +552,8 @@ UPDATE proposals
 SET status = 'passed', status_reason = NULL, updated_at = $1::timestamptz
 WHERE id = $2 AND status = 'execution_blocked' AND status_reason = 'trade_not_started'
 RETURNING id, cabal_id, kind, coalesce(symbol, '')::text AS symbol, coalesce(mint, '')::text AS mint,
-  coalesce(usdc_micros, 0)::bigint AS usdc_micros, coalesce(token_amount, 0)::bigint AS token_amount,
-  coalesce(quote_out_amount, 0)::bigint AS quote_out_amount, coalesce(network, '')::text AS network
+  coalesce(usdc_micros, 0)::bigint AS usdc_micros, coalesce(token_amount, 0)::text AS token_amount,
+  coalesce(quote_out_amount, 0)::text AS quote_out_amount, coalesce(network, '')::text AS network
 `
 
 type ReopenUnstartedParams struct {
@@ -568,8 +568,8 @@ type ReopenUnstartedRow struct {
 	Symbol         string
 	Mint           string
 	UsdcMicros     int64
-	TokenAmount    int64
-	QuoteOutAmount int64
+	TokenAmount    string
+	QuoteOutAmount string
 	Network        string
 }
 

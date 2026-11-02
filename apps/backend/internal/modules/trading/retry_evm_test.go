@@ -11,6 +11,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/app"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
 func (e *routeEnv) routedBuy(t *testing.T) app.ExecuteTrade {
@@ -31,10 +32,20 @@ func (e *routeEnv) retry(t *testing.T, cmd app.ExecuteTrade, of uuid.UUID) strin
 		t.Fatal(err)
 	}
 	ev := busevents.TradeRetryRequested{
-		V: 1, SwapID: of, CabalID: e.cabal.UUID(),
-		Source: busevents.TradeSource{Kind: "proposal", ID: cmd.ProposalID.UUID()}, Action: "buy", Symbol: cmd.Symbol,
-		InMint: chain.SolanaAddress(inMint), OutMint: chain.SolanaAddress(outMint), InAmount: buyMicros,
-		QuoteOutAmount: quotedOut, SlippageBps: 100, RequestedBy: e.ids.NewV7(),
+		V:       1,
+		SwapID:  of,
+		CabalID: e.cabal.UUID(),
+		Source:  busevents.TradeSource{Kind: "proposal", ID: cmd.ProposalID.UUID()},
+		Action:  "buy",
+		Symbol:  cmd.Symbol,
+		InMint: chain.SolanaAddress(
+			inMint,
+		),
+		OutMint:        chain.SolanaAddress(outMint),
+		InAmount:       money.UnitsFromUint64(buyMicros),
+		QuoteOutAmount: money.UnitsFromUint64(quotedOut),
+		SlippageBps:    100,
+		RequestedBy:    e.ids.NewV7(),
 	}
 	d := e.delivery(t, cmd)
 	d.Handler = retryHandler
@@ -69,7 +80,7 @@ func TestRetry_aRevertedEVMBuySwapsTheStrandedCashWithoutASecondBridge(t *testin
 	}
 	second := e.swapsOf(t, cmd.ProposalID)[1]
 	e.requote()
-	e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: filledOut}}
+	e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: money.UnitsFromUint64(filledOut)}}
 	if code := e.retry(t, cmd, second); code != "ok" {
 		t.Fatalf("second retry delivery %s, want ok", code)
 	}
@@ -94,7 +105,7 @@ func TestRetry_anEVMBuyWhoseBridgeFailedBridgesAgainFromSolanaFunds(t *testing.T
 	cmd := e.routedBuy(t)
 	first := e.swapsOf(t, cmd.ProposalID)[0]
 	e.privy.script(multichain.ActionSucceeded)
-	e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: filledOut}}
+	e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: money.UnitsFromUint64(filledOut)}}
 
 	if code := e.retry(t, cmd, first); code != "ok" {
 		t.Fatalf("retry delivery %s, want ok", code)
@@ -140,7 +151,7 @@ func TestRetry_cashAlreadyBridgedBackIsNotReused(t *testing.T) {
 	}
 	e.requote()
 	e.privy.script(multichain.ActionSucceeded)
-	e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: filledOut}}
+	e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: money.UnitsFromUint64(filledOut)}}
 
 	if code := e.retry(t, cmd, first); code != "ok" {
 		t.Fatalf("retry delivery %s, want ok", code)

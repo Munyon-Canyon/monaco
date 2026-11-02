@@ -9,8 +9,8 @@ Money bugs are silent and permanent. Every item below is required. A PR that tou
 
 ## Types
 
-- USDC amounts are `money.Micros`. Signed deltas and P&L are `money.SignedMicros`. Token amounts are `money.BaseUnits`, which carry their decimals. All three live in `apps/backend/internal/platform/money/money.go`.
-- Build them with `money.ParseMicros`, `money.MicrosFromUint64` or `money.NewBaseUnits` at the boundary. Arithmetic goes through `Add`, `Sub` and `Delta`, which return an error on overflow and underflow. Handle the error. Never unwrap to `uint64` to do math.
+- USDC amounts are `money.Micros`. Signed deltas and P&L are `money.SignedMicros`. Token amounts that must hold an EVM balance past 64 bits are `money.Units` (unsigned) and `money.SignedUnits` (signed): `big.Int` backed, immutable, 256 bits at most, written as a decimal string in JSON and read from SQL with `::text`. Token amounts that stay inside a Solana u64 are `money.BaseUnits`, which carry their decimals. The first four live in `apps/backend/internal/platform/money/money.go` and `units.go`.
+- Build them with `money.ParseMicros`, `money.MicrosFromUint64`, `money.NewBaseUnits` or `money.ParseUnits` at the boundary. Arithmetic goes through `Add`, `Sub` and `Delta`, which return an error on overflow and underflow. Handle the error. Never unwrap to `uint64` to do math; `Units.Uint64()` returns an error above 2^64-1 and is only for the Solana u64 boundary. Compare `Units` with `Equal` or `Cmp`, never `==`.
 - Share math is `money.MulDiv(a, b, c)`. It multiplies before it divides through `math/big` and rounds down, so rounding favors the pot. Never divide first.
 - Floats are banned in money code by `forbidigo` in `apps/backend/.golangci.yml`. Display formatting is the client's job.
 - Chain values use the types in `apps/backend/internal/platform/chain/chain.go`: `chain.SolanaAddress`, `chain.Signature` and `chain.Mint`.
@@ -50,7 +50,7 @@ The relayer package is `apps/backend/internal/platform/chain/relayer`.
 
 ## Checklist
 
-- [ ] Amounts are `Micros`, `SignedMicros` or `BaseUnits`, with every arithmetic error handled.
+- [ ] Amounts are `Micros`, `SignedMicros`, `Units`, `SignedUnits` or `BaseUnits`, with every arithmetic error handled.
 - [ ] Share math uses `money.MulDiv` and rounds in favor of the pot.
 - [ ] Each balance change and its event commit in one `uow.Do`.
 - [ ] Each state change is a guarded update.

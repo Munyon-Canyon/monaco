@@ -75,7 +75,7 @@ func (q *Queries) FindProposalID(ctx context.Context, id uuid.UUID) (FindProposa
 
 const getProposal = `-- name: GetProposal :one
 SELECT
-  p.id, p.cabal_id, p.proposer_id, p.kind, p.symbol, p.usdc_micros, p.token_amount, p.quote_out_amount,
+  p.id, p.cabal_id, p.proposer_id, p.kind, p.symbol, p.usdc_micros, coalesce(p.token_amount::text, '')::text AS token_amount, coalesce(p.quote_out_amount::text, '')::text AS quote_out_amount,
   p.thesis, p.threshold, p.status, p.status_reason, p.expires_at, p.created_at, p.pot_value_micros, p.closed_at, p.rule_change,
   p.passed_price_micros, p.decided_by, p.sides_after_close,
   coalesce(mine.choice, '')::text AS my_ballot, p.price_comparison, coalesce(p.network, '')::text AS network, p.mint,
@@ -100,8 +100,8 @@ type GetProposalRow struct {
 	Kind              string
 	Symbol            pgtype.Text
 	UsdcMicros        pgtype.Int8
-	TokenAmount       pgtype.Int8
-	QuoteOutAmount    pgtype.Int8
+	TokenAmount       string
+	QuoteOutAmount    string
 	Thesis            pgtype.Text
 	Threshold         string
 	Status            string

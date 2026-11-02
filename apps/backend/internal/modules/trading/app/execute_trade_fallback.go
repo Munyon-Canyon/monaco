@@ -23,9 +23,13 @@ func (h *ExecuteTradeHandler) fallback(
 	if err != nil {
 		return cmd, false, err
 	}
+	inAmount, err := req.InAmount.Uint64()
+	if err != nil {
+		return cmd, false, err
+	}
 	_, err = h.d.Venue.Order(ctx, OrderSpec{
 		Taker: req.TreasuryWallet.Address, Payer: payer, InMint: req.InMint, OutMint: req.OutMint,
-		InAmount: req.InAmount, SlippageBps: req.SlippageBps,
+		InAmount: inAmount, SlippageBps: req.SlippageBps,
 	})
 	if errs.CodeOf(err) != errs.CodeJupiterRejected {
 		return cmd, false, nil

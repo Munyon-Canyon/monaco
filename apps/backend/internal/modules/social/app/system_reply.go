@@ -14,7 +14,6 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
-	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
 type Holdings interface {
@@ -27,8 +26,8 @@ type SystemReply struct {
 	Outcome domain.SystemOutcome
 	Side    feed.Action
 	Symbol  string
-	Before  *money.BaseUnits
-	After   *money.BaseUnits
+	Before  *feed.Tokens
+	After   *feed.Tokens
 	At      time.Time
 }
 

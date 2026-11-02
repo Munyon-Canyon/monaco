@@ -13,6 +13,7 @@ import (
 	"os"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -206,9 +207,19 @@ func seedOpenProposal(t testkit.SeedT, deps module.Deps, actor func(string) ids.
 func insertDevProposal(t testkit.SeedT, deps module.Deps, cabal testkit.SeededCabal, proposer ids.UserID) uuid.UUID {
 	id, now := ids.Real{}.NewV7(), clock.Real{}.Now().UTC()
 	params := governance.InsertProposalParams{
-		ID: id, CabalID: cabal.ID.UUID(), ProposerID: proposer.UUID(), Kind: "buy", Symbol: "AAPLx",
-		Mint: devProposalMint, UsdcMicros: pgtype.Int8{Int64: devProposalMicros, Valid: true},
-		QuoteOutAmount: devProposalQuote, ExpiresAt: now.Add(24 * time.Hour), CreatedAt: now, Threshold: "majority",
+		ID:         id,
+		CabalID:    cabal.ID.UUID(),
+		ProposerID: proposer.UUID(),
+		Kind:       "buy",
+		Symbol:     "AAPLx",
+		Mint:       devProposalMint,
+		UsdcMicros: pgtype.Int8{Int64: devProposalMicros, Valid: true},
+		QuoteOutAmount: strconv.Itoa(
+			devProposalQuote,
+		),
+		ExpiresAt: now.Add(24 * time.Hour),
+		CreatedAt: now,
+		Threshold: "majority",
 	}
 	for _, m := range cabal.Members {
 		params.VoterIds = append(params.VoterIds, m.ID.UUID())
@@ -259,8 +270,8 @@ func insertFailedSwap(t testkit.SeedT, deps module.Deps, cabal testkit.SeededCab
 	failSeed(t, q.InsertCreated(t.Context(), trading.InsertCreatedParams{
 		ID: e.SwapID, SourceKind: e.Source.Kind, SourceID: e.Source.ID, CabalID: e.CabalID,
 		TreasuryAddress: string(cabal.TreasuryAddress), Action: e.Action, Symbol: e.Symbol,
-		InMint: string(e.InMint), OutMint: string(e.OutMint), OutDecimals: 8, InAmount: devProposalMicros,
-		QuoteOutAmount: pgtype.Int8{Int64: devProposalQuote, Valid: true}, SlippageBps: 100, SourceBatchSize: 1,
+		InMint: string(e.InMint), OutMint: string(e.OutMint), OutDecimals: 8, InAmount: strconv.Itoa(devProposalMicros),
+		QuoteOutAmount: strconv.Itoa(devProposalQuote), SlippageBps: 100, SourceBatchSize: 1,
 		CreatedAt: at,
 	}), "insert swap")
 	_, err := q.MarkSubmitted(t.Context(), trading.MarkSubmittedParams{

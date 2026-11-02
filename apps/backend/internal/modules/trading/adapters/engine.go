@@ -12,7 +12,6 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
-	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
 type Engine struct {
@@ -40,8 +39,7 @@ func (e Engine) HandleRetry(ctx context.Context, d bus.Delivery, ev events.Trade
 	cmd := app.ExecuteTrade{
 		ProposalID: ids.ProposalIDFrom(ev.Source.ID), CabalID: ids.CabalIDFrom(ev.CabalID),
 		Action: domain.Action(ev.Action), Symbol: ev.Symbol, Mint: ev.OutMint,
-		USDCMicros: money.MicrosFromUint64(ev.InAmount), QuoteOutAmount: ev.QuoteOutAmount,
-		Pin: ev.Network,
+		QuoteOutAmount: ev.QuoteOutAmount, Pin: ev.Network,
 	}
 	if ev.SwapID != uuid.Nil {
 		cmd.Retry = &app.Retry{
@@ -49,7 +47,13 @@ func (e Engine) HandleRetry(ctx context.Context, d bus.Delivery, ev events.Trade
 		}
 	}
 	if cmd.Action == domain.ActionSell {
-		cmd.Mint, cmd.USDCMicros, cmd.TokenAmount = ev.InMint, money.Micros{}, ev.InAmount
+		cmd.Mint, cmd.TokenAmount = ev.InMint, ev.InAmount
+	} else {
+		micros, err := ev.InAmount.Micros()
+		if err != nil {
+			return err
+		}
+		cmd.USDCMicros = micros
 	}
 	ctx = auth.WithActor(ctx, auth.Actor{Kind: auth.ActorSystem, ID: "trading.engine"})
 	return e.Trades.Handle(ctx, d, cmd, bus.Heartbeat(ctx))

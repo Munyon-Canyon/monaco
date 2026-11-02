@@ -86,7 +86,7 @@ func (m guardedMarket) AssetBySymbol(ctx context.Context, symbol string) (market
 }
 
 func (m guardedMarket) CheckRoute(
-	ctx context.Context, id market.AssetID, side market.Side, amount money.BaseUnits,
+	ctx context.Context, id market.AssetID, side market.Side, amount money.Units,
 ) (market.RouteCheck, error) {
 	m.g.port("CheckRoute")
 	return m.Routes.CheckRoute(ctx, id, side, amount)
@@ -171,7 +171,7 @@ func buyAAPLFor(micros uint64) domain.Trade {
 }
 
 func sellAAPL(units uint64) domain.Trade {
-	return domain.Trade{Kind: domain.KindSell, Symbol: "AAPLx", TokenAmount: units}
+	return domain.Trade{Kind: domain.KindSell, Symbol: "AAPLx", TokenAmount: money.UnitsFromUint64(units)}
 }
 
 func TestProposeTrade_callsNoPortInsideTheTransaction(t *testing.T) {
@@ -299,7 +299,7 @@ func TestProposeTrade_refusesWhatThePortsRefuse(t *testing.T) {
 		},
 		"asset unknown": {
 			func(*tradeWorld) {},
-			domain.Trade{Kind: domain.KindSell, Symbol: "NOPEx", TokenAmount: 1},
+			domain.Trade{Kind: domain.KindSell, Symbol: "NOPEx", TokenAmount: money.UnitsFromUint64(1)},
 			errs.CodeAssetNotFound,
 		},
 		"pot unknown": {
@@ -360,7 +360,7 @@ func TestProposeTrade_refusesWhatThePortsRefuse(t *testing.T) {
 			Kind: domain.KindBuy, Symbol: "TSLAx", USDCMicros: money.MicrosFromUint64(1),
 		}, errs.CodeAssetPaused},
 		"quote of nothing": {func(w *tradeWorld) {
-			w.routes.Ok(marketfake.AAPLx().ID, market.RouteCheck{OutAmount: money.NewBaseUnits(0, 6)})
+			w.routes.Ok(marketfake.AAPLx().ID, market.RouteCheck{OutAmount: money.Units{}})
 		}, sellAAPL(1), errs.CodeInvalidInput},
 	} {
 		h.w = newTradeWorld(t)

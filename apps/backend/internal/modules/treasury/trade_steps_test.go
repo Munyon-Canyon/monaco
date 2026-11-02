@@ -162,7 +162,7 @@ func swapTxn(
 ) domain.CabalTxn {
 	t.Helper()
 	leg := func(account domain.CabalAccount, asset string, v int64) domain.CabalEntry {
-		return domain.CabalEntry{Account: account, Asset: domain.Asset(asset), Amount: money.SignedMicrosFromInt64(v)}
+		return domain.CabalEntry{Account: account, Asset: domain.Asset(asset), Amount: money.SignedUnitsFromInt64(v)}
 	}
 	txn, err := domain.NewCabalTxn(domain.CabalTxnHeader{
 		ID: f.ids.NewV7(), CabalID: cabal, Kind: domain.CabalSwap, Status: domain.TxnSettled, SwapID: f.ids.NewV7(),
@@ -540,8 +540,8 @@ func TestTradeSteps_aCashLegSoldForItselfThenBridgedBackMovesTheEVMCashToSolanaU
 	swap := f.ids.NewV7()
 	cashLeg := events.TradeConfirmed{
 		V: 1, SwapID: swap, CabalID: cabal.UUID(), Action: "sell", Symbol: "USDC",
-		InMint: chain.SolanaAddress(baseCash), InAmount: 15_000_000,
-		OutMint: chain.SolanaAddress(baseCash), OutAmount: 15_000_000,
+		InMint: chain.SolanaAddress(baseCash), InAmount: money.UnitsFromUint64(15_000_000),
+		OutMint: chain.SolanaAddress(baseCash), OutAmount: money.UnitsFromUint64(15_000_000),
 		USDCMicros: money.MicrosFromUint64(15_000_000), ConfirmedAt: confirmedAt(),
 	}
 
