@@ -95,7 +95,7 @@ enum HomeDashboardJourney {
         }
     }
 
-    static func emptySendsToBrowse(_ app: XCUIApplication, recorder: JourneyRecorder) {
+    static func emptyOffersFirstUse(_ app: XCUIApplication, recorder: JourneyRecorder) {
         recorder.step("S2.1", "no cabal shows the empty state") {
             openHome(app)
             let title = text(app, "No cabals yet")
