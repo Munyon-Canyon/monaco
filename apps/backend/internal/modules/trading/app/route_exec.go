@@ -267,7 +267,7 @@ func (r *RouteExec) requote(ctx context.Context, b routedBuy) (swapQuote, bool, 
 		return swapQuote{}, true, err
 	}
 	out := uint64(0)
-	if err == nil && quote.GrossOutput != nil && quote.GrossOutput.IsUint64() {
+	if err == nil && quote.GrossOutput != nil && quote.GrossOutput.IsInt64() {
 		out = quote.GrossOutput.Uint64()
 	}
 	floor := domain.SlippageOf(b.slippage).MinOut(out)

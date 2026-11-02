@@ -1,3 +1,4 @@
+import Foundation
 import MonacoAPI
 
 public struct ProposeHolding: Equatable, Hashable, Sendable, Identifiable {
@@ -5,6 +6,9 @@ public struct ProposeHolding: Equatable, Hashable, Sendable, Identifiable {
         public let network: Components.Schemas.Network
         public let tokenAmount: Int64
         public let valueMicros: Int64
+        public let exactTokens: Decimal
+
+        public var overflows: Bool { exactTokens > Decimal(Int64.max) }
 
         public var id: String { network.rawValue }
     }
@@ -16,6 +20,7 @@ public struct ProposeHolding: Equatable, Hashable, Sendable, Identifiable {
     public let tokenAmount: Int64
     public let priceMicros: Int64
     public let valueMicros: Int64
+    public let exactTokens: Decimal
     public let network: Components.Schemas.Network?
     public let locations: [Location]
     private let unitsTenThousandths: Int64
@@ -36,12 +41,14 @@ public struct ProposeHolding: Equatable, Hashable, Sendable, Identifiable {
         else {
             network = nil
             tokenAmount = holding.tokenAmount
+            exactTokens = Decimal(holding.tokenAmount)
             valueMicros = holding.valueMicros
             unitsTenThousandths = Int64(holding.units.replacingOccurrences(of: ".", with: "")) ?? 0
             return
         }
         network = first.network
         tokenAmount = first.tokenAmount
+        exactTokens = first.exactTokens
         valueMicros = first.valueMicros
         unitsTenThousandths = Self.tenThousandths(valueMicros: first.valueMicros, priceMicros: holding.priceMicros)
     }
@@ -55,6 +62,7 @@ public struct ProposeHolding: Equatable, Hashable, Sendable, Identifiable {
         locations = holding.locations
         network = location.network
         tokenAmount = location.tokenAmount
+        exactTokens = location.exactTokens
         valueMicros = location.valueMicros
         unitsTenThousandths = Self.tenThousandths(valueMicros: location.valueMicros, priceMicros: holding.priceMicros)
     }
@@ -65,15 +73,19 @@ public struct ProposeHolding: Equatable, Hashable, Sendable, Identifiable {
 
     private static func locations(of holding: Components.Schemas.CabalHolding) -> [Location] {
         var found: [Location] = (holding.listings ?? []).compactMap { listing in
-            guard let amount = Int64(listing.tokenAmount), amount > 0 else { return nil }
-            return Location(network: listing.network, tokenAmount: amount, valueMicros: listing.valueMicros)
+            guard let exact = Decimal(string: listing.tokenAmount), exact > 0, Self.floored(exact) == exact
+            else { return nil }
+            return Location(
+                network: listing.network, tokenAmount: Int64(listing.tokenAmount) ?? Int64.max,
+                valueMicros: listing.valueMicros, exactTokens: exact)
         }
         if holding.tokenAmount > 0, !found.contains(where: { $0.network == .solana }) {
             let elsewhere = found.reduce(Int64(0)) { $0 + $1.valueMicros }
             found.insert(
                 Location(
                     network: .solana, tokenAmount: holding.tokenAmount,
-                    valueMicros: max(0, holding.valueMicros - elsewhere)),
+                    valueMicros: max(0, holding.valueMicros - elsewhere),
+                    exactTokens: Decimal(holding.tokenAmount)),
                 at: 0)
         }
         return found
@@ -95,8 +107,31 @@ public struct ProposeHolding: Equatable, Hashable, Sendable, Identifiable {
         return "The cabal holds \(quantity(of: tokenAmount)) · \(UsdAmountFormatter.format(micros: valueMicros))"
     }
 
+    public var overflows: Bool { exactTokens > Decimal(Int64.max) }
+
+    public func exceedsSettleLimit(forMicros micros: Int64) -> Bool {
+        overflows && exactTokens(forMicros: micros) > Decimal(Int64.max)
+    }
+
+    private func exactTokens(forMicros micros: Int64) -> Decimal {
+        guard micros > 0, valueMicros > 0 else { return 0 }
+        if micros >= valueMicros - valueMicros % 10_000 { return exactTokens }
+        return Self.floored(exactTokens * Decimal(micros) / Decimal(valueMicros))
+    }
+
+    private static func floored(_ value: Decimal) -> Decimal {
+        var input = value
+        var output = Decimal()
+        NSDecimalRound(&output, &input, 0, .down)
+        return output
+    }
+
     public func tokenAmount(forMicros micros: Int64) -> Int64 {
         guard micros > 0 else { return 0 }
+        if overflows {
+            let exact = exactTokens(forMicros: micros)
+            return exact > Decimal(Int64.max) ? Int64.max : NSDecimalNumber(decimal: exact).int64Value
+        }
         if micros >= valueMicros - valueMicros % 10_000 { return tokenAmount }
         return ProposeMath.tokenAmount(units: tokenAmount, dollars: micros, holdingValue: valueMicros)
     }
@@ -110,6 +145,11 @@ public struct ProposeHolding: Equatable, Hashable, Sendable, Identifiable {
     }
 
     public func quantity(of amount: Int64) -> String {
+        if overflows {
+            let share = Decimal(max(amount, 0)) / exactTokens
+            let scaled = Self.floored(Decimal(unitsTenThousandths) * min(share, 1))
+            return Self.label(tenThousandths: NSDecimalNumber(decimal: scaled).int64Value, kind: kind)
+        }
         let clamped = min(max(amount, 0), tokenAmount)
         let scaled =
             tokenAmount > 0

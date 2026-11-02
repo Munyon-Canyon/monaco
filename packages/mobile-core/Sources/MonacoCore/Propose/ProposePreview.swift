@@ -27,6 +27,7 @@ public struct ProposePreview: Equatable, Sendable {
     public func message(assetName: String, isSell: Bool = false) -> String? {
         switch advisoryCode {
         case "pot_exceeded": "More than the pot has"
+        case "trade_too_large": ProposeFlowCopy.lowerTheAmount
         case "insufficient_funds" where isSell: "More than the cabal holds"
         case "asset_paused", "asset_untradable":
             isSell
