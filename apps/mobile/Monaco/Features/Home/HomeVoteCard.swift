@@ -107,6 +107,7 @@ struct HomeVoteCard: View {
         }
         .font(MonacoTheme.Typo.subhead)
         .frame(minHeight: MonacoButtonMetrics.hitTarget)
+        .contentShape(.accessibility, Rectangle())
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(line.accessibilityLabel)
         .accessibilityIdentifier("\(identifierPrefix)-vote-settled-\(model.id)")

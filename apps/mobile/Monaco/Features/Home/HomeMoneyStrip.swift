@@ -100,6 +100,7 @@ struct HomeCashRow: View {
             .lineLimit(1)
             .minimumScaleFactor(MoneyStyle.row.minimumScaleFactor)
             .frame(minHeight: MonacoButtonMetrics.hitTarget)
+            .contentShape(.accessibility, Rectangle())
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Cash")
             .accessibilityValue(spoken)

@@ -331,6 +331,7 @@ struct VoteStatusLine: View {
         .lineLimit(nil)
         .fixedSize(horizontal: false, vertical: true)
         .frame(maxWidth: .infinity, minHeight: MonacoButtonMetrics.hitTarget, alignment: .leading)
+        .contentShape(.accessibility, Rectangle())
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(ProposalVoteCopy.spoken(facts: facts))
         .accessibilityIdentifier(VoteIdentifier.make(identifierPrefix, "vote-status", identifierSuffix))

@@ -120,6 +120,8 @@ struct HomeBalanceSummary: View {
                 .accessibilityIdentifier("platform-balance-loading")
         case .amount(let micros):
             MoneyText(micros: UsdAmountFormatter.flooredToCents(micros), style: .large)
+                .frame(minHeight: MonacoButtonMetrics.hitTarget)
+                .contentShape(.accessibility, Rectangle())
                 .accessibilityIdentifier(valueIdentifier)
         case .unavailable:
             Text("—")

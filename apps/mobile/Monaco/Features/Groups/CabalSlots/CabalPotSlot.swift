@@ -158,6 +158,7 @@ struct CabalPotBand: View {
         } else {
             figure
                 .frame(minHeight: MonacoButtonMetrics.hitTarget)
+                .contentShape(.accessibility, Rectangle())
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel(Self.spoken(summary.potValue, move: move))
                 .accessibilityIdentifier("cabal-pot-value")
