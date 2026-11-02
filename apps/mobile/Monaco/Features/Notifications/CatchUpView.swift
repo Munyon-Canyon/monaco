@@ -112,7 +112,7 @@ struct CatchUpView: View {
         CatchUpSection(
             title: CatchUpCopy.clearedHeader, identifier: "cleared", items: screen.cleared, now: now(), actions: nil)
         if screen.isCaughtUp {
-            Color.clear.frame(height: MonacoTheme.Space.tabClear).catchUpListRow()
+            Color.clear.frame(height: MonacoTheme.Space.tabClear).accessibilityHidden(true).catchUpListRow()
         }
     }
 
