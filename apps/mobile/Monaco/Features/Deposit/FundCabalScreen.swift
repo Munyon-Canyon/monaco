@@ -192,6 +192,8 @@ struct FundCabalKeypadView: View {
             Text(FundSourceCopy.cash(micros: pillCashMicros))
                 .font(MonacoTheme.Typo.subhead)
                 .foregroundStyle(MonacoTheme.secondaryText)
+                .lineLimit(1)
+                .minimumScaleFactor(0.5)
                 .monacoPrivate()
         }
     }
