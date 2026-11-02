@@ -27,13 +27,19 @@ private struct HomeFirstUse: View {
         let hidden = !gate.firstUse || gate.sharedFailure
         VStack(spacing: MonacoTheme.Space.s) {
             if !hidden {
-                content
+                shownCard
             }
         }
         .padding(.horizontal, MonacoTheme.Space.gutter)
         .frame(maxWidth: .infinity)
         .homeSlotHidden(hidden)
         .sheet(isPresented: $joining) { JoinLinkSheet() }
+    }
+
+    private var shownCard: some View {
+        VStack(spacing: MonacoTheme.Space.s) {
+            content
+        }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("home-cabals-empty")
     }
