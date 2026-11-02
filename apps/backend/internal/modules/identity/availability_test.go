@@ -57,6 +57,15 @@ func (f httpFixture) setClaim(t *testing.T, id ids.UserID, handle, xName string,
 	}
 }
 
+func (f httpFixture) issueReferralCode(t *testing.T, code string, user ids.UserID) {
+	t.Helper()
+	_, err := f.pool.Exec(t.Context(),
+		`INSERT INTO referral_codes (code, user_id, created_at) VALUES ($1, $2, $3)`, code, user.UUID(), f.now)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
 func (f httpFixture) availability(t *testing.T, user ids.UserID, raw string) *httptest.ResponseRecorder {
 	t.Helper()
 	return f.askAvailability(t, f.handler, user, raw)
@@ -153,6 +162,35 @@ func TestSetHandle_updatesTheProfileAndRejectsTakenNames(t *testing.T) {
 		t.Fatalf("rename = %d %s", got.Code, got.Body)
 	}
 	f.sameAvailability(t, second.ID, "kai_one", "kai_one", true, "")
+}
+
+func TestSetHandle_blocksIssuedCodesAndBrandNamesButLetsFirstRunRename(t *testing.T) {
+	t.Parallel()
+	f := newHTTPFixture(t)
+	owner := f.seed(t, portSeed{wallet: true})
+	user := f.seed(t, portSeed{wallet: true})
+	f.issueReferralCode(t, "23456789", owner.ID)
+	for _, name := range []string{"23456789", "monacosupport", "monaco_team"} {
+		if got := f.setHandle(t, user.ID, name); decodeProblem(t, got).Code != apibase.HandleReserved {
+			t.Fatalf("set %s = %d %s, want handle_reserved", name, got.Code, got.Body)
+		}
+	}
+	if got := f.setHandle(t, user.ID, "matthews"); got.Code != http.StatusOK {
+		t.Fatalf("set matthews = %d %s", got.Code, got.Body)
+	}
+	if got := f.setHandle(t, user.ID, "stephens"); got.Code != http.StatusOK {
+		t.Fatalf("first run rename = %d %s", got.Code, got.Body)
+	}
+	if _, err := f.pool.Exec(
+		t.Context(),
+		`UPDATE users SET auth_state = 'ONBOARDING_COMPLETED' WHERE id = $1`,
+		user.ID.UUID(),
+	); err != nil {
+		t.Fatal(err)
+	}
+	if got := f.setHandle(t, user.ID, "sunnyday"); decodeProblem(t, got).Code != apibase.HandleTooSoon {
+		t.Fatalf("rename after first run = %d %s, want handle_too_soon", got.Code, got.Body)
+	}
 }
 
 func TestSetHandle_returnsWriteAndEventFailures(t *testing.T) {
@@ -269,10 +307,13 @@ func TestHandleAvailability_reportsTheReason(t *testing.T) {
 	f.setClaim(t, caller.ID, "", "Monaco", nil)
 	own := f.seed(t, portSeed{wallet: true})
 	f.setClaim(t, own.ID, "admin", "", &changed)
-	cooled := f.seed(t, portSeed{handle: "mine", wallet: true})
+	cooled := f.seed(t, portSeed{handle: "mine", wallet: true, authState: "ONBOARDING_COMPLETED"})
 	f.setClaim(t, cooled.ID, "mine", "", &window)
-	soon := f.seed(t, portSeed{handle: "mine_two", wallet: true})
+	soon := f.seed(t, portSeed{handle: "mine_two", wallet: true, authState: "ONBOARDING_COMPLETED"})
 	f.setClaim(t, soon.ID, "mine_two", "", &changed)
+	firstRun := f.seed(t, portSeed{handle: "just_saved", wallet: true})
+	f.setClaim(t, firstRun.ID, "just_saved", "", &changed)
+	f.issueReferralCode(t, "23456789", caller.ID)
 	unset := f.seed(t, portSeed{handle: "hasname", wallet: true})
 	mover := f.seed(t, portSeed{handle: "oldname", wallet: true})
 	fresh := f.seed(t, portSeed{wallet: true})
@@ -291,7 +332,10 @@ func TestHandleAvailability_reportsTheReason(t *testing.T) {
 		{"long", long, long, "invalid", false, fresh.ID},
 		{"reserved", "admin", "admin", "reserved", false, fresh.ID},
 		{"leet", "sh1t", "sh1t", "reserved", false, fresh.ID},
-		{"code", "23456789", "23456789", "reserved", false, fresh.ID},
+		{"issued referral code", "23456789", "23456789", "reserved", false, fresh.ID},
+		{"unissued code shape", "matthews", "matthews", "", true, fresh.ID},
+		{"brand prefix", "monacosupport", "monacosupport", "reserved", false, fresh.ID},
+		{"first run may change the saved handle", "next_one", "next_one", "", true, firstRun.ID},
 		{"held", "heldone", "heldone", "taken", false, fresh.ID},
 		{"deleted", "taken_one", "taken_one", "taken", false, fresh.ID},
 		{"other x", "kaicenat", "kaicenat", "taken", false, fresh.ID},
