@@ -57,3 +57,17 @@ func TestParseTokenAmount_refusesWhatIsNotAnUnsignedWholeNumber(t *testing.T) {
 		t.Fatalf("ParseOptionalTokenAmount(\"\") = %s, %v, %v, want absent", v, present, err)
 	}
 }
+
+func TestSlippageKeeping_isZeroWhenTheOutputIsZeroOrNotAboveTheFloor(t *testing.T) {
+	t.Parallel()
+	one, two := money.UnitsFromUint64(1), money.UnitsFromUint64(2)
+	for name, c := range map[string]struct{ out, floor money.Units }{
+		"no output":       {money.Units{}, one},
+		"output at it":    {two, two},
+		"output below it": {one, two},
+	} {
+		if got := SlippageKeeping(c.out, c.floor); got != 0 {
+			t.Errorf("%s: SlippageKeeping = %d, want 0", name, got)
+		}
+	}
+}
