@@ -5,6 +5,7 @@ import (
 	"slices"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -25,6 +26,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
+	"github.com/monaco/monaco/apps/backend/internal/testkit/marketfake"
 )
 
 const (
@@ -345,6 +347,60 @@ func TestFundCabal_priceUnavailableRefusesBeforeAnyTransfer(t *testing.T) {
 	h.stubs.potErr, h.stubs.pot = nil, money.MicrosFromUint64(1)
 	if _, err := h.fund(5_000_000); err != nil {
 		t.Fatalf("fund with a valued pot = %v, want submitted", err)
+	}
+}
+
+func TestFundCabal_aStaleOrHeldBackPriceRefusesBeforeAnyTransfer(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	h := newFundHarnessOn(t, f, &hints{})
+	u, c, err := f.fund(h.user, h.cabal, 100_000_000, 100, domain.TxnSettled)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := f.postPair(u, c); err != nil {
+		t.Fatal(err)
+	}
+	swap, err := f.swap(h.cabal, 40_000_000, 200_000_000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := f.postCabal(swap); err != nil {
+		t.Fatal(err)
+	}
+	prices := heldBackDrop(f)
+	q := queriesWithAsset(f, prices, func(*app.Asset) {})
+	fundWith := func(pot app.FundPot) error {
+		handler := app.NewFundCabalHandler(app.FundCabalDeps{
+			UoW: f.uow, IDs: f.ids, Clock: f.clock, Cabals: h.stubs, Wallets: h.stubs, Balances: h.stubs,
+			Pauses: func(db.Tx) fundingport.Pauses { return h.stubs }, Pot: pot, Transfers: h.stubs,
+			Hints: &hints{}, USDC: chain.Mint{Address: usdcMint, Decimals: 6}, SigningLease: fundSigningLease,
+		})
+		_, err := handler.Handle(h.actorCtx(), app.FundCabal{
+			CabalID: h.cabal, UserID: h.user, Amount: money.MicrosFromUint64(5_000_000),
+		})
+		return err
+	}
+
+	err = fundWith(q.Strict())
+	wantCode(t, err, errs.CodePriceUnavailable)
+	if n := h.count(t, "fund_transfers"); n != 0 || h.stubs.builds != 0 || h.stubs.sent != 0 {
+		t.Fatalf("fund_transfers = %d, builds = %d, broadcasts = %d, want none", n, h.stubs.builds, h.stubs.sent)
+	}
+
+	f.clock.Advance(6 * time.Minute)
+	err = fundWith(q.Strict())
+	wantCode(t, err, errs.CodePriceUnavailable)
+	if n := h.count(t, "fund_transfers"); n != 0 || h.stubs.sent != 0 {
+		t.Fatalf("a stale price recorded %d transfers and sent %d", n, h.stubs.sent)
+	}
+
+	prices.Set(marketfake.AAPLx().ID, money.MicrosFromUint64(18_000_000), f.clock.Now())
+	if err := fundWith(q.Strict()); err != nil {
+		t.Fatalf("fund at a fresh, accepted price = %v, want submitted", err)
+	}
+	if n := h.count(t, "fund_transfers"); n != 1 {
+		t.Fatalf("fund_transfers = %d, want 1", n)
 	}
 }
 
