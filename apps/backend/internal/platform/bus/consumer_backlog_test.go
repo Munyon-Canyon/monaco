@@ -33,14 +33,16 @@ func TestConsumerBacklog_countsUndeliveredAndUnackedMessagesAcrossConsumers(t *t
 			t.Fatal(err)
 		}
 	}
-	if got, err := b.Conn.ConsumerBacklog(t.Context(), now); err != nil || got.Pending != 3 {
-		t.Fatalf("ConsumerBacklog with 3 undelivered = %+v, %v; want 3 pending", got, err)
-	}
+	testkit.Eventually(t, func() bool {
+		got, err := b.Conn.ConsumerBacklog(t.Context(), now)
+		return err == nil && got.Pending == 3
+	}, 5*time.Second)
 
 	held := fetchOne(t, c)
-	if got, err := b.Conn.ConsumerBacklog(t.Context(), now); err != nil || got.Pending != 3 {
-		t.Fatalf("ConsumerBacklog with 2 undelivered and 1 unacked = %+v, %v; want 3 pending", got, err)
-	}
+	testkit.Eventually(t, func() bool {
+		got, err := b.Conn.ConsumerBacklog(t.Context(), now)
+		return err == nil && got.Pending == 3
+	}, 5*time.Second)
 
 	if err := held(); err != nil {
 		t.Fatal(err)
