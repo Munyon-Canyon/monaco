@@ -30,6 +30,7 @@ const (
 	EVMDepositWalletPage        = 100
 	evmDepositExecutionPages    = 50
 	evmDepositStuckBatch        = 100
+	evmDepositCallTimeout       = 3 * time.Second
 )
 
 const (
@@ -63,6 +64,8 @@ type EVMDepositForwardDeps struct {
 	Feed     ExecutionFeed
 	Interval time.Duration
 	PageSize int
+
+	CallTimeout time.Duration
 }
 
 type EVMDepositForwardPoller struct {
@@ -114,8 +117,25 @@ func (p *EVMDepositForwardPoller) Tick(ctx context.Context) (poller.Report, erro
 		}
 		after = wallets[len(wallets)-1].UserID
 	}
-	failures = append(failures, p.alertStuck(ctx), p.alertFailed(ctx))
+	alertCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), p.callTimeout())
+	defer cancel()
+	failures = append(failures, p.alertStuck(alertCtx), p.alertFailed(alertCtx))
 	return report, errors.Join(failures...)
+}
+
+func (p *EVMDepositForwardPoller) callTimeout() time.Duration {
+	if p.d.CallTimeout > 0 {
+		return p.d.CallTimeout
+	}
+	return evmDepositCallTimeout
+}
+
+func (p *EVMDepositForwardPoller) executions(
+	ctx context.Context, walletID, cursor string,
+) (multichain.ExecutionPage, error) {
+	ctx, cancel := context.WithTimeout(ctx, p.callTimeout())
+	defer cancel()
+	return p.d.Feed.Executions(ctx, walletID, cursor)
 }
 
 func (p *EVMDepositForwardPoller) syncWallet(ctx context.Context, w EVMDepositWallet) (int, int, error) {
@@ -123,7 +143,7 @@ func (p *EVMDepositForwardPoller) syncWallet(ctx context.Context, w EVMDepositWa
 	var failures []error
 	cursor := ""
 	for range evmDepositExecutionPages {
-		page, err := p.d.Feed.Executions(ctx, w.WalletID, cursor)
+		page, err := p.executions(ctx, w.WalletID, cursor)
 		if err != nil {
 			failures = append(failures, errs.Wrap(err, errs.CodeOf(err), "funding.EVMDepositForward.executions",
 				slog.String("wallet_id", w.WalletID)))
@@ -336,7 +356,9 @@ func (p *EVMDepositForwardPoller) reindexUnrouted(
 	if p.reindexedOnce(ex.ID) {
 		return nil
 	}
-	reindexErr := p.d.Feed.Reindex(ctx, w.WalletID, ex.Network)
+	reindexCtx, cancel := context.WithTimeout(ctx, p.callTimeout())
+	defer cancel()
+	reindexErr := p.d.Feed.Reindex(reindexCtx, w.WalletID, ex.Network)
 	observability.Alert(ctx, observability.FundingEVMForwardUnrouted,
 		slog.String("execution_id", ex.ID), slog.String("wallet_id", w.WalletID),
 		slog.String("network", string(ex.Network)), slog.String("code", string(errs.CodeOf(reindexErr))))

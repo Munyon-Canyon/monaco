@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"slices"
 	"strconv"
+	"sync"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
@@ -192,6 +193,24 @@ func executionState(raw string) (multichain.ActionState, bool) {
 	return "", false
 }
 
+type finalExecutions struct {
+	mu   sync.Mutex
+	done map[string]multichain.Execution
+}
+
+func (f *finalExecutions) get(id string) (multichain.Execution, bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	ex, ok := f.done[id]
+	return ex, ok
+}
+
+func (f *finalExecutions) put(ex multichain.Execution) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.done[ex.ID] = ex
+}
+
 func (c *Client) Executions(ctx context.Context, walletID, cursor string) (multichain.ExecutionPage, error) {
 	const op = "privy.Executions"
 	q := url.Values{"wallet_id": {walletID}, "limit": {"100"}}
@@ -208,50 +227,64 @@ func (c *Client) Executions(ctx context.Context, walletID, cursor string) (multi
 	}
 	out := multichain.ExecutionPage{Executions: []multichain.Execution{}, Next: page.NextCursor}
 	for _, e := range page.Data {
-		exec, err := c.execution(ctx, walletID, e)
+		if exec, ok := c.finals.get(e.ID); ok {
+			out.Executions = append(out.Executions, exec)
+			continue
+		}
+		exec, final, err := c.execution(ctx, walletID, e)
 		if err != nil {
 			return multichain.ExecutionPage{}, errs.Wrap(err, errs.CodeOf(err), op, slog.String("execution_id", e.ID))
+		}
+		if final {
+			c.finals.put(exec)
 		}
 		out.Executions = append(out.Executions, exec)
 	}
 	return out, nil
 }
 
-func (c *Client) execution(ctx context.Context, walletID string, e executionWire) (multichain.Execution, error) {
+func (c *Client) execution(
+	ctx context.Context, walletID string, e executionWire,
+) (multichain.Execution, bool, error) {
 	const op = "privy.execution"
 	state, ok := executionState(e.Status)
 	network, known := networkOf(e.CAIP2)
 	if !ok || !known || !network.IsEVM() || e.ID == "" {
-		return multichain.Execution{}, errs.New(errs.CodeDecodeFailed, op,
+		return multichain.Execution{}, false, errs.New(errs.CodeDecodeFailed, op,
 			slog.String("status", e.Status), slog.String("caip2", e.CAIP2))
 	}
 	out := multichain.Execution{ID: e.ID, Network: network, SourceTx: e.TxHash, State: state}
 	if e.ActionID == nil || *e.ActionID == "" {
-		return out, nil
+		return out, executionFinal(state, ""), nil
 	}
 	out.ActionID = multichain.ActionID(*e.ActionID)
 	var w swapWire
 	path := "/v1/wallets/" + url.PathEscape(walletID) + "/actions/" + url.PathEscape(*e.ActionID) + "?include=steps"
 	if err := c.do(ctx, call{op: op, method: http.MethodGet, path: path}, &w); err != nil {
-		return multichain.Execution{}, err
+		return multichain.Execution{}, false, err
 	}
 	status, err := decodeAction(w.actionWire)
 	if err != nil {
-		return multichain.Execution{}, err
+		return multichain.Execution{}, false, err
 	}
 	input, err := swapMicros(op, w.InputAmount)
 	if err != nil {
-		return multichain.Execution{}, err
+		return multichain.Execution{}, false, err
 	}
 	output, err := swapMicros(op, w.OutputAmount)
 	if err != nil {
-		return multichain.Execution{}, err
+		return multichain.Execution{}, false, err
 	}
 	if w.OutputAmount == nil {
 		output, input = input, money.Micros{}
 	}
 	out.AmountMicros, out.InputMicros, out.Signature = output, input, solanaSignature(status.Steps)
-	return out, nil
+	return out, executionFinal(state, status.State), nil
+}
+
+func executionFinal(state, action multichain.ActionState) bool {
+	return state == multichain.ActionFailed || state == multichain.ActionRejected ||
+		state == multichain.ActionSucceeded && action == multichain.ActionSucceeded
 }
 
 func swapMicros(op string, amount *string) (money.Micros, error) {

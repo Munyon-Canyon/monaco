@@ -235,6 +235,48 @@ func TestExecutions_succeededActionWithoutOutputHasNoKnownInput(t *testing.T) {
 	}
 }
 
+func TestExecutions_finalExecutionsAreNotFetchedAgain(t *testing.T) {
+	t.Parallel()
+	page := `{"data":[` +
+		`{"id":"e1","trigger_caip2":"eip155:8453","trigger_tx_hash":"0x1","wallet_action_id":"a1","status":"completed"},` +
+		`{"id":"e2","trigger_caip2":"eip155:8453","trigger_tx_hash":"0x2","wallet_action_id":"a2","status":"completed"},` +
+		`{"id":"e3","trigger_caip2":"eip155:8453","trigger_tx_hash":"0x3","wallet_action_id":"a3","status":"failed"},` +
+		`{"id":"e4","trigger_caip2":"eip155:8453","trigger_tx_hash":"0x4","wallet_action_id":null,"status":"skipped"}` +
+		`],"next_cursor":null}`
+	u := routes(map[string]string{
+		"GET /privy/v1/wallet_automations/executions": page,
+		"GET /privy/v1/wallets/w/actions/a1":          `{"id":"a1","status":"succeeded","input_amount":"1000000","output_amount":"999250"}`,
+		"GET /privy/v1/wallets/w/actions/a2":          `{"id":"a2","status":"pending","input_amount":"1000000"}`,
+		"GET /privy/v1/wallets/w/actions/a3":          `{"id":"a3","status":"failed","input_amount":"1000000"}`,
+	})
+	c := client(u)
+	first, err := c.Executions(t.Context(), "w", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := c.Executions(t.Context(), "w", "")
+	if err != nil || len(second.Executions) != 4 {
+		t.Fatalf("second Executions = %+v, %v", second, err)
+	}
+	for i := range first.Executions {
+		if first.Executions[i] != second.Executions[i] {
+			t.Fatalf("execution %d changed between reads: %+v then %+v", i, first.Executions[i], second.Executions[i])
+		}
+	}
+	fetched := map[string]int{}
+	for _, r := range u.requests() {
+		fetched[r.path]++
+	}
+	for path, want := range map[string]int{
+		"/privy/v1/wallets/w/actions/a1": 1, "/privy/v1/wallets/w/actions/a2": 2, "/privy/v1/wallets/w/actions/a3": 1,
+	} {
+		if fetched[path] != want {
+			t.Fatalf("GET %s = %d times, want %d (final executions are read once, in-flight ones every time)",
+				path, fetched[path], want)
+		}
+	}
+}
+
 func TestExecutions_decodeStrictly(t *testing.T) {
 	t.Parallel()
 	exec := func(caip2, status string) string {
