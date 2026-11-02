@@ -15,6 +15,7 @@ public struct ChatScrollTracker: Equatable, Sendable {
         let distanceFromEnd: Double
         let wasFollowing: Bool
         var fingerLiftedInsideSlack = false
+        var unreadWhileCoasting = 0
     }
 
     public static let pinnedSlack = 40.0
@@ -61,7 +62,11 @@ public struct ChatScrollTracker: Equatable, Sendable {
         }
         guard let origin, origin.wasFollowing else { return false }
         let moved = position.distanceFromEnd - origin.distanceFromEnd
-        guard origin.fingerLiftedInsideSlack || moved <= Self.pinnedSlack else { return false }
+        guard moved <= Self.pinnedSlack else {
+            readerControlsScroll = true
+            unreadCount += origin.unreadWhileCoasting
+            return false
+        }
         returnToEnd()
         return true
     }
@@ -81,6 +86,10 @@ public struct ChatScrollTracker: Equatable, Sendable {
             return false
         }
         let wasFollowing = isFollowingThread
+        if wasFollowing, var origin = dragOrigin, origin.fingerLiftedInsideSlack {
+            origin.unreadWhileCoasting += added.filter { !$0.isMine }.count
+            dragOrigin = origin
+        }
         returnToEnd()
         return !(wasFollowing && added.contains(where: \.isMine))
     }
