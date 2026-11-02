@@ -517,3 +517,61 @@ func TestUp_givesTheBinariesARealStoreURL(t *testing.T) {
 		)
 	}
 }
+
+func TestBegin_bringsTheDatabaseUpWhileTheCallerBuildsAndBootFinishesTheStack(t *testing.T) {
+	t.Parallel()
+	o := testOptions(t, "ok")
+	bins := o.Bins
+	o.Bins = Binaries{}
+	s := Begin(t.Context(), o)
+	if err := s.Boot(t.Context(), bins, t.TempDir()); err != nil {
+		t.Fatalf("Boot: %v", err)
+	}
+	if got := healthz(t.Context(), s.API); got != http.StatusOK {
+		t.Fatalf("api /healthz = %d", got)
+	}
+	if s.Pool == nil || s.NATS == nil {
+		t.Fatalf("stack = %+v, want the database steps done by Boot", s)
+	}
+	if err := s.Down(t.Context()); err != nil {
+		t.Fatalf("Down: %v", err)
+	}
+}
+
+func TestBoot_reportsTheDatabaseFailureBeginHit(t *testing.T) {
+	t.Parallel()
+	o := testOptions(t, "ok")
+	boom := errors.New("docker is down")
+	o.Postgres = func(context.Context, string) (string, func(context.Context) error, error) {
+		return "", nil, boom
+	}
+	s := Begin(t.Context(), o)
+	if err := s.Boot(t.Context(), o.Bins, t.TempDir()); !errors.Is(err, boom) {
+		t.Fatalf("Boot = %v, want %v", err, boom)
+	}
+	<-s.earlyDone
+}
+
+func TestBoot_stopsWaitingForTheDatabaseWhenItsDeadlinePasses(t *testing.T) {
+	t.Parallel()
+	o := testOptions(t, "ok")
+	release := make(chan struct{})
+	o.Postgres = func(ctx context.Context, _ string) (string, func(context.Context) error, error) {
+		select {
+		case <-release:
+		case <-ctx.Done():
+		}
+		return "", nil, errors.New("released")
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	s := Begin(context.WithoutCancel(ctx), o)
+	cancel()
+	err := s.Boot(ctx, o.Bins, t.TempDir())
+	if !errors.Is(err, context.Canceled) || !strings.Contains(err.Error(), "wait for the database") {
+		t.Fatalf("Boot = %v, want the wait for the database named", err)
+	}
+	close(release)
+	if err := s.Down(t.Context()); err != nil {
+		t.Logf("Down: %v", err)
+	}
+}

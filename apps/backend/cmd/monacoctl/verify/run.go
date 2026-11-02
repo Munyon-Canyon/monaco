@@ -130,8 +130,13 @@ func run(ctx context.Context, cfg Config, target Target) (err error) {
 		err = errors.Join(err, rep.write(writeCtx, cfg.Dir, err))
 	}()
 	began := time.Now()
+	stack, err := beginStack(ctx, cfg, target, env)
+	if err != nil {
+		return err
+	}
 	bins, cover, cleanup, err := prepare(ctx, cfg, target)
 	defer func() { err = errors.Join(err, cleanup()) }()
+	defer teardown(ctx, stack, rep, &err)
 	rep.phases[PhaseBuild] = time.Since(began)
 	if err != nil {
 		return err
@@ -140,18 +145,8 @@ func run(ctx context.Context, cfg Config, target Target) (err error) {
 		&OverBudgetError{Phase: PhaseTotal, Budget: cfg.Budget.Total})
 	defer cancel()
 	began = time.Now()
-	stack, err := Up(runCtx, Options{
-		Dir: cfg.Dir, Atlas: cfg.Atlas, Docker: cfg.Docker, Environ: cfg.Environ, Bins: bins,
-		Budget: cfg.Budget, Postgres: cfg.Postgres, CoverDir: cover, Faultpoint: target.CrashAt, WorkerEnv: env,
-		Clock: cfg.Clock, SchemaCache: cfg.SchemaCache,
-	})
+	err = stack.Boot(runCtx, bins, cover)
 	rep.phases[PhaseStack] = time.Since(began)
-	defer func() {
-		began := time.Now()
-		err = errors.Join(err, stack.Down(runCtx))
-		rep.phases[PhaseTeardown] = time.Since(began)
-		rep.crashes = stack.Crashes
-	}()
 	if err != nil {
 		return err
 	}
@@ -187,6 +182,26 @@ func workerConsumers(modules func(module.Deps) module.Set, stack *Stack, env []s
 	}).Consumers(), nil
 }
 
+func teardown(ctx context.Context, stack *Stack, rep *report, err *error) {
+	began := time.Now()
+	*err = errors.Join(*err, stack.Down(ctx))
+	rep.phases[PhaseTeardown] = time.Since(began)
+	rep.crashes = stack.Crashes
+}
+
+func beginStack(ctx context.Context, cfg Config, target Target, env []string) (*Stack, error) {
+	if cfg.Postgres == nil {
+		if err := cfg.Docker.ensureImage(ctx); err != nil {
+			return nil, err
+		}
+	}
+	return Begin(ctx, Options{
+		Dir: cfg.Dir, Atlas: cfg.Atlas, Docker: cfg.Docker, Environ: cfg.Environ,
+		Budget: cfg.Budget, Postgres: cfg.Postgres, Faultpoint: target.CrashAt, WorkerEnv: env,
+		Clock: cfg.Clock, SchemaCache: cfg.SchemaCache,
+	}), nil
+}
+
 func prepare(ctx context.Context, cfg Config, target Target) (Binaries, string, func() error, error) {
 	cover := filepath.Join(cfg.Dir, ".verify", "cover")
 	out, err := os.MkdirTemp(cfg.TempDir, "monaco-verify-bin-")
@@ -197,11 +212,6 @@ func prepare(ctx context.Context, cfg Config, target Target) (Binaries, string, 
 	bins, err := build(ctx, cfg.Go, cfg.Dir, out, target.CrashAt != "")
 	if err != nil {
 		return bins, cover, cleanup, err
-	}
-	if cfg.Postgres == nil {
-		if err := cfg.Docker.ensureImage(ctx); err != nil {
-			return bins, cover, cleanup, err
-		}
 	}
 	if err := os.MkdirAll(cover, 0o750); err != nil {
 		return bins, cover, cleanup, fmt.Errorf("coverage dir: %w", err)
