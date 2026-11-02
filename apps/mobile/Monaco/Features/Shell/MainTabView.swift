@@ -70,7 +70,7 @@ struct AccountBalanceHost: ViewModifier {
     func body(content: Content) -> some View {
         content
             .task {
-                await environment.balance.load()
+                await environment.balance.loadIfNeeded()
                 await environment.balance.observe()
             }
             .onChange(of: scenePhase) { _, phase in

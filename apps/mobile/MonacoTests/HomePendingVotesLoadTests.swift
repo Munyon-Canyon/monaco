@@ -27,6 +27,22 @@ struct HomePendingVotesLoadTests {
     }
 
     @Test(.timeLimit(.minutes(1)))
+    func homeAsksForPendingVotesWhileThePortfolioIsStillLoading() async throws {
+        let transport = StubTransport(.json(.ok, "[]"))
+        let api = APIClient(serverURL: testServerURL, tokens: StubTokenProvider(token: "token-1"), transport: transport)
+        let model = HomePendingVotesModel(api: api, hints: FakeHintSource())
+        let portfolio = PortfolioModel(api: api, hints: FakeHintSource())
+        let window = try Self.window(hosting: HomePendingVotes(makeModel: { _ in model }), portfolio: portfolio)
+        defer { TestWindow.close(window) }
+
+        await Self.until { await !transport.sent.isEmpty }
+
+        let paths = await transport.sent.map { URLComponents(string: $0.path ?? "")?.path }
+        #expect(paths.first == "/v1/me/pending-votes")
+        #expect(portfolio.summary == nil)
+    }
+
+    @Test(.timeLimit(.minutes(1)))
     func homeDrawsTwoPendingVotesFromOneRead() async throws {
         let transport = StubTransport(.json(.ok, Self.twoVotes))
         let model = HomePendingVotesModel(
@@ -52,7 +68,7 @@ struct HomePendingVotesLoadTests {
         return "[" + vote("p-1", "2099-01-02T00:00:00Z") + "," + vote("p-2", "2099-01-03T00:00:00Z") + "]"
     }()
 
-    private static func window(hosting view: HomePendingVotes) throws -> UIWindow {
+    private static func window(hosting view: HomePendingVotes, portfolio: PortfolioModel? = nil) throws -> UIWindow {
         let scene = try #require(
             UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first,
             "the test host has no window scene"
@@ -63,6 +79,7 @@ struct HomePendingVotesLoadTests {
         let window = UIWindow(windowScene: scene)
         window.rootViewController = UIHostingController(
             rootView: NavigationStack { view }
+                .environment(portfolio)
                 .environment(environment)
                 .environment(ToastCenter())
         )

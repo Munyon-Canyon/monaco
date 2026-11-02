@@ -41,7 +41,7 @@ struct HomePendingVotes: View {
 
     private var loadsVotes: Bool {
         guard let portfolio else { return true }
-        return portfolio.summary.map { !$0.isFirstUse } ?? false
+        return portfolio.summary.map { !$0.isFirstUse } ?? true
     }
 
     var body: some View {

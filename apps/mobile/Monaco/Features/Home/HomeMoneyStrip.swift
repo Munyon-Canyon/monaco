@@ -234,7 +234,7 @@ struct HomeCashRowSection: View {
         }
         .task {
             refresh?.register("balance") { await environment.balance.load() }
-            await environment.balance.load()
+            await environment.balance.loadIfNeeded()
         }
         .task {
             await environment.cardDeposit.observe()
