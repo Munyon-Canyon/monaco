@@ -76,6 +76,9 @@ public struct ProposalSummary: Identifiable, Equatable, Sendable {
     public let bestPrice: BestPrice?
     public let network: Components.Schemas.Network?
     public let replyCount: Int
+    public let ruleChange: ProposalRuleChange?
+
+    public var isRule: Bool { kind == "rule" }
 
     init(_ other: ProposalSummary, ballot: String, tally: ProposalTally) {
         self = other.replacing(ballot: ballot, tally: tally)
@@ -90,7 +93,8 @@ public struct ProposalSummary: Identifiable, Equatable, Sendable {
             tally: other.tally, myBallot: other.myBallot, status: .passed, statusReason: nil,
             statusMessage: other.statusMessage,
             expiresAt: other.expiresAt, canVote: other.canVote, canWithdraw: other.canWithdraw, swap: nil,
-            bestPrice: other.bestPrice, network: other.network, replyCount: other.replyCount)
+            bestPrice: other.bestPrice, network: other.network, replyCount: other.replyCount,
+            ruleChange: other.ruleChange)
     }
 
     private func replacing(ballot: String, tally: ProposalTally) -> ProposalSummary {
@@ -102,7 +106,7 @@ public struct ProposalSummary: Identifiable, Equatable, Sendable {
             statusMessage: statusMessage,
             expiresAt: expiresAt,
             canVote: canVote, canWithdraw: canWithdraw, swap: swap, bestPrice: bestPrice, network: network,
-            replyCount: replyCount)
+            replyCount: replyCount, ruleChange: ruleChange)
     }
 
     private init(
@@ -112,7 +116,7 @@ public struct ProposalSummary: Identifiable, Equatable, Sendable {
         tally: ProposalTally, myBallot: String?, status: ProposalStatus, statusReason: String?, statusMessage: String?,
         expiresAt: Date, canVote: Bool,
         canWithdraw: Bool, swap: ProposalSwap?, bestPrice: BestPrice?, network: Components.Schemas.Network?,
-        replyCount: Int
+        replyCount: Int, ruleChange: ProposalRuleChange?
     ) {
         self.id = id
         self.cabalID = cabalID
@@ -138,13 +142,15 @@ public struct ProposalSummary: Identifiable, Equatable, Sendable {
         self.bestPrice = bestPrice
         self.network = network
         self.replyCount = replyCount
+        self.ruleChange = ruleChange
     }
 
     init(
         _ proposal: Components.Schemas.Proposal,
         canVote: Bool? = nil,
         canWithdraw: Bool = false,
-        swap: ProposalSwap? = nil
+        swap: ProposalSwap? = nil,
+        ruleChange: ProposalRuleChange? = nil
     ) {
         id = proposal.id
         cabalID = proposal.cabalId
@@ -170,6 +176,13 @@ public struct ProposalSummary: Identifiable, Equatable, Sendable {
         bestPrice = BestPrice(proposal.priceComparison, isSell: proposal.kind == .sell)
         network = proposal.network
         replyCount = Int(proposal.replyCount)
+        self.ruleChange =
+            ruleChange
+            ?? proposal.ruleChange.map {
+                ProposalRuleChange(
+                    rule: $0.rule.rawValue, from: $0.from, to: $0.to, targetName: $0.user?.displayName,
+                    targetHandle: $0.user?.handle)
+            }
     }
 }
 
@@ -273,7 +286,12 @@ public struct ProposalDetail: Identifiable, Equatable, Sendable {
             canVote: value.canVote, replyCount: value.replyCount, network: value.network)
         self.init(
             summary: ProposalSummary(
-                proposal, canVote: value.canVote, canWithdraw: value.canWithdraw, swap: ProposalSwap(value.swap)),
+                proposal, canVote: value.canVote, canWithdraw: value.canWithdraw, swap: ProposalSwap(value.swap),
+                ruleChange: value.ruleChange.map {
+                    ProposalRuleChange(
+                        rule: $0.rule.rawValue, from: $0.from, to: $0.to, targetName: $0.user?.displayName,
+                        targetHandle: $0.user?.handle)
+                }),
             voters: value.voters.map(ProposalVoter.init),
             proposerReturn: ProposerReturn(bps: value.proposerReturn1mBps, isPrivate: value.proposerReturnPrivate),
             stats: ProposalStatsData(value.stats), myVote: value.myVote.map(ProposalMyVote.init),

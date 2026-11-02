@@ -79,24 +79,34 @@ public enum ProposalVoteCopy {
 
     public static func settledLine(
         status: ProposalStatus, tally: ProposalTally, voted: Int, voters: Int, sharesEstimate: String?,
-        isSell: Bool = false, unit: String = "sh"
+        isSell: Bool = false, unit: String = "sh", isRule: Bool = false
     ) -> String {
         settledFacts(
             status: status, tally: tally, voted: voted, voters: voters, sharesEstimate: sharesEstimate, isSell: isSell,
-            unit: unit
+            unit: unit, isRule: isRule
         ).joined(separator: " · ")
     }
 
     public static func settledFacts(
         status: ProposalStatus, tally: ProposalTally, voted: Int, voters: Int, sharesEstimate: String?,
-        isSell: Bool = false, unit: String = "sh"
+        isSell: Bool = false, unit: String = "sh", isRule: Bool = false
     ) -> [String] {
+        if isRule { return ruleSettledFacts(status: status, tally: tally, voted: voted, voters: voters) }
         let score = "\(tally.yes)–\(tally.no)"
         let turnout = "\(voted) of \(voters) voted"
         guard status == .passed else { return ["Failed \(score)", turnout, "no trade"] }
         var facts = ["Passed \(score)", turnout]
         if let sharesEstimate { facts.append("\(isSell ? "selling" : "buying") \(sharesEstimate) \(unit)") }
         return facts
+    }
+
+    private static func ruleSettledFacts(status: ProposalStatus, tally: ProposalTally, voted: Int, voters: Int)
+        -> [String]
+    {
+        let score = "\(tally.yes)–\(tally.no)"
+        let turnout = "\(voted) of \(voters) voted"
+        guard status == .passed else { return ["Failed \(score)", turnout, "rule unchanged"] }
+        return ["Passed \(score)", turnout, "rule applied"]
     }
 
     public static func decidingLine(myVote: ProposalMyVote, needed: Int, voters: Int) -> String? {

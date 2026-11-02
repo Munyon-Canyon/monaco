@@ -1,7 +1,10 @@
 import Foundation
 
 public enum ProposalChip {
-    public static func label(status: ProposalStatus, isSell: Bool, swapFailed: Bool = false) -> String? {
+    public static func label(status: ProposalStatus, isSell: Bool, swapFailed: Bool = false, isRule: Bool = false)
+        -> String?
+    {
+        if isRule, status == .passed || status == .executed { return ProposalRuleCopy.applied }
         let action = isSell ? "sell" : "buy"
         if swapFailed || status == .executionBlocked { return "Couldn't \(action)" }
         return switch status {
@@ -29,6 +32,7 @@ public enum ProposalState: Equatable, Sendable {
     case voted(ProposalBallot)
     case viewOnly
     case approved
+    case applied
     case executed
     case expired
     case blocked
@@ -36,7 +40,11 @@ public enum ProposalState: Equatable, Sendable {
     case withdrawn
     case voided
 
-    public init(status: ProposalStatus, ballot: String?, canVote: Bool, swapFailed: Bool) {
+    public init(status: ProposalStatus, ballot: String?, canVote: Bool, swapFailed: Bool, isRule: Bool = false) {
+        if isRule, status == .passed || status == .executed {
+            self = .applied
+            return
+        }
         if swapFailed {
             self = .blocked
             return
@@ -69,7 +77,8 @@ public enum ProposalState: Equatable, Sendable {
 extension ProposalSummary {
     public func state(now: Date) -> ProposalState {
         ProposalState(
-            status: status, ballot: myBallot, canVote: canVote && expiresAt > now, swapFailed: swap?.status == "failed")
+            status: status, ballot: myBallot, canVote: canVote && expiresAt > now, swapFailed: swap?.status == "failed",
+            isRule: isRule)
     }
 }
 
@@ -90,6 +99,7 @@ public struct ProposalBadge: Equatable, Sendable {
         case .voted(let ballot): Self("You voted \(ballot.label)", .brand)
         case .viewOnly: Self("View only", .neutral)
         case .approved: Self("Approved · Executing", .warn)
+        case .applied: Self(ProposalRuleCopy.applied, .brand)
         case .executed: Self("Executed", .brand)
         case .expired: Self("Expired", .neutral)
         case .blocked: Self("Not executed", .negative)
@@ -105,7 +115,7 @@ public struct ProposalBadge: Equatable, Sendable {
         case .viewOnly: Self("Voting open", .brand)
         case .approved: Self("Execution pending", .warn)
         case .blocked: Self("Trade not completed", .negative)
-        case .voted, .executed, .expired, .rejected, .withdrawn, .voided: hero(state)
+        case .voted, .applied, .executed, .expired, .rejected, .withdrawn, .voided: hero(state)
         }
     }
 
@@ -113,6 +123,7 @@ public struct ProposalBadge: Equatable, Sendable {
         switch state {
         case .open, .voted, .viewOnly: Self("Open", .brand)
         case .approved: Self("Pending", .warn)
+        case .applied: Self(ProposalRuleCopy.applied, .brand)
         case .executed: Self("Executed", .brand)
         case .expired: Self("Expired", .negative)
         case .blocked: Self("Blocked", .negative)
@@ -171,8 +182,9 @@ public struct ProposalStepper: Equatable, Sendable {
 
     public static func make(
         status: ProposalStatus, isSell: Bool, swapFailed: Bool = false, expiresAt: Date,
-        failureMessage: String? = nil, statusMessage: String? = nil, priceMoved: Bool = false
+        failureMessage: String? = nil, statusMessage: String? = nil, priceMoved: Bool = false, isRule: Bool = false
     ) -> Self {
+        if isRule { return ruleSteps(status: status, expiresAt: expiresAt, statusMessage: statusMessage) }
         let action = isSell ? "sell" : "buy"
         let doing = isSell ? "Selling" : "Buying"
         let done = isSell ? "Sold" : "Bought"
@@ -221,6 +233,32 @@ public struct ProposalStepper: Equatable, Sendable {
             return terminal("Voided by Monaco", closed: false, note: statusMessage)
         case .executionBlocked:
             return tradeFailed()
+        }
+    }
+
+    private static func ruleSteps(status: ProposalStatus, expiresAt: Date, statusMessage: String?) -> Self {
+        func step(_ title: String, _ mark: Mark) -> Step { Step(title: title, mark: mark, stamp: nil, note: nil) }
+        func terminal(_ title: String, closed: Bool, note: String?) -> Self {
+            let stamp = closed ? Stamp(prefix: "Voting closed", date: expiresAt) : nil
+            return Self(steps: [Step(title: title, mark: .failed, stamp: stamp, note: note)], isTerminal: true)
+        }
+        let applied = ProposalRuleCopy.applied
+        switch status {
+        case .open:
+            let stamp = Stamp(prefix: "Closes", date: expiresAt)
+            return Self(
+                steps: [Step(title: "Voting", mark: .active, stamp: stamp, note: nil), step(applied, .pending)],
+                isTerminal: false)
+        case .passed, .executed, .executionBlocked:
+            return Self(steps: [step("Voting", .done), step(applied, .done)], isTerminal: false)
+        case .expired:
+            return terminal("Expired", closed: true, note: "Without enough yes votes. The rule is unchanged.")
+        case .failed:
+            return terminal("Didn't pass", closed: true, note: "Not enough yes votes. The rule is unchanged.")
+        case .withdrawn:
+            return terminal("Withdrawn", closed: false, note: "The proposer took it back before voting closed.")
+        case .voided:
+            return terminal("Voided by Monaco", closed: false, note: statusMessage)
         }
     }
 }

@@ -22,7 +22,7 @@ struct ProposalReceiptCard: View {
         return model.members.filter { missing.contains($0.id) }.map(\.name)
     }
 
-    private var hasTrade: Bool { ProposalResultCopy.drawsTradeRow(status: summary.status) }
+    private var hasTrade: Bool { ProposalResultCopy.drawsTradeRow(status: summary.status, isRule: summary.isRule) }
 
     private var myRow: ProposalResultCopy.Row? {
         ProposalResultCopy.myRow(
@@ -49,6 +49,7 @@ struct ProposalReceiptCard: View {
 
     private enum RowKind {
         case trade
+        case rule(ProposalRuleChange)
         case mine
         case notVoted(String)
         case priceMoved(ProposalPriceMove)
@@ -58,6 +59,9 @@ struct ProposalReceiptCard: View {
     private var rowKinds: [RowKind] {
         var kinds: [RowKind] = []
         if hasTrade { kinds.append(.trade) }
+        if summary.isRule, let change = summary.ruleChange, summary.status == .passed || summary.status == .executed {
+            kinds.append(.rule(change))
+        }
         if let move = model.priceMove, summary.swap?.isPriceMoved == true { kinds.append(.priceMoved(move)) }
         if model.canRetry(viewerID: environment.viewer?.userID) { kinds.append(.retry) }
         if myRow != nil { kinds.append(.mine) }
@@ -70,12 +74,20 @@ struct ProposalReceiptCard: View {
     @ViewBuilder private func row(_ kind: RowKind) -> some View {
         switch kind {
         case .trade: tradeRow
+        case .rule(let change): ruleRow(change)
         case .mine:
             if let myRow { line(icon: "checkmark.circle", title: myRow.title, subtitle: myRow.subtitle) }
         case .notVoted(let text): line(icon: MonacoIcon.clock.symbol, title: text, subtitle: nil)
         case .priceMoved(let move): priceMoved(move)
         case .retry: retryButton
         }
+    }
+
+    private func ruleRow(_ change: ProposalRuleChange) -> some View {
+        line(
+            icon: MonacoIcon.checkCircle.symbol, title: ProposalRuleCopy.applied, subtitle: change.detailLine
+        )
+        .accessibilityIdentifier("proposal-rule-applied")
     }
 
     @ViewBuilder private var tradeRow: some View {

@@ -36,4 +36,31 @@ struct ProposalListRowTests {
         #expect(row.title == "AAPL · 1.5 shares")
         #expect(row.badge.label == "Expired")
     }
+
+    private static func ruleSummary(status: Components.Schemas.ProposalStatus) -> ProposalSummary {
+        var proposal = Components.Schemas.Proposal.ruleSample(now: .now)
+        proposal.status = status
+        return ProposalSummary(proposal, canVote: true)
+    }
+
+    @Test func anOpenRuleProposalReadsAsARuleChangeNotABuy() {
+        let summary = Self.ruleSummary(status: .open)
+        let row = ProposalListRow(summary: summary, asset: nil, proposer: "Mia", now: .now)
+        #expect(row.title == "Change rule \u{00B7} Show who voted what")
+        #expect(row.badge == .listRow(.open))
+        #expect(summary.title(asset: nil) == "Change rule")
+        #expect(VoteHoldSheet.title(summary) == "Change rule")
+    }
+
+    @Test func aPassedRuleProposalReadsAsAppliedNeverPending() {
+        let row = ProposalListRow(summary: Self.ruleSummary(status: .passed), asset: nil, proposer: "Mia", now: .now)
+        #expect(row.subtitle == "Rule applied")
+        #expect(row.badge.label == "Applied")
+        #expect(row.badge.tone == .brand)
+    }
+
+    @Test func aFailedRuleProposalReadsAsNotApproved() {
+        let row = ProposalListRow(summary: Self.ruleSummary(status: .failed), asset: nil, proposer: "Mia", now: .now)
+        #expect(row.badge.label == "Not approved")
+    }
 }

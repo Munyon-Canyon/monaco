@@ -126,7 +126,7 @@ public final class ProposalSegmentsModel {
 }
 
 extension ProposalSummary {
-    public var isTradeInProgress: Bool { status == .passed && swap?.status != "failed" }
+    public var isTradeInProgress: Bool { status == .passed && !isRule && swap?.status != "failed" }
 
     public var routedSaleShareNanos: Int64? {
         guard kind == "sell", let network, network != .solana, let bestPrice, bestPrice.isSell,
@@ -222,7 +222,7 @@ public final class ProposalDetailModel {
         do {
             let detail = try await repository.detail(id: id)
             async let members = try? repository.members(cabalID: detail.summary.cabalID)
-            async let asset = try? repository.asset(symbol: detail.summary.symbol)
+            async let asset = detail.summary.isRule ? nil : try? repository.asset(symbol: detail.summary.symbol)
             value = detail
             if cabalID == nil && isObserving { Task { await observe() } }
             cabalID = detail.summary.cabalID
@@ -325,7 +325,7 @@ public final class ProposalDetailModel {
         return ProposalVoteCopy.settledFacts(
             status: vote.status, tally: vote.tally, voted: vote.tally.yes + vote.tally.no, voters: vote.tally.voters,
             sharesEstimate: sharesEstimate, isSell: summary.kind == "sell",
-            unit: ProposalResultCopy.unitName(kind: asset?.kind ?? .stock))
+            unit: ProposalResultCopy.unitName(kind: asset?.kind ?? .stock), isRule: summary.isRule)
     }
 
     public var settledLine: String? { settledFacts?.joined(separator: " · ") }

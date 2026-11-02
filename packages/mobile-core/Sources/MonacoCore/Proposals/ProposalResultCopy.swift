@@ -132,8 +132,9 @@ public enum ProposalResultCopy {
 
     public static func caption(
         status: ProposalStatus, tally: ProposalTally, swap: ProposalSwap?, isSell: Bool, pendingUnits: String?,
-        statusMessage: String?, calendar: Calendar = .current
+        statusMessage: String?, calendar: Calendar = .current, isRule: Bool = false
     ) -> String? {
+        if isRule { return ProposalRuleCopy.caption(status: status, tally: tally) }
         if let swap, isFilled(swap), let price = swap.priceMicros, let at = swap.filledAt {
             return "filled at \(UsdAmountFormatter.format(micros: price)) · \(day(at, calendar: calendar))"
         }
@@ -161,8 +162,9 @@ public enum ProposalResultCopy {
             title: title, subtitle: subtitle, trailing: sinceBps.map(percent), tone: tone(sinceBps))
     }
 
-    public static func drawsTradeRow(status: ProposalStatus) -> Bool {
-        switch status {
+    public static func drawsTradeRow(status: ProposalStatus, isRule: Bool = false) -> Bool {
+        if isRule { return false }
+        return switch status {
         case .passed, .executed, .executionBlocked: true
         case .open, .failed, .expired, .withdrawn, .voided: false
         }
@@ -202,9 +204,9 @@ public enum ProposalResultCopy {
         }
     }
 
-    public static func action(status: ProposalStatus, canPropose: Bool) -> Action? {
+    public static func action(status: ProposalStatus, canPropose: Bool, isRule: Bool = false) -> Action? {
         if passes(status) && status != .executionBlocked { return .share }
-        if (status == .failed || status == .expired) && canPropose { return .proposeAgain }
+        if (status == .failed || status == .expired) && canPropose && !isRule { return .proposeAgain }
         return nil
     }
 
