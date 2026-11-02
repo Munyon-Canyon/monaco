@@ -12529,7 +12529,7 @@ components:
         display_name: {type: string, description: "The display name.", examples: [Apple]}
         kind: {type: string, enum: [equity, pre_ipo], description: "Whether the token tracks a listed equity or a pre-IPO company.", examples: [equity]}
         units: {type: string, pattern: "^(0|[1-9][0-9]*)\\.[0-9]{4}$", description: "Shares as the user sees them, rounded down to 4 decimal places.", examples: ["0.7300"]}
-        token_amount: {type: integer, format: int64, minimum: 0, description: "The token base units the cabal holds, what a sell of all of it spends.", examples: [73000000]}
+        token_amount: {type: integer, format: int64, minimum: 1, description: "The token base units the cabal holds, what a sell of all of it spends.", examples: [73000000]}
         token_amount_str: {type: string, pattern: "^[0-9]+$", description: "`token_amount` as a decimal string, exact at any size. `token_amount` itself is the same value when it fits in an int64 and 0 above that.", examples: ["73000000"]}
         price_micros: {type: integer, format: int64, description: "The latest price of one share, in USDC micros.", examples: [30000000]}
         value_micros: {type: integer, format: int64, description: "The holding's value, in USDC micros.", examples: [60000000]}
