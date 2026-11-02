@@ -24,6 +24,11 @@ private struct CabalTreasuryLine: View {
             let action: (() -> Void)? = isEmpty ? nil : { openHistory() }
             CabalMoveReader(cabalID: cabalID) { move in
                 CabalPotBand(model: model, move: move, openHistory: action)
+                    .background {
+                        GeometryReader { proxy in
+                            Color.clear.preference(key: CabalPotBottom.self, value: proxy.frame(in: .global).maxY)
+                        }
+                    }
             }
         }
     }

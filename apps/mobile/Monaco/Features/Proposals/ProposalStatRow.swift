@@ -16,9 +16,15 @@ struct ProposalStatRow: View {
     static func items(_ stats: ProposalStats, showsInfo: Bool, onInfo: @escaping () -> Void) -> [StatItem] {
         stats.cells.map { cell in
             StatItem(
-                label: cell.label, value: cell.value, tone: cell.tone.statTone,
-                info: showsInfo && cell.hasInfo ? onInfo : nil)
+                label: cell.label, value: Self.wrapsAtTheDay(cell.value), tone: cell.tone.statTone,
+                info: showsInfo && cell.hasInfo ? onInfo : nil, spokenValue: cell.value)
         }
+    }
+}
+
+extension ProposalStatRow {
+    static func wrapsAtTheDay(_ value: String) -> String {
+        value.replacingOccurrences(of: " AM", with: "\u{00A0}AM").replacingOccurrences(of: " PM", with: "\u{00A0}PM")
     }
 }
 

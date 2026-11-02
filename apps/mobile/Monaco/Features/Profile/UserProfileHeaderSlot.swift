@@ -321,16 +321,42 @@ private struct UserProfileCard: View {
 private struct UserProfileCounts: View {
     let data: UserProfileContentData
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     var body: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(spacing: MonacoTheme.Space.s) { parts(separated: true) }
-            VStack(alignment: .leading, spacing: 0) { parts(separated: false) }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, MonacoTheme.Space.gutter)
+        content
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, MonacoTheme.Space.gutter)
     }
 
-    @ViewBuilder private func parts(separated: Bool) -> some View {
+    @ViewBuilder private var content: some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            VStack(alignment: .leading, spacing: 0) {
+                counts(separated: false)
+                inCommon
+            }
+        } else {
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 0) {
+                    counts(separated: true)
+                    if data.inCommon > 0 {
+                        separator
+                        inCommon
+                    }
+                }
+                VStack(alignment: .leading, spacing: 0) {
+                    HStack(spacing: 0) { counts(separated: true) }
+                    inCommon
+                }
+                VStack(alignment: .leading, spacing: 0) {
+                    counts(separated: false)
+                    inCommon
+                }
+            }
+        }
+    }
+
+    @ViewBuilder private func counts(separated: Bool) -> some View {
         link(
             FollowCountFormatter.count(data.followers), FollowCountFormatter.followersNoun(data.followers),
             .followers, id: "user-profile-followers")
@@ -341,8 +367,10 @@ private struct UserProfileCounts: View {
             item(FollowCountFormatter.count(cabals), cabals == 1 ? "cabal" : "cabals")
                 .accessibilityIdentifier("user-profile-stat-cabals")
         }
+    }
+
+    @ViewBuilder private var inCommon: some View {
         if data.inCommon > 0 {
-            if separated { separator }
             Text("\(data.inCommon) in common")
                 .font(MonacoTheme.Typo.caption)
                 .foregroundStyle(MonacoTheme.muted)
@@ -353,7 +381,7 @@ private struct UserProfileCounts: View {
     }
 
     private var separator: some View {
-        Text("\u{00B7}")
+        Text(" \u{00B7} ")
             .font(MonacoTheme.Typo.caption)
             .foregroundStyle(MonacoTheme.muted)
             .accessibilityHidden(true)
