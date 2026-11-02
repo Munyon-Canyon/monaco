@@ -39,9 +39,12 @@ for name in api worker monacoctl; do cp "$SLEEPER" "$out/$name"; done
 const iosSimStub = `#!/usr/bin/env bash
 until pgrep -f "^$PWD/bin/worker$" >/dev/null; do sleep 0.05; done
 if [[ "${NPM_EXIT:-0}" == 0 ]]; then until (exec 3<>"/dev/tcp/127.0.0.1/$MONACO_FUND_PAGE_PORT") 2>/dev/null; do sleep 0.05; done; touch "$FUND_SEEN"; fi
-touch "$MOBILE_STARTED"
+# The test interrupts as soon as this file exists. Bash that is waiting on a child which exits
+# normally (touch, a sleep in a loop) takes the SIGINT as handled and carries on, so create the
+# file with a builtin and then become sleep: nothing is left to swallow the interrupt.
+: > "$MOBILE_STARTED"
 if [[ -n "${MOBILE_EXIT:-}" ]]; then exit "$MOBILE_EXIT"; fi
-while :; do sleep 0.1; done
+exec sleep 3600
 `
 
 type justRun struct {
