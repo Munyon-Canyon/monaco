@@ -92,6 +92,7 @@ For a stuck money row, [Money runbook](../how-to/money-runbook.md) maps the sign
 | `jupiter.price_skipped` | `mint`, `usd_price`, `stock_price` |
 | `market.best_chain.refresh_failed` | `symbol`, `error`, `code` |
 | `market.best_chain.refreshed` | `symbol`, `network`, `venue`, `duration_ms` |
+| `market.calendar.ending` | `ends_at`, `days_left` |
 | `market.catalog.decimals_corrected` | `symbol`, `mint`, `issuer_decimals`, `chain_decimals` |
 | `market.catalog.multiplier_changed` | `symbol`, `mint`, `multiplier_before`, `multiplier_after` |
 | `market.chart.history_failed` | `mint`, `code`, `err` |
