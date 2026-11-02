@@ -48,20 +48,27 @@ fi
 
 # One creator per lane at a time (mkdir is atomic); a lock whose pid is gone is stale. It is
 # stolen by an atomic rename, so a waiter never removes a lock another process just took.
+# A lock that names no owner for 2s is stale too: a waiter can move a lock aside between its
+# mkdir and its pid write, and that creator then retries instead of holding it.
 lock="$top/.build/lane-sim.lock"
 mkdir -p "$top/.build"
 have_lock=0
 trap 'if (( have_lock )); then rm -rf "$lock"; fi' EXIT
 tries=0
+ownerless=0
 while (( tries < 600 )); do
   tries=$((tries + 1))
   if mkdir "$lock" 2>/dev/null; then
-    have_lock=1
-    echo "$$" > "$lock/pid"
-    break
+    if echo "$$" 2>/dev/null > "$lock/pid" && [[ "$(cat "$lock/pid" 2>/dev/null || true)" == "$$" ]]; then
+      have_lock=1
+      break
+    fi
+    continue
   fi
   owner="$(cat "$lock/pid" 2>/dev/null || true)"
-  if [[ -n "$owner" ]] && ! kill -0 "$owner" 2>/dev/null; then
+  if [[ -n "$owner" ]]; then ownerless=0; else ownerless=$((ownerless + 1)); fi
+  if (( ownerless >= 10 )) || { [[ -n "$owner" ]] && ! kill -0 "$owner" 2>/dev/null; }; then
+    ownerless=0
     stale="$lock.stale.$$"
     if mv "$lock" "$stale" 2>/dev/null; then
       if [[ "$(cat "$stale/pid" 2>/dev/null || true)" == "$owner" ]]; then
