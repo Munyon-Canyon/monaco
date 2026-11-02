@@ -25,6 +25,9 @@ import (
 
 const (
 	evmArrivalsOp        = "trading.EVMArrivals.Inbound"
+	evmTransferOp        = "trading.EVMArrivals.Transfer"
+	receiptSuccess       = "0x1"
+	transferTopics       = 3
 	arrivalLookback      = 2 * time.Minute
 	arrivalChunksPerTick = 30
 	arrivalDefaultDepth  = 32
@@ -34,7 +37,10 @@ const (
 	evmTopicHexChars     = 64
 )
 
-var _ app.EVMArrivals = (*EVMArrivals)(nil)
+var (
+	_ app.EVMArrivals  = (*EVMArrivals)(nil)
+	_ app.EVMTransfers = (*EVMArrivals)(nil)
+)
 
 func safeDepth(network chain.Network) int64 {
 	depths := map[chain.Network]int64{
@@ -268,18 +274,79 @@ func (s arrivalScan) first(logs []arrivalLog) (app.EVMArrival, bool, error) {
 		if l.Removed || slices.Contains(s.exclude, strings.ToLower(l.TxHash)) {
 			continue
 		}
-		amount, err := hexBig(l.Data)
-		if err != nil || !amount.IsUint64() || len(l.Data) != 2+evmTopicHexChars {
-			return app.EVMArrival{}, false, errs.New(errs.CodeDecodeFailed, evmArrivalsOp,
-				append(s.attrs, slog.String("tx_hash", l.TxHash), slog.String("data", l.Data))...)
+		got, err := s.amount(l)
+		if err != nil {
+			return app.EVMArrival{}, false, err
 		}
-		got := money.MicrosFromUint64(amount.Uint64())
 		if got.IsZero() || got.Cmp(s.atLeast) < 0 || got.Cmp(s.atMost) > 0 {
 			continue
 		}
 		return app.EVMArrival{Amount: got, TxHash: strings.ToLower(l.TxHash)}, true, nil
 	}
 	return app.EVMArrival{}, false, nil
+}
+
+func (s arrivalScan) amount(l arrivalLog) (money.Micros, error) {
+	amount, err := hexBig(l.Data)
+	if err != nil || !amount.IsUint64() || len(l.Data) != 2+evmTopicHexChars {
+		return money.Micros{}, errs.New(errs.CodeDecodeFailed, evmArrivalsOp,
+			append(s.attrs, slog.String("tx_hash", l.TxHash), slog.String("data", l.Data))...)
+	}
+	return money.MicrosFromUint64(amount.Uint64()), nil
+}
+
+type txReceipt struct {
+	Status      string       `json:"status"`
+	BlockNumber hexInt       `json:"blockNumber"`
+	Logs        []arrivalLog `json:"logs"`
+}
+
+func (a *EVMArrivals) Transfer(
+	ctx context.Context, network chain.Network, token, owner chain.EVMAddress, txHash string,
+) (app.EVMArrival, bool, error) {
+	attrs := []slog.Attr{
+		slog.String("network", string(network)), slog.String("owner", owner.String()), slog.String("tx_hash", txHash),
+	}
+	client, ok := a.rpc[network]
+	if !ok {
+		return app.EVMArrival{}, false, errs.New(errs.CodeInvalidInput, evmTransferOp, attrs...)
+	}
+	s := arrivalScan{client: client, pace: &pacer{clock: a.clock}, network: network, owner: owner, attrs: attrs}
+	var receipt *txReceipt
+	var head hexInt
+	err := s.call(ctx, "eth_getTransactionReceipt", []any{txHash}, &receipt)
+	if err == nil && receipt != nil && receipt.Status == receiptSuccess {
+		err = s.call(ctx, "eth_blockNumber", []any{}, &head)
+	}
+	switch {
+	case err != nil:
+		return app.EVMArrival{}, false, err
+	case receipt == nil || receipt.Status != receiptSuccess:
+		return app.EVMArrival{}, false, nil
+	case int64(receipt.BlockNumber) > int64(head)-safeDepth(network):
+		return app.EVMArrival{}, false, errs.New(errs.CodeUpstreamUnavailable, evmTransferOp,
+			append(attrs, slog.String("reason", "tx_not_settled"))...)
+	}
+	return s.transferTo(token, owner, txHash, receipt.Logs)
+}
+
+func (s arrivalScan) transferTo(
+	token, owner chain.EVMAddress, txHash string, logs []arrivalLog,
+) (app.EVMArrival, bool, error) {
+	recipient := topicOf(owner)
+	matched := slices.DeleteFunc(slices.Clone(logs), func(l arrivalLog) bool {
+		return l.Removed || !strings.EqualFold(l.Address, token.String()) || len(l.Topics) != transferTopics ||
+			!strings.EqualFold(l.Topics[0], transferEventTopic) || !strings.EqualFold(l.Topics[2], recipient)
+	})
+	switch len(matched) {
+	case 0:
+		return app.EVMArrival{}, false, nil
+	case 1:
+		got, err := s.amount(matched[0])
+		return app.EVMArrival{Amount: got, TxHash: strings.ToLower(txHash)}, err == nil, err
+	}
+	return app.EVMArrival{}, false, errs.New(errs.CodeInvalidInput, evmTransferOp,
+		append(s.attrs, slog.String("reason", "several_transfers_to_treasury"))...)
 }
 
 func (s arrivalScan) firstBlockAt(ctx context.Context, at time.Time, head int64) (int64, error) {

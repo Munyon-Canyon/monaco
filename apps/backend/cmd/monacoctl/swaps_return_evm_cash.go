@@ -30,6 +30,7 @@ import (
 type cashAdapters struct {
 	Wallets   tradingapp.TreasuryEVM
 	Cash      tradingapp.EVMCash
+	Transfers tradingapp.EVMTransfers
 	WriteOffs tradingapp.EVMCashWriteOffs
 	Chain     tradingapp.ChainReader
 
@@ -44,6 +45,7 @@ func liveCashPorts(cfg config.Config, pool *pgxpool.Pool, uow *db.UnitOfWork, cl
 	return cashAdapters{
 		Wallets:   wallets,
 		Cash:      tradingadapters.NewEVMCash(tradingadapters.EVMRPC(deps)),
+		Transfers: tradingadapters.NewEVMArrivals(tradingadapters.EVMRPC(deps), int64(cfg.EVM.LogsMaxBlocks), clk),
 		WriteOffs: cashWriteOffs{ledger: treasuryapp.NewLedger(chain.SolanaAddress(cfg.Solana.USDCMint), clk)},
 		Chain:     tradingchain.NewReader(solana.New(cfg, clk)),
 		Receipts: tradingapp.RoutedReceipts{
