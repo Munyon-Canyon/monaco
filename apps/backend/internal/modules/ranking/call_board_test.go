@@ -142,7 +142,7 @@ func boardModule(t *testing.T, d deliverer) (*ranking.Module, context.Context) {
 	t.Helper()
 	named := func(name string) uuid.UUID { return uuid.NewSHA1(uuid.Nil, []byte("board/"+name)) }
 	user, cabal := ids.UserIDFrom(named("kai")), ids.CabalIDFrom(named("pilates"))
-	seedFiveResolvedCalls(t, d, user.UUID(), cabal.UUID(), d.clock.Now().Add(-time.Second))
+	seedFiveResolvedCalls(t, d, user.UUID(), cabal.UUID(), d.clock.Now())
 	cards := soloCards{user: user, cabal: cabal}
 	deps := module.Deps{Pool: d.pool, UoW: d.uow, IDs: d.gen, Clock: d.clock, Bus: d.conn}
 	m := ranking.New(deps, ranking.WithPorts(app.Ports{Users: cards, Cabals: cards}))
@@ -150,54 +150,123 @@ func boardModule(t *testing.T, d deliverer) (*ranking.Module, context.Context) {
 	return m, ctx
 }
 
+func boundaryClocks() map[string]time.Time {
+	utc := func(y int, m time.Month, d, h, mi, sec int) time.Time {
+		return time.Date(y, m, d, h, mi, sec, 0, time.UTC)
+	}
+	return map[string]time.Time{
+		"mid week":                  utc(2026, time.November, 18, 12, 0, 0),
+		"just before a month":       utc(2026, time.October, 31, 23, 59, 50),
+		"on the first of a month":   utc(2026, time.November, 1, 0, 0, 0),
+		"on a Monday":               utc(2026, time.November, 2, 0, 0, 0),
+		"just before a year":        utc(2026, time.December, 31, 23, 59, 50),
+		"on the first of a year":    utc(2027, time.January, 1, 0, 0, 0),
+		"just after the first tick": utc(2026, time.November, 1, 0, 0, 1),
+	}
+}
+
 func TestCallBoardPoller_aResolvedCallWakesTheBoardWithinTwoSeconds(t *testing.T) {
 	t.Parallel()
-	d := newDeliverer(t)
-	board, ctx := boardPoller(t, d)
-	if _, err := board.Tick(ctx); err != nil || d.boardRuns(t) != 1 {
-		t.Fatalf("first Tick = %v with %d runs, want 1", err, d.boardRuns(t))
+	for name, at := range boundaryClocks() {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			d := newDelivererAt(t, at)
+			board, ctx := boardPoller(t, d)
+			if _, err := board.Tick(ctx); err != nil || d.boardRuns(t) != 1 {
+				t.Fatalf("first Tick = %v with %d runs, want 1", err, d.boardRuns(t))
+			}
+			resolveACall(t, d)
+			if _, err := board.Tick(ctx); err != nil || d.boardRuns(t) != 1 {
+				t.Fatalf("Tick in the debounce window = %v with %d runs, want it to wait", err, d.boardRuns(t))
+			}
+			d.clock.Advance(2 * time.Second)
+			if report, err := board.Tick(ctx); err != nil || report.Changed != 6 {
+				t.Fatalf(
+					"Tick after 2 s = %+v, %v; want a run that wrote Kai and Pilates on three periods",
+					report,
+					err,
+				)
+			}
+			d.wantTwoRunsAndNoTriggers(t)
+		})
 	}
+}
 
-	resolved := events.CallResolved{V: 1}
-	id := d.event(t, resolved)
-	if _, err := d.deliverAs(ctx, t, id, "ranking.call_board.call_resolved", resolved); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := board.Tick(ctx); err != nil || d.boardRuns(t) != 1 {
-		t.Fatalf("Tick in the debounce window = %v with %d runs, want it to wait", err, d.boardRuns(t))
-	}
-	d.clock.Advance(2 * time.Second)
-	if report, err := board.Tick(ctx); err != nil || report.Changed != 6 {
-		t.Fatalf("Tick after 2 s = %+v, %v; want a run that wrote Kai and Pilates on three periods", report, err)
-	}
+func (d deliverer) wantTwoRunsAndNoTriggers(t *testing.T) {
+	t.Helper()
 	if got, triggers := d.boardRuns(t), d.callBoardTriggers(t); got != 2 || len(triggers) != 0 {
 		t.Fatalf("runs %d and triggers %q, want 2 runs and the trigger consumed", got, triggers)
 	}
 }
 
+func resolveACall(t *testing.T, d deliverer) {
+	t.Helper()
+	resolved := events.CallResolved{V: 1}
+	id := d.event(t, resolved)
+	if _, err := d.deliverAs(t.Context(), t, id, "ranking.call_board.call_resolved", resolved); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestCallBoardPoller_keepsRunningAcrossAMonthAndYearBoundary(t *testing.T) {
+	t.Parallel()
+	for name, at := range map[string]time.Time{
+		"month": time.Date(2026, time.October, 31, 23, 59, 59, 0, time.UTC),
+		"year":  time.Date(2026, time.December, 31, 23, 59, 59, 0, time.UTC),
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			d := newDelivererAt(t, at)
+			board, ctx := boardPoller(t, d)
+			if _, err := board.Tick(ctx); err != nil || d.boardRuns(t) != 1 {
+				t.Fatalf("first Tick = %v with %d runs, want 1", err, d.boardRuns(t))
+			}
+			resolveACall(t, d)
+			d.clock.Advance(2 * time.Second)
+			report, err := board.Tick(ctx)
+			if err != nil || d.boardRuns(t) != 2 {
+				t.Fatalf(
+					"Tick across the boundary = %+v, %v with %d runs; want a second run",
+					report,
+					err,
+					d.boardRuns(t),
+				)
+			}
+			if report.Changed != 4 {
+				t.Fatalf("Tick across the boundary changed %d rows, want 4: the new month is empty", report.Changed)
+			}
+		})
+	}
+}
+
 func TestCallBoardPoller_writesTheRowsAndTheEventInOneTransaction(t *testing.T) {
 	t.Parallel()
-	d := newDeliverer(t)
-	board, ctx := boardPoller(t, d)
-	if _, err := board.Tick(ctx); err != nil {
-		t.Fatalf("Tick = %v", err)
-	}
+	for name, at := range boundaryClocks() {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			d := newDelivererAt(t, at)
+			board, ctx := boardPoller(t, d)
+			if _, err := board.Tick(ctx); err != nil {
+				t.Fatalf("Tick = %v", err)
+			}
 
-	var rows, written, sameRun int
-	err := d.pool.QueryRow(t.Context(), `SELECT
-		(SELECT count(*) FROM call_board_entries WHERE board = 'people' AND period = 'all' AND rank = 1
-			AND subject_name = 'Kai' AND rate_bps = 10000),
-		(SELECT count(*) FROM events WHERE type = 'ranking.call_board_written'),
-		(SELECT count(*) FROM events AS e JOIN call_board_runs AS r ON e.aggregate_id = r.run_id
-			WHERE e.type = 'ranking.call_board_written' AND r.rows_written = 6)`).Scan(&rows, &written, &sameRun)
-	if err != nil || rows != 1 || written != 1 || sameRun != 1 {
-		t.Fatalf(
-			"Kai at #1 rows %d, events %d, events for the run %d, err %v; want 1, 1 and 1",
-			rows,
-			written,
-			sameRun,
-			err,
-		)
+			var rows, written, sameRun int
+			err := d.pool.QueryRow(t.Context(), `SELECT
+				(SELECT count(*) FROM call_board_entries WHERE board = 'people' AND period = 'all' AND rank = 1
+					AND subject_name = 'Kai' AND rate_bps = 10000),
+				(SELECT count(*) FROM events WHERE type = 'ranking.call_board_written'),
+				(SELECT count(*) FROM events AS e JOIN call_board_runs AS r ON e.aggregate_id = r.run_id
+					WHERE e.type = 'ranking.call_board_written' AND r.rows_written = 6)`).Scan(&rows, &written, &sameRun)
+			if err != nil || rows != 1 || written != 1 || sameRun != 1 {
+				t.Fatalf(
+					"Kai at #1 rows %d, events %d, events for the run %d, err %v; want 1, 1 and 1",
+					rows,
+					written,
+					sameRun,
+					err,
+				)
+			}
+		})
 	}
 }
 
