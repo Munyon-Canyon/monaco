@@ -118,8 +118,7 @@ public struct CabalPotSummary: Equatable, Sendable {
     }
 
     static func percent(basisPoints: Int) -> String {
-        if basisPoints > 0, basisPoints < 100 { return "<1%" }
-        return "\((basisPoints + 50) / 100)%"
+        CabalHeaderCopy.percent(basisPoints: basisPoints)
     }
 
     public static func shares(_ units: String, kind: AssetKind) -> String {

@@ -128,8 +128,20 @@ extension FeedPreviewRowFacts {
 
         var split: Trailing? { item.tally.map { .split(yes: $0.yes, no: $0.no) } }
 
+        var proposalHeadline: String? {
+            guard let object = facts.object else { return nil }
+            let kind: AssetKind = isPreIPO ? .preIpo : .stock
+            guard
+                let named = FeedPostFacts.text(item.assetName).map({ CatalogAssetNameFormatter.format($0, kind: kind) }
+                ),
+                !named.isEmpty
+            else { return object.headline }
+            let figure = FeedPostFacts.amount(of: item)?.short
+            return [item.action.map(FeedPostFacts.capitalized), named, figure].compactMap { $0 }.joined(separator: " ")
+        }
+
         var proposal: Copy {
-            let headline = facts.object?.headline ?? item.title
+            let headline = proposalHeadline ?? item.title
             guard case .tally(let tally) = facts.attachment else {
                 return Copy(title: headline, parts: placed, trailing: split)
             }
