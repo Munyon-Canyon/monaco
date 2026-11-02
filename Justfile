@@ -152,9 +152,11 @@ run *args:
     esac
     if [[ -z "$app" ]]; then
       # Bash starts a background job with SIGINT ignored, so Ctrl-C never reaches the
-      # backend. Stop it by name on every exit instead: Ctrl-C, a failed mobile build, or
-      # the backend exiting on its own.
-      trap 'just stop backend >/dev/null 2>&1 || true' EXIT
+      # backend. Stop it on every exit instead: Ctrl-C, a failed mobile build, or the backend
+      # exiting on its own. By name, and also by the job's pid (just forwards SIGTERM to the
+      # recipe shell): api may not have exec'd bin/api yet, so the name kill misses it.
+      backend_pid=""
+      trap 'if [[ -n "$backend_pid" ]]; then kill -TERM "$backend_pid" 2>/dev/null || true; fi; just stop backend >/dev/null 2>&1 || true; if [[ -n "$backend_pid" ]]; then wait "$backend_pid" 2>/dev/null || true; fi' EXIT
       trap 'exit 130' INT
       trap 'exit 143' TERM
       source ./scripts/run-with-logs.sh
@@ -182,9 +184,13 @@ run *args:
         # when this run started it, and only this checkout's Vite.
         ready_pid=""
         fund_pid=""
+        api_pid=""
+        worker_pid=""
         fund_vite="^(node )?${PWD}/apps/web/node_modules/.bin/vite( |$)"
         trap 'if [[ -n "$ready_pid" ]]; then kill "$ready_pid" 2>/dev/null || true; fi; pkill -TERM -f "^${PWD}/bin/(api|worker)$" || true
-          if [[ -n "$fund_pid" ]]; then kill "$fund_pid" 2>/dev/null || true; pkill -TERM -f "$fund_vite" || true; fi' INT TERM EXIT
+          for pid in "$api_pid" "$worker_pid"; do if [[ -n "$pid" ]]; then kill -TERM "$pid" 2>/dev/null || true; fi; done
+          if [[ -n "$fund_pid" ]]; then kill "$fund_pid" 2>/dev/null || true; pkill -TERM -f "$fund_vite" || true; fi
+          for pid in "$api_pid" "$worker_pid"; do if [[ -n "$pid" ]]; then wait "$pid" 2>/dev/null || true; fi; done' INT TERM EXIT
         # MONACO_FUND_PAGE_PORT is ours, and the backend refuses unknown MONACO_ variables at boot.
         env -u MONACO_LOG_DIR -u MONACO_DOTENVX -u MONACO_FUND_PAGE_PORT {{_dotenvx}} "$PWD/bin/api" > >(tee -a "${MONACO_LOG_DIR}/api.log") 2>&1 &
         api_pid=$!
