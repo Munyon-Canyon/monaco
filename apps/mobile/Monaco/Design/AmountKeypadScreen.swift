@@ -129,12 +129,15 @@ struct AmountKeypadScreen<Source: View, Header: View>: View {
 
     @ViewBuilder
     private var sourcePill: some View {
-        let sourceLayout = AmountKeypadSourceLayout.layout(at: dynamicTypeSize)
+        let pillSize = min(dynamicTypeSize, DynamicTypeSize.accessibility1)
+        let sourceLayout = AmountKeypadSourceLayout.layout(at: pillSize)
+        let pillShape = AmountKeypadSourceLayout.shape(at: pillSize)
         let pill = HStack(spacing: MonacoTheme.Space.s) {
             sourceLayout {
                 source
             }
             .modifier(AmountKeypadSourceText())
+            .dynamicTypeSize(...DynamicTypeSize.accessibility1)
             .multilineTextAlignment(.center)
             Image(systemName: "chevron.down")
                 .font(MonacoTheme.Typo.subhead)
@@ -143,8 +146,8 @@ struct AmountKeypadScreen<Source: View, Header: View>: View {
         }
         .padding(.vertical, MonacoTheme.Space.s)
         .padding(.horizontal, MonacoTheme.Space.m)
-        .background(MonacoTheme.surface, in: Capsule())
-        .overlay(Capsule().strokeBorder(MonacoTheme.hairline, lineWidth: 1 / displayScale))
+        .background(MonacoTheme.surface, in: pillShape)
+        .overlay(pillShape.strokeBorder(MonacoTheme.hairline, lineWidth: 1 / displayScale))
         .frame(minHeight: MonacoButtonMetrics.hitTarget)
         .contentShape(Rectangle())
         if let onSource {
@@ -401,6 +404,11 @@ private struct AmountKeypadSourceText: ViewModifier {
 enum AmountKeypadSourceLayout {
     static func wraps(at size: DynamicTypeSize) -> Bool {
         size >= .xxxLarge
+    }
+
+    static func shape(at size: DynamicTypeSize) -> RoundedRectangle {
+        RoundedRectangle(
+            cornerRadius: wraps(at: size) ? MonacoTheme.Radius.card : MonacoButtonMetrics.hitTarget, style: .continuous)
     }
 
     static func layout(at size: DynamicTypeSize) -> AnyLayout {
