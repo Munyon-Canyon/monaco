@@ -74,6 +74,7 @@ func (p *SamplePrices) reference(
 		return domain.Sample{}, info.TradingDay, false, nil
 	}
 	s, ok := p.closes[info.LastClose].prices[a.ID]
+	s.Micros = a.CloseReference(s.Micros, info.LastClose, at)
 	return s, info.TradingDay, ok, nil
 }
 
@@ -83,7 +84,7 @@ func (p *SamplePrices) dayOpen(
 	if open, ok := p.opens[id]; ok && open.day == day {
 		return open.s, true, nil
 	}
-	start := time.Date(day.Year, day.Month, day.Day, 0, 0, 0, 0, time.UTC)
+	start := day.Start()
 	samples, err := p.book.DaySamples(ctx, id, start, at)
 	if err != nil {
 		return domain.Sample{}, false, err

@@ -40,7 +40,7 @@ func TestAfterHours_isAbsentWhenTheLastClosePriceIsZero(t *testing.T) {
 	asset := domain.Asset{Kind: domain.KindEquity}
 	closed := domain.SessionInfo{State: domain.StateClosed}
 	book := quotes{lastClosed: map[string][]domain.Sample{asset.Mint.String(): {{Micros: micros(0)}}}}
-	if got := afterHours(asset, closed, book, micros(1_000_000)); got != nil {
+	if got := afterHours(asset, closed, book, micros(1_000_000), time.Time{}); got != nil {
 		t.Fatalf("after hours = %d, want nil", *got)
 	}
 }

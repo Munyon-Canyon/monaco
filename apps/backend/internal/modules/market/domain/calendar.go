@@ -33,7 +33,7 @@ type SessionInfo struct {
 func Session(kind Kind, at time.Time) (SessionInfo, error) {
 	switch kind {
 	case KindPreIPO:
-		return SessionInfo{State: StateOpen, Continuous: true, TradingDay: dateOf(at.UTC())}, nil
+		return SessionInfo{State: StateOpen, Continuous: true, TradingDay: EasternDay(at)}, nil
 	case KindEquity:
 		return calendar{years: nyseHolidays()}.session(at)
 	}

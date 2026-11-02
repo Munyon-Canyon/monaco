@@ -17,6 +17,16 @@ final class MarketMappingTests: XCTestCase {
         XCTAssertTrue(MarketMapping.detail(.googl).asset.isQuotable)
     }
 
+    func testTheSessionStatusIsPricedAtTheTimeTheResponseWasRead() {
+        let read = sampledAt.addingTimeInterval(90)
+        let preMarket = delayedSummary(asOf: sampledAt, stale: false, state: .preMarket)
+
+        XCTAssertEqual(MarketMapping.asset(preMarket, now: read).status.asOf, read)
+        XCTAssertEqual(MarketMapping.detail(.googl, now: read).asset.status.asOf, read)
+        XCTAssertEqual(
+            MarketMapping.page(.init(assets: [preMarket], nextCursor: nil), now: read).assets[0].status.asOf, read)
+    }
+
     func testServerStaleFlagAndAgeMarkAPriceDelayed() {
         let now = sampledAt.addingTimeInterval(MarketStaleness.priceAgeLimit + 1)
         let flagged = delayedSummary(asOf: sampledAt, stale: true, state: .closed)

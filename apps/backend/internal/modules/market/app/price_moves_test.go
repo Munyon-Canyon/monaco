@@ -188,7 +188,7 @@ func TestRecordMoves_readsAPreIPODayOpenOncePerDay(t *testing.T) {
 	p := &SamplePrices{clock: testkit.NewClock(at)}
 	tick := func(bucket time.Time) {
 		t.Helper()
-		start := time.Date(bucket.Year(), bucket.Month(), bucket.Day(), 0, 0, 0, 0, time.UTC)
+		start := domain.EasternDay(bucket).Start()
 		open := domain.Sample{Micros: money.MicrosFromUint64(50_000_000), ObservedAt: start.Add(time.Minute)}
 		p.book = countingBook{fakeBook: fakeBook{days: []domain.Sample{open}}, asOfCalls: &asOf, dayCalls: &day}
 		mark := domain.Sample{Micros: open.Micros, ObservedAt: bucket}

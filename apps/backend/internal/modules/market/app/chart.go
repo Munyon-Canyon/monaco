@@ -230,7 +230,7 @@ func (c *AssetChart) previousClose(
 	if err != nil {
 		return money.Micros{}, false, err
 	}
-	base, known := reference(asset, book)
+	base, known := reference(asset, book, now)
 	return base, known, nil
 }
 
@@ -245,7 +245,7 @@ func (c *AssetChart) dayBase(ctx context.Context, asset domain.Asset, now time.T
 		return quotes{}, err
 	}
 	closed, err := closedSamples(ctx, c.base, mints, session)
-	return quotes{closed: closed}, err
+	return quotes{closed: closed, closeAt: session.ChangeBase()}, err
 }
 
 func (c *AssetChart) until(ctx context.Context, mint string, now time.Time) (time.Time, bool, error) {

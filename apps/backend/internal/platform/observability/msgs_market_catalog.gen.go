@@ -4,6 +4,7 @@ package observability
 
 func init() {
 	register(
+		MarketCalendarEnding,
 		MarketDecimalsCorrected,
 		MarketMultiplierChanged,
 	)

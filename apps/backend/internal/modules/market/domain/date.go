@@ -22,3 +22,7 @@ func (d Date) weekday() time.Weekday { return d.midnight().Weekday() }
 func (d Date) addDays(n int) Date { return dateOf(d.midnight().AddDate(0, 0, n)) }
 
 func (d Date) String() string { return d.midnight().Format(time.DateOnly) }
+
+func EasternDay(at time.Time) Date { return dateOf(wallClock(at)) }
+
+func (d Date) Start() time.Time { return d.atExchange(0) }

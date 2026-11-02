@@ -39,15 +39,16 @@ public enum MarketSessionCopy {
     public static func chip(
         for market: MarketStatus?,
         locale: Locale = .autoupdatingCurrent,
-        timeZone: TimeZone = .autoupdatingCurrent
+        timeZone: TimeZone = .autoupdatingCurrent,
+        now: Date? = nil
     ) -> MarketSessionChipCopy? {
-        guard let market, market.session != .unknown else { return nil }
+        guard let reported = market, reported.session != .unknown else { return nil }
+        let market = now.map { rolled(reported, to: $0) } ?? reported
         switch market.session {
         case .open:
             return MarketSessionChipCopy(
                 title: "Market open",
-                detail: market.earlyClose
-                    ? "Closes early today" : closeTimeDetail(market, locale: locale, timeZone: timeZone),
+                detail: openDetail(market, locale: locale, timeZone: timeZone),
                 isLive: true
             )
         case .preMarket:
@@ -68,7 +69,33 @@ public enum MarketSessionCopy {
         }
     }
 
+    public static func nextChange(for market: MarketStatus?, after now: Date) -> Date? {
+        guard let transition = market?.nextTransition, transition > now else { return nil }
+        return transition
+    }
+
     private static let tradesOnSolana = "Trading 24/7 on Solana"
+
+    private static func rolled(_ market: MarketStatus, to now: Date) -> MarketStatus {
+        guard let transition = market.nextTransition, transition <= now,
+            let next = market.nextSession, next != .unknown
+        else { return market }
+        return MarketStatus(
+            session: next,
+            isOpen: next == .open,
+            afterHours: next != .open,
+            asOf: now,
+            earlyClose: market.earlyClose && next == .open
+        )
+    }
+
+    private static func openDetail(_ market: MarketStatus, locale: Locale, timeZone: TimeZone) -> String? {
+        guard market.earlyClose else { return closeTimeDetail(market, locale: locale, timeZone: timeZone) }
+        guard market.nextSession == .afterHours, let transition = upcomingTransition(market) else {
+            return "Closes early today"
+        }
+        return "Closes early at \(time(transition, locale: locale, timeZone: timeZone))"
+    }
 
     /// "Closes 4:00 PM" — only when the server said when, and only while that is still
     /// ahead of the `asOf` it priced at. A transition already in the past is a stale
