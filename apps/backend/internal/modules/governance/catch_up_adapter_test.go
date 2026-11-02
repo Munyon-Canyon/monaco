@@ -4,6 +4,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgtype"
+
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	cabalport "github.com/monaco/monaco/apps/backend/internal/modules/cabal/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/adapters"
@@ -66,5 +68,40 @@ func TestCatchUp_ProposalCards_PassesTheReadThrough(t *testing.T) {
 	)
 	if err != nil || len(got) != 1 || got[id].ID != id {
 		t.Fatalf("ProposalCards = %+v, %v, want the one card", got, err)
+	}
+}
+
+func TestCatchUp_aSellPastInt64CarriesTheExactStringAndNoIntegerOnBothReads(t *testing.T) {
+	t.Parallel()
+	const wide = "25000000000000000000"
+	f := newPendingFacts(t)
+	mia := f.ids.NewV7()
+	sell := f.open(t, f.ids.NewV7(), mia, time.Hour, f.caller, mia)
+	sell.Kind, sell.Symbol, sell.Mint = "sell", "TSLAx", marketfake.TSLAx().Mint.String()
+	sell.UsdcMicros, sell.TokenAmount = pgtype.Int8{}, wide
+	f.insert(t, sell)
+	f.names.set(sell.CabalID, "Degens", cabalport.StatusActive)
+	f.card(mia, "mia", "Mia")
+	catchUp := adapters.NewCatchUp(f.pendingReads())
+
+	pending, err := catchUp.PendingVotes(t.Context(), ids.UserIDFrom(f.caller))
+	if err != nil || len(pending) != 1 {
+		t.Fatalf("PendingVotes = %+v, %v, want one card", pending, err)
+	}
+	id := ids.ProposalIDFrom(sell.ID)
+	cards, err := catchUp.ProposalCards(t.Context(), ids.UserIDFrom(f.caller), []ids.ProposalID{id})
+	if err != nil || len(cards) != 1 {
+		t.Fatalf("ProposalCards = %+v, %v, want one card", cards, err)
+	}
+	for name, card := range map[string]port.CatchUpProposal{"pending": pending[0], "card": cards[id]} {
+		if card.TokenAmount != nil || card.TokenAmountStr == nil || *card.TokenAmountStr != wide {
+			t.Errorf(
+				"%s token amount = %v and %v, want no integer and %s",
+				name,
+				card.TokenAmount,
+				card.TokenAmountStr,
+				wide,
+			)
+		}
 	}
 }

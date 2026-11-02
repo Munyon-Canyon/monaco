@@ -138,6 +138,20 @@ func TestInt64OrZeroIsZeroPastInt64(t *testing.T) {
 	}
 }
 
+func TestUnitsStringOrNilIsNilOnlyForZero(t *testing.T) {
+	t.Parallel()
+	if got := (money.Units{}).StringOrNil(); got != nil {
+		t.Fatalf("zero value = %q", *got)
+	}
+	if got := money.UnitsFromUint64(0).StringOrNil(); got != nil {
+		t.Fatalf("zero = %q", *got)
+	}
+	got := mustUnits(t, "25000000000000000000").StringOrNil()
+	if got == nil || *got != "25000000000000000000" {
+		t.Fatalf("past int64 = %v", got)
+	}
+}
+
 func TestPricePerUnitsMatchesNarrowPriceAndHoldsPastUint64(t *testing.T) {
 	t.Parallel()
 	usdc := money.MicrosFromUint64(25_000_000)

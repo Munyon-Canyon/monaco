@@ -1202,6 +1202,11 @@ type FeedItem struct {
 	// Examples: 42000000
 	FilledTokenAmount *int64 `json:"filled_token_amount"`
 
+	// FilledTokenAmountStr `filled_token_amount` as a decimal string, exact at any size. Null or absent when `filled_token_amount` is null or zero. `filled_token_amount` itself is the same value when it fits in an int64 and null above that.
+	//
+	// Examples: 42000000
+	FilledTokenAmountStr *string `json:"filled_token_amount_str,omitempty"`
+
 	// FilledUsdcMicros USDC micros the confirmed swaps spent or received. Null on a `result` with no fill and on every other kind.
 	//
 	// Examples: 300000000
@@ -1339,6 +1344,11 @@ type FeedItem struct {
 	//
 	// Examples: 250000000
 	TokenAmount *int64 `json:"token_amount"`
+
+	// TokenAmountStr `token_amount` as a decimal string, exact at any size. Null or absent when `token_amount` is null or zero. `token_amount` itself is the same value when it fits in an int64 and null above that.
+	//
+	// Examples: 250000000
+	TokenAmountStr *string `json:"token_amount_str,omitempty"`
 
 	// TokenDecimals Decimals of `token_amount` and of `filled_token_amount`. Null when both are null.
 	//

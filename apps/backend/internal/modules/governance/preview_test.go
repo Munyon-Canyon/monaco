@@ -40,6 +40,7 @@ func TestPreview_aBuyOverThePotAdvisesPotExceededAndWritesNothing(t *testing.T) 
 			scenario.ExpectJSON("advisory_code", "pot_exceeded"),
 			scenario.ExpectJSON("advisory_message", errs.Message(errs.CodePotExceeded)),
 			scenario.ExpectJSON("quote_out_amount", quoteUnits),
+			scenario.ExpectJSON("quote_out_amount_str", "21000000"),
 			scenario.ExpectJSON("pot_value_micros", potMicros),
 			scenario.Get(w.proposals()),
 			scenario.ExpectJSON("proposals", []any{}),

@@ -304,6 +304,7 @@ components:
         asset_logo_url: {type: [string, "null"], examples: [null]}
         usdc_micros: {type: [integer, "null"], format: int64, description: "USDC a buy spends, in micros.", examples: [400000000]}
         token_amount: {type: [integer, "null"], format: int64, description: Token base units a sell spends., examples: [null]}
+        token_amount_str: {type: [string, "null"], pattern: "^[0-9]+$", description: "`token_amount` as a decimal string, exact at any size. Null or absent when `token_amount` is null or zero. `token_amount` itself is the same value when it fits in an int64 and null above that.", examples: ["25000000"]}
         proposer: {$ref: "#/components/schemas/CatchUpPerson"}
         created_at: {type: string, format: date-time, examples: ["2026-10-28T18:00:00Z"]}
         expires_at: {type: string, format: date-time, examples: ["2026-10-28T22:00:00Z"]}

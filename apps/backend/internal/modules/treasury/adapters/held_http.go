@@ -2,13 +2,14 @@ package adapters
 
 import (
 	"context"
+	"math"
+	"strconv"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/port"
 	api "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/treasuryapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
-	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
 func (h HTTP) GetMyHeld(
@@ -50,6 +51,13 @@ func wireHeld(list port.HeldList) (api.GetMyHeldResponseObject, error) {
 	return api.GetMyHeld200JSONResponse(out), nil
 }
 
+func fittingTokens(n uint64) int64 {
+	if n > math.MaxInt64 {
+		return 0
+	}
+	return int64(n)
+}
+
 func optionalText(s string) *string {
 	if s == "" {
 		return nil
@@ -58,9 +66,10 @@ func optionalText(s string) *string {
 }
 
 func wireHolding(w *int64Wire, h port.Holding) api.CabalHolding {
+	tokens := strconv.FormatUint(h.TokenAmount.Uint64(), 10)
 	out := api.CabalHolding{
 		Symbol: h.Symbol, DisplayName: h.DisplayName, Kind: api.CabalHoldingKind(h.Kind), Units: h.Units,
-		TokenAmount: w.micros(money.MicrosFromUint64(h.TokenAmount.Uint64())),
+		TokenAmount: fittingTokens(h.TokenAmount.Uint64()), TokenAmountStr: &tokens,
 		PriceMicros: w.micros(h.PriceMicros), ValueMicros: w.micros(h.ValueMicros), WeightBps: h.WeightBps,
 		CostBasisMicros: w.micros(h.CostBasisMicros), PnlMicros: h.PnLMicros.Int64(),
 		FirstBoughtAt: h.FirstBoughtAt, Listings: wireListings(w, h.Listings),

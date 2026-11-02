@@ -69,7 +69,7 @@ func catchUpCard(row sqlc.ProposalCardsRow, extra cardExtras) (port.CatchUpPropo
 	card := port.CatchUpProposal{
 		ID: ids.ProposalIDFrom(row.ID), CabalID: cabal, CabalName: extra.names[cabal], Kind: string(kind),
 		Symbol: row.Symbol, Mint: row.Mint, AssetName: nameOr(asset.DisplayName, row.Symbol), AssetLogo: asset.LogoURL,
-		USDCMicros: usdc, TokenAmount: tokens,
+		USDCMicros: usdc, TokenAmount: tokens, TokenAmountStr: units.StringOrNil(),
 		Proposer:  port.CatchUpPerson{ID: proposer, Name: nameOr(who.DisplayName, who.Handle), PhotoURL: who.PhotoURL},
 		CreatedAt: row.CreatedAt, ExpiresAt: row.ExpiresAt, Status: domain.Status(row.Status),
 		Yes: int(row.YesCount), No: int(row.NoCount), Voted: int(row.VotedCount), Eligible: int(row.VoterCount),

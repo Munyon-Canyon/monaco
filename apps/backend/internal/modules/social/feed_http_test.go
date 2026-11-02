@@ -414,18 +414,21 @@ func TestGetFeed_sendsTheFiguresOfProposalsAndTrades(t *testing.T) {
 		}},
 		"a sell proposal": {feed.KindProposal, sell, func(i api.FeedItem) api.FeedItem {
 			i.Action, i.AssetName, i.TokenAmount, i.TokenDecimals = ptr("sell"), ptr("Apple"), ptr(int64(7)), ptr(8)
+			i.TokenAmountStr = ptr("7")
 			i.ShareOfPotBps, i.ProposalId = ptr(int64(250)), ptr(ref)
 			return i
 		}},
 		"a buy trade": {feed.KindTrade, trade(feed.ActionBuy, 500_000_000, 250_000_000), func(i api.FeedItem) api.FeedItem {
 			i.Action, i.UsdcMicros, i.AssetName = ptr("buy"), ptr(int64(500_000_000)), ptr("Apple")
 			i.TokenAmount, i.TokenDecimals, i.PriceMicros = ptr(int64(250_000_000)), ptr(8), ptr(int64(200_000_000))
+			i.TokenAmountStr = ptr("250000000")
 			i.ProposalId = ptr(proposal)
 			return i
 		}},
 		"a sell trade": {feed.KindTrade, trade(feed.ActionSell, 300_000_000, 100_000_000), func(i api.FeedItem) api.FeedItem {
 			i.Action, i.UsdcMicros, i.AssetName = ptr("sell"), ptr(int64(300_000_000)), ptr("Apple")
 			i.TokenAmount, i.TokenDecimals, i.PriceMicros = ptr(int64(100_000_000)), ptr(8), ptr(int64(300_000_000))
+			i.TokenAmountStr = ptr("100000000")
 			i.ProposalId = ptr(proposal)
 			return i
 		}},
@@ -447,16 +450,19 @@ func TestGetFeed_sendsTheFiguresOfProposalsAndTrades(t *testing.T) {
 		"an oversize usdc amount": {feed.KindTrade, trade(feed.ActionBuy, math.MaxUint64, 1), func(i api.FeedItem) api.FeedItem {
 			i.Action, i.AssetName = ptr("buy"), ptr("Apple")
 			i.TokenAmount, i.TokenDecimals = ptr(int64(1)), ptr(8)
+			i.TokenAmountStr = ptr("1")
 			i.ProposalId = ptr(proposal)
 			return i
 		}},
 		"a fill past uint64": {feed.KindTrade, wideTrade, func(i api.FeedItem) api.FeedItem {
 			i.Action, i.UsdcMicros, i.AssetName = ptr("buy"), ptr(int64(1)), ptr("Apple")
+			i.TokenAmountStr, i.TokenDecimals = ptr("25000000000000000000"), ptr(8)
 			i.ProposalId = ptr(proposal)
 			return i
 		}},
 		"an oversize fill": {feed.KindTrade, trade(feed.ActionBuy, 1, math.MaxUint64), func(i api.FeedItem) api.FeedItem {
 			i.Action, i.UsdcMicros, i.AssetName = ptr("buy"), ptr(int64(1)), ptr("Apple")
+			i.TokenAmountStr, i.TokenDecimals = ptr("18446744073709551615"), ptr(8)
 			i.ProposalId = ptr(proposal)
 			return i
 		}},
@@ -475,13 +481,14 @@ func assertFigures(t *testing.T, got, want api.FeedItem) {
 	type figures struct {
 		Action, AssetName                                   *string
 		UsdcMicros, TokenAmount, PriceMicros, ShareOfPotBps *int64
+		TokenAmountStr                                      *string
 		TokenDecimals                                       *int
 		ProposalID                                          *uuid.UUID
 	}
 	pick := func(i api.FeedItem) figures {
 		return figures{
-			i.Action, i.AssetName, i.UsdcMicros, i.TokenAmount, i.PriceMicros, i.ShareOfPotBps, i.TokenDecimals,
-			i.ProposalId,
+			i.Action, i.AssetName, i.UsdcMicros, i.TokenAmount, i.PriceMicros, i.ShareOfPotBps, i.TokenAmountStr,
+			i.TokenDecimals, i.ProposalId,
 		}
 	}
 	if !reflect.DeepEqual(pick(got), pick(want)) {

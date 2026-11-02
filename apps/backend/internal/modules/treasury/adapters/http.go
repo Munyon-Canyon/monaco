@@ -215,6 +215,10 @@ func wireActivity(v app.ActivityView) (api.CabalActivity, error) {
 		Id: v.ID, Kind: api.CabalActivityKind(v.Kind), Status: api.CabalActivityStatus(v.Status),
 		UsdcMicros: v.USDCMicros, Units: fittingInt64(v.Units), TxSignature: v.TxSignature, OccurredAt: v.OccurredAt,
 	}
+	if v.Units != nil {
+		text := v.Units.String()
+		out.UnitsStr = &text
+	}
 	if v.Asset != nil {
 		out.Asset = &api.ActivityAsset{Symbol: v.Asset.Symbol, Name: v.Asset.Name}
 	}

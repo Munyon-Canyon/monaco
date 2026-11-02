@@ -182,6 +182,7 @@ func TestProposalComparison_fallsBackToTheSolanaQuoteWhenRoutingFails(t *testing
 			scenario.Get(w.liveComparison()),
 			scenario.ExpectStatus(http.StatusOK),
 			scenario.ExpectJSON("quote_out_amount", quoteUnits),
+			scenario.ExpectJSON("quote_out_amount_str", "21000000"),
 			scenario.ExpectNoField("price_comparison"),
 			router.expectCalls(t, 2),
 		)

@@ -518,14 +518,26 @@ func (d decoration) cabalRef(id string, fallbackName string) *domain.CatchUpCaba
 
 func (d decoration) proposal(card governanceport.CatchUpProposal) *domain.CatchUpProposal {
 	out := &domain.CatchUpProposal{
-		ID: card.ID.String(), Kind: card.Kind, Symbol: card.Symbol, AssetName: card.AssetName,
-		AssetLogoURL: card.AssetLogo, USDCMicros: card.USDCMicros, TokenAmount: card.TokenAmount,
+		ID:             card.ID.String(),
+		Kind:           card.Kind,
+		Symbol:         card.Symbol,
+		AssetName:      card.AssetName,
+		AssetLogoURL:   card.AssetLogo,
+		USDCMicros:     card.USDCMicros,
+		TokenAmount:    card.TokenAmount,
+		TokenAmountStr: card.TokenAmountStr,
 		Proposer: domain.CatchUpPerson{
 			ID: card.Proposer.ID.String(), Name: card.Proposer.Name, PhotoURL: card.Proposer.PhotoURL,
 		},
-		CreatedAt: card.CreatedAt, ExpiresAt: card.ExpiresAt, Status: string(card.Status),
-		Yes: card.Yes, No: card.No, Voted: card.Voted, Eligible: card.Eligible,
-		ReplyCount: d.replies[card.ID], YourChoice: card.YourChoice,
+		CreatedAt:  card.CreatedAt,
+		ExpiresAt:  card.ExpiresAt,
+		Status:     string(card.Status),
+		Yes:        card.Yes,
+		No:         card.No,
+		Voted:      card.Voted,
+		Eligible:   card.Eligible,
+		ReplyCount: d.replies[card.ID],
+		YourChoice: card.YourChoice,
 	}
 	return out
 }

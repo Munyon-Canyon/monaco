@@ -87,8 +87,8 @@ type OpenedProposal struct {
 	Needed          int
 	ProposerCanVote bool
 	USDCMicros      int64
-	TokenAmount     int64
-	QuoteOutAmount  int64
+	TokenAmount     money.Units
+	QuoteOutAmount  money.Units
 	PriceComparison *multichain.Comparison
 	Stats           Stats
 }
@@ -183,8 +183,8 @@ func (h *ProposeTradeHandler) Open(ctx context.Context, cmd ProposeTrade) (Opene
 	return OpenedProposal{
 		Draft: p.Draft(), Voters: voters, CreatedAt: now, Needed: rule.Needed(len(voters)),
 		ProposerCanVote: slices.Contains(voters, cmd.ProposerID),
-		USDCMicros:      decimal(p.Draft().USDCMicros.String()), TokenAmount: p.Draft().TokenAmount.Int64OrZero(),
-		QuoteOutAmount: p.Draft().QuoteOut.Int64OrZero(), PriceComparison: a.comparison,
+		USDCMicros:      decimal(p.Draft().USDCMicros.String()), TokenAmount: p.Draft().TokenAmount,
+		QuoteOutAmount: p.Draft().QuoteOut, PriceComparison: a.comparison,
 		Stats: Stats{TreasuryShareBps: share, ClosesAt: p.Draft().ExpiresAt},
 	}, nil
 }
