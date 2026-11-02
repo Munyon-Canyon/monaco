@@ -16,6 +16,8 @@ enum MonacoTheme {
 
     static let surface = Color.adaptive(light: 0xF2F2F7, dark: 0x1C1C1E)
 
+    static let sheetSurface = Color.adaptive(light: 0xFFFFFF, dark: 0x1C1C1E)
+
     static let surfaceSunken = Color.adaptive(light: 0xE5E5EA, dark: 0x2C2C2E)
 
     static let cashFill = border

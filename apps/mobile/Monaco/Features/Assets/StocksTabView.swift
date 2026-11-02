@@ -53,7 +53,6 @@ struct StocksTabView: View {
                     }
                     .accessibilityIdentifier("markets-watchlist-manage")
                 }
-                .withoutGlass()
             }
         }
         .accessibilityElement(children: .contain)
@@ -303,17 +302,6 @@ private struct StocksTabScreen: View {
                     guard model.hasMore else { return }
                     Task { await model.loadMore() }
                 })
-        }
-    }
-}
-
-extension ToolbarContent {
-    @ToolbarContentBuilder
-    fileprivate func withoutGlass() -> some ToolbarContent {
-        if #available(iOS 26.0, *) {
-            sharedBackgroundVisibility(.hidden)
-        } else {
-            self
         }
     }
 }

@@ -140,7 +140,7 @@ enum ProposalSampleScenario: String, CaseIterable {
         case .closedSidesOn:
             script.asset = .nvda
             script.proposal = Components.Schemas.ProposalDetail.filledNVDA()
-                .closedResult(yes: 5, no: 1, voters: 6, needed: 4, ballot: .yes, order: 4, sides: true)
+                .closedResult(yes: 2, no: 1, voters: 3, needed: 2, ballot: .yes, order: 2, sides: true)
                 .withPhotoVoters()
         case .closedSidesPrivate:
             script.asset = .nvda
@@ -373,6 +373,16 @@ extension Components.Schemas.ProposalDetail {
         var detail = voted(ballot)
         detail.tally = .init(yes: yes, no: no, voters: count, needed: needed)
         detail.sidesVisible = sides
+        if sides {
+            detail.voters = detail.voters.enumerated().map { index, voter in
+                var seated = voter
+                let choice: Components.Schemas.ProposalVoter.ChoicePayload? =
+                    index < yes ? .yes : (index < yes + no ? .no : nil)
+                seated.choice = choice
+                seated.voted = choice != nil
+                return seated
+            }
+        }
         detail.myVote = .init(
             order: order, of: count, yesOrder: ballot == .yes ? order : 0, noOrder: ballot == .no ? order : 0,
             decided: false)

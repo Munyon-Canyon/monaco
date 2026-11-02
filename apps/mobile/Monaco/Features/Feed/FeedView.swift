@@ -129,10 +129,8 @@ private struct FeedScreen: View {
                     .accessibilityIdentifier("feed-muted-link")
             }
         } label: {
-            MonacoGlassButton(
-                icon: .filter, accessibilityLabel: "Filter feed", style: isFiltered ? .selected : .glass,
-                placement: .toolbar
-            ) {}
+            Image(monaco: .filter, filled: isFiltered)
+                .foregroundStyle(isFiltered ? MonacoTheme.tint : MonacoTheme.primaryText)
         }
         .accessibilityLabel("Filter feed")
         .accessibilityIdentifier("feed-filter")

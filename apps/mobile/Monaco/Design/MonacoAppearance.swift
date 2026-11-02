@@ -375,6 +375,7 @@ extension View {
 private struct MonacoSheetChrome: ViewModifier {
     func body(content: Content) -> some View {
         content
+            .presentationBackground(MonacoTheme.sheetSurface)
             .presentationDragIndicator(.visible)
             .presentationContentInteraction(.scrolls)
             .presentationBackgroundInteraction(.disabled)

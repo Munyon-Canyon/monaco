@@ -68,12 +68,9 @@ struct CallBoardYouCard: View {
     private func side(_ row: CallBoardRowValue, label: String?) -> some View {
         VStack(spacing: MonacoTheme.Space.xs) {
             CallBoardAvatar(row: row, size: CallBoardCardMetrics.avatar)
-            if row.isCabal {
-                Text(row.name).font(MonacoTheme.Typo.headline).foregroundStyle(MonacoTheme.primaryText)
-            }
-            Text([label, row.rate].compactMap { $0 }.joined(separator: " · "))
-                .font(MonacoTheme.Typo.headline).foregroundStyle(MonacoTheme.primaryText)
-            Text(row.record).font(MonacoTheme.Typo.subhead).foregroundStyle(MonacoTheme.secondaryText)
+            Text(label ?? row.name).font(MonacoTheme.Typo.headline).foregroundStyle(MonacoTheme.primaryText)
+            Text("\(row.rate) · \(row.record)").font(MonacoTheme.Typo.subhead)
+                .foregroundStyle(MonacoTheme.secondaryText)
         }
     }
 }

@@ -72,7 +72,9 @@ struct ProfileScreen: View {
                     .disabled(!canShare)
                     .accessibilityIdentifier("profile-share-button")
                 }
-                .withoutGlass()
+                if #available(iOS 26.0, *) {
+                    ToolbarSpacer(.fixed, placement: .topBarTrailing)
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     MonacoGlassButton(
                         icon: .settings, accessibilityLabel: "Settings", style: .quiet, placement: .toolbar
@@ -81,7 +83,6 @@ struct ProfileScreen: View {
                     }
                     .accessibilityIdentifier("profile-settings-row")
                 }
-                .withoutGlass()
             }
     }
 
@@ -150,16 +151,5 @@ private struct ProfileLoadingSkeleton: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Loading your profile")
         .accessibilityIdentifier("profile-header-loading")
-    }
-}
-
-extension ToolbarContent {
-    @ToolbarContentBuilder
-    fileprivate func withoutGlass() -> some ToolbarContent {
-        if #available(iOS 26.0, *) {
-            sharedBackgroundVisibility(.hidden)
-        } else {
-            self
-        }
     }
 }
