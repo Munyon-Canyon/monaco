@@ -2,7 +2,7 @@ import XCTest
 
 enum FirstRunJourney {
     static let id = "onboarding/first-run"
-    static let version = 6
+    static let version = 7
     static let actors = ["C", "B"]
 
     static let handle = "qa_cayman"
@@ -78,9 +78,10 @@ enum FirstRunJourney {
         recorder.step("S1.1", "sign in by email and land on the handle step") {
             SignInJourney.startSignedOut(app, recorder: SignInJourney.recorder())
             SignInJourney.enterCode(app, as: member, recorder: SignInJourney.recorder())
+            confirmNewAccount(app)
             XCTAssertTrue(
-                field.waitForExistence(timeout: signedInTimeout),
-                "S1.1: the handle step did not show within \(Int(signedInTimeout)) s of the code. C must be a new member (P2)"
+                field.waitForExistence(timeout: stepTimeout),
+                "S1.1: the handle step did not show within \(Int(stepTimeout)) s of Create new account"
             )
             XCTAssertFalse(app.tab("Home").exists, "S1.1: the tab bar showed before the handle step")
             XCTAssertTrue(app.staticTexts["Pick your handle"].exists, "S1.1: no 'Pick your handle' title")
@@ -195,6 +196,9 @@ enum FirstRunJourney {
                 },
                 "S2.3: no 'This number is linked to another account.' within \(Int(linkTimeout)) s")
             XCTAssertEqual(skip.label, "Not now", "S2.3: the skip button does not read 'Not now'")
+            XCTAssertEqual(
+                app.buttons["phone-step-sign-in-with-number"].label, "Sign in with this number instead",
+                "S2.3: no 'Sign in with this number instead' button")
         }
 
         recorder.step("S2.4", "Not now closes the sheet and keeps the nudge") {
@@ -345,5 +349,22 @@ extension FirstRunJourney {
         XCTAssertTrue(field.waitForExistence(timeout: checkTimeout), "\(step): no code field")
         field.tap()
         field.typeText(code)
+    }
+}
+
+extension FirstRunJourney {
+    static func confirmNewAccount(_ app: XCUIApplication) {
+        let create = app.buttons["new-account-step-create"]
+        XCTAssertTrue(
+            create.waitForExistence(timeout: signedInTimeout),
+            "S1.1: the new account step did not show within \(Int(signedInTimeout)) s of the code. C must be a new member (P2)"
+        )
+        XCTAssertTrue(app.staticTexts["Create a new account?"].exists, "S1.1: no 'Create a new account?' title")
+        XCTAssertEqual(
+            app.staticTexts["new-account-step-body"].label,
+            "If you already have one, sign in with the method you used before.",
+            "S1.1: the new account step body is not the sign-in-again copy")
+        XCTAssertTrue(app.buttons["new-account-step-sign-in"].exists, "S1.1: no way to sign in another way")
+        create.tap()
     }
 }

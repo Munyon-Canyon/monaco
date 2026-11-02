@@ -7,6 +7,7 @@ public enum AccountRestriction: Equatable, Sendable {
 public enum FirstRunDestination: Equatable, Sendable {
     case session
     case restricted(AccountRestriction)
+    case newAccount
     case handle
     case phone
     case socials
@@ -27,24 +28,36 @@ public enum FirstRunGate {
         defaults.set(true, forKey: contactsPromptSeenKey(userID: userID))
     }
 
+    public static func newAccountConfirmedKey(userID: String) -> String {
+        "newAccountConfirmed.\(userID)"
+    }
+
+    public static func newAccountConfirmed(userID: String, in defaults: UserDefaults = .standard) -> Bool {
+        defaults.bool(forKey: newAccountConfirmedKey(userID: userID))
+    }
+
+    public static func markNewAccountConfirmed(userID: String, in defaults: UserDefaults = .standard) {
+        defaults.set(true, forKey: newAccountConfirmedKey(userID: userID))
+    }
+
     public static func destination(
         for profile: SessionProfile?, onboardingCursor: OnboardingCursor, contactsPromptSeen: Bool = true,
-        connectX: Bool = true
+        connectX: Bool = true, newAccountConfirmed: Bool = true
     ) -> FirstRunDestination {
         let onboardingCursor = connectX || onboardingCursor != .socials ? onboardingCursor : .finished
-        let next = route(for: profile, onboardingCursor: onboardingCursor)
+        let next = route(for: profile, onboardingCursor: onboardingCursor, newAccountConfirmed: newAccountConfirmed)
         guard case .app = next, onboardingCursor == .finished, profile?.phoneLinked == true, !contactsPromptSeen
         else { return next }
         return .findFriends
     }
 
     private static func route(
-        for profile: SessionProfile?, onboardingCursor: OnboardingCursor
+        for profile: SessionProfile?, onboardingCursor: OnboardingCursor, newAccountConfirmed: Bool
     ) -> FirstRunDestination {
         guard let profile else { return .session }
         if profile.accountStatus == .banned { return .restricted(.banned) }
         if profile.accountStatus == .suspended { return .app(restricted: true) }
-        if profile.handle == nil { return .handle }
+        if profile.handle == nil { return newAccountConfirmed ? .handle : .newAccount }
         if profile.authState == .created { return .phone }
         if onboardingCursor == .socials,
             profile.authState == .awaitingSocials || profile.authState == .awaitingPhone

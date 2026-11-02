@@ -18,6 +18,7 @@ struct SessionGateView: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var onboardingCursor = OnboardingCursor.start
     @State private var contactsPromptSeen = true
+    @State private var newAccountConfirmed = true
 
     private var debugDetail: String? {
         #if DEBUG
@@ -61,6 +62,7 @@ struct SessionGateView: View {
         }
         .onChange(of: session.profile?.userID, initial: true) { _, userID in
             contactsPromptSeen = userID.map { FirstRunGate.contactsPromptSeen(userID: $0) } ?? true
+            newAccountConfirmed = userID.map { FirstRunGate.newAccountConfirmed(userID: $0) } ?? true
         }
         .onChange(of: scenePhase) { _, phase in
             guard phase == .active else { return }
@@ -103,10 +105,17 @@ struct SessionGateView: View {
     private func routed(_ profile: SessionProfile) -> some View {
         let destination = FirstRunGate.destination(
             for: profile, onboardingCursor: onboardingCursor, contactsPromptSeen: contactsPromptSeen,
-            connectX: AppFeatures.current.connectX)
+            connectX: AppFeatures.current.connectX, newAccountConfirmed: newAccountConfirmed)
         let advance = { onboardingCursor = onboardingCursor.advanced(past: destination) }
         switch destination {
         case .session: SessionGateSkeleton()
+        case .newAccount:
+            NavigationStack {
+                NewAccountStepView(onConfirm: {
+                    FirstRunGate.markNewAccountConfirmed(userID: profile.userID)
+                    newAccountConfirmed = true
+                })
+            }
         case .handle: NavigationStack { HandleStepView(onContinue: advance) }
         case .phone: NavigationStack { PhoneStepView(onContinue: advance) }
         case .socials: NavigationStack { SocialsStepView(onContinue: advance) }

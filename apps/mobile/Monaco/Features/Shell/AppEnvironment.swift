@@ -203,6 +203,11 @@ final class AppEnvironment {
     }
     #endif
 
+    func signOut(toSignInWithPhone e164: String?) async {
+        auth.signInHint = SignInHint(method: .sms, address: e164 ?? "")
+        await signOut()
+    }
+
     func signOut(reason: String? = nil) async {
         guard !isSigningOut else { return }
         isSigningOut = true

@@ -1,7 +1,7 @@
 ---
 id: onboarding/first-run
 title: First run
-version: 6
+version: 7
 milestone: M9
 requires: [auth/sign-in]
 actors: [C, B]
@@ -35,7 +35,7 @@ Starts signed out, with C a new member (P2).
 
 | Step | Action | Target | Input | Expect | Old app |
 | --- | --- | --- | --- | --- | --- |
-| S1.1 | launch, then sign in by email | the login form, as in [auth/sign-in](../auth/sign-in.md) | `{C.email}`, `{C.code}` | `onboarding-handle-step` shows within 30 s, not the tab bar, with "Pick your handle" and `handle-step-subtext` reading "This is how people find you on Monaco." | Gate `.nameSetup` opened `OnboardingNameView`, "What should friends call you?" |
+| S1.1 | launch, sign in by email, then tap `new-account-step-create` | the login form, as in [auth/sign-in](../auth/sign-in.md) | `{C.email}`, `{C.code}` | `onboarding-new-account-step` shows within 30 s with "Create a new account?", `new-account-step-body` reading "If you already have one, sign in with the method you used before." and `new-account-step-sign-in`. After the tap `onboarding-handle-step` shows within 10 s, not the tab bar, with "Pick your handle" and `handle-step-subtext` reading "This is how people find you on Monaco." | Gate `.nameSetup` opened `OnboardingNameView`, "What should friends call you?" |
 | S1.2 | type | `handle-step-field` | `takenHandle` (P4) | `handle-step-status` reads "That handle is taken." within 5 s, and `onboarding-handle-step-continue` is disabled | None, new in spec (#693) |
 | S1.3 | clear, then type | `handle-step-field` | `qa_cayman` | `handle-step-status` reads "@qa_cayman is available" within 5 s, and `onboarding-handle-step-continue` is enabled | None, new in spec (#693) |
 | S1.4 | tap | `onboarding-handle-step-continue` | | `onboarding-phone-step` shows within 10 s with "Add your number" and "We match your contacts to find friends. Your number stays private." | `onboarding-continue` ("Continue") |
@@ -50,7 +50,7 @@ Starts from S1 (P6).
 | --- | --- | --- | --- | --- | --- |
 | S2.1 | tap | `onboarding-nudge-open` | | A sheet shows `onboarding-phone-step` within 5 s with "Add your number", and `phone-step-skip` reads "Not now" | None, new in spec (#694) |
 | S2.2 | type, then tap | `phone-step-number-field`, then `phone-step-send-code` | `{B.phone}` | `phone-step-sent-to` reads "Code sent to" and the number within 20 s | None, new in spec (#694) |
-| S2.3 | type | `phone-step-code-field` | `{B.code}` | The sixth digit submits the code. `phone-step-caption` reads "This number is linked to another account." within 20 s, and `phone-step-skip` reads "Not now" | None, new in spec (#694) |
+| S2.3 | type | `phone-step-code-field` | `{B.code}` | The sixth digit submits the code. `phone-step-caption` reads "This number is linked to another account." within 20 s, `phone-step-sign-in-with-number` reads "Sign in with this number instead", and `phone-step-skip` reads "Not now" | None, new in spec (#694) |
 | S2.4 | tap | `phone-step-skip` | | The sheet closes within 5 s, and `onboarding-nudge` still reads "Add your number to find friends" | None, new in spec (#694) |
 
 ### S3 The gate stays open after a relaunch
