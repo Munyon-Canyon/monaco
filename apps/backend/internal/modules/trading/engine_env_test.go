@@ -98,13 +98,14 @@ func (c cashLedger) CashOutReservations(context.Context) (map[ids.CabalID]money.
 
 type proposalsFake struct {
 	testkit.Faults
-	mu     sync.Mutex
-	status governance.Status
-	reason string
-	reads  int
-	failAt int
-	failBy error
-	voidAt int
+	mu        sync.Mutex
+	status    governance.Status
+	reason    string
+	reads     int
+	failAt    int
+	failBy    error
+	voidAt    int
+	voidAfter int
 }
 
 func (p *proposalsFake) Retryable(context.Context, ids.ProposalID) (bool, error) {
@@ -118,11 +119,22 @@ func (p *proposalsFake) Retryable(context.Context, ids.ProposalID) (bool, error)
 	if p.reads == p.voidAt {
 		p.status = governance.Status("voided")
 	}
+	voidNow := p.reads == p.voidAfter
 	p.mu.Unlock()
 	if failed {
 		return false, err
 	}
-	return p.retryable(), nil
+	ok := p.retryable()
+	if voidNow {
+		p.set(governance.Status("voided"))
+	}
+	return ok, nil
+}
+
+func (p *proposalsFake) voidAfterRead(n int) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.voidAfter = n
 }
 
 func (p *proposalsFake) voidAtRead(n int) {

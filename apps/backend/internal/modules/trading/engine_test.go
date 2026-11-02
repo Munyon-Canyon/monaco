@@ -236,6 +236,22 @@ func TestTradeEngine_VoidedAfterTheChecks_SourceCancelled(t *testing.T) {
 	}
 }
 
+func TestTradeEngine_VoidedBetweenTheCheckAndTheLock_SourceCancelled(t *testing.T) {
+	t.Parallel()
+	b := newEngineBus(t)
+	b.proposals.voidAfterRead(1)
+	cmd := b.buy()
+	msg := b.message(t, cmd, "")
+
+	b.dispatch(t, msg)
+	got := b.statuses(t, cmd)
+	if msg.verdict != "ack" || len(got) != 1 || got[0] != "failed:source_cancelled" ||
+		len(b.jup.Sent("req-1")) != 0 {
+		t.Fatalf("verdict %q, swaps %v, %d executes; want one source_cancelled swap, never sent",
+			msg.verdict, got, len(b.jup.Sent("req-1")))
+	}
+}
+
 func TestTradeEngine_RecheckReadFailureFailsTheRowAndNaksForAFreshClaim(t *testing.T) {
 	t.Parallel()
 	b := newEngineBus(t)
