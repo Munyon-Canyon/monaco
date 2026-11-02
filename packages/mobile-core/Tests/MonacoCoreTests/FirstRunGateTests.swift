@@ -196,7 +196,7 @@ final class FirstRunGateTests: XCTestCase {
     func testCursor_stepsWithoutACursorLeaveItAlone() {
         for cursor in Self.cursors {
             for step: FirstRunDestination in [
-                .session, .handle, .restricted(.banned), .findFriends, .app(restricted: false),
+                .session, .newAccount, .handle, .restricted(.banned), .findFriends, .app(restricted: false),
                 .app(restricted: true),
             ] {
                 XCTAssertEqual(cursor.advanced(past: step), cursor, "\(cursor) past \(step)")

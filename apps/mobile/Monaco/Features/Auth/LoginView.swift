@@ -50,8 +50,8 @@ struct LoginView: View {
         self.auth = auth
         self.methods = methods
         self.initialCode = initialCode
-        self.initialAddress = initialAddress
-        _selectedMethod = State(initialValue: initialMethod ?? methods.first ?? .sms)
+        self.initialAddress = initialAddress.isEmpty ? auth.signInHint?.address ?? "" : initialAddress
+        _selectedMethod = State(initialValue: initialMethod ?? auth.signInHint?.method ?? methods.first ?? .sms)
     }
 
     private var onAddressStep: Bool { !auth.flow.isOnCodeStep }
