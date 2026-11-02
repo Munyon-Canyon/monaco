@@ -86,11 +86,11 @@ nonisolated final class HomeCabalsSampleUITests: XCTestCase {
     }
 
     @MainActor
-    func testAUserWithNoCabalsStillSeesStartWithYourPeople() throws {
+    func testAUserWithNoCabalsSeesTheFirstUseCard() throws {
         let app = launch("empty")
 
         XCTAssertTrue(
             reveal(app, "home-cabals-empty").waitForExistence(timeout: 20),
-            "no \"Start with your people\" for no cabals")
+            "no first-use card for no cabals")
     }
 }

@@ -2,7 +2,7 @@ import XCTest
 
 enum HomeDashboardJourney {
     static let id = "home/dashboard"
-    static let version = 8
+    static let version = 9
 
     static func recorder() -> JourneyRecorder {
         JourneyRecorder(journey: id, version: version)
@@ -95,24 +95,25 @@ enum HomeDashboardJourney {
         }
     }
 
-    static func emptySendsToBrowse(_ app: XCUIApplication, recorder: JourneyRecorder) {
+    static func emptyOffersFirstUse(_ app: XCUIApplication, recorder: JourneyRecorder) {
         recorder.step("S2.1", "no cabal shows the empty state") {
             openHome(app)
-            let title = text(app, "Start with your people")
+            let title = text(app, "No cabals yet")
             app.scrollIntoReach(title)
-            XCTAssertTrue(title.waitForExistence(timeout: 15), "S2.1: no \"Start with your people\" within 15 s")
+            XCTAssertTrue(title.waitForExistence(timeout: 15), "S2.1: no \"No cabals yet\" within 15 s")
             XCTAssertTrue(
-                text(app, "Create a cabal or open an invitation from a friend.").exists,
-                "S2.1: no \"Create a cabal or open an invitation from a friend.\"")
-            XCTAssertTrue(app.buttons["Create a cabal"].firstMatch.exists, "S2.1: no \"Create a cabal\" button")
+                text(app, "A cabal is a few friends, one treasury and a vote on every trade.").exists,
+                "S2.1: no \"A cabal is a few friends, one treasury and a vote on every trade.\"")
+            XCTAssertTrue(app.buttons["Start a cabal"].firstMatch.exists, "S2.1: no \"Start a cabal\" button")
         }
 
-        recorder.step("S2.2", "Explore cabals selects the Cabals tab") {
-            let browse = app.buttons["Explore cabals"].firstMatch
-            app.scrollIntoReach(browse)
-            browse.tap()
-            XCTAssertTrue(app.element("cabals-root").waitForExistence(timeout: 10), "S2.2: the Cabals tab did not show")
-            XCTAssertTrue(app.tab("Cabals").isSelected, "S2.2: the Cabals tab is not selected")
+        recorder.step("S2.2", "Start a cabal opens the create screen") {
+            let start = app.buttons["Start a cabal"].firstMatch
+            app.scrollIntoReach(start)
+            start.tap()
+            XCTAssertTrue(
+                app.element("create-group-name").waitForExistence(timeout: 10),
+                "S2.2: the create cabal screen did not show")
         }
     }
 }

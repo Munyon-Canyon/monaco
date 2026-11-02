@@ -1,0 +1,19 @@
+journey: home/dashboard
+expect-fail: S2
+
+Home's first-use card titles itself "Start your first cabal". S2.1 reads "No cabals yet", so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Home/HomeFirstUseSlot.swift b/apps/mobile/Monaco/Features/Home/HomeFirstUseSlot.swift
+index 52ce6654c..78d1e8d98 100644
+--- a/apps/mobile/Monaco/Features/Home/HomeFirstUseSlot.swift
++++ b/apps/mobile/Monaco/Features/Home/HomeFirstUseSlot.swift
+@@ -44,7 +44,7 @@ private struct HomeFirstUse: View {
+                 .font(MonacoTheme.Typo.title)
+                 .foregroundStyle(MonacoTheme.secondaryText)
+                 .accessibilityHidden(true)
+-            Text("No cabals yet")
++            Text("Start your first cabal")
+                 .font(MonacoTheme.Typo.title2)
+                 .foregroundStyle(MonacoTheme.ink)
+                 .accessibilityAddTraits(.isHeader)

@@ -39,7 +39,7 @@ struct CabalsTabComingSlotsTests {
             restricted: false, portfolio: .sampleEmpty, invites: "[]", until: "Your cabal starts here")
 
         #expect(labels.contains("Create a cabal"))
-        #expect(labels.contains("Explore cabals"))
+        #expect(labels.contains("Find a cabal"))
         #expect(labels.contains("Create a cabal or open a shared invitation."))
     }
 
@@ -49,7 +49,7 @@ struct CabalsTabComingSlotsTests {
             restricted: true, portfolio: .sampleEmpty, invites: "[]", until: "Your cabal starts here")
 
         #expect(!labels.contains("Create a cabal"))
-        #expect(!labels.contains("Explore cabals"))
+        #expect(!labels.contains("Find a cabal"))
         #expect(labels.contains("Open a shared invitation to join a cabal."))
     }
 

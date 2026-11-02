@@ -21,7 +21,7 @@ nonisolated final class HomeDashboardJourneyUITests: XCTestCase {
 
         try session.scenario("S2") {
             try session.act(as: "C")
-            HomeDashboardJourney.emptySendsToBrowse(app, recorder: recorder)
+            HomeDashboardJourney.emptyOffersFirstUse(app, recorder: recorder)
             attachScreenshot(of: app, named: "S2-C-empty")
         }
     }

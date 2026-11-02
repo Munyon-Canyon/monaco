@@ -65,7 +65,7 @@ struct CabalsTabScreen: View {
                     ? "Open a shared invitation to join a cabal." : "Create a cabal or open a shared invitation.",
                 actionTitle: accountRestricted ? nil : "Create a cabal",
                 systemImage: MonacoIcon.cabals.symbol,
-                secondaryActionTitle: accountRestricted ? nil : "Explore cabals",
+                secondaryActionTitle: accountRestricted ? nil : "Find a cabal",
                 action: accountRestricted ? nil : { environment.navigator.open(CreateCabalRoute(), in: .cabals) },
                 secondaryAction: accountRestricted
                     ? nil : { environment.navigator.open(DiscoverCabalsRoute(query: ""), in: .cabals) }

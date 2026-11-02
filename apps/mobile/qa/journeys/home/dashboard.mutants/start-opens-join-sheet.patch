@@ -1,0 +1,19 @@
+journey: home/dashboard
+expect-fail: S2
+
+The "Start a cabal" button opens the join-with-a-link sheet instead of the create screen. S2.2 expects `create-group-name`, so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Home/HomeFirstUseSlot.swift b/apps/mobile/Monaco/Features/Home/HomeFirstUseSlot.swift
+index 52ce6654c..1d8c49b42 100644
+--- a/apps/mobile/Monaco/Features/Home/HomeFirstUseSlot.swift
++++ b/apps/mobile/Monaco/Features/Home/HomeFirstUseSlot.swift
+@@ -55,7 +55,7 @@ private struct HomeFirstUse: View {
+                 .fixedSize(horizontal: false, vertical: true)
+             actionsLayout {
+                 Button {
+-                    environment.navigator.open(CreateCabalRoute(), in: .home)
++                    joining = true
+                 } label: {
+                     Label("Start a cabal", systemImage: MonacoIcon.plus.symbol)
+                 }
