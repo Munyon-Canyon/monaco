@@ -82,6 +82,7 @@ type Stack struct {
 	mu        sync.Mutex
 	early     chan error
 	earlyDone chan struct{}
+	stopEarly context.CancelFunc
 }
 
 func Up(ctx context.Context, o Options) (*Stack, error) {
@@ -107,11 +108,10 @@ func Begin(ctx context.Context, o Options) *Stack {
 	s := newStack(o)
 	s.early = make(chan error, 1)
 	s.earlyDone = make(chan struct{})
-	ctx, cancel := s.stackDeadline(ctx)
+	ctx, s.stopEarly = context.WithCancel(ctx)
 	go func() {
 		defer close(s.earlyDone)
-		defer cancel()
-		s.early <- wrapCause(ctx, s.database(ctx))
+		s.early <- s.database(ctx)
 	}()
 	return s
 }
@@ -359,6 +359,7 @@ func (s *Stack) Down(ctx context.Context) error {
 	defer cancel()
 	var err error
 	if s.earlyDone != nil {
+		s.stopEarly()
 		select {
 		case <-s.earlyDone:
 		case <-ctx.Done():
