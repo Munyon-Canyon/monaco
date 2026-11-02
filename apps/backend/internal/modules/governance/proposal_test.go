@@ -3,6 +3,7 @@ package governance_test
 import (
 	"log/slog"
 	"math"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -47,7 +48,7 @@ func TestNewProposal_keepsAValidBuyAndSell(t *testing.T) {
 	for _, d := range []domain.Draft{buyDraft(t), sellDraft(t)} {
 		d.Thesis = strings.Repeat("é", domain.MaxThesisRunes)
 		p, err := domain.NewProposal(d)
-		if err != nil || p.Draft() != d {
+		if err != nil || !reflect.DeepEqual(p.Draft(), d) {
 			t.Errorf("NewProposal(%s) = %+v, %v, want the draft back", d.Kind, p.Draft(), err)
 		}
 	}
@@ -115,7 +116,7 @@ func sellPast(d *domain.Draft, tokens uint64) {
 func TestNewTrade_keepsAValidTradeAndNamesTheBadField(t *testing.T) {
 	t.Parallel()
 	buy := domain.Trade{Kind: domain.KindBuy, Symbol: "AAPLx", USDCMicros: money.MicrosFromUint64(1)}
-	if got, err := domain.NewTrade(buy); err != nil || got != buy {
+	if got, err := domain.NewTrade(buy); err != nil || !reflect.DeepEqual(got, buy) {
 		t.Errorf("NewTrade(%+v) = %+v, %v, want it back", buy, got, err)
 	}
 	for name, tc := range map[string]struct {

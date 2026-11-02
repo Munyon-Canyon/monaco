@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"reflect"
 	"slices"
 	"testing"
 	"time"
@@ -218,7 +219,7 @@ func (d voteDB) wantTwoReminders(t *testing.T, p sqlc.InsertProposalParams, v []
 			V: 1, ProposalID: p.ID, CabalID: p.CabalID, UserID: ev.UserID, Kind: p.Kind, Symbol: p.Symbol,
 			USDCMicros: ev.USDCMicros, ExpiresAt: ev.ExpiresAt, Yes: tally[0], No: tally[1], Voters: tally[2],
 		}
-		if ev != want || !ev.ExpiresAt.Equal(p.ExpiresAt) || ev.USDCMicros.String() != "25000000" {
+		if !reflect.DeepEqual(ev, want) || !ev.ExpiresAt.Equal(p.ExpiresAt) || ev.USDCMicros.String() != "25000000" {
 			t.Errorf("event = %+v, want %+v with 25000000 micros expiring %s", ev, want, p.ExpiresAt)
 		}
 	}
