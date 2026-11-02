@@ -399,7 +399,7 @@ func TestRouteExec_aRequoteThatFindsNoRouteFailsPriceMovedWithTheCashOnEVM(t *te
 	for name, reply := range map[string]mcfakes.Reply[multichain.Quote]{
 		"refused":         {Code: errs.CodeNoRoute},
 		"empty":           {},
-		"past the column": {Value: multichain.Quote{GrossOutput: new(big.Int).Lsh(big.NewInt(1), 63)}},
+		"past the column": {Value: multichain.Quote{GrossOutput: new(big.Int).Lsh(big.NewInt(1), 300)}},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
