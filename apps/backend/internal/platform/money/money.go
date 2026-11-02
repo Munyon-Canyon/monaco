@@ -90,6 +90,8 @@ func (s SignedMicros) Micros() (Micros, error) {
 
 func (s SignedMicros) Int64() int64 { return s.v }
 
+func (s SignedMicros) Big() *big.Int { return big.NewInt(s.v) }
+
 func (s SignedMicros) Cmp(o SignedMicros) int { return cmp.Compare(s.v, o.v) }
 
 func (s SignedMicros) IsZero() bool { return s.v == 0 }
