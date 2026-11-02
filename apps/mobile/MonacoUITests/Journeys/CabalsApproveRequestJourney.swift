@@ -86,11 +86,8 @@ enum CabalsApproveRequestJourney {
                 JoinJourney.waitForRequestsGone(app, timeout: 10),
                 "S1.6: the request is still on the Members screen"
             )
-            app.navigationBars.buttons.firstMatch.tap()
-            XCTAssertTrue(
-                JoinJourney.waitForLabel(app.element("cabal-member-count"), containing: "1 member", timeout: 5),
-                "S1.6: the hero does not read 1 member: \(app.element("cabal-member-count").label)"
-            )
+            app.tapBack()
+            JoinJourney.expectHero(app, containing: "1 member", step: "S1.6", timeout: 5)
         }
     }
 
@@ -106,11 +103,8 @@ enum CabalsApproveRequestJourney {
                 JoinJourney.waitForRequestsGone(app, timeout: 10),
                 "S2.2: the request is still on the Members screen"
             )
-            app.navigationBars.buttons.firstMatch.tap()
-            XCTAssertTrue(
-                JoinJourney.waitForLabel(app.element("cabal-member-count"), containing: "2 members", timeout: 10),
-                "S2.2: the hero does not read 2 members: \(app.element("cabal-member-count").label)"
-            )
+            app.tapBack()
+            JoinJourney.expectHero(app, containing: "2 members", step: "S2.2", timeout: 10)
         }
     }
 }
