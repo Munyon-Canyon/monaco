@@ -106,8 +106,9 @@ private struct CabalIdentityRow: View {
 
     var body: some View {
         HStack(spacing: MonacoTheme.Space.sm) {
-            CabalMark(groupId: cabal.id, name: cabal.name, size: .row, pictureUrl: cabal.pictureUrl)
-                .accessibilityHidden(true)
+            CabalMark(
+                groupId: cabal.id, name: cabal.name, size: .row, pictureUrl: cabal.pictureUrl,
+                accessibilityLabel: "Picture of \(cabal.name)")
             VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
                 Text(cabal.name)
                     .font(MonacoTheme.Typo.title)

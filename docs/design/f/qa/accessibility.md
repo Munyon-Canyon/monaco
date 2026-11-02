@@ -32,11 +32,13 @@ Distinct issues (frame, element, type), with swipe repeats removed: 142.
 | Element description | 3 | "$1,000.00" not human-readable (10-profile-own, -scrolled); one element with no description on 05-post-reply |
 | Trait | 1 | `withdraw-paste` lacks the not-enabled trait on 09-withdraw-settled |
 
-Per group: 02 hit 6 · 03 hit 9, detect 1 · 04 hit 65, detect 1 · 05 hit 28, desc 1, detect 1 · 06 hit 1 · 07 hit 3 · 08 detect 2 · 09 trait 1 · 10 hit 2, desc 2, detect 1 · 11 detect 1 · 12 hit 2, detect 1 · 14 detect 2 · 15 hit 5 · 16 hit 4 · 18 hit 1, detect 1 · 19 detect 1. Group 13 has none.
+Per group (10-29 run; groups 03 and 10 rerun on 11-02 below): 02 hit 6 · 03 hit 9, detect 1 · 04 hit 65, detect 1 · 05 hit 28, desc 1, detect 1 · 06 hit 1 · 07 hit 3 · 08 detect 2 · 09 trait 1 · 10 hit 2, desc 2, detect 1 · 11 detect 1 · 12 hit 2, detect 1 · 14 detect 2 · 15 hit 5 · 16 hit 4 · 18 hit 1, detect 1 · 19 detect 1. Group 13 has none.
 
 Fixed by #7197: the comment composer field now has a 44 pt minimum height, and a comment row is one 44 pt tappable (double-tap to react, long press for actions) with the relative time hidden from accessibility because the row label already speaks it. This resolves the `comment-composer-field`, `comment-body-*` and relative-time hit findings below.
 
 Fixed by #7198: `proposal-vote-status`, `proposal-result-tally`, `platform-balance-value`, `home-portfolio-chip` and `cabal-pot-value` now have a 44 pt minimum height (`MonacoButtonMetrics.hitTarget`), with a full-row content shape on the result tally's button. This resolves their hit findings in groups 02, 03 and 04 below; the audit groups were not rerun on this change. The Treasury line's clipping in the parity frame (#7188) is likely `CabalPotBand`'s `.padding(.top, -pull)`, which leaves the band only `Space.xs` of layout height; that layout fix is out of scope here.
+
+Rerun on 11-02 (#7394), lane simulator "Monaco 7394", iOS 27.0, after #7390 and #7393: `testGroup03` passes with no issue. `testGroup10` fails only on the own profile's "$11,582.00" ("Label not human-readable", 10-profile-own and -scrolled). The fixes: the join-request row on 03-cabal-members-all combines its name and "Asked to join" line into one 44 pt accessibility element (`MembersView.swift`); the other member's profile photo (10-profile-other) is its own image element, "Photo of <name>", so its initials are no longer uncovered text (`UserProfileHeaderSlot.swift`); the cabal header picture (03-cabal-empty) is labelled "Picture of <cabal>" instead of hidden (`CabalHeaderSlot.swift`). The 03-cabals-tab finding no longer shows on staging. No allowlist entry was added.
 
 Test results: `testGroup13`, `testReduceMotionScreensDraw`, `testTheListHoldsTheNinetyFiveScreens` and `testEveryAllowedFindingHasAReason` pass. The other 16 group tests fail on the issues above; the allow-list stays empty because each issue has a follow-up instead.
 
@@ -160,20 +162,7 @@ Audit issues (6):
 | 03-cabals-tab | `cabals-vote-open-home-proposal-1` | Buy NVDA · $400, AC Capital · 5 of 8 voted · 6 replies · 4h | button | 375x40 | small |
 | 03-cabal-members-all | `members-invite-button` | Invite to this cabal | button | 28x36 | small |
 
-Audit issues (10):
-
-| Frame | Identifier | Label | Type | Issue |
-| --- | --- | --- | --- | --- |
-| 03-cabal-empty | `—` | — | detect | Potentially inaccessible text |
-| 03-cabal-empty | `cabal-pot-value` | Treasury, $600.00 | hit | Hit area is too small |
-| 03-cabal-members | `cabal-pot-value` | Treasury, $20,000.00, down 4.1 percent, 1M | hit | Hit area is too small |
-| 03-cabal-members-all | `—` | Asked to join · Jordan's link · 2h | hit | Hit area is too small |
-| 03-cabal-members-all | `—` | Leo | hit | Hit area is too small |
-| 03-cabal-rules | `cabal-pot-value` | Treasury, $20,000.00, down 4.1 percent, 1M | hit | Hit area is too small |
-| 03-cabal-rules-scrolled | `cabal-pot-value` | Treasury, $20,000.00, down 4.1 percent, 1M | hit | Hit area is too small |
-| 03-cabal-rules-sides | `cabal-pot-value` | Treasury, $20,000.00, down 4.1 percent, 1M | hit | Hit area is too small |
-| 03-cabal-treasury | `cabal-pot-value` | Treasury, $20,000.00, down 4.1 percent, 1M | hit | Hit area is too small |
-| 03-cabal-treasury-light | `cabal-pot-value` | Treasury, $20,000.00, down 4.1 percent, 1M | hit | Hit area is too small |
+Audit issues (0, rerun 11-02): none.
 
 ### Group 04
 
@@ -375,15 +364,12 @@ Audit issues (1):
 | 10-profile-other, 10-profile-other-cabals | `—` | — | button | 58x36 | small |
 | 10-profile-other, 10-profile-other-cabals | `—` | More | button | 58x36 | small |
 
-Audit issues (5):
+Audit issues (2, rerun 11-02):
 
 | Frame | Identifier | Label | Type | Issue |
 | --- | --- | --- | --- | --- |
-| 10-profile-other | `—` | — | detect | Potentially inaccessible text |
-| 10-profile-own | `—` | $1,000.00 | desc | Label not human-readable |
-| 10-profile-own | `profile-balance-value` | Cash | hit | Hit area is too small |
-| 10-profile-own-scrolled | `—` | $1,000.00 | desc | Label not human-readable |
-| 10-profile-own-scrolled | `profile-balance-value` | Cash | hit | Hit area is too small |
+| 10-profile-own | `—` | $11,582.00 | desc | Label not human-readable |
+| 10-profile-own-scrolled | `—` | $11,582.00 | desc | Label not human-readable |
 
 ### Group 11
 
