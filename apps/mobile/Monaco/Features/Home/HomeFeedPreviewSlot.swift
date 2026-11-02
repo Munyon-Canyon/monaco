@@ -112,8 +112,6 @@ private struct HomeFeedPreviewRow: View {
                 subtitle
                     .font(MonacoTheme.Typo.caption)
                     .foregroundStyle(MonacoTheme.secondaryText)
-                    .lineLimit(nil)
-                    .fixedSize(horizontal: false, vertical: true)
                 if stacksTrailing {
                     trailing
                 }
@@ -139,9 +137,20 @@ private struct HomeFeedPreviewRow: View {
         .accessibilityLabel(row.spoken)
     }
 
-    private var subtitle: Text {
-        guard row.replies > 0 else { return Text(row.subtitle) }
-        return Text("\(row.subtitle) · \(Image(systemName: "bubble.left")) \(row.replies)")
+    private var subtitle: some View {
+        HStack(alignment: .firstTextBaseline, spacing: MonacoTheme.Space.xs) {
+            Text(row.subtitle)
+                .fixedSize(horizontal: false, vertical: true)
+            if row.replies > 0 {
+                HStack(alignment: .firstTextBaseline, spacing: MonacoTheme.Space.xs) {
+                    Text("·")
+                    Image(systemName: "bubble.left")
+                        .accessibilityHidden(true)
+                    Text("\(row.replies)")
+                }
+                .fixedSize()
+            }
+        }
     }
 
     @ViewBuilder private var lead: some View {

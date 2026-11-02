@@ -7,6 +7,7 @@ struct ProposalPassedMoment: Equatable, Identifiable {
     let title: String
     let cabalName: String
     let tally: String
+    let spokenTally: String
     let trade: String
     let calledIt: String
 }
@@ -29,8 +30,9 @@ extension ProposalPassedMoment {
             amountMicros: ProposalResultCopy.passedSheetAmount(
                 isSell: isSell, usdcMicros: summary.usdcMicros, quoteOutAmount: summary.quoteOutAmount, swap: swap))
         cabalName = summary.cabalName
-        tally = ProposalResultCopy.passedSheetTally(
-            tally: summary.tally, closedAt: detail.stats.closedAt ?? swap.filledAt, now: now)
+        let closedAt = detail.stats.closedAt ?? swap.filledAt
+        tally = ProposalResultCopy.passedSheetTally(tally: summary.tally, closedAt: closedAt, now: now)
+        spokenTally = ProposalResultCopy.passedSheetSpokenTally(tally: summary.tally, closedAt: closedAt, now: now)
         self.trade = trade
         calledIt = ProposalResultCopy.calledItLine(
             proposerName: CabalInviteCopy.firstName(proposer), isViewer: summary.proposerID == viewerID,
@@ -73,6 +75,7 @@ struct ProposalPassedSheet: View {
                                 .fixedSize(horizontal: false, vertical: true)
                                 .font(MonacoTheme.Typo.body)
                                 .foregroundStyle(MonacoTheme.secondaryText)
+                                .accessibilityLabel(moment.spokenTally)
                                 .accessibilityIdentifier("proposal-passed-tally")
                         }
                     }

@@ -110,9 +110,20 @@ public enum ProposalResultCopy {
     ) -> String {
         let score = "✓ \(tally.yes) · ✕ \(tally.no)"
         guard let closedAt else { return score }
-        let sameDay = calendar.isDate(closedAt, inSameDayAs: now)
-        let when = sameDay ? clock(closedAt, calendar: calendar) : day(closedAt, calendar: calendar)
-        return "\(score) · closed \(when)"
+        return "\(score) · closed \(closedWhen(closedAt, now: now, calendar: calendar))"
+    }
+
+    public static func passedSheetSpokenTally(
+        tally: ProposalTally, closedAt: Date?, now: Date, calendar: Calendar = .current
+    ) -> String {
+        let score = "\(tally.yes) yes, \(tally.no) no"
+        guard let closedAt else { return score }
+        return "\(score), closed \(closedWhen(closedAt, now: now, calendar: calendar))"
+    }
+
+    private static func closedWhen(_ closedAt: Date, now: Date, calendar: Calendar) -> String {
+        calendar.isDate(closedAt, inSameDayAs: now)
+            ? clock(closedAt, calendar: calendar) : day(closedAt, calendar: calendar)
     }
 
     public static func passedSheetTrade(_ fill: ProposalSwap, symbol: String, assetKind: AssetKind, isSell: Bool)

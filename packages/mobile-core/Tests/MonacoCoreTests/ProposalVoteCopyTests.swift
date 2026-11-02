@@ -152,4 +152,13 @@ final class ProposalVoteCopyTests: XCTestCase {
         XCTAssertEqual(ProposalVoteCopy.ordinal(112), "112th")
         XCTAssertEqual(ProposalVoteCopy.ordinal(122), "122nd")
     }
+
+    func testTheSpokenStatusReadsTheScoreInWords() {
+        XCTAssertEqual(
+            ProposalVoteCopy.spoken(facts: ["Passed 5–1", "6 of 8 voted", "buying 1.82 sh"]),
+            "Passed 5 to 1, 6 of 8 voted, buying 1.82 sh")
+        XCTAssertEqual(ProposalVoteCopy.spoken(facts: ["Failed 2–4", "no trade"]), "Failed 2 to 4, no trade")
+        XCTAssertEqual(ProposalVoteCopy.spoken(facts: ["5 of 8 voted", "ends in 4h"]), "5 of 8 voted, ends in 4h")
+        XCTAssertEqual(ProposalVoteCopy.spoken(facts: []), "")
+    }
 }
