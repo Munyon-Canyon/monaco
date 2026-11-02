@@ -5,6 +5,9 @@ public struct ProposeHolding: Equatable, Hashable, Sendable, Identifiable {
         public let network: Components.Schemas.Network
         public let tokenAmount: Int64
         public let valueMicros: Int64
+        public let exactTokens: UInt128
+
+        public var overflows: Bool { exactTokens > UInt128(Int64.max) }
 
         public var id: String { network.rawValue }
     }
@@ -16,6 +19,7 @@ public struct ProposeHolding: Equatable, Hashable, Sendable, Identifiable {
     public let tokenAmount: Int64
     public let priceMicros: Int64
     public let valueMicros: Int64
+    public let exactTokens: UInt128
     public let network: Components.Schemas.Network?
     public let locations: [Location]
     private let unitsTenThousandths: Int64
@@ -36,12 +40,14 @@ public struct ProposeHolding: Equatable, Hashable, Sendable, Identifiable {
         else {
             network = nil
             tokenAmount = holding.tokenAmount
+            exactTokens = UInt128(clamping: holding.tokenAmount)
             valueMicros = holding.valueMicros
             unitsTenThousandths = Int64(holding.units.replacingOccurrences(of: ".", with: "")) ?? 0
             return
         }
         network = first.network
         tokenAmount = first.tokenAmount
+        exactTokens = first.exactTokens
         valueMicros = first.valueMicros
         unitsTenThousandths = Self.tenThousandths(valueMicros: first.valueMicros, priceMicros: holding.priceMicros)
     }
@@ -55,6 +61,7 @@ public struct ProposeHolding: Equatable, Hashable, Sendable, Identifiable {
         locations = holding.locations
         network = location.network
         tokenAmount = location.tokenAmount
+        exactTokens = location.exactTokens
         valueMicros = location.valueMicros
         unitsTenThousandths = Self.tenThousandths(valueMicros: location.valueMicros, priceMicros: holding.priceMicros)
     }
@@ -65,15 +72,18 @@ public struct ProposeHolding: Equatable, Hashable, Sendable, Identifiable {
 
     private static func locations(of holding: Components.Schemas.CabalHolding) -> [Location] {
         var found: [Location] = (holding.listings ?? []).compactMap { listing in
-            guard let amount = Int64(listing.tokenAmount), amount > 0 else { return nil }
-            return Location(network: listing.network, tokenAmount: amount, valueMicros: listing.valueMicros)
+            guard let exact = UInt128(listing.tokenAmount), exact > 0 else { return nil }
+            return Location(
+                network: listing.network, tokenAmount: Int64(listing.tokenAmount) ?? Int64.max,
+                valueMicros: listing.valueMicros, exactTokens: exact)
         }
         if holding.tokenAmount > 0, !found.contains(where: { $0.network == .solana }) {
             let elsewhere = found.reduce(Int64(0)) { $0 + $1.valueMicros }
             found.insert(
                 Location(
                     network: .solana, tokenAmount: holding.tokenAmount,
-                    valueMicros: max(0, holding.valueMicros - elsewhere)),
+                    valueMicros: max(0, holding.valueMicros - elsewhere),
+                    exactTokens: UInt128(clamping: holding.tokenAmount)),
                 at: 0)
         }
         return found
@@ -92,17 +102,36 @@ public struct ProposeHolding: Equatable, Hashable, Sendable, Identifiable {
 
     public var helperText: String {
         guard valueMicros > 0 else { return Self.noPriceHelper }
-        return "The cabal holds \(quantity(of: tokenAmount)) · \(UsdAmountFormatter.format(micros: valueMicros))"
+        let held = overflows ? heldQuantity : quantity(of: tokenAmount)
+        return "The cabal holds \(held) · \(UsdAmountFormatter.format(micros: valueMicros))"
+    }
+
+    public var overflows: Bool { exactTokens > UInt128(Int64.max) }
+
+    public func exceedsSettleLimit(forMicros micros: Int64) -> Bool {
+        overflows && exactTokens(forMicros: micros) > UInt128(Int64.max)
+    }
+
+    private func exactTokens(forMicros micros: Int64) -> UInt128 {
+        guard micros > 0, valueMicros > 0 else { return 0 }
+        if micros >= valueMicros - valueMicros % 10_000 { return exactTokens }
+        let product = exactTokens.multipliedReportingOverflow(by: UInt128(micros))
+        if product.overflow { return exactTokens / UInt128(valueMicros) * UInt128(micros) }
+        return product.partialValue / UInt128(valueMicros)
     }
 
     public func tokenAmount(forMicros micros: Int64) -> Int64 {
         guard micros > 0 else { return 0 }
+        if overflows {
+            let exact = exactTokens(forMicros: micros)
+            return Int64(clamping: exact)
+        }
         if micros >= valueMicros - valueMicros % 10_000 { return tokenAmount }
         return ProposeMath.tokenAmount(units: tokenAmount, dollars: micros, holdingValue: valueMicros)
     }
 
     public var heldQuantity: String {
-        guard locations.count > 1 else { return quantity(of: tokenAmount) }
+        guard locations.count > 1 || overflows else { return quantity(of: tokenAmount) }
         let total = locations.reduce(Int64(0)) {
             $0 + Self.tenThousandths(valueMicros: $1.valueMicros, priceMicros: priceMicros)
         }
@@ -110,6 +139,10 @@ public struct ProposeHolding: Equatable, Hashable, Sendable, Identifiable {
     }
 
     public func quantity(of amount: Int64) -> String {
+        if overflows {
+            let scaled = UInt128(max(unitsTenThousandths, 0)) * UInt128(max(amount, 0)) / exactTokens
+            return Self.label(tenThousandths: min(Int64(clamping: scaled), unitsTenThousandths), kind: kind)
+        }
         let clamped = min(max(amount, 0), tokenAmount)
         let scaled =
             tokenAmount > 0

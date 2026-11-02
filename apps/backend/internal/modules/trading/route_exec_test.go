@@ -379,8 +379,9 @@ func TestRouteExec_aBridgeFailedAfterItBroadcastParksTheSwapAndBooksNoReturn(t *
 func TestRouteExec_aRequoteThatFindsNoRouteFailsPriceMovedWithTheCashOnEVM(t *testing.T) {
 	t.Parallel()
 	for name, reply := range map[string]mcfakes.Reply[multichain.Quote]{
-		"refused": {Code: errs.CodeNoRoute},
-		"empty":   {},
+		"refused":         {Code: errs.CodeNoRoute},
+		"empty":           {},
+		"past the column": {Value: multichain.Quote{GrossOutput: new(big.Int).Lsh(big.NewInt(1), 63)}},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()

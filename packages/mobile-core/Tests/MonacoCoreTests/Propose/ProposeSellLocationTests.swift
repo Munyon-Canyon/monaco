@@ -48,16 +48,59 @@ final class ProposeSellLocationTests: XCTestCase {
         XCTAssertEqual(apple.at(.arbitrum), apple)
     }
 
-    func testAListingTooBigForTheApiOrEmptyIsNotAPlaceToSellFrom() {
+    func testAnEmptyListingIsNotAPlaceToSellFrom() async {
         let apple = Self.holding(
             tokenAmount: 100_000_000, valueMicros: 231_400_000, units: "1.0000",
-            listings: [
-                Self.listing(.base, tokenAmount: "0", valueMicros: 0),
-                Self.listing(.robinhood, tokenAmount: "99999999999999999999", valueMicros: 5),
-            ])
+            listings: [Self.listing(.base, tokenAmount: "0", valueMicros: 0)])
 
         XCTAssertEqual(apple.locations.map(\.network), [.solana])
         XCTAssertNil(apple.network)
+    }
+
+    func testAListingPastInt64IsKeptAndCannotBeSoldWhole() async {
+        let apple = Self.robinhood25()
+        let quarter: Int64 = 1_446_250_000
+
+        XCTAssertEqual(apple.network, .robinhood)
+        XCTAssertTrue(apple.overflows)
+        XCTAssertEqual(apple.tokenAmount, Int64.max)
+        XCTAssertEqual(apple.heldQuantity, "25 shares")
+        XCTAssertTrue(apple.exceedsSettleLimit(forMicros: 5_785_000_000))
+        XCTAssertTrue(apple.exceedsSettleLimit(forMicros: 2_776_800_000))
+        XCTAssertFalse(apple.exceedsSettleLimit(forMicros: 2_082_600_000))
+        XCTAssertEqual(apple.tokenAmount(forMicros: 694_200_000), 3_000_000_000_000_000_000)
+        XCTAssertEqual(apple.tokenAmount(forMicros: quarter), 6_250_000_000_000_000_000)
+        XCTAssertEqual(apple.quantity(of: 3_000_000_000_000_000_000), "3 shares")
+    }
+
+    func testASellPastInt64ShowsLowerTheAmountAndNeverReachesReview() async {
+        let clock = TestClock()
+        let model = ProposeAmountModel(
+            service: PreviewService(), cabalID: "cabal", trade: .sell(Self.robinhood25()), clock: clock)
+
+        model.setAmount(micros: 5_785_000_000)
+        XCTAssertTrue(model.isOverLimit)
+        XCTAssertEqual(
+            model.keypadState,
+            .invalid(limitLine: ProposeFlowCopy.lowerTheAmount, slot: ProposeFlowCopy.upTo(5_785_000_000)))
+        XCTAssertEqual(model.message(assetName: "Apple"), "Lower the amount")
+        XCTAssertNil(model.sellQuantityNote)
+        XCTAssertFalse(model.reviewEnabled(assetName: "Apple"))
+
+        model.setAmount(micros: 694_200_000)
+        XCTAssertFalse(model.isOverLimit)
+        XCTAssertEqual(model.sellQuantityNote, "About 3 shares")
+        XCTAssertEqual(model.draft, .sell(symbol: "AAPLx", tokenAmount: 3_000_000_000_000_000_000, thesis: ""))
+    }
+
+    func testATooLargePreviewSaysLowerTheAmount() async {
+        let preview = ProposePreview(
+            .init(
+                quoteOutAmount: nil, advisoryCode: "trade_too_large",
+                advisoryMessage: "This trade is too large to settle. Lower the amount.", potValueMicros: 1))
+
+        XCTAssertEqual(preview.message(assetName: "Apple"), "Lower the amount")
+        XCTAssertFalse(preview.reviewEnabled(amountMicros: 1, isLoading: false, assetName: "Apple"))
     }
 
     func testChoosingALocationClearsTheAmountAndPinsEveryPreviewToIt() async {
@@ -135,6 +178,12 @@ final class ProposeSellLocationTests: XCTestCase {
 
     private func settle() async {
         for _ in 0..<10 { await Task.yield() }
+    }
+
+    static func robinhood25() -> ProposeHolding {
+        holding(
+            tokenAmount: 0, valueMicros: 5_785_000_000, units: "25.0000",
+            listings: [listing(.robinhood, tokenAmount: "25000000000000000000", valueMicros: 5_785_000_000)])
     }
 
     static func mixed() -> ProposeHolding {
