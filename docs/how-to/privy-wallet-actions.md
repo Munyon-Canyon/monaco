@@ -105,3 +105,18 @@ The action after it succeeded:
 ```
 
 The 0.99925 USDC stays in the app-owned Base wallet `vkaerr1g584yfy8ijjro6v14`. It can't move back yet, because that wallet holds no ETH for Base gas. A later proof can bridge it back to the QA pot once gas sponsorship is on.
+
+## Is `destination_amount` what landed? (checked 2026-11-01)
+
+Yes, on both executed bridge actions we could read. Neither amount was an estimate that drifted.
+
+| Action | Route | `destination_amount` | Arrived on chain |
+| --- | --- | --- | --- |
+| `b2c90d14-283e-49ee-8fdc-a1be41981401` | Solana to Base | 0.99925 | 0.99925 USDC in Base tx `0x8381b91b…` (above) |
+| `cff0078b-a71b-44c3-adff-7d0e93e666f9` | Base to Solana, 1.9985 sent, 2026-10-11 | 1.997002 | 1,997,002 micro-USDC into the destination's token account in Solana tx `3wJTgf8uDVLhF2TzQsKTZKWxVbm2b83Nv3cAJuc4Cud2XLKSWjkiuGFBmLUWae9d8CVrCaJrYLzHLsSTs48D6srw` |
+
+The second response is committed as `apps/backend/internal/platform/chain/privy/testdata/action_base_to_solana_succeeded.json`, and `TestAction_decodesARealBaseToSolanaResponseWithItsDeliveredAmount` decodes it. Its fee also matches: `source_amount` less `destination_amount` is 0.001498, the `privy` fee in `estimated_fees` (`fees` reports 0.001497).
+
+Limits of this check: it is two actions on the dev Privy app, both about 1 to 2 USDC. The three bridge steps in the staging database belong to the staging Privy app, whose credentials are not on this Mac, so their `destination_amount` was not read. Staging's own arrival reads for them agree with the sent amounts less a small fee (bridge out 3,836,513 sent, 3,833,636 arrived). A Base to Solana action has no Solana transaction in its steps (the Solana leg is the `external_transaction` step), so the arrival has to be found from the destination's token account, as the code does.
+
+The bridge-back leg now books a return only when it is at or above the amount sent less the quoted bridge fee and the same slack that bridge out uses, so a `destination_amount` that is far lower than the quote leaves the step submitted with `bridge_fee_over_quote`.

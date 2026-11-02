@@ -8,6 +8,8 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"net/http"
+	"os"
+	"reflect"
 	"testing"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
@@ -210,6 +212,29 @@ func TestAction_readsTheDeliveredAmountWhenTheSolanaLegIsExternal(t *testing.T) 
 		_, err := client(replying(http.StatusOK, `{"id":"a1","status":"succeeded","destination_amount":"`+amount+`"}`)).
 			Action(t.Context(), "w", "a1")
 		wantCode(t, err, errs.CodeDecodeFailed)
+	}
+}
+
+func TestAction_decodesARealBaseToSolanaResponseWithItsDeliveredAmount(t *testing.T) {
+	t.Parallel()
+	body, err := os.ReadFile("testdata/action_base_to_solana_succeeded.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := client(replying(http.StatusOK, string(body))).Action(t.Context(), "w", "a1")
+	want := multichain.ActionStatus{
+		ID: "cff0078b-a71b-44c3-adff-7d0e93e666f9", State: multichain.ActionSucceeded,
+		Delivered: money.MicrosFromUint64(1_997_002),
+		Steps: []multichain.ActionStep{
+			{
+				Network: chain.NetworkBase, State: multichain.StepConfirmed,
+				TxHash: "0x541e45ddac84037e7e08cf9c5b1f090aeeff361047e6ed45749ea33547bc13f5",
+			},
+			{State: multichain.StepConfirmed},
+		},
+	}
+	if err != nil || !reflect.DeepEqual(got, want) {
+		t.Fatalf("Action = %+v, %v, want %+v", got, err, want)
 	}
 }
 
