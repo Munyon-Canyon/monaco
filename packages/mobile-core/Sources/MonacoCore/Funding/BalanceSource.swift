@@ -98,6 +98,13 @@ public final class BalanceSource {
         await read(quietly: false)
     }
 
+    public func loadIfNeeded() async {
+        switch state {
+        case .idle, .failed: await read(quietly: false)
+        case .loading, .loaded: return
+        }
+    }
+
     public func reset() {
         generation += 1
         state = .idle

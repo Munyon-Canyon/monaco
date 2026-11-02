@@ -66,12 +66,14 @@ struct HomeScreen: View {
             let portfolio = preparedPortfolio()
             refresh?.register("home-portfolio") { await portfolio.load() }
             refresh?.register("home-portfolio-chart") { await portfolio.chart.refresh() }
-            await portfolio.load()
+            await withTaskGroup(of: Void.self) { group in
+                group.addTask { await portfolio.load() }
+                group.addTask { await portfolio.chart.load() }
+            }
             let loadsChart = portfolio.summary.map { !$0.isFirstUse } ?? true
             await withTaskGroup(of: Void.self) { group in
                 group.addTask { await portfolio.observe() }
                 if loadsChart {
-                    group.addTask { await portfolio.chart.load() }
                     group.addTask { await portfolio.chart.observe() }
                 }
             }
