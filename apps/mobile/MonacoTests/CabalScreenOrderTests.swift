@@ -87,6 +87,14 @@ struct CabalScreenOrderTests {
         #expect(CabalTabsPin.isPinned(tabsTop: -60, barBottom: 103))
     }
 
+    @Test func theTreasuryLinePinsBeforeTheTabsAndTheTabsWaitForItsHeight() {
+        #expect(!CabalPotPin.isPinned(potBottom: nil, barBottom: 103))
+        #expect(!CabalPotPin.isPinned(potBottom: 300, barBottom: 103))
+        #expect(CabalPotPin.isPinned(potBottom: 103, barBottom: 103))
+        #expect(!CabalTabsPin.isPinned(tabsTop: 120, barBottom: 103, lineHeight: 0))
+        #expect(CabalTabsPin.isPinned(tabsTop: 120, barBottom: 103, lineHeight: 30))
+    }
+
     @Test(.timeLimit(.minutes(1)), arguments: [CabalTab.treasury, .rules, .members])
     func theScreenShowsTheFourTabsAndOpensOnTheRoutesTab(tab: CabalTab) async throws {
         let transport = StubTransport(routes: [

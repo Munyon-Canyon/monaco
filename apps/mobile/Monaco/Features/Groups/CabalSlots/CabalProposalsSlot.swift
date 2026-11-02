@@ -119,7 +119,8 @@ struct CabalOpenProposalRow: View {
     var body: some View {
         Button(action: open) {
             MonacoRow(
-                title: Self.title(proposal, asset: asset), subtitle: Self.statusLine(proposal), isLast: isLast,
+                title: Self.title(proposal, asset: asset), subtitle: Self.statusLine(proposal), subtitleLineLimit: 2,
+                isLast: isLast,
                 isPrivate: true,
                 leading: {
                     if proposal.kind == CabalOpenProposalRow.ruleKind {

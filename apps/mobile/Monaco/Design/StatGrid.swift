@@ -89,7 +89,7 @@ struct StatGrid: View {
     private func grid(count: Int) -> some View {
         VStack(spacing: StatMetrics.columnGap) {
             ForEach(Array(Self.rows(items, columns: count).enumerated()), id: \.offset) { _, row in
-                HStack(alignment: .lastTextBaseline, spacing: StatMetrics.columnGap) {
+                HStack(alignment: singleLineValues ? .top : .lastTextBaseline, spacing: StatMetrics.columnGap) {
                     ForEach(Array(row.enumerated()), id: \.offset) { _, item in
                         cell(item, lineLimit: valueLineLimit(count: count))
                     }
@@ -104,7 +104,7 @@ struct StatGrid: View {
     }
 
     private func valueLineLimit(count: Int) -> Int? {
-        if singleLineValues { return dynamicTypeSize.isAccessibilitySize ? nil : 1 }
+        if singleLineValues { return dynamicTypeSize.isAccessibilitySize ? nil : 2 }
         return count > 4 ? 1 : 2
     }
 
@@ -136,10 +136,13 @@ struct StatGrid: View {
                 .moneyFont(.card)
                 .foregroundStyle(StatMetrics.color(for: item.tone))
                 .lineLimit(lineLimit)
-                .minimumScaleFactor(singleLineValues ? 0.6 : 0.8)
+                .minimumScaleFactor(0.8)
                 .accessibilityHidden(item.info != nil)
         }
-        .frame(maxWidth: .infinity, minHeight: StatMetrics.cellMinHeight, alignment: .bottomLeading)
+        .frame(
+            maxWidth: .infinity, minHeight: StatMetrics.cellMinHeight,
+            alignment: singleLineValues ? .topLeading : .bottomLeading
+        )
         .modifier(StatCellAccessibility(item: item))
     }
 }

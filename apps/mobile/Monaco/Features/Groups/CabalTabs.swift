@@ -14,10 +14,25 @@ struct CabalTabsTop: PreferenceKey {
     }
 }
 
+struct CabalPotBottom: PreferenceKey {
+    static let defaultValue: CGFloat? = nil
+
+    static func reduce(value: inout CGFloat?, nextValue: () -> CGFloat?) {
+        value = nextValue() ?? value
+    }
+}
+
+enum CabalPotPin {
+    static func isPinned(potBottom: CGFloat?, barBottom: CGFloat) -> Bool {
+        guard let potBottom else { return false }
+        return potBottom <= barBottom
+    }
+}
+
 enum CabalTabsPin {
-    static func isPinned(tabsTop: CGFloat?, barBottom: CGFloat) -> Bool {
+    static func isPinned(tabsTop: CGFloat?, barBottom: CGFloat, lineHeight: CGFloat = 0) -> Bool {
         guard let tabsTop else { return false }
-        return tabsTop <= barBottom
+        return tabsTop <= barBottom + lineHeight
     }
 }
 

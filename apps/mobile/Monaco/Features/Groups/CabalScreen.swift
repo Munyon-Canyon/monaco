@@ -32,6 +32,8 @@ struct CabalScreen: View {
     @Environment(\.hostMainTab) private var hostMainTab
     @State private var selection: CabalTabSelection
     @State private var tabsTop: CGFloat?
+    @State private var potBottom: CGFloat?
+    @State private var pinnedLineHeight: CGFloat = 0
     @State private var pendingMore: CabalMoreItem?
     @State private var models = CabalScreenModels()
     @State private var publicChart: ValueChartModel?
@@ -83,22 +85,9 @@ struct CabalScreen: View {
         }
         .onPreferenceChange(CabalHeaderNameBottom.self) { nameBottom = $0 }
         .onPreferenceChange(CabalTabsTop.self) { tabsTop = $0 }
+        .onPreferenceChange(CabalPotBottom.self) { potBottom = $0 }
         .overlay(alignment: .top) {
-            if CabalTabsPin.isPinned(tabsTop: tabsTop, barBottom: barBottom), cabal.cabal?.me != nil {
-                VStack(spacing: 0) {
-                    CabalMoveReader(cabalID: context.cabalID) { move in
-                        CabalPotBand(model: pot, move: move, isPinned: true)
-                            .background(MonacoTheme.canvas)
-                            .accessibilityIdentifier("cabal-pot-pinned")
-                    }
-                    CabalTabBar(
-                        selection: selection, memberCount: cabal.cabal?.memberCount,
-                        identifierPrefix: "cabal-tab-pinned"
-                    )
-                    .monacoUnderlineTabsPinned()
-                    .accessibilityIdentifier("cabal-tabs-pinned")
-                }
-            }
+            if cabal.cabal?.me != nil { pinnedHeader(pot: pot, memberCount: cabal.cabal?.memberCount) }
         }
         .cabalMoreActions(
             cabalID: context.cabalID, cabal: cabal,
@@ -167,6 +156,35 @@ struct CabalScreen: View {
                 }
             }
         }
+    }
+
+    private func pinnedHeader(pot: CabalPotModel, memberCount: Int32?) -> some View {
+        let lineShown = CabalPotPin.isPinned(potBottom: potBottom, barBottom: barBottom)
+        let tabsShown = CabalTabsPin.isPinned(
+            tabsTop: tabsTop, barBottom: barBottom, lineHeight: lineShown ? pinnedLineHeight : 0)
+        return VStack(spacing: 0) {
+            CabalMoveReader(cabalID: context.cabalID) { move in
+                CabalPotBand(model: pot, move: move, isPinned: true)
+                    .background(MonacoTheme.canvas)
+                    .onGeometryChange(for: CGFloat.self) {
+                        $0.size.height
+                    } action: {
+                        pinnedLineHeight = $0
+                    }
+                    .opacity(lineShown ? 1 : 0)
+                    .accessibilityHidden(!lineShown)
+                    .accessibilityIdentifier("cabal-pot-pinned")
+            }
+            if lineShown && tabsShown {
+                CabalTabBar(
+                    selection: selection, memberCount: memberCount,
+                    identifierPrefix: "cabal-tab-pinned"
+                )
+                .monacoUnderlineTabsPinned()
+                .accessibilityIdentifier("cabal-tabs-pinned")
+            }
+        }
+        .allowsHitTesting(lineShown)
     }
 
     private func share(_ cabal: Components.Schemas.Cabal?) {

@@ -45,6 +45,13 @@ struct ProposalStatRowTests {
         }
     }
 
+    @Test func aFarOutCloseKeepsItsDayAndTimeWholeAndSpeaksWithPlainSpaces() {
+        let cells = [ProposalStats.Cell(label: "Closes", value: "Fri 5:41 PM")]
+        let items = ProposalStatRow.items(ProposalStats(cells: cells), showsInfo: false, onInfo: {})
+        #expect(items.first?.value == "Fri 5:41\u{00A0}PM")
+        #expect(items.first?.spokenValue == "Fri 5:41 PM")
+    }
+
     @Test func aCellWithAnInfoActionReadsLabelCommaValueThenItsButton() async throws {
         let labels = try await RenderedView.labels(ProposalStatRow(stats: Self.open), size: .large) {
             $0.contains("About Price")
