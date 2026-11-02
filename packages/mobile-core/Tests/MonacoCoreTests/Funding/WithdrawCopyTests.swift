@@ -124,6 +124,15 @@ final class WithdrawCopyTests: XCTestCase {
         XCTAssertNil(bare.link)
     }
 
+    func testTheLimitIsRoundedDownSoTypingItIsAccepted() {
+        XCTAssertEqual(
+            WithdrawCopy.limitLine(maxMicros: 10_005_000, overMicros: 5_000), "You can send $10 · $0.01 over")
+        XCTAssertEqual(WithdrawCopy.limitSlot(maxMicros: 10_005_000), "Up to $10")
+        XCTAssertEqual(WithdrawCopy.limitSlot(maxMicros: 9_999_999), "Up to $9.99")
+        XCTAssertEqual(
+            WithdrawCopy.limitLine(maxMicros: 9_999_999, overMicros: 1_000_000), "You can send $9.99 · $1 over")
+    }
+
     func testTheFullBalanceLabelReplacesTheAmountInTheToast() {
         let label = WithdrawCopy.fullBalanceLabel(micros: 120_000_000)
 

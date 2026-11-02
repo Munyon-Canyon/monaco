@@ -37,6 +37,17 @@ final class FundCabalCopyTests: XCTestCase {
         XCTAssertEqual(FundCabalCopy.enterAnAmount, "Enter an amount")
     }
 
+    func testTheLimitIsRoundedDownSoTypingItIsAccepted() {
+        XCTAssertEqual(
+            FundCabalCopy.limitLine(availableMicros: 10_005_000, overMicros: 5_000), "$10.00 available · $0.01 over")
+        XCTAssertEqual(
+            FundCabalCopy.limitLine(availableMicros: 9_999_999, overMicros: 1), "$9.99 available · $0.00 over")
+        XCTAssertEqual(FundCabalCopy.slotHint(availableMicros: 10_005_000), "Up to $10.00")
+        XCTAssertEqual(FundCabalCopy.slotHint(availableMicros: 9_999_999), "Up to $9.99")
+        XCTAssertEqual(FundSourceCopy.cash(micros: 10_005_000), "Cash $10.00")
+        XCTAssertEqual(FundSourceCopy.cash(micros: 9_999_999), "Cash $9.99")
+    }
+
     func testPausedButtonAndFundingLines() {
         XCTAssertEqual(
             FundCabalCopy.paused(cabalName: "AC Capital"), "AC Capital is paused. Funding opens when it resumes.")

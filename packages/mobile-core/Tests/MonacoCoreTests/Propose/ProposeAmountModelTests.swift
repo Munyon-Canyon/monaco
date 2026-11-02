@@ -121,7 +121,7 @@ final class ProposeAmountModelTests: XCTestCase {
 
         XCTAssertEqual(model.spendableCashMicros, 990_000)
         XCTAssertEqual(model.maxMicros, 980_000)
-        XCTAssertEqual(model.helperText, "The cabal can spend $0.99")
+        XCTAssertEqual(model.helperText, "The cabal can spend $0.98")
         model.useMax()
         XCTAssertEqual(model.amountMicros, 980_000)
         XCTAssertFalse(model.isOverLimit)
@@ -201,7 +201,7 @@ final class ProposeAmountModelTests: XCTestCase {
         await model.load()
 
         XCTAssertEqual(model.maxMicros, 499_000_000)
-        XCTAssertEqual(model.helperText, "The cabal can spend $500.00")
+        XCTAssertEqual(model.helperText, "The cabal can spend $499.00")
     }
 
     func testHelperSaysItIsFindingThePriceAndClearsTheAdvisoryWhileAPreviewLoads() async {
@@ -225,7 +225,7 @@ final class ProposeAmountModelTests: XCTestCase {
         clock.advance(by: .milliseconds(400))
         await settle()
         XCTAssertFalse(model.isLoading)
-        XCTAssertEqual(model.helperText, "The cabal can spend $500.00")
+        XCTAssertEqual(model.helperText, "The cabal can spend $499.00")
         XCTAssertEqual(model.message(assetName: "Alphabet"), "More than the pot has")
     }
 
@@ -332,6 +332,8 @@ extension ProposeAmountModelTests {
 
     func testUpToFormatsTheLimit() {
         XCTAssertEqual(ProposeFlowCopy.upTo(5_100_000_000), "Up to $5,100.00")
+        XCTAssertEqual(ProposeFlowCopy.upTo(10_005_000), "Up to $10.00")
+        XCTAssertEqual(ProposeFlowCopy.upTo(9_999_999), "Up to $9.99")
     }
 }
 

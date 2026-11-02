@@ -35,12 +35,12 @@ public enum FundCabalCopy {
     }
 
     public static func limitLine(availableMicros: Int64, overMicros: Int64) -> String {
-        "\(UsdAmountFormatter.format(micros: availableMicros)) available · "
+        "\(UsdAmountFormatter.format(flooredMicros: availableMicros)) available · "
             + "\(UsdAmountFormatter.format(micros: overMicros)) over"
     }
 
     public static func slotHint(availableMicros: Int64) -> String {
-        "Up to \(UsdAmountFormatter.format(micros: availableMicros))"
+        "Up to \(UsdAmountFormatter.format(flooredMicros: availableMicros))"
     }
 
     public static func belowMinimum(minMicros: Int64) -> String {

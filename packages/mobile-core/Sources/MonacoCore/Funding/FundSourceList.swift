@@ -7,7 +7,7 @@ public enum FundSourceCopy {
     public static let fallbackName = "this cabal"
 
     public static func cash(micros: Int64) -> String {
-        "Cash \(UsdAmountFormatter.format(micros: micros))"
+        "Cash \(UsdAmountFormatter.format(flooredMicros: micros))"
     }
 
     public static func yours(bps: Int32) -> String {

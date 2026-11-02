@@ -258,7 +258,7 @@ public enum ProposeFlowCopy {
     public static let overCash = "Amount exceeds the cash balance."
     public static let overHolding = "Amount exceeds this holding’s value."
     public static let lowerTheAmount = "Lower the amount"
-    public static func upTo(_ micros: Int64) -> String { "Up to \(UsdAmountFormatter.format(micros: micros))" }
+    public static func upTo(_ micros: Int64) -> String { "Up to \(UsdAmountFormatter.format(flooredMicros: micros))" }
     public static let thesisTitle = "Thesis"
     public static let thesisPlaceholder = "Why should the cabal make this trade?"
     public static let thesisRequired = "Add a thesis before sending your proposal."

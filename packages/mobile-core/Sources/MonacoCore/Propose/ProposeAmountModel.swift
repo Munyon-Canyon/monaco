@@ -61,7 +61,7 @@ public final class ProposeAmountModel {
     public var helperText: String? {
         if isLoading { return Self.findingPrice }
         return switch trade {
-        case .buy: spendableCashMicros.map { "The cabal can spend \(UsdAmountFormatter.format(micros: $0))" }
+        case .buy: maxMicros.map { "The cabal can spend \(UsdAmountFormatter.format(flooredMicros: $0))" }
         case .sell(let holding): holding.helperText
         }
     }
@@ -85,7 +85,7 @@ public final class ProposeAmountModel {
         switch trade {
         case .buy:
             return .invalid(
-                limitLine: ProposeFlowCopy.overCash, slot: ProposeFlowCopy.upTo(maxMicros ?? spendableCashMicros ?? 0))
+                limitLine: ProposeFlowCopy.overCash, slot: ProposeFlowCopy.upTo(maxMicros ?? 0))
         case .sell(let holding):
             return .invalid(
                 limitLine: holding.exceedsSettleLimit(forMicros: amountMicros)

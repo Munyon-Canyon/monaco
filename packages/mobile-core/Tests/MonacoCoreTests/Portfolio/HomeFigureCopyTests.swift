@@ -56,6 +56,22 @@ final class HomeFigureCopyTests: XCTestCase {
             "Net worth, 5 dollars, down 1 cent, 0.1 percent, past week")
     }
 
+    func testAPnlUnderHalfACentIsFlat() {
+        for pnl: Int64 in [-4_999, -1, 1, 4_999] {
+            let line = HomeFigureCopy.line(pnlMicros: pnl, returnBps: 0, range: .oneWeek)
+            XCTAssertEqual(line.direction, .flat, "\(pnl)")
+            XCTAssertEqual(line.amount, "$0.00", "\(pnl)")
+            XCTAssertEqual(
+                HomeFigureCopy.spoken(netWorthMicros: 5_000_000, pnlMicros: pnl, returnBps: 0, range: .oneWeek),
+                "Net worth, 5 dollars, unchanged, past week")
+        }
+        XCTAssertEqual(HomeFigureCopy.line(pnlMicros: 5_000, returnBps: 1, range: .oneWeek).direction, .up)
+        XCTAssertEqual(HomeFigureCopy.line(pnlMicros: -5_000, returnBps: -1, range: .oneWeek).direction, .down)
+        XCTAssertEqual(
+            HomeFigureCopy.spoken(netWorthMicros: 5_000_000, pnlMicros: -5_000, returnBps: -1, range: .oneWeek),
+            "Net worth, 5 dollars, down 1 cent, 0.0 percent, past week")
+    }
+
     func testSpokenFlat() {
         XCTAssertEqual(
             HomeFigureCopy.spoken(netWorthMicros: 5_000_000, pnlMicros: 0, returnBps: 0, range: .sixMonths),
