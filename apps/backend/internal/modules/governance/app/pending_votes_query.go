@@ -8,6 +8,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
@@ -38,22 +39,23 @@ type PendingProposer struct {
 }
 
 type PendingVote struct {
-	ProposalID  ids.ProposalID
-	CabalID     ids.CabalID
-	CabalName   string
-	Kind        domain.Kind
-	Symbol      string
-	USDC        money.Micros
-	TokenAmount money.BaseUnits
-	AssetName   string
-	AssetLogo   string
-	Rule        *RuleView
-	Proposer    PendingProposer
-	Tally       Tally
-	VotedCount  int
-	ReplyCount  int
-	CreatedAt   time.Time
-	ExpiresAt   time.Time
+	ProposalID    ids.ProposalID
+	CabalID       ids.CabalID
+	CabalName     string
+	Kind          domain.Kind
+	Symbol        string
+	USDC          money.Micros
+	TokenAmount   money.BaseUnits
+	TokenDecimals uint8
+	AssetName     string
+	AssetLogo     string
+	Rule          *RuleView
+	Proposer      PendingProposer
+	Tally         Tally
+	VotedCount    int
+	ReplyCount    int
+	CreatedAt     time.Time
+	ExpiresAt     time.Time
 }
 
 type PendingVoteReads struct {
@@ -93,19 +95,29 @@ func (r *PendingVoteReads) PendingVotes(ctx context.Context, voter ids.UserID) (
 		}
 		id, cabal, proposer := ids.ProposalIDFrom(row.ID), ids.CabalIDFrom(row.CabalID), ids.UserIDFrom(row.ProposerID)
 		asset := extra.assets[row.Mint.String]
+		network := chain.Network(row.Network)
+		decimals, err := r.reads.tokenDecimals(ctx, asset, network)
+		if err != nil {
+			return nil, err
+		}
+		var wireDecimals uint8
+		if network.IsEVM() && row.TokenAmount.Valid {
+			wireDecimals = decimals
+		}
 		voters := int(row.VoterCount)
 		out[i] = PendingVote{
-			ProposalID:  id,
-			CabalID:     cabal,
-			CabalName:   extra.names[cabal],
-			Kind:        kind,
-			Symbol:      row.Symbol.String,
-			Rule:        rules[i],
-			USDC:        money.MicrosFromUint64(uint64(max(row.UsdcMicros.Int64, 0))),
-			TokenAmount: money.NewBaseUnits(uint64(max(row.TokenAmount.Int64, 0)), asset.Decimals),
-			AssetName:   nameOr(asset.DisplayName, row.Symbol.String),
-			AssetLogo:   asset.LogoURL,
-			Proposer:    extra.proposers[proposer],
+			ProposalID:    id,
+			CabalID:       cabal,
+			CabalName:     extra.names[cabal],
+			Kind:          kind,
+			Symbol:        row.Symbol.String,
+			Rule:          rules[i],
+			USDC:          money.MicrosFromUint64(uint64(max(row.UsdcMicros.Int64, 0))),
+			TokenAmount:   money.NewBaseUnits(uint64(max(row.TokenAmount.Int64, 0)), decimals),
+			TokenDecimals: wireDecimals,
+			AssetName:     nameOr(asset.DisplayName, row.Symbol.String),
+			AssetLogo:     asset.LogoURL,
+			Proposer:      extra.proposers[proposer],
 			Tally: Tally{
 				Yes: int(row.YesCount), No: int(row.NoCount), Voters: voters,
 				Needed: domain.ThresholdRule(row.Threshold).Needed(voters),

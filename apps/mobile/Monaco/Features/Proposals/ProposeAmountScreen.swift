@@ -112,16 +112,22 @@ struct ProposeAmountScreen: View {
     }
 
     private var header: some View {
-        HStack(spacing: MonacoTheme.Space.s) {
-            StockMark(
-                symbol: stock.symbol, displayName: stock.name, assetKind: stock.assetKind, size: Self.markSize,
-                logoURL: stock.logoURL)
-            Text("\(operation) \(displayName)").font(MonacoTheme.Typo.headline).foregroundStyle(MonacoTheme.primaryText)
+        VStack(spacing: MonacoTheme.Space.m) {
+            HStack(spacing: MonacoTheme.Space.s) {
+                StockMark(
+                    symbol: stock.symbol, displayName: stock.name, assetKind: stock.assetKind, size: Self.markSize,
+                    logoURL: stock.logoURL)
+                Text("\(operation) \(displayName)")
+                    .font(MonacoTheme.Typo.headline).foregroundStyle(MonacoTheme.primaryText)
+            }
+            .frame(maxWidth: .infinity)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("\(operation) \(displayName)")
+            .accessibilityAddTraits(.isHeader)
+            if case .sell(let holding) = model.trade, holding.locations.count > 1 {
+                ProposeLocationSection(holding: holding, choose: model.chooseLocation)
+            }
         }
-        .frame(maxWidth: .infinity)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(operation) \(displayName)")
-        .accessibilityAddTraits(.isHeader)
     }
 
     private func reviewSheet(_ preview: MonacoCore.ProposePreview) -> ProposeReviewSheet {

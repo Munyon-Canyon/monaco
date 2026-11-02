@@ -212,6 +212,31 @@ func TestNotify_ResultFilled_PushesTheVotersOnlyWithTheFill(t *testing.T) {
 	}
 }
 
+func TestNotify_ResultFilled_SizesARobinhoodFillByTheListingDecimals(t *testing.T) {
+	t.Parallel()
+	for name, tc := range map[string]struct {
+		action       string
+		tokens, usdc uint64
+		body         string
+	}{
+		"a buy that filled 0.4 tokens": {buyKind, 400_000_000_000_000_000, 100_000_000, "Bought 0.4 sh at $250.00. You voted {vote}."},
+		"a sell of half a share":       {sellKind, 500_000_000_000_000_000, 125_000_000, "Sold 0.5 sh at $250.00. You voted {vote}."},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			r := newPushRig(t)
+			w := r.resultWorldOf(t, 2, 0)
+			e := r.confirmedEvent(t, w, tc.action, tc.tokens, tc.usdc)
+			e.TokenDecimals = 18
+
+			d, err := w.run(t, r, tradeActor, e)
+
+			wantVerdict(t, err, "", errs.VerdictAck)
+			w.wantPushes(t, r, d, "AAPL passed 2–0", tc.body, "filled", w.voters()...)
+		})
+	}
+}
+
 func TestNotify_ResultFillFailed_PushesTheVotersOnly(t *testing.T) {
 	t.Parallel()
 	for name, tc := range map[string]struct {

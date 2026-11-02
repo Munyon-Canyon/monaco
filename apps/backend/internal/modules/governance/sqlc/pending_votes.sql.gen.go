@@ -48,7 +48,7 @@ func (q *Queries) OpenProposalCountsByCabal(ctx context.Context, cabalIds []uuid
 const pendingVotes = `-- name: PendingVotes :many
 SELECT
   p.id, p.cabal_id, p.proposer_id, p.kind, p.symbol, p.mint, p.usdc_micros, p.token_amount, p.threshold,
-  p.expires_at, p.created_at, p.rule_change,
+  p.expires_at, p.created_at, p.rule_change, coalesce(p.network, '')::text AS network,
   ballots.yes_count, ballots.no_count, ballots.voted_count, electorate.voter_count
 FROM proposal_voters AS pv
 JOIN proposals AS p ON p.id = pv.proposal_id
@@ -89,6 +89,7 @@ type PendingVotesRow struct {
 	ExpiresAt   time.Time
 	CreatedAt   time.Time
 	RuleChange  []byte
+	Network     string
 	YesCount    int32
 	NoCount     int32
 	VotedCount  int32
@@ -117,6 +118,7 @@ func (q *Queries) PendingVotes(ctx context.Context, arg PendingVotesParams) ([]P
 			&i.ExpiresAt,
 			&i.CreatedAt,
 			&i.RuleChange,
+			&i.Network,
 			&i.YesCount,
 			&i.NoCount,
 			&i.VotedCount,

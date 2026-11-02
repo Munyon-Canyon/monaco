@@ -90,6 +90,24 @@ func TestCloseReminder_rendersSellInMinutes(t *testing.T) {
 	}
 }
 
+func TestCloseReminder_sizesARobinhoodSellByTheListingDecimals(t *testing.T) {
+	t.Parallel()
+	r := newPushRig(t)
+	w := r.voteWorldOf(t, 8)
+	proposal := w.proposeNow(t)
+	e := w.closeReminderDue(proposal, w.members[5], "sell", "TSLAx", 40*time.Minute)
+	e.TokenAmount, e.TokenDecimals = 500_000_000_000_000_000, 18
+
+	if err := w.deliverCloseReminder(t, e); err != nil {
+		t.Fatal(err)
+	}
+
+	sent := r.sender.Sent()
+	if len(sent) != 1 || sent[0].Title != "Sell TSLA 0.5 sh closes in 40m" {
+		t.Fatalf("sent %+v, want the sell title at 0.5 sh", sent)
+	}
+}
+
 func TestCloseReminder_onlyTheAsker(t *testing.T) {
 	t.Parallel()
 	r := newPushRig(t)

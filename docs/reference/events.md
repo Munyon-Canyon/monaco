@@ -619,6 +619,7 @@ Subject `events.proposal.close_reminder_due`, version 1.
 | `yes` | `int` |
 | `no` | `int` |
 | `voters` | `int` |
+| `token_decimals` | `uint8` |
 
 ## `proposal.created`
 
@@ -912,6 +913,7 @@ Subject `events.trade.confirmed`, version 1.
 | `fee_micros` | `money.Micros` |
 | `tx_signature` | `chain.Signature` |
 | `confirmed_at` | `time.Time` |
+| `token_decimals` | `uint8` |
 
 ## `trade.failed`
 

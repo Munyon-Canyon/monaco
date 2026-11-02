@@ -1,6 +1,8 @@
 package trading_test
 
 import (
+	"fmt"
+	"strconv"
 	"testing"
 
 	"github.com/google/uuid"
@@ -69,7 +71,8 @@ func (e *routeEnv) wantSold(t *testing.T, swap uuid.UUID, units uint64) {
 	}
 	confirmed := e.payload(t, swap, "trade.confirmed")
 	if confirmed["in_mint"] != e.token() || confirmed["in_amount"] != uitoa(units) ||
-		confirmed["out_amount"] != uitoa(proceeds) || confirmed["usdc_micros"] != uitoa(proceeds) {
+		confirmed["out_amount"] != uitoa(proceeds) || confirmed["usdc_micros"] != uitoa(proceeds) ||
+		fmt.Sprint(confirmed["token_decimals"]) != strconv.FormatUint(uint64(e.listing.Decimals), 10) {
 		t.Fatalf("trade.confirmed = %v, want %d token units sold for %d cash", confirmed, units, proceeds)
 	}
 	if len(e.evm.specs) != 1 || e.evm.specs[0].AmountIn != units {

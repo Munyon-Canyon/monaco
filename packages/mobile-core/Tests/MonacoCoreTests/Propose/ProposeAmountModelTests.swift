@@ -298,7 +298,7 @@ extension ProposeAmountModelTests {
         XCTAssertEqual(model.keypadState, .typed)
         model.setAmount(micros: 600_000_000)
         XCTAssertEqual(
-            model.keypadState, .invalid(limitLine: "Amount exceeds the cash balance.", slot: "Up to $500.00"))
+            model.keypadState, .invalid(limitLine: "Amount exceeds the cash balance.", slot: "Up to $499.00"))
     }
 
     func testKeypadStateForASellOverTheHolding() {

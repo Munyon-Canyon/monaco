@@ -12,6 +12,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/sqlc"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
@@ -33,7 +34,15 @@ type CloseReminderPoller struct {
 	reads   sqlc.DBTX
 	members ReminderMembers
 	clock   clock.Clock
+	sized   func(ctx context.Context, symbol string, network chain.Network) (uint8, error)
 	Every   time.Duration
+}
+
+func (p *CloseReminderPoller) Sized(
+	f func(ctx context.Context, symbol string, network chain.Network) (uint8, error),
+) *CloseReminderPoller {
+	p.sized = f
+	return p
 }
 
 func NewCloseReminderPoller(
@@ -77,7 +86,7 @@ func (p *CloseReminderPoller) remind(ctx context.Context, row sqlc.DueRemindersR
 		if err != nil || !claimed {
 			return err
 		}
-		raised, err = raiseCloseReminder(ctx, tx, p.members, prop, row.UserID, now)
+		raised, err = raiseCloseReminder(ctx, tx, p, prop, row.UserID, now)
 		return err
 	})
 	if err != nil {
@@ -115,13 +124,13 @@ func claimReminder(
 }
 
 func raiseCloseReminder(
-	ctx context.Context, tx db.Tx, members ReminderMembers, prop sqlc.LockProposalRow, user uuid.UUID, now time.Time,
+	ctx context.Context, tx db.Tx, p *CloseReminderPoller, prop sqlc.LockProposalRow, user uuid.UUID, now time.Time,
 ) (bool, error) {
 	const op = "governance.CloseReminders"
 	if prop.Status != string(domain.StatusOpen) || !now.Before(prop.ExpiresAt) {
 		return false, nil
 	}
-	member, err := members.IsMember(ctx, ids.CabalIDFrom(prop.CabalID), ids.UserIDFrom(user))
+	member, err := p.members.IsMember(ctx, ids.CabalIDFrom(prop.CabalID), ids.UserIDFrom(user))
 	if err != nil {
 		return false, errs.Wrap(err, errs.CodeOf(err), op)
 	}
@@ -140,11 +149,17 @@ func raiseCloseReminder(
 	if err != nil {
 		return false, errs.Wrap(err, errs.CodeInternal, op)
 	}
+	var decimals uint8
+	if p.sized != nil && prop.TokenAmount.Valid {
+		if decimals, err = p.sized(ctx, prop.Symbol.String, chain.Network(prop.Network)); err != nil {
+			return false, err
+		}
+	}
 	err = tx.Events.Append(ctx, events.ProposalCloseReminderDue{
 		V: 1, ProposalID: prop.ID, CabalID: prop.CabalID, UserID: user, Kind: prop.Kind, Symbol: prop.Symbol.String,
 		USDCMicros:  money.MicrosFromUint64(unsigned(prop.UsdcMicros.Int64)),
 		TokenAmount: unsigned(prop.TokenAmount.Int64), ExpiresAt: prop.ExpiresAt,
-		Yes: int(tally.Yes), No: int(tally.No), Voters: int(tally.Voters),
+		Yes: int(tally.Yes), No: int(tally.No), Voters: int(tally.Voters), TokenDecimals: decimals,
 	})
 	return err == nil, err
 }

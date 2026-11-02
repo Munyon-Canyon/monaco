@@ -55,27 +55,28 @@ type ListMyProposals struct {
 }
 
 type ProposalView struct {
-	ID           ids.ProposalID
-	CabalID      ids.CabalID
-	CabalName    string
-	ProposerID   ids.UserID
-	Kind         domain.Kind
-	Symbol       string
-	USDCMicros   int64
-	TokenAmount  int64
-	QuoteOut     int64
-	Thesis       string
-	Status       domain.Status
-	StatusReason errs.Code
-	ExpiresAt    time.Time
-	CreatedAt    time.Time
-	Tally        Tally
-	MyBallot     domain.Choice
-	CanVote      bool
-	Comparison   *multichain.Comparison
-	Network      chain.Network
-	Rule         *RuleView
-	ReplyCount   int
+	ID            ids.ProposalID
+	CabalID       ids.CabalID
+	CabalName     string
+	ProposerID    ids.UserID
+	Kind          domain.Kind
+	Symbol        string
+	USDCMicros    int64
+	TokenAmount   int64
+	QuoteOut      int64
+	Thesis        string
+	Status        domain.Status
+	StatusReason  errs.Code
+	ExpiresAt     time.Time
+	CreatedAt     time.Time
+	Tally         Tally
+	MyBallot      domain.Choice
+	CanVote       bool
+	Comparison    *multichain.Comparison
+	Network       chain.Network
+	TokenDecimals uint8
+	Rule          *RuleView
+	ReplyCount    int
 }
 
 type ProposalPage struct {
@@ -92,6 +93,8 @@ type ProposalReads struct {
 	clock  clock.Clock
 	users  Handles
 	rets   rankingport.Queries
+
+	listings EVMListings
 
 	Replies ReplyCounts
 }
@@ -221,6 +224,9 @@ func (r *ProposalReads) page(
 		if err != nil {
 			return ProposalPage{}, err
 		}
+		if view.TokenDecimals, err = r.listedDecimals(ctx, row); err != nil {
+			return ProposalPage{}, err
+		}
 		view.CabalName = names[view.CabalID]
 		view.ReplyCount = replies[view.ID]
 		view.CanVote = view.Status == domain.StatusOpen && tallies[row.ID].callerVotes
@@ -339,4 +345,11 @@ func decodeCursor(raw string) (pageCursor, error) {
 		return pageCursor{}, errs.Wrap(err, errs.CodeInvalidInput, op)
 	}
 	return pageCursor{ok: true, createdAt: time.UnixMicro(at).UTC(), id: parsed}, nil
+}
+
+func (r *ProposalReads) listedDecimals(ctx context.Context, row sqlc.ListProposalsRow) (uint8, error) {
+	if !row.TokenAmount.Valid {
+		return 0, nil
+	}
+	return r.SellDecimals(ctx, row.Symbol.String, chain.Network(row.Network))
 }

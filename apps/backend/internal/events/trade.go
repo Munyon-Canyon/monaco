@@ -80,6 +80,7 @@ type TradeConfirmed struct {
 	FeeMicros       money.Micros        `json:"fee_micros"`
 	TxSignature     chain.Signature     `json:"tx_signature"`
 	ConfirmedAt     time.Time           `json:"confirmed_at"`
+	TokenDecimals   uint8               `json:"token_decimals,omitzero"`
 }
 
 func (TradeConfirmed) Type() Type { return TypeTradeConfirmed }

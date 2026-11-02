@@ -163,6 +163,22 @@ final class HomeVoteCardModelTests: XCTestCase {
         XCTAssertEqual(model.phase, .idle)
     }
 
+    func testARobinhoodSellRowScalesItsSharesByTheListingDecimals() {
+        let robinhood = HomePendingVote(
+            id: proposalID, cabalID: "cabal-1", cabalName: "AC Capital", kind: "sell", symbol: "AAPLx",
+            assetName: "Apple", tokenAmount: 500_000_000_000_000_000, tokenDecimals: 18,
+            tally: ProposalTally(yes: 0, no: 0, voters: 3, needed: 2), replyCount: 0,
+            expiresAt: clock.addingTimeInterval(14_400))
+        let solana = HomePendingVote(
+            id: proposalID, cabalID: "cabal-1", cabalName: "AC Capital", kind: "sell", symbol: "AAPLx",
+            assetName: "Apple", tokenAmount: 50_000_000, tally: robinhood.tally, replyCount: 0,
+            expiresAt: clock.addingTimeInterval(14_400))
+        let transport = StubTransport(routes: [:])
+
+        XCTAssertEqual(model(transport, row: robinhood).headline, "Sell AAPL \u{00B7} 0.5 shares")
+        XCTAssertEqual(model(transport, row: solana).headline, "Sell AAPL \u{00B7} 0.5 shares")
+    }
+
     func testARuleRowBuildsTheRuleHeadlineAndABuyRowTheTradeHeadline() {
         let transport = StubTransport(routes: [:])
         XCTAssertEqual(
