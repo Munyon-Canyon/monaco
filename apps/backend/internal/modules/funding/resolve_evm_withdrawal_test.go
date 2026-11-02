@@ -19,6 +19,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/solana"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
@@ -47,7 +48,7 @@ func stuckEVM(
 	resolver := app.NewEVMWithdrawalResolver(app.EVMWithdrawalResolverDeps{
 		UoW: f.uow, Reads: f.pool, Clock: f.clock, Chain: &stubStatuses{statuses: []solana.Status{chainState}},
 		Wallets: signingWallet{wallet: chain.Wallet{ID: f.user.PrivyWalletID, Address: f.user.Address}},
-		Actions: actions, Hints: f.hints,
+		Actions: actions, Hints: f.hints, Receipts: refunded(f.user.Address), USDC: testUSDC(),
 	})
 	return &resolveRig{
 		f: f, id: got.ID, logs: logs,
@@ -303,7 +304,7 @@ func (r *resolveRig) with(t *testing.T, mutate func(*app.EVMWithdrawalResolverDe
 		Actions: &privyActions{status: multichain.ActionStatus{
 			State: multichain.ActionFailed, Steps: []multichain.ActionStep{solStep(multichain.StepFailed)},
 		}},
-		Hints: r.f.hints,
+		Hints: r.f.hints, Receipts: refunded(r.f.user.Address), USDC: testUSDC(),
 	}
 	mutate(&deps)
 	return app.NewEVMWithdrawalResolver(deps)
@@ -454,6 +455,38 @@ func TestResolveEVMWithdrawal_AWriteFailureRollsBack(t *testing.T) {
 
 const refundSig chain.Signature = "refund-signature-from-support"
 
+func testUSDC() chain.Mint {
+	return chain.Mint{Address: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", Decimals: 6}
+}
+
+type receipts struct {
+	paid map[chain.Signature]map[chain.SolanaAddress]uint64
+	err  error
+	mint []chain.Mint
+}
+
+func refunded(member chain.SolanaAddress) *receipts {
+	return (&receipts{}).pays(refundSig, member, 2_000_000)
+}
+
+func (r *receipts) pays(sig chain.Signature, owner chain.SolanaAddress, micros uint64) *receipts {
+	if r.paid == nil {
+		r.paid = map[chain.Signature]map[chain.SolanaAddress]uint64{}
+	}
+	if r.paid[sig] == nil {
+		r.paid[sig] = map[chain.SolanaAddress]uint64{}
+	}
+	r.paid[sig][owner] = micros
+	return r
+}
+
+func (r *receipts) Received(
+	_ context.Context, sig chain.Signature, owner chain.SolanaAddress, mint chain.Mint,
+) (money.BaseUnits, error) {
+	r.mint = append(r.mint, mint)
+	return money.NewBaseUnits(r.paid[sig][owner], mint.Decimals), r.err
+}
+
 type sigStatuses map[chain.Signature]solana.Status
 
 func (m sigStatuses) SignatureStatuses(_ context.Context, sigs []chain.Signature) ([]solana.Status, error) {
@@ -514,6 +547,113 @@ func TestResolveEVMWithdrawal_RefundedReleasesTheHoldOnceWhenSupportReturnedTheU
 	if n := len(r.f.payloads(t, events.TypeWithdrawalFailed)); n != 1 {
 		t.Fatalf("withdrawal.failed = %d, want 1 after resolving twice", n)
 	}
+}
+
+func (r *resolveRig) refundPaying(t *testing.T, paid *receipts) *app.EVMWithdrawalResolver {
+	t.Helper()
+	return r.with(t, func(d *app.EVMWithdrawalResolverDeps) {
+		d.Chain = sigStatuses{evmSourceSig: {State: solana.StateFinalized}, refundSig: {State: solana.StateFinalized}}
+		d.Actions = &privyActions{status: multichain.ActionStatus{
+			State: multichain.ActionFailed, Steps: []multichain.ActionStep{solStep(multichain.StepConfirmed)},
+		}}
+		d.Receipts = paid
+	})
+}
+
+func TestResolveEVMWithdrawal_RefundedBooksARefundThatPaidTheMemberAtLeastTheWithdrawal(t *testing.T) {
+	t.Parallel()
+	for name, micros := range map[string]uint64{"exactly": 2_000_000, "more": 2_500_000} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			r := landedRig(t)
+			paid := (&receipts{}).pays(refundSig, r.f.user.Address, micros)
+			if _, err := r.refund(r.refundPaying(t, paid), refundSig); err != nil {
+				t.Fatalf("refund err = %v", err)
+			}
+			if len(paid.mint) != 1 || paid.mint[0] != testUSDC() {
+				t.Fatalf("receipts asked for %+v, want one read of the USDC mint", paid.mint)
+			}
+			r.f.assertInFlight(t, "0")
+		})
+	}
+}
+
+func TestResolveEVMWithdrawal_RefundedIsRefusedWhenTheSignatureDidNotPayTheMemberTheWithdrawal(t *testing.T) {
+	t.Parallel()
+	const other chain.SolanaAddress = "9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin"
+	cases := map[string]struct {
+		paid     func(member chain.SolanaAddress) *receipts
+		wantPart string
+	}{
+		"another wallet": {
+			func(chain.SolanaAddress) *receipts { return (&receipts{}).pays(refundSig, other, 2_000_000) },
+			"paid the member 0",
+		},
+		"a smaller amount": {
+			func(m chain.SolanaAddress) *receipts { return (&receipts{}).pays(refundSig, m, 1_999_999) },
+			"paid the member 1999999",
+		},
+		"an unrelated signature": {
+			func(m chain.SolanaAddress) *receipts {
+				return (&receipts{}).pays("some-other-finalized-tx", m, 2_000_000)
+			},
+			"paid the member 0",
+		},
+	}
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			r := landedRig(t)
+			_, err := r.refund(r.refundPaying(t, c.paid(r.f.user.Address)), refundSig)
+			if errs.CodeOf(err) != errs.CodeInvalidInput || !strings.Contains(err.Error(), c.wantPart) ||
+				!strings.Contains(err.Error(), "--override") {
+				t.Fatalf("refund err = %v, want invalid_input naming %q and --override", err, c.wantPart)
+			}
+			if row := r.f.evmRow(t); row.status != "submitted" {
+				t.Fatalf("row = %+v, want it left submitted", row)
+			}
+			r.f.assertInFlight(t, "2000000")
+		})
+	}
+}
+
+func TestResolveEVMWithdrawal_OverrideBooksAShortRefundAndLogsWhatItPaid(t *testing.T) {
+	t.Parallel()
+	r := landedRig(t)
+	logs := &testkit.Logs{}
+	ctx := observability.WithLogger(t.Context(), observability.NewLogger(config.Config{Env: config.EnvTest}, logs))
+	short := (&receipts{}).pays(refundSig, r.f.user.Address, 5)
+	got, err := r.refundPaying(t, short).Handle(ctx, app.ResolveEVMWithdrawal{
+		ID: r.id, To: domain.WithdrawalFailed, Reason: "support returned part", Actor: "operator:ops-person",
+		RefundSignature: refundSig, Override: true,
+	})
+	if err != nil || got.Facts.RefundPaidMicros != "5" {
+		t.Fatalf("refund = %+v, %v, want it booked with 5 micros paid", got, err)
+	}
+	if logged := string(logs.Bytes()); !strings.Contains(logged, "refund_paid_micros") {
+		t.Fatalf("log lacks the paid amount:\n%s", logged)
+	}
+	r.f.assertInFlight(t, "0")
+}
+
+func TestResolveEVMWithdrawal_ARefundTheChainCannotDecodeStopsItUnlessOverridden(t *testing.T) {
+	t.Parallel()
+	boom := errs.New(errs.CodeRPCUnavailable, "test")
+	r := landedRig(t)
+	broken := r.refundPaying(t, &receipts{err: boom})
+	if _, err := r.refund(broken, refundSig); !errors.Is(err, boom) {
+		t.Fatalf("refund err = %v, want the failed read", err)
+	}
+	r.f.assertInFlight(t, "2000000")
+	r.recordSignature(t)
+	_, err := broken.Handle(context.Background(), app.ResolveEVMWithdrawal{
+		ID: r.id, To: domain.WithdrawalFailed, Reason: "why", Actor: "operator:ops", RefundSignature: refundSig,
+		Override: true,
+	})
+	if err != nil {
+		t.Fatalf("overridden refund err = %v", err)
+	}
+	r.f.assertInFlight(t, "0")
 }
 
 func TestResolveEVMWithdrawal_RefundedRecordsTheRefundSignatureInTheLog(t *testing.T) {
