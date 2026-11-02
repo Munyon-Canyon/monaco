@@ -152,6 +152,13 @@ public final class Funding {
 
     public var isSubmitting: Bool { progress == .submitting }
 
+    public var pendingMicros: Int64? { submission.hasPendingKey ? unconfirmedMicros : nil }
+
+    public func reset() {
+        guard progress != .submitting else { return }
+        progress = .idle
+    }
+
     public func submit(micros: Int64) async -> FundAttempt {
         guard progress == .idle else {
             if case .submitted(let transfer) = progress { return .accepted(transfer) }

@@ -20,6 +20,13 @@ public enum FundCabalCopy {
         return micros % 1_000_000 == 0 ? String(formatted.dropLast(3)) : formatted
     }
 
+    public static let checkAgain = "Check again"
+
+    public static func pendingBlocked(micros: Int64) -> String {
+        "Your \(amount(micros: micros)) fund may still be going through. "
+            + "Check it again before funding a different amount."
+    }
+
     public static let fromCash = "From your cash"
 
     public static func shareLine(now: Int32, after: Int32? = nil) -> String {

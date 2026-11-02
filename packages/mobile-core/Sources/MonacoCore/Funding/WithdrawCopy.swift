@@ -16,6 +16,7 @@ public enum WithdrawCopy {
     public static let addAddress = "Add an address"
     public static let feeFailed = "Couldn't get the fee. Try again."
     public static let invalidAddress = "That address can't receive USDC from here."
+    public static let checkAgain = "Check again"
     public static let processing = "Withdrawal processing · Pending"
     public static let switchToBase = "Switch to Base"
     public static let baseAddressOnSolana = "That's a Base address, not a Solana one."
@@ -24,6 +25,11 @@ public enum WithdrawCopy {
     public static func dollars(_ micros: Int64) -> String {
         let text = UsdAmountFormatter.format(micros: micros)
         return text.hasSuffix(".00") ? String(text.dropLast(3)) : text
+    }
+
+    public static func pendingBlocked(amountMicros: Int64, address: String) -> String {
+        "Your \(dollars(amountMicros)) withdrawal to \(SolanaAddress.shortened(address)) may still be going through. "
+            + "Check it again before sending a different one."
     }
 
     public static func fee(_ micros: Int64) -> String {

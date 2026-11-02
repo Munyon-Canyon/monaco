@@ -28,6 +28,7 @@ public final class WithdrawModel {
     private var outcome: Outcome?
     private var quoted: (key: QuoteKey, quote: WithdrawQuote)?
     private var refusedAddress: String?
+    private var checkingPending = false
 
     private enum Outcome {
         case submitting
@@ -197,6 +198,7 @@ public final class WithdrawModel {
 
     public var buttonTitle: String? {
         switch state {
+        case .failed where checkingPending: WithdrawCopy.checkAgain
         case .typed, .failed, .submitting: WithdrawCopy.button(amountMicros: amountMicros)
         case .processing: WithdrawCopy.processing
         case .needsAddress: WithdrawCopy.addAddress
@@ -253,6 +255,7 @@ public final class WithdrawModel {
     }
 
     private func clearFailure() {
+        checkingPending = false
         if case .failed = outcome {
             outcome = nil
         } else if case .accepted = outcome, case .failed = state {
@@ -317,6 +320,7 @@ extension WithdrawModel {
                 } catch is CancellationError {
                     return
                 } catch {
+                    if Self.addressRefusal(error) != nil { throw error }
                     try await clock.sleep(for: Self.retryDelay)
                     quote = try await source.quote(
                         network: key.network, amountMicros: key.amountMicros, toAddress: key.address)
@@ -328,7 +332,12 @@ extension WithdrawModel {
             } catch is CancellationError {
             } catch {
                 guard !Task.isCancelled else { return }
-                self.quoteFailed = true
+                if let refusal = Self.addressRefusal(error) {
+                    self.refusedAddress = refusal
+                    self.quoteFailed = false
+                } else {
+                    self.quoteFailed = true
+                }
                 self.isQuoting = false
             }
         }
@@ -369,13 +378,38 @@ extension WithdrawModel {
             await reloadBalance()
         case .refused(.address(let message)):
             outcome = nil
-            refusedAddress =
-                message == WithdrawFailure.ownWallet ? WithdrawCopy.ownDeposit : WithdrawCopy.invalidAddress
+            refusedAddress = Self.addressCopy(message)
         case .refused(.toast(let message)):
             outcome = .failed(message)
         case .unconfirmed(let message):
-            outcome = .failed(message)
+            let request = Withdrawing.Pending(micros: micros, toAddress: to, network: sentNetwork.rawValue)
+            if let pending = withdrawing.pending, pending != request {
+                restore(pending)
+            } else {
+                outcome = .failed(message)
+            }
         }
+    }
+
+    private static func addressCopy(_ message: String) -> String {
+        message == WithdrawFailure.ownWallet ? WithdrawCopy.ownDeposit : WithdrawCopy.invalidAddress
+    }
+
+    private static func addressRefusal(_ error: any Error) -> String? {
+        guard case .address(let message) = MoneyFlowCopy.withdrawFailure(APIError(error)) else { return nil }
+        return addressCopy(message)
+    }
+
+    private func restore(_ pending: Withdrawing.Pending) {
+        let restored = WithdrawNetwork(rawValue: pending.network) ?? network
+        address = pending.toAddress
+        network = restored
+        amountText = AmountText.plain(AmountText.roundDownToCents(AmountText.dollars(micros: pending.micros)))
+        withdrawAll = false
+        refusedAddress = nil
+        outcome = .failed(WithdrawCopy.pendingBlocked(amountMicros: pending.micros, address: pending.toAddress))
+        checkingPending = true
+        scheduleQuote()
     }
 
     private func reloadBalance() async {

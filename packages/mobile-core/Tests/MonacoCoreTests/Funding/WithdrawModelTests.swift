@@ -441,6 +441,55 @@ extension WithdrawModelTests {
         XCTAssertNil(rig.model.addressProblem)
     }
 
+    func testAnAddressTheQuoteRefusesNamesTheAddressNotTheFee() async throws {
+        let refusal = try StubTransport.Reply.problem(
+            Components.Schemas.Problem(
+                _type: .about_colon_blank, title: "Unprocessable", status: 422, code: .invalidAddress,
+                message: "Paste a wallet address.", traceId: "4bf92f3577b34da6a3ce929d0e0e4736", retryable: false))
+        let rig = rig([previewPath: [refusal, empty]])
+        rig.model.setAddress(solana)
+        rig.model.setAmountText("120")
+        await flush(rig)
+
+        XCTAssertEqual(rig.model.addressProblem, WithdrawCopy.invalidAddress)
+        XCTAssertFalse(rig.model.quoteFailed)
+        XCTAssertNotEqual(rig.model.line, WithdrawCopy.feeFailed)
+        XCTAssertFalse(rig.model.canSubmit)
+        XCTAssertFalse(rig.model.buttonIsEnabled)
+        let previews = await rig.transport.sent.filter { $0.path == previewPath }
+        XCTAssertEqual(previews.count, 1)
+
+        rig.model.setAddress(solana + " ")
+        XCTAssertNil(rig.model.addressProblem)
+    }
+
+    func testADifferentWithdrawUnderAPendingKeyNamesThePendingOneAndPrefillsIt() async throws {
+        let rig = rig(
+            [
+                previewPath: [typed, typed, typed],
+                "/v1/me/withdrawals/authorizations": [granted],
+                "/v1/me/withdrawals": [.failure(URLError(.timedOut))],
+            ])
+        rig.model.setAddress(solana)
+        rig.model.setAmountText("120")
+        await flush(rig)
+        await rig.model.submit()
+        rig.model.setAmountText("50")
+        await flush(rig)
+
+        await rig.model.submit()
+
+        let pendingLine = WithdrawCopy.pendingBlocked(amountMicros: 120_000_000, address: solana)
+        XCTAssertEqual(rig.model.state, .failed(pendingLine))
+        XCTAssertEqual(rig.model.amountText, "120")
+        XCTAssertEqual(rig.model.address, solana)
+        XCTAssertEqual(rig.model.buttonTitle, "Check again")
+        await flush(rig)
+        XCTAssertTrue(rig.model.canSubmit)
+        let sent = await rig.transport.sent.filter { $0.path == "/v1/me/withdrawals" }
+        XCTAssertEqual(sent.count, 1)
+    }
+
     func testWithdrawIsDisabledWhileANewQuoteLoads() async {
         let rig = rig([previewPath: [typed, typed]])
         rig.model.setAddress(solana)
