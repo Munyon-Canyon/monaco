@@ -42,7 +42,13 @@ struct CatchUpCardContent: View {
             }
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(CatchUpCopy.accessibilityLabel(item, now: now, calendar: calendar))
+        .accessibilityLabel(spokenLabel)
+    }
+
+    private var spokenLabel: String {
+        let label = CatchUpCopy.accessibilityLabel(item, now: now, calendar: calendar)
+        guard let comment = item.comment, item.kind == .reply || item.kind == .mention else { return label }
+        return "\(label) \(comment.author.name): \(comment.body)"
     }
 
     @ViewBuilder private var header: some View {

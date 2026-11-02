@@ -32,9 +32,9 @@ struct CatchUpCardComment: View {
                         .font(MonacoTheme.Typo.subhead)
                         .foregroundStyle(MonacoTheme.secondaryText)
                 }
+                .accessibilityHidden(true)
                 body(comment.body)
-                    .accessibilityElement(children: .ignore)
-                    .accessibilityLabel(comment.body)
+                    .accessibilityHidden(true)
                 reactionRow
             }
             .frame(maxWidth: .infinity, alignment: .leading)
