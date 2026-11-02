@@ -1,7 +1,8 @@
 ---
 id: profile/overview
 title: Your profile
-version: 12
+version: 13
+rpc: fake
 milestone: M9
 requires: [auth/sign-in]
 actors: [A]
@@ -21,7 +22,8 @@ The format of this doc is in [App journeys](../README.md). The Old app column na
 | --- | --- |
 | P1 | Everything [auth/sign-in](../auth/sign-in.md) needs |
 | P2 | Before each scenario, `apps/mobile/qa/journeys/profile/overview.setup.sh` sets A's `auth_state` to `ONBOARDING_COMPLETED`, so the onboarding nudge stays out of the way |
-| P3 | Before each scenario, the setup script reads A's portfolio (`GET /v1/me/portfolio`), because the Cabals tab lists only cabals A holds shares in, and hands the test its largest cabal's id as `cabalID` and its name as `cabalName`. When A holds none, it creates a cabal named `QA overview {QA.run}` and hands that over, and S1.3 fails because the app lists no unfunded cabal |
+| P3 | Before each scenario, the setup script reads A's portfolio (`GET /v1/me/portfolio`), which lists every cabal A is a member of, and hands the test the cabal where A holds shares and the stake is worth the most (a cabal A holds no shares in reads a dash instead of a dollar share, so S7.2 would fail on it), with its id as `cabalID` and its name as `cabalName`. When A holds none, it creates a cabal named `QA overview {QA.run}` and hands that over, and S1.3 fails because the app lists no unfunded cabal |
+| P4 | Before each scenario, the setup script reads A's profile (`GET /v1/users/{id}`), the call the screen makes, and hands the test `hasStanding`: `1` when the backend returns a `standing` for A, `0` when it does not. The backend drops it for an account with no resolved call in the current month, which is every account on the first days of a month |
 
 ## Scenarios
 
@@ -32,7 +34,7 @@ Starts signed in (auth/sign-in).
 | Step | Action | Target | Input | Expect | Old app |
 | --- | --- | --- | --- | --- | --- |
 | S1.1 | tap | the Profile tab | | Within 15 s, `profile-card` shows with `profile-display-name` and `profile-handle` reading "@" and the handle, then "joined" with a month and year | `profile-root`, then `profile-card` |
-| S1.2 | wait | `profile-stat-cabals` | | Within 15 s, the card shows "Positions" (`profile-positions`) and "P&L · 1M" (`profile-pnl-1m`), and the counts line ends with "cabal" or "cabals" by count (`profile-stat-cabals`, 1 or more). `profile-standing` reads "% right calls this month" or the unranked line an account under five resolved votes gets | The count badge on "Your cabals" (`cabalRows.count`) |
+| S1.2 | wait | `profile-stat-cabals` | | Within 15 s, the card shows "Positions" (`profile-positions`) and "P&L · 1M" (`profile-pnl-1m`), and the counts line ends with "cabal" or "cabals" by count (`profile-stat-cabals`, 1 or more). When `hasStanding` is `1`, `profile-standing` reads "% right calls this month" or the unranked line an account under five resolved votes gets. When it is `0`, the step does not look for it | The count badge on "Your cabals" (`cabalRows.count`) |
 | S1.3 | tap, then scroll to | the Cabals tab (`profile-tab-cabals`), then `profile-cabal-row-{cabalID}` | | The tab lists the row for `cabalName` with its ownership share and "admin" or "voter" | `ProfileCabalsSection` rows |
 | S1.4 | find | `profile-settings-row` | | The round button in the title bar reads "Settings" | None, new in spec ("Settings" row) |
 | S1.5 | read | `profile-cash-row`, `profile-add-money-link` | | The cash row reads "Cash" and "USDC", with no APY text and no `profile-apy-info` button. `profile-add-money-link` reads "Deposit" above the tab bar | None, new in spec |

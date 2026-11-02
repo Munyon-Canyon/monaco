@@ -2,7 +2,7 @@ import XCTest
 
 enum ProfileOverviewJourney {
     static let id = "profile/overview"
-    static let version = 12
+    static let version = 13
 
     static let signOutTitle = "Sign out of Monaco?"
     static let signOutMessage =
@@ -56,11 +56,14 @@ enum ProfileOverviewJourney {
                 app.element("profile-pnl-1m").label.contains("P&L \u{00B7} 1M"), "S1.2: no 'P&L · 1M' column")
             XCTAssertTrue(
                 app.element("profile-stat-cabals").label.contains("cabal"), "S1.2: no 'cabal' or 'cabals' count")
-            let standing = app.element("profile-standing")
-            XCTAssertTrue(standing.waitForExistence(timeout: 15), "S1.2: no month standing line")
-            XCTAssertTrue(
-                standing.label.contains("right calls this month") || standing.label.contains("resolved"),
-                "S1.2: the standing line reads '\(standing.label)', not the month's right calls or the unranked line")
+            if (try? JourneyHandoff.read("hasStanding")) == "1" {
+                let standing = app.element("profile-standing")
+                XCTAssertTrue(standing.waitForExistence(timeout: 15), "S1.2: no month standing line")
+                XCTAssertTrue(
+                    standing.label.contains("right calls this month") || standing.label.contains("resolved"),
+                    "S1.2: the standing line reads '\(standing.label)', not the month's right calls or the unranked line"
+                )
+            }
         }
 
         recorder.step("S1.3", "find the cabal under Your cabals") {

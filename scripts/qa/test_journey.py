@@ -325,6 +325,85 @@ class SimslimProfile(Tree):
         self.assertIn("simslim names profile 'nope', which has no ci/profiles/nope.json", self.problems()[0])
 
 
+class FakeRpc(Tree):
+    def declare(self, value):
+        self.write("docs/journeys/auth/sign-in.md", DOC.replace("actors: [A]\n", "actors: [A]\nrpc: %s\n" % value))
+
+    def args(self):
+        return unittest.mock.Mock(**{"all": False, "journey": ["auth/sign-in"]})
+
+    def test_a_journey_without_rpc_reads_the_chain(self):
+        self.assertEqual(journey.load_journeys()["auth/sign-in"].rpc, "")
+        self.assertFalse(journey.backend_fake_rpc(self.args()))
+
+    def test_rpc_fake_passes_and_asks_for_the_fakes(self):
+        self.declare("fake")
+        self.assertEqual(self.problems(), [])
+        self.assertTrue(journey.backend_fake_rpc(self.args()))
+
+    def test_another_rpc_value_is_named(self):
+        self.declare("mainnet")
+        self.assertIn("rpc is 'mainnet': the only value is fake", self.problems()[0])
+
+    def test_rpc_fake_with_funds_is_refused(self):
+        self.write("docs/journeys/auth/sign-in.md",
+                   DOC.replace("actors: [A]\n", "actors: [A]\nrpc: fake\nfunds:\n  A: 2\n"))
+        self.assertIn("rpc: fake and funds cannot both be set", self.problems()[0])
+
+    def test_a_run_with_one_journey_that_does_not_declare_it_keeps_the_public_rpc(self):
+        declared = unittest.mock.Mock(rpc="fake", funds={})
+        other = unittest.mock.Mock(rpc="", funds={})
+        with unittest.mock.patch.object(journey, "load_journeys", lambda: {"a": declared, "b": other}):
+            self.assertTrue(journey.backend_fake_rpc(unittest.mock.Mock(**{"all": False, "journey": ["a"]})))
+            self.assertFalse(journey.backend_fake_rpc(unittest.mock.Mock(**{"all": True, "journey": []})))
+
+
+class FakeRpcEnvironment(unittest.TestCase):
+    def test_the_run_points_at_its_own_fakes_and_puts_the_environment_back(self):
+        started, stopped = [], []
+        environ = {"QA_FAKES_URL": "http://old"}
+        with unittest.mock.patch.dict(os.environ, environ, clear=True), \
+                unittest.mock.patch.object(journey, "start_fakes", lambda slot: started.append(slot) or "proc"), \
+                unittest.mock.patch.object(journey, "stop_backend", stopped.append):
+            with journey.fake_rpc_environment(1):
+                self.assertEqual(os.environ["QA_FAKE_RPC"], "1")
+                self.assertEqual(os.environ["QA_FAKES_URL"], "http://127.0.0.1:8199")
+            self.assertNotIn("QA_FAKE_RPC", os.environ)
+            self.assertEqual(os.environ["QA_FAKES_URL"], "http://old")
+        self.assertEqual((started, stopped), ([1], ["proc"]))
+
+    def test_a_caller_with_its_own_fakes_keeps_control(self):
+        with unittest.mock.patch.dict(os.environ, {"QA_FAKE_RPC": "1"}, clear=True), \
+                unittest.mock.patch.object(journey, "start_fakes", lambda slot: self.fail("started fakes")):
+            with journey.fake_rpc_environment(0):
+                self.assertEqual(os.environ["QA_FAKE_RPC"], "1")
+
+    def test_the_fakes_start_on_the_slot_port_and_stop_when_they_do_not_listen(self):
+        calls = []
+        with tempfile.TemporaryDirectory() as out, \
+                unittest.mock.patch.object(journey, "OUT", Path(out)), \
+                unittest.mock.patch.object(journey, "listeners", lambda ports=None, run=None: []), \
+                unittest.mock.patch.object(journey, "sh", lambda args, **k: calls.append(args)), \
+                unittest.mock.patch.object(journey.subprocess, "Popen", lambda *a, **k: unittest.mock.Mock(poll=lambda: 1)), \
+                unittest.mock.patch.object(journey, "stop_backend", lambda process: calls.append("stopped")), \
+                redirect_stdout(StringIO()):
+            with self.assertRaisesRegex(journey.JourneyError, "did not listen on :8099"):
+                journey.start_fakes(0)
+        self.assertEqual(calls[0][:5], ["go", "-C", "apps/backend", "build", "-o"])
+        self.assertEqual(calls[-1], "stopped")
+
+    def test_the_fakes_return_once_the_port_listens(self):
+        process = unittest.mock.Mock(poll=lambda: None)
+        with tempfile.TemporaryDirectory() as out, \
+                unittest.mock.patch.object(journey, "OUT", Path(out)), \
+                unittest.mock.patch.object(journey, "listeners", unittest.mock.Mock(side_effect=[[], [("1", "/")]])), \
+                unittest.mock.patch.object(journey, "sh", lambda args, **k: None), \
+                unittest.mock.patch.object(journey.subprocess, "Popen", lambda *a, **k: process), \
+                unittest.mock.patch.object(journey.time, "sleep", lambda s: None), \
+                redirect_stdout(StringIO()):
+            self.assertIs(journey.start_fakes(0), process)
+
+
 class Funds(Tree):
     def fund(self, lines):
         self.write("docs/journeys/auth/sign-in.md", DOC.replace("actors: [A]\n", "actors: [A]\nfunds:\n" + lines))
