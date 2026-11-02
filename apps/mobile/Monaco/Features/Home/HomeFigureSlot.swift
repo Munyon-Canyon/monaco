@@ -101,6 +101,7 @@ struct HomeFigureView: View {
             }
             .font(MonacoTheme.Typo.subhead)
             .frame(minHeight: MonacoButtonMetrics.hitTarget)
+            .contentShape(.accessibility, Rectangle())
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(
                 HomeFigureCopy.spoken(netWorthMicros: netWorth, pnlMicros: pnl, returnBps: bps, range: range)

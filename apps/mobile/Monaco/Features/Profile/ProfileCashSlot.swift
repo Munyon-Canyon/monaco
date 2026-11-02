@@ -108,6 +108,8 @@ struct ProfileCashRow: View {
         figure
             .lineLimit(1)
             .minimumScaleFactor(MoneyStyle.row.minimumScaleFactor)
+            .frame(minHeight: MonacoButtonMetrics.hitTarget)
+            .contentShape(.accessibility, Rectangle())
             .allowsHitTesting(false)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Cash")
