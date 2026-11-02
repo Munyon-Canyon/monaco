@@ -160,6 +160,10 @@ enum MonacoToastDismissal {
     static let predictedSwipeUpDistance: CGFloat = 60
     static let tapOutsideTheActionDismisses = false
 
+    static func takesTouches(link: MonacoToastLink?, action: MonacoToastAction?, actionExpired: Bool) -> Bool {
+        link != nil || (action != nil && !actionExpired)
+    }
+
     static func swipeDismisses(translation: CGFloat, predicted: CGFloat) -> Bool {
         translation < -swipeUpDistance || predicted < -predictedSwipeUpDistance
     }
@@ -340,6 +344,9 @@ private struct MonacoToastModifier: ViewModifier {
             )
             Spacer(minLength: 0)
         }
+        .allowsHitTesting(
+            MonacoToastDismissal.takesTouches(link: toast.link, action: toast.action, actionExpired: actionExpired)
+        )
         .id(toast.id)
         .padding(.horizontal, MonacoTheme.Space.gutter)
         .offset(y: min(dragOffset, 0))

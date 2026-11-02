@@ -238,12 +238,9 @@ nonisolated final class CabalsTabSampleUITests: XCTestCase {
         let back = app.buttons["BackButton"]
         XCTAssertTrue(back.waitForExistence(timeout: 5), "the new cabal has a back button")
         back.tap()
-        if !anyElement(app, "cabals-header").waitForExistence(timeout: 3) {
-            back.tap()
-        }
         XCTAssertTrue(
             anyElement(app, "cabals-header").waitForExistence(timeout: 8),
-            "Back from a new cabal should land on the Cabals tab"
+            "one Back tap from a new cabal should land on the Cabals tab"
         )
         XCTAssertFalse(
             app.textFields["create-group-name"].exists,
