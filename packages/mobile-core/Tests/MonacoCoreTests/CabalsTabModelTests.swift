@@ -235,7 +235,7 @@ final class CabalsTabModelTests: XCTestCase {
 
     private static func cabalsJSON(unread: [String: Int]) -> String {
         let rows = unread.map { id, count in
-            #"{"id":"\#(id)","name":"Cabal","picture_url":null,"role":"member","can_vote":true,"member_count":2,"#
+            #"{"id":"\#(id)","name":"Cabal","picture_url":null,"status":"active","role":"member","can_vote":true,"member_count":2,"#
                 + #""joined_at":"2026-09-30T12:00:00Z","pending_request_count":0,"unread_count":\#(count)}"#
         }
         return "[\(rows.joined(separator: ","))]"

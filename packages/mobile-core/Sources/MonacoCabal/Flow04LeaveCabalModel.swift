@@ -141,7 +141,7 @@ private struct LeaveCabalPreviewTransport: ClientTransport {
             var response = HTTPResponse(status: .ok)
             response.headerFields[.contentType] = "application/json"
             let row =
-                #"{"id":"\#(LeaveCabalModel.previewCabalID)","name":"QA pot","picture_url":null,"#
+                #"{"id":"\#(LeaveCabalModel.previewCabalID)","name":"QA pot","picture_url":null,"status":"active","#
                 + #""role":"\#(role)","can_vote":true,"member_count":\#(memberCount),"#
                 + #""joined_at":"2026-10-02T15:00:00Z","pending_request_count":0,"unread_count":0}"#
             return (response, HTTPBody("[\(row)]"))

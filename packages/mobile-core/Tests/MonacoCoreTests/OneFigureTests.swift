@@ -27,7 +27,8 @@ final class OneFigureTests: XCTestCase {
 
     private func cabal() -> Components.Schemas.MyCabal {
         Components.Schemas.MyCabal(
-            id: Components.Schemas.CabalRef.sampleAlpha.id, name: "Alpha", pictureUrl: nil, role: "member",
+            id: Components.Schemas.CabalRef.sampleAlpha.id, name: "Alpha", pictureUrl: nil,
+            status: "active", role: "member",
             canVote: true, memberCount: 3, joinedAt: Date(timeIntervalSince1970: 0), pendingRequestCount: 0,
             unreadCount: 0)
     }

@@ -1234,14 +1234,14 @@ paths:
       summary: List the caller's cabals.
       description: >-
         Returns every cabal the caller belongs to, in the caller's own order (see putMyCabalOrder). A cabal
-        joined after the last reorder comes last, in join order. Each row carries the server-computed `unread_count` of the cabal's chat, capped at 100.
+        joined after the last reorder comes last, in join order. A cabal that was banned stays listed while the caller still holds shares in it, with `status` `winding_down` or `closed`. Each row carries the server-computed `unread_count` of the cabal's chat, capped at 100.
       responses:
         "200":
           description: The caller's cabals.
           content:
             application/json:
               schema: {type: array, items: {$ref: "#/components/schemas/MyCabal"}}
-              example: [{id: "01890a5d-ac96-774b-bcce-b302099a8058", name: Friends, picture_url: null, role: creator, can_vote: true, member_count: 3, joined_at: "2026-10-02T15:00:00Z", pending_request_count: 1, unread_count: 3}]
+              example: [{id: "01890a5d-ac96-774b-bcce-b302099a8058", name: Friends, picture_url: null, status: active, role: creator, can_vote: true, member_count: 3, joined_at: "2026-10-02T15:00:00Z", pending_request_count: 1, unread_count: 3}]
         default:
           $ref: "#/components/responses/Problem"
   /v1/me/cabals/order:
@@ -6979,7 +6979,7 @@ components:
         id: {type: string, format: uuid, examples: ["01890a5d-ac96-774b-bcce-b302099a8058"]}
         name: {type: string, examples: [Kai]}
         picture_url: {type: [string, "null"], description: Null when the cabal has no picture., examples: [null]}
-        status: {type: string, description: "`active` or `banned`.", examples: [active]}
+        status: {type: string, description: "`active`, `winding_down` while a banned cabal pays its members out, or `closed` once the wind-down has completed. A cabal that is not `active` is read-only: it refuses proposals, votes, funds and invites, and a member can still cash out while it is winding down.", examples: [active]}
         rules: {$ref: "#/components/schemas/CabalRules", examples: [{join_mode: open, voter_mode: all, threshold: majority, proposal_expiry_seconds: 86400, slippage_bps: 100, show_sides: false, show_sides_since: null, max_trade_bps: null, who_can_propose: voters}]}
         creator: {$ref: "#/components/schemas/CabalPerson", examples: [{user_id: "01890a5d-ac96-774b-bcce-b302099a8058", handle: kai, display_name: Kai, photo_url: null}]}
         member_count: {type: integer, format: int32, examples: [1]}
@@ -7204,11 +7204,12 @@ components:
     MyCabal:
       type: object
       description: A cabal the caller belongs to.
-      required: [id, name, picture_url, role, can_vote, member_count, joined_at, pending_request_count, unread_count]
+      required: [id, name, picture_url, status, role, can_vote, member_count, joined_at, pending_request_count, unread_count]
       properties:
         id: {type: string, format: uuid}
         name: {type: string}
         picture_url: {type: [string, "null"]}
+        status: {type: string, description: "`active`, `winding_down` while a banned cabal pays its members out, or `closed` once the wind-down has completed. A cabal that is not `active` is read-only.", examples: [active]}
         role: {type: string, description: "`creator`, `admin` or `member`. Clients treat `creator` as an admin.", examples: [creator]}
         can_vote: {type: boolean}
         member_count: {type: integer, format: int32}

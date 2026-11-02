@@ -105,7 +105,8 @@ final class CabalChatPreviewModelTests: XCTestCase {
     private static func myCabals(unread: Int) throws -> String {
         encode([
             Components.Schemas.MyCabal(
-                id: cabalID, name: "QA pot", pictureUrl: nil, role: "member", canVote: true, memberCount: 2,
+                id: cabalID, name: "QA pot", pictureUrl: nil,
+                status: "active", role: "member", canVote: true, memberCount: 2,
                 joinedAt: Date(timeIntervalSince1970: 0), pendingRequestCount: 0, unreadCount: unread)
         ])
     }

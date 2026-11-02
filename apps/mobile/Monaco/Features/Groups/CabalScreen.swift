@@ -48,7 +48,7 @@ struct CabalScreen: View {
 
     static func canShare(cabal: Components.Schemas.Cabal?) -> Bool {
         guard let cabal else { return false }
-        return cabal.me != nil && cabal.status != "banned"
+        return cabal.me != nil && !CabalClosedModel.isReadOnly(cabal.status)
     }
 
     var body: some View {

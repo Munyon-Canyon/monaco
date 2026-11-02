@@ -101,6 +101,10 @@ func GetCabal(
 	if err != nil {
 		return CabalView{}, errs.Wrap(err, errs.CodeInternal, getCabalOp)
 	}
+	lifecycle, err := dbq.FindCabalLifecycle(ctx, cabalID.UUID())
+	if err != nil {
+		return CabalView{}, errs.Wrap(err, errs.CodeInternal, getCabalOp)
+	}
 	memberRows, err := dbq.ListMembers(ctx, cabalID.UUID())
 	if err != nil {
 		return CabalView{}, errs.Wrap(err, errs.CodeInternal, getCabalOp)
@@ -127,7 +131,7 @@ func GetCabal(
 	}
 	view := CabalView{
 		ID: cabalID, Name: row.Name, PictureURL: textPtr(row.PictureUrl.Valid, row.PictureUrl.String),
-		Status: row.Status, JoinMode: row.JoinMode, VoterMode: row.VoterMode, Threshold: row.Threshold,
+		Status: lifecycle, JoinMode: row.JoinMode, VoterMode: row.VoterMode, Threshold: row.Threshold,
 		ExpirySeconds: row.ProposalExpirySeconds, SlippageBps: row.SlippageBps,
 		ShowSides: row.ShowSides, ShowSidesSince: timePtr(row.ShowSidesChangedAt.Valid, row.ShowSidesChangedAt.Time),
 		MaxTradeBps: int32Ptr(row.MaxTradeBps.Valid, row.MaxTradeBps.Int32), CreatedAt: row.CreatedAt,

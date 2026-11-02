@@ -89,7 +89,8 @@ final class StakeValueNoteTests: XCTestCase {
 
     func testProfileCarriesTheNoteAndADashForAMissingReturn() {
         let cabal = Components.Schemas.MyCabal(
-            id: "cabal-1", name: "Alpha", pictureUrl: nil, role: "member", canVote: true, memberCount: 3,
+            id: "cabal-1", name: "Alpha", pictureUrl: nil,
+            status: "active", role: "member", canVote: true, memberCount: 3,
             joinedAt: Date(timeIntervalSince1970: 0), pendingRequestCount: 0, unreadCount: 0)
         func member(_ stake: Components.Schemas.PortfolioCabal) -> ProfileCabalRow.Member? {
             let portfolio = Components.Schemas.MyPortfolio(
