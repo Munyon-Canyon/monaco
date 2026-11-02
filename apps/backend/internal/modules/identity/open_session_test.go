@@ -219,6 +219,36 @@ func TestOpenSession_aStoredWalletNeedsNoPrivyCall(t *testing.T) {
 	}
 }
 
+func TestOpenSession_aKnownMemberOpensTheirSessionFromTheStoredRowWhenPrivysUserAPIFails(t *testing.T) {
+	t.Parallel()
+	for name, down := range map[string]error{
+		"unavailable": errs.New(errs.CodePrivyUnavailable, "test"),
+		"rate limit":  errs.New(errs.CodeRateLimited, "test"),
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			f := newSessionFixture(t)
+			f.privy.Seed(alicePhone())
+			first, err := f.open(t, alice)
+			if err != nil {
+				t.Fatal(err)
+			}
+			before := f.tally(t.Context(), t)
+			f.privy.Fail("User", down)
+			again, err := f.open(t, alice)
+			if err != nil {
+				t.Fatalf("sign-in of a known member with Privy's user API down = %v, want success", err)
+			}
+			if again.ID != first.ID || again.MemberWalletAddress != first.MemberWalletAddress {
+				t.Fatalf("Me = %+v, want the stored account %+v", again, first)
+			}
+			if got := f.tally(t.Context(), t); got != before {
+				t.Fatalf("rows = %+v, want %+v: no new user, event, hint or wallet", got, before)
+			}
+		})
+	}
+}
+
 func TestOpenSession_theLoginProviderFollowsWhatIsLinked(t *testing.T) {
 	t.Parallel()
 	f := newSessionFixture(t)
