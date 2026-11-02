@@ -4,6 +4,7 @@ public enum ProposalResultCopy {
     public enum Seal: Equatable, Sendable { case passed, failed, neutral }
     public enum FillUnit: Equatable, Sendable {
         case shares
+        case tokens
         case ticker(String)
     }
     public enum Action: Equatable, Sendable { case share, proposeAgain }
@@ -63,6 +64,12 @@ public enum ProposalResultCopy {
         return cents < 10 ? "\(whole).0\(cents)" : "\(whole).\(cents)"
     }
 
+    public static func unitName(kind: AssetKind) -> String { kind == .preIpo ? "tokens" : "sh" }
+
+    public static func pendingUnits(atomics: Int64, decimals: Int, exact: Bool, kind: AssetKind) -> String? {
+        units(atomics: atomics, decimals: decimals).map { "\(exact ? "" : "≈ ")\($0) \(unitName(kind: kind))" }
+    }
+
     private static func pow10(_ exponent: Int) -> UInt64 {
         (0..<exponent).reduce(UInt64(1)) { power, _ in power * 10 }
     }
@@ -80,9 +87,17 @@ public enum ProposalResultCopy {
         let name: String
         switch unit {
         case .shares: name = "sh"
+        case .tokens: name = "tokens"
         case .ticker(let symbol): name = symbol
         }
         return "\(isSell ? "Sold" : "Bought") \(count) \(name) at \(UsdAmountFormatter.format(micros: price))"
+    }
+
+    public static func passedSheetAmount(isSell: Bool, usdcMicros: Int64?, quoteOutAmount: Int64, swap: ProposalSwap?)
+        -> Int64?
+    {
+        guard isSell else { return usdcMicros }
+        return swap?.usdcMicros ?? quoteOutAmount
     }
 
     public static func passedSheetTitle(kind: String, symbol: String, assetKind: AssetKind, amountMicros: Int64?)
@@ -134,9 +149,12 @@ public enum ProposalResultCopy {
     }
 
     public static func tradeRow(
-        swap: ProposalSwap, isSell: Bool, sinceBps: Int64?, calendar: Calendar = .current
+        swap: ProposalSwap, isSell: Bool, sinceBps: Int64?, calendar: Calendar = .current,
+        assetKind: AssetKind = .stock
     ) -> TradeRow? {
-        guard let title = filled(swap, unit: .shares, isSell: isSell), let at = swap.filledAt else { return nil }
+        guard let title = filled(swap, unit: assetKind == .preIpo ? .tokens : .shares, isSell: isSell),
+            let at = swap.filledAt
+        else { return nil }
         var subtitle = "Filled \(clock(at, calendar: calendar))"
         if let fee = swap.feeMicros { subtitle += " · fee \(UsdAmountFormatter.format(micros: fee))" }
         return TradeRow(

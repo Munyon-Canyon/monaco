@@ -68,6 +68,25 @@ final class ProposalVoteModelTests: XCTestCase {
         XCTAssertEqual(model.applying(proposal), proposal)
     }
 
+    func testAVoteAfterAnUndoThatNeverGotAnAnswerSendsTheNextUndoUnderAFreshKey() async throws {
+        let retracted =
+            #"{"proposal_id":"proposal-1","status":"open","tally":{"yes":0,"no":0,"voters":3,"needed":2}}"#
+        let transport = StubTransport(scripted: [
+            .json(.internalServerError, #"{"message":"Try again"}"#), .json(.ok, voted), .json(.ok, retracted),
+        ])
+        let model = model(transport)
+        let proposal = summary()
+        let first = await model.undo(on: proposal)
+        XCTAssertNil(first)
+        _ = await model.vote("yes", on: proposal)
+        let second = await model.undo(on: proposal)
+        XCTAssertNotNil(second)
+        let key = try XCTUnwrap(HTTPField.Name(IdempotentSubmission.keyHeader))
+        let sent = await transport.sent.filter { $0.method == .delete }
+        XCTAssertEqual(sent.count, 2)
+        XCTAssertNotEqual(sent[0].headerFields[key], sent[1].headerFields[key])
+    }
+
     func testARetryAfterAnErrorReplaysTheSameKey() async throws {
         let transport = StubTransport(scripted: [
             .json(.internalServerError, #"{"message":"Try again"}"#), .json(.ok, voted),
@@ -399,5 +418,56 @@ final class ProposalDetailVoteTests: XCTestCase {
         XCTAssertEqual(model.viewerRole(viewerID: member), .memberNotVoter)
         XCTAssertEqual(model.viewerRole(viewerID: "someone-else"), .nonMember)
         XCTAssertEqual(model.viewerRole(viewerID: nil), .nonMember)
+    }
+}
+
+extension ProposalDetailVoteTests {
+    func testChangeDuringThePostVoteReloadLeavesTheCommittedBallotAlone() async throws {
+        let transport = StubTransport(
+            routes: [
+                detailPath: [try detail(), .gate],
+                votesPath: [.json(.ok, castBody(yes: 5, no: 1))],
+            ])
+        let model = model(transport)
+        await model.load()
+        let voting = Task { await model.vote("yes") }
+        for _ in 0..<50_000 {
+            let reloads = await transport.sent.filter { $0.path == detailPath }.count
+            if reloads >= 2 { break }
+            await Task.yield()
+        }
+        for _ in 0..<200 { await Task.yield() }
+        XCTAssertEqual(model.voteSelection, .committed(.yes))
+        model.beginChange()
+        XCTAssertEqual(model.voteSelection, .committed(.yes))
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        var reloaded = Components.Schemas.ProposalDetail.sample(status: .open, myBallot: .yes, canVote: true)
+        reloaded.tally = .init(yes: 5, no: 1, voters: 8, needed: 5)
+        await transport.releaseGate(.json(.ok, String(decoding: try encoder.encode(reloaded), as: UTF8.self)))
+        _ = await voting.value
+        XCTAssertEqual(model.voteSelection, .committed(.yes))
+        model.beginChange()
+        XCTAssertEqual(model.voteSelection, .picked(.no))
+    }
+
+    func testTheSettledLineOfAPassedBuyKeepsTheApproximateSign() async throws {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        var passed = Components.Schemas.ProposalDetail.passedNVDA()
+        passed.myBallot = .yes
+        passed.canVote = false
+        passed.tally = .init(yes: 5, no: 1, voters: 8, needed: 5)
+        let transport = StubTransport(
+            routes: [
+                detailPath: [try detail(), .json(.ok, String(decoding: try encoder.encode(passed), as: UTF8.self))],
+                votesPath: [
+                    .json(.ok, castBody(status: "passed", yes: 5, no: 1, undoIn: nil, yesOrder: 5, decided: true))
+                ],
+            ])
+        let model = model(transport)
+        await model.load()
+        _ = await model.vote("yes")
+        XCTAssertEqual(model.settledLine, "Passed 5–1 · 6 of 8 voted · buying ≈ 1.82 sh")
     }
 }

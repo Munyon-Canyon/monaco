@@ -14,7 +14,10 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 )
 
-const cashoutSource = "cashout"
+const (
+	cashoutSource   = "cashout"
+	sourceCancelled = "source_cancelled"
+)
 
 type Hints interface {
 	PublishHint(ctx context.Context, key string, payload []byte)
@@ -42,6 +45,9 @@ func (h Activity) Confirmed(ctx context.Context, tx db.Tx, e events.TradeConfirm
 }
 
 func (h Activity) Failed(ctx context.Context, tx db.Tx, e events.TradeFailed, at time.Time) error {
+	if e.FailureCode == sourceCancelled {
+		return nil
+	}
 	return h.trade(ctx, tx, e.Source, domain.Trade{
 		SwapID: e.SwapID, CabalID: ids.CabalIDFrom(e.CabalID), Action: e.Action,
 		In: domain.Leg{Asset: domain.MintAsset(e.InMint), Amount: e.InAmount},

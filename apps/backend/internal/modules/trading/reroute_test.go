@@ -347,7 +347,7 @@ func TestExecuteTrade_aRetryWhoseStoredRouteCannotBeReadIsNotStarted(t *testing.
 			}
 			retry := e.buy()
 			retry.ProposalID = cmd.ProposalID
-			retry.Retry = &app.Retry{Of: ids.SwapIDFrom(e.swapsOf(t, cmd.ProposalID)[0]), SlippageBps: 100}
+			retry.Retry = &app.Retry{Of: ids.SwapIDFrom(e.swapsOf(t, cmd.ProposalID)[0])}
 			d := e.delivery(t, retry)
 			d.Final = true
 

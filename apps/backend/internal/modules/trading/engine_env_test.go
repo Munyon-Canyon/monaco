@@ -101,13 +101,40 @@ type proposalsFake struct {
 	mu     sync.Mutex
 	status governance.Status
 	reason string
+	reads  int
+	failAt int
+	failBy error
+	voidAt int
 }
 
 func (p *proposalsFake) Retryable(context.Context, ids.ProposalID) (bool, error) {
 	if err := p.Check("Retryable"); err != nil {
 		return false, err
 	}
+	p.mu.Lock()
+	p.reads++
+	failed := p.failBy != nil && p.reads == p.failAt
+	err := p.failBy
+	if p.reads == p.voidAt {
+		p.status = governance.Status("voided")
+	}
+	p.mu.Unlock()
+	if failed {
+		return false, err
+	}
 	return p.retryable(), nil
+}
+
+func (p *proposalsFake) voidAtRead(n int) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.voidAt = n
+}
+
+func (p *proposalsFake) failReadNumber(n int, err error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.failAt, p.failBy = n, err
 }
 
 func (p *proposalsFake) retryable() bool {

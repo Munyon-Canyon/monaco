@@ -16,6 +16,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
 	api "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/governanceapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
 
 func (d readsDB) get(t *testing.T, proposal, caller uuid.UUID) app.ProposalDetail {
@@ -371,5 +372,31 @@ func TestHTTP_GetProposal_swapFill(t *testing.T) {
 				t.Errorf("swap = %+v, want %+v", *got.Swap, tc.want)
 			}
 		})
+	}
+}
+
+func TestProposals_Detail_votingClosesAtExpiresAtBeforeThePollerRuns(t *testing.T) {
+	t.Parallel()
+	d := newReadsDB(t)
+	id := d.proposedBy(t, d.caller, d.ids.NewV7())
+	expires := d.now.Add(24 * time.Hour)
+	clk := testkit.NewClock(expires.Add(-time.Second))
+	reads := d.reads().Priced(nil, clk)
+	detail := func() app.ProposalDetail {
+		got, err := reads.Get(
+			t.Context(),
+			app.GetProposal{ID: ids.ProposalIDFrom(id), Caller: ids.UserIDFrom(d.caller)},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return got
+	}
+	if got := detail(); !got.CanVote || got.Proposal.Status != domain.StatusOpen {
+		t.Fatalf("one second before expiry detail = %+v, want an open proposal the caller can vote on", got)
+	}
+	clk.Set(expires)
+	if got := detail(); got.CanVote || got.Proposal.Status != domain.StatusOpen {
+		t.Fatalf("at expiry detail = %+v, want still open (poller lag) with CanVote false", got)
 	}
 }

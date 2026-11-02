@@ -15,12 +15,12 @@ final class ProposalResultCopyTests: XCTestCase {
     private func swap(
         _ status: Components.Schemas.ProposalDetail.SwapPayload.StatusPayload = .confirmed, filledAt: Date? = nil,
         feeMicros: Int64? = 400_000, tokenAmount: Int64? = 182_000_000, price: Int64? = 219_400_000,
-        message: String? = nil
+        message: String? = nil, usdc: Int64? = nil
     ) -> ProposalSwap {
         ProposalSwap(
             .init(
                 swapId: "swap-1", status: status, failureCode: nil, failureMessage: message, txSignature: nil,
-                retryable: false, usdcMicros: nil, tokenAmount: tokenAmount, tokenDecimals: 8,
+                retryable: false, usdcMicros: usdc, tokenAmount: tokenAmount, tokenDecimals: 8,
                 priceMicros: price, feeMicros: feeMicros, filledAt: filledAt))
     }
 
@@ -184,5 +184,39 @@ final class ProposalResultCopyTests: XCTestCase {
         XCTAssertEqual(ProposalResultCopy.action(status: .expired, canPropose: true), .proposeAgain)
         XCTAssertNil(ProposalResultCopy.action(status: .failed, canPropose: false))
         XCTAssertNil(ProposalResultCopy.action(status: .withdrawn, canPropose: true))
+    }
+
+    func testPendingUnitsKeepTheApproximateSignForAnEstimateAndNameTokensForPreIpo() {
+        XCTAssertEqual(
+            ProposalResultCopy.pendingUnits(atomics: 182_000_000, decimals: 8, exact: false, kind: .stock),
+            "≈ 1.82 sh")
+        XCTAssertEqual(
+            ProposalResultCopy.pendingUnits(atomics: 182_000_000, decimals: 8, exact: true, kind: .stock), "1.82 sh")
+        XCTAssertEqual(
+            ProposalResultCopy.pendingUnits(atomics: 182_000_000, decimals: 8, exact: true, kind: .preIpo),
+            "1.82 tokens")
+    }
+
+    func testAPreIpoFillNamesTokensNotShares() async throws {
+        let row = try XCTUnwrap(
+            ProposalResultCopy.tradeRow(
+                swap: filledSwap(), isSell: true, sinceBps: nil, calendar: utc, assetKind: .preIpo))
+        XCTAssertTrue(row.title.hasPrefix("Sold "), row.title)
+        XCTAssertTrue(row.title.contains(" tokens at "), row.title)
+        XCTAssertFalse(row.title.contains(" sh "), row.title)
+    }
+
+    func testThePassedSheetOfASellShowsTheProceedsOfTheFillNotTheQuoteFromWhenItOpened() {
+        let fill = swap(filledAt: Date(timeIntervalSince1970: 1_792_662_060), usdc: 90_000_000)
+        XCTAssertEqual(
+            ProposalResultCopy.passedSheetAmount(
+                isSell: true, usdcMicros: nil, quoteOutAmount: 100_000_000, swap: fill),
+            90_000_000)
+        XCTAssertEqual(
+            ProposalResultCopy.passedSheetAmount(isSell: true, usdcMicros: nil, quoteOutAmount: 100_000_000, swap: nil),
+            100_000_000)
+        XCTAssertEqual(
+            ProposalResultCopy.passedSheetAmount(
+                isSell: false, usdcMicros: 25_000_000, quoteOutAmount: 100_000_000, swap: fill), 25_000_000)
     }
 }

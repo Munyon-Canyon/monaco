@@ -57,6 +57,7 @@ public final class ProposalVoteModel {
         do {
             let result = try await repository.vote(id: summary.id, choice: choice, submission: submission)
             if result.status == .open { confirmedTallies[summary.id] = result.tally }
+            retractions[summary.id] = nil
             return result
         } catch {
             ballots[summary.id] = previous
@@ -76,6 +77,7 @@ public final class ProposalVoteModel {
             let result = try await repository.retractVote(id: summary.id, submission: submission)
             clearOverlay(for: summary.id)
             acknowledged.remove(summary.id)
+            submissions[summary.id] = nil
             return result
         } catch {
             let failure = APIError(error)

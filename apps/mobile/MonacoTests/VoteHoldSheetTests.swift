@@ -30,4 +30,13 @@ struct VoteHoldSheetTests {
         navigator.reset()
         #expect(navigator.voteHold == nil)
     }
+
+    @Test func theTitleKeepsTheCentsOfAnAmountThatIsNotWhole() {
+        func title(_ micros: Int64) -> String {
+            VoteHoldSheet.title(kind: "buy", symbol: "AAPLx", usdcMicros: micros)
+        }
+        #expect(title(12_990_000).hasSuffix("\u{00B7} $12.99"))
+        #expect(title(12_000_000).hasSuffix("\u{00B7} $12"))
+        #expect(title(12_500_000).hasSuffix("\u{00B7} $12.50"))
+    }
 }

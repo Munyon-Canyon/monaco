@@ -192,7 +192,7 @@ struct ProposalCard: View {
         if let nanos = summary.routedSaleShareNanos {
             return TokenQuantityFormatter.label(fromAtomics: String(nanos), decimals: 9, kind: asset?.kind ?? .stock)
         }
-        guard let amount = summary.tokenAmount else { return "0 shares" }
+        guard let amount = summary.tokenAmount else { return asset?.kind == .preIpo ? "0 tokens" : "0 shares" }
         return TokenQuantityFormatter.label(
             fromAtomics: String(amount), decimals: asset?.decimals ?? AssetCatalogDefaults.decimals,
             kind: asset?.kind ?? .stock)

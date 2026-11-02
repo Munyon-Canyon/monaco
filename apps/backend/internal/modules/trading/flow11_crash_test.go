@@ -78,7 +78,7 @@ func (e *engineEnv) retry(t *testing.T, of uuid.UUID, cmd app.ExecuteTrade) (bus
 	next[len(next)-2] = 1
 	e.jup.SetOrder(jupiterMint(usdcToken()), jupiterMint(aaplxToken()),
 		jupiter.Order{RequestID: "req-2", Transaction: next})
-	cmd.Retry = &app.Retry{Of: ids.SwapIDFrom(of), SlippageBps: 100}
+	cmd.Retry = &app.Retry{Of: ids.SwapIDFrom(of)}
 	return bus.Delivery{Handler: retryHandler, EventID: ids.EventIDFrom(id), At: e.clk.Now()}, cmd
 }
 

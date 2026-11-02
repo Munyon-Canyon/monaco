@@ -154,13 +154,15 @@ struct ProposalDetailSlotView: View {
     {
         let isSell = summary.kind == "sell"
         let units = detail.stats.sharesAtomics.flatMap {
-            ProposalResultCopy.units(atomics: $0, decimals: detail.stats.tokenDecimals)
+            ProposalResultCopy.pendingUnits(
+                atomics: $0, decimals: detail.stats.tokenDecimals, exact: detail.stats.sharesExact || isSell,
+                kind: model.asset?.kind ?? .stock)
         }
         ProposalResultCard(
             status: summary.status, tally: summary.tally,
             caption: ProposalResultCopy.caption(
                 status: summary.status, tally: summary.tally, swap: summary.swap, isSell: isSell,
-                pendingUnits: units.map { "\($0) sh" }, statusMessage: summary.statusMessage),
+                pendingUnits: units, statusMessage: summary.statusMessage),
             accessibilitySummary: ProposalStepper.make(
                 status: summary.status, isSell: isSell, swapFailed: summary.swap?.status == "failed",
                 expiresAt: summary.expiresAt, failureMessage: summary.swap?.failureMessage,

@@ -21,6 +21,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	api "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/governanceapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
 
 const (
@@ -189,7 +190,7 @@ func (f ruleFixture) readsWithCards() *app.ProposalReads {
 		&cardBook{cards: f.cards},
 		&returnBook{},
 		&replyBook{},
-	)
+	).Priced(nil, testkit.NewClock(f.now))
 }
 
 func (f ruleFixture) actor() context.Context {

@@ -106,6 +106,11 @@ public final class HomeVoteCardModel: Identifiable {
         return false
     }
 
+    private var isCommitting: Bool {
+        if case .committing = phase { return true }
+        return false
+    }
+
     public var outcome: CastOutcome? {
         if case .committed(let outcome) = phase { return outcome }
         return nil
@@ -206,7 +211,7 @@ public final class HomeVoteCardModel: Identifiable {
 
     public func update(_ row: HomePendingVote) {
         self.row = row
-        guard isInteractive else { return }
+        guard !isCommitting else { return }
         tally = row.tally
         replyCount = row.replyCount
     }
@@ -220,7 +225,7 @@ public final class HomeVoteCardModel: Identifiable {
 
     public func reload() async {
         guard let detail = try? await repository.detail(id: proposalID) else { return }
-        if !isCommitted {
+        if !isCommitting {
             tally = detail.summary.tally
             replyCount = detail.replyCount
         }
@@ -241,7 +246,7 @@ public final class HomeVoteCardModel: Identifiable {
         let stats = ProposalStats.make(detail: detail, asset: nil, now: now(), calendar: .current)
         guard let value = stats.cells.first(where: { $0.label == "Shares" })?.value, value != ProposalStats.missing
         else { return }
-        sharesEstimate = value.hasPrefix("≈ ") ? String(value.dropFirst(2)) : value
+        sharesEstimate = value
     }
 }
 
