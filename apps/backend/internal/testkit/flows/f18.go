@@ -183,7 +183,7 @@ func insertedSpaceX(reference, sampled time.Time) int {
 }
 
 func movedSpaceX(reference, sampled time.Time) int {
-	if !reference.Truncate(24 * time.Hour).Equal(sampled.Truncate(24 * time.Hour)) {
+	if domain.EasternDay(reference) != domain.EasternDay(sampled) {
 		return 0
 	}
 	return insertedSpaceX(reference, sampled)
@@ -232,8 +232,7 @@ func seedSamplerPrices(at *time.Time) scenario.Step {
 
 func seedSpaceXReference(at *time.Time) scenario.Step {
 	return func(s *scenario.Scenario) {
-		now := time.Now().UTC()
-		start := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+		start := domain.EasternDay(time.Now().UTC()).Start()
 		*at = start
 		if _, err := s.DB().Exec(s.Context(), `INSERT INTO price_points (mint, ts, price_micros, source)
 			VALUES ($1, $2, $3, $4)`, spaceXMint, start, 100_000_000, string(domain.SourceJupiter)); err != nil {
