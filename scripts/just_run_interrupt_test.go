@@ -5,6 +5,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"syscall"
 	"testing"
@@ -48,6 +49,7 @@ type justRun struct {
 	cmd     *exec.Cmd
 	done    chan error
 	backend string // pgrep pattern for this sandbox's api and worker
+	root    string // the resolved sandbox root, which every process the recipe starts runs under
 	fund    int    // the fund page port
 	started string
 	seen    string // touched by the mobile stub once the fund page accepted a connection
@@ -88,6 +90,7 @@ func startJustRun(t *testing.T, env ...string) *justRun {
 		done:    make(chan error, 1),
 		fund:    s.fundPort,
 		backend: "^" + root + "/bin/(api|worker)$",
+		root:    root,
 		started: filepath.Join(t.TempDir(), "mobile.started"),
 		seen:    filepath.Join(t.TempDir(), "fund.seen"),
 		output:  &strings.Builder{},
@@ -131,12 +134,29 @@ func (r *justRun) waitExit(t *testing.T) {
 	select {
 	case <-r.done:
 	case <-time.After(20 * time.Second):
-		t.Fatal("just run did not exit in 20s")
+		t.Fatalf("just run did not exit in 20s; processes left in its group or sandbox:\n%s", r.leftovers())
 	}
 	waitFor(t, "api and worker to exit", func() bool {
 		return exec.Command("pgrep", "-f", r.backend).Run() != nil
 	})
 	waitFor(t, "nothing to listen on the fund page port", func() bool { return !listening(r.fund) })
+}
+
+// leftovers lists what still runs in the recipe's process group or under its sandbox, so a CI
+// timeout names the process that kept `just run` (or its output pipe) alive.
+func (r *justRun) leftovers() string {
+	out, err := exec.Command("ps", "-eo", "pid,ppid,pgid,stat,etime,args").Output()
+	if err != nil {
+		return "ps: " + err.Error()
+	}
+	pgid := strconv.Itoa(r.cmd.Process.Pid)
+	var keep []string
+	for i, line := range strings.Split(strings.TrimRight(string(out), "\n"), "\n") {
+		if f := strings.Fields(line); i == 0 || len(f) > 2 && f[2] == pgid || strings.Contains(line, r.root) {
+			keep = append(keep, line)
+		}
+	}
+	return strings.Join(keep, "\n")
 }
 
 func TestJustRun_ctrlCStopsTheBackend(t *testing.T) {
