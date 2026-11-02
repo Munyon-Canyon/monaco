@@ -528,6 +528,26 @@ func TestFeedProposal_anExpiryBeforeTheCreateNaksThenConverges(t *testing.T) {
 	}
 }
 
+func TestFeedProposal_aSellQuotedPastUint64MicrosIsRefusedAndNothingIsStored(t *testing.T) {
+	t.Parallel()
+	r := newProposalRig(t)
+	quote, err := money.ParseUnits("25000000000000000000")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = r.createWith(t, func(e *events.ProposalCreated) {
+		e.Kind, e.USDCMicros, e.QuoteOutAmount = "sell", money.Micros{}, quote
+	})
+
+	if err == nil {
+		t.Fatal("ApplyProposal of a sell quoted past uint64 micros = nil, want an error")
+	}
+	if n := r.count(t, "proposal"); n != 0 {
+		t.Fatalf("%d proposal rows, want none", n)
+	}
+}
+
 func TestFeedProposal_recordsTheShareOfThePotInBasisPoints(t *testing.T) {
 	t.Parallel()
 	sell := func(e *events.ProposalCreated) {

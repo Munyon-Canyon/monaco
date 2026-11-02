@@ -70,3 +70,17 @@ func TestActivityPrice_refusesAPriceTheWireCannotHold(t *testing.T) {
 		}
 	}
 }
+
+func TestFittingInt64_isNilPastInt64(t *testing.T) {
+	t.Parallel()
+	small, wide := money.UnitsFromUint64(7), money.UnitsFromUint64(math.MaxUint64)
+	if got := fittingInt64(&small); got == nil || *got != 7 {
+		t.Fatalf("fittingInt64(7) = %v", got)
+	}
+	if got := fittingInt64(&wide); got != nil {
+		t.Fatalf("fittingInt64(past int64) = %v, want nil", *got)
+	}
+	if got := fittingInt64(nil); got != nil {
+		t.Fatalf("fittingInt64(nil) = %v, want nil", got)
+	}
+}

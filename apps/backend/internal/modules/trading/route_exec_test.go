@@ -594,6 +594,11 @@ func TestRouteExec_refusesWhatItCannotStartOrLoad(t *testing.T) {
 	if _, err := e.buy(t.Context(), huge); errs.CodeOf(err) != errs.CodeInvalidInput {
 		t.Fatalf("Buy past the micros err = %v, want invalid_input", err)
 	}
+	negative := e.request()
+	negative.SlippageBps = -1
+	if _, err := e.buy(t.Context(), negative); errs.CodeOf(err) != errs.CodeInvalidInput {
+		t.Fatalf("Buy with negative slippage err = %v, want invalid_input", err)
+	}
 	if err := e.exec().Resume(actorContext(t.Context()), ids.SwapIDFrom(e.ids.NewV7())); err == nil {
 		t.Fatal("Resume of an unknown swap succeeded")
 	}

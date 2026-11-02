@@ -274,3 +274,33 @@ func TestExecuteTrade_anEVMSellRefusesAPositionItCannotRead(t *testing.T) {
 func (h *heldFake) CashOutReservations(context.Context) (map[ids.CabalID]money.Micros, error) {
 	return map[ids.CabalID]money.Micros{}, h.Check("CashOutReservations")
 }
+
+const refuseConfirm = `CREATE FUNCTION refuse_confirm() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF NEW.status = 'confirmed' THEN
+    RAISE EXCEPTION 'confirm refused';
+  END IF;
+  RETURN NEW;
+END $$;
+CREATE TRIGGER refuse_confirm BEFORE UPDATE ON swaps FOR EACH ROW EXECUTE FUNCTION refuse_confirm()`
+
+func TestRouteExec_aSellWhoseConfirmTheDatabaseRefusesStaysSubmittedAndBooksNothing(t *testing.T) {
+	t.Parallel()
+	e := newRouteEnv(t)
+	req := e.selling()
+	if _, err := e.pool.Exec(t.Context(), refuseConfirm); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := e.buy(t.Context(), req); err == nil {
+		t.Fatal("Trade succeeded although the database refused the confirm")
+	}
+
+	swap := e.swapIDs(t, req.Source.ID)[0]
+	if status, _, _, _ := e.row(t, swap); status != string(domain.StatusSubmitted) {
+		t.Fatalf("swap is %s, want submitted", status)
+	}
+	if n := e.terminalEvents(t, swap); n != 0 {
+		t.Fatalf("%d terminal events, want none", n)
+	}
+}

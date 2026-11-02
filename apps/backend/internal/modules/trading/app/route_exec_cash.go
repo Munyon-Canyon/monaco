@@ -16,12 +16,12 @@ import (
 
 func (r *RouteExec) CashLeg(
 	ctx context.Context, cabal ids.CabalID, network chain.Network, ledger money.Units,
-) (multichain.Listing, money.Units, error) {
+) (multichain.Listing, money.Micros, error) {
 	id, err := sqlc.New(r.d.Layer.d.Reads).CashCarrierListing(ctx, sqlc.CashCarrierListingParams{
 		CabalID: cabal.UUID(), Network: string(network),
 	})
 	if errors.Is(err, sql.ErrNoRows) {
-		return multichain.Listing{}, money.Units{}, nil
+		return multichain.Listing{}, money.Micros{}, nil
 	}
 	var listing multichain.Listing
 	if err == nil {
@@ -32,15 +32,15 @@ func (r *RouteExec) CashLeg(
 		wallet, err = r.d.TreasuryEVM.EnsureTreasuryEVMWallet(ctx, cabal)
 	}
 	if err != nil {
-		return multichain.Listing{}, money.Units{}, errs.Wrap(err, errs.CodeOf(err), "trading.RouteExec.CashLeg")
+		return multichain.Listing{}, money.Micros{}, errs.Wrap(err, errs.CodeOf(err), "trading.RouteExec.CashLeg")
 	}
 	onChain, err := r.d.Cash.Balance(ctx, network, wallet.Address)
 	if err != nil {
-		return multichain.Listing{}, money.Units{}, err
+		return multichain.Listing{}, money.Micros{}, err
 	}
 	cash := network.Cash()
 	listing.TokenAddress, listing.Decimals, listing.Symbol = cash.Address, cash.Decimals, cash.Symbol
-	return listing, minUnits(ledger, money.UnitsFromMicros(onChain)), nil
+	return listing, capMicros(ledger, onChain), nil
 }
 
 func (r *RouteExec) cashLeg(ctx context.Context, b routedBuy) error {
@@ -63,9 +63,9 @@ func (r *RouteExec) cashLeg(ctx context.Context, b routedBuy) error {
 	})
 }
 
-func minUnits(a, b money.Units) money.Units {
-	if a.Cmp(b) <= 0 {
-		return a
+func capMicros(ledger money.Units, onChain money.Micros) money.Micros {
+	if held, err := ledger.Micros(); err == nil && held.Cmp(onChain) < 0 {
+		return held
 	}
-	return b
+	return onChain
 }

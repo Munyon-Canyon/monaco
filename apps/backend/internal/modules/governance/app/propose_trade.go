@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"slices"
@@ -164,12 +165,9 @@ func (h *ProposeTradeHandler) Open(ctx context.Context, cmd ProposeTrade) (Opene
 	if err != nil {
 		return OpenedProposal{}, err
 	}
-	value, err := shareValue(p.Draft())
-	if err != nil {
-		return OpenedProposal{}, err
-	}
+	value, valueErr := shareValue(p.Draft())
 	share, err := TreasuryShareBps(value, a.pot)
-	if err != nil {
+	if err = errors.Join(valueErr, err); err != nil {
 		return OpenedProposal{}, err
 	}
 	err = h.uow.Do(ctx, func(ctx context.Context, tx db.Tx) error {

@@ -189,3 +189,16 @@ func TestReplayTrades_returnsAnErrorNearMaxUint64InsteadOfWrapping(t *testing.T)
 		}
 	})
 }
+
+func TestReplayTrades_refusesHoldingsPastTwoToThe256(t *testing.T) {
+	t.Parallel()
+	top, err := money.UnitsFromBig(new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), 256), big.NewInt(1)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	first, second := marksTrade(0, sideBuy, 1, 1), marksTrade(1, sideBuy, 1, 1)
+	first.units, second.units = top, top
+	if _, err := replayTrades([]trade{first, second}, AssetName{Decimals: 0}); errs.CodeOf(err) != errs.CodeInternal {
+		t.Fatalf("replay of two maximal buys = %v, want internal", err)
+	}
+}

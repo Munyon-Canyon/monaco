@@ -284,11 +284,7 @@ func proposalView(row sqlc.ListProposalsRow, tally Tally) (ProposalView, error) 
 	if err != nil {
 		return ProposalView{}, err
 	}
-	tokens, err := parseUnits(row.TokenAmount)
-	if err != nil {
-		return ProposalView{}, err
-	}
-	quoteOut, err := parseUnits(row.QuoteOutAmount)
+	tokens, quoteOut, err := parseAmounts(row.TokenAmount, row.QuoteOutAmount)
 	if err != nil {
 		return ProposalView{}, err
 	}

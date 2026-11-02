@@ -130,7 +130,7 @@ func (h *RetryBlockedTradeHandler) notRetryable(ctx context.Context, tx db.Tx, i
 }
 
 func (h *RetryBlockedTradeHandler) retryEvent(row sqlc.ReopenUnstartedRow) (events.TradeRetryRequested, error) {
-	quoteOut, err := parseUnits(row.QuoteOutAmount)
+	tokens, quoteOut, err := parseAmounts(row.TokenAmount, row.QuoteOutAmount)
 	if err != nil {
 		return events.TradeRetryRequested{}, err
 	}
@@ -140,8 +140,8 @@ func (h *RetryBlockedTradeHandler) retryEvent(row sqlc.ReopenUnstartedRow) (even
 	}
 	if row.Kind == "sell" {
 		ev.InMint, ev.OutMint = chain.SolanaAddress(row.Mint), h.usdc
-		ev.InAmount, err = parseUnits(row.TokenAmount)
-		return ev, err
+		ev.InAmount = tokens
+		return ev, nil
 	}
 	ev.InMint, ev.OutMint = h.usdc, chain.SolanaAddress(row.Mint)
 	ev.InAmount = money.UnitsFromUint64(unsigned(row.UsdcMicros))

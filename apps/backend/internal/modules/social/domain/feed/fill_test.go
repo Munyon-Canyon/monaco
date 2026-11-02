@@ -114,6 +114,19 @@ func TestDeriveFill_anOverflowIsAnError(t *testing.T) {
 	}
 }
 
+func TestDeriveFill_fillsOfDifferentDecimalsAreAnError(t *testing.T) {
+	t.Parallel()
+	odd := fillOf(1, 1, 0)
+	odd.TokenAmount = feed.NewTokens(odd.TokenAmount.Amount, 6)
+	p := passed()
+	if err := errors.Join(p.RecordFill(swapID(1), fillOf(1, 1, 0), 2), p.RecordFill(swapID(2), odd, 2)); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, _, _, err := feed.DeriveFill(p); err == nil {
+		t.Fatal("DeriveFill of fills with different decimals = nil, want an error")
+	}
+}
+
 func TestRecord_theFirstOutcomeOfASwapWins(t *testing.T) {
 	t.Parallel()
 	p := passed()

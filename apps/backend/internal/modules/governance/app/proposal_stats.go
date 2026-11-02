@@ -114,7 +114,7 @@ func rowShareValue(kind string, usdc int64, quoteOut money.Units) (money.Micros,
 	return money.MicrosFromUint64(unsigned(usdc)), nil
 }
 
-func rowStats(r sqlc.GetProposalRow) (Stats, error) {
+func rowStats(r sqlc.GetProposalRow, quoteOut money.Units) (Stats, error) {
 	out := Stats{ClosesAt: r.ExpiresAt}
 	if r.ClosedAt.Valid {
 		closed := r.ClosedAt.Time
@@ -122,10 +122,6 @@ func rowStats(r sqlc.GetProposalRow) (Stats, error) {
 	}
 	if !r.PotValueMicros.Valid {
 		return out, nil
-	}
-	quoteOut, err := parseUnits(r.QuoteOutAmount)
-	if err != nil {
-		return out, err
 	}
 	value, err := rowShareValue(r.Kind, r.UsdcMicros.Int64, quoteOut)
 	if err != nil {

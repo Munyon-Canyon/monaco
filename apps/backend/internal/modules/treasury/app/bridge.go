@@ -69,13 +69,12 @@ func bookedFee(ctx context.Context, tx db.Tx, landed uuid.UUID, asset domain.Ass
 			continue
 		}
 		amount, parseErr := money.ParseSignedUnits(r.Amount)
-		if parseErr != nil || amount.Sign() <= 0 {
-			err = errors.Join(err, parseErr)
-			continue
+		err = errors.Join(err, parseErr)
+		if amount.Sign() > 0 {
+			credit, creditErr := amount.Abs().Micros()
+			sum, sumErr := fee.Add(credit)
+			fee, err = sum, errors.Join(err, creditErr, sumErr)
 		}
-		credit, creditErr := amount.Abs().Micros()
-		sum, sumErr := fee.Add(credit)
-		fee, err = sum, errors.Join(err, creditErr, sumErr)
 	}
 	return fee, err
 }

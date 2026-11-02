@@ -101,7 +101,7 @@ func (r *ProposalReads) Get(ctx context.Context, req GetProposal) (ProposalDetai
 	if err != nil {
 		return ProposalDetail{}, err
 	}
-	facts, err := r.facts(ctx, row, req)
+	facts, err := r.facts(ctx, row, view.QuoteOut, req)
 	if err != nil {
 		return ProposalDetail{}, err
 	}
@@ -142,11 +142,8 @@ func (r *ProposalReads) priced(ctx context.Context, row sqlc.GetProposalRow, out
 	if err != nil {
 		return err
 	}
-	tokens, err := parseUnits(row.TokenAmount)
-	if err != nil {
-		return err
-	}
-	if row.TokenAmount != "" && chain.Network(row.Network).IsEVM() {
+	tokens := out.Proposal.TokenAmount
+	if !tokens.IsZero() && chain.Network(row.Network).IsEVM() {
 		out.Proposal.TokenDecimals = decimals
 	}
 	live, err := r.livePrice(ctx, asset.ID)
@@ -203,9 +200,11 @@ type detailFacts struct {
 	replyCount int
 }
 
-func (r *ProposalReads) facts(ctx context.Context, row sqlc.GetProposalRow, req GetProposal) (detailFacts, error) {
+func (r *ProposalReads) facts(
+	ctx context.Context, row sqlc.GetProposalRow, quoteOut money.Units, req GetProposal,
+) (detailFacts, error) {
 	const op = "governance.GetProposal"
-	stats, err := rowStats(row)
+	stats, err := rowStats(row, quoteOut)
 	if err != nil {
 		return detailFacts{}, err
 	}

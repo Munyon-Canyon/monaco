@@ -286,11 +286,7 @@ func appendVoteCast(
 }
 
 func passed(p sqlc.LockProposalRow, comparison *multichain.Comparison) (events.ProposalPassed, error) {
-	tokens, err := parseUnits(p.TokenAmount)
-	if err != nil {
-		return events.ProposalPassed{}, err
-	}
-	quoteOut, err := parseUnits(p.QuoteOutAmount)
+	tokens, quoteOut, err := parseAmounts(p.TokenAmount, p.QuoteOutAmount)
 	if err != nil {
 		return events.ProposalPassed{}, err
 	}
@@ -300,6 +296,12 @@ func passed(p sqlc.LockProposalRow, comparison *multichain.Comparison) (events.P
 		TokenAmount: tokens, QuoteOutAmount: quoteOut,
 		PriceComparison: comparison, Network: chain.Network(p.Network),
 	}, nil
+}
+
+func parseAmounts(tokens, quoteOut string) (money.Units, money.Units, error) {
+	t, tokenErr := parseUnits(tokens)
+	q, quoteErr := parseUnits(quoteOut)
+	return t, q, errors.Join(tokenErr, quoteErr)
 }
 
 func parseUnits(raw string) (money.Units, error) {

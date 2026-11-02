@@ -340,16 +340,12 @@ func (h *SellForCashOutHandler) value(ctx context.Context, cabal ids.CabalID, he
 func (h *SellForCashOutHandler) cashLot(
 	ctx context.Context, cabal ids.CabalID, network chain.Network, lot domain.Lot,
 ) (domain.Lot, error) {
-	listing, units, err := h.d.Routes.CashLeg(ctx, cabal, network, lot.Units)
-	if err != nil || units.IsZero() {
+	listing, cash, err := h.d.Routes.CashLeg(ctx, cabal, network, lot.Units)
+	if err != nil || cash.IsZero() {
 		return domain.Lot{}, err
 	}
-	cash, err := units.Uint64()
-	if err != nil {
-		return domain.Lot{}, err
-	}
-	fee, err := money.MulDiv(cash, bridgeBackEstimateBps, bridgeBackEstimateOf)
-	lot.Units, lot.QuoteUSDC, lot.Listing = units, cash-fee, &listing
+	fee, err := money.MulDiv(cash.Uint64(), bridgeBackEstimateBps, bridgeBackEstimateOf)
+	lot.Units, lot.QuoteUSDC, lot.Listing = money.UnitsFromMicros(cash), cash.Uint64()-fee, &listing
 	return lot, err
 }
 
