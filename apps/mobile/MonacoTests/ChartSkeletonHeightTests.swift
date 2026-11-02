@@ -66,6 +66,22 @@ struct ChartSkeletonHeightTests {
     }
 
     @Test
+    func theHomeBalanceRowKeepsItsHeightWhileTheBalanceLoads() {
+        func hostedHeight(_ display: HomeBalanceDisplay) -> CGFloat {
+            UIHostingController(rootView: HomeBalanceSummary(display: display))
+                .sizeThatFits(in: CGSize(width: 390, height: CGFloat.greatestFiniteMagnitude)).height
+        }
+        let loaded = hostedHeight(.amount(1_234_560_000))
+
+        #expect(
+            abs(hostedHeight(.loading) - loaded) < Self.tolerance,
+            "loading \(hostedHeight(.loading)), loaded \(loaded)")
+        #expect(
+            abs(hostedHeight(.unavailable) - loaded) < Self.tolerance,
+            "unavailable \(hostedHeight(.unavailable)), loaded \(loaded)")
+    }
+
+    @Test
     func aCurveChartIsItsPlotPlusTheDateRow() {
         func hostedHeight(_ view: some View) -> CGFloat {
             UIHostingController(rootView: view)

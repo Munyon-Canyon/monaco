@@ -86,7 +86,7 @@ struct HomeBalanceSummary: View {
             Text("Account balance")
                 .font(MonacoTheme.Typo.subhead)
                 .foregroundStyle(MonacoTheme.secondaryText)
-            amount
+            amount.frame(minHeight: MonacoButtonMetrics.hitTarget)
             if let status {
                 Text(status)
                     .font(MonacoTheme.Typo.caption)
@@ -120,7 +120,6 @@ struct HomeBalanceSummary: View {
                 .accessibilityIdentifier("platform-balance-loading")
         case .amount(let micros):
             MoneyText(micros: UsdAmountFormatter.flooredToCents(micros), style: .large)
-                .frame(minHeight: MonacoButtonMetrics.hitTarget)
                 .accessibilityIdentifier(valueIdentifier)
         case .unavailable:
             Text("—")
