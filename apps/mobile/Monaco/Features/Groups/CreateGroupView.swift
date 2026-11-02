@@ -313,10 +313,9 @@ struct CreateGroupView: View {
 
     private func showCreated(_ cabal: Components.Schemas.Cabal) {
         guard let navigator = environment?.navigator else { return }
-        if navigator.cabalsPath.last == AnyAppRoute(CreateCabalRoute()) {
-            navigator.cabalsPath.removeLast()
-        }
-        navigator.open(CabalRoute(id: cabal.id), in: .cabals)
+        let created: AnyAppRoute = AnyAppRoute(CabalRoute(id: cabal.id))
+        navigator.selectedTab = .cabals
+        navigator.cabalsPath = navigator.cabalsPath.filter { $0 != AnyAppRoute(CreateCabalRoute()) } + [created]
     }
 }
 

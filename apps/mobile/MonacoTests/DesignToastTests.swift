@@ -171,6 +171,15 @@ struct MonacoToastActionTests {
         #expect(!MonacoToastDismissal.swipeDismisses(translation: 40, predicted: 80))
     }
 
+    @Test func aToastWithNothingToTapLetsTouchesThroughToTheNavBar() {
+        let action = MonacoToastAction(title: "Undo") {}
+        let link = MonacoToastLink(title: "View", url: URL(string: "https://example.com")!)
+        #expect(!MonacoToastDismissal.takesTouches(link: nil, action: nil, actionExpired: false))
+        #expect(MonacoToastDismissal.takesTouches(link: nil, action: action, actionExpired: false))
+        #expect(!MonacoToastDismissal.takesTouches(link: nil, action: action, actionExpired: true))
+        #expect(MonacoToastDismissal.takesTouches(link: link, action: nil, actionExpired: false))
+    }
+
     @Test func theToastSitsAtTheTop() {
         #expect(MonacoToastLayout.alignment == .top)
     }
