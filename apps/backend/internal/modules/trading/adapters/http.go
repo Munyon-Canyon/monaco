@@ -57,8 +57,8 @@ func (h HTTP) GetSwap(ctx context.Context, req api.GetSwapRequestObject) (api.Ge
 
 func wireSwap(d app.SwapDetail) (api.SwapDetail, error) {
 	s := d.Swap
-	usdc, inErr := int64OrNil(s.InAmount)
-	token, outErr := int64OrNil(s.OutAmount)
+	usdc, inErr := optionalAmount(s.InAmount)
+	token, outErr := optionalAmount(s.OutAmount)
 	if err := errors.Join(inErr, outErr); err != nil {
 		return api.SwapDetail{}, errs.Wrap(err, errs.CodeDecodeFailed, "trading.wireSwap")
 	}
@@ -69,7 +69,7 @@ func wireSwap(d app.SwapDetail) (api.SwapDetail, error) {
 		Id: s.ID, CabalId: s.CabalID,
 		Source: api.SwapSource{Kind: api.SwapDetailSourceKind(s.SourceKind), Id: s.SourceID},
 		Action: api.SwapDetailAction(s.Action), Symbol: s.Symbol, AssetName: d.Asset.DisplayName,
-		TokenDecimals: int(d.Asset.Decimals), UsdcMicros: usdc, TokenAmount: token,
+		TokenDecimals: int(d.Asset.Decimals), UsdcMicros: usdc.int, TokenAmount: token.int, TokenAmountStr: token.text,
 		Status: api.SwapDetailStatus(s.Status), TxSignature: textOrNil(s.TxSignature), CreatedAt: s.CreatedAt,
 		Retryable: s.Retryable,
 	}
@@ -83,15 +83,23 @@ func wireSwap(d app.SwapDetail) (api.SwapDetail, error) {
 	return out, nil
 }
 
-func int64OrNil(raw string) (*int64, error) {
+type optional struct {
+	int  *int64
+	text *string
+}
+
+func optionalAmount(raw string) (optional, error) {
 	v, present, err := domain.ParseOptionalTokenAmount(raw)
-	var out *int64
-	if err == nil && present {
-		if n, intErr := v.Int64(); intErr == nil {
-			out = &n
-		}
+	var out optional
+	if err != nil || !present {
+		return out, err
 	}
-	return out, err
+	text := v.String()
+	out.text = &text
+	if n, intErr := v.Int64(); intErr == nil {
+		out.int = &n
+	}
+	return out, nil
 }
 
 func textOrNil(v pgtype.Text) *string {

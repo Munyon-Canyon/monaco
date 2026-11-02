@@ -3,6 +3,7 @@ package governance_test
 import (
 	"context"
 	"math/big"
+	"net/http"
 	"testing"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
@@ -47,6 +48,7 @@ func (q ratioQuoter) Quote(
 }
 
 type wideFixture struct {
+	s      *scenario.Scenario
 	h      *app.ProposeTradeHandler
 	d      proposalDB
 	twenty money.Units
@@ -71,7 +73,7 @@ func newWideFixture(t *testing.T, e *evmSellWorld) wideFixture {
 		return governance.New(d, governance.WithPorts(ports))
 	}))
 	return wideFixture{
-		h: h, twenty: twenty, d: proposalDB{pool: s.DB(), q: sqlc.New(s.DB()), ids: testkit.NewIDs(3)},
+		s: s, h: h, twenty: twenty, d: proposalDB{pool: s.DB(), q: sqlc.New(s.DB()), ids: testkit.NewIDs(3)},
 	}
 }
 
@@ -93,9 +95,9 @@ func TestProposeTrade_aTwentyTokenEVMHoldingSellsAndReadsBackExactly(t *testing.
 	if err != nil {
 		t.Fatalf("Open a sale of 20 tokens at 18 decimals = %v, want it opened", err)
 	}
-	if !opened.Draft.TokenAmount.Equal(f.twenty) || opened.TokenAmount != 0 ||
+	if !opened.Draft.TokenAmount.Equal(f.twenty) || !opened.TokenAmount.Equal(f.twenty) ||
 		opened.Draft.Decimals != wideTokenDecimals {
-		t.Fatalf("opened = %s units, int64 view %d, %d decimals, want the exact 20 tokens and a zero int64 view",
+		t.Fatalf("opened = %s units, opened view %s, %d decimals, want the exact 20 tokens in both",
 			opened.Draft.TokenAmount, opened.TokenAmount, opened.Draft.Decimals)
 	}
 	if got := opened.Draft.QuoteOut.String(); got != "4000000000" {
@@ -115,4 +117,44 @@ func TestProposeTrade_aSellPastTheCabalsEVMHoldingIsStillShort(t *testing.T) {
 	if _, err = f.sell(t, e, more); errs.CodeOf(err) != errs.CodeCabalSharesShort {
 		t.Fatalf("Open one unit past the holding = %v, want cabal_shares_short", err)
 	}
+}
+
+const wideSellBody = `{"kind":"sell","symbol":"AAPLx","token_amount_str":"20000000000000000000","network":"base"}`
+
+func TestProposeTrade_aTwentyTokenSellOverHTTPCarriesTheExactStringFields(t *testing.T) {
+	t.Parallel()
+	e := newEVMSellWorld(t)
+	f := newWideFixture(t, e)
+	f.s.Given(e.asMember()).
+		When(
+			scenario.Get(e.preview("kind=sell&symbol=AAPLx&network=base&token_amount_str=20000000000000000000")),
+			scenario.ExpectStatus(http.StatusOK),
+			scenario.ExpectJSON("advisory_code", nil),
+			scenario.ExpectJSON("quote_out_amount", 4_000_000_000),
+			scenario.ExpectJSON("quote_out_amount_str", "4000000000"),
+			scenario.Post(e.proposals(), wideSellBody),
+			scenario.ExpectStatus(http.StatusCreated),
+			scenario.ExpectJSON("token_amount", nil),
+			scenario.ExpectJSON("token_amount_str", "20000000000000000000"),
+			scenario.ExpectJSON("quote_out_amount", 4_000_000_000),
+			scenario.ExpectJSON("quote_out_amount_str", "4000000000"),
+			scenario.Remember("id", "proposal"),
+			scenario.Get("/v1/proposals/{proposal}"),
+			scenario.ExpectStatus(http.StatusOK),
+			scenario.ExpectJSON("token_amount", nil),
+			scenario.ExpectJSON("token_amount_str", "20000000000000000000"),
+		)
+}
+
+func TestProposeTrade_bothTokenAmountFieldsAreRefused(t *testing.T) {
+	t.Parallel()
+	e := newEVMSellWorld(t)
+	f := newWideFixture(t, e)
+	f.s.Given(e.asMember()).
+		When(
+			scenario.Post(e.proposals(),
+				`{"kind":"sell","symbol":"AAPLx","token_amount":5,"token_amount_str":"5","network":"base"}`),
+			scenario.ExpectStatus(http.StatusBadRequest),
+			scenario.ExpectJSON("code", string(errs.CodeInvalidInput)),
+		)
 }

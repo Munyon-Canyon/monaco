@@ -231,6 +231,11 @@ type CabalActivity struct {
 	// Examples: 105000000
 	Units *int64 `json:"units"`
 
+	// UnitsStr `units` as a decimal string, exact at any size. Null or absent when `units` is null or zero. `units` itself is the same value when it fits in an int64 and null above that.
+	//
+	// Examples: 105000000
+	UnitsStr *string `json:"units_str,omitempty"`
+
 	// UsdcMicros USDC spent or received, in micros. Null until known.
 	//
 	// Examples: 25000000
@@ -346,6 +351,11 @@ type CabalHolding struct {
 	//
 	// Examples: 73000000
 	TokenAmount int64 `json:"token_amount"`
+
+	// TokenAmountStr `token_amount` as a decimal string, exact at any size. `token_amount` itself is the same value when it fits in an int64 and 0 above that.
+	//
+	// Examples: 73000000
+	TokenAmountStr *string `json:"token_amount_str,omitempty"`
 
 	// Units Shares as the user sees them, rounded down to 4 decimal places.
 	//

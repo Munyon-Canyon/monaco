@@ -3,6 +3,7 @@ package adapters
 import (
 	"context"
 	"math"
+	"strconv"
 
 	"github.com/google/uuid"
 	openapi_types "github.com/oapi-codegen/runtime/types"
@@ -162,6 +163,11 @@ func wireProposal(p domain.CatchUpProposal) api.CatchUpProposal {
 		Yes: p.Yes, No: p.No, Voted: p.Voted, Eligible: p.Eligible, ReplyCount: p.ReplyCount, Filled: p.Filled,
 	}
 	out.UsdcMicros, out.TokenAmount = amount(p.USDCMicros), amount(p.TokenAmount)
+	out.TokenAmountStr = p.TokenAmountStr
+	if out.TokenAmountStr == nil && p.TokenAmount != nil {
+		text := strconv.FormatUint(*p.TokenAmount, 10)
+		out.TokenAmountStr = &text
+	}
 	if p.Outcome != "" {
 		o := api.CatchUpProposalOutcome(p.Outcome)
 		out.Outcome = &o

@@ -250,10 +250,14 @@ func (h HTTP) PostCabalProposal(
 	if err != nil {
 		return nil, err
 	}
+	tokens, err := tokenAmount(req.Body.TokenAmount, req.Body.TokenAmountStr)
+	if err != nil {
+		return nil, err
+	}
 	trade, err := domain.NewTrade(domain.Trade{
 		Kind: domain.Kind(req.Body.Kind), Symbol: req.Body.Symbol,
 		USDCMicros:  money.MicrosFromUint64(amount(req.Body.UsdcMicros)),
-		TokenAmount: money.UnitsFromUint64(amount(req.Body.TokenAmount)),
+		TokenAmount: tokens,
 		Thesis:      deref(req.Body.Thesis), Network: network(req.Body.Network),
 	})
 	if err != nil {
@@ -322,14 +326,11 @@ func (h HTTP) GetCabalProposalPreview(
 	if err != nil {
 		return nil, err
 	}
-	quote, err := wireUnitsInt(got.QuoteOut, "quote_out_amount")
-	if err != nil {
-		return nil, err
-	}
 	out := api.GetCabalProposalPreview200JSONResponse{
-		PotValueMicros:  pot,
-		QuoteOutAmount:  positive(quote),
-		PriceComparison: wireComparison(got.PriceComparison),
+		PotValueMicros:    pot,
+		QuoteOutAmount:    unitsAmount(got.QuoteOut),
+		QuoteOutAmountStr: got.QuoteOut.StringOrNil(),
+		PriceComparison:   wireComparison(got.PriceComparison),
 	}
 	if err := wireSpendable(&out, got.Spendable); err != nil {
 		return nil, err
@@ -340,14 +341,29 @@ func (h HTTP) GetCabalProposalPreview(
 	return out, nil
 }
 
+func tokenAmount(n *int64, text *string) (money.Units, error) {
+	if text == nil {
+		return money.UnitsFromUint64(amount(n)), nil
+	}
+	if n != nil {
+		return money.Units{}, errs.New(errs.CodeInvalidInput, "governance.tokenAmount")
+	}
+	return money.ParseUnits(*text)
+}
+
 func previewTrade(params api.GetCabalProposalPreviewParams) (domain.Trade, error) {
+	tokens, err := tokenAmount(params.TokenAmount, params.TokenAmountStr)
+	if err != nil {
+		return domain.Trade{}, err
+	}
 	trade := domain.Trade{
 		Kind: domain.Kind(params.Kind), Symbol: params.Symbol,
 		USDCMicros:  money.MicrosFromUint64(amount(params.UsdcMicros)),
-		TokenAmount: money.UnitsFromUint64(amount(params.TokenAmount)),
+		TokenAmount: tokens,
 		Network:     network(params.Network),
 	}
-	amountless := trade.Kind == domain.KindBuy && params.UsdcMicros == nil && params.TokenAmount == nil
+	amountless := trade.Kind == domain.KindBuy && params.UsdcMicros == nil &&
+		params.TokenAmount == nil && params.TokenAmountStr == nil
 	if amountless && strings.TrimSpace(trade.Symbol) != "" {
 		return trade, nil
 	}
@@ -365,14 +381,6 @@ func wireSpendable(out *api.GetCabalProposalPreview200JSONResponse, s *app.Spend
 	}
 	out.SpendableCashMicros, out.MaxBuyMicros = &cash, &maxBuy
 	return nil
-}
-
-func wireUnitsInt(u money.Units, field string) (int64, error) {
-	v, err := u.Int64()
-	if err != nil {
-		return 0, errs.Wrap(err, errs.CodeDecodeFailed, "governance.wireInt", slog.String("field", field))
-	}
-	return v, nil
 }
 
 func wireInt(v uint64, field string) (int64, error) {
@@ -427,6 +435,7 @@ func (h HTTP) detail(ctx context.Context, id ids.ProposalID, user ids.UserID) (a
 	out := api.ProposalDetail{
 		Id: p.Id, CabalId: p.CabalId, CabalName: p.CabalName, ProposerId: p.ProposerId, Kind: p.Kind,
 		Symbol: p.Symbol, UsdcMicros: p.UsdcMicros, TokenAmount: p.TokenAmount, QuoteOutAmount: p.QuoteOutAmount,
+		TokenAmountStr: p.TokenAmountStr, QuoteOutAmountStr: p.QuoteOutAmountStr,
 		TokenDecimals: p.TokenDecimals,
 		Thesis:        p.Thesis, Status: p.Status, StatusReason: p.StatusReason, StatusMessage: p.StatusMessage,
 		ExpiresAt: p.ExpiresAt, CreatedAt: p.CreatedAt, Tally: p.Tally, MyBallot: p.MyBallot,
@@ -473,6 +482,7 @@ func wireVoter(v app.Voter) api.ProposalVoter {
 
 func wireFill(out *api.LinkedSwap, f app.Fill) {
 	out.UsdcMicros, out.TokenAmount = baseAmount(f.USDCMicros), unitsAmount(f.TokenAmount)
+	out.TokenAmountStr = f.TokenAmount.StringOrNil()
 	out.TokenDecimals = int(f.TokenDecimals)
 	if f.Confirmed {
 		out.PriceMicros = baseAmount(f.PriceMicros)
@@ -530,32 +540,37 @@ func (h HTTP) GetMyPendingVotes(
 	}
 	out := make(api.GetMyPendingVotes200JSONResponse, len(pending))
 	for i, v := range pending {
-		out[i] = api.PendingVote{
-			ProposalId: v.ProposalID.UUID(),
-			CabalId:    v.CabalID.UUID(),
-			CabalName:  v.CabalName,
-			Kind: api.ProposalKind(
-				v.Kind,
-			),
-			Symbol:        present(v.Symbol),
-			RuleChange:    wirePendingRuleChange(v.Rule),
-			ExpiresAt:     v.ExpiresAt,
-			CreatedAt:     v.CreatedAt,
-			UsdcMicros:    baseAmount(v.USDC.Uint64()),
-			TokenAmount:   unitsAmount(v.TokenAmount),
-			TokenDecimals: decimalsOf(v.TokenDecimals),
-			AssetName:     present(v.AssetName),
-			AssetLogoUrl:  present(v.AssetLogo),
-			Proposer: api.PendingVoteProposer{
-				UserId: v.Proposer.ID.UUID(), Handle: present(v.Proposer.Handle),
-				DisplayName: v.Proposer.DisplayName, PhotoUrl: present(v.Proposer.PhotoURL),
-			},
-			Tally:      wireTally(v.Tally),
-			VotedCount: v.VotedCount,
-			ReplyCount: v.ReplyCount,
-		}
+		out[i] = wirePendingVote(v)
 	}
 	return out, nil
+}
+
+func wirePendingVote(v app.PendingVote) api.PendingVote {
+	return api.PendingVote{
+		ProposalId: v.ProposalID.UUID(),
+		CabalId:    v.CabalID.UUID(),
+		CabalName:  v.CabalName,
+		Kind: api.ProposalKind(
+			v.Kind,
+		),
+		Symbol:         present(v.Symbol),
+		RuleChange:     wirePendingRuleChange(v.Rule),
+		ExpiresAt:      v.ExpiresAt,
+		CreatedAt:      v.CreatedAt,
+		UsdcMicros:     baseAmount(v.USDC.Uint64()),
+		TokenAmount:    unitsAmount(v.TokenAmount),
+		TokenAmountStr: v.TokenAmount.StringOrNil(),
+		TokenDecimals:  decimalsOf(v.TokenDecimals),
+		AssetName:      present(v.AssetName),
+		AssetLogoUrl:   present(v.AssetLogo),
+		Proposer: api.PendingVoteProposer{
+			UserId: v.Proposer.ID.UUID(), Handle: present(v.Proposer.Handle),
+			DisplayName: v.Proposer.DisplayName, PhotoUrl: present(v.Proposer.PhotoURL),
+		},
+		Tally:      wireTally(v.Tally),
+		VotedCount: v.VotedCount,
+		ReplyCount: v.ReplyCount,
+	}
 }
 
 func wireProposal(v app.ProposalView) api.Proposal {
@@ -567,20 +582,22 @@ func wireProposal(v app.ProposalView) api.Proposal {
 		Kind: api.ProposalKind(
 			v.Kind,
 		),
-		Symbol:          present(v.Symbol),
-		RuleChange:      wireRuleChange(v.Rule),
-		UsdcMicros:      positive(v.USDCMicros),
-		TokenAmount:     positive(v.TokenAmount.Int64OrZero()),
-		TokenDecimals:   decimalsOf(v.TokenDecimals),
-		QuoteOutAmount:  positive(v.QuoteOut.Int64OrZero()),
-		Status:          api.ProposalStatus(v.Status),
-		ExpiresAt:       v.ExpiresAt,
-		CreatedAt:       v.CreatedAt,
-		Tally:           wireTally(v.Tally),
-		CanVote:         v.CanVote,
-		ReplyCount:      v.ReplyCount,
-		PriceComparison: wireComparison(v.Comparison),
-		Network:         wireNetwork(v.Network),
+		Symbol:            present(v.Symbol),
+		RuleChange:        wireRuleChange(v.Rule),
+		UsdcMicros:        positive(v.USDCMicros),
+		TokenAmount:       unitsAmount(v.TokenAmount),
+		TokenAmountStr:    v.TokenAmount.StringOrNil(),
+		TokenDecimals:     decimalsOf(v.TokenDecimals),
+		QuoteOutAmount:    unitsAmount(v.QuoteOut),
+		QuoteOutAmountStr: v.QuoteOut.StringOrNil(),
+		Status:            api.ProposalStatus(v.Status),
+		ExpiresAt:         v.ExpiresAt,
+		CreatedAt:         v.CreatedAt,
+		Tally:             wireTally(v.Tally),
+		CanVote:           v.CanVote,
+		ReplyCount:        v.ReplyCount,
+		PriceComparison:   wireComparison(v.Comparison),
+		Network:           wireNetwork(v.Network),
 	}
 	out.Thesis = present(v.Thesis)
 	if v.StatusReason != "" {
@@ -605,19 +622,21 @@ func wireProposer(p app.ProposerCard) api.ProposalProposer {
 func wireOpenedProposal(opened app.OpenedProposal, cabalName string, proposer app.ProposerCard) api.ProposalDetail {
 	d := opened.Draft
 	p := api.Proposal{
-		Id:             d.ID.UUID(),
-		CabalId:        d.CabalID.UUID(),
-		CabalName:      cabalName,
-		ProposerId:     d.ProposerID.UUID(),
-		Kind:           api.ProposalKind(d.Kind),
-		Symbol:         present(d.Symbol),
-		UsdcMicros:     positive(opened.USDCMicros),
-		TokenAmount:    positive(opened.TokenAmount),
-		QuoteOutAmount: ptr(opened.QuoteOutAmount),
-		Status:         api.ProposalStatusOpen,
-		ExpiresAt:      d.ExpiresAt,
-		CreatedAt:      opened.CreatedAt,
-		Tally:          wireTally(app.Tally{Voters: len(opened.Voters), Needed: opened.Needed}),
+		Id:                d.ID.UUID(),
+		CabalId:           d.CabalID.UUID(),
+		CabalName:         cabalName,
+		ProposerId:        d.ProposerID.UUID(),
+		Kind:              api.ProposalKind(d.Kind),
+		Symbol:            present(d.Symbol),
+		UsdcMicros:        positive(opened.USDCMicros),
+		TokenAmount:       unitsAmount(opened.TokenAmount),
+		TokenAmountStr:    opened.TokenAmount.StringOrNil(),
+		QuoteOutAmount:    ptr(opened.QuoteOutAmount.Int64OrZero()),
+		QuoteOutAmountStr: ptr(opened.QuoteOutAmount.String()),
+		Status:            api.ProposalStatusOpen,
+		ExpiresAt:         d.ExpiresAt,
+		CreatedAt:         opened.CreatedAt,
+		Tally:             wireTally(app.Tally{Voters: len(opened.Voters), Needed: opened.Needed}),
 	}
 	p.Thesis = present(d.Thesis)
 	voters := make([]api.ProposalVoter, len(opened.Voters))
@@ -627,6 +646,7 @@ func wireOpenedProposal(opened app.OpenedProposal, cabalName string, proposer ap
 	return api.ProposalDetail{
 		Id: p.Id, CabalId: p.CabalId, CabalName: p.CabalName, ProposerId: p.ProposerId, Kind: p.Kind,
 		Symbol: p.Symbol, UsdcMicros: p.UsdcMicros, TokenAmount: p.TokenAmount, QuoteOutAmount: p.QuoteOutAmount,
+		TokenAmountStr: p.TokenAmountStr, QuoteOutAmountStr: p.QuoteOutAmountStr,
 		Thesis: p.Thesis, Status: p.Status, StatusReason: p.StatusReason, StatusMessage: p.StatusMessage,
 		ExpiresAt: p.ExpiresAt, CreatedAt: p.CreatedAt, Tally: p.Tally, MyBallot: p.MyBallot, Voters: voters,
 		Proposer: wireProposer(proposer), CanVote: opened.ProposerCanVote, CanWithdraw: true,

@@ -14,26 +14,27 @@ type CatchUpPerson struct {
 }
 
 type CatchUpProposal struct {
-	ID          ids.ProposalID
-	CabalID     ids.CabalID
-	CabalName   string
-	Kind        string
-	Symbol      string
-	Mint        string
-	AssetName   string
-	AssetLogo   string
-	USDCMicros  *uint64
-	TokenAmount *uint64
-	Proposer    CatchUpPerson
-	CreatedAt   time.Time
-	ExpiresAt   time.Time
-	Status      Status
-	Yes, No     int
-	Voted       int
-	Eligible    int
-	ReplyCount  int
-	YourChoice  string
-	DecidedBy   *ids.UserID
+	ID             ids.ProposalID
+	CabalID        ids.CabalID
+	CabalName      string
+	Kind           string
+	Symbol         string
+	Mint           string
+	AssetName      string
+	AssetLogo      string
+	USDCMicros     *uint64
+	TokenAmount    *uint64
+	TokenAmountStr *string
+	Proposer       CatchUpPerson
+	CreatedAt      time.Time
+	ExpiresAt      time.Time
+	Status         Status
+	Yes, No        int
+	Voted          int
+	Eligible       int
+	ReplyCount     int
+	YourChoice     string
+	DecidedBy      *ids.UserID
 }
 
 type CatchUp interface {

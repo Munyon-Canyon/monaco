@@ -1900,6 +1900,13 @@ paths:
             Token base units a sell spends. For a sell pinned to an EVM chain these are that listing's
             token base units, as `token_amount` on the holding's listing reports them.
           schema: {type: integer, format: int64, minimum: 1, examples: [1000000]}
+        - name: token_amount_str
+          in: query
+          required: false
+          description: >-
+            `token_amount` as a decimal string, for a sell past the int64 range. Send either `token_amount`
+            or `token_amount_str`, not both.
+          schema: {type: string, pattern: "^[1-9][0-9]*$", examples: ["25000000000000000000"]}
         - name: network
           in: query
           required: false
@@ -7943,11 +7950,13 @@ components:
           format: int64
           description: Token base units a sell spends. Null for a buy.
           examples: [null]
+        token_amount_str: {type: [string, "null"], pattern: "^[0-9]+$", description: "`token_amount` as a decimal string, exact at any size. Null or absent when `token_amount` is null or zero. `token_amount` itself is the same value when it fits in an int64 and null above that.", examples: ["25000000"]}
         quote_out_amount:
           type: integer
           format: int64
           description: The quoted output, in the output asset's base units, when the proposal opened.
           examples: [105000000]
+        quote_out_amount_str: {type: string, pattern: "^[0-9]+$", description: "`quote_out_amount` as a decimal string, exact at any size. `quote_out_amount` itself is the same value when it fits in an int64 and 0 above that.", examples: ["105000000"]}
         thesis: {type: [string, "null"], description: "The proposer's reason, up to 280 characters.", examples: [Earnings next week.]}
         status: {$ref: "#/components/schemas/ProposalStatus"}
         status_reason:
@@ -8180,6 +8189,7 @@ components:
           format: int64
           description: Token base units a sell spends. Null for a buy and for a rule proposal.
           examples: [null]
+        token_amount_str: {type: [string, "null"], pattern: "^[0-9]+$", description: "`token_amount` as a decimal string, exact at any size. Null or absent when `token_amount` is null or zero. `token_amount` itself is the same value when it fits in an int64 and null above that.", examples: ["25000000"]}
         token_decimals: {type: [integer, "null"], minimum: 0, maximum: 255, description: "Decimals of `token_amount`. A Robinhood listing's token has 18, not the Solana token's 8. Null when there is no `token_amount` or it is the asset's own decimals.", examples: [18]}
         asset_name: {type: [string, "null"], description: "The asset's display name. Null for a rule proposal.", examples: [NVIDIA]}
         asset_logo_url: {type: [string, "null"], description: Null when the asset has no logo and for a rule proposal., examples: ["https://cdn.example.com/logos/nvda.png"]}
@@ -8278,12 +8288,14 @@ components:
           format: int64
           description: Token base units a sell spends. Null for a buy and for a rule proposal.
           examples: [null]
+        token_amount_str: {type: [string, "null"], pattern: "^[0-9]+$", description: "`token_amount` as a decimal string, exact at any size. Null or absent when `token_amount` is null or zero. `token_amount` itself is the same value when it fits in an int64 and null above that.", examples: ["25000000"]}
         token_decimals: {type: [integer, "null"], minimum: 0, maximum: 255, description: "Decimals of `token_amount`. A Robinhood listing's token has 18, not the Solana token's 8. Null when there is no `token_amount` or it is the asset's own decimals.", examples: [18]}
         quote_out_amount:
           type: [integer, "null"]
           format: int64
           description: The quoted output, in the output asset's base units, when the proposal opened. Null for a rule proposal.
           examples: [105000000]
+        quote_out_amount_str: {type: [string, "null"], pattern: "^[0-9]+$", description: "`quote_out_amount` as a decimal string, exact at any size. Null or absent when `quote_out_amount` is null or zero. `quote_out_amount` itself is the same value when it fits in an int64 and null above that.", examples: ["105000000"]}
         thesis: {type: [string, "null"], description: "The proposer's reason, up to 280 characters.", examples: [Earnings next week.]}
         status: {$ref: "#/components/schemas/ProposalStatus"}
         status_reason:
@@ -8421,12 +8433,14 @@ components:
           format: int64
           description: Token base units a sell spends. Null for a buy and for a rule proposal.
           examples: [null]
+        token_amount_str: {type: [string, "null"], pattern: "^[0-9]+$", description: "`token_amount` as a decimal string, exact at any size. Null or absent when `token_amount` is null or zero. `token_amount` itself is the same value when it fits in an int64 and null above that.", examples: ["25000000"]}
         token_decimals: {type: [integer, "null"], minimum: 0, maximum: 255, description: "Decimals of `token_amount`. A Robinhood listing's token has 18, not the Solana token's 8. Null when there is no `token_amount` or it is the asset's own decimals.", examples: [18]}
         quote_out_amount:
           type: [integer, "null"]
           format: int64
           description: The quoted output, in the output asset's base units, when the proposal opened. Null for a rule proposal.
           examples: [105000000]
+        quote_out_amount_str: {type: [string, "null"], pattern: "^[0-9]+$", description: "`quote_out_amount` as a decimal string, exact at any size. Null or absent when `quote_out_amount` is null or zero. `quote_out_amount` itself is the same value when it fits in an int64 and null above that.", examples: ["105000000"]}
         price_comparison:
           description: >-
             Every venue checked for the trade, best first. Absent for a sell and until routing fills it.
@@ -8503,6 +8517,7 @@ components:
               format: int64
               description: Token base units bought or sold. Null until a buy confirms.
               examples: [12500000]
+            token_amount_str: {type: [string, "null"], pattern: "^[0-9]+$", description: "`token_amount` as a decimal string, exact at any size. Null or absent when `token_amount` is null or zero. `token_amount` itself is the same value when it fits in an int64 and null above that.", examples: ["12500000"]}
             token_decimals: {type: integer, minimum: 0, maximum: 255, description: Decimals of `token_amount`., examples: [8]}
             price_micros:
               type: [integer, "null"]
@@ -8563,6 +8578,7 @@ components:
             comparison, from Jupiter. 0 when the proposal is pinned to a chain with no live quote, and
             `price_comparison` then lists that chain as unavailable.
           examples: [40000000]
+        quote_out_amount_str: {type: string, pattern: "^[0-9]+$", description: "`quote_out_amount` as a decimal string, exact at any size. `quote_out_amount` itself is the same value when it fits in an int64 and 0 above that.", examples: ["40000000"]}
         quoted_at:
           type: string
           format: date-time
@@ -8721,7 +8737,7 @@ components:
         photo_url: {type: [string, "null"], description: "The voter's photo. Null when they have none.", examples: [null]}
     ProposeTradeRequest:
       type: object
-      description: A trade to propose. A buy sets `usdc_micros` only, and a sell sets `token_amount` only.
+      description: A trade to propose. A buy sets `usdc_micros` only, and a sell sets `token_amount` or `token_amount_str` only.
       additionalProperties: false
       required: [kind, symbol]
       properties:
@@ -8741,6 +8757,13 @@ components:
             Token base units a sell spends. For a sell on an EVM chain these are that listing's token base
             units.
           examples: [1000000]
+        token_amount_str:
+          type: string
+          pattern: "^[1-9][0-9]*$"
+          description: >-
+            `token_amount` as a decimal string, for a sell past the int64 range. Send either `token_amount` or
+            `token_amount_str` on a sell, not both. A sell sets exactly one of them.
+          examples: ["25000000000000000000"]
         thesis: {type: string, maxLength: 280, description: "The proposer's reason, up to 280 characters.", examples: [earnings]}
         network:
           description: >-
@@ -8833,6 +8856,7 @@ components:
           format: int64
           description: The quoted output, in the output asset's base units. Null when Jupiter has no route or the asset is unknown.
           examples: [21000000]
+        quote_out_amount_str: {type: [string, "null"], pattern: "^[0-9]+$", description: "`quote_out_amount` as a decimal string, exact at any size. Null or absent when `quote_out_amount` is null or zero. `quote_out_amount` itself is the same value when it fits in an int64 and null above that.", examples: ["21000000"]}
         advisory_code:
           type: [string, "null"]
           description: >-
@@ -10148,6 +10172,7 @@ components:
         asset_logo_url: {type: [string, "null"], examples: [null]}
         usdc_micros: {type: [integer, "null"], format: int64, description: "USDC a buy spends, in micros.", examples: [400000000]}
         token_amount: {type: [integer, "null"], format: int64, description: Token base units a sell spends., examples: [null]}
+        token_amount_str: {type: [string, "null"], pattern: "^[0-9]+$", description: "`token_amount` as a decimal string, exact at any size. Null or absent when `token_amount` is null or zero. `token_amount` itself is the same value when it fits in an int64 and null above that.", examples: ["25000000"]}
         proposer: {$ref: "#/components/schemas/CatchUpPerson"}
         created_at: {type: string, format: date-time, examples: ["2026-10-28T18:00:00Z"]}
         expires_at: {type: string, format: date-time, examples: ["2026-10-28T22:00:00Z"]}
@@ -11643,6 +11668,7 @@ components:
           format: int64
           description: "Token base units: a sell proposal's amount or a trade's fill. Null when the item has none."
           examples: [250000000]
+        token_amount_str: {type: [string, "null"], pattern: "^[0-9]+$", description: "`token_amount` as a decimal string, exact at any size. Null or absent when `token_amount` is null or zero. `token_amount` itself is the same value when it fits in an int64 and null above that.", examples: ["250000000"]}
         token_decimals:
           type: [integer, "null"]
           minimum: 0
@@ -11756,6 +11782,7 @@ components:
           format: int64
           description: "Token base units filled so far across the order's confirmed swaps, at `token_decimals`. Null on a `result` with no fill and on every other kind."
           examples: [42000000]
+        filled_token_amount_str: {type: [string, "null"], pattern: "^[0-9]+$", description: "`filled_token_amount` as a decimal string, exact at any size. Null or absent when `filled_token_amount` is null or zero. `filled_token_amount` itself is the same value when it fits in an int64 and null above that.", examples: ["42000000"]}
         filled_usdc_micros: {type: [integer, "null"], format: int64, description: "USDC micros the confirmed swaps spent or received. Null on a `result` with no fill and on every other kind.", examples: [300000000]}
         filled_at: {type: [string, "null"], format: date-time, description: "When the latest swap confirmed. Null on a `result` with no fill and on every other kind.", examples: ["2026-10-03T08:41:00Z"]}
         trade_failed: {type: boolean, description: "True when a `result`'s order is `partial` or `failed`. False on every other item.", examples: [false]}
@@ -12342,6 +12369,7 @@ components:
           format: int64
           description: Token base units bought or sold. Null until a buy confirms.
           examples: [null]
+        token_amount_str: {type: [string, "null"], pattern: "^[0-9]+$", description: "`token_amount` as a decimal string, exact at any size. Null or absent when `token_amount` is null or zero. `token_amount` itself is the same value when it fits in an int64 and null above that.", examples: ["25000000"]}
         status:
           type: string
           description: Where the trade is.
@@ -12443,6 +12471,7 @@ components:
           format: int64
           description: Token base units bought or sold. Null until known.
           examples: [105000000]
+        units_str: {type: [string, "null"], pattern: "^[0-9]+$", description: "`units` as a decimal string, exact at any size. Null or absent when `units` is null or zero. `units` itself is the same value when it fits in an int64 and null above that.", examples: ["105000000"]}
         price_micros:
           type: [integer, "null"]
           format: int64
@@ -12501,6 +12530,7 @@ components:
         kind: {type: string, enum: [equity, pre_ipo], description: "Whether the token tracks a listed equity or a pre-IPO company.", examples: [equity]}
         units: {type: string, pattern: "^(0|[1-9][0-9]*)\\.[0-9]{4}$", description: "Shares as the user sees them, rounded down to 4 decimal places.", examples: ["0.7300"]}
         token_amount: {type: integer, format: int64, minimum: 1, description: "The token base units the cabal holds, what a sell of all of it spends.", examples: [73000000]}
+        token_amount_str: {type: string, pattern: "^[0-9]+$", description: "`token_amount` as a decimal string, exact at any size. `token_amount` itself is the same value when it fits in an int64 and 0 above that.", examples: ["73000000"]}
         price_micros: {type: integer, format: int64, description: "The latest price of one share, in USDC micros.", examples: [30000000]}
         value_micros: {type: integer, format: int64, description: "The holding's value, in USDC micros.", examples: [60000000]}
         weight_bps: {type: integer, format: int32, description: "The holding's share of the pot in basis points.", examples: [5000]}

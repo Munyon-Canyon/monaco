@@ -299,10 +299,12 @@ func TestHTTP_GetCabalProposals(t *testing.T) {
 	symbol, quoteOut := "AAPLx", int64(105_000_000)
 	base := api.Proposal{
 		CabalId: d.cabal, ProposerId: sell.ProposerID, Symbol: &symbol, QuoteOutAmount: &quoteOut,
-		Tally: api.Tally{Voters: 1, Needed: 1},
+		QuoteOutAmountStr: ptr("105000000"),
+		Tally:             api.Tally{Voters: 1, Needed: 1},
 	}
 	wantSell, wantBuy := base, base
 	wantSell.Id, wantSell.Kind, wantSell.TokenAmount = sell.ID, "sell", ptr(int64(7))
+	wantSell.TokenAmountStr = ptr("7")
 	wantSell.Status, wantSell.MyBallot = api.ProposalStatus(domain.StatusExecutionBlocked), ptr(api.BallotChoice("no"))
 	wantSell.StatusReason, wantSell.StatusMessage = ptr("no_route"), ptr(errs.Message(errs.CodeNoRoute))
 	wantSell.Tally.No = 1

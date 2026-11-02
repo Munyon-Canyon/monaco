@@ -92,6 +92,14 @@ func (u Units) Micros() (Micros, error) {
 
 func (u Units) String() string { return u.big().String() }
 
+func (u Units) StringOrNil() *string {
+	if u.IsZero() {
+		return nil
+	}
+	s := u.String()
+	return &s
+}
+
 func UnitsFromMicros(m Micros) Units { return UnitsFromUint64(m.Uint64()) }
 
 func UnitsMulDiv(a, b, c Units) (Units, error) {

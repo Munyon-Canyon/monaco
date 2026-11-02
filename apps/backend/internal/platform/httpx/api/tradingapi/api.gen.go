@@ -215,6 +215,11 @@ type SwapDetail struct {
 	// Examples: null
 	TokenAmount *int64 `json:"token_amount"`
 
+	// TokenAmountStr `token_amount` as a decimal string, exact at any size. Null or absent when `token_amount` is null or zero. `token_amount` itself is the same value when it fits in an int64 and null above that.
+	//
+	// Examples: 25000000
+	TokenAmountStr *string `json:"token_amount_str,omitempty"`
+
 	// TokenDecimals Decimals of `token_amount`.
 	//
 	// Examples: 8

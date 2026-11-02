@@ -336,13 +336,15 @@ func TestHTTP_GetProposal_swapFill(t *testing.T) {
 		"confirmed buy": {
 			trading.SwapView{Action: "buy", Status: "confirmed", InAmount: money.UnitsFromUint64(25_000_000), OutAmount: money.UnitsFromUint64(12_500_000)},
 			api.LinkedSwap{
-				UsdcMicros: ptr(int64(25_000_000)), TokenAmount: ptr(int64(12_500_000)), PriceMicros: ptr(int64(200_000_000)),
+				UsdcMicros: ptr(int64(25_000_000)), TokenAmount: ptr(int64(12_500_000)), TokenAmountStr: ptr("12500000"),
+				PriceMicros: ptr(int64(200_000_000)),
 			},
 		},
 		"confirmed sell floors the price": {
 			trading.SwapView{Action: "sell", Status: "confirmed", InAmount: money.UnitsFromUint64(3_000_000_000), OutAmount: money.UnitsFromUint64(10_000_000)},
 			api.LinkedSwap{
-				UsdcMicros: ptr(int64(10_000_000)), TokenAmount: ptr(int64(3_000_000_000)), PriceMicros: ptr(int64(333_333)),
+				UsdcMicros: ptr(int64(10_000_000)), TokenAmount: ptr(int64(3_000_000_000)), TokenAmountStr: ptr("3000000000"),
+				PriceMicros: ptr(int64(333_333)),
 			},
 		},
 		"submitted buy": {
@@ -351,7 +353,9 @@ func TestHTTP_GetProposal_swapFill(t *testing.T) {
 		},
 		"failed sell": {
 			trading.SwapView{Action: "sell", Status: "failed", InAmount: money.UnitsFromUint64(3_000_000_000), FailureCode: "jupiter_failed"},
-			api.LinkedSwap{TokenAmount: ptr(int64(3_000_000_000)), FailureCode: ptr("jupiter_failed")},
+			api.LinkedSwap{
+				TokenAmount: ptr(int64(3_000_000_000)), TokenAmountStr: ptr("3000000000"), FailureCode: ptr("jupiter_failed"),
+			},
 		},
 	} {
 		t.Run(name, func(t *testing.T) {

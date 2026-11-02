@@ -182,6 +182,7 @@ func TestProposalComparison_fallsBackToTheSolanaQuoteWhenRoutingFails(t *testing
 			scenario.Get(w.liveComparison()),
 			scenario.ExpectStatus(http.StatusOK),
 			scenario.ExpectJSON("quote_out_amount", quoteUnits),
+			scenario.ExpectJSON("quote_out_amount_str", "21000000"),
 			scenario.ExpectNoField("price_comparison"),
 			router.expectCalls(t, 2),
 		)
@@ -246,7 +247,7 @@ func TestProposalComparison_servesOnlyAnOpenBuyToAMember(t *testing.T) {
 		)
 }
 
-func TestProposalComparison_refusesAQuotePastInt64AndAnAnonymousCaller(t *testing.T) {
+func TestProposalComparison_aQuotePastInt64IsExactAsAStringAndAnAnonymousCallerIsRefused(t *testing.T) {
 	t.Parallel()
 	w := newTradeWorld(t)
 	aapl := marketfake.AAPLx()
@@ -257,7 +258,9 @@ func TestProposalComparison_refusesAQuotePastInt64AndAnAnonymousCaller(t *testin
 			scenario.Remember("id", "proposal"),
 			func(*scenario.Scenario) { w.routes.Ok(aapl.ID, huge) },
 			scenario.Get(w.liveComparison()),
-			scenario.ExpectProblem(errs.CodeDecodeFailed),
+			scenario.ExpectStatus(http.StatusOK),
+			scenario.ExpectJSON("quote_out_amount", 0),
+			scenario.ExpectJSON("quote_out_amount_str", "18446744073709551615"),
 		)
 	req := governanceapi.GetCabalProposalPriceComparisonRequestObject{
 		Id: w.cabal.UUID(), ProposalId: testkit.NewIDs(5203).NewV7(),

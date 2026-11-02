@@ -465,6 +465,11 @@ type AdminProposal struct {
 	// Examples: 105000000
 	QuoteOutAmount int64 `json:"quote_out_amount"`
 
+	// QuoteOutAmountStr `quote_out_amount` as a decimal string, exact at any size. `quote_out_amount` itself is the same value when it fits in an int64 and 0 above that.
+	//
+	// Examples: 105000000
+	QuoteOutAmountStr *string `json:"quote_out_amount_str,omitempty"`
+
 	// RecentAdminActions The 20 newest admin actions on the proposal, newest first.
 	//
 	// Examples: []
@@ -507,6 +512,11 @@ type AdminProposal struct {
 	//
 	// Examples: null
 	TokenAmount *int64 `json:"token_amount"`
+
+	// TokenAmountStr `token_amount` as a decimal string, exact at any size. Null or absent when `token_amount` is null or zero. `token_amount` itself is the same value when it fits in an int64 and null above that.
+	//
+	// Examples: 25000000
+	TokenAmountStr *string `json:"token_amount_str,omitempty"`
 
 	// UsdcMicros USDC a buy spends, in micros. Null for a sell.
 	//
@@ -781,6 +791,11 @@ type PendingVote struct {
 	// Examples: null
 	TokenAmount *int64 `json:"token_amount"`
 
+	// TokenAmountStr `token_amount` as a decimal string, exact at any size. Null or absent when `token_amount` is null or zero. `token_amount` itself is the same value when it fits in an int64 and null above that.
+	//
+	// Examples: 25000000
+	TokenAmountStr *string `json:"token_amount_str,omitempty"`
+
 	// TokenDecimals Decimals of `token_amount`. A Robinhood listing's token has 18, not the Solana token's 8. Null when there is no `token_amount` or it is the asset's own decimals.
 	//
 	// Examples: 18
@@ -933,6 +948,11 @@ type Proposal struct {
 	// Examples: 105000000
 	QuoteOutAmount *int64 `json:"quote_out_amount"`
 
+	// QuoteOutAmountStr `quote_out_amount` as a decimal string, exact at any size. Null or absent when `quote_out_amount` is null or zero. `quote_out_amount` itself is the same value when it fits in an int64 and null above that.
+	//
+	// Examples: 105000000
+	QuoteOutAmountStr *string `json:"quote_out_amount_str,omitempty"`
+
 	// ReplyCount How many replies the proposal's thread has.
 	//
 	// Examples: 6
@@ -975,6 +995,11 @@ type Proposal struct {
 	//
 	// Examples: null
 	TokenAmount *int64 `json:"token_amount"`
+
+	// TokenAmountStr `token_amount` as a decimal string, exact at any size. Null or absent when `token_amount` is null or zero. `token_amount` itself is the same value when it fits in an int64 and null above that.
+	//
+	// Examples: 25000000
+	TokenAmountStr *string `json:"token_amount_str,omitempty"`
 
 	// TokenDecimals Decimals of `token_amount`. A Robinhood listing's token has 18, not the Solana token's 8. Null when there is no `token_amount` or it is the asset's own decimals.
 	//
@@ -1130,6 +1155,11 @@ type ProposalDetail struct {
 	// Examples: 105000000
 	QuoteOutAmount *int64 `json:"quote_out_amount"`
 
+	// QuoteOutAmountStr `quote_out_amount` as a decimal string, exact at any size. Null or absent when `quote_out_amount` is null or zero. `quote_out_amount` itself is the same value when it fits in an int64 and null above that.
+	//
+	// Examples: 105000000
+	QuoteOutAmountStr *string `json:"quote_out_amount_str,omitempty"`
+
 	// ReminderSet True when the caller asked to be reminded before this proposal closes and it has not been sent. False after a vote and for a non-member.
 	//
 	// Examples: false
@@ -1190,6 +1220,11 @@ type ProposalDetail struct {
 	//
 	// Examples: null
 	TokenAmount *int64 `json:"token_amount"`
+
+	// TokenAmountStr `token_amount` as a decimal string, exact at any size. Null or absent when `token_amount` is null or zero. `token_amount` itself is the same value when it fits in an int64 and null above that.
+	//
+	// Examples: 25000000
+	TokenAmountStr *string `json:"token_amount_str,omitempty"`
 
 	// TokenDecimals Decimals of `token_amount`. A Robinhood listing's token has 18, not the Solana token's 8. Null when there is no `token_amount` or it is the asset's own decimals.
 	//
@@ -1344,6 +1379,11 @@ type LinkedSwap struct {
 	// Examples: 12500000
 	TokenAmount *int64 `json:"token_amount"`
 
+	// TokenAmountStr `token_amount` as a decimal string, exact at any size. Null or absent when `token_amount` is null or zero. `token_amount` itself is the same value when it fits in an int64 and null above that.
+	//
+	// Examples: 12500000
+	TokenAmountStr *string `json:"token_amount_str,omitempty"`
+
 	// TokenDecimals Decimals of `token_amount`.
 	//
 	// Examples: 8
@@ -1389,6 +1429,11 @@ type ProposalPriceComparison struct {
 	//
 	// Examples: 40000000
 	QuoteOutAmount int64 `json:"quote_out_amount"`
+
+	// QuoteOutAmountStr `quote_out_amount` as a decimal string, exact at any size. `quote_out_amount` itself is the same value when it fits in an int64 and 0 above that.
+	//
+	// Examples: 40000000
+	QuoteOutAmountStr *string `json:"quote_out_amount_str,omitempty"`
 
 	// QuotedAt When the quotes were taken.
 	//
@@ -1560,7 +1605,7 @@ type ProposalVoter struct {
 	Voted bool `json:"voted"`
 }
 
-// ProposeTradeRequest A trade to propose. A buy sets `usdc_micros` only, and a sell sets `token_amount` only.
+// ProposeTradeRequest A trade to propose. A buy sets `usdc_micros` only, and a sell sets `token_amount` or `token_amount_str` only.
 type ProposeTradeRequest struct {
 	// Kind Whether the proposal spends USDC on the token, sells the token for USDC, or changes one of the cabal's rules.
 	//
@@ -1586,6 +1631,11 @@ type ProposeTradeRequest struct {
 	//
 	// Examples: 1000000
 	TokenAmount *int64 `json:"token_amount,omitempty"`
+
+	// TokenAmountStr `token_amount` as a decimal string, for a sell past the int64 range. Send either `token_amount` or `token_amount_str` on a sell, not both. A sell sets exactly one of them.
+	//
+	// Examples: 25000000000000000000
+	TokenAmountStr *string `json:"token_amount_str,omitempty"`
 
 	// UsdcMicros USDC a buy spends, in micros.
 	//
@@ -1704,6 +1754,11 @@ type TradePreview struct {
 	// Examples: 21000000
 	QuoteOutAmount *int64 `json:"quote_out_amount"`
 
+	// QuoteOutAmountStr `quote_out_amount` as a decimal string, exact at any size. Null or absent when `quote_out_amount` is null or zero. `quote_out_amount` itself is the same value when it fits in an int64 and null above that.
+	//
+	// Examples: 21000000
+	QuoteOutAmountStr *string `json:"quote_out_amount_str,omitempty"`
+
 	// SpendableCashMicros The USDC on the cabal's Solana treasury wallet, the cash a buy draws on, in micros. Absent for a sell.
 	//
 	// Examples: 990000
@@ -1819,6 +1874,9 @@ type GetCabalProposalPreviewParams struct {
 
 	// TokenAmount Token base units a sell spends. For a sell pinned to an EVM chain these are that listing's token base units, as `token_amount` on the holding's listing reports them.
 	TokenAmount *int64 `form:"token_amount,omitempty" json:"token_amount,omitempty"`
+
+	// TokenAmountStr `token_amount` as a decimal string, for a sell past the int64 range. Send either `token_amount` or `token_amount_str`, not both.
+	TokenAmountStr *string `form:"token_amount_str,omitempty" json:"token_amount_str,omitempty"`
 
 	// Network The chain a trade is pinned to. A buy's quote is that chain's best listing, and a chain with no listing quoted sets `advisory_code` to invalid_network. A sell's quote is the sale of the cabal's holding on that chain, and a chain the cabal holds none on sets `advisory_code` to invalid_network. Absent means the best price on any chain for a buy, and the holding for a sell.
 	Network *externalRef0.Network `form:"network,omitempty" json:"network,omitempty"`
@@ -2314,6 +2372,19 @@ func (siw *ServerInterfaceWrapper) GetCabalProposalPreview(w http.ResponseWriter
 			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "token_amount"})
 		} else {
 			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "token_amount", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "token_amount_str" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "token_amount_str", r.URL.Query(), &params.TokenAmountStr, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "token_amount_str"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "token_amount_str", Err: err})
 		}
 		return
 	}

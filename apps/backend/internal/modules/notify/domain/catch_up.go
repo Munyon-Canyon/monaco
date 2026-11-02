@@ -69,25 +69,26 @@ type CatchUpCabal struct {
 }
 
 type CatchUpProposal struct {
-	ID           string        `json:"id"`
-	Kind         string        `json:"kind"`
-	Symbol       string        `json:"symbol"`
-	AssetName    string        `json:"asset_name"`
-	AssetLogoURL string        `json:"asset_logo_url"`
-	USDCMicros   *uint64       `json:"usdc_micros"`
-	TokenAmount  *uint64       `json:"token_amount"`
-	Proposer     CatchUpPerson `json:"proposer"`
-	CreatedAt    time.Time     `json:"created_at"`
-	ExpiresAt    time.Time     `json:"expires_at"`
-	Status       string        `json:"status"`
-	Yes          int           `json:"yes"`
-	No           int           `json:"no"`
-	Voted        int           `json:"voted"`
-	Eligible     int           `json:"eligible"`
-	ReplyCount   int           `json:"reply_count"`
-	Outcome      string        `json:"outcome,omitempty"`
-	YourChoice   string        `json:"your_choice,omitempty"`
-	Filled       *bool         `json:"filled,omitempty"`
+	ID             string        `json:"id"`
+	Kind           string        `json:"kind"`
+	Symbol         string        `json:"symbol"`
+	AssetName      string        `json:"asset_name"`
+	AssetLogoURL   string        `json:"asset_logo_url"`
+	USDCMicros     *uint64       `json:"usdc_micros"`
+	TokenAmount    *uint64       `json:"token_amount"`
+	TokenAmountStr *string       `json:"token_amount_str,omitempty"`
+	Proposer       CatchUpPerson `json:"proposer"`
+	CreatedAt      time.Time     `json:"created_at"`
+	ExpiresAt      time.Time     `json:"expires_at"`
+	Status         string        `json:"status"`
+	Yes            int           `json:"yes"`
+	No             int           `json:"no"`
+	Voted          int           `json:"voted"`
+	Eligible       int           `json:"eligible"`
+	ReplyCount     int           `json:"reply_count"`
+	Outcome        string        `json:"outcome,omitempty"`
+	YourChoice     string        `json:"your_choice,omitempty"`
+	Filled         *bool         `json:"filled,omitempty"`
 }
 
 type CatchUpPost struct {

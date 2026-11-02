@@ -50,6 +50,7 @@ func TestFlow09_ProposeTrade_OK(t *testing.T) {
 			scenario.ExpectJSON("symbol", "AAPLx"),
 			scenario.ExpectJSON("usdc_micros", 5_000_000),
 			scenario.ExpectJSON("quote_out_amount", quoteUnits),
+			scenario.ExpectJSON("quote_out_amount_str", "21000000"),
 			scenario.ExpectJSON("thesis", "earnings"),
 			scenario.ExpectJSON("my_ballot", nil),
 			scenario.ExpectJSON("can_vote", true),

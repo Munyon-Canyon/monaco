@@ -33,7 +33,8 @@ func (c CatchUp) PendingVotes(ctx context.Context, viewer ids.UserID) ([]port.Ca
 			USDCMicros: positiveAmount(
 				v.USDC.Uint64(),
 			),
-			TokenAmount: positiveAmount(uint64(max(v.TokenAmount.Int64OrZero(), 0))),
+			TokenAmount:    positiveAmount(uint64(max(v.TokenAmount.Int64OrZero(), 0))),
+			TokenAmountStr: v.TokenAmount.StringOrNil(),
 			Proposer: port.CatchUpPerson{
 				ID: v.Proposer.ID, Name: firstNonEmpty(v.Proposer.DisplayName, v.Proposer.Handle),
 				PhotoURL: v.Proposer.PhotoURL,

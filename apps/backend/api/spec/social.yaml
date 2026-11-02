@@ -1508,6 +1508,7 @@ components:
           format: int64
           description: "Token base units: a sell proposal's amount or a trade's fill. Null when the item has none."
           examples: [250000000]
+        token_amount_str: {type: [string, "null"], pattern: "^[0-9]+$", description: "`token_amount` as a decimal string, exact at any size. Null or absent when `token_amount` is null or zero. `token_amount` itself is the same value when it fits in an int64 and null above that.", examples: ["250000000"]}
         token_decimals:
           type: [integer, "null"]
           minimum: 0
@@ -1621,6 +1622,7 @@ components:
           format: int64
           description: "Token base units filled so far across the order's confirmed swaps, at `token_decimals`. Null on a `result` with no fill and on every other kind."
           examples: [42000000]
+        filled_token_amount_str: {type: [string, "null"], pattern: "^[0-9]+$", description: "`filled_token_amount` as a decimal string, exact at any size. Null or absent when `filled_token_amount` is null or zero. `filled_token_amount` itself is the same value when it fits in an int64 and null above that.", examples: ["42000000"]}
         filled_usdc_micros: {type: [integer, "null"], format: int64, description: "USDC micros the confirmed swaps spent or received. Null on a `result` with no fill and on every other kind.", examples: [300000000]}
         filled_at: {type: [string, "null"], format: date-time, description: "When the latest swap confirmed. Null on a `result` with no fill and on every other kind.", examples: ["2026-10-03T08:41:00Z"]}
         trade_failed: {type: boolean, description: "True when a `result`'s order is `partial` or `failed`. False on every other item.", examples: [false]}
