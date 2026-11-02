@@ -32,3 +32,15 @@ func TestModuleTransfersNeedPrivyAndRelayerKeys(t *testing.T) {
 		}
 	}
 }
+
+func TestModuleBuildsTheEVMWithdrawalResolver(t *testing.T) {
+	t.Parallel()
+	cfg := config.Config{
+		Timeouts: config.Timeouts{Privy: time.Second, RPC: time.Second},
+		Solana:   config.Solana{RPCURL: "http://127.0.0.1/rpc/", USDCMint: string(testkit.USDCMint)},
+	}
+	m := funding.New(module.Deps{Config: cfg, Clock: testkit.NewClock(time.Time{})})
+	if m.EVMWithdrawalResolver() == nil {
+		t.Fatal("EVMWithdrawalResolver = nil")
+	}
+}
