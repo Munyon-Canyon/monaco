@@ -113,7 +113,7 @@ public struct ValueCurve: Equatable, Sendable {
             at: sample.at,
             value: UsdAmountFormatter.format(micros: sample.value),
             pnl: UsdAmountFormatter.format(signedMicros: sample.pnl),
-            direction: PortfolioSummary.Direction(signedMicros: sample.pnl))
+            direction: PortfolioSummary.Direction(pnlMicros: sample.pnl))
     }
 
     public func nearestIndex(to date: Date) -> Int? {
@@ -207,7 +207,7 @@ extension ValueCurve {
         case .pnl:
             let amount = UsdAmountFormatter.format(signedMicros: last.pnl)
             guard amount == "$0.00" else {
-                return Pill(text: amount, direction: PortfolioSummary.Direction(signedMicros: last.pnl))
+                return Pill(text: amount, direction: PortfolioSummary.Direction(pnlMicros: last.pnl))
             }
             let contributed = last.value - last.pnl
             let percent = contributed > 0 ? Self.percentText(last.pnl, over: contributed, fractionDigits: 1) : nil

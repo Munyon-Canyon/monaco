@@ -33,6 +33,20 @@ final class CabalsTabModelTests: XCTestCase {
         XCTAssertEqual(content.countText, "2")
     }
 
+    func testATileTakesItsDirectionFromTheCentsRoundedPnL() async throws {
+        var portfolio = Components.Schemas.MyPortfolio.sampleLoss
+        portfolio.cabals[0].valueMicros = 5_000_000
+        portfolio.cabals[0].pnlMicros = -4_999
+        portfolio.cabals[1].valueMicros = 5_000_000
+        portfolio.cabals[1].pnlMicros = -5_000
+        let model = CabalsTabModel(api: api(try Self.transport(portfolio: portfolio, invites: "[]")))
+
+        await model.load()
+
+        let content = try XCTUnwrap(model.content)
+        XCTAssertEqual(content.tiles.map(\.direction), [.flat, .down])
+    }
+
     func testTheHintShowsFromTwoCabals() async throws {
         var portfolio = Components.Schemas.MyPortfolio.sampleOwnProfile
         portfolio.cabals = Array(portfolio.cabals.prefix(1))

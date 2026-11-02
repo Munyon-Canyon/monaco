@@ -25,7 +25,7 @@ public struct CabalTile: Identifiable, Equatable, Sendable {
         shortName = CabalHeaderCopy.shortName(cabal.cabal.name)
         pictureURL = cabal.cabal.pictureUrl
         isFunded = funded
-        direction = funded ? PortfolioSummary.Direction(signedMicros: cabal.pnlMicros) : .flat
+        direction = funded ? PortfolioSummary.Direction(pnlMicros: cabal.pnlMicros) : .flat
         returnText = funded ? PortfolioSummary.percent(cabal.returnBps) : "0%"
         treasuryText = CabalsTabCopy.wholeDollars(micros: cabal.potValueMicros)
         ownershipText = PercentFormatter.format(

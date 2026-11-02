@@ -89,6 +89,17 @@ final class CabalHeaderCopyTests: XCTestCase {
         XCTAssertEqual(move.direction, .up)
     }
 
+    func testAMoveUnderHalfACentIsFlatAndAtHalfACentItHasADirection() throws {
+        let under = try XCTUnwrap(
+            CabalHeaderCopy.move(
+                curve([1_000_000, 995_001]), createdAt: date(2026, 8, 1), now: date(2026, 10, 28), calendar: calendar))
+        let at = try XCTUnwrap(
+            CabalHeaderCopy.move(
+                curve([1_000_000, 995_000]), createdAt: date(2026, 8, 1), now: date(2026, 10, 28), calendar: calendar))
+        XCTAssertEqual(under.direction, .flat)
+        XCTAssertEqual(at.direction, .down)
+    }
+
     func testThereIsNoMoveInTheFirstMonthOrWithoutHistory() {
         let rising = curve([1_000_000, 1_100_000])
         XCTAssertNil(
