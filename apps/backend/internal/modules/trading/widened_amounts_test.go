@@ -2,6 +2,7 @@ package trading_test
 
 import (
 	"math"
+	"strconv"
 	"testing"
 )
 
@@ -10,8 +11,9 @@ const pastInt64 = "25000000000000000000"
 func TestWidenedAmounts_aSwapAtTheInt64LimitRoundTripsThroughTheTableAndTheView(t *testing.T) {
 	t.Parallel()
 	d := newSwapDB(t)
+	limit := strconv.FormatInt(math.MaxInt64, 10)
 	row := d.created(d.ids.NewV7(), usdcMint)
-	row.InAmount = math.MaxInt64
+	row.InAmount = limit
 	d.insert(t, row)
 	d.submit(t, row.ID, "req-"+row.ID.String(), "sig-"+row.ID.String())
 	if _, err := d.pool.Exec(
@@ -27,21 +29,24 @@ func TestWidenedAmounts_aSwapAtTheInt64LimitRoundTripsThroughTheTableAndTheView(
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.InAmount != math.MaxInt64 || !got.OutAmount.Valid || got.OutAmount.Int64 != math.MaxInt64 {
-		t.Fatalf("view amounts = %d, %+v, want int64 max in both", got.InAmount, got.OutAmount)
+	if got.InAmount != limit || got.OutAmount != limit {
+		t.Fatalf("view amounts = %s, %s, want int64 max in both", got.InAmount, got.OutAmount)
 	}
 }
 
-func TestWidenedAmounts_theSwapColumnsHoldPastInt64AndAReadThatNarrowsThemFailsLoudly(t *testing.T) {
+func TestWidenedAmounts_theSwapColumnsHoldPastInt64AndEveryReadReturnsThemExactly(t *testing.T) {
 	t.Parallel()
 	d := newSwapDB(t)
 	row := d.created(d.ids.NewV7(), usdcMint)
 	d.insert(t, row)
+	d.submit(t, row.ID, "req-"+row.ID.String(), "sig-"+row.ID.String())
 	if _, err := d.pool.Exec(
 		t.Context(),
-		`UPDATE swaps SET in_amount = $2::numeric, quote_out_amount = $2::numeric, out_amount = $2::numeric WHERE id = $1`,
+		`UPDATE swaps SET in_amount = $2::numeric, quote_out_amount = $2::numeric, out_amount = $2::numeric,
+			status = 'confirmed', confirmed_at = $3 WHERE id = $1`,
 		row.ID,
 		pastInt64,
+		d.now,
 	); err != nil {
 		t.Fatalf("a 25-token amount at 18 decimals must fit the column: %v", err)
 	}
@@ -52,10 +57,10 @@ func TestWidenedAmounts_theSwapColumnsHoldPastInt64AndAReadThatNarrowsThemFailsL
 		in != pastInt64 {
 		t.Fatalf("stored in_amount = %q, %v, want %s", in, err, pastInt64)
 	}
-	if got, err := d.q.SwapByID(t.Context(), row.ID); err == nil {
-		t.Fatalf("SwapByID = %+v, want an error: an amount past int64 must not narrow silently", got)
+	byID, err := d.q.SwapByID(t.Context(), row.ID)
+	if err != nil || byID.InAmount != pastInt64 || byID.OutAmount != pastInt64 {
+		t.Fatalf("SwapByID = %+v, %v, want %s in both amounts", byID, err, pastInt64)
 	}
-	if got, err := d.q.SwapDetail(t.Context(), row.ID); err == nil {
-		t.Fatalf("SwapDetail = %+v, want an error: an amount past int64 must not narrow silently", got)
-	}
+	wantDetailAmounts(t, d, row.ID, pastInt64, pastInt64)
+	wantViewAmounts(t, d, row.ID, pastInt64, pastInt64)
 }

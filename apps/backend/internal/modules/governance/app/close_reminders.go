@@ -149,17 +149,26 @@ func raiseCloseReminder(
 	if err != nil {
 		return false, errs.Wrap(err, errs.CodeInternal, op)
 	}
-	var decimals uint8
-	if p.sized != nil && prop.TokenAmount.Valid {
-		if decimals, err = p.sized(ctx, prop.Symbol.String, chain.Network(prop.Network)); err != nil {
-			return false, err
-		}
+	tokens, decimals, err := p.reminderTokens(ctx, prop)
+	if err != nil {
+		return false, err
 	}
 	err = tx.Events.Append(ctx, events.ProposalCloseReminderDue{
 		V: 1, ProposalID: prop.ID, CabalID: prop.CabalID, UserID: user, Kind: prop.Kind, Symbol: prop.Symbol.String,
 		USDCMicros:  money.MicrosFromUint64(unsigned(prop.UsdcMicros.Int64)),
-		TokenAmount: unsigned(prop.TokenAmount.Int64), ExpiresAt: prop.ExpiresAt,
+		TokenAmount: tokens, ExpiresAt: prop.ExpiresAt,
 		Yes: int(tally.Yes), No: int(tally.No), Voters: int(tally.Voters), TokenDecimals: decimals,
 	})
 	return err == nil, err
+}
+
+func (p *CloseReminderPoller) reminderTokens(
+	ctx context.Context, prop sqlc.LockProposalRow,
+) (money.Units, uint8, error) {
+	tokens, err := parseUnits(prop.TokenAmount)
+	if err != nil || p.sized == nil || prop.TokenAmount == "" {
+		return tokens, 0, err
+	}
+	decimals, err := p.sized(ctx, prop.Symbol.String, chain.Network(prop.Network))
+	return tokens, decimals, err
 }

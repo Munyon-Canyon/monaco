@@ -26,8 +26,8 @@ type EVMSwapSpec struct {
 	Owner       chain.EVMAddress
 	TokenIn     chain.EVMAddress
 	TokenOut    chain.EVMAddress
-	AmountIn    uint64
-	MinOut      uint64
+	AmountIn    money.Units
+	MinOut      money.Units
 	SlippageBps int32
 	Route       multichain.RouteOptions
 }
@@ -35,15 +35,15 @@ type EVMSwapSpec struct {
 type EVMSwapPlan struct {
 	Approvals  []multichain.EVMTransaction
 	Swap       multichain.EVMTransaction
-	OutAmount  uint64
-	MinOut     uint64
+	OutAmount  money.Units
+	MinOut     money.Units
 	Candidates []EVMSwapCandidate
 }
 
 type EVMSwapCandidate struct {
 	Route     multichain.RouteOptions
 	Swap      multichain.EVMTransaction
-	OutAmount uint64
+	OutAmount money.Units
 }
 
 type EVMFillState uint8
@@ -56,7 +56,7 @@ const (
 
 type EVMFill struct {
 	State EVMFillState
-	Out   uint64
+	Out   money.Units
 }
 
 type EVMVenue interface {
@@ -184,12 +184,12 @@ func (s EVMSwap) chosen(ctx context.Context, spec EVMSwapSpec, candidates []EVMS
 
 func floorMet(spec EVMSwapSpec, plan EVMSwapPlan) error {
 	floor := spec.MinOut
-	if floor == 0 {
+	if floor.IsZero() {
 		floor = domain.SlippageOf(spec.SlippageBps).MinOut(plan.OutAmount)
 	}
-	if floor == 0 || plan.MinOut < floor {
+	if floor.IsZero() || plan.MinOut.Cmp(floor) < 0 {
 		return errs.New(errs.CodePriceMoved, evmSwapOp,
-			slog.Uint64("plan_min_out", plan.MinOut), slog.Uint64("floor", floor))
+			slog.String("plan_min_out", plan.MinOut.String()), slog.String("floor", floor.String()))
 	}
 	return nil
 }

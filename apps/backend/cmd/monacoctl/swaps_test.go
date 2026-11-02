@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading"
@@ -83,7 +82,7 @@ func seededSubmittedSwapOn(
 		ID: id, SourceKind: "proposal", SourceID: identifiers.NewV7(), CabalID: identifiers.NewV7(),
 		TreasuryAddress: "9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin", Action: "buy", Symbol: "AAPLx",
 		InMint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", OutMint: "XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp",
-		OutDecimals: 8, InAmount: 25_000_000, QuoteOutAmount: pgtype.Int8{Int64: 105_000_000, Valid: true},
+		OutDecimals: 8, InAmount: "25000000", QuoteOutAmount: "105000000",
 		SlippageBps: 100, SourceBatchSize: 1, CreatedAt: now,
 	}); err != nil {
 		t.Fatal(err)
@@ -238,7 +237,7 @@ func TestSwapsForceResolve_createdSwapReturnsNotStuck(t *testing.T) {
 
 func TestMatchesResolvedSwap(t *testing.T) {
 	t.Parallel()
-	confirmed := trading.SwapView{Status: "confirmed", OutAmount: 7}
+	confirmed := trading.SwapView{Status: "confirmed", OutAmount: money.UnitsFromUint64(7)}
 	for _, test := range []struct {
 		name string
 		to   domain.Status
@@ -251,7 +250,7 @@ func TestMatchesResolvedSwap(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			if got := matchesResolvedSwap(confirmed, test.to, test.out); got != test.want {
+			if got := matchesResolvedSwap(confirmed, test.to, money.UnitsFromUint64(test.out)); got != test.want {
 				t.Fatalf("matchesResolvedSwap() = %t, want %t", got, test.want)
 			}
 		})
@@ -261,12 +260,17 @@ func TestMatchesResolvedSwap(t *testing.T) {
 func TestForceResolveUnits_refusesInvalidDecimals(t *testing.T) {
 	t.Parallel()
 	for _, decimals := range []int16{-1, 256} {
-		if _, err := forceResolveUnits(decimals, 1, "confirmed"); err == nil {
+		if _, _, err := forceResolveUnits(decimals, money.UnitsFromUint64(1), "confirmed"); err == nil {
 			t.Errorf("forceResolveUnits(%d) succeeded", decimals)
 		}
 	}
-	if got, err := forceResolveUnits(8, 1, "failed"); err != nil || !got.IsZero() {
-		t.Fatalf("failed units = %#v, %v", got, err)
+	if got, decimals, err := forceResolveUnits(
+		8,
+		money.UnitsFromUint64(1),
+		"failed",
+	); err != nil || !got.IsZero() ||
+		decimals != 0 {
+		t.Fatalf("failed units = %#v %d, %v", got, decimals, err)
 	}
 }
 

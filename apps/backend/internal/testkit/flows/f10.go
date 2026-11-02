@@ -2,6 +2,7 @@ package flows
 
 import (
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
@@ -54,11 +55,11 @@ func seedProposal(s *scenario.Scenario, members int, sell bool) openProposal {
 	params := sqlc.InsertProposalParams{
 		ID: id, CabalID: c.ID.UUID(), ProposerID: c.Creator.ID.UUID(), Kind: "buy", Symbol: "AAPLx",
 		Mint: aaplxMint, UsdcMicros: pgtype.Int8{Int64: 5_000_000, Valid: true},
-		QuoteOutAmount: 21_000_000, ExpiresAt: now.Add(24 * time.Hour), CreatedAt: now, Threshold: "majority",
+		QuoteOutAmount: "21000000", ExpiresAt: now.Add(24 * time.Hour), CreatedAt: now, Threshold: "majority",
 	}
 	if sell {
 		params.Kind, params.UsdcMicros = "sell", pgtype.Int8{}
-		params.TokenAmount = pgtype.Int8{Int64: sellTokens, Valid: true}
+		params.TokenAmount = strconv.Itoa(sellTokens)
 	}
 	for _, m := range c.Members {
 		p.voters = append(p.voters, m.ID)
@@ -112,7 +113,7 @@ func passedProposal(p openProposal) events.ProposalPassed {
 	return events.ProposalPassed{
 		V: 1, ProposalID: p.id.UUID(), CabalID: p.cabalID.UUID(), ProposerID: p.proposerID.UUID(), Kind: "buy",
 		Symbol: "AAPLx", Mint: chain.SolanaAddress(aaplxMint), USDCMicros: money.MicrosFromUint64(5_000_000),
-		QuoteOutAmount: 21_000_000,
+		QuoteOutAmount: money.UnitsFromUint64(21_000_000),
 	}
 }
 
@@ -154,7 +155,7 @@ func arrangeProposal(t testkit.SeedT, pool *pgxpool.Pool, opts ...testkit.CabalO
 	params := sqlc.InsertProposalParams{
 		ID: id, CabalID: c.ID.UUID(), ProposerID: c.Creator.ID.UUID(), Kind: "buy", Symbol: "AAPLx",
 		Mint: aaplxMint, UsdcMicros: pgtype.Int8{Int64: 5_000_000, Valid: true},
-		QuoteOutAmount: 21_000_000, ExpiresAt: now.Add(24 * time.Hour), CreatedAt: now, Threshold: "majority",
+		QuoteOutAmount: "21000000", ExpiresAt: now.Add(24 * time.Hour), CreatedAt: now, Threshold: "majority",
 	}
 	for _, m := range c.Members {
 		params.VoterIds = append(params.VoterIds, m.ID.UUID())
@@ -197,7 +198,7 @@ func F10CastVoteOK(s *scenario.Scenario) {
 func sellPasses(s *scenario.Scenario) {
 	p := seedProposal(s, 1, true)
 	passed := passedProposal(p)
-	passed.Kind, passed.USDCMicros, passed.TokenAmount = "sell", money.Micros{}, sellTokens
+	passed.Kind, passed.USDCMicros, passed.TokenAmount = "sell", money.Micros{}, money.UnitsFromUint64(sellTokens)
 	s.Given(scenario.AsSeededUser("alice", p.voters[0])).
 		When(
 			scenario.Post(p.votes, yes),

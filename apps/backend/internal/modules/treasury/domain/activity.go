@@ -8,6 +8,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
 type ActivityKind string
@@ -35,7 +36,7 @@ type Activity struct {
 	Status      ActivityStatus
 	Asset       Asset
 	USDCMicros  *uint64
-	Units       *uint64
+	Units       *money.Units
 	TxSignature chain.Signature
 	CashOutSale bool
 }
@@ -56,7 +57,11 @@ func TradeActivity(t Trade, status ActivityStatus) (Activity, error) {
 	switch t.Action {
 	case string(ActivityBuy):
 		a.Kind = ActivityBuy
-		cash.Amount += t.Fee
+		total, err := cash.Amount.Add(money.UnitsFromUint64(t.Fee))
+		if err != nil {
+			return Activity{}, errs.Wrap(err, errs.CodeInvalidInput, "treasury.TradeActivity")
+		}
+		cash.Amount = total
 	case string(ActivitySell):
 		a.Kind = ActivitySell
 		cash, asset = t.Out, t.In
@@ -64,12 +69,23 @@ func TradeActivity(t Trade, status ActivityStatus) (Activity, error) {
 		return Activity{}, errs.New(errs.CodeInvalidInput, "treasury.TradeActivity", slog.String("action", t.Action))
 	}
 	a.Asset = asset.Asset
-	a.USDCMicros, a.Units = optional(cash.Amount), optional(asset.Amount)
+	micros, err := cash.Amount.Uint64()
+	if err != nil {
+		return Activity{}, errs.Wrap(err, errs.CodeInvalidInput, "treasury.TradeActivity")
+	}
+	a.USDCMicros, a.Units = optional(micros), optionalUnits(asset.Amount)
 	return a, nil
 }
 
 func optional(v uint64) *uint64 {
 	if v == 0 {
+		return nil
+	}
+	return &v
+}
+
+func optionalUnits(v money.Units) *money.Units {
+	if v.IsZero() {
 		return nil
 	}
 	return &v
@@ -86,8 +102,16 @@ type Fund struct {
 
 func FundActivity(f Fund, status ActivityStatus) Activity {
 	return Activity{
-		ID: f.TransferID, CabalID: f.CabalID, Actor: f.UserID, Kind: ActivityFund, Status: status,
-		USDCMicros: optional(f.USDCMicros), Units: optional(f.ShareUnits), TxSignature: f.TxSignature,
+		ID:      f.TransferID,
+		CabalID: f.CabalID,
+		Actor:   f.UserID,
+		Kind:    ActivityFund,
+		Status:  status,
+		USDCMicros: optional(
+			f.USDCMicros,
+		),
+		Units:       optionalUnits(money.UnitsFromUint64(f.ShareUnits)),
+		TxSignature: f.TxSignature,
 	}
 }
 

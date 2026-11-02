@@ -185,9 +185,17 @@ func (w callsWorld) passed(t *testing.T) {
 func (w callsWorld) filled(t *testing.T) {
 	t.Helper()
 	w.d.callsDeliver(t, w.ports, "ranking.calls.trade_confirmed", events.TradeConfirmed{
-		V: 1, SwapID: w.d.gen.NewV7(), CabalID: w.cabal, Source: events.TradeSource{Kind: "proposal", ID: w.proposal},
-		Action: "buy", Symbol: "AAPLx", InMint: chain.SolanaAddress(callsUSDC), InAmount: 716_520_000,
-		OutMint: callsMint, OutAmount: 1_000_000, USDCMicros: money.MicrosFromUint64(716_520_000),
+		V:           1,
+		SwapID:      w.d.gen.NewV7(),
+		CabalID:     w.cabal,
+		Source:      events.TradeSource{Kind: "proposal", ID: w.proposal},
+		Action:      "buy",
+		Symbol:      "AAPLx",
+		InMint:      chain.SolanaAddress(callsUSDC),
+		InAmount:    money.UnitsFromUint64(716_520_000),
+		OutMint:     callsMint,
+		OutAmount:   money.UnitsFromUint64(1_000_000),
+		USDCMicros:  money.MicrosFromUint64(716_520_000),
 		ConfirmedAt: w.opened.Add(time.Hour),
 	})
 }
@@ -244,9 +252,18 @@ func TestCalls_fillPriceIsStoredWhicheverEventComesFirst(t *testing.T) {
 func (w callsWorld) filledAt(t *testing.T, price uint64, at time.Time) {
 	t.Helper()
 	w.d.callsDeliver(t, w.ports, "ranking.calls.trade_confirmed", events.TradeConfirmed{
-		V: 1, SwapID: w.d.gen.NewV7(), CabalID: w.cabal, Source: events.TradeSource{Kind: "proposal", ID: w.proposal},
-		Action: "buy", Symbol: "AAPLx", InMint: chain.SolanaAddress(callsUSDC), InAmount: price,
-		OutMint: callsMint, OutAmount: 1_000_000, USDCMicros: money.MicrosFromUint64(price), ConfirmedAt: at,
+		V:           1,
+		SwapID:      w.d.gen.NewV7(),
+		CabalID:     w.cabal,
+		Source:      events.TradeSource{Kind: "proposal", ID: w.proposal},
+		Action:      "buy",
+		Symbol:      "AAPLx",
+		InMint:      chain.SolanaAddress(callsUSDC),
+		InAmount:    money.UnitsFromUint64(price),
+		OutMint:     callsMint,
+		OutAmount:   money.UnitsFromUint64(1_000_000),
+		USDCMicros:  money.MicrosFromUint64(price),
+		ConfirmedAt: at,
 	})
 }
 
@@ -322,11 +339,11 @@ func TestCalls_aSellFillUsesTheInMintDecimals(t *testing.T) {
 		Action:   "sell",
 		Symbol:   "AAPLx",
 		InMint:   callsMint,
-		InAmount: 2_000_000,
+		InAmount: money.UnitsFromUint64(2_000_000),
 		OutMint: chain.SolanaAddress(
 			callsUSDC,
 		),
-		OutAmount:  400_000_000,
+		OutAmount:  money.UnitsFromUint64(400_000_000),
 		USDCMicros: money.MicrosFromUint64(400_000_000),
 	})
 	if got := w.d.call(t, w.proposal); got.fill == nil || *got.fill != 200_000_000 {
@@ -344,7 +361,7 @@ func TestCalls_aFillThatIsNotAProposalTradeWritesNothing(t *testing.T) {
 		Source:     events.TradeSource{Kind: "cash_out", ID: w.proposal},
 		Action:     "sell",
 		InMint:     callsMint,
-		InAmount:   1,
+		InAmount:   money.UnitsFromUint64(1),
 		OutMint:    chain.SolanaAddress(callsUSDC),
 		USDCMicros: money.MicrosFromUint64(1),
 	})
@@ -701,8 +718,14 @@ func TestCalls_aFillPriceBeyondBigintIsRefused(t *testing.T) {
 	t.Parallel()
 	w := newCallsWorld(t, 0)
 	fill := events.TradeConfirmed{
-		V: 1, SwapID: w.d.gen.NewV7(), CabalID: w.cabal, Source: events.TradeSource{Kind: "proposal", ID: w.proposal},
-		Action: "buy", OutMint: callsMint, OutAmount: 1_000_000, USDCMicros: money.MicrosFromUint64(1 << 63),
+		V:          1,
+		SwapID:     w.d.gen.NewV7(),
+		CabalID:    w.cabal,
+		Source:     events.TradeSource{Kind: "proposal", ID: w.proposal},
+		Action:     "buy",
+		OutMint:    callsMint,
+		OutAmount:  money.UnitsFromUint64(1_000_000),
+		USDCMicros: money.MicrosFromUint64(1 << 63),
 	}
 	if _, err := w.d.callsTry(t, w.ports, "ranking.calls.trade_confirmed", fill); err == nil {
 		t.Error("a fill price above int64 error = nil")
@@ -731,7 +754,7 @@ func TestCalls_fillsTheCallCannotUseAreSkippedOrRefused(t *testing.T) {
 			Source:     events.TradeSource{Kind: "proposal", ID: w.proposal},
 			Action:     "buy",
 			OutMint:    callsMint,
-			OutAmount:  1_000_000,
+			OutAmount:  money.UnitsFromUint64(1_000_000),
 			USDCMicros: money.MicrosFromUint64(5_000_000),
 		}
 		mutate(&e)
@@ -745,7 +768,7 @@ func TestCalls_fillsTheCallCannotUseAreSkippedOrRefused(t *testing.T) {
 			t.Errorf("%s: error = %v, want a skip", name, err)
 		}
 	}
-	zero := fill(func(e *events.TradeConfirmed) { e.OutAmount = 0 })
+	zero := fill(func(e *events.TradeConfirmed) { e.OutAmount = money.Units{} })
 	if _, err := w.d.callsTry(t, w.ports, "ranking.calls.trade_confirmed", zero); err == nil {
 		t.Error("a fill with no tokens error = nil")
 	}

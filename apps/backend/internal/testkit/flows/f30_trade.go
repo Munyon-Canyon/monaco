@@ -135,8 +135,13 @@ func f30Bought(s *scenario.Scenario) testkit.SeededCabal {
 		s.Fatalf("flows: seed the EVM listing: %v", err)
 	}
 	proposal := f30Pass(s, events.ProposalPassed{
-		CabalID: cabal.ID.UUID(), Kind: "buy", USDCMicros: money.MicrosFromUint64(RoutedBuyMicros),
-		QuoteOutAmount: RoutedRequotedUnits, PriceComparison: f30Comparison(multichain.SideBuy, RoutedBuyMicros),
+		CabalID:    cabal.ID.UUID(),
+		Kind:       "buy",
+		USDCMicros: money.MicrosFromUint64(RoutedBuyMicros),
+		QuoteOutAmount: money.UnitsFromUint64(
+			RoutedRequotedUnits,
+		),
+		PriceComparison: f30Comparison(multichain.SideBuy, RoutedBuyMicros),
 	})
 	s.When(
 		scenario.Eventually("the routed buy is confirmed", f30Swap(proposal, "confirmed")),

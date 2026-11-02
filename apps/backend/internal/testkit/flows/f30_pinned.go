@@ -3,6 +3,7 @@ package flows
 import (
 	"encoding/json"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/google/uuid"
@@ -44,7 +45,7 @@ func f30PinnedOpen(s *scenario.Scenario, cabal ids.CabalID, voter ids.UserID) uu
 	id, now := ids.Real{}.NewV7(), time.Now().UTC()
 	if _, err := sqlc.New(s.DB()).InsertProposal(s.Context(), sqlc.InsertProposalParams{
 		ID: id, CabalID: cabal.UUID(), ProposerID: voter.UUID(), Kind: "buy", Symbol: "AAPLx", Mint: aaplxMint,
-		UsdcMicros: pgtype.Int8{Int64: RoutedBuyMicros, Valid: true}, QuoteOutAmount: RoutedRequotedUnits,
+		UsdcMicros: pgtype.Int8{Int64: RoutedBuyMicros, Valid: true}, QuoteOutAmount: strconv.Itoa(RoutedRequotedUnits),
 		ExpiresAt: now.Add(24 * time.Hour), CreatedAt: now, Threshold: "majority",
 		VoterIds: []uuid.UUID{voter.UUID()},
 	}); err != nil {

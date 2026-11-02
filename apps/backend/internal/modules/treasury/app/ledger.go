@@ -70,7 +70,7 @@ func (l Ledger) PostCabalTxn(ctx context.Context, tx db.Tx, t domain.CabalTxn) e
 	var seq int16
 	for _, e := range entries {
 		if err := q.InsertCabalEntry(ctx, sqlc.InsertCabalEntryParams{
-			TxnID: t.ID, Seq: seq, Account: string(e.Account), Asset: string(e.Asset), Amount: e.Amount.Int64(),
+			TxnID: t.ID, Seq: seq, Account: string(e.Account), Asset: string(e.Asset), Amount: e.Amount.String(),
 		}); err != nil {
 			return err
 		}
@@ -79,7 +79,7 @@ func (l Ledger) PostCabalTxn(ctx context.Context, tx db.Tx, t domain.CabalTxn) e
 	posted := make([]posting, 0, len(deltas))
 	for _, d := range deltas {
 		row, err := q.ApplyCabalPosition(ctx, sqlc.ApplyCabalPositionParams{
-			CabalID: t.CabalID.UUID(), Asset: string(d.Asset), Delta: d.Units.Int64(), CostIn: d.CostIn.String(),
+			CabalID: t.CabalID.UUID(), Asset: string(d.Asset), Delta: d.Units.String(), CostIn: d.CostIn.String(),
 			UpdatedAt: l.now(),
 		})
 		if err != nil {

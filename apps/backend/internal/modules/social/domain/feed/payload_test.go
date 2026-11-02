@@ -7,13 +7,14 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/domain/feed"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
 func TestPayload_roundTripsAmountsAsIntegerStrings(t *testing.T) {
 	t.Parallel()
 	want := feed.Payload{
 		CabalName: "Alpha", Symbol: "AAPLx", Action: feed.ActionBuy, USDCMicros: usd(500_000_001),
-		ChangeBps: -507, TokenAmount: 7, Status: "open", StatusCode: "x",
+		ChangeBps: -507, TokenAmount: money.UnitsFromUint64(7), Status: "open", StatusCode: "x",
 		ExpiresAt: time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC),
 	}
 	raw := want.JSON()

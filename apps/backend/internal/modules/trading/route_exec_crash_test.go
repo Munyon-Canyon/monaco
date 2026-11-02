@@ -13,6 +13,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/faultpoint"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
 func (e *routeEnv) crashBuy(t *testing.T, point faultpoint.Name, after int) uuid.UUID {
@@ -54,7 +55,7 @@ func TestRouteExec_aCrashAtEveryStepBoundaryResumesWithOneBridgeAndOneSwap(t *te
 			e := newRouteEnv(t)
 			e.requote()
 			e.privy.script(multichain.ActionSucceeded, multichain.ActionSucceeded)
-			fill := app.EVMFill{State: app.FillSucceeded, Out: filledOut}
+			fill := app.EVMFill{State: app.FillSucceeded, Out: money.UnitsFromUint64(filledOut)}
 			e.evm.fills = []app.EVMFill{fill, fill}
 
 			swap := e.crashBuy(t, tc.point, tc.after)

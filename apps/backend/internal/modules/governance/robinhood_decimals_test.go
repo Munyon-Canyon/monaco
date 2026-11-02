@@ -2,6 +2,7 @@ package governance_test
 
 import (
 	"context"
+	"strconv"
 	"testing"
 	"time"
 
@@ -47,7 +48,7 @@ func (d readsDB) robinhoodSell(t *testing.T, tokens int64) uuid.UUID {
 	t.Helper()
 	p := d.buy(d.caller)
 	p.CabalID, p.Kind, p.UsdcMicros = d.cabal, "sell", pgtype.Int8{}
-	p.TokenAmount, p.QuoteOutAmount = pgtype.Int8{Int64: tokens, Valid: true}, 100_000_000
+	p.TokenAmount, p.QuoteOutAmount = strconv.FormatInt(tokens, 10), "100000000"
 	d.insert(t, p)
 	d.setNetwork(t, p.ID, string(chain.NetworkRobinhood))
 	return p.ID
@@ -84,7 +85,7 @@ func TestGetProposal_robinhoodSellShowsHalfAShare(t *testing.T) {
 	id := d.robinhoodSell(t, 500_000_000_000_000_000)
 	got := d.getWith(t, d.robinhoodReads(), id)
 	if got.Stats.TokenDecimals != robinhoodDecimals || got.Stats.Shares == nil ||
-		got.Stats.Shares.Decimals() != robinhoodDecimals || got.Stats.Shares.Uint64() != 500_000_000_000_000_000 {
+		!got.Stats.Shares.Equal(money.UnitsFromUint64(500_000_000_000_000_000)) {
 		t.Fatalf("sell stats = decimals %d, shares %v, want 0.5 share at 18 decimals",
 			got.Stats.TokenDecimals, got.Stats.Shares)
 	}
@@ -97,15 +98,16 @@ func TestGetProposal_robinhoodBuyFillShowsOneToken(t *testing.T) {
 	d.setStatus(t, id, "executed", "")
 	d.swaps.Put(trading.SwapView{
 		ID: ids.SwapIDFrom(d.ids.NewV7()), Source: trading.Source{Kind: "proposal", ID: id}, Action: "buy",
-		InAmount: 200_000_000, OutDecimals: robinhoodDecimals, OutAmount: 1_000_000_000_000_000_000,
-		Status: "confirmed", ConfirmedAt: d.now,
+		InAmount: money.UnitsFromUint64(200_000_000), OutDecimals: robinhoodDecimals,
+		OutAmount: money.UnitsFromUint64(1_000_000_000_000_000_000),
+		Status:    "confirmed", ConfirmedAt: d.now,
 	})
 	got := d.getWith(t, d.robinhoodReads(), id)
 	if got.Fill.TokenDecimals != robinhoodDecimals || got.Fill.PriceMicros != 200_000_000 {
 		t.Errorf("fill = decimals %d, price %d, want 18 and $200 a token", got.Fill.TokenDecimals, got.Fill.PriceMicros)
 	}
-	if got.Stats.Shares == nil || got.Stats.Shares.Decimals() != robinhoodDecimals ||
-		got.Stats.Shares.Uint64() != 1_000_000_000_000_000_000 {
+	if got.Stats.Shares == nil ||
+		!got.Stats.Shares.Equal(money.UnitsFromUint64(1_000_000_000_000_000_000)) {
 		t.Errorf("shares = %v, want 1 token at 18 decimals", got.Stats.Shares)
 	}
 }
@@ -116,8 +118,9 @@ func TestGetProposal_robinhoodBuyFillNeedsNoListingLookup(t *testing.T) {
 	id := d.robinhoodBuy(t)
 	d.swaps.Put(trading.SwapView{
 		ID: ids.SwapIDFrom(d.ids.NewV7()), Source: trading.Source{Kind: "proposal", ID: id}, Action: "buy",
-		InAmount: 200_000_000, OutDecimals: robinhoodDecimals, OutAmount: 1_000_000_000_000_000_000,
-		Status: "confirmed", ConfirmedAt: d.now,
+		InAmount: money.UnitsFromUint64(200_000_000), OutDecimals: robinhoodDecimals,
+		OutAmount: money.UnitsFromUint64(1_000_000_000_000_000_000),
+		Status:    "confirmed", ConfirmedAt: d.now,
 	})
 	got := d.get(t, id, d.caller)
 	if got.Fill.TokenDecimals != robinhoodDecimals || got.Fill.PriceMicros != 200_000_000 {
@@ -150,7 +153,7 @@ func TestGetProposal_solanaSellKeepsTheAssetDecimals(t *testing.T) {
 	t.Parallel()
 	d := newReadsDB(t)
 	p := d.buy(d.caller)
-	p.CabalID, p.Kind, p.UsdcMicros, p.TokenAmount = d.cabal, "sell", pgtype.Int8{}, pgtype.Int8{Int64: 5, Valid: true}
+	p.CabalID, p.Kind, p.UsdcMicros, p.TokenAmount = d.cabal, "sell", pgtype.Int8{}, "5"
 	d.insert(t, p)
 	listings := robinhoodListings{id: multichain.ListingIDFrom(d.ids.NewV7()), decimals: robinhoodDecimals}
 	if got := d.getWith(t, d.reads().Listed(listings), p.ID); got.Stats.TokenDecimals != 8 {
@@ -169,9 +172,9 @@ func TestPendingVotes_robinhoodSellCarriesTheListingDecimals(t *testing.T) {
 	if err != nil || len(got) != 1 || got[0].ProposalID.UUID() != id {
 		t.Fatalf("PendingVotes = %+v, %v, want the one sell", got, err)
 	}
-	if amount := got[0].TokenAmount; amount.Decimals() != robinhoodDecimals ||
-		amount.Uint64() != 500_000_000_000_000_000 {
-		t.Fatalf("pending amount = %d at %d decimals, want 0.5 share at 18", amount.Uint64(), amount.Decimals())
+	if amount := got[0].TokenAmount; !amount.Equal(money.UnitsFromUint64(500_000_000_000_000_000)) ||
+		got[0].TokenDecimals != robinhoodDecimals {
+		t.Fatalf("pending amount = %s at %d decimals, want 0.5 share at 18", amount, got[0].TokenDecimals)
 	}
 	ctx := auth.WithActor(t.Context(), auth.Actor{Kind: auth.ActorUser, ID: d.caller.String()})
 	res, err := adapters.HTTP{Pending: votes}.GetMyPendingVotes(ctx, api.GetMyPendingVotesRequestObject{})

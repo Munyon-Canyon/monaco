@@ -8,6 +8,7 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/domain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
 func TestSharesFor_refusesWhatItCannotConvertAndDefaultsTheMultiplierToOne(t *testing.T) {
@@ -73,7 +74,11 @@ func TestSalesTotal_refusesTotalsThatOverflowOrCannotBeReadBack(t *testing.T) {
 		t.Fatalf("removed cost past uint64 = %v, want internal", err)
 	}
 	proceedsSum := proceedsOnly(t, wholeShare)
-	err := proceedsSum.apply(&replayed{held: 1}, marksTrade(1, sideSell, 1, math.MaxUint64), wholeShare)
+	err := proceedsSum.apply(
+		&replayed{held: money.UnitsFromUint64(1)},
+		marksTrade(1, sideSell, 1, math.MaxUint64),
+		wholeShare,
+	)
 	if errs.CodeOf(err) != errs.CodeInternal {
 		t.Fatalf("proceeds past uint64 = %v, want internal", err)
 	}
@@ -92,7 +97,11 @@ func TestSalesTotal_refusesTotalsThatOverflowOrCannotBeReadBack(t *testing.T) {
 func proceedsOnly(t *testing.T, shares sharesOf) *salesTotal {
 	t.Helper()
 	var s salesTotal
-	if err := s.apply(&replayed{held: 1}, marksTrade(0, sideSell, 1, math.MaxUint64), shares); err != nil {
+	if err := s.apply(
+		&replayed{held: money.UnitsFromUint64(1)},
+		marksTrade(0, sideSell, 1, math.MaxUint64),
+		shares,
+	); err != nil {
 		t.Fatal(err)
 	}
 	return &s

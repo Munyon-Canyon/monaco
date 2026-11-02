@@ -9,6 +9,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/domain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/jupiter"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
@@ -19,8 +20,10 @@ func (e *layerEnv) sell(outAmount uint64) app.SwapRequest {
 	})
 	e.jup.SetExecute("req-sell", jupiter.ExecuteResult{Status: jupiter.StatusSuccess, OutAmount: outAmount})
 	req := e.request(e.source())
-	req.Action, req.InMint, req.OutMint, req.InAmount = domain.ActionSell, aaplxToken(), usdcToken(), 10_000_000
-	req.QuoteOutAmount = outAmount
+	req.Action, req.InMint, req.OutMint, req.InAmount = domain.ActionSell, aaplxToken(), usdcToken(), money.UnitsFromUint64(
+		10_000_000,
+	)
+	req.QuoteOutAmount = money.UnitsFromUint64(outAmount)
 	return req
 }
 
@@ -29,7 +32,7 @@ func TestSwapLayer_SellFillIsTheTreasurysChainDeltaNotUltrasPreFeeOutput(t *test
 	e := newLayerEnv(t)
 	e.fills.charge(10)
 	got := e.settled(t, e.sell(4_885_867))
-	if got.Status != domain.StatusConfirmed || got.OutAmount != 4_880_982 {
+	if got.Status != domain.StatusConfirmed || !got.OutAmount.Equal(money.UnitsFromUint64(4_880_982)) {
 		t.Fatalf("view = %+v, want confirmed at the chain's 4880982, not Ultra's 4885867", got)
 	}
 	p := e.payload(t, got.ID.UUID(), "trade.confirmed")
@@ -48,8 +51,8 @@ func TestSwapLayer_BuyFillMatchesTheChainDelta(t *testing.T) {
 	req := e.request(e.source())
 	got := e.settled(t, req)
 	delta, err := e.fills.InboundAmount(t.Context(), got.TxSignature, req.TreasuryWallet.Address, req.OutMint)
-	if err != nil || got.Status != domain.StatusConfirmed || got.OutAmount != 105_000_000 ||
-		delta.Uint64() != got.OutAmount {
+	if err != nil || got.Status != domain.StatusConfirmed || !got.OutAmount.Equal(money.UnitsFromUint64(105_000_000)) ||
+		!money.UnitsFromUint64(delta.Uint64()).Equal(got.OutAmount) {
 		t.Fatalf("view = %+v, chain delta %s (%v); want both 105000000", got, delta, err)
 	}
 }
@@ -62,7 +65,7 @@ func TestSwapLayer_SellWithAnUnreadableDeltaStaysSubmittedAndAlerts(t *testing.T
 	ctx := observability.WithLogger(actorContext(t.Context()),
 		observability.NewLogger(config.Config{Env: config.EnvTest}, logs))
 	got, err := e.layer().Run(ctx, e.sell(4_885_867), nil)
-	if err != nil || got.Status != domain.StatusSubmitted || got.OutAmount != 0 {
+	if err != nil || got.Status != domain.StatusSubmitted || !got.OutAmount.Equal(money.UnitsFromUint64(0)) {
 		t.Fatalf("Run = %+v, %v; want the sell left submitted with no fill", got, err)
 	}
 	if events := e.events(t, got.ID.UUID()); !slices.Equal(events, []string{"trade.submitted"}) {
@@ -81,7 +84,7 @@ func TestSwapLayer_BuyFillIsTheTreasurysChainDeltaNotJupitersReport(t *testing.T
 	e.fills.charge(10)
 	e.jup.SetExecute("req-1", jupiter.ExecuteResult{Status: jupiter.StatusSuccess, OutAmount: 105_000_000})
 	got := e.settled(t, e.request(e.source()))
-	if got.Status != domain.StatusConfirmed || got.OutAmount != 104_895_000 {
+	if got.Status != domain.StatusConfirmed || !got.OutAmount.Equal(money.UnitsFromUint64(104_895_000)) {
 		t.Fatalf("view = %+v, want confirmed at the chain's 104895000, not Jupiter's 105000000", got)
 	}
 	p := e.payload(t, got.ID.UUID(), "trade.confirmed")
@@ -101,7 +104,7 @@ func TestSwapLayer_BuyThatReportsZeroTokensStaysSubmittedAndAlerts(t *testing.T)
 	ctx := observability.WithLogger(actorContext(t.Context()),
 		observability.NewLogger(config.Config{Env: config.EnvTest}, logs))
 	got, err := e.layer().Run(ctx, e.request(e.source()), nil)
-	if err != nil || got.Status != domain.StatusSubmitted || got.OutAmount != 0 {
+	if err != nil || got.Status != domain.StatusSubmitted || !got.OutAmount.Equal(money.UnitsFromUint64(0)) {
 		t.Fatalf("Run = %+v, %v; want the buy left submitted with no fill", got, err)
 	}
 	if events := e.events(t, got.ID.UUID()); !slices.Equal(events, []string{"trade.submitted"}) {

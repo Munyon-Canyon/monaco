@@ -13,6 +13,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
 type portDB struct {
@@ -37,22 +38,33 @@ func TestQueries_swapReadsEveryFieldOfTheRow(t *testing.T) {
 	d.insert(t, row)
 	id := ids.SwapIDFrom(row.ID)
 	want := trading.SwapView{
-		ID: id, CabalID: ids.CabalIDFrom(row.CabalID), Source: proposal(row.SourceID), Action: domain.ActionBuy,
-		Symbol: "AAPLx", InAmount: 25_000_000, OutDecimals: 8, Status: domain.StatusCreated, CreatedAt: d.now,
+		ID:          id,
+		CabalID:     ids.CabalIDFrom(row.CabalID),
+		Source:      proposal(row.SourceID),
+		Action:      domain.ActionBuy,
+		Symbol:      "AAPLx",
+		InAmount:    money.UnitsFromUint64(25_000_000),
+		OutDecimals: 8,
+		Status:      domain.StatusCreated,
+		CreatedAt:   d.now,
 	}
 	got, err := d.port.Swap(t.Context(), id)
 	if err != nil || !got.CreatedAt.Equal(want.CreatedAt) {
 		t.Fatalf("Swap = %+v, %v", got, err)
 	}
 	got.CreatedAt = want.CreatedAt
-	if got != want {
+	if !sameJSON(got, want) {
 		t.Fatalf("Swap = %+v, want %+v", got, want)
 	}
 	d.submit(t, row.ID, "req-1", "sig-1")
 	d.confirm(t, row.ID)
 	got, err = d.port.SwapBySignature(t.Context(), "sig-1")
-	if err != nil || got.ID != id || got.Status != domain.StatusConfirmed || got.OutAmount != 104_900_000 ||
-		got.OutDecimals != 8 || got.TxSignature != "sig-1" || !got.ConfirmedAt.Equal(d.now) || got.Retryable {
+	if err != nil || got.ID != id || got.Status != domain.StatusConfirmed ||
+		!got.OutAmount.Equal(money.UnitsFromUint64(104_900_000)) ||
+		got.OutDecimals != 8 ||
+		got.TxSignature != "sig-1" ||
+		!got.ConfirmedAt.Equal(d.now) ||
+		got.Retryable {
 		t.Fatalf("SwapBySignature after confirm = %+v, %v", got, err)
 	}
 }

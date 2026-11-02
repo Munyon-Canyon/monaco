@@ -68,27 +68,33 @@ func (h Thread) ApplyConfirmed(
 	}
 	_, filled := tradeLeg(e)
 	side := feed.Action(e.Action)
-	before := holdingBefore(side, fill.After, filled)
+	before, err := holdingBefore(side, money.UnitsFromUint64(fill.After), filled)
+	if err != nil {
+		return err
+	}
 	reply := app.SystemReply{
 		ItemID: item, Outcome: domain.OutcomeFilled, Side: side, Symbol: e.Symbol,
-		After: unitsOf(fill.After, fill.Decimals), At: e.ConfirmedAt,
+		After: tokensOf(money.UnitsFromUint64(fill.After), fill.Decimals), At: e.ConfirmedAt,
 	}
-	if before > 0 {
-		reply.Before = unitsOf(before, fill.Decimals)
+	if !before.IsZero() {
+		reply.Before = tokensOf(before, fill.Decimals)
 	}
 	return h.write(ctx, tx, reply)
 }
 
-func holdingBefore(side feed.Action, after, filled uint64) uint64 {
+func holdingBefore(side feed.Action, after, filled money.Units) (money.Units, error) {
 	if side == feed.ActionSell {
-		return after + filled
+		return after.Add(filled)
 	}
-	return max(after, filled) - filled
+	if after.Cmp(filled) < 0 {
+		return money.Units{}, nil
+	}
+	return after.Sub(filled)
 }
 
-func unitsOf(v uint64, decimals uint8) *money.BaseUnits {
-	units := money.NewBaseUnits(v, decimals)
-	return &units
+func tokensOf(v money.Units, decimals uint8) *feed.Tokens {
+	tokens := feed.NewTokens(v, decimals)
+	return &tokens
 }
 
 func (h Thread) FetchClosed(ctx context.Context, e events.ProposalFailed) (ClosedProposal, error) {

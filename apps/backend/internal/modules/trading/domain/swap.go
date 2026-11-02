@@ -6,6 +6,7 @@ import (
 	"slices"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
 type Status string
@@ -126,6 +127,22 @@ func ParseAmount(v int64) (uint64, error) {
 		return 0, errs.New(errs.CodeDecodeFailed, "trading.ParseAmount", slog.Int64("raw", v))
 	}
 	return uint64(v), nil
+}
+
+func ParseTokenAmount(raw string) (money.Units, error) {
+	v, err := money.ParseUnits(raw)
+	if err != nil {
+		return money.Units{}, errs.Wrap(err, errs.CodeDecodeFailed, "trading.ParseTokenAmount", slog.String("raw", raw))
+	}
+	return v, nil
+}
+
+func ParseOptionalTokenAmount(raw string) (money.Units, bool, error) {
+	if raw == "" {
+		return money.Units{}, false, nil
+	}
+	v, err := ParseTokenAmount(raw)
+	return v, err == nil, err
 }
 
 func Column(v uint64) (int64, bool) {

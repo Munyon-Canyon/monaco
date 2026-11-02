@@ -160,7 +160,7 @@ func seedRoutedProposal(t *testing.T, s *scenario.Scenario) string {
 	id, now := testkit.NewIDs(21).NewV7(), clock.Real{}.Now().UTC()
 	params := sqlc.InsertProposalParams{
 		ID: id, CabalID: c.ID.UUID(), ProposerID: c.Creator.ID.UUID(), Kind: "buy", Symbol: "AAPLx",
-		Mint: aaplxMint, UsdcMicros: pgtype.Int8{Int64: 5_000_000, Valid: true}, QuoteOutAmount: 21_000_000,
+		Mint: aaplxMint, UsdcMicros: pgtype.Int8{Int64: 5_000_000, Valid: true}, QuoteOutAmount: "21000000",
 		ExpiresAt: now.Add(24 * time.Hour), CreatedAt: now, Threshold: "majority",
 	}
 	for _, m := range c.Members {

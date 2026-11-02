@@ -16,6 +16,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
 	api "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/governanceapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
 
@@ -333,23 +334,23 @@ func TestHTTP_GetProposal_swapFill(t *testing.T) {
 		want api.LinkedSwap
 	}{
 		"confirmed buy": {
-			trading.SwapView{Action: "buy", Status: "confirmed", InAmount: 25_000_000, OutAmount: 12_500_000},
+			trading.SwapView{Action: "buy", Status: "confirmed", InAmount: money.UnitsFromUint64(25_000_000), OutAmount: money.UnitsFromUint64(12_500_000)},
 			api.LinkedSwap{
 				UsdcMicros: ptr(int64(25_000_000)), TokenAmount: ptr(int64(12_500_000)), PriceMicros: ptr(int64(200_000_000)),
 			},
 		},
 		"confirmed sell floors the price": {
-			trading.SwapView{Action: "sell", Status: "confirmed", InAmount: 3_000_000_000, OutAmount: 10_000_000},
+			trading.SwapView{Action: "sell", Status: "confirmed", InAmount: money.UnitsFromUint64(3_000_000_000), OutAmount: money.UnitsFromUint64(10_000_000)},
 			api.LinkedSwap{
 				UsdcMicros: ptr(int64(10_000_000)), TokenAmount: ptr(int64(3_000_000_000)), PriceMicros: ptr(int64(333_333)),
 			},
 		},
 		"submitted buy": {
-			trading.SwapView{Action: "buy", Status: "submitted", InAmount: 25_000_000},
+			trading.SwapView{Action: "buy", Status: "submitted", InAmount: money.UnitsFromUint64(25_000_000)},
 			api.LinkedSwap{UsdcMicros: ptr(int64(25_000_000))},
 		},
 		"failed sell": {
-			trading.SwapView{Action: "sell", Status: "failed", InAmount: 3_000_000_000, FailureCode: "jupiter_failed"},
+			trading.SwapView{Action: "sell", Status: "failed", InAmount: money.UnitsFromUint64(3_000_000_000), FailureCode: "jupiter_failed"},
 			api.LinkedSwap{TokenAmount: ptr(int64(3_000_000_000)), FailureCode: ptr("jupiter_failed")},
 		},
 	} {

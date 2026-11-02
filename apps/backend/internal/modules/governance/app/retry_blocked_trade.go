@@ -17,6 +17,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 )
 
@@ -103,7 +104,11 @@ func (h *RetryBlockedTradeHandler) Handle(ctx context.Context, cmd RetryBlockedT
 		}); err != nil {
 			return err
 		}
-		return tx.Events.Append(ctx, h.retryEvent(row))
+		retry, err := h.retryEvent(row)
+		if err != nil {
+			return err
+		}
+		return tx.Events.Append(ctx, retry)
 	})
 	if err != nil {
 		return err
@@ -124,15 +129,21 @@ func (h *RetryBlockedTradeHandler) notRetryable(ctx context.Context, tx db.Tx, i
 	return errs.New(errs.CodeSwapNotRetryable, op, slog.String("status", status))
 }
 
-func (h *RetryBlockedTradeHandler) retryEvent(row sqlc.ReopenUnstartedRow) events.TradeRetryRequested {
+func (h *RetryBlockedTradeHandler) retryEvent(row sqlc.ReopenUnstartedRow) (events.TradeRetryRequested, error) {
+	tokens, quoteOut, err := parseAmounts(row.TokenAmount, row.QuoteOutAmount)
+	if err != nil {
+		return events.TradeRetryRequested{}, err
+	}
 	ev := events.TradeRetryRequested{
 		V: 1, CabalID: row.CabalID, Source: events.TradeSource{Kind: "proposal", ID: row.ID}, Action: row.Kind,
-		Symbol: row.Symbol, QuoteOutAmount: unsigned(row.QuoteOutAmount), Network: chain.Network(row.Network),
+		Symbol: row.Symbol, QuoteOutAmount: quoteOut, Network: chain.Network(row.Network),
 	}
 	if row.Kind == "sell" {
-		ev.InMint, ev.OutMint, ev.InAmount = chain.SolanaAddress(row.Mint), h.usdc, unsigned(row.TokenAmount)
-		return ev
+		ev.InMint, ev.OutMint = chain.SolanaAddress(row.Mint), h.usdc
+		ev.InAmount = tokens
+		return ev, nil
 	}
-	ev.InMint, ev.OutMint, ev.InAmount = h.usdc, chain.SolanaAddress(row.Mint), unsigned(row.UsdcMicros)
-	return ev
+	ev.InMint, ev.OutMint = h.usdc, chain.SolanaAddress(row.Mint)
+	ev.InAmount = money.UnitsFromUint64(unsigned(row.UsdcMicros))
+	return ev, nil
 }

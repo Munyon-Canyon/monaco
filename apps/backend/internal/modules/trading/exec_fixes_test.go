@@ -19,6 +19,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
@@ -56,9 +57,9 @@ func TestRouteExec_aVoteTimeQuoteFarAboveTheRequoteNeverRaisesTheFloor(t *testin
 	t.Parallel()
 	e := newRouteEnv(t)
 	e.privy.script(multichain.ActionSucceeded)
-	e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: filledOut}}
+	e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: money.UnitsFromUint64(filledOut)}}
 	req := e.request()
-	req.QuoteOutAmount = requotedOut * 10
+	req.QuoteOutAmount = money.UnitsFromUint64(requotedOut * 10)
 
 	view := e.mustBuy(t, req, domain.StatusConfirmed)
 
@@ -176,7 +177,7 @@ func TestEVMVenue_buildsARecordedSellWithAFloorFromTheQuoteAndTheSlippage(t *tes
 	e.rpc.replies["/rpc"] = []string{delegated, simMet, simMet}
 	spec := app.EVMSwapSpec{
 		Network: chain.NetworkEthereum, Owner: evmAddress(t, owner), TokenIn: evmAddress(t, aaplon),
-		TokenOut: evmAddress(t, ethUSDC), AmountIn: amountIn, SlippageBps: 100,
+		TokenOut: evmAddress(t, ethUSDC), AmountIn: money.UnitsFromUint64(amountIn), SlippageBps: 100,
 	}
 
 	built, err := e.venue.Build(t.Context(), spec)
@@ -187,8 +188,8 @@ func TestEVMVenue_buildsARecordedSellWithAFloorFromTheQuoteAndTheSlippage(t *tes
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strconv.FormatUint(plan.OutAmount, 10) != out || plan.MinOut != floor {
-		t.Fatalf("plan out %d floor %d, want the recorded %s out and a 1%% floor", plan.OutAmount, plan.MinOut, out)
+	if plan.OutAmount.String() != out || !plan.MinOut.Equal(money.UnitsFromUint64(floor)) {
+		t.Fatalf("plan out %s floor %s, want the recorded %s out and a 1%% floor", plan.OutAmount, plan.MinOut, out)
 	}
 	calls := e.uniswap.calls
 	if calls[1].body["amount"] != in || calls[5].body["slippageTolerance"] != 0.0 ||
@@ -196,8 +197,8 @@ func TestEVMVenue_buildsARecordedSellWithAFloorFromTheQuoteAndTheSlippage(t *tes
 		t.Fatalf("quotes = %+v, want the held units quoted, then requoted at the tolerance keeping the floor", calls)
 	}
 	floored := domain.SlippageOf(spec.SlippageBps).MinOut(plan.OutAmount)
-	if floored != floor || plan.MinOut < floored {
-		t.Fatalf("route floor %d against plan floor %d, want the plan to clear it", floored, plan.MinOut)
+	if !floored.Equal(money.UnitsFromUint64(floor)) || plan.MinOut.Cmp(floored) < 0 {
+		t.Fatalf("route floor %s against plan floor %s, want the plan to clear it", floored, plan.MinOut)
 	}
 }
 
@@ -206,7 +207,7 @@ func TestEVMVenue_refusesASellWhoseQuoteRaisesNothing(t *testing.T) {
 	e := newVenueEnv(t)
 	e.script(approvalReply("null"), quoteReply("0", "0", "null"), "", "")
 	spec := e.spec(t)
-	spec.MinOut, spec.SlippageBps = 0, 100
+	spec.MinOut, spec.SlippageBps = money.UnitsFromUint64(0), 100
 
 	if _, err := e.venue.Build(t.Context(), spec); errs.CodeOf(err) != errs.CodePriceMoved {
 		t.Fatalf("Build err = %v, want price_moved", err)

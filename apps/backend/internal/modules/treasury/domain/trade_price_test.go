@@ -27,7 +27,7 @@ func TestTradePriceMicros_pricesOneDisplayShareAndRoundsDown(t *testing.T) {
 		"split multiplier past uint64":   {100_000_000, 105_000_000, 8, 10032690125398187, 10000000000000000, 94_927_775},
 	} {
 		got, ok, err := domain.TradePriceMicros(
-			money.MicrosFromUint64(c.usdc), money.NewBaseUnits(c.units, c.decimals), c.num, c.den,
+			money.MicrosFromUint64(c.usdc), money.UnitsFromUint64(c.units), c.decimals, c.num, c.den,
 		)
 		if err != nil || !ok || got.Uint64() != c.want {
 			t.Fatalf("%s: price = %v, %v, %v, want %d", name, got, ok, err, c.want)
@@ -35,11 +35,24 @@ func TestTradePriceMicros_pricesOneDisplayShareAndRoundsDown(t *testing.T) {
 	}
 }
 
+func TestTradePriceMicros_pricesTokenAmountsPastUint64(t *testing.T) {
+	t.Parallel()
+	twentyFive, err := money.ParseUnits("25000000000000000000")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, ok, err := domain.TradePriceMicros(money.MicrosFromUint64(125_000_000), twentyFive, 18, 1, 1)
+	if err != nil || !ok || got.Uint64() != 5_000_000 {
+		t.Fatalf("25 tokens for 125 USDC = %v, %v, %v, want 5000000 per token", got, ok, err)
+	}
+}
+
 func TestTradePriceMicros_hasNoPriceForZeroUnitsAndRefusesWhatItCannotHold(t *testing.T) {
 	t.Parallel()
 	if _, ok, err := domain.TradePriceMicros(
 		money.MicrosFromUint64(1),
-		money.NewBaseUnits(0, 8),
+		money.Units{},
+		8,
 		1,
 		1,
 	); ok ||
@@ -58,7 +71,7 @@ func TestTradePriceMicros_hasNoPriceForZeroUnitsAndRefusesWhatItCannotHold(t *te
 		"scale past uint64":    {1, 1, 19, 1, 2},
 	} {
 		if _, ok, err := domain.TradePriceMicros(
-			money.MicrosFromUint64(c.usdc), money.NewBaseUnits(c.units, c.decimals), c.num, c.den,
+			money.MicrosFromUint64(c.usdc), money.UnitsFromUint64(c.units), c.decimals, c.num, c.den,
 		); err == nil || ok {
 			t.Fatalf("%s: ok = %v, err = %v, want an error", name, ok, err)
 		}
@@ -75,7 +88,8 @@ func TestTradePriceMicros_neverPaysMoreThanTheFillAndLosesUnderOneShareStep(t *t
 		den := rapid.Int64Range(1, 1000).Draw(t, "den")
 		price, ok, err := domain.TradePriceMicros(
 			money.MicrosFromUint64(usdc),
-			money.NewBaseUnits(units, decimals),
+			money.UnitsFromUint64(units),
+			decimals,
 			num,
 			den,
 		)

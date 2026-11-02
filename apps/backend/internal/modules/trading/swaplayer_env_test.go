@@ -19,6 +19,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/chainfake"
@@ -117,8 +118,16 @@ func (e *layerEnv) request(source uuid.UUID) app.SwapRequest {
 		TreasuryWallet: app.TreasuryWallet{
 			PrivyWalletID: treasuryWallet, Address: chainfake.WalletAddress(treasuryWallet),
 		},
-		Action: domain.ActionBuy, Symbol: "AAPLx", InMint: usdcToken(), OutMint: aaplxToken(),
-		InAmount: 25_000_000, QuoteOutAmount: 105_000_000, SlippageBps: 100, SourceBatchSize: 1,
+		Action:  domain.ActionBuy,
+		Symbol:  "AAPLx",
+		InMint:  usdcToken(),
+		OutMint: aaplxToken(),
+		InAmount: money.UnitsFromUint64(
+			25_000_000,
+		),
+		QuoteOutAmount:  money.UnitsFromUint64(105_000_000),
+		SlippageBps:     100,
+		SourceBatchSize: 1,
 	}
 }
 

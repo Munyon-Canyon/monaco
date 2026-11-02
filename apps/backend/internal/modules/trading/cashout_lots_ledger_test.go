@@ -8,6 +8,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/marketfake"
 )
@@ -41,7 +42,7 @@ func TestLedgerHoldings_theLastMembersAllStillSeesTheCabalsEVMHolding(t *testing
 	got, err := holdings.Positions(t.Context(), cabal)
 
 	if err != nil || len(got) != 1 || string(got[0].Mint.Address) != ledgerBaseToken ||
-		got[0].Units != ledgerHeldUnits {
+		!got[0].Units.Equal(money.UnitsFromUint64(ledgerHeldUnits)) {
 		t.Fatalf("Positions = %+v, %v, want the Base holding of %d units", got, err, ledgerHeldUnits)
 	}
 }

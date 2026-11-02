@@ -25,7 +25,7 @@ type Stats struct {
 	ClosesAt         time.Time
 	ClosedAt         *time.Time
 	PriceMicros      *money.Micros
-	Shares           *money.BaseUnits
+	Shares           *money.Units
 	SharesExact      bool
 	TokenDecimals    uint8
 	SinceBps         *int64
@@ -44,20 +44,21 @@ func TreasuryShareBps(value, pot money.Micros) (*int64, error) {
 	return &share, nil
 }
 
-func EstimatedShares(usdc, price money.Micros, decimals uint8) (*money.BaseUnits, error) {
+func EstimatedShares(usdc, price money.Micros, decimals uint8) (*money.Units, error) {
 	units, ok, err := estimatedUnits(usdc, price, decimals)
 	if err != nil || !ok {
 		return nil, err
 	}
-	shares := money.NewBaseUnits(units, decimals)
-	return &shares, nil
+	return &units, nil
 }
 
-func estimatedUnits(usdc, price money.Micros, decimals uint8) (uint64, bool, error) {
+func estimatedUnits(usdc, price money.Micros, decimals uint8) (money.Units, bool, error) {
 	if price.IsZero() || decimals > maxDecimals {
-		return 0, false, nil
+		return money.Units{}, false, nil
 	}
-	units, err := money.MulDiv(usdc.Uint64(), money.OneWhole(decimals), price.Uint64())
+	units, err := money.UnitsMulDiv(
+		money.UnitsFromMicros(usdc), money.UnitsFromUint64(money.OneWhole(decimals)), money.UnitsFromMicros(price),
+	)
 	return units, err == nil, err
 }
 
@@ -106,14 +107,14 @@ func shareBps(value, pot money.Micros) (int64, bool, error) {
 	return new(big.Int).SetUint64(share).Int64(), true, nil
 }
 
-func rowShareValue(kind string, usdc, quoteOut int64) money.Micros {
+func rowShareValue(kind string, usdc int64, quoteOut money.Units) (money.Micros, error) {
 	if kind == string(domain.KindSell) {
-		return money.MicrosFromUint64(unsigned(quoteOut))
+		return quoteOut.Micros()
 	}
-	return money.MicrosFromUint64(unsigned(usdc))
+	return money.MicrosFromUint64(unsigned(usdc)), nil
 }
 
-func rowStats(r sqlc.GetProposalRow) (Stats, error) {
+func rowStats(r sqlc.GetProposalRow, quoteOut money.Units) (Stats, error) {
 	out := Stats{ClosesAt: r.ExpiresAt}
 	if r.ClosedAt.Valid {
 		closed := r.ClosedAt.Time
@@ -122,7 +123,10 @@ func rowStats(r sqlc.GetProposalRow) (Stats, error) {
 	if !r.PotValueMicros.Valid {
 		return out, nil
 	}
-	value := rowShareValue(r.Kind, r.UsdcMicros.Int64, r.QuoteOutAmount.Int64)
+	value, err := rowShareValue(r.Kind, r.UsdcMicros.Int64, quoteOut)
+	if err != nil {
+		return out, err
+	}
 	share, err := TreasuryShareBps(value, money.MicrosFromUint64(unsigned(r.PotValueMicros.Int64)))
 	out.TreasuryShareBps = share
 	return out, err
@@ -132,7 +136,7 @@ type priceInputs struct {
 	id       ids.ProposalID
 	kind     string
 	usdc     money.Micros
-	token    uint64
+	token    money.Units
 	decimals uint8
 	live     money.Micros
 	fill     Fill
@@ -155,31 +159,33 @@ func withPrices(ctx context.Context, s Stats, in priceInputs) Stats {
 }
 
 func QuotedStats(s Stats, d domain.Draft) Stats {
-	decimals := d.TokenAmount.Decimals()
+	decimals := d.Decimals
 	s.TokenDecimals = decimals
-	usdc, tokens := d.USDCMicros, d.TokenAmount.Uint64()
+	usdc, tokens := d.USDCMicros, d.TokenAmount
 	if d.Kind == domain.KindSell {
-		usdc = money.MicrosFromUint64(d.QuoteOut)
+		quoted, err := d.QuoteOut.Micros()
+		if err != nil {
+			return s
+		}
+		usdc = quoted
 	} else {
 		tokens = d.QuoteOut
 	}
-	if price := money.PricePerUnit(usdc, tokens, decimals); !price.IsZero() {
+	if price := money.PricePerUnits(usdc, tokens, decimals); !price.IsZero() {
 		s.PriceMicros = &price
 	}
-	if tokens > 0 {
-		shares := money.NewBaseUnits(tokens, decimals)
-		s.Shares, s.SharesExact = &shares, d.Kind == domain.KindSell
+	if !tokens.IsZero() {
+		s.Shares, s.SharesExact = &tokens, d.Kind == domain.KindSell
 	}
 	return s
 }
 
-func sharesOf(ctx context.Context, in priceInputs) (*money.BaseUnits, bool) {
-	exact := func(units uint64) (*money.BaseUnits, bool) {
-		if units == 0 {
+func sharesOf(ctx context.Context, in priceInputs) (*money.Units, bool) {
+	exact := func(units money.Units) (*money.Units, bool) {
+		if units.IsZero() {
 			return nil, false
 		}
-		shares := money.NewBaseUnits(units, in.decimals)
-		return &shares, true
+		return &units, true
 	}
 	switch {
 	case in.kind == string(domain.KindSell):

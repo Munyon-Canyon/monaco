@@ -13,7 +13,7 @@ import (
 )
 
 type TradePreview struct {
-	QuoteOut        uint64
+	QuoteOut        money.Units
 	Advisory        errs.Code
 	Pot             money.Micros
 	PriceComparison *multichain.Comparison

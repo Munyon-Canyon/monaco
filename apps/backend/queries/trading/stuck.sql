@@ -11,7 +11,7 @@ WITH stuck AS (
   ORDER BY u.since, u.id
   LIMIT @row_limit::bigint
 )
-SELECT v.id, v.cabal_id, v.source_kind, v.source_id, v.action, v.symbol, v.in_amount, v.out_decimals, v.out_amount,
+SELECT v.id, v.cabal_id, v.source_kind, v.source_id, v.action, v.symbol, v.in_amount::text AS in_amount, v.out_decimals, coalesce(v.out_amount::text, '')::text AS out_amount,
   v.status, v.failure_code, v.tx_signature, v.created_at, v.confirmed_at, v.retryable, v.fee_micros
 FROM stuck
 JOIN swap_views AS v ON v.id = stuck.id

@@ -71,15 +71,21 @@ func MintAsset(mint chain.SolanaAddress) Asset { return Asset(mint) }
 
 func SharesAsset(cabal ids.CabalID) Asset { return Asset("shares:" + cabal.String()) }
 
-type Entry[A CabalAccount | UserAccount] struct {
+type Amount interface {
+	money.SignedMicros | money.SignedUnits
+	IsZero() bool
+	Big() *big.Int
+}
+
+type Entry[A CabalAccount | UserAccount, N Amount] struct {
 	Account A
 	Asset   Asset
-	Amount  money.SignedMicros
+	Amount  N
 }
 
 type (
-	CabalEntry = Entry[CabalAccount]
-	UserEntry  = Entry[UserAccount]
+	CabalEntry = Entry[CabalAccount, money.SignedUnits]
+	UserEntry  = Entry[UserAccount, money.SignedMicros]
 )
 
 type CabalTxnHeader struct {
@@ -130,7 +136,7 @@ func NewUserTxn(h UserTxnHeader, entries []UserEntry) (UserTxn, error) {
 
 func (t UserTxn) Entries() []UserEntry { return slices.Clone(t.entries) }
 
-func balanced[A CabalAccount | UserAccount](op string, entries []Entry[A]) error {
+func balanced[A CabalAccount | UserAccount, N Amount](op string, entries []Entry[A, N]) error {
 	if len(entries) == 0 || len(entries) > math.MaxInt16 {
 		return errs.New(errs.CodeInvalidInput, op, slog.Int("entries", len(entries)))
 	}
@@ -139,7 +145,7 @@ func balanced[A CabalAccount | UserAccount](op string, entries []Entry[A]) error
 		if e.Amount.IsZero() || e.Asset == "" {
 			return errs.New(errs.CodeInvalidInput, op, slog.Int("entry", i), slog.String("asset", string(e.Asset)))
 		}
-		add(sums, e.Asset, e.Amount)
+		addBig(sums, e.Asset, e.Amount.Big())
 	}
 	for _, asset := range slices.Sorted(maps.Keys(sums)) {
 		if sums[asset].Sign() != 0 {

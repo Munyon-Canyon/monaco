@@ -16,6 +16,7 @@ import (
 	baseapi "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
 	api "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/socialapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
 func (h HTTP) GetFeed(ctx context.Context, req api.GetFeedRequestObject) (api.GetFeedResponseObject, error) {
@@ -214,8 +215,8 @@ func (h HTTP) wireFeedItems(ctx context.Context, items []app.FeedItem) ([]api.Fe
 }
 
 func wireFeedItem(item app.FeedItem) api.FeedItem {
-	tokens := optionalWireAmount(item.TokenAmount)
-	filledTokens := optionalWireAmount(item.FilledTokens.Uint64())
+	tokens := optionalWireUnits(item.TokenAmount)
+	filledTokens := optionalWireUnits(item.FilledTokens.Amount)
 	return api.FeedItem{
 		Id:            item.ID,
 		Kind:          string(item.Kind),
@@ -310,6 +311,8 @@ func optionalWireAmount(n uint64) *int64 {
 	}
 	return optionalWirePositive(int64(n))
 }
+
+func optionalWireUnits(n money.Units) *int64 { return optionalWirePositive(n.Int64OrZero()) }
 
 func optionalWirePositive(n int64) *int64 {
 	if n <= 0 {

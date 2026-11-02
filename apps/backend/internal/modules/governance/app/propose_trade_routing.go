@@ -12,6 +12,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/market"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
 const shareNanos = 1_000_000_000
@@ -44,7 +45,7 @@ func settles(c *multichain.Comparison) error {
 	return nil
 }
 
-func displayQuote(asset market.Asset, c *multichain.Comparison, routed uint64, now time.Time) uint64 {
+func displayQuote(asset market.Asset, c *multichain.Comparison, routed money.Units, now time.Time) money.Units {
 	m := asset.UIMultiplierAt(now)
 	if c == nil || m.Num <= 0 || m.Den <= 0 {
 		return routed
@@ -59,10 +60,11 @@ func displayQuote(asset market.Asset, c *multichain.Comparison, routed uint64, n
 	units.Mul(units, new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(asset.Decimals)), nil))
 	units.Mul(units, big.NewInt(m.Den))
 	units.Quo(units, new(big.Int).Mul(big.NewInt(shareNanos), big.NewInt(m.Num)))
-	if !units.IsUint64() {
+	out, err := money.UnitsFromBig(units)
+	if err != nil {
 		return routed
 	}
-	return units.Uint64()
+	return out
 }
 
 func pricedOn(c *multichain.Comparison, n chain.Network) (*multichain.Comparison, error) {

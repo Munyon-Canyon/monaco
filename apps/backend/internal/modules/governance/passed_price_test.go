@@ -296,7 +296,7 @@ func TestGetProposal_returnsThePassedPriceAndTheProposerForEverySwapState(t *tes
 		"pending": {Status: "pending"},
 		"failed":  {Status: "failed", FailureCode: "jupiter_failed"},
 		"confirmed": {
-			Status: "confirmed", InAmount: 300_000_000, OutAmount: 42_000_000,
+			Status: "confirmed", InAmount: money.UnitsFromUint64(300_000_000), OutAmount: money.UnitsFromUint64(42_000_000),
 			ConfirmedAt: time.Date(2026, 3, 2, 9, 41, 0, 0, time.UTC),
 		},
 	} {

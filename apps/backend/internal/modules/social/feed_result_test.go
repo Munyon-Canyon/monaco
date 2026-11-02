@@ -108,7 +108,8 @@ func (r proposalRig) mustCreate(t *testing.T, change func(*events.ProposalCreate
 }
 
 func asSale(e *events.ProposalCreated) {
-	e.Kind, e.USDCMicros, e.TokenAmount, e.QuoteOutAmount = "sell", money.Micros{}, 7, 480_000_000
+	e.Kind, e.USDCMicros = "sell", money.Micros{}
+	e.TokenAmount, e.QuoteOutAmount = money.UnitsFromUint64(7), money.UnitsFromUint64(480_000_000)
 }
 
 func TestFeedResult_aPassedBuyMakesOneCabalHeadedResult(t *testing.T) {
@@ -277,8 +278,10 @@ func (r proposalRig) setFillKeys(t *testing.T) {
 
 func wantFillKeys(t *testing.T, p feed.Payload) {
 	t.Helper()
-	if fill := p.Fills["swap-a"]; len(p.Fills) != 1 || fill.TokenAmount.Uint64() != 42_000_000 ||
-		p.Failures["swap-b"] != "price_moved" || len(p.Failures) != 1 {
+	if fill := p.Fills["swap-a"]; len(p.Fills) != 1 ||
+		!fill.TokenAmount.Amount.Equal(money.UnitsFromUint64(42_000_000)) ||
+		p.Failures["swap-b"] != "price_moved" ||
+		len(p.Failures) != 1 {
 		t.Errorf("fills %+v failures %v, want the first close's keys", p.Fills, p.Failures)
 	}
 	if p.ExpectedFills != 2 || p.FillState != "partial" {

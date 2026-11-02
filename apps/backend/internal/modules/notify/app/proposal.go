@@ -11,7 +11,6 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/notify/domain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
-	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
 const (
@@ -70,7 +69,9 @@ func (k ProposalCreated) Render(ctx context.Context, e events.ProposalCreated, t
 	}
 	amount := e.USDCMicros
 	if action == "Sell" {
-		amount = money.MicrosFromUint64(e.QuoteOutAmount)
+		if amount, err = e.QuoteOutAmount.Micros(); err != nil {
+			return Message{}, err
+		}
 	}
 	pres := ForCabal(view, proposer)
 	if pres.Category, err = k.category(ctx, e.ProposalID, to); err != nil {

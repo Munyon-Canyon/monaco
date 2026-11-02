@@ -12,6 +12,7 @@ import (
 	treasuryport "github.com/monaco/monaco/apps/backend/internal/modules/treasury/port"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
 const swapHistoryLimit = 50
@@ -20,7 +21,7 @@ type TxnEntry struct {
 	Seq     int16
 	Account string
 	Asset   string
-	Amount  int64
+	Amount  money.SignedUnits
 }
 
 type LedgerTxn struct {

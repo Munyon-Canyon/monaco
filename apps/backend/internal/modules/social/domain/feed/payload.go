@@ -33,7 +33,7 @@ type Payload struct {
 	MarkMicros    money.Micros      `json:"mark_micros,omitzero"`
 	PrevClose     money.Micros      `json:"prev_close_micros,omitzero"`
 	TradingDay    string            `json:"trading_day,omitempty"`
-	TokenAmount   uint64            `json:"token_amount,string,omitzero"`
+	TokenAmount   money.Units       `json:"token_amount,omitzero"`
 	TokenDecimals uint8             `json:"token_decimals,omitzero"`
 	ProposalID    uuid.UUID         `json:"proposal_id,omitzero"`
 	Status        string            `json:"status,omitempty"`

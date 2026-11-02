@@ -90,9 +90,9 @@ func (r *pushRig) confirmedEvent(
 	e := goldenEvent(t, events.TypeTradeConfirmed).(events.TradeConfirmed)
 	e.SwapID, e.CabalID, e.Source, e.Action, e.Symbol = r.ids.NewV7(), w.id.UUID(), w.source(), action, "AAPLx"
 	e.USDCMicros = money.MicrosFromUint64(usdc)
-	e.InAmount, e.OutAmount = usdc, tokens
+	e.InAmount, e.OutAmount = money.UnitsFromUint64(usdc), money.UnitsFromUint64(tokens)
 	if action == sellKind {
-		e.InAmount, e.OutAmount = tokens, usdc
+		e.InAmount, e.OutAmount = money.UnitsFromUint64(tokens), money.UnitsFromUint64(usdc)
 	}
 	return e
 }
@@ -227,6 +227,36 @@ func TestNotify_ResultFilled_SizesARobinhoodFillByTheListingDecimals(t *testing.
 			r := newPushRig(t)
 			w := r.resultWorldOf(t, 2, 0)
 			e := r.confirmedEvent(t, w, tc.action, tc.tokens, tc.usdc)
+			e.TokenDecimals = 18
+
+			d, err := w.run(t, r, tradeActor, e)
+
+			wantVerdict(t, err, "", errs.VerdictAck)
+			w.wantPushes(t, r, d, "AAPL passed 2–0", tc.body, "filled", w.voters()...)
+		})
+	}
+}
+
+func TestNotify_ResultFilled_SizesAFillPastUint64ByTheListingDecimals(t *testing.T) {
+	t.Parallel()
+	for name, tc := range map[string]struct {
+		action string
+		body   string
+	}{
+		"a buy of 25 tokens":  {buyKind, "Bought 25 sh at $200.00. You voted {vote}."},
+		"a sell of 25 tokens": {sellKind, "Sold 25 sh at $200.00. You voted {vote}."},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			r := newPushRig(t)
+			w := r.resultWorldOf(t, 2, 0)
+			e := r.confirmedEvent(t, w, tc.action, 0, 5_000_000_000)
+			tokens := wideTokens(t)
+			if tc.action == sellKind {
+				e.InAmount = tokens
+			} else {
+				e.OutAmount = tokens
+			}
 			e.TokenDecimals = 18
 
 			d, err := w.run(t, r, tradeActor, e)

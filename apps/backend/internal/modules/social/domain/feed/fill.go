@@ -3,7 +3,6 @@ package feed
 import (
 	"encoding/json"
 	"log/slog"
-	"strconv"
 	"time"
 
 	"github.com/google/uuid"
@@ -20,7 +19,7 @@ const (
 )
 
 type Fill struct {
-	TokenAmount money.BaseUnits
+	TokenAmount Tokens
 	USDCMicros  money.Micros
 	FilledAt    time.Time
 }
@@ -34,7 +33,7 @@ type fillWire struct {
 
 func (f Fill) MarshalJSON() ([]byte, error) {
 	raw, _ := json.Marshal(fillWire{
-		TokenAmount: f.TokenAmount.String(), TokenDecimals: f.TokenAmount.Decimals(),
+		TokenAmount: f.TokenAmount.Amount.String(), TokenDecimals: f.TokenAmount.Decimals,
 		USDCMicros: f.USDCMicros, FilledAt: f.FilledAt,
 	})
 	return raw, nil
@@ -45,11 +44,11 @@ func (f *Fill) UnmarshalJSON(raw []byte) error {
 	if err := json.Unmarshal(raw, &w); err != nil {
 		return errs.Wrap(err, errs.CodeInternal, "feed.Fill.UnmarshalJSON")
 	}
-	amount, err := strconv.ParseUint(w.TokenAmount, 10, 64)
+	amount, err := money.ParseUnits(w.TokenAmount)
 	if err != nil {
 		return errs.Wrap(err, errs.CodeInternal, "feed.Fill.UnmarshalJSON", slog.String("raw", w.TokenAmount))
 	}
-	*f = Fill{TokenAmount: money.NewBaseUnits(amount, w.TokenDecimals), USDCMicros: w.USDCMicros, FilledAt: w.FilledAt}
+	*f = Fill{TokenAmount: NewTokens(amount, w.TokenDecimals), USDCMicros: w.USDCMicros, FilledAt: w.FilledAt}
 	return nil
 }
 
@@ -98,16 +97,16 @@ func (p *Payload) expect(batch int) error {
 	return nil
 }
 
-func sumFills(fills map[string]Fill) (tokens money.BaseUnits, usdc money.Micros, lastAt time.Time, err error) {
+func sumFills(fills map[string]Fill) (tokens Tokens, usdc money.Micros, lastAt time.Time, err error) {
 	first := true
 	for _, f := range fills {
 		if first {
 			tokens, first = f.TokenAmount, false
 		} else if tokens, err = tokens.Add(f.TokenAmount); err != nil {
-			return money.BaseUnits{}, money.Micros{}, time.Time{}, err
+			return Tokens{}, money.Micros{}, time.Time{}, err
 		}
 		if usdc, err = usdc.Add(f.USDCMicros); err != nil {
-			return money.BaseUnits{}, money.Micros{}, time.Time{}, err
+			return Tokens{}, money.Micros{}, time.Time{}, err
 		}
 		if f.FilledAt.After(lastAt) {
 			lastAt = f.FilledAt
@@ -116,12 +115,12 @@ func sumFills(fills map[string]Fill) (tokens money.BaseUnits, usdc money.Micros,
 	return tokens, usdc, lastAt, nil
 }
 
-func DeriveFill(p Payload) (state string, tokens money.BaseUnits, usdc money.Micros, lastAt time.Time, err error) {
+func DeriveFill(p Payload) (state string, tokens Tokens, usdc money.Micros, lastAt time.Time, err error) {
 	if p.Outcome != OutcomePassed {
 		return "", tokens, usdc, lastAt, nil
 	}
 	if tokens, usdc, lastAt, err = sumFills(p.Fills); err != nil {
-		return "", money.BaseUnits{}, money.Micros{}, time.Time{}, err
+		return "", Tokens{}, money.Micros{}, time.Time{}, err
 	}
 	failed := 0
 	for id := range p.Failures {

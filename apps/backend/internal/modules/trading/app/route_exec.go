@@ -75,6 +75,8 @@ func (r *RouteExec) Trade(
 	req.InMint, req.OutMint = cash, token
 	if req.Action == domain.ActionSell {
 		req.InMint, req.OutMint = token, cash
+	} else if _, err := req.InAmount.Micros(); err != nil {
+		return SwapView{}, err
 	}
 	l := r.d.Layer
 	insert, err := req.insertParams(l.d.IDs.NewV7(), l.d.Clock.Now())
@@ -231,7 +233,7 @@ func (r *RouteExec) swap() EVMSwap {
 }
 
 type swapQuote struct {
-	floor uint64
+	floor money.Units
 	route multichain.RouteOptions
 }
 
@@ -266,19 +268,19 @@ func (r *RouteExec) requote(ctx context.Context, b routedBuy) (swapQuote, bool, 
 	if err != nil && errs.Retryable(errs.CodeOf(err)) {
 		return swapQuote{}, true, err
 	}
-	out := uint64(0)
-	if err == nil && quote.GrossOutput != nil && quote.GrossOutput.IsInt64() {
-		out = quote.GrossOutput.Uint64()
+	out := money.Units{}
+	if err == nil && quote.GrossOutput != nil && quote.GrossOutput.IsInt64() && quote.GrossOutput.Sign() > 0 {
+		out = money.UnitsFromUint64(quote.GrossOutput.Uint64())
 	}
 	floor := domain.SlippageOf(b.slippage).MinOut(out)
 	strayed, siblingErr := false, error(nil)
-	if floor != 0 {
+	if !floor.IsZero() {
 		strayed, siblingErr = r.strayedFromSibling(ctx, b, quote)
 	}
 	if siblingErr != nil {
 		return swapQuote{}, true, siblingErr
 	}
-	if floor == 0 || strayed {
+	if floor.IsZero() || strayed {
 		return swapQuote{}, true, r.finish(
 			ctx, b, failed(b.req, b.id, domain.FailurePriceMoved, ""), string(domain.FailurePriceMoved))
 	}
@@ -377,12 +379,13 @@ func (r *RouteExec) loadRow(ctx context.Context, id uuid.UUID) (routedBuy, error
 	jsonErr := json.Unmarshal(row.Comparison, &comparison)
 	req, err := sweepRequest(row.CabalID, row.SourceKind, row.SourceID, row.Action, row.Symbol, row.InMint,
 		row.InAmount, row.SourceBatchSize)
-	sent, estimate := money.MicrosFromUint64(req.InAmount), bridgeFee(comparison)
+	sent, sentErr := req.InAmount.Micros()
+	estimate := bridgeFee(comparison)
 	landed, landedErr := sent.Sub(estimate)
 	if req.Action == domain.ActionSell {
 		landedErr = nil
 	}
-	if err := errors.Join(jsonErr, err, landedErr); err != nil {
+	if err := errors.Join(jsonErr, err, sentErr, landedErr); err != nil {
 		return routedBuy{}, errs.Wrap(err, errs.CodeDecodeFailed, routeExecOp, slog.String("swap_id", id.String()))
 	}
 	req.OutMint = chain.Mint{Address: chain.SolanaAddress(row.OutMint)}
@@ -490,7 +493,7 @@ func (b routedBuy) swapLeg(landed money.Micros, q swapQuote) EVMSwapLeg {
 		Request: b.req, Ref: b.ref(domain.StepSwap), WalletID: b.evm.ID, Amount: landed,
 		Spec: EVMSwapSpec{
 			Network: b.listing.Network, Owner: b.evm.Address, TokenIn: b.cash, TokenOut: b.token,
-			AmountIn: landed.Uint64(), MinOut: q.floor, SlippageBps: b.slippage, Route: q.route,
+			AmountIn: money.UnitsFromMicros(landed), MinOut: q.floor, SlippageBps: b.slippage, Route: q.route,
 		},
 	}
 }
@@ -500,21 +503,20 @@ func (b routedBuy) confirmed(landed money.Micros, fill EVMSwapResult) step {
 	return step{
 		id: id, from: domain.StatusSubmitted, status: domain.StatusConfirmed,
 		apply: func(ctx context.Context, q *sqlc.Queries, at time.Time) (int64, error) {
-			out, outOK := domain.Column(fill.Out)
 			fee, feeOK := domain.Column(b.fee.Uint64())
-			if !outOK || !feeOK {
-				return 0, errs.New(errs.CodeDecodeFailed, routeExecOp, slog.Uint64("out_amount", fill.Out))
+			if !feeOK {
+				return 0, errs.New(errs.CodeDecodeFailed, routeExecOp, slog.String("fee_micros", b.fee.String()))
 			}
 			return q.FinishConfirmed(
 				ctx,
-				sqlc.FinishConfirmedParams{ID: id, OutAmount: out, FeeMicros: fee, ConfirmedAt: at},
+				sqlc.FinishConfirmedParams{ID: id, OutAmount: fill.Out.String(), FeeMicros: fee, ConfirmedAt: at},
 			)
 		},
 		event: func(at time.Time) events.Event {
 			return events.TradeConfirmed{
 				V: 1, SwapID: id, CabalID: req.CabalID.UUID(), Source: req.tradeSource(),
 				SourceBatchSize: req.SourceBatchSize, Action: string(req.Action), Symbol: req.Symbol,
-				InMint: req.InMint.Address, InAmount: landed.Uint64(), OutMint: req.OutMint.Address,
+				InMint: req.InMint.Address, InAmount: money.UnitsFromMicros(landed), OutMint: req.OutMint.Address,
 				OutAmount: fill.Out, USDCMicros: b.sent, FeeMicros: b.fee,
 				TxSignature: chain.Signature(fill.Hash), ConfirmedAt: at, TokenDecimals: b.listing.Decimals,
 			}

@@ -166,8 +166,8 @@ func (s *FundSettler) post(ctx context.Context, tx db.Tx, m fundMint, units mone
 		ID: s.d.IDs.NewV7(), CabalID: m.cabal, Kind: domain.CabalFund, Status: domain.TxnSettled,
 		TransferID: m.transfer.ID, TxSignature: sig,
 	}, []domain.CabalEntry{
-		{Account: domain.CabalTreasury, Asset: usdc, Amount: in},
-		{Account: domain.CabalMembers, Asset: usdc, Amount: neg(in)},
+		{Account: domain.CabalTreasury, Asset: usdc, Amount: money.SignedUnitsFromMicros(in)},
+		{Account: domain.CabalMembers, Asset: usdc, Amount: money.SignedUnitsFromMicros(neg(in))},
 	})
 	if err := errors.Join(err, userErr, cabalErr); err != nil {
 		return err

@@ -27,8 +27,8 @@ type ExecuteTrade struct {
 	Symbol         string
 	Mint           chain.SolanaAddress
 	USDCMicros     money.Micros
-	TokenAmount    uint64
-	QuoteOutAmount uint64
+	TokenAmount    money.Units
+	QuoteOutAmount money.Units
 	Retry          *Retry
 	Route          *multichain.Comparison
 	Pin            chain.Network
@@ -44,9 +44,9 @@ func (c ExecuteTrade) source() domain.Source {
 	return domain.Source{Kind: domain.SourceProposal, ID: c.ProposalID.UUID()}
 }
 
-func (c ExecuteTrade) amount() uint64 {
+func (c ExecuteTrade) amount() money.Units {
 	if c.Action == domain.ActionBuy {
-		return c.USDCMicros.Uint64()
+		return money.UnitsFromMicros(c.USDCMicros)
 	}
 	return c.TokenAmount
 }
@@ -74,7 +74,7 @@ func NewExecuteTradeHandler(d ExecuteTradeDeps) *ExecuteTradeHandler {
 
 type refusal struct {
 	code       errs.Code
-	have, need uint64
+	have, need money.Units
 }
 
 func (r refusal) refused() bool { return r.code != "" }
@@ -291,7 +291,7 @@ func (h *ExecuteTradeHandler) tradable(
 
 func settles(winner multichain.Listing) tradeCheck {
 	return func(_ context.Context, cmd ExecuteTrade, req *SwapRequest) (refusal, error) {
-		oversize := cmd.Action == domain.ActionSell && req.InAmount > math.MaxInt64
+		oversize := cmd.Action == domain.ActionSell && exceedsInt64(req.InAmount)
 		if cmd.Action == domain.ActionBuy && cmd.Route != nil {
 			q, ok := cmd.Route.QuoteFor(winner.ID)
 			oversize = ok && q.Oversize()
@@ -322,7 +322,7 @@ func (h *ExecuteTradeHandler) held(asset string) tradeCheck {
 		if err != nil {
 			return refusal{}, err
 		}
-		if have := evm[asset]; have < req.InAmount {
+		if have := evm[asset]; have.Cmp(req.InAmount) < 0 {
 			return refusal{code: errs.CodeCabalSharesShort, have: have, need: req.InAmount}, nil
 		}
 		return refusal{}, nil
@@ -341,18 +341,20 @@ func (h *ExecuteTradeHandler) routedFunds(ctx context.Context, cmd ExecuteTrade,
 	switch {
 	case err != nil:
 		return refusal{}, err
-	case have.Uint64() < req.InAmount:
-		return refusal{code: errs.CodeInsufficientFunds, have: have.Uint64(), need: req.InAmount}, nil
+	case money.UnitsFromUint64(have.Uint64()).Cmp(req.InAmount) < 0:
+		return refusal{
+			code: errs.CodeInsufficientFunds, have: money.UnitsFromUint64(have.Uint64()), need: req.InAmount,
+		}, nil
 	}
 	return h.ledgerCovers(ctx, cmd, req)
 }
 
 func (h *ExecuteTradeHandler) ledgerCovers(ctx context.Context, cmd ExecuteTrade, req *SwapRequest) (refusal, error) {
 	have, err := h.availableLedgerCash(ctx, cmd)
-	if have.Uint64() >= req.InAmount || err != nil {
+	if err != nil || money.UnitsFromMicros(have).Cmp(req.InAmount) >= 0 {
 		return refusal{}, err
 	}
-	return refusal{code: errs.CodeInsufficientFunds, have: have.Uint64(), need: req.InAmount}, nil
+	return refusal{code: errs.CodeInsufficientFunds, have: money.UnitsFromMicros(have), need: req.InAmount}, nil
 }
 
 func (h *ExecuteTradeHandler) availableLedgerCash(ctx context.Context, cmd ExecuteTrade) (money.Micros, error) {
@@ -393,8 +395,8 @@ func (h *ExecuteTradeHandler) tradeCap(ctx context.Context, cmd ExecuteTrade, re
 	switch {
 	case err != nil:
 		return refusal{}, errs.Wrap(err, errs.CodeInternal, "trading.ExecuteTrade.tradeCap")
-	case req.InAmount > limit:
-		return refusal{code: errs.CodeOverTradeCap, have: limit, need: req.InAmount}, nil
+	case req.InAmount.Cmp(money.UnitsFromUint64(limit)) > 0:
+		return refusal{code: errs.CodeOverTradeCap, have: money.UnitsFromUint64(limit), need: req.InAmount}, nil
 	}
 	return refusal{}, nil
 }
@@ -437,13 +439,13 @@ func (h *ExecuteTradeHandler) funds(ctx context.Context, cmd ExecuteTrade, req *
 	if err != nil {
 		return refusal{}, err
 	}
-	need := req.InAmount
-	if have.Uint64() < need {
+	held := money.UnitsFromUint64(have.Uint64())
+	if held.Cmp(req.InAmount) < 0 {
 		code := errs.CodeInsufficientFunds
 		if cmd.Action == domain.ActionSell {
 			code = errs.CodeCabalSharesShort
 		}
-		return refusal{code: code, have: have.Uint64(), need: need}, nil
+		return refusal{code: code, have: held, need: req.InAmount}, nil
 	}
 	if cmd.Action == domain.ActionBuy {
 		return h.ledgerCovers(ctx, cmd, req)
@@ -458,23 +460,27 @@ func (h *ExecuteTradeHandler) slippage(ctx context.Context, cmd ExecuteTrade, re
 }
 
 func (h *ExecuteTradeHandler) price(ctx context.Context, _ ExecuteTrade, req *SwapRequest) (refusal, error) {
-	quote, err := h.d.Venue.Quote(ctx, QuoteSpec{InMint: req.InMint, OutMint: req.OutMint, InAmount: req.InAmount})
+	inAmount, err := req.InAmount.Uint64()
+	if err != nil {
+		return refusal{}, err
+	}
+	quote, err := h.d.Venue.Quote(ctx, QuoteSpec{InMint: req.InMint, OutMint: req.OutMint, InAmount: inAmount})
 	if err != nil {
 		return refusal{}, err
 	}
 	if !quote.Routable {
-		return h.unrouted(ctx, req)
+		return h.unrouted(ctx, req, inAmount)
 	}
-	req.QuoteOutAmount = quote.OutAmount
+	req.QuoteOutAmount = money.UnitsFromUint64(quote.OutAmount)
 	return refusal{}, nil
 }
 
-func (h *ExecuteTradeHandler) unrouted(ctx context.Context, req *SwapRequest) (refusal, error) {
+func (h *ExecuteTradeHandler) unrouted(ctx context.Context, req *SwapRequest, inAmount uint64) (refusal, error) {
 	probe := uint64(1_000_000)
 	if req.InMint.Address != h.d.USDC.Address {
-		probe = min(req.InAmount, money.OneWhole(req.InMint.Decimals))
+		probe = min(inAmount, money.OneWhole(req.InMint.Decimals))
 	}
-	if req.InAmount <= probe {
+	if inAmount <= probe {
 		return refusal{code: errs.CodeNoRoute}, nil
 	}
 	quote, err := h.d.Venue.Quote(ctx, QuoteSpec{InMint: req.InMint, OutMint: req.OutMint, InAmount: probe})
@@ -522,7 +528,7 @@ func (h *ExecuteTradeHandler) block(ctx context.Context, d bus.Delivery, cmd Exe
 				Kind: string(domain.SourceProposal),
 				ID:   cmd.ProposalID.UUID(),
 			}, SourceBatchSize: 1, Action: string(cmd.Action), Symbol: cmd.Symbol,
-			Code: r.code, Have: r.have, Need: r.need,
+			Code: r.code, Have: clampUint64(r.have), Need: clampUint64(r.need),
 		})
 	})
 	if err != nil || !blocked {
@@ -530,6 +536,18 @@ func (h *ExecuteTradeHandler) block(ctx context.Context, d bus.Delivery, cmd Exe
 	}
 	observability.Info(ctx, observability.TradingEngineBlocked,
 		slog.String("proposal_id", cmd.ProposalID.String()), slog.String("cabal_id", cmd.CabalID.String()),
-		slog.String("code", string(r.code)), slog.Uint64("have", r.have), slog.Uint64("need", r.need))
+		slog.String("code", string(r.code)), slog.String("have", r.have.String()), slog.String("need", r.need.String()))
 	return nil
+}
+
+func exceedsInt64(u money.Units) bool {
+	_, err := u.Int64()
+	return err != nil
+}
+
+func clampUint64(u money.Units) uint64 {
+	if v, err := u.Uint64(); err == nil {
+		return v
+	}
+	return math.MaxUint64
 }

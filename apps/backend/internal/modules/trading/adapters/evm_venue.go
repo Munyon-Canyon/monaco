@@ -24,6 +24,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpclient"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
 const (
@@ -131,13 +132,13 @@ type swapWire struct {
 
 func (v *EVMVenue) Build(ctx context.Context, spec app.EVMSwapSpec) (app.EVMSwapPlan, error) {
 	attrs := []slog.Attr{slog.String("network", string(spec.Network))}
-	if !spec.Network.IsEVM() || spec.AmountIn == 0 || spec.MinOut == 0 && spec.SlippageBps <= 0 {
+	if !spec.Network.IsEVM() || spec.AmountIn.IsZero() || spec.MinOut.IsZero() && spec.SlippageBps <= 0 {
 		return app.EVMSwapPlan{}, errs.New(errs.CodeInvalidInput, evmVenueBuildOp, attrs...)
 	}
 	var approval approvalWire
 	err := v.post(ctx, "/v1/check_approval", approvalRequest{
 		WalletAddress: spec.Owner.String(), Token: spec.TokenIn.String(),
-		Amount: strconv.FormatUint(spec.AmountIn, 10), ChainID: spec.Network.EVMChainID(),
+		Amount: spec.AmountIn.String(), ChainID: spec.Network.EVMChainID(),
 	}, &approval, attrs)
 	if err != nil {
 		return app.EVMSwapPlan{}, err
@@ -181,17 +182,17 @@ func (v *EVMVenue) tolerance(ctx context.Context, spec app.EVMSwapSpec, attrs []
 	if err != nil {
 		return 0, err
 	}
-	out, err := wholeUint(probe.Quote.Output.Amount)
+	out, err := wholeUnits(probe.Quote.Output.Amount)
 	if err != nil {
 		return 0, errs.Wrap(err, errs.CodeDecodeFailed, evmVenueBuildOp, attrs...)
 	}
 	floor := spec.MinOut
-	if floor == 0 {
+	if floor.IsZero() {
 		floor = domain.SlippageOf(spec.SlippageBps).MinOut(out)
 	}
-	if floor == 0 || out < floor {
+	if floor.IsZero() || out.Cmp(floor) < 0 {
 		return 0, errs.New(errs.CodePriceMoved, evmVenueBuildOp,
-			append(attrs, slog.Uint64("quoted", out), slog.Uint64("floor", floor))...)
+			append(attrs, slog.String("quoted", out.String()), slog.String("floor", floor.String()))...)
 	}
 	return toleranceBps(out, floor), nil
 }
@@ -204,7 +205,7 @@ func (v *EVMVenue) quote(
 ) (swapQuoteWire, error) {
 	var quote swapQuoteWire
 	err := v.post(ctx, "/v1/quote", swapQuoteRequest{
-		Type: uniswapExactInput, Amount: strconv.FormatUint(spec.AmountIn, 10),
+		Type: uniswapExactInput, Amount: spec.AmountIn.String(),
 		TokenInChainID: spec.Network.EVMChainID(), TokenOutChainID: spec.Network.EVMChainID(),
 		TokenIn: spec.TokenIn.String(), TokenOut: spec.TokenOut.String(), Swapper: spec.Owner.String(),
 		SlippageTolerance: percent(bps), RoutingPreference: uniswapPreference,
@@ -221,9 +222,10 @@ func (v *EVMVenue) quote(
 	return quote, nil
 }
 
-func toleranceBps(out, floor uint64) uint64 {
-	gap := new(big.Int).Mul(new(big.Int).SetUint64(out-floor), big.NewInt(10_000))
-	bps := gap.Div(gap, new(big.Int).SetUint64(out)).Uint64()
+func toleranceBps(out, floor money.Units) uint64 {
+	gap := new(big.Int).Sub(out.Big(), floor.Big())
+	gap.Mul(gap, big.NewInt(10_000))
+	bps := gap.Div(gap, out.Big()).Uint64()
 	return max(bps, 1) - 1
 }
 
@@ -243,7 +245,7 @@ func buildPlan(
 		return app.EVMSwapPlan{}, errs.New(errs.CodeDecodeFailed, "trading.EVMVenue.plan")
 	}
 	minOut, minErr := minOutFor(quote.Quote.AggregatedOutputs, spec.Owner)
-	out, outErr := wholeUint(quote.Quote.Output.Amount)
+	out, outErr := wholeUnits(quote.Quote.Output.Amount)
 	tx, txErr := evmTx(spec.Network, *swap.Swap)
 	if txErr == nil {
 		txErr = checkSwapTarget(spec, tx)
@@ -271,20 +273,24 @@ func buildPlan(
 	return plan, nil
 }
 
-func minOutFor(outputs []outputWire, owner chain.EVMAddress) (uint64, error) {
+func minOutFor(outputs []outputWire, owner chain.EVMAddress) (money.Units, error) {
 	for _, o := range outputs {
 		recipient, err := chain.ParseEVMAddress(strings.ToLower(o.Recipient))
 		if err == nil && recipient == owner {
-			return wholeUint(o.MinAmount)
+			return wholeUnits(o.MinAmount)
 		}
 	}
-	return 0, errs.New(errs.CodeDecodeFailed, "trading.EVMVenue.minOut", slog.String("owner", owner.String()))
+	return money.Units{}, errs.New(
+		errs.CodeDecodeFailed,
+		"trading.EVMVenue.minOut",
+		slog.String("owner", owner.String()),
+	)
 }
 
-func wholeUint(raw string) (uint64, error) {
-	n, err := strconv.ParseUint(raw, 10, 64)
+func wholeUnits(raw string) (money.Units, error) {
+	n, err := money.ParseUnits(raw)
 	if !evmWhole.MatchString(raw) || err != nil {
-		return 0, errs.New(errs.CodeDecodeFailed, "trading.EVMVenue.amount", slog.String("amount", raw))
+		return money.Units{}, errs.New(errs.CodeDecodeFailed, "trading.EVMVenue.amount", slog.String("amount", raw))
 	}
 	return n, nil
 }

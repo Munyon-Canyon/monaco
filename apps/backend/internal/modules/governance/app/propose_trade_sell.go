@@ -130,7 +130,7 @@ func (h *ProposeTradeHandler) sellFunds(
 }
 
 func evmHolds(held evmHeld, trade domain.Trade) error {
-	if held.units.Cmp(new(big.Int).SetUint64(trade.TokenAmount)) < 0 {
+	if held.units.Cmp(trade.TokenAmount.Big()) < 0 {
 		return errs.New(errs.CodeCabalSharesShort, "governance.funds",
 			slog.String("symbol", held.listing.Symbol), slog.String("network", string(held.listing.Network)))
 	}
@@ -139,7 +139,11 @@ func evmHolds(held evmHeld, trade domain.Trade) error {
 
 func ledgerHolds(positions []treasuryport.Position, asset market.Asset, trade domain.Trade) error {
 	const op = "governance.funds"
-	want := money.NewBaseUnits(trade.TokenAmount, asset.Decimals)
+	raw, err := trade.TokenAmount.Uint64()
+	if err != nil {
+		return errs.New(errs.CodeCabalSharesShort, op, slog.String("symbol", asset.Symbol))
+	}
+	want := money.NewBaseUnits(raw, asset.Decimals)
 	for _, p := range positions {
 		if p.Mint != asset.Mint.Address() {
 			continue
@@ -167,7 +171,7 @@ func walletHolds(
 	if err != nil {
 		return err
 	}
-	if have.Uint64() < trade.TokenAmount {
+	if trade.TokenAmount.Cmp(money.UnitsFromUint64(have.Uint64())) > 0 {
 		return errs.New(errs.CodeCabalSharesShort, "governance.funds", slog.String("symbol", asset.Symbol))
 	}
 	return nil
@@ -189,14 +193,16 @@ func (h *ProposeTradeHandler) sellRoute(
 		return assessment{}, err
 	}
 	return assessment{
-		asset: asset, decimals: l.Decimals, routed: proceeds, network: l.Network,
+		asset: asset, decimals: l.Decimals, routed: money.UnitsFromUint64(proceeds), network: l.Network,
 		comparison: saleComparison(l, proceeds, trade.TokenAmount, h.clock.Now()),
 	}, nil
 }
 
-func (h *ProposeTradeHandler) saleProceeds(ctx context.Context, l multichain.Listing, units uint64) (uint64, error) {
+func (h *ProposeTradeHandler) saleProceeds(
+	ctx context.Context, l multichain.Listing, units money.Units,
+) (uint64, error) {
 	const op = "governance.saleProceeds"
-	if h.ports.Quoter == nil || units == 0 {
+	if h.ports.Quoter == nil || units.IsZero() {
 		return 0, errs.New(errs.CodeNoRoute, op, slog.String("listing_id", l.ID.String()))
 	}
 	estimate, err := h.quoteSale(ctx, l, saleProbeMicros, units)
@@ -214,7 +220,7 @@ func (h *ProposeTradeHandler) saleProceeds(ctx context.Context, l multichain.Lis
 }
 
 func (h *ProposeTradeHandler) quoteSale(
-	ctx context.Context, l multichain.Listing, micros, units uint64,
+	ctx context.Context, l multichain.Listing, micros uint64, units money.Units,
 ) (uint64, error) {
 	const op = "governance.quoteSale"
 	if micros == 0 {
@@ -224,14 +230,14 @@ func (h *ProposeTradeHandler) quoteSale(
 	if err != nil {
 		return 0, err
 	}
-	scaled := new(big.Int).Mul(new(big.Int).SetUint64(micros), new(big.Int).SetUint64(units))
+	scaled := new(big.Int).Mul(new(big.Int).SetUint64(micros), units.Big())
 	if q.GrossOutput == nil || q.GrossOutput.Sign() <= 0 || !scaled.Quo(scaled, q.GrossOutput).IsUint64() {
 		return 0, errs.New(errs.CodeDecodeFailed, op, slog.String("listing_id", l.ID.String()))
 	}
 	return scaled.Uint64(), nil
 }
 
-func saleComparison(l multichain.Listing, proceeds, units uint64, now time.Time) *multichain.Comparison {
+func saleComparison(l multichain.Listing, proceeds uint64, units money.Units, now time.Time) *multichain.Comparison {
 	return &multichain.Comparison{
 		StockID: l.StockID, Side: multichain.SideSell, Winner: l.ID,
 		Ranked: []multichain.Quote{{
@@ -242,12 +248,12 @@ func saleComparison(l multichain.Listing, proceeds, units uint64, now time.Time)
 	}
 }
 
-func soldShares(l multichain.Listing, units uint64) multichain.ShareNanos {
+func soldShares(l multichain.Listing, units money.Units) multichain.ShareNanos {
 	if l.SharesPerToken == nil {
 		return 0
 	}
 	whole := new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(l.Decimals)), nil)
-	shares := new(big.Rat).SetFrac(new(big.Int).SetUint64(units), whole)
+	shares := new(big.Rat).SetFrac(units.Big(), whole)
 	shares.Mul(shares, l.SharesPerToken)
 	shares.Mul(shares, new(big.Rat).SetInt64(shareNanos))
 	nanos := new(big.Int).Quo(shares.Num(), shares.Denom())

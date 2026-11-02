@@ -381,16 +381,27 @@ func TestGetFeed_sendsTheFiguresOfProposalsAndTrades(t *testing.T) {
 		ShareOfPotBps: 1000, Status: "open",
 	}
 	sell := feed.Payload{
-		Symbol: "AAPLx", AssetName: "Apple", Action: feed.ActionSell, TokenAmount: 7, TokenDecimals: 8,
-		ShareOfPotBps: 250, Status: "open",
+		Symbol:        "AAPLx",
+		AssetName:     "Apple",
+		Action:        feed.ActionSell,
+		TokenAmount:   money.UnitsFromUint64(7),
+		TokenDecimals: 8,
+		ShareOfPotBps: 250,
+		Status:        "open",
 	}
 	trade := func(action feed.Action, usdc, tokens uint64) feed.Payload {
 		return feed.Payload{
 			Symbol: "AAPLx", AssetName: "Apple", Action: action, USDCMicros: money.MicrosFromUint64(usdc),
-			TokenAmount: tokens, TokenDecimals: 8, ProposalID: proposal,
+			TokenAmount: money.UnitsFromUint64(tokens), TokenDecimals: 8, ProposalID: proposal,
 			PriceMicros: money.PricePerUnit(money.MicrosFromUint64(usdc), tokens, 8),
 		}
 	}
+	wide, err := money.ParseUnits("25000000000000000000")
+	if err != nil {
+		t.Fatal(err)
+	}
+	wideTrade := trade(feed.ActionBuy, 1, 0)
+	wideTrade.TokenAmount, wideTrade.PriceMicros = wide, money.Micros{}
 	for name, tc := range map[string]struct {
 		kind    feed.Kind
 		payload feed.Payload
@@ -433,6 +444,17 @@ func TestGetFeed_sendsTheFiguresOfProposalsAndTrades(t *testing.T) {
 		},
 		"a cabal created": {feed.KindCabalCreated, feed.Payload{CabalName: "Alpha"}, func(i api.FeedItem) api.FeedItem { return i }},
 		"a member joined": {feed.KindMemberJoined, feed.Payload{CabalName: "Alpha"}, func(i api.FeedItem) api.FeedItem { return i }},
+		"an oversize usdc amount": {feed.KindTrade, trade(feed.ActionBuy, math.MaxUint64, 1), func(i api.FeedItem) api.FeedItem {
+			i.Action, i.AssetName = ptr("buy"), ptr("Apple")
+			i.TokenAmount, i.TokenDecimals = ptr(int64(1)), ptr(8)
+			i.ProposalId = ptr(proposal)
+			return i
+		}},
+		"a fill past uint64": {feed.KindTrade, wideTrade, func(i api.FeedItem) api.FeedItem {
+			i.Action, i.UsdcMicros, i.AssetName = ptr("buy"), ptr(int64(1)), ptr("Apple")
+			i.ProposalId = ptr(proposal)
+			return i
+		}},
 		"an oversize fill": {feed.KindTrade, trade(feed.ActionBuy, 1, math.MaxUint64), func(i api.FeedItem) api.FeedItem {
 			i.Action, i.UsdcMicros, i.AssetName = ptr("buy"), ptr(int64(1)), ptr("Apple")
 			i.ProposalId = ptr(proposal)

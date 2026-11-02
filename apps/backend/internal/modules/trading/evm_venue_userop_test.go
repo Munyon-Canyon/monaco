@@ -6,6 +6,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/app"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
 func userOperationReply(success string, receipt string) string {
@@ -21,7 +22,7 @@ func TestEVMVenue_fillResolvesAUserOperationHashToItsReceipt(t *testing.T) {
 		replies []string
 		want    app.EVMFill
 	}{
-		"executed": {[]string{none, userOperationReply("true", receipt)}, app.EVMFill{State: app.FillSucceeded, Out: 1_000_000}},
+		"executed": {[]string{none, userOperationReply("true", receipt)}, app.EVMFill{State: app.FillSucceeded, Out: money.UnitsFromUint64(1_000_000)}},
 		"reverted": {[]string{none, userOperationReply("false", receipt)}, app.EVMFill{State: app.FillReverted}},
 		"unknown":  {[]string{none, `{"jsonrpc":"2.0","id":1,"result":null}`}, app.EVMFill{State: app.FillPending}},
 		"bundler does not serve it": {
@@ -35,7 +36,7 @@ func TestEVMVenue_fillResolvesAUserOperationHashToItsReceipt(t *testing.T) {
 			e.rpc.replies["/rpc"] = tc.replies
 			got, err := e.venue.Fill(t.Context(), chain.NetworkBase, venueHash, evmAddress(t, venueToken),
 				evmAddress(t, venueOwner))
-			if err != nil || got != tc.want {
+			if err != nil || !sameJSON(got, tc.want) {
 				t.Fatalf("Fill = %+v, %v, want %+v", got, err, tc.want)
 			}
 			calls := e.rpc.calls

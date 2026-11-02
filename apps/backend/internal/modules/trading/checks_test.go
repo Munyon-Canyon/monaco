@@ -8,6 +8,7 @@ import (
 	"pgregory.net/rapid"
 
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/domain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
 func TestSlippageOf_defaultsUnsetAndCapsAtThePlatformMaximum(t *testing.T) {
@@ -21,17 +22,20 @@ func TestSlippageOf_defaultsUnsetAndCapsAtThePlatformMaximum(t *testing.T) {
 
 func TestSlippageMinOut_isTheFlooredToleranceAndNeverAboveTheQuote(t *testing.T) {
 	t.Parallel()
-	if got := domain.SlippageOf(100).MinOut(21_000_000); got != 20_790_000 {
+	if got := domain.SlippageOf(100).
+		MinOut(money.UnitsFromUint64(21_000_000)); !got.Equal(
+		money.UnitsFromUint64(20_790_000),
+	) {
 		t.Fatalf("MinOut = %d, want 20_790_000", got)
 	}
 	rapid.Check(t, func(t *rapid.T) {
 		quote := rapid.Uint64().Draw(t, "quote")
 		s := domain.SlippageOf(rapid.Int32().Draw(t, "bps"))
-		got := s.MinOut(quote)
+		got := s.MinOut(money.UnitsFromUint64(quote))
 		scaled := new(big.Int).Mul(new(big.Int).SetUint64(quote), big.NewInt(10_000-s.Bps()))
-		low := new(big.Int).Mul(new(big.Int).SetUint64(got), big.NewInt(10_000))
+		low := new(big.Int).Mul(got.Big(), big.NewInt(10_000))
 		high := new(big.Int).Add(low, big.NewInt(10_000))
-		if got > quote || low.Cmp(scaled) > 0 || high.Cmp(scaled) <= 0 {
+		if got.Cmp(money.UnitsFromUint64(quote)) > 0 || low.Cmp(scaled) > 0 || high.Cmp(scaled) <= 0 {
 			t.Fatalf("MinOut(%d) at %d bps = %d, want floor(quote × (10000 − bps) / 10000)", quote, s.Bps(), got)
 		}
 	})
@@ -39,7 +43,10 @@ func TestSlippageMinOut_isTheFlooredToleranceAndNeverAboveTheQuote(t *testing.T)
 
 func TestSlippageKeeping_isTheWidestToleranceWhoseMinOutStaysAtTheFloor(t *testing.T) {
 	t.Parallel()
-	if got := domain.SlippageKeeping(104_475_000, 103_950_000); got != 50 {
+	if got := domain.SlippageKeeping(
+		money.UnitsFromUint64(104_475_000),
+		money.UnitsFromUint64(103_950_000),
+	); got != 50 {
 		t.Fatalf("SlippageKeeping = %d, want 50", got)
 	}
 	minOut := func(out uint64, bps int64) *big.Int {
@@ -49,7 +56,7 @@ func TestSlippageKeeping_isTheWidestToleranceWhoseMinOutStaysAtTheFloor(t *testi
 	rapid.Check(t, func(t *rapid.T) {
 		out := rapid.Uint64Min(1).Draw(t, "out")
 		floor := rapid.Uint64Max(out).Draw(t, "floor")
-		bps := domain.SlippageKeeping(out, floor)
+		bps := domain.SlippageKeeping(money.UnitsFromUint64(out), money.UnitsFromUint64(floor))
 		f := new(big.Int).SetUint64(floor)
 		widest := bps == 10_000 || minOut(out, bps+1).Cmp(f) < 0
 		if bps < 0 || bps > 10_000 || minOut(out, bps).Cmp(f) < 0 || !widest {

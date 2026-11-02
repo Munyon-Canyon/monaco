@@ -71,8 +71,8 @@ func tokenDecimals(reported, assets uint8) uint8 {
 	return assets
 }
 
-func units(amount uint64, decimals uint8) string {
-	hundredths := roundedQuo(new(big.Int).Mul(new(big.Int).SetUint64(amount), big.NewInt(100)), pow10(decimals))
+func units(amount money.Units, decimals uint8) string {
+	hundredths := roundedQuo(new(big.Int).Mul(amount.Big(), big.NewInt(100)), pow10(decimals))
 	whole, frac := new(big.Int).QuoRem(hundredths, big.NewInt(100), new(big.Int))
 	out := whole.String()
 	if frac.Sign() != 0 {
@@ -81,13 +81,13 @@ func units(amount uint64, decimals uint8) string {
 	return out
 }
 
-func fillPrice(usdc money.Micros, amount uint64, decimals uint8) string {
-	if amount == 0 {
+func fillPrice(usdc money.Micros, amount money.Units, decimals uint8) string {
+	if amount.IsZero() {
 		return cents(new(big.Int))
 	}
 	num := new(big.Int).Mul(new(big.Int).SetUint64(usdc.Uint64()), pow10(decimals))
 	num.Mul(num, big.NewInt(100))
-	den := new(big.Int).Mul(new(big.Int).SetUint64(amount), big.NewInt(1_000_000))
+	den := new(big.Int).Mul(amount.Big(), big.NewInt(1_000_000))
 	return cents(roundedQuo(num, den))
 }
 

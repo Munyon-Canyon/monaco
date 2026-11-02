@@ -54,7 +54,7 @@ type TradeSubmitted struct {
 	Symbol          string              `json:"symbol"`
 	InMint          chain.SolanaAddress `json:"in_mint"`
 	OutMint         chain.SolanaAddress `json:"out_mint"`
-	InAmount        uint64              `json:"in_amount,string"`
+	InAmount        money.Units         `json:"in_amount"`
 	TxSignature     chain.Signature     `json:"tx_signature"`
 }
 
@@ -73,9 +73,9 @@ type TradeConfirmed struct {
 	Action          string              `json:"action"`
 	Symbol          string              `json:"symbol"`
 	InMint          chain.SolanaAddress `json:"in_mint"`
-	InAmount        uint64              `json:"in_amount,string"`
+	InAmount        money.Units         `json:"in_amount"`
 	OutMint         chain.SolanaAddress `json:"out_mint"`
-	OutAmount       uint64              `json:"out_amount,string"`
+	OutAmount       money.Units         `json:"out_amount"`
 	USDCMicros      money.Micros        `json:"usdc_micros"`
 	FeeMicros       money.Micros        `json:"fee_micros"`
 	TxSignature     chain.Signature     `json:"tx_signature"`
@@ -98,7 +98,7 @@ type TradeFailed struct {
 	Action          string              `json:"action"`
 	Symbol          string              `json:"symbol"`
 	InMint          chain.SolanaAddress `json:"in_mint"`
-	InAmount        uint64              `json:"in_amount,string"`
+	InAmount        money.Units         `json:"in_amount"`
 	FailureCode     string              `json:"failure_code"`
 	JupiterCode     string              `json:"jupiter_code,omitempty"`
 }
@@ -118,8 +118,8 @@ type TradeRetryRequested struct {
 	Symbol         string              `json:"symbol"`
 	InMint         chain.SolanaAddress `json:"in_mint"`
 	OutMint        chain.SolanaAddress `json:"out_mint"`
-	InAmount       uint64              `json:"in_amount,string"`
-	QuoteOutAmount uint64              `json:"quote_out_amount,string"`
+	InAmount       money.Units         `json:"in_amount"`
+	QuoteOutAmount money.Units         `json:"quote_out_amount"`
 	SlippageBps    int32               `json:"slippage_bps"`
 	RequestedBy    uuid.UUID           `json:"requested_by"`
 	AtCurrentPrice bool                `json:"at_current_price,omitempty"`

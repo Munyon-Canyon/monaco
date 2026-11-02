@@ -235,7 +235,7 @@ func TestReturnEVMCash_refusesACashARetryAlreadySpent(t *testing.T) {
 	cmd, first := e.strand(t)
 	e.requote()
 	e.privy.script(multichain.ActionSucceeded)
-	e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: filledOut}}
+	e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: money.UnitsFromUint64(filledOut)}}
 	if code := e.retry(t, cmd, first); code != "ok" {
 		t.Fatalf("retry delivery %q, want ok", code)
 	}

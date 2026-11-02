@@ -24,7 +24,7 @@ func TestProposalRoutes_aMemberAndAStrangerReadTheSameProposal(t *testing.T) {
 	id, now := testkit.NewIDs(11).NewV7(), clock.Real{}.Now().UTC()
 	params := sqlc.InsertProposalParams{
 		ID: id, CabalID: c.ID.UUID(), ProposerID: c.Creator.ID.UUID(), Kind: "buy", Symbol: "AAPLx",
-		Mint: aaplxMint, UsdcMicros: pgtype.Int8{Int64: 5_000_000, Valid: true}, QuoteOutAmount: 21_000_000,
+		Mint: aaplxMint, UsdcMicros: pgtype.Int8{Int64: 5_000_000, Valid: true}, QuoteOutAmount: "21000000",
 		ExpiresAt: now.Add(24 * time.Hour), CreatedAt: now, Threshold: "majority",
 	}
 	for _, m := range c.Members {
@@ -86,7 +86,7 @@ func TestProposalRoutes_theStatusFiltersKeepOnlyTheirGroup(t *testing.T) {
 	for i, status := range statuses {
 		params := sqlc.InsertProposalParams{
 			ID: seedIDs.NewV7(), CabalID: c.ID.UUID(), ProposerID: c.Creator.ID.UUID(), Kind: "buy", Symbol: "AAPLx",
-			Mint: aaplxMint, UsdcMicros: pgtype.Int8{Int64: 5_000_000, Valid: true}, QuoteOutAmount: 21_000_000,
+			Mint: aaplxMint, UsdcMicros: pgtype.Int8{Int64: 5_000_000, Valid: true}, QuoteOutAmount: "21000000",
 			ExpiresAt: now.Add(24 * time.Hour), CreatedAt: now.Add(time.Duration(i) * time.Second),
 			Threshold: "majority",
 			VoterIds:  []uuid.UUID{c.Creator.ID.UUID()},

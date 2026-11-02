@@ -12,6 +12,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/evmsim"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
 const (
@@ -34,7 +35,7 @@ func (e *venueEnv) sellSpec(t *testing.T) app.EVMSwapSpec {
 	t.Helper()
 	return app.EVMSwapSpec{
 		Network: chain.NetworkBase, Owner: evmAddress(t, venueOwner), TokenIn: evmAddress(t, venueToken),
-		TokenOut: evmAddress(t, baseCash), AmountIn: 9_992_500, SlippageBps: 100,
+		TokenOut: evmAddress(t, baseCash), AmountIn: money.UnitsFromUint64(9_992_500), SlippageBps: 100,
 	}
 }
 
@@ -113,7 +114,9 @@ func TestEVMVenue_aSellTakesTheHooklessRouteWhenTheDefaultSimulatesShort(t *test
 
 	plan, err := e.sell(t, r)
 
-	if err != nil || plan.OutAmount != 995_000 || plan.MinOut != 985_050 || len(plan.Approvals) != 0 {
+	if err != nil || !plan.OutAmount.Equal(money.UnitsFromUint64(995_000)) ||
+		!plan.MinOut.Equal(money.UnitsFromUint64(985_050)) ||
+		len(plan.Approvals) != 0 {
 		t.Fatalf("plan = %+v, %v, want the final build at the real slippage and no second approval", plan, err)
 	}
 	final := e.finalQuote(t)
@@ -175,7 +178,7 @@ func TestEVMVenue_aSellKeepsTheDefaultRouteWhenItSimulatesHigher(t *testing.T) {
 			r := defaultRoutes()
 			r.hooklessSim = hookless
 
-			if plan, err := e.sell(t, r); err != nil || plan.OutAmount != 995_000 {
+			if plan, err := e.sell(t, r); err != nil || !plan.OutAmount.Equal(money.UnitsFromUint64(995_000)) {
 				t.Fatalf("plan = %+v, %v, want the default route", plan, err)
 			}
 			if _, set := e.finalQuote(t)["hooksOptions"]; set {
@@ -230,8 +233,10 @@ func TestEVMVenue_aSellWhoseRoutesUseDifferentRoutersBuildsTheDefault(t *testing
 
 			plan, err := e.venue.Build(t.Context(), e.sellSpec(t))
 
-			if err != nil || len(plan.Candidates) != 0 || plan.OutAmount != 995_000 || plan.MinOut != 985_050 ||
-				len(plan.Approvals) != 1 || plan.Swap.To != evmAddress(t, venueRouter) {
+			if err != nil || len(plan.Candidates) != 0 || !plan.OutAmount.Equal(money.UnitsFromUint64(995_000)) ||
+				!plan.MinOut.Equal(money.UnitsFromUint64(985_050)) ||
+				len(plan.Approvals) != 1 ||
+				plan.Swap.To != evmAddress(t, venueRouter) {
 				t.Fatalf("plan = %+v, %v, want the default route built at the real slippage", plan, err)
 			}
 			if _, set := e.finalQuote(t)["hooksOptions"]; set || len(e.rpc.calls) != 0 {
@@ -259,7 +264,7 @@ func TestEVMVenue_chooseRefusesWhatItCannotSimulateOrBuild(t *testing.T) {
 	candidates := func(t *testing.T) []app.EVMSwapCandidate {
 		t.Helper()
 		swap := multichain.EVMTransaction{Network: chain.NetworkBase, To: evmAddress(t, venueRouter), Data: []byte{1}}
-		return []app.EVMSwapCandidate{{Swap: swap, OutAmount: 1_000_000}}
+		return []app.EVMSwapCandidate{{Swap: swap, OutAmount: money.UnitsFromUint64(1_000_000)}}
 	}
 	for name, c := range map[string]struct {
 		network chain.Network

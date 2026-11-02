@@ -11,7 +11,6 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
-	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
 const cashOutSource = "cashout"
@@ -28,9 +27,13 @@ func (c CashOut) Confirmed(ctx context.Context, tx db.Tx, e events.TradeConfirme
 	if e.Source.Kind != cashOutSource || bridgesBack(e.OutMint) {
 		return nil
 	}
+	out, err := e.OutAmount.Micros()
+	if err != nil {
+		return err
+	}
 	return c.Sales.Result(ctx, tx, app.SaleResult{
 		JobID: e.Source.ID, SwapID: e.SwapID, CabalID: ids.CabalIDFrom(e.CabalID), BatchSize: e.SourceBatchSize,
-		Confirmed: true, USDCOut: money.MicrosFromUint64(e.OutAmount),
+		Confirmed: true, USDCOut: out,
 	}, at)
 }
 

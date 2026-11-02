@@ -2,6 +2,7 @@ package adapters
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 
 	"github.com/jackc/pgx/v5/pgtype"
@@ -47,12 +48,20 @@ func (h HTTP) GetSwap(ctx context.Context, req api.GetSwapRequestObject) (api.Ge
 	if err != nil {
 		return nil, err
 	}
-	return api.GetSwap200JSONResponse(wireSwap(got)), nil
+	wire, err := wireSwap(got)
+	if err != nil {
+		return nil, err
+	}
+	return api.GetSwap200JSONResponse(wire), nil
 }
 
-func wireSwap(d app.SwapDetail) api.SwapDetail {
+func wireSwap(d app.SwapDetail) (api.SwapDetail, error) {
 	s := d.Swap
-	usdc, token := &s.InAmount, nullable(s.OutAmount)
+	usdc, inErr := int64OrNil(s.InAmount)
+	token, outErr := int64OrNil(s.OutAmount)
+	if err := errors.Join(inErr, outErr); err != nil {
+		return api.SwapDetail{}, errs.Wrap(err, errs.CodeDecodeFailed, "trading.wireSwap")
+	}
 	if s.Action == string(domain.ActionSell) {
 		usdc, token = token, usdc
 	}
@@ -71,14 +80,18 @@ func wireSwap(d app.SwapDetail) api.SwapDetail {
 	if s.ConfirmedAt.Valid {
 		out.ConfirmedAt = &s.ConfirmedAt.Time
 	}
-	return out
+	return out, nil
 }
 
-func nullable(v pgtype.Int8) *int64 {
-	if !v.Valid {
-		return nil
+func int64OrNil(raw string) (*int64, error) {
+	v, present, err := domain.ParseOptionalTokenAmount(raw)
+	var out *int64
+	if err == nil && present {
+		if n, intErr := v.Int64(); intErr == nil {
+			out = &n
+		}
 	}
-	return &v.Int64
+	return out, err
 }
 
 func textOrNil(v pgtype.Text) *string {

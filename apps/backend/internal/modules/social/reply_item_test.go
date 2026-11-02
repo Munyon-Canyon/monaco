@@ -81,9 +81,17 @@ func TestCreateComment_onAProposalMakesOneReplyItemWithTheProposalsFigures(t *te
 		RefType: "feed_comments", Title: "Kai replied to Ada's proposal", Body: "buy it before earnings",
 		Symbol: "AAPLx", CabalName: "Alpha Cabal",
 		Payload: feed.Payload{
-			CabalName: "Alpha Cabal", ActorName: "Kai", ProposerName: "Ada", Symbol: "AAPLx", AssetName: "Apple",
-			Action: feed.ActionBuy, USDCMicros: money.MicrosFromUint64(250_000_000), TokenAmount: 1_500_000,
-			TokenDecimals: 6, ShareOfPotBps: 1000, ProposalID: f.refOf(t, item),
+			CabalName:     "Alpha Cabal",
+			ActorName:     "Kai",
+			ProposerName:  "Ada",
+			Symbol:        "AAPLx",
+			AssetName:     "Apple",
+			Action:        feed.ActionBuy,
+			USDCMicros:    money.MicrosFromUint64(250_000_000),
+			TokenAmount:   money.UnitsFromUint64(1_500_000),
+			TokenDecimals: 6,
+			ShareOfPotBps: 1000,
+			ProposalID:    f.refOf(t, item),
 		},
 	}
 	if !reflect.DeepEqual(got[0], want) {
@@ -267,9 +275,17 @@ func TestListFeed_sendsTheProposalOfAReplyAndAThresholdItem(t *testing.T) {
 	f := newFeedFixture(t)
 	viewer, proposal := ids.NewUserID(f.gen), f.gen.NewV7()
 	payload := feed.Payload{
-		CabalName: "Alpha Cabal", ActorName: "Kai", ProposerName: "Ada", Symbol: "AAPLx", AssetName: "Apple",
-		Action: feed.ActionBuy, USDCMicros: money.MicrosFromUint64(250_000_000), TokenAmount: 1_500_000,
-		TokenDecimals: 6, ShareOfPotBps: 1000, ProposalID: proposal,
+		CabalName:     "Alpha Cabal",
+		ActorName:     "Kai",
+		ProposerName:  "Ada",
+		Symbol:        "AAPLx",
+		AssetName:     "Apple",
+		Action:        feed.ActionBuy,
+		USDCMicros:    money.MicrosFromUint64(250_000_000),
+		TokenAmount:   money.UnitsFromUint64(1_500_000),
+		TokenDecimals: 6,
+		ShareOfPotBps: 1000,
+		ProposalID:    proposal,
 	}
 	reply := f.item(t, func(it *feed.Item) { it.Kind, it.Payload = feed.KindReply, payload })
 	threshold := f.item(t, func(it *feed.Item) {
@@ -283,8 +299,10 @@ func TestListFeed_sendsTheProposalOfAReplyAndAThresholdItem(t *testing.T) {
 		if item.ID != reply && item.ID != threshold {
 			t.Fatalf("unexpected item %s", item.ID)
 		}
-		if item.ProposalID != proposal || item.ShareOfPotBps != 1000 || item.TokenAmount != 1_500_000 ||
-			item.USDCMicros != payload.USDCMicros || item.Action != feed.ActionBuy {
+		if item.ProposalID != proposal || item.ShareOfPotBps != 1000 ||
+			!item.TokenAmount.Equal(money.UnitsFromUint64(1_500_000)) ||
+			item.USDCMicros != payload.USDCMicros ||
+			item.Action != feed.ActionBuy {
 			t.Errorf("%s item = %+v, want the proposal %s and its figures", item.Kind, item, proposal)
 		}
 	}

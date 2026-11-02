@@ -63,7 +63,7 @@ func (q *Queries) DueForReminder(ctx context.Context, arg DueForReminderParams) 
 
 const getVoteState = `-- name: GetVoteState :one
 SELECT
-  p.cabal_id, p.kind, coalesce(p.symbol, '')::text AS symbol, coalesce(p.mint, '')::text AS mint, coalesce(p.usdc_micros, p.quote_out_amount, 0)::bigint AS usdc_micros,
+  p.cabal_id, p.kind, coalesce(p.symbol, '')::text AS symbol, coalesce(p.mint, '')::text AS mint, coalesce(p.usdc_micros::numeric, p.quote_out_amount, 0)::text AS usdc_micros,
   p.status, p.threshold, p.created_at, p.expires_at,
   (SELECT count(*) FROM votes AS v WHERE v.proposal_id = p.id AND v.choice = 'yes')::int AS yes,
   (SELECT count(*) FROM votes AS v WHERE v.proposal_id = p.id AND v.choice = 'no')::int AS no,
@@ -77,7 +77,7 @@ type GetVoteStateRow struct {
 	Kind       string
 	Symbol     string
 	Mint       string
-	UsdcMicros int64
+	UsdcMicros string
 	Status     string
 	Threshold  string
 	CreatedAt  time.Time

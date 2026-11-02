@@ -10,19 +10,24 @@ import (
 
 const maxWholeDecimals = 19
 
-func TradePriceMicros(usdc money.Micros, units money.BaseUnits, num, den int64) (money.Micros, bool, error) {
+func TradePriceMicros(
+	usdc money.Micros,
+	units money.Units,
+	decimals uint8,
+	num, den int64,
+) (money.Micros, bool, error) {
 	const op = "treasury.TradePriceMicros"
 	if units.IsZero() {
 		return money.Micros{}, false, nil
 	}
-	if num <= 0 || den <= 0 || units.Decimals() > maxWholeDecimals {
+	if num <= 0 || den <= 0 || decimals > maxWholeDecimals {
 		return money.Micros{}, false, errs.New(errs.CodeInvalidInput, op,
-			slog.Int64("num", num), slog.Int64("den", den), slog.Int("decimals", int(units.Decimals())))
+			slog.Int64("num", num), slog.Int64("den", den), slog.Int("decimals", int(decimals)))
 	}
 	numerator := new(big.Int).SetUint64(usdc.Uint64())
-	numerator.Mul(numerator, new(big.Int).SetUint64(money.OneWhole(units.Decimals())))
+	numerator.Mul(numerator, new(big.Int).SetUint64(money.OneWhole(decimals)))
 	numerator.Mul(numerator, big.NewInt(den))
-	denominator := new(big.Int).SetUint64(units.Uint64())
+	denominator := units.Big()
 	denominator.Mul(denominator, big.NewInt(num))
 	price := numerator.Quo(numerator, denominator)
 	if !price.IsUint64() {

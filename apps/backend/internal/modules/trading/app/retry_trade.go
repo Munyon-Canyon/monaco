@@ -80,8 +80,8 @@ func (h *RetryTradeHandler) check(ctx context.Context, cmd RetryTrade) (events.T
 		return events.TradeRetryRequested{}, errs.New(errs.CodeSwapNotRetryable, op,
 			slog.String("failure_code", row.FailureCode.String), slog.Bool("at_current_price", true))
 	}
-	in, inErr := domain.ParseAmount(row.InAmount)
-	quote, quoteErr := domain.ParseAmount(row.QuoteOutAmount.Int64)
+	in, inErr := domain.ParseTokenAmount(row.InAmount)
+	quote, quoteErr := domain.ParseTokenAmount(row.QuoteOutAmount)
 	if err := errors.Join(inErr, quoteErr); err != nil {
 		return events.TradeRetryRequested{}, errs.Wrap(err, errs.CodeDecodeFailed, op)
 	}

@@ -2,7 +2,6 @@ package adapters
 
 import (
 	"context"
-	"strconv"
 
 	"github.com/google/uuid"
 
@@ -54,7 +53,7 @@ func ledgerBody(t app.LedgerTxn) api.AdminLedgerTxn {
 	entries := make([]api.AdminTxnEntry, len(t.Entries))
 	for i, e := range t.Entries {
 		entries[i] = api.AdminTxnEntry{
-			Seq: int32(e.Seq), Account: e.Account, Asset: e.Asset, Amount: strconv.FormatInt(e.Amount, 10),
+			Seq: int32(e.Seq), Account: e.Account, Asset: e.Asset, Amount: e.Amount.String(),
 		}
 	}
 	header := txnHeader(t.TxnHeader)

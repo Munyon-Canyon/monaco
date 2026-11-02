@@ -46,7 +46,7 @@ func (e *routeEnv) ambiguous(t *testing.T) uuid.UUID {
 	t.Helper()
 	e.landings.short, e.landings.missing = realBridgeFee, 1
 	e.privy.script(multichain.ActionSucceeded, multichain.ActionSucceeded)
-	e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: filledOut}}
+	e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: money.UnitsFromUint64(filledOut)}}
 	req := e.request()
 	if _, err := e.buy(t.Context(), req); errs.CodeOf(err) != errs.CodeUpstreamUnavailable {
 		t.Fatalf("Buy err = %v, want upstream_unavailable until the transfer shows", err)

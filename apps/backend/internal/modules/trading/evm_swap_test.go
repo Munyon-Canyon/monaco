@@ -47,7 +47,7 @@ func newEVMSwapEnv(t *testing.T) evmSwapEnv {
 	d := newSwapDB(t)
 	d.now = clock.Real{}.Now().UTC().Truncate(time.Microsecond)
 	row := d.created(d.ids.NewV7(), "base:"+baseCash)
-	row.OutMint, row.TreasuryAddress, row.InAmount = "base:"+baseToken, evmTreasury, 10_000_000
+	row.OutMint, row.TreasuryAddress, row.InAmount = "base:"+baseToken, evmTreasury, "10000000"
 	d.insert(t, row)
 	e := evmSwapEnv{
 		stepEnv: stepEnv{swapDB: d, ref: domain.StepRef{
@@ -61,7 +61,7 @@ func newEVMSwapEnv(t *testing.T) evmSwapEnv {
 		return multichain.EVMTransaction{Network: chain.NetworkBase, To: evmAddress(t, to), Data: []byte{1}}
 	}
 	e.evm = newEVMFake(app.EVMSwapPlan{
-		Approvals: []multichain.EVMTransaction{tx(baseCash)}, Swap: tx(baseRouter), MinOut: 300,
+		Approvals: []multichain.EVMTransaction{tx(baseCash)}, Swap: tx(baseRouter), MinOut: money.UnitsFromUint64(300),
 	})
 	e.leg = app.EVMSwapLeg{
 		Request: app.SwapRequest{
@@ -69,12 +69,19 @@ func newEVMSwapEnv(t *testing.T) evmSwapEnv {
 			CabalID: e.ref.CabalID, Action: domain.ActionBuy, Symbol: row.Symbol,
 			InMint:   chain.Mint{Address: chain.SolanaAddress(row.InMint), Decimals: 6},
 			OutMint:  chain.Mint{Address: chain.SolanaAddress(row.OutMint), Decimals: 8},
-			InAmount: 10_000_000, SourceBatchSize: 1,
+			InAmount: money.UnitsFromUint64(10_000_000), SourceBatchSize: 1,
 		},
 		Ref: e.ref, WalletID: "evm-wallet", Amount: money.MicrosFromUint64(9_992_500),
 		Spec: app.EVMSwapSpec{
-			Network: chain.NetworkBase, Owner: evmAddress(t, evmTreasury), TokenIn: evmAddress(t, baseCash),
-			TokenOut: evmAddress(t, baseToken), AmountIn: 9_992_500, MinOut: 300,
+			Network: chain.NetworkBase,
+			Owner:   evmAddress(t, evmTreasury),
+			TokenIn: evmAddress(t, baseCash),
+			TokenOut: evmAddress(
+				t,
+				baseToken,
+			),
+			AmountIn: money.UnitsFromUint64(9_992_500),
+			MinOut:   money.UnitsFromUint64(300),
 		},
 	}
 	return e
@@ -152,11 +159,14 @@ func (e evmSwapEnv) wantSubmittedOnce(t *testing.T) {
 func TestEVMSwap_sendsTheApprovalsThenTheSwapStoresTheHashAndReadsTheFill(t *testing.T) {
 	t.Parallel()
 	e := newEVMSwapEnv(t)
-	e.evm.fills = []app.EVMFill{{State: app.FillPending}, {State: app.FillSucceeded, Out: 306}}
+	e.evm.fills = []app.EVMFill{{State: app.FillPending}, {State: app.FillSucceeded, Out: money.UnitsFromUint64(306)}}
 
 	got, err := e.run(t.Context())
-	want := app.EVMSwapResult{EVMFill: app.EVMFill{State: app.FillSucceeded, Out: 306}, Hash: swapHash}
-	if err != nil || got != want {
+	want := app.EVMSwapResult{
+		EVMFill: app.EVMFill{State: app.FillSucceeded, Out: money.UnitsFromUint64(306)},
+		Hash:    swapHash,
+	}
+	if err != nil || !sameJSON(got, want) {
 		t.Fatalf("Run = %+v, %v, want %+v", got, err, want)
 	}
 	if keys := e.evm.keys(); !slices.Equal(keys, []string{e.key() + ":approve:0", e.key()}) {
@@ -164,8 +174,8 @@ func TestEVMSwap_sendsTheApprovalsThenTheSwapStoresTheHashAndReadsTheFill(t *tes
 	}
 	e.wantSubmittedOnce(t)
 
-	e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: 306}}
-	if again, err := e.run(t.Context()); err != nil || again != want {
+	e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: money.UnitsFromUint64(306)}}
+	if again, err := e.run(t.Context()); err != nil || !sameJSON(again, want) {
 		t.Fatalf("resumed Run = %+v, %v, want the same fill", again, err)
 	}
 	if len(e.evm.keys()) != 2 || e.evm.builds != 1 {
@@ -201,13 +211,13 @@ func TestEVMSwap_aResumeSendsTheStoredCalldataNotWhatTheVenueBuildsNow(t *testin
 	e := newEVMSwapEnv(t)
 	ctx, crash := context.WithCancel(t.Context())
 	e.evm.afterSend[e.key()] = crash
-	e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: 306}}
+	e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: money.UnitsFromUint64(306)}}
 
 	if _, err := e.run(ctx); err == nil {
 		t.Fatal("the crashed run returned no error")
 	}
 	e.evm.plan.Swap.Data = []byte{9, 9}
-	e.evm.plan.MinOut = 1
+	e.evm.plan.MinOut = money.UnitsFromUint64(1)
 	if got, err := e.run(t.Context()); err != nil || got.State != app.FillSucceeded {
 		t.Fatalf("resumed Run = %+v, %v, want the swap read to its fill", got, err)
 	}
@@ -246,7 +256,7 @@ func TestEVMSwap_aFillStillPendingAfterTheBudgetReturnsPending(t *testing.T) {
 func TestEVMSwap_aPlanUnderTheFloorSendsNothing(t *testing.T) {
 	t.Parallel()
 	e := newEVMSwapEnv(t)
-	e.evm.plan.MinOut = 299
+	e.evm.plan.MinOut = money.UnitsFromUint64(299)
 
 	if _, err := e.run(t.Context()); errs.CodeOf(err) != errs.CodePriceMoved {
 		t.Fatalf("Run err = %v, want price_moved", err)
@@ -331,7 +341,7 @@ func TestEVMSwap_aRunThatFindsTheHashAlreadyStoredReadsTheFill(t *testing.T) {
 			t.Error(err)
 		}
 	}
-	e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: 306}}
+	e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: money.UnitsFromUint64(306)}}
 
 	got, err := e.run(t.Context())
 	if err != nil || got.State != app.FillSucceeded || got.Hash != swapHash {
@@ -346,7 +356,7 @@ func TestEVMSwap_sendsEveryTransactionThroughPrivyUnderItsStepKey(t *testing.T) 
 	t.Parallel()
 	e := newEVMSwapEnv(t)
 	wallets := &recordingWallets{}
-	e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: 306}}
+	e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: money.UnitsFromUint64(306)}}
 
 	got, err := app.EVMSwap{
 		Journal: e.journal, Venue: e.evm, Sender: adapters.EVMSend{Wallets: wallets}, Poll: app.DefaultPoll(),
@@ -407,7 +417,7 @@ func TestEVMSwap_aBuyWhoseExecutionQuoteBeatsTheRequoteStillGoesThrough(t *testi
 			e.leg.Spec = v.spec(t)
 			e.leg.Spec.SlippageBps = 100
 			e.leg.Spec.Owner = evmAddress(t, evmTreasury)
-			e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: 990_000}}
+			e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: money.UnitsFromUint64(990_000)}}
 
 			got, err := app.EVMSwap{
 				Journal: e.journal,

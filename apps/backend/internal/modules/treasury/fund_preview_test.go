@@ -274,8 +274,8 @@ func TestFundPreview_aWorthlessPotRefusesAnAmount(t *testing.T) {
 	drain, err := domain.NewCabalTxn(domain.CabalTxnHeader{
 		ID: c.ids.NewV7(), CabalID: c.cabal, Kind: domain.CabalSwap, Status: domain.TxnSettled, SwapID: c.ids.NewV7(),
 	}, []domain.CabalEntry{
-		{Account: domain.CabalTreasury, Asset: c.usdc(), Amount: amount(-1_000_000)},
-		{Account: domain.CabalVenue, Asset: c.usdc(), Amount: amount(1_000_000)},
+		{Account: domain.CabalTreasury, Asset: c.usdc(), Amount: entryUnits(-1_000_000)},
+		{Account: domain.CabalVenue, Asset: c.usdc(), Amount: entryUnits(1_000_000)},
 	})
 	if err != nil {
 		t.Fatal(err)

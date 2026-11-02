@@ -20,9 +20,9 @@ type EVMSales struct {
 	Quoter   mc.Quoter
 }
 
-func (s EVMSales) Sale(ctx context.Context, asset string, units uint64) (app.EVMSale, error) {
+func (s EVMSales) Sale(ctx context.Context, asset string, units money.Units) (app.EVMSale, error) {
 	l, err := s.Listings.ListingByAsset(ctx, asset)
-	if err != nil || !l.Enabled || units == 0 {
+	if err != nil || !l.Enabled || units.IsZero() {
 		return app.EVMSale{Listing: l}, err
 	}
 	estimate, err := s.proceeds(ctx, l, evmSaleProbeMicros, units)
@@ -33,12 +33,12 @@ func (s EVMSales) Sale(ctx context.Context, asset string, units uint64) (app.EVM
 	return app.EVMSale{Listing: l, ProceedsMicros: min(estimate, proceeds)}, err
 }
 
-func (s EVMSales) proceeds(ctx context.Context, l mc.Listing, micros, units uint64) (uint64, error) {
+func (s EVMSales) proceeds(ctx context.Context, l mc.Listing, micros uint64, units money.Units) (uint64, error) {
 	q, err := s.Quoter.Quote(ctx, l, mc.SideSell, money.MicrosFromUint64(micros))
 	if err != nil {
 		return 0, err
 	}
-	scaled := new(big.Int).Mul(new(big.Int).SetUint64(micros), new(big.Int).SetUint64(units))
+	scaled := new(big.Int).Mul(new(big.Int).SetUint64(micros), units.Big())
 	if q.GrossOutput == nil || q.GrossOutput.Sign() <= 0 || !scaled.Quo(scaled, q.GrossOutput).IsUint64() {
 		return 0, errs.New(errs.CodeDecodeFailed, "trading.EVMSales.Sale", slog.String("listing_id", l.ID.String()))
 	}

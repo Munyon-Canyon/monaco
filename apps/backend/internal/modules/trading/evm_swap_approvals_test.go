@@ -8,6 +8,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/domain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
 func (e evmSwapEnv) approveKey() string { return e.key() + ":approve:0" }
@@ -16,7 +17,7 @@ func TestEVMSwap_sendsTheSwapOnlyAfterTheApprovalReceiptSucceeds(t *testing.T) {
 	t.Parallel()
 	e := newEVMSwapEnv(t)
 	e.evm.receipts = []app.EVMFillState{app.FillPending, app.FillPending, app.FillSucceeded}
-	e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: 300}}
+	e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: money.UnitsFromUint64(300)}}
 
 	if _, err := e.run(t.Context()); err != nil {
 		t.Fatal(err)
@@ -65,7 +66,7 @@ func TestEVMSwap_anUnconfirmedApprovalIsRetriedAndTheResumeSendsTheSwapOnce(t *t
 	}
 
 	e.evm.receipts = nil
-	e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: 300}}
+	e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: money.UnitsFromUint64(300)}}
 	if _, err := e.run(t.Context()); err != nil {
 		t.Fatal(err)
 	}

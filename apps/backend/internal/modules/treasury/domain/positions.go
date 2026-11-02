@@ -12,7 +12,7 @@ import (
 
 type CabalPositionDelta struct {
 	Asset  Asset
-	Units  money.SignedMicros
+	Units  money.SignedUnits
 	CostIn money.Micros
 }
 
@@ -26,14 +26,21 @@ func (t CabalTxn) PositionDeltas(usdc Asset) ([]CabalPositionDelta, error) {
 	out := make([]CabalPositionDelta, 0, len(units))
 	for _, asset := range slices.Sorted(maps.Keys(units)) {
 		v := units[asset]
-		if v == 0 {
+		if v.Sign() == 0 {
 			continue
 		}
-		d := CabalPositionDelta{Asset: asset, Units: money.SignedMicrosFromInt64(v)}
+		signed, err := money.SignedUnitsFromBig(v)
+		if err != nil {
+			return nil, errs.Wrap(err, errs.CodeInvalidInput, op, slog.String("asset", string(asset)))
+		}
+		d := CabalPositionDelta{Asset: asset, Units: signed}
 		switch {
-		case v > 0 && IsCash(asset, usdc):
-			d.CostIn = money.MicrosFromUint64(uint64(v))
-		case v > 0:
+		case v.Sign() > 0 && IsCash(asset, usdc):
+			if !v.IsUint64() {
+				return nil, errs.New(errs.CodeInvalidInput, op, slog.String("asset", string(asset)))
+			}
+			d.CostIn = money.MicrosFromUint64(v.Uint64())
+		case v.Sign() > 0:
 			d.CostIn = paid
 			bought++
 		}
@@ -45,23 +52,17 @@ func (t CabalTxn) PositionDeltas(usdc Asset) ([]CabalPositionDelta, error) {
 	return out, nil
 }
 
-func treasuryUnits(op string, entries []CabalEntry, usdc Asset) (map[Asset]int64, money.Micros, error) {
+func treasuryUnits(op string, entries []CabalEntry, usdc Asset) (map[Asset]*big.Int, money.Micros, error) {
 	sums := map[Asset]*big.Int{}
 	spent := new(big.Int)
 	for _, e := range entries {
+		amount := e.Amount.Big()
 		switch {
 		case e.Account == CabalTreasury:
-			add(sums, e.Asset, e.Amount)
-		case e.Account == CabalFees && e.Amount.Int64() < 0 && IsCash(e.Asset, usdc):
-			spent.Sub(spent, big.NewInt(e.Amount.Int64()))
+			addBig(sums, e.Asset, amount)
+		case e.Account == CabalFees && amount.Sign() < 0 && IsCash(e.Asset, usdc):
+			spent.Sub(spent, amount)
 		}
-	}
-	units := make(map[Asset]int64, len(sums))
-	for asset, sum := range sums {
-		if !sum.IsInt64() {
-			return nil, money.Micros{}, errs.New(errs.CodeInvalidInput, op, slog.String("asset", string(asset)))
-		}
-		units[asset] = sum.Int64()
 	}
 	for asset, sum := range sums {
 		if sum.Sign() == -1 && IsCash(asset, usdc) {
@@ -71,7 +72,7 @@ func treasuryUnits(op string, entries []CabalEntry, usdc Asset) (map[Asset]int64
 	if !spent.IsUint64() {
 		return nil, money.Micros{}, errs.New(errs.CodeInvalidInput, op, slog.String("paid", spent.String()))
 	}
-	return units, money.MicrosFromUint64(spent.Uint64()), nil
+	return sums, money.MicrosFromUint64(spent.Uint64()), nil
 }
 
 type UserPositionDelta struct {
@@ -105,9 +106,9 @@ func (t UserTxn) PositionDelta() (UserPositionDelta, error) {
 	}, nil
 }
 
-func add(sums map[Asset]*big.Int, asset Asset, amount money.SignedMicros) {
+func addBig(sums map[Asset]*big.Int, asset Asset, amount *big.Int) {
 	if sums[asset] == nil {
 		sums[asset] = new(big.Int)
 	}
-	sums[asset].Add(sums[asset], big.NewInt(amount.Int64()))
+	sums[asset].Add(sums[asset], amount)
 }

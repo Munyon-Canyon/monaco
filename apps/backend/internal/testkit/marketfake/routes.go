@@ -57,7 +57,7 @@ func (f *RoutesFake) put(id market.AssetID, script scriptedRoute) {
 }
 
 func (f *RoutesFake) CheckRoute(
-	_ context.Context, id market.AssetID, _ market.Side, _ money.BaseUnits,
+	_ context.Context, id market.AssetID, _ market.Side, _ money.Units,
 ) (market.RouteCheck, error) {
 	if err := f.Check("CheckRoute"); err != nil {
 		return market.RouteCheck{}, err

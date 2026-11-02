@@ -61,10 +61,19 @@ func (c chaosCalls) cast(p, voter uuid.UUID, choice string, at time.Duration) ev
 
 func (c chaosCalls) fill() events.Event {
 	return events.TradeConfirmed{
-		V: 1, SwapID: uuid.NewSHA1(uuid.Nil, []byte("calls/swap")), CabalID: c.cabal,
-		Source: events.TradeSource{Kind: "proposal", ID: c.p0}, Action: "buy",
-		InMint: chain.SolanaAddress(callsUSDC), InAmount: 716_520_000, OutMint: callsMint, OutAmount: 1_000_000,
-		USDCMicros: money.MicrosFromUint64(716_520_000), ConfirmedAt: c.base.Add(time.Hour),
+		V:       1,
+		SwapID:  uuid.NewSHA1(uuid.Nil, []byte("calls/swap")),
+		CabalID: c.cabal,
+		Source:  events.TradeSource{Kind: "proposal", ID: c.p0},
+		Action:  "buy",
+		InMint: chain.SolanaAddress(
+			callsUSDC,
+		),
+		InAmount:    money.UnitsFromUint64(716_520_000),
+		OutMint:     callsMint,
+		OutAmount:   money.UnitsFromUint64(1_000_000),
+		USDCMicros:  money.MicrosFromUint64(716_520_000),
+		ConfirmedAt: c.base.Add(time.Hour),
 	}
 }
 

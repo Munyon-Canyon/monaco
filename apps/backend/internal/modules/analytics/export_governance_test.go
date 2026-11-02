@@ -52,7 +52,7 @@ func TestAnalyticsExport_Governance(t *testing.T) {
 				return events.ProposalCreated{
 					V: 1, ProposalID: s.proposal, CabalID: s.cabal, ProposerID: s.proposer, Kind: "buy",
 					Symbol: "NVDAx", Mint: aaplxMint, USDCMicros: money.MicrosFromUint64(10_250_000),
-					QuoteOutAmount: 5_000_000, VoterCount: 3,
+					QuoteOutAmount: money.UnitsFromUint64(5_000_000), VoterCount: 3,
 				}
 			},
 			actor: func(s scene) string { return userActor(s.proposer) },
@@ -96,7 +96,7 @@ func TestAnalyticsExport_Governance(t *testing.T) {
 				return events.ProposalPassed{
 					V: 1, ProposalID: s.proposal, CabalID: s.cabal, ProposerID: s.proposer, Kind: "buy",
 					Symbol: "AAPLx", Mint: aaplxMint, USDCMicros: money.MicrosFromUint64(25_500_001),
-					QuoteOutAmount: 105_000_000,
+					QuoteOutAmount: money.UnitsFromUint64(105_000_000),
 				}
 			},
 			actor: func(s scene) string { return userActor(s.voter) },
@@ -110,8 +110,15 @@ func TestAnalyticsExport_Governance(t *testing.T) {
 		"proposal.passed sell": {
 			event: func(s scene) events.Event {
 				return events.ProposalPassed{
-					V: 1, ProposalID: s.proposal, CabalID: s.cabal, ProposerID: s.proposer, Kind: "sell",
-					Symbol: "AAPLx", Mint: aaplxMint, TokenAmount: 4_000_000, QuoteOutAmount: 25_000_000,
+					V:              1,
+					ProposalID:     s.proposal,
+					CabalID:        s.cabal,
+					ProposerID:     s.proposer,
+					Kind:           "sell",
+					Symbol:         "AAPLx",
+					Mint:           aaplxMint,
+					TokenAmount:    money.UnitsFromUint64(4_000_000),
+					QuoteOutAmount: money.UnitsFromUint64(25_000_000),
 				}
 			},
 			actor: func(s scene) string { return userActor(s.voter) },

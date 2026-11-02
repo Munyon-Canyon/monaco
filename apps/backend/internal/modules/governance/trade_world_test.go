@@ -119,7 +119,7 @@ func newTradeWorld(t *testing.T) *tradeWorld {
 		w.join(m, true)
 	}
 	aapl := marketfake.AAPLx()
-	w.routes.Ok(aapl.ID, market.RouteCheck{OutAmount: money.NewBaseUnits(quoteUnits, aapl.Decimals)})
+	w.routes.Ok(aapl.ID, market.RouteCheck{OutAmount: money.UnitsFromUint64(quoteUnits)})
 	w.routes.Untradable(marketfake.JPSTx().ID)
 	w.routes.NoRoute(marketfake.TSLAx().ID)
 	w.treasury.SetPotValue(w.cabal, money.MicrosFromUint64(potMicros))

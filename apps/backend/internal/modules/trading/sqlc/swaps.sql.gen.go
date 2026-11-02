@@ -68,13 +68,13 @@ func (q *Queries) ClaimLive(ctx context.Context, arg ClaimLiveParams) (ClaimLive
 
 const finishConfirmed = `-- name: FinishConfirmed :execrows
 UPDATE swaps
-SET status = 'confirmed', out_amount = $1::bigint, fee_micros = $2::bigint,
+SET status = 'confirmed', out_amount = $1::text::numeric, fee_micros = $2::bigint,
   confirmed_at = $3::timestamptz, updated_at = $3::timestamptz
 WHERE id = $4 AND status = 'submitted'
 `
 
 type FinishConfirmedParams struct {
-	OutAmount   int64
+	OutAmount   string
 	FeeMicros   int64
 	ConfirmedAt time.Time
 	ID          uuid.UUID
@@ -95,13 +95,13 @@ func (q *Queries) FinishConfirmed(ctx context.Context, arg FinishConfirmedParams
 
 const finishConfirmedFeeUnrecorded = `-- name: FinishConfirmedFeeUnrecorded :execrows
 UPDATE swaps
-SET status = 'confirmed', out_amount = $1::bigint, fee_micros = NULL,
+SET status = 'confirmed', out_amount = $1::text::numeric, fee_micros = NULL,
   confirmed_at = $2::timestamptz, updated_at = $2::timestamptz
 WHERE id = $3 AND status = 'submitted'
 `
 
 type FinishConfirmedFeeUnrecordedParams struct {
-	OutAmount   int64
+	OutAmount   string
 	ConfirmedAt time.Time
 	ID          uuid.UUID
 }
@@ -147,7 +147,7 @@ INSERT INTO swaps (
 )
 VALUES (
   $1, $2, $3, $4, $5, $6, $7,
-  $8, $9, $10, $11, $12, $13, $14, 'created', $15, $15
+  $8, $9, $10, $11::text::numeric, nullif($12::text, '')::numeric, $13, $14, 'created', $15, $15
 )
 `
 
@@ -162,8 +162,8 @@ type InsertCreatedParams struct {
 	InMint          string
 	OutMint         string
 	OutDecimals     int16
-	InAmount        int64
-	QuoteOutAmount  pgtype.Int8
+	InAmount        string
+	QuoteOutAmount  string
 	SlippageBps     int32
 	SourceBatchSize int32
 	CreatedAt       time.Time
@@ -191,7 +191,7 @@ func (q *Queries) InsertCreated(ctx context.Context, arg InsertCreatedParams) er
 }
 
 const listStaleCreated = `-- name: ListStaleCreated :many
-SELECT id, cabal_id, source_kind, source_id, action, symbol, in_mint, source_batch_size, in_amount
+SELECT id, cabal_id, source_kind, source_id, action, symbol, in_mint, source_batch_size, in_amount::text AS in_amount
 FROM swaps
 WHERE swaps.status = 'created' AND swaps.created_at < $1
   AND NOT EXISTS (SELECT 1 FROM trade_steps WHERE trade_steps.trade_id = swaps.id)
@@ -213,7 +213,7 @@ type ListStaleCreatedRow struct {
 	Symbol          string
 	InMint          string
 	SourceBatchSize int32
-	InAmount        int64
+	InAmount        string
 }
 
 func (q *Queries) ListStaleCreated(ctx context.Context, arg ListStaleCreatedParams) ([]ListStaleCreatedRow, error) {
@@ -247,7 +247,7 @@ func (q *Queries) ListStaleCreated(ctx context.Context, arg ListStaleCreatedPara
 }
 
 const listStaleSubmitted = `-- name: ListStaleSubmitted :many
-SELECT id, cabal_id, source_kind, source_id, action, symbol, in_mint, out_mint, out_decimals, in_amount,
+SELECT id, cabal_id, source_kind, source_id, action, symbol, in_mint, out_mint, out_decimals, in_amount::text AS in_amount,
   source_batch_size, treasury_address, tx_signature, signed_tx
 FROM swaps
 WHERE swaps.status = 'submitted' AND swaps.submitted_at < $1::timestamptz
@@ -271,7 +271,7 @@ type ListStaleSubmittedRow struct {
 	InMint          string
 	OutMint         string
 	OutDecimals     int16
-	InAmount        int64
+	InAmount        string
 	SourceBatchSize int32
 	TreasuryAddress string
 	TxSignature     pgtype.Text
@@ -343,7 +343,7 @@ func (q *Queries) MarkSubmitted(ctx context.Context, arg MarkSubmittedParams) (i
 }
 
 const swapForForceResolve = `-- name: SwapForForceResolve :one
-SELECT id, cabal_id, source_kind, source_id, action, symbol, in_mint, in_amount, out_mint, out_decimals,
+SELECT id, cabal_id, source_kind, source_id, action, symbol, in_mint, in_amount::text AS in_amount, out_mint, out_decimals,
   source_batch_size, status, tx_signature, treasury_address, signed_tx,
   EXISTS (SELECT 1 FROM trade_steps WHERE trade_steps.trade_id = swaps.id) AS routed,
   coalesce(parked_code = 'swap_receipt_missing', false)::bool AS receipt_missing
@@ -359,7 +359,7 @@ type SwapForForceResolveRow struct {
 	Action          string
 	Symbol          string
 	InMint          string
-	InAmount        int64
+	InAmount        string
 	OutMint         string
 	OutDecimals     int16
 	SourceBatchSize int32

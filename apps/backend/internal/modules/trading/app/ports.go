@@ -36,6 +36,10 @@ type Order struct {
 	Router      string
 }
 
+func (o Order) outUnits() money.Units { return money.UnitsFromUint64(o.OutAmount) }
+
+func (o Order) minOutUnits() money.Units { return money.UnitsFromUint64(o.MinOut) }
+
 type ExecuteStatus uint8
 
 const (
@@ -98,7 +102,7 @@ type ChainReader interface {
 type Holding struct {
 	Mint   chain.Mint
 	Symbol string
-	Units  uint64
+	Units  money.Units
 }
 
 type Holdings interface {

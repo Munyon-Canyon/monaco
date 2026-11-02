@@ -23,18 +23,22 @@ type Positions interface {
 	CashOutReservations(ctx context.Context) (map[ids.CabalID]money.Micros, error)
 }
 
-func evmListings(ctx context.Context, p Positions, cabal ids.CabalID) (map[string]uint64, error) {
+func evmListings(ctx context.Context, p Positions, cabal ids.CabalID) (map[string]money.Units, error) {
 	listings, err := p.EVMPositions(ctx, cabal)
 	if err != nil {
 		return nil, err
 	}
-	held := map[string]uint64{}
+	held := map[string]money.Units{}
 	for _, l := range listings {
-		if l.Units == nil || !l.Units.IsUint64() {
+		if l.Units == nil {
 			return nil, errs.New(errs.CodeDecodeFailed, "trading.evmListings", slog.String("asset", l.Key))
 		}
-		if l.Units.Sign() > 0 && isEVMAsset(l.Key) {
-			held[l.Key] = l.Units.Uint64()
+		units, err := money.UnitsFromBig(l.Units)
+		if err != nil {
+			return nil, errs.Wrap(err, errs.CodeDecodeFailed, "trading.evmListings", slog.String("asset", l.Key))
+		}
+		if !units.IsZero() && isEVMAsset(l.Key) {
+			held[l.Key] = units
 		}
 	}
 	return held, nil
@@ -80,7 +84,7 @@ func (h LedgerHoldings) evmHeld(ctx context.Context, cabal ids.CabalID) ([]Holdi
 				Decimals: network.Cash().Decimals,
 			},
 			Symbol: network.Cash().Symbol,
-			Units:  cash[network].Uint64(),
+			Units:  money.UnitsFromMicros(cash[network]),
 		})
 	}
 	return held, nil
@@ -110,7 +114,7 @@ func (h LedgerHoldings) Positions(ctx context.Context, cabal ids.CabalID) ([]Hol
 		held = append(held, Holding{
 			Mint:   chain.Mint{Address: p.Mint, Decimals: asset.Decimals},
 			Symbol: asset.Symbol,
-			Units:  p.Units.Uint64(),
+			Units:  money.UnitsFromUint64(p.Units.Uint64()),
 		})
 	}
 	return held, nil
@@ -132,11 +136,11 @@ type EVMSale struct {
 }
 
 type EVMSales interface {
-	Sale(ctx context.Context, asset string, units uint64) (EVMSale, error)
+	Sale(ctx context.Context, asset string, units money.Units) (EVMSale, error)
 }
 
 type UnwiredEVMSales struct{}
 
-func (UnwiredEVMSales) Sale(context.Context, string, uint64) (EVMSale, error) {
+func (UnwiredEVMSales) Sale(context.Context, string, money.Units) (EVMSale, error) {
 	return EVMSale{}, notImplemented("EVMSales.Sale", "#4969")
 }

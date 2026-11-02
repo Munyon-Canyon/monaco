@@ -9,7 +9,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/domain"
@@ -47,8 +46,8 @@ func (d swapDB) created(source uuid.UUID, inMint string) sqlc.InsertCreatedParam
 	return sqlc.InsertCreatedParams{
 		ID: d.ids.NewV7(), SourceKind: "proposal", SourceID: source, CabalID: d.ids.NewV7(),
 		TreasuryAddress: "9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin", Action: "buy", Symbol: "AAPLx",
-		InMint: inMint, OutMint: aaplxMint, OutDecimals: 8, InAmount: 25_000_000,
-		QuoteOutAmount: pgtype.Int8{Int64: 105_000_000, Valid: true}, SlippageBps: 100, SourceBatchSize: 1,
+		InMint: inMint, OutMint: aaplxMint, OutDecimals: 8, InAmount: "25000000",
+		QuoteOutAmount: "105000000", SlippageBps: 100, SourceBatchSize: 1,
 		CreatedAt: d.now,
 	}
 }
@@ -74,7 +73,7 @@ func (d swapDB) submit(t *testing.T, id uuid.UUID, requestID, sig string) int64 
 func (d swapDB) confirm(t *testing.T, id uuid.UUID) int64 {
 	t.Helper()
 	n, err := d.q.FinishConfirmed(t.Context(), sqlc.FinishConfirmedParams{
-		ID: id, OutAmount: 104_900_000, FeeMicros: 5_000, ConfirmedAt: d.now,
+		ID: id, OutAmount: "104900000", FeeMicros: 5_000, ConfirmedAt: d.now,
 	})
 	if err != nil {
 		t.Fatal(err)

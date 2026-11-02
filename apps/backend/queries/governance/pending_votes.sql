@@ -1,6 +1,6 @@
 -- name: PendingVotes :many
 SELECT
-  p.id, p.cabal_id, p.proposer_id, p.kind, p.symbol, p.mint, p.usdc_micros, p.token_amount, p.threshold,
+  p.id, p.cabal_id, p.proposer_id, p.kind, p.symbol, p.mint, p.usdc_micros, coalesce(p.token_amount::text, '')::text AS token_amount, p.threshold,
   p.expires_at, p.created_at, p.rule_change, coalesce(p.network, '')::text AS network,
   ballots.yes_count, ballots.no_count, ballots.voted_count, electorate.voter_count
 FROM proposal_voters AS pv

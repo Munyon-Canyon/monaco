@@ -51,8 +51,8 @@ func newBridgedSaleRig(t *testing.T) *saleRig {
 func (r *saleRig) evmSold(swap uuid.UUID, units, micros uint64) events.TradeConfirmed {
 	return events.TradeConfirmed{
 		V: 1, SwapID: swap, CabalID: r.cabal.UUID(), Source: events.TradeSource{Kind: "cashout", ID: r.job},
-		SourceBatchSize: 2, Action: "sell", Symbol: "AAPLx", InMint: baseAAPL, InAmount: units,
-		OutMint: baseCash, OutAmount: micros, USDCMicros: money.MicrosFromUint64(micros),
+		SourceBatchSize: 2, Action: "sell", Symbol: "AAPLx", InMint: baseAAPL, InAmount: money.UnitsFromUint64(units),
+		OutMint: baseCash, OutAmount: money.UnitsFromUint64(micros), USDCMicros: money.MicrosFromUint64(micros),
 		TxSignature: "0xsell", ConfirmedAt: confirmedAt(),
 	}
 }

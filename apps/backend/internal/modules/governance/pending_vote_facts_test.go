@@ -105,7 +105,7 @@ func TestMe_PendingVotes_CarriesEveryFactTheCardDraws(t *testing.T) {
 	f.ballot(t, nvda.ID, voters[5], "no")
 	sell := f.open(t, f.ids.NewV7(), kai, 2*time.Hour, f.caller, mia, kai)
 	sell.Kind, sell.Symbol, sell.Mint = "sell", "TSLAx", marketfake.TSLAx().Mint.String()
-	sell.UsdcMicros, sell.TokenAmount = pgtype.Int8{}, pgtype.Int8{Int64: 150_000_000, Valid: true}
+	sell.UsdcMicros, sell.TokenAmount = pgtype.Int8{}, "150000000"
 	sell.Threshold = "unanimous"
 	f.insert(t, sell)
 	f.names.set(nvda.CabalID, "AC Capital", port.StatusActive)
@@ -121,7 +121,7 @@ func TestMe_PendingVotes_CarriesEveryFactTheCardDraws(t *testing.T) {
 	assertPendingVote(t, got[0], app.PendingVote{
 		ProposalID: ids.ProposalIDFrom(nvda.ID), CabalID: ids.CabalIDFrom(nvda.CabalID), CabalName: "AC Capital",
 		Kind: "buy", Symbol: "AAPLx", USDC: money.MicrosFromUint64(400_000_000), AssetName: "Apple",
-		TokenAmount: money.NewBaseUnits(0, 8), AssetLogo: marketfake.AAPLx().LogoURL,
+		TokenAmount: money.Units{}, AssetLogo: marketfake.AAPLx().LogoURL,
 		Proposer: app.PendingProposer{
 			ID: ids.UserIDFrom(mia), Handle: "mia", DisplayName: "Mia", PhotoURL: "https://cdn.example.com/mia",
 		},
@@ -130,7 +130,7 @@ func TestMe_PendingVotes_CarriesEveryFactTheCardDraws(t *testing.T) {
 	})
 	assertPendingVote(t, got[1], app.PendingVote{
 		ProposalID: ids.ProposalIDFrom(sell.ID), CabalID: ids.CabalIDFrom(sell.CabalID), CabalName: "Degens",
-		Kind: "sell", Symbol: "TSLAx", TokenAmount: money.NewBaseUnits(150_000_000, 8), AssetName: "Tesla",
+		Kind: "sell", Symbol: "TSLAx", TokenAmount: money.UnitsFromUint64(150_000_000), AssetName: "Tesla",
 		AssetLogo: marketfake.TSLAx().LogoURL,
 		Proposer: app.PendingProposer{
 			ID: ids.UserIDFrom(kai), Handle: "kai", DisplayName: "Kai", PhotoURL: "https://cdn.example.com/kai",
@@ -147,7 +147,7 @@ func assertPendingVote(t *testing.T, got, want app.PendingVote) {
 			want.Symbol, got.CreatedAt, got.ExpiresAt, want.CreatedAt, want.ExpiresAt)
 	}
 	got.CreatedAt, got.ExpiresAt, want.CreatedAt, want.ExpiresAt = time.Time{}, time.Time{}, time.Time{}, time.Time{}
-	if got != want {
+	if !reflect.DeepEqual(got, want) {
 		t.Errorf("pending vote = %+v, want %+v", got, want)
 	}
 }

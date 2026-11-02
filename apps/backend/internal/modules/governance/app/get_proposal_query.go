@@ -65,7 +65,7 @@ type ProposerCard struct {
 
 type Fill struct {
 	USDCMicros    uint64
-	TokenAmount   uint64
+	TokenAmount   money.Units
 	TokenDecimals uint8
 	PriceMicros   uint64
 	Confirmed     bool
@@ -101,7 +101,7 @@ func (r *ProposalReads) Get(ctx context.Context, req GetProposal) (ProposalDetai
 	if err != nil {
 		return ProposalDetail{}, err
 	}
-	facts, err := r.facts(ctx, row, req)
+	facts, err := r.facts(ctx, row, view.QuoteOut, req)
 	if err != nil {
 		return ProposalDetail{}, err
 	}
@@ -142,7 +142,8 @@ func (r *ProposalReads) priced(ctx context.Context, row sqlc.GetProposalRow, out
 	if err != nil {
 		return err
 	}
-	if row.TokenAmount.Valid && chain.Network(row.Network).IsEVM() {
+	tokens := out.Proposal.TokenAmount
+	if !tokens.IsZero() && chain.Network(row.Network).IsEVM() {
 		out.Proposal.TokenDecimals = decimals
 	}
 	live, err := r.livePrice(ctx, asset.ID)
@@ -157,7 +158,7 @@ func (r *ProposalReads) priced(ctx context.Context, row sqlc.GetProposalRow, out
 	}
 	out.Stats = withPrices(ctx, out.Stats, priceInputs{
 		id: out.Proposal.ID, kind: row.Kind, usdc: money.MicrosFromUint64(unsigned(row.UsdcMicros.Int64)),
-		token: unsigned(row.TokenAmount.Int64), decimals: decimals, live: live, fill: out.Fill,
+		token: tokens, decimals: decimals, live: live, fill: out.Fill,
 	})
 	return nil
 }
@@ -170,8 +171,8 @@ func (r *ProposalReads) linkSwap(
 		return err
 	}
 	out.Swap = &swap
-	out.Fill = fillOf(swap, decimals)
-	return nil
+	out.Fill, err = fillOf(swap, decimals)
+	return err
 }
 
 func (r *ProposalReads) assetOf(ctx context.Context, rawMint string) (market.Asset, error) {
@@ -199,9 +200,11 @@ type detailFacts struct {
 	replyCount int
 }
 
-func (r *ProposalReads) facts(ctx context.Context, row sqlc.GetProposalRow, req GetProposal) (detailFacts, error) {
+func (r *ProposalReads) facts(
+	ctx context.Context, row sqlc.GetProposalRow, quoteOut money.Units, req GetProposal,
+) (detailFacts, error) {
 	const op = "governance.GetProposal"
-	stats, err := rowStats(row)
+	stats, err := rowStats(row, quoteOut)
 	if err != nil {
 		return detailFacts{}, err
 	}
@@ -221,19 +224,24 @@ func (r *ProposalReads) facts(ctx context.Context, row sqlc.GetProposalRow, req 
 	return out, nil
 }
 
-func fillOf(s trading.SwapView, decimals uint8) Fill {
+func fillOf(s trading.SwapView, decimals uint8) (Fill, error) {
 	if string(s.Action) == string(domain.KindBuy) && s.OutDecimals > 0 && s.OutDecimals <= math.MaxUint8 {
 		decimals = uint8(s.OutDecimals)
 	}
-	f := Fill{USDCMicros: s.InAmount, TokenAmount: s.OutAmount, TokenDecimals: decimals}
+	usdc, tokens := s.InAmount, s.OutAmount
 	if string(s.Action) == string(domain.KindSell) {
-		f.USDCMicros, f.TokenAmount = f.TokenAmount, f.USDCMicros
+		usdc, tokens = tokens, usdc
 	}
+	micros, err := usdc.Micros()
+	if err != nil {
+		return Fill{}, errs.Wrap(err, errs.CodeInternal, "governance.fillOf")
+	}
+	f := Fill{USDCMicros: micros.Uint64(), TokenAmount: tokens, TokenDecimals: decimals}
 	if f.Confirmed = s.Status == "confirmed"; f.Confirmed {
-		f.PriceMicros = money.PricePerUnit(money.MicrosFromUint64(f.USDCMicros), f.TokenAmount, decimals).Uint64()
+		f.PriceMicros = money.PricePerUnits(micros, tokens, decimals).Uint64()
 		f.FeeMicros, f.FilledAt = s.FeeMicros, s.ConfirmedAt
 	}
-	return f
+	return f, nil
 }
 
 func listRow(r sqlc.GetProposalRow) sqlc.ListProposalsRow {

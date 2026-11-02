@@ -19,7 +19,7 @@ type TradeMark struct {
 	SwapID           uuid.UUID
 	At               time.Time
 	Side             string
-	Units            money.BaseUnits
+	Units            money.Units
 	USDCMicros       money.Micros
 	PriceMicros      money.Micros
 	CostOfSoldMicros money.Micros

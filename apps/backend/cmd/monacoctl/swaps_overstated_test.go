@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -37,7 +38,7 @@ func seededSale(t *testing.T, pool *pgxpool.Pool, identifiers *testkit.IDs, caba
 	}
 	if err := q.InsertCreated(t.Context(), sqlc.InsertCreatedParams{
 		ID: id, SourceKind: "proposal", SourceID: identifiers.NewV7(), CabalID: cabal, TreasuryAddress: soldTreasury,
-		Action: s.action, Symbol: "GOOGLx", InMint: in, OutMint: out, OutDecimals: 6, InAmount: 1_000_000,
+		Action: s.action, Symbol: "GOOGLx", InMint: in, OutMint: out, OutDecimals: 6, InAmount: "1000000",
 		SlippageBps: 100, SourceBatchSize: 1, CreatedAt: at,
 	}); err != nil {
 		t.Fatal(err)
@@ -48,7 +49,7 @@ func seededSale(t *testing.T, pool *pgxpool.Pool, identifiers *testkit.IDs, caba
 		t.Fatal(err)
 	}
 	if _, err := q.FinishConfirmed(t.Context(), sqlc.FinishConfirmedParams{
-		ID: id, OutAmount: s.recorded, ConfirmedAt: at,
+		ID: id, OutAmount: strconv.FormatInt(s.recorded, 10), ConfirmedAt: at,
 	}); err != nil {
 		t.Fatal(err)
 	}

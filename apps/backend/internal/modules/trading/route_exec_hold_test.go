@@ -12,6 +12,7 @@ import (
 	governance "github.com/monaco/monaco/apps/backend/internal/modules/governance/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/app"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
 func (e *routeEnv) backAmounts(t *testing.T, swap uuid.UUID) []string {
@@ -81,7 +82,7 @@ func TestBridgeBack_theReturnRunsOnceAndALaterRetryBridgesOutFresh(t *testing.T)
 
 	e.requote()
 	e.privy.script(multichain.ActionSucceeded)
-	e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: filledOut}}
+	e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: money.UnitsFromUint64(filledOut)}}
 	if code := e.retry(t, cmd, swap); code != "ok" {
 		t.Fatalf("retry after the return delivery %q, want ok", code)
 	}

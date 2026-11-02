@@ -15,6 +15,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/jupiter"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/chaos"
 )
 
@@ -39,11 +40,20 @@ func (b *engineBus) failFirstSwap(t *testing.T, cmd app.ExecuteTrade, in, out pl
 
 func retryOf(swap uuid.UUID, cmd app.ExecuteTrade, slippageBps int32) busevents.TradeRetryRequested {
 	ev := busevents.TradeRetryRequested{
-		V: 1, SwapID: swap, CabalID: cmd.CabalID.UUID(),
-		Source: busevents.TradeSource{Kind: string(domain.SourceProposal), ID: cmd.ProposalID.UUID()},
-		Action: string(cmd.Action), Symbol: cmd.Symbol, InMint: usdcMint, OutMint: cmd.Mint,
-		InAmount: cmd.USDCMicros.Uint64(), QuoteOutAmount: cmd.QuoteOutAmount, SlippageBps: slippageBps,
-		RequestedBy: uuid.UUID{1},
+		V:       1,
+		SwapID:  swap,
+		CabalID: cmd.CabalID.UUID(),
+		Source:  busevents.TradeSource{Kind: string(domain.SourceProposal), ID: cmd.ProposalID.UUID()},
+		Action:  string(cmd.Action),
+		Symbol:  cmd.Symbol,
+		InMint:  usdcMint,
+		OutMint: cmd.Mint,
+		InAmount: money.UnitsFromUint64(
+			cmd.USDCMicros.Uint64(),
+		),
+		QuoteOutAmount: cmd.QuoteOutAmount,
+		SlippageBps:    slippageBps,
+		RequestedBy:    uuid.UUID{1},
 	}
 	if cmd.Action == domain.ActionSell {
 		ev.InMint, ev.OutMint, ev.InAmount = cmd.Mint, usdcMint, cmd.TokenAmount

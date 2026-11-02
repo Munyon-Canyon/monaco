@@ -11,16 +11,17 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
 func (r *RouteExec) CashLeg(
-	ctx context.Context, cabal ids.CabalID, network chain.Network, ledger uint64,
-) (multichain.Listing, uint64, error) {
+	ctx context.Context, cabal ids.CabalID, network chain.Network, ledger money.Units,
+) (multichain.Listing, money.Micros, error) {
 	id, err := sqlc.New(r.d.Layer.d.Reads).CashCarrierListing(ctx, sqlc.CashCarrierListingParams{
 		CabalID: cabal.UUID(), Network: string(network),
 	})
 	if errors.Is(err, sql.ErrNoRows) {
-		return multichain.Listing{}, 0, nil
+		return multichain.Listing{}, money.Micros{}, nil
 	}
 	var listing multichain.Listing
 	if err == nil {
@@ -31,15 +32,15 @@ func (r *RouteExec) CashLeg(
 		wallet, err = r.d.TreasuryEVM.EnsureTreasuryEVMWallet(ctx, cabal)
 	}
 	if err != nil {
-		return multichain.Listing{}, 0, errs.Wrap(err, errs.CodeOf(err), "trading.RouteExec.CashLeg")
+		return multichain.Listing{}, money.Micros{}, errs.Wrap(err, errs.CodeOf(err), "trading.RouteExec.CashLeg")
 	}
 	onChain, err := r.d.Cash.Balance(ctx, network, wallet.Address)
 	if err != nil {
-		return multichain.Listing{}, 0, err
+		return multichain.Listing{}, money.Micros{}, err
 	}
 	cash := network.Cash()
 	listing.TokenAddress, listing.Decimals, listing.Symbol = cash.Address, cash.Decimals, cash.Symbol
-	return listing, min(ledger, onChain.Uint64()), nil
+	return listing, capMicros(ledger, onChain), nil
 }
 
 func (r *RouteExec) cashLeg(ctx context.Context, b routedBuy) error {
@@ -60,4 +61,11 @@ func (r *RouteExec) cashLeg(ctx context.Context, b routedBuy) error {
 	return r.sold(ctx, b, EVMSwapResult{
 		EVMFill: EVMFill{State: FillSucceeded, Out: b.req.InAmount}, Hash: hash,
 	})
+}
+
+func capMicros(ledger money.Units, onChain money.Micros) money.Micros {
+	if held, err := ledger.Micros(); err == nil && held.Cmp(onChain) < 0 {
+		return held
+	}
+	return onChain
 }

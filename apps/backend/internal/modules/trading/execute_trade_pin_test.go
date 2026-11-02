@@ -58,7 +58,7 @@ func (e *routeEnv) solanaFirst(t *testing.T) (*multichain.Comparison, multichain
 
 func (e *routeEnv) evmFills() {
 	e.privy.script(multichain.ActionSucceeded)
-	e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: filledOut}}
+	e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: money.UnitsFromUint64(filledOut)}}
 	e.quote(usdcToken(), aaplxToken(), 0, false)
 }
 
@@ -244,7 +244,7 @@ func TestRetry_aBasePinnedRetryStaysOnBaseWhenSolanaWinsTheFreshComparison(t *te
 	cmd, first := e.failedPinnedBuy(t)
 	e.privy.script(multichain.ActionSucceeded)
 	e.requote()
-	e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: filledOut}}
+	e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: money.UnitsFromUint64(filledOut)}}
 	fresh, solana := e.solanaFirst(t)
 
 	code := e.retryThrough(t, e.reroutingHandler(&routerFake{fresh: fresh}, e.withListing(e.winners.listings[solana])),
@@ -269,7 +269,7 @@ func TestRetry_aBasePinnedStrandedRetryNeverBridgesBackToSolana(t *testing.T) {
 	r := newStrandedRig(t)
 	r.pin(t, r.first)
 	r.requote()
-	r.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: filledOut}}
+	r.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: money.UnitsFromUint64(filledOut)}}
 	router := r.router(900_000, 1_000_000)
 
 	code := r.retryThrough(t, r.handler(router), r.cmd, r.first)
@@ -295,7 +295,7 @@ func TestRetry_aBasePinnedRetryOfReturnedCashRoutesOnBaseAgain(t *testing.T) {
 	e.proposals.set(governance.StatusPassed)
 	e.privy.script(multichain.ActionSucceeded)
 	e.requote()
-	e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: filledOut}}
+	e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: money.UnitsFromUint64(filledOut)}}
 	fresh, solana := e.solanaFirst(t)
 
 	code := e.retryThrough(t, e.reroutingHandler(&routerFake{fresh: fresh}, e.withListing(e.winners.listings[solana])),

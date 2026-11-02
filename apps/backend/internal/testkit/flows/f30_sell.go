@@ -10,6 +10,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/scenario"
 )
@@ -23,7 +24,10 @@ func (defined) StepsF30Sell() FlowStep {
 func F30RoutedSell(s *scenario.Scenario) {
 	cabal := f30Buy(s)
 	proposal := f30Pass(s, events.ProposalPassed{
-		CabalID: cabal.UUID(), Kind: "sell", TokenAmount: RoutedFilledUnits, QuoteOutAmount: RoutedSaleProceeds,
+		CabalID:         cabal.UUID(),
+		Kind:            "sell",
+		TokenAmount:     money.UnitsFromUint64(RoutedFilledUnits),
+		QuoteOutAmount:  money.UnitsFromUint64(RoutedSaleProceeds),
 		PriceComparison: f30Comparison(multichain.SideSell, RoutedSaleProceeds),
 	})
 	s.When(

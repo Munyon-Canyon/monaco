@@ -56,9 +56,17 @@ func (r roundTrip) confirm(t *testing.T, e events.TradeConfirmed, at time.Time) 
 func (r roundTrip) bought(t *testing.T, landed, fee uint64) {
 	t.Helper()
 	r.confirm(t, events.TradeConfirmed{
-		V: 1, SwapID: r.buy, CabalID: r.cabal.UUID(), Action: "buy", Symbol: "AAPLx",
-		InMint: baseCash, InAmount: landed, OutMint: perfEVM, OutAmount: 1_000_000,
-		USDCMicros: money.MicrosFromUint64(landed + fee), FeeMicros: money.MicrosFromUint64(fee),
+		V:          1,
+		SwapID:     r.buy,
+		CabalID:    r.cabal.UUID(),
+		Action:     "buy",
+		Symbol:     "AAPLx",
+		InMint:     baseCash,
+		InAmount:   money.UnitsFromUint64(landed),
+		OutMint:    perfEVM,
+		OutAmount:  money.UnitsFromUint64(1_000_000),
+		USDCMicros: money.MicrosFromUint64(landed + fee),
+		FeeMicros:  money.MicrosFromUint64(fee),
 	}, r.at)
 }
 
@@ -66,8 +74,15 @@ func (r roundTrip) sold(t *testing.T) {
 	t.Helper()
 	const gross = 110_000_000
 	r.confirm(t, events.TradeConfirmed{
-		V: 1, SwapID: r.sell, CabalID: r.cabal.UUID(), Action: "sell", Symbol: "AAPLx",
-		InMint: perfEVM, InAmount: 1_000_000, OutMint: baseCash, OutAmount: gross,
+		V:          1,
+		SwapID:     r.sell,
+		CabalID:    r.cabal.UUID(),
+		Action:     "sell",
+		Symbol:     "AAPLx",
+		InMint:     perfEVM,
+		InAmount:   money.UnitsFromUint64(1_000_000),
+		OutMint:    baseCash,
+		OutAmount:  money.UnitsFromUint64(gross),
 		USDCMicros: money.MicrosFromUint64(gross),
 	}, r.at.Add(time.Hour))
 }

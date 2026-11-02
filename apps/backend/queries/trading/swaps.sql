@@ -5,7 +5,7 @@ INSERT INTO swaps (
 )
 VALUES (
   @id, @source_kind, @source_id, @cabal_id, @treasury_address, @action, @symbol,
-  @in_mint, @out_mint, @out_decimals, @in_amount, @quote_out_amount, @slippage_bps, @source_batch_size, 'created', @created_at, @created_at
+  @in_mint, @out_mint, @out_decimals, sqlc.arg(in_amount)::text::numeric, nullif(sqlc.arg(quote_out_amount)::text, '')::numeric, @slippage_bps, @source_batch_size, 'created', @created_at, @created_at
 );
 
 -- name: MarkSubmitted :execrows
@@ -23,13 +23,13 @@ WHERE id = @id AND status = 'submitted' AND tx_signature = @stand_in::text;
 
 -- name: FinishConfirmed :execrows
 UPDATE swaps
-SET status = 'confirmed', out_amount = @out_amount::bigint, fee_micros = @fee_micros::bigint,
+SET status = 'confirmed', out_amount = sqlc.arg(out_amount)::text::numeric, fee_micros = @fee_micros::bigint,
   confirmed_at = @confirmed_at::timestamptz, updated_at = @confirmed_at::timestamptz
 WHERE id = @id AND status = 'submitted';
 
 -- name: FinishConfirmedFeeUnrecorded :execrows
 UPDATE swaps
-SET status = 'confirmed', out_amount = @out_amount::bigint, fee_micros = NULL,
+SET status = 'confirmed', out_amount = sqlc.arg(out_amount)::text::numeric, fee_micros = NULL,
   confirmed_at = @confirmed_at::timestamptz, updated_at = @confirmed_at::timestamptz
 WHERE id = @id AND status = 'submitted';
 
@@ -45,7 +45,7 @@ WHERE id = @id
   END;
 
 -- name: SwapForForceResolve :one
-SELECT id, cabal_id, source_kind, source_id, action, symbol, in_mint, in_amount, out_mint, out_decimals,
+SELECT id, cabal_id, source_kind, source_id, action, symbol, in_mint, in_amount::text AS in_amount, out_mint, out_decimals,
   source_batch_size, status, tx_signature, treasury_address, signed_tx,
   EXISTS (SELECT 1 FROM trade_steps WHERE trade_steps.trade_id = swaps.id) AS routed,
   coalesce(parked_code = 'swap_receipt_missing', false)::bool AS receipt_missing
@@ -59,7 +59,7 @@ WHERE source_kind = @source_kind AND source_id = @source_id AND status <> 'faile
   AND (source_kind = 'proposal' OR in_mint = @in_mint);
 
 -- name: ListStaleCreated :many
-SELECT id, cabal_id, source_kind, source_id, action, symbol, in_mint, source_batch_size, in_amount
+SELECT id, cabal_id, source_kind, source_id, action, symbol, in_mint, source_batch_size, in_amount::text AS in_amount
 FROM swaps
 WHERE swaps.status = 'created' AND swaps.created_at < @older_than
   AND NOT EXISTS (SELECT 1 FROM trade_steps WHERE trade_steps.trade_id = swaps.id)
@@ -67,7 +67,7 @@ ORDER BY swaps.updated_at, swaps.id
 LIMIT @max_rows;
 
 -- name: ListStaleSubmitted :many
-SELECT id, cabal_id, source_kind, source_id, action, symbol, in_mint, out_mint, out_decimals, in_amount,
+SELECT id, cabal_id, source_kind, source_id, action, symbol, in_mint, out_mint, out_decimals, in_amount::text AS in_amount,
   source_batch_size, treasury_address, tx_signature, signed_tx
 FROM swaps
 WHERE swaps.status = 'submitted' AND swaps.submitted_at < @older_than::timestamptz

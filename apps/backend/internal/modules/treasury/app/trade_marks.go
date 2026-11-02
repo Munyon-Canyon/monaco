@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"time"
 
@@ -91,7 +92,7 @@ type trade struct {
 	id    uuid.UUID
 	at    time.Time
 	side  string
-	units uint64
+	units money.Units
 	usdc  uint64
 
 	cashOut bool
@@ -100,19 +101,20 @@ type trade struct {
 func tradeOf(row sqlc.ListTradesForPairsRow) (trade, error) {
 	const op = "treasury.TradeMarks.row"
 	usdc, usdcErr := row.UsdcMicros.Int64Value()
-	units, unitsErr := row.Units.Int64Value()
-	if usdcErr != nil || unitsErr != nil || !usdc.Valid || !units.Valid || usdc.Int64 < 0 || units.Int64 <= 0 {
+	units, unitsErr := money.ParseUnits(row.Units)
+	if usdcErr != nil || unitsErr != nil || !usdc.Valid || units.IsZero() || usdc.Int64 < 0 {
 		return trade{}, errs.New(errs.CodeInternal, op, slog.String("trade_id", row.ID.String()))
 	}
 	return trade{
-		id: row.ID, at: row.OccurredAt.UTC(), side: row.Kind, units: uint64(units.Int64), usdc: uint64(usdc.Int64),
+		id: row.ID, at: row.OccurredAt.UTC(), side: row.Kind, units: units, usdc: uint64(usdc.Int64),
 		cashOut: row.CashoutSale,
 	}, nil
 }
 
 type replayed struct {
-	held, cost uint64
-	cycle      time.Time
+	held  money.Units
+	cost  uint64
+	cycle time.Time
 }
 
 func (r *replayed) buy(tr trade) error {
@@ -120,23 +122,26 @@ func (r *replayed) buy(tr trade) error {
 	if err != nil {
 		return errs.Wrap(err, errs.CodeInternal, "treasury.TradeMarks.buy")
 	}
-	if r.held == 0 {
+	held, err := r.held.Add(tr.units)
+	if err != nil {
+		return errs.Wrap(err, errs.CodeInternal, "treasury.TradeMarks.buy")
+	}
+	if r.held.IsZero() {
 		r.cycle = tr.at
 	}
-	r.held, r.cost = r.held+tr.units, cost.Uint64()
+	r.held, r.cost = held, cost.Uint64()
 	return nil
 }
 
 func (r *replayed) sell(tr trade) (money.Micros, error) {
-	removed, err := money.MulDiv(r.cost, tr.units, r.held)
-	if tr.units > r.held || err != nil {
-		return money.Micros{}, errs.New(
-			errs.CodeInternal,
-			"treasury.TradeMarks.sell",
-			slog.String("trade_id", tr.id.String()),
-		)
+	held, subErr := r.held.Sub(tr.units)
+	removedUnits, mulErr := money.UnitsMulDiv(money.UnitsFromUint64(r.cost), tr.units, r.held)
+	removed, narrowErr := removedUnits.Uint64()
+	if err := errors.Join(subErr, mulErr, narrowErr); err != nil {
+		return money.Micros{}, errs.Wrap(err, errs.CodeInternal,
+			"treasury.TradeMarks.sell", slog.String("trade_id", tr.id.String()))
 	}
-	r.held, r.cost = r.held-tr.units, r.cost-removed
+	r.held, r.cost = held, r.cost-removed
 	return money.MicrosFromUint64(removed), nil
 }
 
@@ -148,13 +153,12 @@ func replayTrades(trades []trade, name AssetName) ([]port.TradeMark, error) {
 		if name.MultiplierAt != nil {
 			num, den = name.MultiplierAt(tr.at)
 		}
-		units := money.NewBaseUnits(tr.units, name.Decimals)
-		price, _, err := domain.TradePriceMicros(money.MicrosFromUint64(tr.usdc), units, num, den)
+		price, _, err := domain.TradePriceMicros(money.MicrosFromUint64(tr.usdc), tr.units, name.Decimals, num, den)
 		if err != nil {
 			return nil, err
 		}
 		mark := port.TradeMark{
-			SwapID: tr.id, At: tr.at, Side: tr.side, Units: units,
+			SwapID: tr.id, At: tr.at, Side: tr.side, Units: tr.units,
 			USDCMicros: money.MicrosFromUint64(tr.usdc), PriceMicros: price,
 		}
 		switch tr.side {

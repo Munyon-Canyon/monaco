@@ -36,8 +36,8 @@ func (h *settleHarness) gain(rt *rapid.T, micros int64) {
 	c, err := domain.NewCabalTxn(domain.CabalTxnHeader{
 		ID: h.ids.NewV7(), CabalID: h.cabal, Kind: domain.CabalSwap, Status: domain.TxnSettled, SwapID: h.ids.NewV7(),
 	}, []domain.CabalEntry{
-		{Account: domain.CabalTreasury, Asset: h.usdc(), Amount: amount(micros)},
-		{Account: domain.CabalVenue, Asset: h.usdc(), Amount: amount(-micros)},
+		{Account: domain.CabalTreasury, Asset: h.usdc(), Amount: entryUnits(micros)},
+		{Account: domain.CabalVenue, Asset: h.usdc(), Amount: entryUnits(-micros)},
 	})
 	if err == nil {
 		err = h.postCabal(c)

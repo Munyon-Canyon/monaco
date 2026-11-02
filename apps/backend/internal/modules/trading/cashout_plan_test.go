@@ -16,7 +16,7 @@ import (
 func lot(mint string, units, quote uint64) domain.Lot {
 	return domain.Lot{
 		Mint:   platform.Mint{Address: platform.SolanaAddress(mint), Decimals: 8},
-		Symbol: mint, Units: units, QuoteUSDC: quote,
+		Symbol: mint, Units: money.UnitsFromUint64(units), QuoteUSDC: quote,
 	}
 }
 
@@ -44,7 +44,7 @@ func TestPlanCashOutSell(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
 			got, err := domain.PlanCashOutSell(held, money.MicrosFromUint64(c.needed))
-			if err != nil || !slices.Equal(got, c.want) {
+			if err != nil || !slices.EqualFunc(got, c.want, sameLot) {
 				t.Fatalf("plan = %+v, %v, want %+v", got, err, c.want)
 			}
 		})
@@ -57,7 +57,7 @@ func TestPlanCashOutSell(t *testing.T) {
 func TestPlanCashOutSell_PartialRoundsUnitsUp(t *testing.T) {
 	t.Parallel()
 	got, err := domain.PlanCashOutSell([]domain.Lot{lot("AAPLx", 3, 10_000_000)}, money.MicrosFromUint64(990_100))
-	if want := []domain.Lot{lot("AAPLx", 1, 3_333_333)}; err != nil || !slices.Equal(got, want) {
+	if want := []domain.Lot{lot("AAPLx", 1, 3_333_333)}; err != nil || !slices.EqualFunc(got, want, sameLot) {
 		t.Fatalf("plan = %+v, %v, want %+v", got, err, want)
 	}
 }
@@ -112,7 +112,7 @@ func planDefect(held, plan []domain.Lot, needed uint64) string {
 	for _, h := range held {
 		unsold[h.Mint.Address] = h
 	}
-	partial := len(plan) > 0 && plan[len(plan)-1] != unsold[plan[len(plan)-1].Mint.Address]
+	partial := len(plan) > 0 && !sameLot(plan[len(plan)-1], unsold[plan[len(plan)-1].Mint.Address])
 	for i, leg := range plan {
 		if msg := legDefect(unsold, leg, i == len(plan)-1); msg != "" {
 			return fmt.Sprintf("leg %d: %s", i, msg)
@@ -130,11 +130,11 @@ func legDefect(unsold map[platform.SolanaAddress]domain.Lot, leg domain.Lot, las
 	switch {
 	case !ok:
 		return "sells a mint the cabal does not hold, or sells one twice"
-	case leg.Units == 0 || leg.Units > h.Units:
-		return fmt.Sprintf("sells %d units of %d held", leg.Units, h.Units)
+	case leg.Units.IsZero() || leg.Units.Cmp(h.Units) > 0:
+		return fmt.Sprintf("sells %s units of %s held", leg.Units, h.Units)
 	case leg.QuoteUSDC > h.QuoteUSDC:
 		return fmt.Sprintf("quotes %d, above the whole holding's %d", leg.QuoteUSDC, h.QuoteUSDC)
-	case !last && leg != h:
+	case !last && !sameLot(leg, h):
 		return "is partial but is not the last leg"
 	}
 	return ""
@@ -146,9 +146,14 @@ func shortfallDefect(unsold map[platform.SolanaAddress]domain.Lot, plan []domain
 		sold += leg.QuoteUSDC
 	}
 	for _, h := range unsold {
-		if h.Units > 0 && h.QuoteUSDC > 0 && sold < target {
+		if h.Units.Cmp(money.UnitsFromUint64(0)) > 0 && h.QuoteUSDC > 0 && sold < target {
 			return fmt.Sprintf("plan stops at %d USDC below the %d target while %s is unsold", sold, target, h.Symbol)
 		}
 	}
 	return ""
+}
+
+func sameLot(a, b domain.Lot) bool {
+	return a.Mint == b.Mint && a.Symbol == b.Symbol && a.Units.Equal(b.Units) && a.QuoteUSDC == b.QuoteUSDC &&
+		a.Listing == b.Listing
 }

@@ -23,7 +23,7 @@ SELECT a.id, a.kind,
     ) THEN 'pending'
     ELSE a.status
   END::text AS status,
-  a.actor_user_id, a.asset, a.usdc_micros, a.units, a.tx_signature, a.occurred_at
+  a.actor_user_id, a.asset, a.usdc_micros, coalesce(a.units::text, '')::text AS units, a.tx_signature, a.occurred_at
 FROM cabal_activity AS a
 WHERE a.cabal_id = @cabal_id AND NOT a.cashout_sale
   AND (NOT @has_cursor::bool OR (a.occurred_at, a.id) < (@cursor_at::timestamptz, @cursor_id::uuid))

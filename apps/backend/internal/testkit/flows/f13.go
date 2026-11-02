@@ -4,8 +4,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgtype"
-
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance"
@@ -196,7 +194,7 @@ func liveSwap(p openProposal) scenario.Step {
 			ID: ids.Real{}.NewV7(), SourceKind: "proposal", SourceID: p.id.UUID(), CabalID: p.cabalID.UUID(),
 			TreasuryAddress: "9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin", Action: "buy", Symbol: "AAPLx",
 			InMint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", OutMint: aaplxMint, OutDecimals: 8,
-			InAmount: 5_000_000, QuoteOutAmount: pgtype.Int8{Int64: 21_000_000, Valid: true}, SlippageBps: 100,
+			InAmount: "5000000", QuoteOutAmount: "21000000", SlippageBps: 100,
 			SourceBatchSize: 1, CreatedAt: time.Now().UTC(),
 		})
 		if err != nil {

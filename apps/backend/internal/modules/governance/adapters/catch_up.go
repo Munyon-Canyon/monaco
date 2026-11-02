@@ -23,15 +23,29 @@ func (c CatchUp) PendingVotes(ctx context.Context, viewer ids.UserID) ([]port.Ca
 	out := make([]port.CatchUpProposal, len(pending))
 	for i, v := range pending {
 		out[i] = port.CatchUpProposal{
-			ID: v.ProposalID, CabalID: v.CabalID, CabalName: v.CabalName, Kind: string(v.Kind), Symbol: v.Symbol,
-			AssetName: v.AssetName, AssetLogo: v.AssetLogo,
-			USDCMicros: positiveAmount(v.USDC.Uint64()), TokenAmount: positiveAmount(v.TokenAmount.Uint64()),
+			ID:        v.ProposalID,
+			CabalID:   v.CabalID,
+			CabalName: v.CabalName,
+			Kind:      string(v.Kind),
+			Symbol:    v.Symbol,
+			AssetName: v.AssetName,
+			AssetLogo: v.AssetLogo,
+			USDCMicros: positiveAmount(
+				v.USDC.Uint64(),
+			),
+			TokenAmount: positiveAmount(uint64(max(v.TokenAmount.Int64OrZero(), 0))),
 			Proposer: port.CatchUpPerson{
 				ID: v.Proposer.ID, Name: firstNonEmpty(v.Proposer.DisplayName, v.Proposer.Handle),
 				PhotoURL: v.Proposer.PhotoURL,
 			},
-			CreatedAt: v.CreatedAt, ExpiresAt: v.ExpiresAt, Status: domain.StatusOpen,
-			Yes: v.Tally.Yes, No: v.Tally.No, Voted: v.VotedCount, Eligible: v.Tally.Voters, ReplyCount: v.ReplyCount,
+			CreatedAt:  v.CreatedAt,
+			ExpiresAt:  v.ExpiresAt,
+			Status:     domain.StatusOpen,
+			Yes:        v.Tally.Yes,
+			No:         v.Tally.No,
+			Voted:      v.VotedCount,
+			Eligible:   v.Tally.Voters,
+			ReplyCount: v.ReplyCount,
 		}
 	}
 	return out, nil

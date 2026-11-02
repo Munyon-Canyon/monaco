@@ -3,6 +3,7 @@ package governance_test
 import (
 	"log/slog"
 	"math"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -15,8 +16,6 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
-
-const xstockDecimals = 8
 
 func buyDraft(t *testing.T) domain.Draft {
 	t.Helper()
@@ -33,14 +32,14 @@ func buyDraft(t *testing.T) domain.Draft {
 		ID: ids.ProposalIDFrom(g.NewV7()), CabalID: cabal, ProposerID: proposer,
 		Kind: domain.KindBuy, Symbol: "AAPLx", Mint: chain.SolanaAddress(aaplxMint),
 		USDCMicros: money.MicrosFromUint64(25_000_000), Thesis: "Earnings next week.",
-		QuoteOut: 105_000_000, ExpiresAt: time.Date(2026, 3, 2, 12, 0, 0, 0, time.UTC),
+		QuoteOut: money.UnitsFromUint64(105_000_000), ExpiresAt: time.Date(2026, 3, 2, 12, 0, 0, 0, time.UTC),
 	}
 }
 
 func sellDraft(t *testing.T) domain.Draft {
 	t.Helper()
 	d := buyDraft(t)
-	d.Kind, d.USDCMicros, d.TokenAmount = domain.KindSell, money.Micros{}, money.NewBaseUnits(3_000_000, xstockDecimals)
+	d.Kind, d.USDCMicros, d.TokenAmount = domain.KindSell, money.Micros{}, money.UnitsFromUint64(3_000_000)
 	return d
 }
 
@@ -49,7 +48,7 @@ func TestNewProposal_keepsAValidBuyAndSell(t *testing.T) {
 	for _, d := range []domain.Draft{buyDraft(t), sellDraft(t)} {
 		d.Thesis = strings.Repeat("é", domain.MaxThesisRunes)
 		p, err := domain.NewProposal(d)
-		if err != nil || p.Draft() != d {
+		if err != nil || !reflect.DeepEqual(p.Draft(), d) {
 			t.Errorf("NewProposal(%s) = %+v, %v, want the draft back", d.Kind, p.Draft(), err)
 		}
 	}
@@ -67,17 +66,19 @@ func TestNewProposal_rejectsEachInvalidField(t *testing.T) {
 		edit  func(*domain.Draft)
 		field string
 	}{
-		"unknown kind":       {func(d *domain.Draft) { d.Kind = "agent_add" }, "kind"},
-		"buy of zero":        {func(d *domain.Draft) { d.USDCMicros = money.Micros{} }, "amount"},
-		"buy with tokens":    {func(d *domain.Draft) { d.TokenAmount = money.NewBaseUnits(1, xstockDecimals) }, "amount"},
-		"buy past bigint":    {func(d *domain.Draft) { d.USDCMicros = money.MicrosFromUint64(tooBig) }, "amount"},
-		"sell of zero":       {func(d *domain.Draft) { d.Kind, d.USDCMicros = domain.KindSell, money.Micros{} }, "amount"},
-		"sell with usdc":     {func(d *domain.Draft) { d.Kind = domain.KindSell }, "amount"},
-		"zero quote":         {func(d *domain.Draft) { d.QuoteOut = 0 }, "quote_out_amount"},
-		"quote past bigint":  {func(d *domain.Draft) { d.QuoteOut = tooBig }, "quote_out_amount"},
+		"unknown kind":    {func(d *domain.Draft) { d.Kind = "agent_add" }, "kind"},
+		"buy of zero":     {func(d *domain.Draft) { d.USDCMicros = money.Micros{} }, "amount"},
+		"buy with tokens": {func(d *domain.Draft) { d.TokenAmount = money.UnitsFromUint64(1) }, "amount"},
+		"buy past bigint": {func(d *domain.Draft) { d.USDCMicros = money.MicrosFromUint64(tooBig) }, "amount"},
+		"sell of zero":    {func(d *domain.Draft) { d.Kind, d.USDCMicros = domain.KindSell, money.Micros{} }, "amount"},
+		"sell with usdc":  {func(d *domain.Draft) { d.Kind = domain.KindSell }, "amount"},
+		"zero quote":      {func(d *domain.Draft) { d.QuoteOut = money.Units{} }, "quote_out_amount"},
+		"sell quote past bigint": {func(d *domain.Draft) {
+			sellPast(d, 1)
+			d.QuoteOut = money.UnitsFromUint64(tooBig)
+		}, "quote_out_amount"},
 		"thesis of 281":      {func(d *domain.Draft) { d.Thesis = strings.Repeat("a", domain.MaxThesisRunes+1) }, "thesis"},
 		"thesis not utf-8":   {func(d *domain.Draft) { d.Thesis = "\xff" }, "thesis"},
-		"sell past bigint":   {func(d *domain.Draft) { sellPast(d, tooBig) }, "amount"},
 		"sell kept its buys": {func(d *domain.Draft) { sellPast(d, 1); d.USDCMicros = money.MicrosFromUint64(1) }, "amount"},
 	} {
 		d := buyDraft(t)
@@ -91,14 +92,31 @@ func TestNewProposal_rejectsEachInvalidField(t *testing.T) {
 	}
 }
 
+func TestNewProposal_acceptsAmountsPastInt64WhereTheColumnIsWide(t *testing.T) {
+	t.Parallel()
+	wide, err := money.UnitsFromUint64(math.MaxUint64).Add(money.UnitsFromUint64(1))
+	if err != nil {
+		t.Fatal(err)
+	}
+	sell := sellDraft(t)
+	sell.TokenAmount = wide
+	buy := buyDraft(t)
+	buy.QuoteOut = wide
+	for name, d := range map[string]domain.Draft{"sell of 2^64 units": sell, "buy that quotes 2^64 units": buy} {
+		if _, err := domain.NewProposal(d); err != nil {
+			t.Errorf("%s: NewProposal err = %v, want the draft kept", name, err)
+		}
+	}
+}
+
 func sellPast(d *domain.Draft, tokens uint64) {
-	d.Kind, d.USDCMicros, d.TokenAmount = domain.KindSell, money.Micros{}, money.NewBaseUnits(tokens, xstockDecimals)
+	d.Kind, d.USDCMicros, d.TokenAmount = domain.KindSell, money.Micros{}, money.UnitsFromUint64(tokens)
 }
 
 func TestNewTrade_keepsAValidTradeAndNamesTheBadField(t *testing.T) {
 	t.Parallel()
 	buy := domain.Trade{Kind: domain.KindBuy, Symbol: "AAPLx", USDCMicros: money.MicrosFromUint64(1)}
-	if got, err := domain.NewTrade(buy); err != nil || got != buy {
+	if got, err := domain.NewTrade(buy); err != nil || !reflect.DeepEqual(got, buy) {
 		t.Errorf("NewTrade(%+v) = %+v, %v, want it back", buy, got, err)
 	}
 	for name, tc := range map[string]struct {
@@ -107,7 +125,7 @@ func TestNewTrade_keepsAValidTradeAndNamesTheBadField(t *testing.T) {
 	}{
 		"blank symbol": {func(tr *domain.Trade) { tr.Symbol = " " }, "symbol"},
 		"unknown kind": {func(tr *domain.Trade) { tr.Kind = "hold" }, "kind"},
-		"both amounts": {func(tr *domain.Trade) { tr.TokenAmount = 1 }, "amount"},
+		"both amounts": {func(tr *domain.Trade) { tr.TokenAmount = money.UnitsFromUint64(1) }, "amount"},
 		"long thesis":  {func(tr *domain.Trade) { tr.Thesis = strings.Repeat("a", domain.MaxThesisRunes+1) }, "thesis"},
 	} {
 		tr := buy

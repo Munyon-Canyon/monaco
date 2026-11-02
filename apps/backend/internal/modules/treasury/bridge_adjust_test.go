@@ -46,7 +46,7 @@ func TestBridgeAdjust_aLateArrivalMovesTheFeeDifferenceOnceAndTheSwapSpendsIt(t 
 	f.wantClean(t, "adjusted")
 
 	confirmed := evmConfirmed(cabal, out.swap, 400_000_000)
-	confirmed.InAmount, confirmed.FeeMicros = 972_507, money.MicrosFromUint64(27_493)
+	confirmed.InAmount, confirmed.FeeMicros = money.UnitsFromUint64(972_507), money.MicrosFromUint64(27_493)
 	if err := f.confirm(t, confirmed); err != nil {
 		t.Fatal(err)
 	}
@@ -98,7 +98,7 @@ func TestBridgeAdjust_aReusedBridgeOutAdjustsTheSwapThatBookedIt(t *testing.T) {
 		position{Asset: baseCash, Units: "972507", Cost: "972507"},
 	)
 	confirmed := evmConfirmed(cabal, retry.swap, 400_000_000)
-	confirmed.InAmount, confirmed.FeeMicros = 972_507, money.MicrosFromUint64(27_493)
+	confirmed.InAmount, confirmed.FeeMicros = money.UnitsFromUint64(972_507), money.MicrosFromUint64(27_493)
 	if err := f.confirm(t, confirmed); err != nil {
 		t.Fatal(err)
 	}

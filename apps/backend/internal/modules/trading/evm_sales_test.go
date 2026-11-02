@@ -78,7 +78,7 @@ func TestEVMSales_pricesHeldUnitsByScalingTheSellQuoteDownToWhatTheyCover(t *tes
 	q := &saleQuoter{gross: linearGross(1_000, 0)}
 	sales := adapters.EVMSales{Listings: saleListings{listing: enabledListing()}, Quoter: q}
 
-	sale, err := sales.Sale(t.Context(), "base:0xtoken", 50_000)
+	sale, err := sales.Sale(t.Context(), "base:0xtoken", money.UnitsFromUint64(50_000))
 
 	if err != nil || sale.ProceedsMicros != 50_000_000 || sale.Listing.Symbol != "AAPLx" {
 		t.Fatalf("Sale = %+v, %v; want 50 USDC for 50k units at 1k units a dollar", sale, err)
@@ -98,7 +98,7 @@ func TestEVMSales_shrinksTheEstimateWhenImpactNeedsMoreUnitsThanHeld(t *testing.
 	}
 	sales := adapters.EVMSales{Listings: saleListings{listing: enabledListing()}, Quoter: &saleQuoter{gross: impact}}
 
-	sale, err := sales.Sale(t.Context(), "base:0xtoken", 50_000)
+	sale, err := sales.Sale(t.Context(), "base:0xtoken", money.UnitsFromUint64(50_000))
 
 	if err != nil || sale.ProceedsMicros != 49_504_950 {
 		t.Fatalf("Sale = %+v, %v; want the estimate scaled by 50000/50500", sale, err)
@@ -120,7 +120,7 @@ func TestEVMSales_sellsNothingForADisabledListingOrNoUnits(t *testing.T) {
 	} {
 		q := &saleQuoter{gross: c.gross}
 		sale, err := adapters.EVMSales{Listings: saleListings{listing: c.listing}, Quoter: q}.
-			Sale(t.Context(), "base:0xtoken", c.units)
+			Sale(t.Context(), "base:0xtoken", money.UnitsFromUint64(c.units))
 		if err != nil || sale.ProceedsMicros != 0 || len(q.asked) > 1 {
 			t.Errorf("%s: Sale = %+v, %v after %v; want zero proceeds", name, sale, err, q.asked)
 		}
@@ -147,7 +147,7 @@ func TestEVMSales_surfacesListingQuoteAndDecodeFailures(t *testing.T) {
 		{"requote down", "base:0xtoken", 50_000, down, errs.CodeUpstreamUnavailable},
 	} {
 		sales := adapters.EVMSales{Listings: saleListings{listing: enabledListing()}, Quoter: c.quoter}
-		if _, err := sales.Sale(t.Context(), c.asset, c.units); errs.CodeOf(err) != c.want {
+		if _, err := sales.Sale(t.Context(), c.asset, money.UnitsFromUint64(c.units)); errs.CodeOf(err) != c.want {
 			t.Errorf("%s: err = %v, want %s", c.name, err, c.want)
 		}
 	}
@@ -241,7 +241,12 @@ func TestMultichainExecutionVenue_waitsOnTheProcessWideUniswapLimit(t *testing.T
 	defer cancel()
 
 	_, err := venue.Build(ctx, app.EVMSwapSpec{
-		Network: chain.NetworkBase, Owner: owner, TokenIn: cash, TokenOut: owner, AmountIn: 1_000_000, MinOut: 1,
+		Network:  chain.NetworkBase,
+		Owner:    owner,
+		TokenIn:  cash,
+		TokenOut: owner,
+		AmountIn: money.UnitsFromUint64(1_000_000),
+		MinOut:   money.UnitsFromUint64(1),
 	})
 
 	if errs.CodeOf(err) != errs.CodeUpstreamUnavailable || calls.Load() != 0 {

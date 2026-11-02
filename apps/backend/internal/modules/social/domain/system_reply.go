@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/domain/feed"
-	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
 const (
@@ -23,7 +22,7 @@ const (
 	OutcomeTradeFailed SystemOutcome = "trade_failed"
 )
 
-func SystemReplyText(outcome SystemOutcome, side feed.Action, symbol string, before, after *money.BaseUnits) string {
+func SystemReplyText(outcome SystemOutcome, side feed.Action, symbol string, before, after *feed.Tokens) string {
 	switch outcome {
 	case OutcomeFilled:
 		return filledText(symbol, before, after)
@@ -44,7 +43,7 @@ func nothingDone(side feed.Action) string {
 	return "Nothing was bought."
 }
 
-func filledText(symbol string, before, after *money.BaseUnits) string {
+func filledText(symbol string, before, after *feed.Tokens) string {
 	if after == nil {
 		return "Passed and filled."
 	}
@@ -57,9 +56,9 @@ func filledText(symbol string, before, after *money.BaseUnits) string {
 	return text.String()
 }
 
-func FormatShares(units money.BaseUnits) string {
-	scale := new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(units.Decimals())), nil)
-	hundredths := new(big.Int).Mul(new(big.Int).SetUint64(units.Uint64()), big.NewInt(100))
+func FormatShares(units feed.Tokens) string {
+	scale := new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(units.Decimals)), nil)
+	hundredths := new(big.Int).Mul(units.Amount.Big(), big.NewInt(100))
 	hundredths.Add(hundredths, new(big.Int).Rsh(scale, 1))
 	hundredths.Quo(hundredths, scale)
 	whole, cents := new(big.Int).QuoRem(hundredths, big.NewInt(100), new(big.Int))

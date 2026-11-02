@@ -29,7 +29,7 @@ WITH header AS (
 SELECT h.id, h.scope, h.user_id, h.cabal_id, h.kind,
   h.status, h.swap_id, h.transfer_id, h.tx_signature, h.created_at, (e.seq IS NOT NULL)::bool AS has_entry,
   coalesce(e.seq, 0)::smallint AS seq, coalesce(e.account, '')::text AS account, coalesce(e.asset, '')::text AS asset,
-  coalesce(e.amount, 0)::bigint AS amount
+  coalesce(e.amount, 0)::text AS amount
 FROM header AS h
 LEFT JOIN LATERAL (
   SELECT ue.seq, ue.account, ue.asset, ue.amount FROM user_txn_entries AS ue WHERE h.scope = 'user' AND ue.txn_id = h.id
@@ -56,7 +56,7 @@ WITH matched AS (
 SELECT h.id, h.scope, h.user_id, h.cabal_id, h.kind,
   h.status, h.swap_id, h.transfer_id, h.tx_signature, h.created_at, (e.seq IS NOT NULL)::bool AS has_entry,
   coalesce(e.seq, 0)::smallint AS seq, coalesce(e.account, '')::text AS account, coalesce(e.asset, '')::text AS asset,
-  coalesce(e.amount, 0)::bigint AS amount
+  coalesce(e.amount, 0)::text AS amount
 FROM header AS h
 LEFT JOIN LATERAL (
   SELECT ue.seq, ue.account, ue.asset, ue.amount FROM user_txn_entries AS ue WHERE h.scope = 'user' AND ue.txn_id = h.id

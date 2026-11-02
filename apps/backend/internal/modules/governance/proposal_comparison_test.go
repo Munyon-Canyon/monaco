@@ -250,7 +250,7 @@ func TestProposalComparison_refusesAQuotePastInt64AndAnAnonymousCaller(t *testin
 	t.Parallel()
 	w := newTradeWorld(t)
 	aapl := marketfake.AAPLx()
-	huge := market.RouteCheck{OutAmount: money.NewBaseUnits(math.MaxUint64, aapl.Decimals)}
+	huge := market.RouteCheck{OutAmount: money.UnitsFromUint64(math.MaxUint64)}
 	w.scenario(t).Given(w.asMember()).
 		When(
 			scenario.Post(w.proposals(), buyAAPL),

@@ -159,10 +159,20 @@ func (e *routeEnv) retryHandle(
 		t.Fatal(err)
 	}
 	ev := busevents.TradeRetryRequested{
-		V: 1, SwapID: of, CabalID: e.cabal.UUID(),
-		Source: busevents.TradeSource{Kind: "proposal", ID: cmd.ProposalID.UUID()}, Action: "buy", Symbol: cmd.Symbol,
-		InMint: chain.SolanaAddress(inMint), OutMint: chain.SolanaAddress(outMint), InAmount: buyMicros,
-		QuoteOutAmount: quotedOut, SlippageBps: 100, RequestedBy: e.ids.NewV7(),
+		V:       1,
+		SwapID:  of,
+		CabalID: e.cabal.UUID(),
+		Source:  busevents.TradeSource{Kind: "proposal", ID: cmd.ProposalID.UUID()},
+		Action:  "buy",
+		Symbol:  cmd.Symbol,
+		InMint: chain.SolanaAddress(
+			inMint,
+		),
+		OutMint:        chain.SolanaAddress(outMint),
+		InAmount:       money.UnitsFromUint64(buyMicros),
+		QuoteOutAmount: money.UnitsFromUint64(quotedOut),
+		SlippageBps:    100,
+		RequestedBy:    e.ids.NewV7(),
 	}
 	d := e.delivery(t, cmd)
 	d.Handler = retryHandler
@@ -253,7 +263,7 @@ func TestRetry_anEVMBuyRetryBuysAFreshWinnerOnAnotherEVMNetwork(t *testing.T) {
 	router := &routerFake{fresh: fresh}
 	e.privy.script(multichain.ActionSucceeded)
 	e.requote()
-	e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: filledOut}}
+	e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: money.UnitsFromUint64(filledOut)}}
 
 	code := e.retryThrough(t, e.reroutingHandler(router, e.withListing(eth)), cmd, first)
 

@@ -10,6 +10,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/app"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
 type calendarFake struct {
@@ -76,7 +77,7 @@ func TestExecuteTrade_theMarketHoursGateOnlyCoversRobinhood(t *testing.T) {
 	t.Parallel()
 	e := newRouteEnv(t)
 	e.privy.script(multichain.ActionSucceeded)
-	e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: filledOut}}
+	e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: money.UnitsFromUint64(filledOut)}}
 	e.quote(usdcToken(), aaplxToken(), 0, false)
 	calendar := &calendarFake{state: market.SessionClosed}
 	cmd := e.engineEnv.buy()

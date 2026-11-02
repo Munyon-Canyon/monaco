@@ -30,9 +30,16 @@ func chaosResult(i int) events.Event {
 	switch i % 6 {
 	case 1:
 		return events.TradeConfirmed{
-			V: 1, SwapID: named("swap"), CabalID: cabalID, Source: source, SourceBatchSize: 1, Action: "sell",
-			Symbol: "AAPLx", InAmount: 220_000_000, OutAmount: 1_000_000_000,
-			USDCMicros: money.MicrosFromUint64(1_000_000_000),
+			V:               1,
+			SwapID:          named("swap"),
+			CabalID:         cabalID,
+			Source:          source,
+			SourceBatchSize: 1,
+			Action:          "sell",
+			Symbol:          "AAPLx",
+			InAmount:        money.UnitsFromUint64(220_000_000),
+			OutAmount:       money.UnitsFromUint64(1_000_000_000),
+			USDCMicros:      money.MicrosFromUint64(1_000_000_000),
 		}
 	case 2:
 		return events.TradeFailed{
@@ -55,8 +62,16 @@ func chaosResult(i int) events.Event {
 		return events.ProposalExpired{V: 1, ProposalID: source.ID, CabalID: cabalID}
 	}
 	return events.TradeConfirmed{
-		V: 1, SwapID: named("swap"), CabalID: cabalID, Source: source, SourceBatchSize: 1, Action: "buy",
-		Symbol: "TSLAx", InAmount: 12_500_000, OutAmount: 5_000_000, USDCMicros: money.MicrosFromUint64(12_500_000),
+		V:               1,
+		SwapID:          named("swap"),
+		CabalID:         cabalID,
+		Source:          source,
+		SourceBatchSize: 1,
+		Action:          "buy",
+		Symbol:          "TSLAx",
+		InAmount:        money.UnitsFromUint64(12_500_000),
+		OutAmount:       money.UnitsFromUint64(5_000_000),
+		USDCMicros:      money.MicrosFromUint64(12_500_000),
 	}
 }
 

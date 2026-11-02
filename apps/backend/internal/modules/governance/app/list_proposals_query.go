@@ -21,6 +21,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
 const (
@@ -62,8 +63,8 @@ type ProposalView struct {
 	Kind          domain.Kind
 	Symbol        string
 	USDCMicros    int64
-	TokenAmount   int64
-	QuoteOut      int64
+	TokenAmount   money.Units
+	QuoteOut      money.Units
 	Thesis        string
 	Status        domain.Status
 	StatusReason  errs.Code
@@ -283,10 +284,14 @@ func proposalView(row sqlc.ListProposalsRow, tally Tally) (ProposalView, error) 
 	if err != nil {
 		return ProposalView{}, err
 	}
+	tokens, quoteOut, err := parseAmounts(row.TokenAmount, row.QuoteOutAmount)
+	if err != nil {
+		return ProposalView{}, err
+	}
 	return ProposalView{
 		ID: ids.ProposalIDFrom(row.ID), CabalID: ids.CabalIDFrom(row.CabalID), Rule: rule,
 		ProposerID: ids.UserIDFrom(row.ProposerID), Kind: kind, Symbol: row.Symbol.String,
-		USDCMicros: row.UsdcMicros.Int64, TokenAmount: row.TokenAmount.Int64, QuoteOut: row.QuoteOutAmount.Int64,
+		USDCMicros: row.UsdcMicros.Int64, TokenAmount: tokens, QuoteOut: quoteOut,
 		Thesis: row.Thesis.String,
 		Status: status, StatusReason: errs.Code(row.StatusReason.String), ExpiresAt: row.ExpiresAt,
 		CreatedAt: row.CreatedAt, Tally: tally, MyBallot: domain.Choice(row.MyBallot), Comparison: comparison,
@@ -348,7 +353,7 @@ func decodeCursor(raw string) (pageCursor, error) {
 }
 
 func (r *ProposalReads) listedDecimals(ctx context.Context, row sqlc.ListProposalsRow) (uint8, error) {
-	if !row.TokenAmount.Valid {
+	if row.TokenAmount == "" {
 		return 0, nil
 	}
 	return r.SellDecimals(ctx, row.Symbol.String, chain.Network(row.Network))

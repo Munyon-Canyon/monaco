@@ -18,6 +18,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
 	api "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/governanceapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/marketfake"
@@ -191,7 +192,7 @@ func TestProposals_List_itemCarriesTallyBallotAndBlockedReason(t *testing.T) {
 	testkit.AssertQueries(t, "ListProposals one page", func() { page = d.list(t, app.FilterAll, 0, "") })
 	base := app.ProposalView{
 		CabalID: ids.CabalIDFrom(d.cabal), Kind: domain.KindBuy, Symbol: "AAPLx", USDCMicros: 25_000_000,
-		QuoteOut: 105_000_000, Thesis: "Earnings next week.",
+		QuoteOut: money.UnitsFromUint64(105_000_000), Thesis: "Earnings next week.",
 	}
 	wantBlocked, wantVoted := base, base
 	wantBlocked.Status, wantBlocked.StatusReason = domain.StatusExecutionBlocked, errs.CodeNoRoute
@@ -203,7 +204,7 @@ func TestProposals_List_itemCarriesTallyBallotAndBlockedReason(t *testing.T) {
 		want[i].ID, want[i].ProposerID, want[i].ExpiresAt, want[i].CreatedAt = got.ID, got.ProposerID,
 			got.ExpiresAt, got.CreatedAt
 	}
-	if !slices.Equal(page.Items, want) || page.NextCursor != "" || !page.Items[1].CreatedAt.Equal(d.now) {
+	if !reflect.DeepEqual(page.Items, want) || page.NextCursor != "" || !page.Items[1].CreatedAt.Equal(d.now) {
 		t.Fatalf("page = %+v, want %+v and no cursor", page, want)
 	}
 	empty := readsDB{proposalDB: d.proposalDB, cabal: d.ids.NewV7(), caller: d.caller, swaps: d.swaps}
@@ -283,7 +284,7 @@ func TestHTTP_GetCabalProposals(t *testing.T) {
 	older := d.seed(t, d.now)
 	sell := d.buy(d.caller)
 	sell.CabalID, sell.CreatedAt, sell.Kind = d.cabal, d.now.Add(time.Second), "sell"
-	sell.UsdcMicros, sell.TokenAmount, sell.Thesis = pgtype.Int8{}, pgtype.Int8{Int64: 7, Valid: true}, pgtype.Text{}
+	sell.UsdcMicros, sell.TokenAmount, sell.Thesis = pgtype.Int8{}, "7", pgtype.Text{}
 	d.insert(t, sell)
 	d.setStatus(t, sell.ID, string(domain.StatusExecutionBlocked), string(errs.CodeNoRoute))
 	d.ballot(t, sell.ID, d.caller, "no")

@@ -35,13 +35,13 @@ type ProposalCreated struct {
 	V              int                 `json:"v"`
 	ProposalID     uuid.UUID           `json:"proposal_id"`
 	CabalID        uuid.UUID           `json:"cabal_id"`
-	ProposerID     uuid.UUID           `json:"proposer_id"                  pii:"true"`
+	ProposerID     uuid.UUID           `json:"proposer_id"           pii:"true"`
 	Kind           string              `json:"kind"`
 	Symbol         string              `json:"symbol"`
 	Mint           chain.SolanaAddress `json:"mint"`
 	USDCMicros     money.Micros        `json:"usdc_micros,omitzero"`
-	TokenAmount    uint64              `json:"token_amount,string,omitzero"`
-	QuoteOutAmount uint64              `json:"quote_out_amount,string"`
+	TokenAmount    money.Units         `json:"token_amount,omitzero"`
+	QuoteOutAmount money.Units         `json:"quote_out_amount"`
 	ExpiresAt      time.Time           `json:"expires_at"`
 	VoterCount     int                 `json:"voter_count"`
 }
@@ -60,9 +60,9 @@ type ProposalPassed struct {
 	Symbol          string                 `json:"symbol"`
 	Mint            chain.SolanaAddress    `json:"mint"`
 	USDCMicros      money.Micros           `json:"usdc_micros,omitzero"`
-	TokenAmount     uint64                 `json:"token_amount,string,omitzero"`
-	QuoteOutAmount  uint64                 `json:"quote_out_amount,string"`
-	ProposerID      uuid.UUID              `json:"proposer_id"                  pii:"true"`
+	TokenAmount     money.Units            `json:"token_amount,omitzero"`
+	QuoteOutAmount  money.Units            `json:"quote_out_amount"`
+	ProposerID      uuid.UUID              `json:"proposer_id"                pii:"true"`
 	PriceComparison *multichain.Comparison `json:"price_comparison,omitempty"`
 	Network         chain.Network          `json:"network,omitempty"`
 }
@@ -118,11 +118,11 @@ type ProposalCloseReminderDue struct {
 	V           int          `json:"v"`
 	ProposalID  uuid.UUID    `json:"proposal_id"`
 	CabalID     uuid.UUID    `json:"cabal_id"`
-	UserID      uuid.UUID    `json:"user_id"                      pii:"true"`
+	UserID      uuid.UUID    `json:"user_id"               pii:"true"`
 	Kind        string       `json:"kind"`
 	Symbol      string       `json:"symbol"`
 	USDCMicros  money.Micros `json:"usdc_micros,omitzero"`
-	TokenAmount uint64       `json:"token_amount,string,omitzero"`
+	TokenAmount money.Units  `json:"token_amount,omitzero"`
 	ExpiresAt   time.Time    `json:"expires_at"`
 	Yes         int          `json:"yes"`
 	No          int          `json:"no"`

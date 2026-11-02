@@ -36,7 +36,7 @@ func (e *routeEnv) wantSwappedTheArrival(t *testing.T, swap uuid.UUID) {
 		t.Fatalf("trade.confirmed = %v, want the 24990937 that arrived and the real 9063 fee", confirmed)
 	}
 	specs := e.evm.specs
-	if last := specs[len(specs)-1]; last.AmountIn != 24_990_937 {
+	if last := specs[len(specs)-1]; !last.AmountIn.Equal(money.UnitsFromUint64(24_990_937)) {
 		t.Fatalf("swap built for %d, want the 24990937 that arrived", last.AmountIn)
 	}
 }
@@ -46,7 +46,7 @@ func TestRouteExec_aBridgeThatLandsLessThanEstimatedSwapsWhatArrived(t *testing.
 	e := newRouteEnv(t)
 	e.landings.short = realBridgeFee
 	e.bridgedToTheSwap(t)
-	e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: filledOut}}
+	e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: money.UnitsFromUint64(filledOut)}}
 
 	view := e.mustBuy(t, e.request(), domain.StatusConfirmed)
 
@@ -67,7 +67,7 @@ func TestRouteExec_aBridgeNotYetOnChainStaysSubmittedAndResumes(t *testing.T) {
 	e := newRouteEnv(t)
 	e.landings.short, e.landings.missing = realBridgeFee, 1
 	e.privy.script(multichain.ActionSucceeded, multichain.ActionSucceeded)
-	e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: filledOut}}
+	e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: money.UnitsFromUint64(filledOut)}}
 	req := e.request()
 
 	if _, err := e.buy(t.Context(), req); errs.CodeOf(err) != errs.CodeUpstreamUnavailable {
@@ -103,7 +103,7 @@ func TestRetry_aReusedBridgeOutWithoutAnArrivalObservesItOnce(t *testing.T) {
 	_, _, sentAt := e.arrival(t, first)
 	e.ledger.SetTokens(e.wallet.Address, usdcToken(), 0)
 	e.requote()
-	e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: filledOut}}
+	e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: money.UnitsFromUint64(filledOut)}}
 	seen := len(e.landings.seen)
 
 	if code := e.retry(t, cmd, first); code != "ok" {

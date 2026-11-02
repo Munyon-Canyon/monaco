@@ -5,8 +5,8 @@ WITH proposal AS (
     quote_out_amount, threshold, status, expires_at, created_at, updated_at, sides_after_close
   )
   VALUES (
-    @id, @cabal_id, @proposer_id, @kind, @symbol::text, @mint::text, @usdc_micros, @token_amount, @thesis,
-    @quote_out_amount::bigint, @threshold, 'open', @expires_at, @created_at, @created_at, @sides_after_close
+    @id, @cabal_id, @proposer_id, @kind, @symbol::text, @mint::text, @usdc_micros, NULLIF(NULLIF(sqlc.arg(token_amount)::text, ''), '0')::numeric, @thesis,
+    sqlc.arg(quote_out_amount)::text::numeric, @threshold, 'open', @expires_at, @created_at, @created_at, @sides_after_close
   )
   RETURNING id
 )
@@ -23,8 +23,8 @@ WITH proposal AS (
   )
   VALUES (
     sqlc.arg(id), sqlc.arg(cabal_id), sqlc.arg(proposer_id), sqlc.arg(kind), sqlc.arg(symbol)::text, sqlc.arg(mint)::text,
-    NULLIF(sqlc.arg(usdc_micros)::text, '0')::bigint, NULLIF(sqlc.arg(token_amount)::text, '0')::bigint,
-    NULLIF(sqlc.arg(thesis)::text, ''), sqlc.arg(quote_out_amount)::text::bigint, sqlc.arg(threshold), 'open', sqlc.arg(expires_at),
+    NULLIF(sqlc.arg(usdc_micros)::text, '0')::bigint, NULLIF(NULLIF(sqlc.arg(token_amount)::text, ''), '0')::numeric,
+    NULLIF(sqlc.arg(thesis)::text, ''), sqlc.arg(quote_out_amount)::text::numeric, sqlc.arg(threshold), 'open', sqlc.arg(expires_at),
     sqlc.arg(created_at), sqlc.arg(created_at), sqlc.narg(price_comparison)::jsonb,
     NULLIF(sqlc.arg(network)::text, ''), NULLIF(sqlc.arg(pot_value_micros)::text, '')::bigint,
     sqlc.arg(sides_after_close)::boolean
@@ -106,8 +106,8 @@ UPDATE proposals
 SET status = 'passed', status_reason = NULL, updated_at = @at::timestamptz
 WHERE id = @id AND status = 'execution_blocked' AND status_reason = 'trade_not_started'
 RETURNING id, cabal_id, kind, coalesce(symbol, '')::text AS symbol, coalesce(mint, '')::text AS mint,
-  coalesce(usdc_micros, 0)::bigint AS usdc_micros, coalesce(token_amount, 0)::bigint AS token_amount,
-  coalesce(quote_out_amount, 0)::bigint AS quote_out_amount, coalesce(network, '')::text AS network;
+  coalesce(usdc_micros, 0)::bigint AS usdc_micros, coalesce(token_amount, 0)::text AS token_amount,
+  coalesce(quote_out_amount, 0)::text AS quote_out_amount, coalesce(network, '')::text AS network;
 
 -- name: RetryableByID :one
 SELECT (status = 'passed' OR (status = 'execution_blocked' AND status_reason = 'swap_failed'))::bool
@@ -137,7 +137,7 @@ SELECT voter_id FROM votes WHERE proposal_id = @proposal_id ORDER BY cast_at, vo
 
 -- name: LockProposal :one
 SELECT
-  p.id, p.cabal_id, p.proposer_id, p.kind, p.symbol, p.mint, p.usdc_micros, p.token_amount, p.quote_out_amount,
+  p.id, p.cabal_id, p.proposer_id, p.kind, p.symbol, p.mint, p.usdc_micros, coalesce(p.token_amount::text, '')::text AS token_amount, coalesce(p.quote_out_amount::text, '')::text AS quote_out_amount,
   p.status, p.threshold, p.expires_at, p.price_comparison, coalesce(p.network, '')::text AS network,
   p.rule_change,
   EXISTS (

@@ -21,7 +21,7 @@ func seededRoutedSwap(t *testing.T, pool *pgxpool.Pool, identifiers *testkit.IDs
 		ID: id, SourceKind: "proposal", SourceID: identifiers.NewV7(), CabalID: identifiers.NewV7(),
 		TreasuryAddress: "9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin", Action: "buy", Symbol: "AAPLx",
 		InMint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", OutMint: "XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp",
-		OutDecimals: 8, InAmount: 25_000_000, SlippageBps: 100, SourceBatchSize: 1, CreatedAt: at,
+		OutDecimals: 8, InAmount: "25000000", SlippageBps: 100, SourceBatchSize: 1, CreatedAt: at,
 	}); err != nil {
 		t.Fatal(err)
 	}

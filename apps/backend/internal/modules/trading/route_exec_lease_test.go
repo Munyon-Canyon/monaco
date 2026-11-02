@@ -109,8 +109,16 @@ func TestForceResolveSwap_closesAParkedRoutedSwapFromItsReceipt(t *testing.T) {
 	handler := app.NewForceResolveSwapHandler(e.uow, e.pool, e.clk, e.ids, e.hints, nil, e.receipts())
 
 	view, err := handler.Handle(t.Context(), app.ForceResolveSwap{
-		Signature: e.signature(t, swap), To: domain.StatusConfirmed, OutAmount: money.NewBaseUnits(filledOut, 8),
-		Reason: "receipt found on the explorer", Actor: "operator:alice", IdempotencyKey: "k1",
+		Signature: e.signature(
+			t,
+			swap,
+		),
+		To:             domain.StatusConfirmed,
+		OutAmount:      money.UnitsFromUint64(filledOut),
+		OutDecimals:    8,
+		Reason:         "receipt found on the explorer",
+		Actor:          "operator:alice",
+		IdempotencyKey: "k1",
 	})
 	if err != nil || view.Status != domain.StatusConfirmed {
 		t.Fatalf("Handle = %+v, %v, want the parked routed swap confirmed", view, err)
@@ -176,9 +184,9 @@ func TestRouteExec_twoBuysFromOneCabalSendOneAfterTheOther(t *testing.T) {
 		t.Fatalf("sends %v after the second buy, want only the first swap's %v", got, afterFirst)
 	}
 
-	e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: filledOut}}
+	e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: money.UnitsFromUint64(filledOut)}}
 	e.resume(t, first.ID, domain.StatusConfirmed)
-	e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: filledOut}}
+	e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: money.UnitsFromUint64(filledOut)}}
 	e.requote()
 	e.resume(t, second.ID, domain.StatusConfirmed)
 
@@ -198,7 +206,7 @@ func TestEVMTrades_skipsALeasedSwapUntilTheLeaseExpires(t *testing.T) {
 	e.mustExec(t, `UPDATE swaps SET lease_holder = $2, lease_until = $3 WHERE id = $1`,
 		view.ID.UUID(), e.ids.NewV7(), e.clk.Now().Add(time.Minute))
 	e.privy.script(multichain.ActionSucceeded)
-	e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: filledOut}}
+	e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: money.UnitsFromUint64(filledOut)}}
 
 	if report, err := e.tick(t.Context(), t); err != nil || report.Scanned != 0 {
 		t.Fatalf("Tick = %+v, %v, want the leased swap skipped", report, err)

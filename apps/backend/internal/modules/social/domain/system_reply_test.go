@@ -8,8 +8,8 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
-func shares(v uint64) *money.BaseUnits {
-	units := money.NewBaseUnits(v, 6)
+func shares(v uint64) *feed.Tokens {
+	units := feed.NewTokens(money.UnitsFromUint64(v), 6)
 	return &units
 }
 
@@ -20,8 +20,8 @@ func TestSystemReplyText(t *testing.T) {
 		outcome domain.SystemOutcome
 		side    feed.Action
 		symbol  string
-		before  *money.BaseUnits
-		after   *money.BaseUnits
+		before  *feed.Tokens
+		after   *feed.Tokens
 		want    string
 	}{
 		{
@@ -72,17 +72,18 @@ func TestFormatShares(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name  string
-		units money.BaseUnits
+		units feed.Tokens
 		want  string
 	}{
-		{"zero", money.NewBaseUnits(0, 6), "0"},
-		{"whole", money.NewBaseUnits(5_000_000, 6), "5"},
-		{"two decimals", money.NewBaseUnits(39_820_000, 6), "39.82"},
-		{"trailing zero dropped", money.NewBaseUnits(1_500_000, 6), "1.5"},
-		{"small padded", money.NewBaseUnits(50_000, 6), "0.05"},
-		{"rounds half up", money.NewBaseUnits(1_235_000, 6), "1.24"},
-		{"rounds to whole", money.NewBaseUnits(999_600, 6), "1"},
-		{"no decimals", money.NewBaseUnits(7, 0), "7"},
+		{"zero", feed.NewTokens(money.UnitsFromUint64(0), 6), "0"},
+		{"whole", feed.NewTokens(money.UnitsFromUint64(5_000_000), 6), "5"},
+		{"two decimals", feed.NewTokens(money.UnitsFromUint64(39_820_000), 6), "39.82"},
+		{"trailing zero dropped", feed.NewTokens(money.UnitsFromUint64(1_500_000), 6), "1.5"},
+		{"small padded", feed.NewTokens(money.UnitsFromUint64(50_000), 6), "0.05"},
+		{"rounds half up", feed.NewTokens(money.UnitsFromUint64(1_235_000), 6), "1.24"},
+		{"rounds to whole", feed.NewTokens(money.UnitsFromUint64(999_600), 6), "1"},
+		{"no decimals", feed.NewTokens(money.UnitsFromUint64(7), 0), "7"},
+		{"past uint64", feed.NewTokens(wideUnits("25000000000000000000"), 18), "25"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -92,4 +93,12 @@ func TestFormatShares(t *testing.T) {
 			}
 		})
 	}
+}
+
+func wideUnits(raw string) money.Units {
+	u, err := money.ParseUnits(raw)
+	if err != nil {
+		panic(err)
+	}
+	return u
 }

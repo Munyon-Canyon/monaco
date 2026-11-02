@@ -185,7 +185,7 @@ How each behaves, so callers do not rediscover it:
 
 ## Money and types
 
-- USDC and token amounts are `money.Micros` / `money.BaseUnits` (unsigned 64-bit branded ints). Ledger entries and P&L are `money.SignedMicros`, a signed 64-bit branded int. A balance or amount is never negative; a delta or a return can be. Share math multiplies then divides through `math/big` and rounds down, in favour of the pot, in one function.
+- USDC amounts are `money.Micros` (unsigned 64-bit branded int). Token amounts are `money.Units` (unsigned, `big.Int` backed, at most 256 bits, a decimal string on the wire and in SQL `::text`) wherever an EVM balance can pass 64 bits, and `money.BaseUnits` (unsigned 64-bit with its decimals) inside the Solana adapters. Cabal ledger entries are `money.SignedUnits`; user ledger entries and P&L are `money.SignedMicros`, a signed 64-bit branded int. A balance or amount is never negative; a delta or a return can be. Share math multiplies then divides through `math/big` and rounds down, in favour of the pot, in one function.
 - `float32`/`float64` are banned in `domain`, `app`, `platform/money` (`forbidigo` on `float64` identifiers there). Display formatting is the client's job from integer micros plus decimals.
 - IDs are UUIDv7 branded per aggregate. `CabalID` cannot be passed as `UserID`.
 - Enums are named string types with an exhaustive `switch` (`exhaustive` lint with `default-signifies-exhaustive: false`).

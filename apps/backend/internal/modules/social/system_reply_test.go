@@ -96,9 +96,9 @@ func (r systemRig) confirmed(action string, hundredths uint64, source string) ev
 		ConfirmedAt: systemFillAt(),
 	}
 	if action == "sell" {
-		e.InMint, e.InAmount = marketfake.AAPLx().Mint.Address(), amount
+		e.InMint, e.InAmount = marketfake.AAPLx().Mint.Address(), money.UnitsFromUint64(amount)
 	} else {
-		e.OutMint, e.OutAmount = marketfake.AAPLx().Mint.Address(), amount
+		e.OutMint, e.OutAmount = marketfake.AAPLx().Mint.Address(), money.UnitsFromUint64(amount)
 	}
 	return e
 }
@@ -259,6 +259,23 @@ func TestSystemReply_FilledSellShowsTheSmallerNumberAfter(t *testing.T) {
 		t.Fatal(err)
 	}
 	r.wantReplies(t, "Passed and filled. 10.5 → 4 sh AAPLx in the treasury.")
+}
+
+func TestSystemReply_ASellFillThatOverflowsTheHoldingBeforeIsAnErrorAndWritesNothing(t *testing.T) {
+	t.Parallel()
+	r := newSystemRig(t)
+	r.hold(400)
+	e := r.confirmed("sell", 650, "proposal")
+	max256, err := money.ParseUnits("115792089237316195423570985008687907853269984665640564039457584007913129639935")
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.InAmount = max256
+
+	if err := r.confirm(t, e); err == nil {
+		t.Fatal("confirm of a sell that overflows the holding before = nil, want an error")
+	}
+	r.wantReplies(t)
 }
 
 func TestSystemReply_ATradeNotFromAProposalWritesNothing(t *testing.T) {

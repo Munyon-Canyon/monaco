@@ -21,6 +21,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpclient"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
 
@@ -126,8 +127,15 @@ func newVenueEnv(t *testing.T) *venueEnv {
 func (e *venueEnv) spec(t *testing.T) app.EVMSwapSpec {
 	t.Helper()
 	return app.EVMSwapSpec{
-		Network: chain.NetworkBase, Owner: evmAddress(t, venueOwner), TokenIn: evmAddress(t, baseCash),
-		TokenOut: evmAddress(t, venueToken), AmountIn: 9_992_500, MinOut: 990_000,
+		Network: chain.NetworkBase,
+		Owner:   evmAddress(t, venueOwner),
+		TokenIn: evmAddress(t, baseCash),
+		TokenOut: evmAddress(
+			t,
+			venueToken,
+		),
+		AmountIn: money.UnitsFromUint64(9_992_500),
+		MinOut:   money.UnitsFromUint64(990_000),
 	}
 }
 
@@ -157,7 +165,7 @@ func TestEVMVenue_buildChecksTheApprovalQuotesAtTheFloorAndReturnsTheSwap(t *tes
 			Network: chain.NetworkBase, To: evmAddress(t, venueRouter), Data: []byte{0x35, 0x93, 0x56, 0x4c},
 			Value: new(big.Int),
 		},
-		OutAmount: 1_000_100, MinOut: 990_200,
+		OutAmount: money.UnitsFromUint64(1_000_100), MinOut: money.UnitsFromUint64(990_200),
 	}
 	if !samePlan(plan, want) {
 		t.Fatalf("plan = %+v, want %+v", plan, want)
@@ -190,7 +198,7 @@ func samePlan(a, b app.EVMSwapPlan) bool {
 	sameTx := func(x, y multichain.EVMTransaction) bool {
 		return x.Network == y.Network && x.To == y.To && slices.Equal(x.Data, y.Data) && x.Value.Cmp(y.Value) == 0
 	}
-	return a.MinOut == b.MinOut && a.OutAmount == b.OutAmount && sameTx(a.Swap, b.Swap) &&
+	return a.MinOut.Equal(b.MinOut) && a.OutAmount.Equal(b.OutAmount) && sameTx(a.Swap, b.Swap) &&
 		slices.EqualFunc(a.Approvals, b.Approvals, sameTx)
 }
 
@@ -230,7 +238,7 @@ func TestEVMVenue_buildAddsThePermitTransactionAndSkipsAnApprovedToken(t *testin
 	if err != nil || len(plan.Approvals) != 1 ||
 		plan.Approvals[0].To != evmAddress(t, permit2) ||
 		plan.Swap.Value.Sign() != 0 ||
-		plan.MinOut != 990_000 {
+		!plan.MinOut.Equal(money.UnitsFromUint64(990_000)) {
 		t.Fatalf("plan = %+v, %v, want the permit as the one approval", plan, err)
 	}
 	if e.uniswap.calls[2].body["slippageTolerance"] != 0.0 {
@@ -290,7 +298,7 @@ func TestEVMVenue_buildMapsUpstreamErrors(t *testing.T) {
 		"bad to":    {ok, probe, quote, swapReply(evmTxJSON("0x12", "0x01", "0x0")), nil, nil, errs.CodeDecodeFailed},
 		"bad data":  {ok, probe, quote, swapReply(evmTxJSON(venueRouter, "0x1", "0x0")), nil, nil, errs.CodeDecodeFailed},
 		"bad value": {ok, probe, quote, swapReply(evmTxJSON(venueRouter, "0x01", "0xzz")), nil, nil, errs.CodeDecodeFailed},
-		"no amount": {"", "", "", "", nil, func(s *app.EVMSwapSpec) { s.AmountIn = 0 }, errs.CodeInvalidInput},
+		"no amount": {"", "", "", "", nil, func(s *app.EVMSwapSpec) { s.AmountIn = money.UnitsFromUint64(0) }, errs.CodeInvalidInput},
 		"solana":    {"", "", "", "", nil, func(s *app.EVMSwapSpec) { s.Network = chain.NetworkSolana }, errs.CodeInvalidInput},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -358,13 +366,13 @@ func TestEVMVenue_fillReadsTheReceipt(t *testing.T) {
 			transferLog(venueToken, "0x00000000000000000000000000000000000000cc", "ffff"),
 			transferLog(baseCash, venueOwner, "ffff"),
 			`{"address":"`+venueToken+`","topics":["0x01"],"data":"0x"}`,
-		), app.EVMFill{State: app.FillSucceeded, Out: 1_000_100}},
+		), app.EVMFill{State: app.FillSucceeded, Out: money.UnitsFromUint64(1_000_100)}},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			e := newVenueEnv(t)
 			got, err := e.fill(t, tc.reply, 0)
-			if err != nil || got != tc.want {
+			if err != nil || !sameJSON(got, tc.want) {
 				t.Fatalf("Fill = %+v, %v, want %+v", got, err, tc.want)
 			}
 			if body := e.rpc.calls[0].body; body["method"] != "eth_getTransactionReceipt" ||
@@ -388,7 +396,7 @@ func TestEVMVenue_fillRefusesWhatItCannotRead(t *testing.T) {
 		"not json":   {`<html>`, 0, errs.CodeDecodeFailed},
 		"status":     {receiptReply("0x2"), 0, errs.CodeDecodeFailed},
 		"short data": {receiptReply("0x1", strings.Replace(transferLog(venueToken, venueOwner, "1"), `"data":"0x`, `"data":"0x0`, 1)), 0, errs.CodeDecodeFailed},
-		"overflow": {receiptReply("0x1", transferLog(venueToken, venueOwner, strings.Repeat("f", 16)),
+		"overflow": {receiptReply("0x1", transferLog(venueToken, venueOwner, strings.Repeat("f", 64)),
 			transferLog(venueToken, venueOwner, "1")), 0, errs.CodeDecodeFailed},
 	} {
 		t.Run(name, func(t *testing.T) {

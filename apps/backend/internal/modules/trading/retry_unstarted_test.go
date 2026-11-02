@@ -9,6 +9,7 @@ import (
 	busevents "github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/adapters"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
 func TestRetry_aTradeBlockedBeforeAnySwapRunsAgainThroughTheNormalChecks(t *testing.T) {
@@ -26,9 +27,18 @@ func TestRetry_aTradeBlockedBeforeAnySwapRunsAgainThroughTheNormalChecks(t *test
 	e.jup.Fail("Quote", nil)
 
 	ev := busevents.TradeRetryRequested{
-		V: 1, SwapID: uuid.Nil, CabalID: cmd.CabalID.UUID(),
-		Source: busevents.TradeSource{Kind: "proposal", ID: cmd.ProposalID.UUID()}, Action: "buy", Symbol: cmd.Symbol,
-		InMint: chain.SolanaAddress(usdcMint), OutMint: cmd.Mint, InAmount: buyMicros, QuoteOutAmount: quotedOut,
+		V:       1,
+		SwapID:  uuid.Nil,
+		CabalID: cmd.CabalID.UUID(),
+		Source:  busevents.TradeSource{Kind: "proposal", ID: cmd.ProposalID.UUID()},
+		Action:  "buy",
+		Symbol:  cmd.Symbol,
+		InMint: chain.SolanaAddress(
+			usdcMint,
+		),
+		OutMint:        cmd.Mint,
+		InAmount:       money.UnitsFromUint64(buyMicros),
+		QuoteOutAmount: money.UnitsFromUint64(quotedOut),
 	}
 	retry := e.delivery(t, cmd)
 	retry.Handler = retryHandler
@@ -46,9 +56,17 @@ func TestRetry_aTradeStillFailingItsChecksIsBlockedAgain(t *testing.T) {
 	e.jup.Fail("Quote", errs.New(errs.CodeJupiterRejected, "jupiter.Quote"))
 	cmd := e.buy()
 	ev := busevents.TradeRetryRequested{
-		V: 1, CabalID: cmd.CabalID.UUID(),
-		Source: busevents.TradeSource{Kind: "proposal", ID: cmd.ProposalID.UUID()}, Action: "buy", Symbol: cmd.Symbol,
-		InMint: chain.SolanaAddress(usdcMint), OutMint: cmd.Mint, InAmount: buyMicros, QuoteOutAmount: quotedOut,
+		V:       1,
+		CabalID: cmd.CabalID.UUID(),
+		Source:  busevents.TradeSource{Kind: "proposal", ID: cmd.ProposalID.UUID()},
+		Action:  "buy",
+		Symbol:  cmd.Symbol,
+		InMint: chain.SolanaAddress(
+			usdcMint,
+		),
+		OutMint:        cmd.Mint,
+		InAmount:       money.UnitsFromUint64(buyMicros),
+		QuoteOutAmount: money.UnitsFromUint64(quotedOut),
 	}
 	retry := e.delivery(t, cmd)
 	retry.Handler = retryHandler

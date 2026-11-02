@@ -12,6 +12,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/treasury/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
 const (
@@ -79,7 +80,7 @@ func (h Activity) record(ctx context.Context, tx db.Tx, a domain.Activity, at ti
 		ActorUserID: actor(a.Actor),
 		Asset:       text(string(a.Asset)),
 		UsdcMicros:  number(a.USDCMicros),
-		Units:       number(a.Units),
+		Units:       wide(a.Units),
 		TxSignature: text(string(a.TxSignature)),
 		At:          at,
 		CashoutSale: a.CashOutSale,
@@ -152,4 +153,11 @@ func number(v *uint64) pgtype.Text {
 		return pgtype.Text{}
 	}
 	return pgtype.Text{String: strconv.FormatUint(*v, 10), Valid: true}
+}
+
+func wide(v *money.Units) pgtype.Text {
+	if v == nil {
+		return pgtype.Text{}
+	}
+	return pgtype.Text{String: v.String(), Valid: true}
 }

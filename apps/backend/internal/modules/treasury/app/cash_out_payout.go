@@ -213,8 +213,8 @@ func (p *CashOutPayouts) postPaid(ctx context.Context, tx db.Tx, job payoutJob) 
 		ID: p.d.IDs.NewV7(), CabalID: job.cabal, Kind: domain.CabalCashOut, Status: domain.TxnPending,
 		TransferID: job.id, TxSignature: job.signed.Signature,
 	}, []domain.CabalEntry{
-		{Account: domain.CabalTreasury, Asset: usdc, Amount: money.SignedMicrosFromInt64(-paid.Int64())},
-		{Account: domain.CabalMembers, Asset: usdc, Amount: paid},
+		{Account: domain.CabalTreasury, Asset: usdc, Amount: money.SignedUnitsFromMicros(paid).Neg()},
+		{Account: domain.CabalMembers, Asset: usdc, Amount: money.SignedUnitsFromMicros(paid)},
 	})
 	if err != nil {
 		return err

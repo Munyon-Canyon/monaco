@@ -3,6 +3,7 @@ package governance_test
 import (
 	"context"
 	"encoding/json"
+	"reflect"
 	"sync"
 	"testing"
 	"time"
@@ -185,10 +186,17 @@ func TestCastVote_MajorityPasses(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := events.ProposalPassed{
-		V: 1, ProposalID: p.ID, CabalID: p.CabalID, ProposerID: p.ProposerID, Kind: "buy", Symbol: "AAPLx",
-		Mint: aaplxMint, USDCMicros: money.MicrosFromUint64(25_000_000), QuoteOutAmount: 105_000_000,
+		V:              1,
+		ProposalID:     p.ID,
+		CabalID:        p.CabalID,
+		ProposerID:     p.ProposerID,
+		Kind:           "buy",
+		Symbol:         "AAPLx",
+		Mint:           aaplxMint,
+		USDCMicros:     money.MicrosFromUint64(25_000_000),
+		QuoteOutAmount: money.UnitsFromUint64(105_000_000),
 	}
-	if ev != want {
+	if !reflect.DeepEqual(ev, want) {
 		t.Fatalf("proposal.passed = %+v, want %+v", ev, want)
 	}
 	_, err := d.cast(t.Context(), h, p.ID, v[1], domain.ChoiceYes)
@@ -202,14 +210,14 @@ func TestCastVote_sellPassesWithItsTokenAmount(t *testing.T) {
 	d := newVoteDB(t)
 	voter := d.ids.NewV7()
 	p := d.buy(voter)
-	p.Kind, p.UsdcMicros, p.TokenAmount = "sell", pgtype.Int8{}, pgtype.Int8{Int64: 3_000_000, Valid: true}
+	p.Kind, p.UsdcMicros, p.TokenAmount = "sell", pgtype.Int8{}, "3000000"
 	d.insert(t, p)
 	d.mustCast(t, d.handler(), p.ID, voter, domain.ChoiceYes)
 	var ev events.ProposalPassed
 	if err := json.Unmarshal(d.payloads(t, p.ID, events.TypeProposalPassed)[0], &ev); err != nil {
 		t.Fatal(err)
 	}
-	if ev.Kind != "sell" || ev.TokenAmount != 3_000_000 || ev.USDCMicros.Uint64() != 0 {
+	if ev.Kind != "sell" || !ev.TokenAmount.Equal(money.UnitsFromUint64(3_000_000)) || ev.USDCMicros.Uint64() != 0 {
 		t.Fatalf("proposal.passed = %+v, want a sell of 3000000 units and no USDC", ev)
 	}
 }

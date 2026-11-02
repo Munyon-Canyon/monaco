@@ -177,7 +177,7 @@ The result says which of these holds:
 
 A PR that moves or records money meets every item in `.claude/skills/money-change/SKILL.md`, and its body says how. The verifier checks at least these points by reading the diff:
 
-- Amounts use `money.Micros`, `money.SignedMicros` or `money.BaseUnits`, never floats.
+- Amounts use `money.Micros`, `money.SignedMicros`, `money.Units`, `money.SignedUnits` or `money.BaseUnits`, never floats.
 - Each balance change and its event commit together inside `uow.Do`, with a guarded update.
 - A transfer stores its signature before broadcast.
 - The relayer floor holds and was not lowered to pass a test.

@@ -56,7 +56,7 @@ func seedReminderWorld(s *scenario.Scenario) voteReminderWorld {
 	id, now := ids.Real{}.NewV7(), time.Now().UTC()
 	params := sqlc.InsertProposalParams{
 		ID: id, CabalID: c.ID.UUID(), ProposerID: c.Creator.ID.UUID(), Kind: "buy", Symbol: "AAPLx",
-		Mint: aaplxMint, UsdcMicros: pgtype.Int8{Int64: 5_000_000, Valid: true}, QuoteOutAmount: 21_000_000,
+		Mint: aaplxMint, UsdcMicros: pgtype.Int8{Int64: 5_000_000, Valid: true}, QuoteOutAmount: "21000000",
 		CreatedAt: now.Add(-2 * time.Hour), ExpiresAt: now.Add(4 * time.Hour), Threshold: "majority",
 	}
 	w := voteReminderWorld{proposal: ids.ProposalIDFrom(id)}

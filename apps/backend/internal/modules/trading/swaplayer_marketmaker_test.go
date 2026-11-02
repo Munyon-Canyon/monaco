@@ -9,6 +9,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/domain"
 	platform "github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/jupiter"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/chainfake"
 )
 
@@ -41,7 +42,7 @@ func TestSwapLayer_aMarketMakerRouteIsSentAndKeepsTheSignatureJupiterReturns(t *
 		Status: app.ExecuteSuccess, Signature: marketMakerSignature, OutAmount: 105_000_000,
 	})
 	got := e.settled(t, e.request(e.source()))
-	if got.Status != domain.StatusConfirmed || got.OutAmount != 105_000_000 {
+	if got.Status != domain.StatusConfirmed || !got.OutAmount.Equal(money.UnitsFromUint64(105_000_000)) {
 		t.Fatalf("view = %+v, want confirmed", got)
 	}
 	_, signed, _, signature := e.row(t, got.ID.UUID())

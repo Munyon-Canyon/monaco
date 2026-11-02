@@ -237,7 +237,12 @@ func TestRuleProposals_getListAndPendingVotesReadARuleRow(t *testing.T) {
 		t.Fatalf("Get = %v", err)
 	}
 	view := detail.Proposal
-	got := ruleReadOf(view.Kind, view.Symbol, [3]int64{view.USDCMicros, view.TokenAmount, view.QuoteOut}, view.Rule)
+	got := ruleReadOf(
+		view.Kind,
+		view.Symbol,
+		[3]int64{view.USDCMicros, view.TokenAmount.Int64OrZero(), view.QuoteOut.Int64OrZero()},
+		view.Rule,
+	)
 	if got != want || !detail.CanVote || detail.Swap != nil {
 		t.Fatalf("Get = %+v, want %+v, a voter who can vote and no swap", got, want)
 	}
@@ -249,7 +254,12 @@ func TestRuleProposals_getListAndPendingVotesReadARuleRow(t *testing.T) {
 		t.Fatalf("List = %+v, %v, want the one rule proposal", page, err)
 	}
 	item := page.Items[0]
-	got = ruleReadOf(item.Kind, item.Symbol, [3]int64{item.USDCMicros, item.TokenAmount, item.QuoteOut}, item.Rule)
+	got = ruleReadOf(
+		item.Kind,
+		item.Symbol,
+		[3]int64{item.USDCMicros, item.TokenAmount.Int64OrZero(), item.QuoteOut.Int64OrZero()},
+		item.Rule,
+	)
 	if got != want {
 		t.Fatalf("List item = %+v, want %+v", got, want)
 	}

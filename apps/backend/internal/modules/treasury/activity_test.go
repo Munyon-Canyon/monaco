@@ -65,8 +65,16 @@ func submitted(
 	amount uint64,
 ) events.TradeSubmitted {
 	return events.TradeSubmitted{
-		V: 1, SwapID: swap, CabalID: cabal.UUID(), Source: events.TradeSource{Kind: "proposal", ID: swap},
-		Action: action, Symbol: "AAPLx", InMint: in, OutMint: out, InAmount: amount, TxSignature: swapSig,
+		V:           1,
+		SwapID:      swap,
+		CabalID:     cabal.UUID(),
+		Source:      events.TradeSource{Kind: "proposal", ID: swap},
+		Action:      action,
+		Symbol:      "AAPLx",
+		InMint:      in,
+		OutMint:     out,
+		InAmount:    money.UnitsFromUint64(amount),
+		TxSignature: swapSig,
 	}
 }
 
@@ -78,8 +86,15 @@ func failed(
 	amount uint64,
 ) events.TradeFailed {
 	return events.TradeFailed{
-		V: 1, SwapID: swap, CabalID: cabal.UUID(), Source: events.TradeSource{Kind: "proposal", ID: swap},
-		Action: action, Symbol: "AAPLx", InMint: in, InAmount: amount, FailureCode: "slippage_exceeded",
+		V:           1,
+		SwapID:      swap,
+		CabalID:     cabal.UUID(),
+		Source:      events.TradeSource{Kind: "proposal", ID: swap},
+		Action:      action,
+		Symbol:      "AAPLx",
+		InMint:      in,
+		InAmount:    money.UnitsFromUint64(amount),
+		FailureCode: "slippage_exceeded",
 	}
 }
 

@@ -33,9 +33,20 @@ func TestHoldingPerformance_theChartCountsACashOutSellSoItMatchesUnrealized(t *t
 	bought := buy(c.ID, buyID, 2_000_000_000, 10*share, 0)
 	bought.Source = events.TradeSource{Kind: "proposal", ID: buyID}
 	sold := events.TradeConfirmed{
-		V: 1, SwapID: saleID, CabalID: c.ID.UUID(), Source: events.TradeSource{Kind: "cashout", ID: f.ids.NewV7()},
-		Action: "sell", Symbol: "AAPLx", InMint: chain.SolanaAddress(aapl), InAmount: 5 * share, OutMint: usdcMint,
-		OutAmount: 1_000_000_000, USDCMicros: money.MicrosFromUint64(1_000_000_000), TxSignature: swapSig,
+		V:        1,
+		SwapID:   saleID,
+		CabalID:  c.ID.UUID(),
+		Source:   events.TradeSource{Kind: "cashout", ID: f.ids.NewV7()},
+		Action:   "sell",
+		Symbol:   "AAPLx",
+		InMint:   chain.SolanaAddress(aapl),
+		InAmount: money.UnitsFromUint64(5 * share),
+		OutMint:  usdcMint,
+		OutAmount: money.UnitsFromUint64(
+			1_000_000_000,
+		),
+		USDCMicros:  money.MicrosFromUint64(1_000_000_000),
+		TxSignature: swapSig,
 		ConfirmedAt: base.Add(time.Hour),
 	}
 	if err := f.do(func(ctx context.Context, tx db.Tx) error {

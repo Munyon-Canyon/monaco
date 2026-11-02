@@ -3,12 +3,14 @@ package app
 import (
 	"math"
 	"math/big"
+	"reflect"
 	"testing"
 	"time"
 
 	"pgregory.net/rapid"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
 
 func drawTrades(t *rapid.T) []trade {
@@ -38,7 +40,7 @@ func TestReplayTrades_conservesCostAndRemovesItInProportion(t *testing.T) {
 		}
 		held, cost, bought, removedTotal := new(big.Int), new(big.Int), new(big.Int), new(big.Int)
 		for i, tr := range trades {
-			units, usdc := new(big.Int).SetUint64(tr.units), new(big.Int).SetUint64(tr.usdc)
+			units, usdc := tr.units.Big(), new(big.Int).SetUint64(tr.usdc)
 			if tr.side == sideBuy {
 				held.Add(held, units)
 				cost.Add(cost, usdc)
@@ -63,17 +65,49 @@ func TestReplayTrades_conservesCostAndRemovesItInProportion(t *testing.T) {
 	})
 }
 
+func TestReplayTrades_keepsHoldingsPastUint64Exact(t *testing.T) {
+	t.Parallel()
+	wholeShares := func(n int64) money.Units {
+		v, err := money.UnitsFromBig(
+			new(big.Int).Mul(big.NewInt(n), new(big.Int).Exp(big.NewInt(10), big.NewInt(18), nil)),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return v
+	}
+	buy, sell := marksTrade(0, sideBuy, 1, 125_000_000), marksTrade(1, sideSell, 1, 70_000_000)
+	buy.units, sell.units = wholeShares(25), wholeShares(12)
+	marks, err := replayTrades([]trade{buy, sell}, AssetName{Decimals: 18})
+	if err != nil || len(marks) != 2 {
+		t.Fatalf("marks = %d, err %v, want 2", len(marks), err)
+	}
+	if !marks[0].Units.Equal(wholeShares(25)) || marks[0].PriceMicros.Uint64() != 5_000_000 {
+		t.Fatalf("25 token buy mark = %+v, want 25 tokens at 5000000", marks[0])
+	}
+	if want := uint64(60_000_000); marks[1].CostOfSoldMicros.Uint64() != want {
+		t.Fatalf("12 of 25 tokens removed %d of cost, want floor(125000000 × 12 ÷ 25) = %d",
+			marks[1].CostOfSoldMicros.Uint64(), want)
+	}
+	oversell := marksTrade(1, sideSell, 1, 1)
+	oversell.units = wholeShares(26)
+	if _, err := replayTrades([]trade{buy, oversell}, AssetName{Decimals: 18}); errs.CodeOf(err) != errs.CodeInternal {
+		t.Fatalf("selling 26 of 25 tokens = %v, want internal", err)
+	}
+}
+
 func TestReplayTrades_fullSaleRemovesAllCost(t *testing.T) {
 	t.Parallel()
 	rapid.Check(t, func(t *rapid.T) {
 		trades := drawTrades(t)
 		var held, bought uint64
 		for _, tr := range trades {
+			units := tr.units.Big().Uint64()
 			if tr.side == sideBuy {
-				held += tr.units
+				held += units
 				bought += tr.usdc
 			} else {
-				held -= tr.units
+				held -= units
 			}
 		}
 		if held > 0 {
@@ -98,13 +132,14 @@ func modelCycles(trades []trade) []time.Time {
 	var cycle time.Time
 	out := make([]time.Time, len(trades))
 	for i, tr := range trades {
+		units := tr.units.Big().Uint64()
 		switch {
 		case tr.side == sideSell:
-			held -= tr.units
+			held -= units
 		case held == 0:
-			cycle, held = tr.at, tr.units
+			cycle, held = tr.at, units
 		default:
-			held += tr.units
+			held += units
 		}
 		out[i] = cycle
 	}
@@ -130,7 +165,7 @@ func TestReplayTrades_cycleStartIsFixedAtEachTrade(t *testing.T) {
 			}
 		}
 		for i := range shorter {
-			if shorter[i] != marks[i] {
+			if !reflect.DeepEqual(shorter[i], marks[i]) {
 				t.Fatalf("mark %d changed when later trades were appended: %+v vs %+v", i, shorter[i], marks[i])
 			}
 		}
@@ -153,4 +188,17 @@ func TestReplayTrades_returnsAnErrorNearMaxUint64InsteadOfWrapping(t *testing.T)
 			t.Fatalf("price past uint64: err = %v, want invalid input", err)
 		}
 	})
+}
+
+func TestReplayTrades_refusesHoldingsPastTwoToThe256(t *testing.T) {
+	t.Parallel()
+	top, err := money.UnitsFromBig(new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), 256), big.NewInt(1)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	first, second := marksTrade(0, sideBuy, 1, 1), marksTrade(1, sideBuy, 1, 1)
+	first.units, second.units = top, top
+	if _, err := replayTrades([]trade{first, second}, AssetName{Decimals: 0}); errs.CodeOf(err) != errs.CodeInternal {
+		t.Fatalf("replay of two maximal buys = %v, want internal", err)
+	}
 }

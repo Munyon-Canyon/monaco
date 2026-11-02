@@ -26,10 +26,12 @@ func (r proposalRig) confirmed(side, source string) events.TradeConfirmed {
 	}
 	stock := marketfake.AAPLx().Mint.Address()
 	if side == "sell" {
-		e.InMint, e.InAmount, e.OutMint, e.OutAmount = stock, 250_000_000, usdcMint, 500_000_000
+		e.InMint, e.OutMint = stock, usdcMint
+		e.InAmount, e.OutAmount = money.UnitsFromUint64(250_000_000), money.UnitsFromUint64(500_000_000)
 		return e
 	}
-	e.InMint, e.InAmount, e.OutMint, e.OutAmount = usdcMint, 500_000_000, stock, 250_000_000
+	e.InMint, e.OutMint = usdcMint, stock
+	e.InAmount, e.OutAmount = money.UnitsFromUint64(500_000_000), money.UnitsFromUint64(250_000_000)
 	return e
 }
 

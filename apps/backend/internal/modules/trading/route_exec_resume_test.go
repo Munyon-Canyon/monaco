@@ -10,6 +10,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/domain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	mcfakes "github.com/monaco/monaco/apps/backend/internal/testkit/fakes/multichain"
 )
 
@@ -29,7 +30,7 @@ func TestRouteExec_aSubmittedBuyResumesWithoutABuildOrARequote(t *testing.T) {
 	e.privy.script(multichain.ActionSucceeded)
 	view := e.mustBuy(t, e.request(), domain.StatusSubmitted)
 
-	e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: filledOut}}
+	e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: money.UnitsFromUint64(filledOut)}}
 	e.resume(t, view.ID, domain.StatusConfirmed)
 
 	if e.evm.builds != 1 || e.quotes.Quotes.Calls() != 1 {
@@ -47,11 +48,11 @@ func TestRouteExec_theSwapFloorIsTheSlippageFloorOfTheSimulatedOutput(t *testing
 	const simulated, floor = 300_000_000, 297_000_000
 	e.requoteWith(multichain.Quote{GrossOutput: big.NewInt(simulated)})
 	e.privy.script(multichain.ActionSucceeded)
-	e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: filledOut}}
+	e.evm.fills = []app.EVMFill{{State: app.FillSucceeded, Out: money.UnitsFromUint64(filledOut)}}
 
 	e.mustBuy(t, e.request(), domain.StatusConfirmed)
 
-	if got := e.evm.specs[0].MinOut; got != floor {
+	if got := e.evm.specs[0].MinOut; !got.Equal(money.UnitsFromUint64(floor)) {
 		t.Fatalf("swap MinOut = %d, want 1%% under the simulated %d", got, simulated)
 	}
 }

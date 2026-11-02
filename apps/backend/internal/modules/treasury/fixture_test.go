@@ -117,6 +117,8 @@ func (f fixture) findDrift(ctx context.Context) ([]string, error) {
 
 func amount(v int64) money.SignedMicros { return money.SignedMicrosFromInt64(v) }
 
+func entryUnits(v int64) money.SignedUnits { return money.SignedUnitsFromInt64(v) }
+
 func wantCode(t *testing.T, err error, code errs.Code) {
 	t.Helper()
 	if err == nil {
@@ -146,8 +148,8 @@ func (f fixture) fund(
 	c, err := domain.NewCabalTxn(domain.CabalTxnHeader{
 		ID: f.ids.NewV7(), CabalID: cabal, Kind: domain.CabalFund, Status: status, TransferID: id,
 	}, []domain.CabalEntry{
-		{Account: domain.CabalMembers, Asset: f.usdc(), Amount: amount(-micros)},
-		{Account: domain.CabalTreasury, Asset: f.usdc(), Amount: amount(micros)},
+		{Account: domain.CabalMembers, Asset: f.usdc(), Amount: entryUnits(-micros)},
+		{Account: domain.CabalTreasury, Asset: f.usdc(), Amount: entryUnits(micros)},
 	})
 	return u, c, err
 }
@@ -163,15 +165,15 @@ func (f fixture) cashOut(
 	return u, c, nil
 }
 
-func (f fixture) swap(cabal ids.CabalID, micros, units int64) (domain.CabalTxn, error) {
+func (f fixture) swap(cabal ids.CabalID, micros, tokens int64) (domain.CabalTxn, error) {
 	return domain.NewCabalTxn(domain.CabalTxnHeader{
 		ID: f.ids.NewV7(), CabalID: cabal, Kind: domain.CabalSwap, Status: domain.TxnSettled, SwapID: f.ids.NewV7(),
 		TxSignature: "5VERv8NMvzbJMEkV8xnrLkEaWRtSz9CosKDYjCJjBRnbJLgp8uirBgmQpjKhoR4tjF3ZpRzrFmBV6UjKdiSZkQUW",
 	}, []domain.CabalEntry{
-		{Account: domain.CabalTreasury, Asset: f.usdc(), Amount: amount(-micros)},
-		{Account: domain.CabalVenue, Asset: f.usdc(), Amount: amount(micros)},
-		{Account: domain.CabalTreasury, Asset: aapl, Amount: amount(units)},
-		{Account: domain.CabalVenue, Asset: aapl, Amount: amount(-units)},
+		{Account: domain.CabalTreasury, Asset: f.usdc(), Amount: entryUnits(-micros)},
+		{Account: domain.CabalVenue, Asset: f.usdc(), Amount: entryUnits(micros)},
+		{Account: domain.CabalTreasury, Asset: aapl, Amount: entryUnits(tokens)},
+		{Account: domain.CabalVenue, Asset: aapl, Amount: entryUnits(-tokens)},
 	})
 }
 
