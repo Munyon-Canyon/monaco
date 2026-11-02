@@ -232,7 +232,7 @@ enum MonacoSheetDetents {
     }
 
     static func scrollsContent(declared: Bool, dynamicTypeSize: DynamicTypeSize) -> Bool {
-        declared || dynamicTypeSize.isAccessibilitySize
+        declared || dynamicTypeSize >= .xxxLarge
     }
 
     @MainActor
@@ -253,7 +253,7 @@ enum MonacoSheetDetents {
                 base = Self.half
             }
         }
-        return dynamicTypeSize.isAccessibilitySize ? base + [.large] : base
+        return dynamicTypeSize >= .xxxLarge ? base + [.large] : base
     }
 }
 

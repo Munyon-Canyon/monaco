@@ -16,6 +16,13 @@ struct SheetDetentTests {
         }
     }
 
+    @Test func everySheetKindOffersTheLargeDetentFromXxxLarge() {
+        for kind in kinds + [.tall] {
+            #expect(!kind.detents(fittedHeight: 180, screenHeight: 800, dynamicTypeSize: .xxLarge).contains(.large))
+            #expect(kind.detents(fittedHeight: 180, screenHeight: 800, dynamicTypeSize: .xxxLarge).contains(.large))
+        }
+    }
+
     @Test func reviewAndVotesOpenAtHalfTheScreen() {
         #expect(MonacoSheetDetents.review.detents(fittedHeight: 0) == [.medium])
         #expect(MonacoSheetDetents.votes.detents(fittedHeight: 0) == [.medium])
