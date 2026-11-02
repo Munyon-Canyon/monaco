@@ -15,6 +15,20 @@ sql:
             go_type: github.com/google/uuid.UUID
           - db_type: timestamptz
             go_type: time.Time
+          - column: swaps.in_amount
+            go_type: int64
+          - column: swaps.quote_out_amount
+            go_type: github.com/jackc/pgx/v5/pgtype.Int8
+          - column: swaps.out_amount
+            go_type: github.com/jackc/pgx/v5/pgtype.Int8
+          - column: swap_views.in_amount
+            go_type: int64
+          - column: swap_views.out_amount
+            go_type: github.com/jackc/pgx/v5/pgtype.Int8
+          - column: proposals.token_amount
+            go_type: github.com/jackc/pgx/v5/pgtype.Int8
+          - column: proposals.quote_out_amount
+            go_type: github.com/jackc/pgx/v5/pgtype.Int8
   - {engine: postgresql, schema: migrations, queries: queries/relayer, gen: {go: {<<: *common, package: sqlc, out: internal/platform/chain/relayer/sqlc, output_db_file_name: db.gen.go, output_models_file_name: models.gen.go, output_files_suffix: .gen}}}
   # BEGIN GENERATED modules
   - {engine: postgresql, schema: migrations, queries: queries/admin, gen: {go: {<<: *common, package: sqlc, out: internal/modules/admin/sqlc, output_db_file_name: db.gen.go, output_models_file_name: models.gen.go, output_files_suffix: .gen}}}
