@@ -210,9 +210,13 @@ private struct MembersRequestRow: View {
             VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
                 HStack(spacing: MonacoTheme.Space.sm) {
                     avatar
-                    name.frame(maxWidth: .infinity, alignment: .leading)
+                    name
+                        .frame(maxWidth: .infinity, minHeight: MonacoButtonMetrics.hitTarget, alignment: .leading)
+                        .contentShape(.accessibility, Rectangle())
                 }
                 line
+                    .frame(maxWidth: .infinity, minHeight: MonacoButtonMetrics.hitTarget, alignment: .leading)
+                    .contentShape(.accessibility, Rectangle())
                 approveButton
             }
         } else {
@@ -222,7 +226,12 @@ private struct MembersRequestRow: View {
                     name
                     line
                 }
-                .frame(minWidth: layout.minimumTitleWidth, maxWidth: .infinity, alignment: .leading)
+                .accessibilityElement(children: .combine)
+                .frame(
+                    minWidth: layout.minimumTitleWidth, maxWidth: .infinity, minHeight: MonacoButtonMetrics.hitTarget,
+                    alignment: .leading
+                )
+                .contentShape(.accessibility, Rectangle())
                 approveButton.layoutPriority(1)
             }
         }

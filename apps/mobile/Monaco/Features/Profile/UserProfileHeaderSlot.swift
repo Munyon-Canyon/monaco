@@ -259,6 +259,9 @@ private struct UserProfileCard: View {
             photoURL: data.photoURL, displayName: data.title, size: ProfileCardMetrics.photo, seed: data.userID,
             ring: .identity
         )
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Photo of \(data.title)")
+        .accessibilityAddTraits(.isImage)
         .overlay(alignment: .top) {
             if data.crown {
                 Image(systemName: "crown.fill")
