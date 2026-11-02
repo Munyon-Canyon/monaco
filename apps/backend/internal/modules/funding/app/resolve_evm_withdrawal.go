@@ -42,13 +42,21 @@ type ResolveEVMWithdrawal struct {
 }
 
 type EVMWithdrawalResolverDeps struct {
-	UoW     *db.UnitOfWork
-	Reads   sqlc.DBTX
-	Clock   clock.Clock
-	Chain   SignatureStatuses
-	Wallets SigningWallets
-	Actions multichain.WalletActions
-	Hints   HintPublisher
+	UoW      *db.UnitOfWork
+	Reads    sqlc.DBTX
+	Clock    clock.Clock
+	Chain    SignatureStatuses
+	Receipts TokenReceipts
+	USDC     chain.Mint
+	Wallets  SigningWallets
+	Actions  multichain.WalletActions
+	Hints    HintPublisher
+}
+
+type TokenReceipts interface {
+	Received(
+		ctx context.Context, sig chain.Signature, owner chain.SolanaAddress, mint chain.Mint,
+	) (money.BaseUnits, error)
 }
 
 type EVMWithdrawalResolver struct{ d EVMWithdrawalResolverDeps }
@@ -64,14 +72,18 @@ type EVMStepFact struct {
 }
 
 type EVMWithdrawalFacts struct {
-	Action          multichain.ActionState `json:"privy_action_state"`
-	Steps           []EVMStepFact          `json:"steps"`
-	SolanaSignature chain.Signature        `json:"solana_signature,omitempty"`
-	SolanaChain     string                 `json:"solana_chain_state,omitempty"`
-	RefundSignature chain.Signature        `json:"refund_signature,omitempty"`
-	RefundChain     string                 `json:"refund_chain_state,omitempty"`
-	Contradiction   string                 `json:"contradiction,omitempty"`
-	Unverified      string                 `json:"unverified,omitempty"`
+	Action           multichain.ActionState `json:"privy_action_state"`
+	Steps            []EVMStepFact          `json:"steps"`
+	SolanaSignature  chain.Signature        `json:"solana_signature,omitempty"`
+	SolanaChain      string                 `json:"solana_chain_state,omitempty"`
+	RefundSignature  chain.Signature        `json:"refund_signature,omitempty"`
+	RefundChain      string                 `json:"refund_chain_state,omitempty"`
+	RefundPaidMicros string                 `json:"refund_paid_micros,omitempty"`
+	Contradiction    string                 `json:"contradiction,omitempty"`
+	Unverified       string                 `json:"unverified,omitempty"`
+
+	withdrawn  string
+	refundPaid money.Micros
 }
 
 func (f EVMWithdrawalFacts) stepSummary() string {
@@ -139,11 +151,13 @@ func (h *EVMWithdrawalResolver) verify(
 func (h *EVMWithdrawalResolver) read(
 	ctx context.Context, cmd ResolveEVMWithdrawal, row sqlc.EVMWithdrawalForResolveRow,
 ) (EVMWithdrawalFacts, error) {
-	status, err := h.action(ctx, row.UserID, row.PrivyActionID)
+	wallet, status, err := h.action(ctx, row.UserID, row.PrivyActionID)
 	if err != nil {
 		return EVMWithdrawalFacts{}, err
 	}
-	facts := EVMWithdrawalFacts{Action: status.State, Steps: make([]EVMStepFact, len(status.Steps))}
+	facts := EVMWithdrawalFacts{
+		Action: status.State, Steps: make([]EVMStepFact, len(status.Steps)), withdrawn: row.AmountMicros,
+	}
 	for i, step := range status.Steps {
 		facts.Steps[i] = EVMStepFact{Network: step.Network, TxHash: step.TxHash, State: step.State}
 	}
@@ -153,14 +167,35 @@ func (h *EVMWithdrawalResolver) read(
 			return EVMWithdrawalFacts{}, err
 		}
 	}
-	if cmd.RefundSignature != "" {
-		facts.RefundSignature = cmd.RefundSignature
-		if facts.RefundChain, err = h.chainState(ctx, cmd.RefundSignature); err != nil {
-			return EVMWithdrawalFacts{}, err
-		}
+	if err = h.readRefund(ctx, cmd, wallet.Address, &facts); err != nil {
+		return EVMWithdrawalFacts{}, err
 	}
 	facts.Contradiction = cmp.Or(pendingContradiction(facts), contradiction(cmd.To, facts))
 	return facts, nil
+}
+
+func (h *EVMWithdrawalResolver) readRefund(
+	ctx context.Context, cmd ResolveEVMWithdrawal, member chain.SolanaAddress, facts *EVMWithdrawalFacts,
+) (err error) {
+	if cmd.RefundSignature == "" {
+		return nil
+	}
+	facts.RefundSignature = cmd.RefundSignature
+	if facts.RefundChain, err = h.chainState(ctx, cmd.RefundSignature); err != nil {
+		return err
+	}
+	if facts.RefundChain == chainFinalized && cmd.RefundSignature != facts.SolanaSignature {
+		facts.refundPaid, err = h.refundPaid(ctx, cmd.RefundSignature, member)
+		facts.RefundPaidMicros = facts.refundPaid.String()
+	}
+	return err
+}
+
+func (h *EVMWithdrawalResolver) refundPaid(
+	ctx context.Context, sig chain.Signature, member chain.SolanaAddress,
+) (money.Micros, error) {
+	got, err := h.d.Receipts.Received(ctx, sig, member, h.d.USDC)
+	return money.MicrosFromUint64(got.Uint64()), err
 }
 
 func (h *EVMWithdrawalResolver) chainState(ctx context.Context, sig chain.Signature) (string, error) {
@@ -246,6 +281,14 @@ func refundContradiction(f EVMWithdrawalFacts) string {
 		return "the refund signature is the withdrawal's own Solana step, not a refund"
 	case f.RefundChain != chainFinalized:
 		return "the refund signature is not finalized on chain (" + f.RefundChain + ")"
+	}
+	withdrawn, err := money.ParseMicros(f.withdrawn)
+	switch {
+	case err != nil:
+		return "the withdrawal's amount " + f.withdrawn + " is unreadable, so the refund cannot be checked"
+	case f.refundPaid.Cmp(withdrawn) < 0:
+		return "the refund signature paid the member " + f.refundPaid.String() +
+			" micro-USDC, less than the withdrawal's " + f.withdrawn
 	}
 	return ""
 }
@@ -352,6 +395,7 @@ func (h *EVMWithdrawalResolver) apply(
 			slog.String("unverified", facts.Unverified),
 			slog.String("refund_tx", string(facts.RefundSignature)),
 			slog.String("refund_chain_state", facts.RefundChain),
+			slog.String("refund_paid_micros", facts.RefundPaidMicros),
 		)
 	})
 	return true, tx.Events.Append(ctx, event)
@@ -389,7 +433,7 @@ func (h *EVMWithdrawalResolver) ListSupport(ctx context.Context) ([]EVMSupportWi
 	var flagged []EVMSupportWithdrawal
 	var failures []error
 	for _, row := range rows {
-		status, err := h.action(ctx, row.UserID, row.PrivyActionID)
+		_, status, err := h.action(ctx, row.UserID, row.PrivyActionID)
 		if err != nil {
 			failures = append(failures, fmt.Errorf("withdrawal %s: %w", row.ID, err))
 			continue
@@ -408,12 +452,13 @@ func (h *EVMWithdrawalResolver) ListSupport(ctx context.Context) ([]EVMSupportWi
 
 func (h *EVMWithdrawalResolver) action(
 	ctx context.Context, user uuid.UUID, actionID string,
-) (multichain.ActionStatus, error) {
+) (chain.Wallet, multichain.ActionStatus, error) {
 	wallet, err := h.d.Wallets.SigningWallet(ctx, ids.UserIDFrom(user))
 	if err != nil {
-		return multichain.ActionStatus{}, err
+		return chain.Wallet{}, multichain.ActionStatus{}, err
 	}
-	return h.d.Actions.Action(ctx, wallet.ID, multichain.ActionID(actionID))
+	status, err := h.d.Actions.Action(ctx, wallet.ID, multichain.ActionID(actionID))
+	return wallet, status, err
 }
 
 func supportEntry(

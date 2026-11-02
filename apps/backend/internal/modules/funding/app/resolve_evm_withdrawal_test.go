@@ -1,6 +1,7 @@
 package app
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -15,6 +16,16 @@ func TestEVMWithdrawalResolver_resolveRefusesAnAmountItCannotRead(t *testing.T) 
 		sqlc.EVMWithdrawalForResolveRow{AmountMicros: "1.5"}, EVMWithdrawalFacts{})
 	if errs.CodeOf(err) != errs.CodeDecodeFailed {
 		t.Fatalf("resolve err = %v, want decode_failed", err)
+	}
+}
+
+func TestRefundContradiction_refusesARefundWhenTheWithdrawalAmountIsUnreadable(t *testing.T) {
+	t.Parallel()
+	got := refundContradiction(EVMWithdrawalFacts{
+		RefundSignature: "refund", RefundChain: chainFinalized, SolanaSignature: "source", withdrawn: "1.5",
+	})
+	if !strings.Contains(got, "unreadable") {
+		t.Fatalf("refundContradiction = %q, want it to name the unreadable amount", got)
 	}
 }
 

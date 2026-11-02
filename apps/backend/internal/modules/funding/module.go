@@ -232,8 +232,9 @@ func (m *Module) Bouncer() *app.Bouncer {
 }
 
 func (m *Module) EVMWithdrawalResolver() *app.EVMWithdrawalResolver {
+	rpc := solana.New(m.deps.Config, m.deps.Clock)
 	return app.NewEVMWithdrawalResolver(app.EVMWithdrawalResolverDeps{
-		UoW: m.deps.UoW, Reads: m.deps.Pool, Clock: m.deps.Clock, Chain: solana.New(m.deps.Config, m.deps.Clock),
+		UoW: m.deps.UoW, Reads: m.deps.Pool, Clock: m.deps.Clock, Chain: rpc, Receipts: rpc, USDC: m.usdc(),
 		Wallets: app.WalletReader{Reader: identity.New(m.deps).Queries()}, Actions: m.multichain.walletActions,
 		Hints: m.deps.Bus,
 	})
