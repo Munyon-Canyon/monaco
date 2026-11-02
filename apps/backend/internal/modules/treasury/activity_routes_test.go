@@ -201,10 +201,14 @@ func units(r seededActivity) any {
 }
 
 func wireItem(r seededActivity, asset, actor any) map[string]any {
-	return map[string]any{
+	item := map[string]any{
 		"id": r.id, "kind": "buy", "status": r.status, "asset": asset, "usdc_micros": 25000000, "units": units(r),
 		"price_micros": nil, "actor": actor, "tx_signature": r.sig, "occurred_at": r.at.Format(time.RFC3339),
 	}
+	if units(r) != nil {
+		item["units_str"] = "105000000"
+	}
+	return item
 }
 
 func TestActivityRoute_aMemberPagesStablyAndAStrangerIsRefused(t *testing.T) {
