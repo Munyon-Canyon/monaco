@@ -11,6 +11,11 @@ public struct PortfolioSummary: Equatable, Sendable {
             self = signedMicros > 0 ? .up : (signedMicros < 0 ? .down : .flat)
         }
 
+        init(pnlMicros: Int64) {
+            let halfCent: UInt64 = 5_000
+            self = pnlMicros.magnitude < halfCent ? .flat : Direction(signedMicros: pnlMicros)
+        }
+
         var arrow: String {
             switch self {
             case .up: "▲ "
@@ -59,7 +64,7 @@ public struct PortfolioSummary: Equatable, Sendable {
                 : nil
             memberCount = Int(cabal.memberCount)
             ownershipBps = Int64(cabal.ownershipBps)
-            direction = Direction(signedMicros: cabal.pnlMicros)
+            direction = Direction(pnlMicros: cabal.pnlMicros)
         }
     }
 
@@ -93,7 +98,7 @@ public struct PortfolioSummary: Equatable, Sendable {
         total = UsdAmountFormatter.format(flooredMicros: portfolio.totalValueMicros)
         pnl = UsdAmountFormatter.format(signedMicros: portfolio.pnlMicros)
         returnText = Self.percent(portfolio.returnBps)
-        direction = Direction(signedMicros: portfolio.pnlMicros)
+        direction = Direction(pnlMicros: portfolio.pnlMicros)
         if portfolio.cabals.isEmpty {
             chip = UsdAmountFormatter.format(micros: 0)
         } else {

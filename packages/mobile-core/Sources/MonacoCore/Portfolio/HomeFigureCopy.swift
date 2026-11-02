@@ -23,7 +23,7 @@ public enum HomeFigureCopy {
             amount: UsdAmountFormatter.format(signedMicros: pnlMicros),
             percent: PercentFormatter.format(basisPoints: abs(returnBps), signed: false, fractionDigits: 1),
             words: range.returnPeriodPhrase,
-            direction: PortfolioSummary.Direction(signedMicros: pnlMicros))
+            direction: PortfolioSummary.Direction(pnlMicros: pnlMicros))
     }
 
     public static func spoken(
@@ -33,7 +33,7 @@ public enum HomeFigureCopy {
         let percent = PercentFormatter.format(basisPoints: abs(returnBps), signed: false, fractionDigits: 1)
             .dropLast()
         let move: String
-        switch PortfolioSummary.Direction(signedMicros: pnlMicros) {
+        switch PortfolioSummary.Direction(pnlMicros: pnlMicros) {
         case .flat: move = "unchanged"
         case .up: move = "up \(dollarsAndCents(pnlMicros)), \(percent) percent"
         case .down: move = "down \(dollarsAndCents(-pnlMicros)), \(percent) percent"
@@ -42,8 +42,9 @@ public enum HomeFigureCopy {
     }
 
     private static func dollarsAndCents(_ micros: Int64) -> String {
-        let dollars = micros / 1_000_000
-        let cents = micros % 1_000_000 / 10_000
+        let totalCents = (micros + 5_000) / 10_000
+        let dollars = totalCents / 100
+        let cents = totalCents % 100
         var parts: [String] = []
         if dollars > 0 || cents == 0 { parts.append("\(dollars) \(dollars == 1 ? "dollar" : "dollars")") }
         if cents > 0 { parts.append("\(cents) \(cents == 1 ? "cent" : "cents")") }

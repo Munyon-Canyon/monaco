@@ -27,6 +27,10 @@ public enum WithdrawCopy {
         return text.hasSuffix(".00") ? String(text.dropLast(3)) : text
     }
 
+    private static func flooredDollars(_ micros: Int64) -> String {
+        dollars(UsdAmountFormatter.flooredToCents(micros))
+    }
+
     public static func checkPending(amountMicros: Int64) -> String {
         "Check \(dollars(amountMicros)) again"
     }
@@ -57,11 +61,11 @@ public enum WithdrawCopy {
     }
 
     public static func limitLine(maxMicros: Int64, overMicros: Int64) -> String {
-        "You can send \(dollars(maxMicros)) · \(dollars(overMicros)) over"
+        "You can send \(flooredDollars(maxMicros)) · \(dollars(overMicros)) over"
     }
 
     public static func limitSlot(maxMicros: Int64) -> String {
-        "Up to \(dollars(maxMicros))"
+        "Up to \(flooredDollars(maxMicros))"
     }
 
     public static func belowMinimum(minMicros: Int64) -> String {
