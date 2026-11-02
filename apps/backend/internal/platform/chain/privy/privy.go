@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain/multichain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpclient"
@@ -34,6 +35,7 @@ type Client struct {
 	clock     clock.Clock
 	verifyKey *ecdsa.PublicKey
 	authKey   *ecdsa.PrivateKey
+	finals    *finalExecutions
 }
 
 func New(cfg config.Config, clk clock.Clock, opts ...httpclient.Option) (*Client, error) {
@@ -52,6 +54,7 @@ func New(cfg config.Config, clk clock.Clock, opts ...httpclient.Option) (*Client
 		clock:     clk,
 		verifyKey: verifyKey,
 		authKey:   authorizationKey(cfg.Privy.AuthorizationPrivateKey),
+		finals:    &finalExecutions{done: map[string]multichain.Execution{}},
 	}, nil
 }
 

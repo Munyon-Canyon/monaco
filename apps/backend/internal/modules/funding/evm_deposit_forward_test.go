@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -216,6 +217,82 @@ func TestEVMDepositForward_ExecutionOwnedByAnotherUserIsAnInternalError(t *testi
 	if got := f.count(t, `SELECT count(*) FROM evm_deposit_forwards WHERE user_id = $1 AND status = 'pending'`,
 		other.ID.UUID()); got != 1 || f.forwards(t, "failed") != 0 {
 		t.Fatalf("other user's pending rows = %d, want their row untouched", got)
+	}
+}
+
+type hangingFeed struct {
+	app.ExecutionFeed
+	walletID string
+	hang     atomic.Bool
+}
+
+func (h *hangingFeed) Executions(ctx context.Context, walletID, cursor string) (mc.ExecutionPage, error) {
+	if h.hang.Load() && walletID == h.walletID {
+		<-ctx.Done()
+		return mc.ExecutionPage{}, errs.New(errs.CodeUpstreamTimeout, "test.hangingFeed")
+	}
+	return h.ExecutionFeed.Executions(ctx, walletID, cursor)
+}
+
+type lazyWallets func() []app.EVMDepositWallet
+
+func (l lazyWallets) EVMDepositWallets(context.Context, ids.UserID, int) ([]app.EVMDepositWallet, error) {
+	return l(), nil
+}
+
+func TestEVMDepositForward_OneHungWalletDoesNotBlockTheOthersOrTheStuckAlert(t *testing.T) {
+	t.Parallel()
+	var f *forwardFixture
+	var hung app.EVMDepositWallet
+	feed := &hangingFeed{walletID: "hung-wallet"}
+	f = newForwardFixture(t, func(d *app.EVMDepositForwardDeps) {
+		feed.ExecutionFeed = d.Feed
+		d.Feed = feed
+		d.CallTimeout = 50 * time.Millisecond
+		d.Wallets = lazyWallets(func() []app.EVMDepositWallet {
+			return []app.EVMDepositWallet{hung, {UserID: f.user.ID, WalletID: evmDepositWalletID}}
+		})
+	})
+	hungUser := testkit.SeedUser(t, f.pool, testkit.UserOpts{WithWallet: true})
+	hung = app.EVMDepositWallet{UserID: hungUser.ID, WalletID: feed.walletID}
+	f.feed.Pages.Push(fakemc.Reply[mc.ExecutionPage]{})
+	f.tick(t, execution("first", mc.ActionPending))
+	f.clock.Advance(app.EVMDepositForwardStuckAfter + time.Second)
+	feed.hang.Store(true)
+	f.feed.Pages.Push(fakemc.Reply[mc.ExecutionPage]{Value: mc.ExecutionPage{
+		Executions: []mc.Execution{execution("second", mc.ActionPending)},
+	}})
+	budget, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+	started := clock.Real{}.Now()
+	_, err := f.poller.Tick(f.ctx(budget))
+	took := clock.Real{}.Now().Sub(started)
+	if took > 2*time.Second {
+		t.Fatalf("tick took %s, want the hung wallet cut off by its own timeout, not the tick's", took)
+	}
+	if errs.CodeOf(err) != errs.CodeUpstreamTimeout {
+		t.Fatalf("tick error = %v, want the hung wallet's upstream_timeout", err)
+	}
+	if got := f.forwards(t, "pending"); got != 2 {
+		t.Fatalf("pending rows = %d, want the wallet after the hung one synced too", got)
+	}
+	if got := f.logged(observability.FundingEVMForwardStuck); got != 1 {
+		t.Fatalf("stuck alerts = %d, want the alert to run in the tick with the hung wallet", got)
+	}
+}
+
+func TestEVMDepositForward_StuckAlertRunsEvenWhenTheTickContextIsGone(t *testing.T) {
+	t.Parallel()
+	f := newForwardFixture(t)
+	f.tick(t, execution("e", mc.ActionPending))
+	f.clock.Advance(app.EVMDepositForwardStuckAfter + time.Second)
+	expired, cancel := context.WithCancel(t.Context())
+	cancel()
+	if _, err := f.poller.Tick(f.ctx(expired)); err == nil {
+		t.Fatal("tick on an expired context returned no error")
+	}
+	if got := f.logged(observability.FundingEVMForwardStuck); got != 1 {
+		t.Fatalf("stuck alerts = %d, want 1 even though the tick's own context is spent", got)
 	}
 }
 
