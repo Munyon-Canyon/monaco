@@ -18,8 +18,8 @@ struct ProposalPreIpoLedger: View {
                         if index > 0 { MonacoRule() }
                         HStack(alignment: .firstTextBaseline, spacing: MonacoTheme.Space.s) {
                             Text(line.label)
-                                .font(MonacoTheme.Typo.subhead)
-                                .foregroundStyle(MonacoTheme.secondaryText)
+                                .font(MonacoTheme.Typo.headline)
+                                .foregroundStyle(MonacoTheme.primaryText)
                                 .fixedSize(horizontal: false, vertical: true)
                             Spacer(minLength: MonacoTheme.Space.s)
                             Text(line.value)

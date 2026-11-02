@@ -96,9 +96,6 @@ struct CallBoardDocked: View {
                         Capsule().fill(MonacoTheme.profit).frame(width: proxy.size.width * card.climb)
                     }
                 }
-            if let gap = card.gapLine {
-                Text(gap).font(MonacoTheme.Typo.subhead).foregroundStyle(MonacoTheme.primaryText)
-            }
         }
     }
 }

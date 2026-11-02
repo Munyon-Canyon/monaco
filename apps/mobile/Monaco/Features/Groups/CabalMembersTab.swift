@@ -56,7 +56,8 @@ private struct CabalMembersTabBody: View {
             MonacoGroupedList {
                 NavigationLink(value: AnyAppRoute(MembersRoute(cabalID: cabal.id))) {
                     MonacoRow(
-                        title: CabalMemberCopy.seeAll(cabal.memberCount), chevron: true, isLast: !canInvite,
+                        title: CabalMemberCopy.seeAll(cabal.memberCount), titleColor: MonacoTheme.brand, chevron: true,
+                        isLast: !canInvite,
                         leading: { SunkenGlyphMark(systemImage: "person.2") }, trailing: { EmptyView() })
                 }
                 .buttonStyle(.monacoRow)

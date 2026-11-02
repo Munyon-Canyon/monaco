@@ -257,7 +257,9 @@ struct ProposeReviewSample: View {
         }
     }
 
-    private var showsChangeCabal: Bool { [.reviewNvidiaTwoCabals, .reviewSubmitting].contains(scenario) }
+    private var showsChangeCabal: Bool {
+        [.reviewNvidia, .reviewNvidiaTwoCabals, .reviewSpaceX, .reviewSubmitting].contains(scenario)
+    }
 
     private var sends: Bool { [.reviewSubmitting, .reviewSent, .reviewError].contains(scenario) }
 

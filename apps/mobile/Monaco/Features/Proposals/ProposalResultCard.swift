@@ -62,11 +62,20 @@ struct ProposalResultCard<Sides: View>: View {
     @ViewBuilder private var tallyLine: some View {
         let text = HStack(spacing: MonacoTheme.Space.s) {
             Label("\(tally.yes)", systemImage: "checkmark")
-                .foregroundStyle(MonacoTheme.profit)
+                .font(MonacoTheme.Typo.headline)
+                .foregroundStyle(MonacoTheme.primaryText)
+                .fixedSize()
             Text("\(tally.yes + tally.no) of \(tally.voters) voted")
-                .foregroundStyle(MonacoTheme.muted)
-            Label("\(tally.no)", systemImage: "xmark")
-                .foregroundStyle(MonacoTheme.loss)
+                .foregroundStyle(MonacoTheme.secondaryText)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: .infinity)
+            HStack(spacing: MonacoTheme.Space.xs) {
+                Text("\(tally.no)")
+                Image(systemName: "xmark")
+            }
+            .font(MonacoTheme.Typo.headline)
+            .foregroundStyle(MonacoTheme.primaryText)
+            .fixedSize()
         }
         .font(MonacoTheme.Typo.subhead)
         .frame(minHeight: MonacoButtonMetrics.hitTarget)
@@ -78,7 +87,7 @@ struct ProposalResultCard<Sides: View>: View {
             Button {
                 showsVotes = true
             } label: {
-                text.frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
+                text.contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .accessibilityHint("Shows who voted")
