@@ -183,7 +183,7 @@ struct ProposalReceiptCard: View {
     private func priceMoved(_ move: ProposalPriceMove) -> some View {
         let decimals = model.asset?.decimals ?? AssetCatalogDefaults.decimals
         let kind = model.asset?.kind ?? .stock
-        func words(_ quote: Int64) -> String {
+        func words(_ quote: Decimal) -> String {
             ProposalCardCopy.expected(
                 isSell: isSell, quoteOut: quote, usdcMicros: summary.usdcMicros, decimals: decimals, kind: kind) ?? "-"
         }
