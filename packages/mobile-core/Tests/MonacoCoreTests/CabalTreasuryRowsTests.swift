@@ -29,6 +29,20 @@ final class CabalTreasuryRowsTests: XCTestCase {
         XCTAssertEqual(rows.cashOut, "$7,000")
     }
 
+    func testAPreIpoPositionKeepsItsKindAndANameWithoutTheCatalogPrefix() {
+        var pre = holding(symbol: "tSpaceX", units: "12", value: 2_220_000_000, cost: 0, pnl: 0)
+        pre.displayName = "T-SpaceX"
+        pre.kind = .preIpo
+
+        let position = CabalTreasuryRows(pot([pre])).positions[0]
+
+        XCTAssertEqual(position.kind, .preIpo)
+        XCTAssertEqual(position.name, "SpaceX")
+        XCTAssertEqual(
+            CabalTreasuryRows(pot([holding(symbol: "AAPLx", units: "1", value: 1, cost: 1, pnl: 0)])).positions[0].kind,
+            .stock)
+    }
+
     func testAverageCostIsTheCostBasisOverTheUnitsInIntegerMicros() {
         let rows = CabalTreasuryRows(.sampleACCapital)
 

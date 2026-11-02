@@ -24,7 +24,7 @@ public struct AssetHeldRowFacts: Equatable, Sendable, Identifiable {
             while shares.last == "0" { shares = shares.dropLast() }
             if shares.last == "." { shares = shares.dropLast() }
         }
-        subtitle = "\(shares) sh · \(max(Int(holding.weightBps), 0) / 100)% of treasury"
+        subtitle = "\(shares) sh · \(CabalHeaderCopy.percent(basisPoints: Int(holding.weightBps))) of treasury"
         valueMicros = holding.valueMicros
         let (scaled, overflow) = holding.pnlMicros.multipliedReportingOverflow(by: 10_000)
         let isPreIpo = holding.kind == .preIpo

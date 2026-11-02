@@ -25,6 +25,8 @@ public struct HomeCabalRow: Equatable, Sendable, Identifiable {
         returnBps = isFunded && note != .settling ? row.returnBps : nil
     }
 
+    public var returnText: String? { returnBps.map { PortfolioSummary.percent($0) } }
+
     public var membersText: String { memberCount == 1 ? "1 member" : "\(memberCount) members" }
 
     public func subtitle(votesText: String?) -> String {

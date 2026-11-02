@@ -51,11 +51,7 @@ struct CabalPortfolioRow: View {
     }
 
     @ViewBuilder private var returnText: some View {
-        if let bps = row.returnBps {
-            PercentText(basisPoints: bps, style: .caption)
-        } else {
-            PercentText(percentReturn: nil, style: .caption)
-        }
+        PercentText(percentReturn: row.returnText, style: .caption)
     }
 }
 

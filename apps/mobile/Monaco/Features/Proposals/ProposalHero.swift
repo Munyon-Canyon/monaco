@@ -107,7 +107,7 @@ struct ProposalHero: View {
 
     private var stockMark: some View {
         StockMark(
-            symbol: summary.symbol, displayName: asset?.displayName, assetKind: asset?.kind ?? .stock,
+            symbol: summary.symbol, displayName: summary.assetName(asset: asset), assetKind: asset?.kind ?? .stock,
             size: .review, logoURL: asset?.logoURL)
     }
 

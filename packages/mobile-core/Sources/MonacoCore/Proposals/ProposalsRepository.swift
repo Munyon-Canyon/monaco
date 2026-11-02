@@ -253,7 +253,7 @@ public struct ProposalDetail: Identifiable, Equatable, Sendable {
     public let proposerReturn: ProposerReturn?
     public let stats: ProposalStatsData
     public let myVote: ProposalMyVote?
-    public let replyCount: Int
+    public private(set) var replyCount: Int
     public let sidesVisible: Bool
     public let reminderSet: Bool
     public var id: String { summary.id }
@@ -271,6 +271,12 @@ public struct ProposalDetail: Identifiable, Equatable, Sendable {
         self.stats = stats ?? ProposalStatsData(closesAt: summary.expiresAt)
         self.myVote = myVote
         self.replyCount = replyCount
+    }
+
+    func with(replyCount: Int) -> ProposalDetail {
+        var copy = self
+        copy.replyCount = max(replyCount, 0)
+        return copy
     }
 
     init(_ value: Components.Schemas.ProposalDetail) {

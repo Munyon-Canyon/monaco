@@ -15,6 +15,7 @@ enum ProposalCommentsSlot: ProposalSection {
 
 private struct ProposalCommentsSlotView: View {
     @Environment(\.proposalComments) private var model
+    @Environment(\.proposalDetail) private var detail
     @Environment(\.proposalFocus) private var focus
     @Environment(\.sectionScrollProxy) private var scroll
     @Environment(ToastCenter.self) private var toasts
@@ -24,6 +25,10 @@ private struct ProposalCommentsSlotView: View {
         if let model {
             CommentThreadView(model: model)
                 .id(ProposalFocus.repliesAnchorID)
+                .onChange(of: detail?.value?.replyCount, initial: true) { _, count in
+                    if let count { model.declare(count: count) }
+                }
+                .onAppear { model.onCountChange = { detail?.setReplyCount($0) } }
                 .onChange(of: model.lastPostedID) { _, id in
                     guard let id else { return }
                     withAnimation { scroll?.scrollTo(id, anchor: .center) }

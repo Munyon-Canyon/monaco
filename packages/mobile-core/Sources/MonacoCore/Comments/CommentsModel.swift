@@ -36,6 +36,8 @@ public final class CommentsModel {
     public internal(set) var expandedRoots: Set<String> = []
     public internal(set) var highlightedID: String?
     public internal(set) var scrollRequest: ScrollRequest?
+    public internal(set) var declaredCount: Int?
+    @ObservationIgnored public var onCountChange: (@MainActor (Int) -> Void)?
 
     public struct ScrollRequest: Equatable, Sendable {
         public let id: String
@@ -158,9 +160,7 @@ public final class CommentsModel {
         replySheet = target
     }
 
-    public func dismissReplySheet() {
-        replySheet = nil
-    }
+    public func dismissReplySheet() { replySheet = nil }
 
     public func post(
         _ draft: CommentDraft, attachment: Components.Schemas.CommentAttachmentInput? = nil
@@ -192,6 +192,7 @@ public final class CommentsModel {
         if let rootID = created.parentCommentId { expandedRoots.insert(rootID) }
         if case .post = target {} else { await refresh() }
         lastPostedID = created.id
+        adjustCount(by: 1)
         onPosted?()
         return true
     }
@@ -210,6 +211,7 @@ public final class CommentsModel {
         if case .comment(let target) = replySheet, target.id == row.id { replySheet = nil }
         say(.deleted)
         showDeleted(row)
+        adjustCount(by: -1)
         await refresh()
     }
 

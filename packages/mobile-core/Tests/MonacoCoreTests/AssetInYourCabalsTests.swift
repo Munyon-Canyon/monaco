@@ -14,10 +14,16 @@ final class AssetInYourCabalsTests: XCTestCase {
         XCTAssertEqual(facts.returnText, "+14.0%")
     }
 
-    func testAFractionalWeightIsFlooredAndUnitsKeepTheirDecimals() throws {
-        let facts = AssetHeldRowFacts(try heldRow(units: "2.5000", weightBps: 4299, pnl: 0, cost: 1))
+    func testAFractionalWeightRoundsHalfUpAndUnitsKeepTheirDecimals() throws {
+        let facts = AssetHeldRowFacts(try heldRow(units: "2.5000", weightBps: 4180, pnl: 0, cost: 1))
 
         XCTAssertEqual(facts.subtitle, "2.5 sh · 42% of treasury")
+        XCTAssertEqual(
+            AssetHeldRowFacts(try heldRow(weightBps: 4149, pnl: 0, cost: 1)).subtitle, "38 sh · 41% of treasury")
+        XCTAssertEqual(
+            AssetHeldRowFacts(try heldRow(weightBps: 4150, pnl: 0, cost: 1)).subtitle, "38 sh · 42% of treasury")
+        XCTAssertEqual(
+            AssetHeldRowFacts(try heldRow(weightBps: 40, pnl: 0, cost: 1)).subtitle, "38 sh · <1% of treasury")
     }
 
     func testANegativeReturnUsesTheTypographicMinus() throws {

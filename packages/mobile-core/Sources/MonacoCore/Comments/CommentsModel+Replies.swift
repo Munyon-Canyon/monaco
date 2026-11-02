@@ -76,7 +76,20 @@ extension CommentsModel {
 
     public static let heart = "❤️"
 
-    public var commentCount: Int { rows.filter { !$0.isDeleted }.count }
+    public var commentCount: Int { declaredCount ?? loadedCount }
+
+    public var loadedCount: Int { rows.filter { !$0.isDeleted }.count }
+
+    public func declare(count: Int) {
+        declaredCount = max(count, 0)
+    }
+
+    func adjustCount(by delta: Int) {
+        guard let declaredCount else { return }
+        let next = max(declaredCount + delta, 0)
+        self.declaredCount = next
+        onCountChange?(next)
+    }
 }
 
 extension CommentThreadRow {

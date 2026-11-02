@@ -37,6 +37,32 @@ final class FeedPreviewRowFactsTests: XCTestCase {
         XCTAssertEqual(name, "Maya")
     }
 
+    func testAnOpenProposalNamesTheCompanyNotTheRawSymbol() {
+        var item = proposal()
+        item.symbol = "STRIPE"
+        item.assetName = "Stripe"
+        item.usdcMicros = 300_000_000
+
+        XCTAssertEqual(facts(item, ago: 1).title, "AC Capital · Buy Stripe $300")
+    }
+
+    func testAnOpenProposalNamesAPreIpoCompanyWithoutTheCatalogPrefix() {
+        var item = proposal()
+        item.symbol = "tSpaceX"
+        item.assetName = "T-SpaceX"
+        item.assetKind = .preIpo
+
+        XCTAssertEqual(facts(item, ago: 1).title, "AC Capital · Buy SpaceX $400")
+    }
+
+    func testAnOpenProposalNamesTheCompanyNotTheRawSymbolFromEveryone() {
+        var item = proposal()
+        item.assetName = "NVIDIA"
+        let row = facts(item, .everyone, ago: 1)
+
+        XCTAssertTrue(row.title.hasPrefix("Buy NVIDIA"), row.title)
+    }
+
     func testAnOpenProposalFromEveryoneLeadsWithTheOrder() {
         let row = facts(proposal(), .everyone, ago: 1)
         XCTAssertEqual(row.title, "Buy NVDA $400")

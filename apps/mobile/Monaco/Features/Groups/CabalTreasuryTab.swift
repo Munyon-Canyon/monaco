@@ -146,7 +146,9 @@ struct CabalTreasuryPositionRow: View {
     var body: some View {
         MarketStockRow(
             name: position.name, subtitle: position.detail,
-            mark: StockMark(symbol: position.symbol, displayName: position.name, logoURL: position.logoURL),
+            mark: StockMark(
+                symbol: position.symbol, displayName: position.name, assetKind: position.kind, logoURL: position.logoURL
+            ),
             isLast: isLast
         ) {
             Text(position.value)

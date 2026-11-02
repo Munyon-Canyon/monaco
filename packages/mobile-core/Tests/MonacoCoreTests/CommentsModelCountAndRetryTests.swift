@@ -84,6 +84,50 @@ final class CommentsModelCountAndRetryTests: XCTestCase {
         XCTAssertEqual(model.commentCount, 0)
     }
 
+    func testADeclaredCountWinsOverTheRowsLoadedSoFar() async throws {
+        let (model, _, _) = try make([try Support.page(Thread.samples), try Support.detail(canComment: true)])
+        await model.load()
+        XCTAssertEqual(model.commentCount, model.loadedCount)
+
+        model.declare(count: 6)
+
+        XCTAssertEqual(model.commentCount, 6)
+        XCTAssertLessThan(model.loadedCount, 6)
+    }
+
+    func testPostingARootCommentRaisesTheDeclaredCountAndTellsTheOwner() async throws {
+        let posted = Components.Schemas.Comment.sample("c9", mine: true)
+        let (model, _, _) = try make([
+            try Support.page(Thread.samples), try Support.detail(canComment: true),
+            .json(.created, try Support.encode(posted)), try Support.page(Thread.samples),
+        ])
+        var told: [Int] = []
+        model.onCountChange = { told.append($0) }
+        await model.load()
+        model.declare(count: 6)
+
+        let ok = await model.post(CommentDraft(text: "hello"))
+
+        XCTAssertTrue(ok)
+        XCTAssertEqual(model.commentCount, 7)
+        XCTAssertEqual(told, [7])
+    }
+
+    func testAThreadWithNoDeclaredCountNeverTellsTheOwner() async throws {
+        let posted = Components.Schemas.Comment.sample("c9", mine: true)
+        let (model, _, _) = try make([
+            try Support.page(Thread.samples), try Support.detail(canComment: true),
+            .json(.created, try Support.encode(posted)), try Support.page(Thread.samples),
+        ])
+        var told: [Int] = []
+        model.onCountChange = { told.append($0) }
+        await model.load()
+
+        _ = await model.post(CommentDraft(text: "hello"))
+
+        XCTAssertEqual(told, [])
+    }
+
     private func make(_ script: [Reply]) throws -> (CommentsModel, StubTransport, FakeHintStream) {
         let transport = StubTransport(scripted: script)
         let hints = FakeHintStream()

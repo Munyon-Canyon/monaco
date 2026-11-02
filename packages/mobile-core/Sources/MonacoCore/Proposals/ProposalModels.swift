@@ -218,6 +218,10 @@ public final class ProposalDetailModel {
         self.priceMove = priceMove
     }
 
+    public func setReplyCount(_ count: Int) {
+        value = value?.with(replyCount: count)
+    }
+
     public func load() async {
         do {
             let detail = try await repository.detail(id: id)

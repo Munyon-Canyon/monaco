@@ -18,6 +18,7 @@ public struct CabalTreasuryRows: Equatable, Sendable {
         public let symbol: String
         public let ticker: String
         public let name: String
+        public let kind: AssetKind
         public let detail: String
         public let value: String
         public let trailing: Trailing
@@ -71,9 +72,11 @@ public struct CabalTreasuryRows: Equatable, Sendable {
         } else {
             detail = shares
         }
+        let kind: AssetKind = isPreIpo ? .preIpo : .stock
         return Position(
-            symbol: holding.symbol, ticker: AssetSymbolFormatter.display(holding.symbol), name: holding.displayName,
-            detail: detail, value: UsdAmountFormatter.format(micros: holding.valueMicros),
+            symbol: holding.symbol, ticker: AssetSymbolFormatter.display(holding.symbol),
+            name: CatalogAssetNameFormatter.format(holding.displayName, kind: kind), kind: kind, detail: detail,
+            value: UsdAmountFormatter.format(micros: holding.valueMicros),
             trailing: isPreIpo ? .estimate(atEstimate) : change(holding))
     }
 
