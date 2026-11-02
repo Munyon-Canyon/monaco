@@ -34,7 +34,7 @@ nonisolated final class ChatThreadToggleSampleUITests: XCTestCase {
 
     @MainActor
     private func backToChannel(_ app: XCUIApplication) {
-        app.navigationBars.buttons.firstMatch.tap()
+        app.tapBack()
         XCTAssertTrue(app.element("chat-title").waitForExistence(timeout: 20), "back on the channel")
     }
 

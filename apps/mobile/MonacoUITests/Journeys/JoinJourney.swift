@@ -25,6 +25,18 @@ enum JoinJourney {
         )
     }
 
+    static func expectHero(_ app: XCUIApplication, containing text: String, step: String, timeout: TimeInterval) {
+        guard app.element("cabal-header-name").waitForExistence(timeout: timeout) else {
+            XCTFail("\(step): the cabal page did not open after Back")
+            return
+        }
+        let count = app.element("cabal-member-count")
+        XCTAssertTrue(
+            waitForLabel(count, containing: text, timeout: timeout),
+            "\(step): the hero does not read \(text): \(count.exists ? count.label : "no member count")"
+        )
+    }
+
     static func waitForLabel(
         _ element: XCUIElement, containing text: String, timeout: TimeInterval
     ) -> Bool {
@@ -174,11 +186,8 @@ enum JoinJourney {
                 waitForRequestsGone(app, timeout: 10),
                 "S1.8: the request is still on the Members screen"
             )
-            app.navigationBars.buttons.firstMatch.tap()
-            XCTAssertTrue(
-                waitForLabel(app.element("cabal-member-count"), containing: "2 members", timeout: 10),
-                "S1.8: the hero does not read 2 members: \(app.element("cabal-member-count").label)"
-            )
+            app.tapBack()
+            expectHero(app, containing: "2 members", step: "S1.8", timeout: 10)
         }
     }
 

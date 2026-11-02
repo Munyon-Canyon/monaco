@@ -119,7 +119,7 @@ enum SettingsNotificationsJourney {
         }
 
         recorder.step("S4.3", "leave and come back") {
-            app.navigationBars.buttons.firstMatch.tap()
+            app.tapBack()
             openSettings(app, step: "S4.3")
             switchReads(app, decisions, "0", step: "S4.3")
             switchReads(app, replies, "1", step: "S4.3")

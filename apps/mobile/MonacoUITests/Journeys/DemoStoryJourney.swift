@@ -126,7 +126,7 @@ enum DemoStoryJourney {
         }
 
         recorder.step("S3.3", "the Pre-IPO listings") {
-            app.navigationBars.buttons.firstMatch.tap()
+            app.tapBack()
             StocksAssetDetailJourney.openAsset(app, StocksAssetDetailJourney.preIpo, step: "S3.3")
             StocksAssetDetailJourney.scrollToText(app, "Round stats", step: "S3.3")
         }
