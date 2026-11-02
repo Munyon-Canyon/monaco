@@ -1,3 +1,4 @@
+import MonacoCore
 import SwiftUI
 
 enum VoteSide: Equatable, Hashable {
@@ -303,26 +304,36 @@ struct VoteStatusLine: View {
         }
     }
 
+    private var lead: String { facts.first ?? "" }
+
+    private var rest: String { facts.dropFirst().map { " · \($0)" }.joined() }
+
     private var line: Text {
-        guard let first = facts.first else { return Text(verbatim: "") }
-        let rest = facts.dropFirst().map { " · \($0)" }.joined()
-        guard let markSymbol else { return Text(verbatim: facts.joined(separator: " · ")) }
-        return Text(Image(systemName: markSymbol)).foregroundStyle(markColor)
-            + Text(verbatim: " ")
-            + Text(verbatim: first).fontWeight(.semibold).foregroundStyle(MonacoTheme.primaryText)
+        Text(verbatim: lead).fontWeight(.semibold).foregroundStyle(MonacoTheme.primaryText)
             + Text(verbatim: rest)
     }
 
     var body: some View {
-        line
-            .font(MonacoTheme.Typo.subhead)
-            .foregroundStyle(MonacoTheme.secondaryText)
-            .lineLimit(nil)
-            .fixedSize(horizontal: false, vertical: true)
-            .frame(maxWidth: .infinity, minHeight: MonacoButtonMetrics.hitTarget, alignment: .leading)
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel(facts.joined(separator: ", "))
-            .accessibilityIdentifier(VoteIdentifier.make(identifierPrefix, "vote-status", identifierSuffix))
+        HStack(alignment: .firstTextBaseline, spacing: MonacoTheme.Space.xs) {
+            if let markSymbol {
+                Image(systemName: markSymbol)
+                    .foregroundStyle(markColor)
+                    .accessibilityHidden(true)
+            }
+            if markSymbol == nil {
+                Text(verbatim: facts.joined(separator: " · "))
+            } else {
+                line
+            }
+        }
+        .font(MonacoTheme.Typo.subhead)
+        .foregroundStyle(MonacoTheme.secondaryText)
+        .lineLimit(nil)
+        .fixedSize(horizontal: false, vertical: true)
+        .frame(maxWidth: .infinity, minHeight: MonacoButtonMetrics.hitTarget, alignment: .leading)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(ProposalVoteCopy.spoken(facts: facts))
+        .accessibilityIdentifier(VoteIdentifier.make(identifierPrefix, "vote-status", identifierSuffix))
     }
 }
 

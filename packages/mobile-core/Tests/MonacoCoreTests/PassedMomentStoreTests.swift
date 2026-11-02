@@ -178,6 +178,15 @@ final class PassedMomentStoreTests: XCTestCase {
                 closedAt: clock.addingTimeInterval(-3 * 86_400), now: clock, calendar: utc),
             "✓ 5 · ✕ 1 · closed Oct 19")
         XCTAssertEqual(
+            ProposalResultCopy.passedSheetSpokenTally(
+                tally: ProposalTally(yes: 5, no: 1, voters: 8, needed: 5), closedAt: clock.addingTimeInterval(-720),
+                now: clock, calendar: utc),
+            "5 yes, 1 no, closed 9:41 AM")
+        XCTAssertEqual(
+            ProposalResultCopy.passedSheetSpokenTally(
+                tally: ProposalTally(yes: 5, no: 1, voters: 8, needed: 5), closedAt: nil, now: clock, calendar: utc),
+            "5 yes, 1 no")
+        XCTAssertEqual(
             ProposalResultCopy.passedSheetTrade(swap, symbol: "NVDAx", assetKind: .stock, isSell: false),
             "Bought 1.82 NVDA at $219.40.")
         XCTAssertEqual(

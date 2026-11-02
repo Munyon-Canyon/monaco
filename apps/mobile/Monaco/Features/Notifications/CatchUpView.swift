@@ -42,11 +42,13 @@ struct CatchUpView: View {
                 } label: {
                     HStack(spacing: MonacoTheme.Space.xs) {
                         Image(systemName: "square.stack")
+                            .accessibilityHidden(true)
                         Text(CatchUpCopy.oneByOne)
                     }
                     .frame(minHeight: MonacoButtonMetrics.hitTarget)
                     .contentShape(Rectangle())
                 }
+                .accessibilityLabel(CatchUpCopy.oneByOne)
                 .accessibilityIdentifier("catch-up-one-by-one")
             }
         }

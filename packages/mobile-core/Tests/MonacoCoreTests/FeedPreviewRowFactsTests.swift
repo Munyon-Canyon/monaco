@@ -213,6 +213,17 @@ final class FeedPreviewRowFactsTests: XCTestCase {
         XCTAssertTrue(facts(proposal(replies: 6)).spoken.hasSuffix("6 replies"))
     }
 
+    func testNoRowReadsAnSFSymbolName() {
+        let proposals: [FeedPreviewRowFacts] = [facts(proposal()), facts(proposal(replies: 1))]
+        let rows: [FeedPreviewRowFacts] = proposals + Item.results.map { facts($0) }
+        for row in rows {
+            XCTAssertFalse(row.spoken.contains("Comment Left"), row.spoken)
+            XCTAssertFalse(row.spoken.contains("Bubble"), row.spoken)
+            XCTAssertFalse(row.spoken.contains("✓"), row.spoken)
+            XCTAssertFalse(row.spoken.contains("✕"), row.spoken)
+        }
+    }
+
     func testOneSentenceReadsTitleSubLineTrailingAndReplies() {
         XCTAssertEqual(
             facts(proposal(), ago: 1).spoken,

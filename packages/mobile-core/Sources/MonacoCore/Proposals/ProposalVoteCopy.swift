@@ -87,6 +87,11 @@ public enum ProposalVoteCopy {
         ).joined(separator: " · ")
     }
 
+    public static func spoken(facts: [String]) -> String {
+        facts.map { $0.replacingOccurrences(of: "(\\d+)–(\\d+)", with: "$1 to $2", options: .regularExpression) }
+            .joined(separator: ", ")
+    }
+
     public static func settledFacts(
         status: ProposalStatus, tally: ProposalTally, voted: Int, voters: Int, sharesEstimate: String?,
         isSell: Bool = false, unit: String = "sh", isRule: Bool = false
