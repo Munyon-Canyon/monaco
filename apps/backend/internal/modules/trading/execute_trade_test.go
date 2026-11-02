@@ -12,6 +12,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal"
 	"github.com/monaco/monaco/apps/backend/internal/modules/funding"
+	governance "github.com/monaco/monaco/apps/backend/internal/modules/governance/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/app"
 	treasuryport "github.com/monaco/monaco/apps/backend/internal/modules/treasury/port"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain/jupiter"
@@ -570,5 +571,38 @@ func TestExecuteTrade_aToleranceOverThePlatformCapOrdersAt300Bps(t *testing.T) {
 	}
 	if got := e.jup.Slippages(); len(got) == 0 || got[0] != 300 {
 		t.Fatalf("order slippages = %v, want the first order at the 300 bps cap", got)
+	}
+}
+
+func TestExecuteTrade_aVoidedProposalStopsBeforeEveryCheckAndLeavesNoSwapOrBlock(t *testing.T) {
+	t.Parallel()
+	for name, status := range map[string]cabal.Status{"active": cabal.StatusActive, "banned": cabal.StatusBanned} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			e := newEngineEnv(t)
+			e.seedCabal(status, 100)
+			e.proposals.set(governance.Status("voided"))
+			cmd := e.buy()
+			d := e.delivery(t, cmd)
+			if err := e.handle(t, d, cmd); err != nil {
+				t.Fatal(err)
+			}
+			if swaps, blocked := e.swapsOf(t, cmd.ProposalID), e.blocked(t, cmd.ProposalID); len(swaps) != 0 ||
+				len(blocked) != 0 || !e.recorded(t, d) {
+				t.Fatalf("swaps %v, blocked %v, recorded %v; want none of either and the delivery recorded",
+					swaps, blocked, e.recorded(t, d))
+			}
+		})
+	}
+}
+
+func TestExecuteTrade_aProposalReadThatFailsIsRetriedBeforeAnyCheck(t *testing.T) {
+	t.Parallel()
+	e := newEngineEnv(t)
+	e.proposals.Fail("Retryable", errs.New(errs.CodeInternal, "test.retryable"))
+	cmd := e.buy()
+	d := e.delivery(t, cmd)
+	if err := e.handle(t, d, cmd); err == nil || e.recorded(t, d) || len(e.swapsOf(t, cmd.ProposalID)) != 0 {
+		t.Fatalf("err %v, recorded %v; want the read error returned and nothing written", err, e.recorded(t, d))
 	}
 }

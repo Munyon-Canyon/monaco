@@ -79,22 +79,23 @@ public enum ProposalVoteCopy {
 
     public static func settledLine(
         status: ProposalStatus, tally: ProposalTally, voted: Int, voters: Int, sharesEstimate: String?,
-        isSell: Bool = false
+        isSell: Bool = false, unit: String = "sh"
     ) -> String {
         settledFacts(
-            status: status, tally: tally, voted: voted, voters: voters, sharesEstimate: sharesEstimate, isSell: isSell
+            status: status, tally: tally, voted: voted, voters: voters, sharesEstimate: sharesEstimate, isSell: isSell,
+            unit: unit
         ).joined(separator: " · ")
     }
 
     public static func settledFacts(
         status: ProposalStatus, tally: ProposalTally, voted: Int, voters: Int, sharesEstimate: String?,
-        isSell: Bool = false
+        isSell: Bool = false, unit: String = "sh"
     ) -> [String] {
         let score = "\(tally.yes)–\(tally.no)"
         let turnout = "\(voted) of \(voters) voted"
         guard status == .passed else { return ["Failed \(score)", turnout, "no trade"] }
         var facts = ["Passed \(score)", turnout]
-        if let sharesEstimate { facts.append("\(isSell ? "selling" : "buying") \(sharesEstimate) sh") }
+        if let sharesEstimate { facts.append("\(isSell ? "selling" : "buying") \(sharesEstimate) \(unit)") }
         return facts
     }
 

@@ -296,7 +296,7 @@ public final class ProposalDetailModel {
     }
 
     public func beginChange() {
-        guard case .committed(let side) = voteSelection, value?.summary.canVote == true else { return }
+        guard !isVoting, case .committed(let side) = voteSelection, value?.summary.canVote == true else { return }
         voteSelection = .picked(side.other)
     }
 
@@ -324,7 +324,8 @@ public final class ProposalDetailModel {
         guard let vote = lastVote, vote.settled, let summary = value?.summary else { return nil }
         return ProposalVoteCopy.settledFacts(
             status: vote.status, tally: vote.tally, voted: vote.tally.yes + vote.tally.no, voters: vote.tally.voters,
-            sharesEstimate: sharesEstimate, isSell: summary.kind == "sell")
+            sharesEstimate: sharesEstimate, isSell: summary.kind == "sell",
+            unit: ProposalResultCopy.unitName(kind: asset?.kind ?? .stock))
     }
 
     public var settledLine: String? { settledFacts?.joined(separator: " · ") }
@@ -338,7 +339,7 @@ public final class ProposalDetailModel {
         guard let value = stats?.cells.first(where: { $0.label == "Shares" })?.value,
             value != ProposalStats.missing
         else { return nil }
-        return value.hasPrefix("≈ ") ? String(value.dropFirst(2)) : value
+        return value
     }
 
     private func syncVoteSelection(with summary: ProposalSummary) {

@@ -70,6 +70,19 @@ final class ProposalVoteCopyTests: XCTestCase {
             "Passed 5–1 · 6 of 8 voted")
     }
 
+    func testTheSettledLineKeepsTheApproximateSignAndNamesTokensForPreIpo() {
+        let passed = ProposalTally(yes: 5, no: 1, voters: 8, needed: 5)
+        XCTAssertEqual(
+            ProposalVoteCopy.settledLine(
+                status: .passed, tally: passed, voted: 6, voters: 8, sharesEstimate: "≈ 1.82"),
+            "Passed 5–1 · 6 of 8 voted · buying ≈ 1.82 sh")
+        XCTAssertEqual(
+            ProposalVoteCopy.settledLine(
+                status: .passed, tally: passed, voted: 6, voters: 8, sharesEstimate: "2.2", isSell: true,
+                unit: "tokens"),
+            "Passed 5–1 · 6 of 8 voted · selling 2.2 tokens")
+    }
+
     func testTheSettledLineForAFailedProposalHasNoTrade() {
         let failed = ProposalTally(yes: 2, no: 3, voters: 5, needed: 3)
         XCTAssertEqual(

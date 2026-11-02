@@ -93,11 +93,15 @@ struct VoteHoldSheet: View {
     }
 
     static func title(_ summary: ProposalSummary) -> String {
-        let side = summary.kind == "sell" ? "Sell" : "Buy"
-        let head = "\(side) \(AssetSymbolFormatter.display(summary.symbol))"
-        guard let micros = summary.usdcMicros else { return head }
-        let whole = UsdAmountFormatter.format(micros: micros / 1_000_000 * 1_000_000).dropLast(3)
-        return "\(head) \u{00B7} \(whole)"
+        title(kind: summary.kind, symbol: summary.symbol, usdcMicros: summary.usdcMicros)
+    }
+
+    static func title(kind: String, symbol: String, usdcMicros: Int64?) -> String {
+        let side = kind == "sell" ? "Sell" : "Buy"
+        let head = "\(side) \(AssetSymbolFormatter.display(symbol))"
+        guard let micros = usdcMicros else { return head }
+        let amount = UsdAmountFormatter.format(micros: micros)
+        return "\(head) \u{00B7} \(amount.hasSuffix(".00") ? String(amount.dropLast(3)) : amount)"
     }
 
     private func row(_ model: VoteHoldModel, _ summary: ProposalSummary) -> some View {

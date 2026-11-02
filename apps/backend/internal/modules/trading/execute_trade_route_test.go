@@ -132,7 +132,7 @@ func TestExecuteTrade_aRetryCarriesTheOriginalSwapsRoute(t *testing.T) {
 
 	retry := e.buy()
 	retry.ProposalID = cmd.ProposalID
-	retry.Retry = &app.Retry{Of: ids.SwapIDFrom(first), SlippageBps: 100}
+	retry.Retry = &app.Retry{Of: ids.SwapIDFrom(first)}
 	if err := e.handle(t, e.delivery(t, retry), retry); err != nil {
 		t.Fatal(err)
 	}
@@ -231,7 +231,7 @@ func TestExecuteTrade_aRetryWhoseRouteCannotBeReadIsNotStarted(t *testing.T) {
 	t.Parallel()
 	e := newEngineEnv(t)
 	cmd := e.buy()
-	cmd.Retry = &app.Retry{Of: ids.SwapIDFrom(e.ids.NewV7()), SlippageBps: 100}
+	cmd.Retry = &app.Retry{Of: ids.SwapIDFrom(e.ids.NewV7())}
 	if _, err := e.pool.Exec(t.Context(), `ALTER TABLE trade_routes RENAME TO trade_routes_gone`); err != nil {
 		t.Fatal(err)
 	}

@@ -26,7 +26,8 @@ extension ProposalPassedMoment {
         proposalID = summary.id
         title = ProposalResultCopy.passedSheetTitle(
             kind: summary.kind, symbol: summary.symbol, assetKind: assetKind,
-            amountMicros: isSell ? summary.quoteOutAmount : summary.usdcMicros)
+            amountMicros: ProposalResultCopy.passedSheetAmount(
+                isSell: isSell, usdcMicros: summary.usdcMicros, quoteOutAmount: summary.quoteOutAmount, swap: swap))
         cabalName = summary.cabalName
         tally = ProposalResultCopy.passedSheetTally(
             tally: summary.tally, closedAt: detail.stats.closedAt ?? swap.filledAt, now: now)

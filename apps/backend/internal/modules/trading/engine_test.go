@@ -203,7 +203,7 @@ func TestTradeEngine_FailedRowAllowsNewClaim(t *testing.T) {
 	}
 }
 
-func TestTradeEngine_VoidedAfterClaim_SourceCancelled(t *testing.T) {
+func TestTradeEngine_VoidedBeforeTheEngineRuns_StopsWithoutASwapOrAFailure(t *testing.T) {
 	t.Parallel()
 	b := newEngineBus(t)
 	b.proposals.set(governance.Status("voided"))
@@ -213,17 +213,33 @@ func TestTradeEngine_VoidedAfterClaim_SourceCancelled(t *testing.T) {
 	b.dispatch(t, msg)
 	got := b.statuses(t, cmd)
 	failed := b.count(t, `SELECT count(*) FROM events WHERE type = 'trade.failed'`)
-	if msg.verdict != "ack" || len(got) != 1 || got[0] != "failed:source_cancelled" || failed != 1 ||
-		!b.recordedMsg(t, msg) || len(b.jup.Sent("req-1")) != 0 {
-		t.Fatalf("verdict %q, swaps %v, %d trade.failed, %d executes; want one source_cancelled swap, never sent",
+	if msg.verdict != "ack" || len(got) != 0 || failed != 0 || !b.recordedMsg(t, msg) ||
+		len(b.jup.Sent("req-1")) != 0 {
+		t.Fatalf("verdict %q, swaps %v, %d trade.failed, %d executes; want an ack with no swap, never sent",
 			msg.verdict, got, failed, len(b.jup.Sent("req-1")))
+	}
+}
+
+func TestTradeEngine_VoidedAfterTheChecks_SourceCancelled(t *testing.T) {
+	t.Parallel()
+	b := newEngineBus(t)
+	b.proposals.voidAtRead(2)
+	cmd := b.buy()
+	msg := b.message(t, cmd, "")
+
+	b.dispatch(t, msg)
+	got := b.statuses(t, cmd)
+	if msg.verdict != "ack" || len(got) != 1 || got[0] != "failed:source_cancelled" ||
+		len(b.jup.Sent("req-1")) != 0 {
+		t.Fatalf("verdict %q, swaps %v, %d executes; want one source_cancelled swap, never sent",
+			msg.verdict, got, len(b.jup.Sent("req-1")))
 	}
 }
 
 func TestTradeEngine_RecheckReadFailureFailsTheRowAndNaksForAFreshClaim(t *testing.T) {
 	t.Parallel()
 	b := newEngineBus(t)
-	b.proposals.FailOnce("Retryable", errs.New(errs.CodeUpstreamUnavailable, "governance.Retryable"))
+	b.proposals.failReadNumber(2, errs.New(errs.CodeUpstreamUnavailable, "governance.Retryable"))
 	cmd := b.buy()
 	msg := b.message(t, cmd, "")
 

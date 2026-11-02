@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 
 	busevents "github.com/monaco/monaco/apps/backend/internal/events"
+	"github.com/monaco/monaco/apps/backend/internal/modules/cabal"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading/domain"
 	platform "github.com/monaco/monaco/apps/backend/internal/platform/chain"
@@ -125,18 +126,27 @@ func TestTradeEngine_RetryOfASupersededFailedSwapAcksWithoutASwap(t *testing.T) 
 	}
 }
 
-func TestTradeEngine_RetryUsesThePayloadsSlippage(t *testing.T) {
+func TestTradeEngine_RetryOrdersAtTheCabalsCurrentSlippageNotTheFailedSwaps(t *testing.T) {
 	t.Parallel()
-	b := newEngineBus(t)
-	cmd := b.buy()
-	failed := b.failFirstSwap(t, cmd, usdcToken(), aaplxToken())
-	b.quote(usdcToken(), aaplxToken(), 20_370_000, true)
-	msg := b.retryMessage(t, retryOf(failed, cmd, 300))
+	for name, c := range map[string]struct{ cabal, payload int32 }{
+		"loosened":  {cabal: 300, payload: 100},
+		"tightened": {cabal: 100, payload: 300},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			b := newEngineBus(t)
+			cmd := b.buy()
+			failed := b.failFirstSwap(t, cmd, usdcToken(), aaplxToken())
+			b.seedCabal(cabal.StatusActive, c.cabal)
+			msg := b.retryMessage(t, retryOf(failed, cmd, c.payload))
 
-	b.dispatch(t, msg)
-	if got := b.statuses(t, cmd); msg.verdict != "ack" || len(got) != 2 || got[1] != "confirmed" {
-		t.Fatalf("verdict %q, swaps %v; want the 300 bps payload to admit a quote 100 bps would refuse",
-			msg.verdict, got)
+			b.dispatch(t, msg)
+			got := b.jup.Slippages()
+			if msg.verdict != "ack" || len(got) < 2 || got[len(got)-1] != int64(c.cabal) {
+				t.Fatalf("verdict %q, order slippages %v; want the retry's order at the cabal's %d bps",
+					msg.verdict, got, c.cabal)
+			}
+		})
 	}
 }
 

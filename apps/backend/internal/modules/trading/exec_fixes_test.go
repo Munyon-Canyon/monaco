@@ -102,7 +102,7 @@ func TestRetry_aBridgeBackThatTakesTheStrandedCashFirstFailsTheClaimAndRechecksF
 		Ports: ports, USDC: usdcToken(), EVM: true,
 	})
 	retry := cmd
-	retry.Route, retry.Retry = nil, &app.Retry{Of: ids.SwapIDFrom(first), SlippageBps: 100}
+	retry.Route, retry.Retry = nil, &app.Retry{Of: ids.SwapIDFrom(first)}
 	d := e.delivery(t, retry)
 
 	err := h.Handle(actorContext(t.Context()), d, retry, nil)

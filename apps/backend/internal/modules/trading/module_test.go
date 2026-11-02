@@ -12,6 +12,7 @@ import (
 	fundingport "github.com/monaco/monaco/apps/backend/internal/modules/funding/port"
 	governance "github.com/monaco/monaco/apps/backend/internal/modules/governance/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading"
+	"github.com/monaco/monaco/apps/backend/internal/modules/trading/app"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/config"
 	"github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
@@ -170,7 +171,10 @@ func TestModule_defaultsReadTheCatalogTableAndBlockAnUnknownAsset(t *testing.T) 
 	cfg.Timeouts = config.Timeouts{
 		JupiterQuote: time.Second, JupiterExecute: time.Second, RPC: time.Second, Privy: time.Second,
 	}
-	m := trading.New(module.Deps{Config: cfg, Clock: e.clk, IDs: e.ids, Pool: e.pool, UoW: e.uow, Bus: conn})
+	m := trading.New(
+		module.Deps{Config: cfg, Clock: e.clk, IDs: e.ids, Pool: e.pool, UoW: e.uow, Bus: conn},
+		trading.WithEnginePorts(app.EnginePorts{Proposals: e.proposals}),
+	)
 
 	msg, swaps := e.dispatchVia(t, conn, m)
 	blocked := e.count(t, `SELECT count(*) FROM events WHERE type = 'trade.blocked' AND payload->>'code' = $1`,

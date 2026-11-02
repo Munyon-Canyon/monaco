@@ -104,14 +104,19 @@ func (r *ProposalReads) Get(ctx context.Context, req GetProposal) (ProposalDetai
 		return ProposalDetail{}, err
 	}
 	open := view.Status == domain.StatusOpen
+	voting := r.votingOpen(view.Status, row.ExpiresAt)
 	out := ProposalDetail{
 		Stats: facts.stats, MyVote: facts.myVote, ReplyCount: facts.replyCount,
-		Proposal: view, Voters: voters, SidesVisible: reveal, CanVote: open && isVoter,
+		Proposal: view, Voters: voters, SidesVisible: reveal, CanVote: voting && isVoter,
 		CanWithdraw: open && view.ProposerID == req.Caller && !othersVoted,
 		Proposer:    proposer.card, ProposerReturnBps: proposer.bps, ProposerReturnPrivate: proposer.private,
 		PassedPriceMicros: passedPrice(row), ReminderSet: row.ReminderSet,
 	}
 	return out, r.priced(ctx, row, &out)
+}
+
+func (r *ProposalReads) votingOpen(status domain.Status, expiresAt time.Time) bool {
+	return status == domain.StatusOpen && r.clock.Now().Before(expiresAt)
 }
 
 func (r *ProposalReads) nameView(ctx context.Context, view *ProposalView) error {

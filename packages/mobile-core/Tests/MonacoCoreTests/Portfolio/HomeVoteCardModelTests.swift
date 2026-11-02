@@ -115,7 +115,7 @@ final class HomeVoteCardModelTests: XCTestCase {
         let reads = await transport.sent.filter { $0.path == detailPath }
         XCTAssertEqual(reads.count, 1)
         XCTAssertEqual(model.hint(holding: false), "Yours was the 5th yes \u{00B7} at 5 of 8 it passes")
-        XCTAssertEqual(model.subhead(now: clock), "AC Capital \u{00B7} passed 5\u{2013}1 \u{00B7} buying 1.82 sh")
+        XCTAssertEqual(model.subhead(now: clock), "AC Capital \u{00B7} passed 5\u{2013}1 \u{00B7} buying ≈ 1.82 sh")
     }
 
     func testUndoCallsTheRetractAndReturnsToIdle() async throws {
@@ -146,6 +146,29 @@ final class HomeVoteCardModelTests: XCTestCase {
         XCTAssertEqual(sent.map(\.path), [detailPath])
         XCTAssertEqual(model.tally.yes, 6)
         XCTAssertEqual(model.replyCount, 9)
+    }
+
+    func testACommittedCardKeepsFollowingTheTallyAndTheReplies() async throws {
+        let transport = StubTransport(
+            routes: [
+                votesPath: [.json(.ok, castBody(yes: 5, no: 1))],
+                detailPath: [try detail(yes: 6, replies: 9)],
+            ])
+        let model = model(transport)
+        _ = await model.vote(.yes)
+        XCTAssertTrue(model.isCommitted)
+        await model.reload()
+        XCTAssertEqual(model.tally.yes, 6)
+        XCTAssertEqual(model.replyCount, 9)
+        XCTAssertTrue(model.isCommitted)
+        var next = row()
+        next = HomePendingVote(
+            id: next.id, cabalID: next.cabalID, cabalName: next.cabalName, kind: next.kind, rule: next.rule,
+            symbol: next.symbol, assetName: next.assetName, usdcMicros: next.usdcMicros,
+            tally: ProposalTally(yes: 7, no: 1, voters: 8, needed: 5), replyCount: 11, expiresAt: next.expiresAt)
+        model.update(next)
+        XCTAssertEqual(model.tally.yes, 7)
+        XCTAssertEqual(model.replyCount, 11)
     }
 
     func testAClosedProposalShowsTheServersMessage() async throws {

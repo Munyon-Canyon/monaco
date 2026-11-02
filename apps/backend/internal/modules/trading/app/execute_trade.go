@@ -37,7 +37,6 @@ type ExecuteTrade struct {
 
 type Retry struct {
 	Of             ids.SwapID
-	SlippageBps    int32
 	AtCurrentPrice bool
 }
 
@@ -84,6 +83,9 @@ func (h *ExecuteTradeHandler) Handle(ctx context.Context, d bus.Delivery, cmd Ex
 	if done, err := h.claimed(ctx, d, cmd); done || err != nil {
 		return err
 	}
+	if wanted, err := h.d.Ports.Proposals.Retryable(ctx, cmd.ProposalID); err != nil || !wanted {
+		return h.stopped(ctx, d, err)
+	}
 	req, winner, refused, err := h.check(ctx, cmd)
 	switch {
 	case err != nil:
@@ -105,6 +107,16 @@ func (h *ExecuteTradeHandler) Handle(ctx context.Context, d bus.Delivery, cmd Ex
 			_, err := d.RecordAs(ctx, tx, string(failedOutcome(view.FailureCode)))
 			return err
 		}
+		_, err := d.Record(ctx, tx)
+		return err
+	})
+}
+
+func (h *ExecuteTradeHandler) stopped(ctx context.Context, d bus.Delivery, err error) error {
+	if err != nil {
+		return err
+	}
+	return h.d.UoW.Do(ctx, func(ctx context.Context, tx db.Tx) error {
 		_, err := d.Record(ctx, tx)
 		return err
 	})
@@ -476,9 +488,6 @@ func (h *ExecuteTradeHandler) unrouted(ctx context.Context, req *SwapRequest) (r
 }
 
 func (h *ExecuteTradeHandler) slippageBps(ctx context.Context, cmd ExecuteTrade) (int32, error) {
-	if cmd.Retry != nil {
-		return cmd.Retry.SlippageBps, nil
-	}
 	return h.d.Ports.Cabals.SlippageBps(ctx, cmd.CabalID)
 }
 

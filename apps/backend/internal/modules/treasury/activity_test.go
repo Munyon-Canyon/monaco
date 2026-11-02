@@ -207,6 +207,21 @@ func TestActivityConsumer_aFailedSwapHasNoLedgerHeaderAndOneFailedRow(t *testing
 	wantActivity(t, byID[bought], "buy", "failed", nil, str("5000000"), nil, nil)
 }
 
+func TestActivityConsumer_aCancelledSourceWritesNoTradeFailedRow(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	cabal := f.funded(t)
+	swap := f.ids.NewV7()
+	cancelled := failed(cabal, swap, "buy", usdcMint, 5_000_000)
+	cancelled.FailureCode = "source_cancelled"
+	if err := f.deliver(t, cancelled, submittedAt()); err != nil {
+		t.Fatal(err)
+	}
+	if got := f.activity(t); len(got) != 0 {
+		t.Fatalf("activity = %+v, want no row for a swap whose proposal was voided", got)
+	}
+}
+
 func TestActivityConsumer_hintsTheCabalOncePerChangeAndKeepsCashOutSellsOutOfTheHints(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)

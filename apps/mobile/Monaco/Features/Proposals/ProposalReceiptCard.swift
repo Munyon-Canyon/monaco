@@ -11,10 +11,10 @@ struct ProposalReceiptCard: View {
     private var isSell: Bool { summary.kind == "sell" }
 
     private var pendingUnits: String? {
-        guard let atomics = detail.stats.sharesAtomics,
-            let units = ProposalResultCopy.units(atomics: atomics, decimals: detail.stats.tokenDecimals)
-        else { return nil }
-        return "\(units) sh"
+        guard let atomics = detail.stats.sharesAtomics else { return nil }
+        return ProposalResultCopy.pendingUnits(
+            atomics: atomics, decimals: detail.stats.tokenDecimals, exact: detail.stats.sharesExact || isSell,
+            kind: model.asset?.kind ?? .stock)
     }
 
     private var notVotedNames: [String] {
@@ -80,7 +80,8 @@ struct ProposalReceiptCard: View {
 
     @ViewBuilder private var tradeRow: some View {
         if let swap = summary.swap,
-            let fill = ProposalResultCopy.tradeRow(swap: swap, isSell: isSell, sinceBps: detail.stats.sinceBps)
+            let fill = ProposalResultCopy.tradeRow(
+                swap: swap, isSell: isSell, sinceBps: detail.stats.sinceBps, assetKind: model.asset?.kind ?? .stock)
         {
             transactionLink(swap.id) {
                 line(

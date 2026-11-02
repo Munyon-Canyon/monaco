@@ -45,7 +45,7 @@ func (e Engine) HandleRetry(ctx context.Context, d bus.Delivery, ev events.Trade
 	}
 	if ev.SwapID != uuid.Nil {
 		cmd.Retry = &app.Retry{
-			Of: ids.SwapIDFrom(ev.SwapID), SlippageBps: ev.SlippageBps, AtCurrentPrice: ev.AtCurrentPrice,
+			Of: ids.SwapIDFrom(ev.SwapID), AtCurrentPrice: ev.AtCurrentPrice,
 		}
 	}
 	if cmd.Action == domain.ActionSell {
