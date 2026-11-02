@@ -3,6 +3,7 @@ package trading_test
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"log/slog"
 	"math/big"
 	"slices"
@@ -239,6 +240,9 @@ func (e *routeEnv) wantEVMRow(t *testing.T, swap uuid.UUID, hash string) {
 		if confirmed[k] != v {
 			t.Fatalf("trade.confirmed %s = %v, want %v (payload %v)", k, confirmed[k], v, confirmed)
 		}
+	}
+	if got := fmt.Sprint(confirmed["token_decimals"]); got != "8" {
+		t.Fatalf("trade.confirmed token_decimals = %s, want the listing's 8 (payload %v)", got, confirmed)
 	}
 }
 

@@ -61,6 +61,7 @@ public struct ProposalSummary: Identifiable, Equatable, Sendable {
     public let thesis: String?
     public let usdcMicros: Int64?
     public let tokenAmount: Int64?
+    public let tokenDecimals: Int?
     public let quoteOutAmount: Int64
     public let createdAt: Date
     public let tally: ProposalTally
@@ -84,7 +85,8 @@ public struct ProposalSummary: Identifiable, Equatable, Sendable {
         self.init(
             id: other.id, cabalID: other.cabalID, cabalName: other.cabalName, kind: other.kind,
             symbol: other.symbol, proposerID: other.proposerID, thesis: other.thesis, usdcMicros: other.usdcMicros,
-            tokenAmount: other.tokenAmount, quoteOutAmount: other.quoteOutAmount, createdAt: other.createdAt,
+            tokenAmount: other.tokenAmount, tokenDecimals: other.tokenDecimals, quoteOutAmount: other.quoteOutAmount,
+            createdAt: other.createdAt,
             tally: other.tally, myBallot: other.myBallot, status: .passed, statusReason: nil,
             statusMessage: other.statusMessage,
             expiresAt: other.expiresAt, canVote: other.canVote, canWithdraw: other.canWithdraw, swap: nil,
@@ -94,8 +96,9 @@ public struct ProposalSummary: Identifiable, Equatable, Sendable {
     private func replacing(ballot: String, tally: ProposalTally) -> ProposalSummary {
         ProposalSummary(
             id: id, cabalID: cabalID, cabalName: cabalName, kind: kind, symbol: symbol, proposerID: proposerID,
-            thesis: thesis, usdcMicros: usdcMicros, tokenAmount: tokenAmount, quoteOutAmount: quoteOutAmount,
-            createdAt: createdAt, tally: tally, myBallot: ballot, status: status, statusReason: statusReason,
+            thesis: thesis, usdcMicros: usdcMicros, tokenAmount: tokenAmount, tokenDecimals: tokenDecimals,
+            quoteOutAmount: quoteOutAmount, createdAt: createdAt, tally: tally, myBallot: ballot, status: status,
+            statusReason: statusReason,
             statusMessage: statusMessage,
             expiresAt: expiresAt,
             canVote: canVote, canWithdraw: canWithdraw, swap: swap, bestPrice: bestPrice, network: network,
@@ -104,7 +107,8 @@ public struct ProposalSummary: Identifiable, Equatable, Sendable {
 
     private init(
         id: String, cabalID: String, cabalName: String, kind: String, symbol: String, proposerID: String,
-        thesis: String?, usdcMicros: Int64?, tokenAmount: Int64?, quoteOutAmount: Int64, createdAt: Date,
+        thesis: String?, usdcMicros: Int64?, tokenAmount: Int64?, tokenDecimals: Int?, quoteOutAmount: Int64,
+        createdAt: Date,
         tally: ProposalTally, myBallot: String?, status: ProposalStatus, statusReason: String?, statusMessage: String?,
         expiresAt: Date, canVote: Bool,
         canWithdraw: Bool, swap: ProposalSwap?, bestPrice: BestPrice?, network: Components.Schemas.Network?,
@@ -119,6 +123,7 @@ public struct ProposalSummary: Identifiable, Equatable, Sendable {
         self.thesis = thesis
         self.usdcMicros = usdcMicros
         self.tokenAmount = tokenAmount
+        self.tokenDecimals = tokenDecimals
         self.quoteOutAmount = quoteOutAmount
         self.createdAt = createdAt
         self.tally = tally
@@ -150,6 +155,7 @@ public struct ProposalSummary: Identifiable, Equatable, Sendable {
         thesis = proposal.thesis
         usdcMicros = proposal.usdcMicros
         tokenAmount = proposal.tokenAmount
+        tokenDecimals = proposal.tokenDecimals
         quoteOutAmount = proposal.quoteOutAmount ?? 0
         createdAt = proposal.createdAt
         tally = ProposalTally(proposal.tally)
@@ -259,7 +265,8 @@ public struct ProposalDetail: Identifiable, Equatable, Sendable {
             priceComparison: value.priceComparison, id: value.id, cabalId: value.cabalId, cabalName: value.cabalName,
             proposerId: value.proposerId, kind: value.kind,
             symbol: value.symbol, usdcMicros: value.usdcMicros, tokenAmount: value.tokenAmount,
-            quoteOutAmount: value.quoteOutAmount, thesis: value.thesis, status: value.status,
+            tokenDecimals: value.tokenDecimals, quoteOutAmount: value.quoteOutAmount, thesis: value.thesis,
+            status: value.status,
             statusReason: value.statusReason, statusMessage: value.statusMessage, expiresAt: value.expiresAt,
             createdAt: value.createdAt, tally: value.tally,
             myBallot: value.myBallot.flatMap { Components.Schemas.Proposal.MyBallotPayload(rawValue: $0.rawValue) },

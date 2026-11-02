@@ -8180,6 +8180,7 @@ components:
           format: int64
           description: Token base units a sell spends. Null for a buy and for a rule proposal.
           examples: [null]
+        token_decimals: {type: [integer, "null"], minimum: 0, maximum: 255, description: "Decimals of `token_amount`. A Robinhood listing's token has 18, not the Solana token's 8. Null when there is no `token_amount` or it is the asset's own decimals.", examples: [18]}
         asset_name: {type: [string, "null"], description: "The asset's display name. Null for a rule proposal.", examples: [NVIDIA]}
         asset_logo_url: {type: [string, "null"], description: Null when the asset has no logo and for a rule proposal., examples: ["https://cdn.example.com/logos/nvda.png"]}
         proposer:
@@ -8277,6 +8278,7 @@ components:
           format: int64
           description: Token base units a sell spends. Null for a buy and for a rule proposal.
           examples: [null]
+        token_decimals: {type: [integer, "null"], minimum: 0, maximum: 255, description: "Decimals of `token_amount`. A Robinhood listing's token has 18, not the Solana token's 8. Null when there is no `token_amount` or it is the asset's own decimals.", examples: [18]}
         quote_out_amount:
           type: [integer, "null"]
           format: int64
@@ -8419,6 +8421,7 @@ components:
           format: int64
           description: Token base units a sell spends. Null for a buy and for a rule proposal.
           examples: [null]
+        token_decimals: {type: [integer, "null"], minimum: 0, maximum: 255, description: "Decimals of `token_amount`. A Robinhood listing's token has 18, not the Solana token's 8. Null when there is no `token_amount` or it is the asset's own decimals.", examples: [18]}
         quote_out_amount:
           type: [integer, "null"]
           format: int64

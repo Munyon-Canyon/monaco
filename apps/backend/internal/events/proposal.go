@@ -127,6 +127,8 @@ type ProposalCloseReminderDue struct {
 	Yes         int          `json:"yes"`
 	No          int          `json:"no"`
 	Voters      int          `json:"voters"`
+
+	TokenDecimals uint8 `json:"token_decimals,omitzero"`
 }
 
 func (ProposalCloseReminderDue) Type() Type { return TypeProposalCloseReminderDue }

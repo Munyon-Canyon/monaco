@@ -516,7 +516,7 @@ func (b routedBuy) confirmed(landed money.Micros, fill EVMSwapResult) step {
 				SourceBatchSize: req.SourceBatchSize, Action: string(req.Action), Symbol: req.Symbol,
 				InMint: req.InMint.Address, InAmount: landed.Uint64(), OutMint: req.OutMint.Address,
 				OutAmount: fill.Out, USDCMicros: b.sent, FeeMicros: b.fee,
-				TxSignature: chain.Signature(fill.Hash), ConfirmedAt: at,
+				TxSignature: chain.Signature(fill.Hash), ConfirmedAt: at, TokenDecimals: b.listing.Decimals,
 			}
 		},
 	}

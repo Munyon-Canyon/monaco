@@ -3,6 +3,7 @@ package governance_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"slices"
 	"testing"
 	"time"
@@ -14,6 +15,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/governance/sqlc"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 	"github.com/monaco/monaco/apps/backend/internal/platform/poller"
@@ -330,5 +332,48 @@ func TestCloseReminderPoller_aFailedMembershipCheckLeavesTheReminderUnsent(t *te
 	}
 	if rows := d.reminderRows(t, p.ID, v[0]); len(rows) != 1 || rows[0].SentAt != nil {
 		t.Fatalf("rows = %+v, want the reminder still unsent", rows)
+	}
+}
+
+func (d voteDB) robinhoodSellReminder(t *testing.T) sqlc.InsertProposalParams {
+	t.Helper()
+	p, _ := d.dueReminder(t)
+	const sell = `UPDATE proposals SET kind = 'sell', usdc_micros = NULL, token_amount = 500000000000000000,
+		network = 'robinhood' WHERE id = $1`
+	if _, err := d.pool.Exec(t.Context(), sell, p.ID); err != nil {
+		t.Fatal(err)
+	}
+	return p
+}
+
+func TestCloseReminderPoller_carriesTheListingDecimalsOfARobinhoodSell(t *testing.T) {
+	t.Parallel()
+	d := newVoteDB(t)
+	p := d.robinhoodSellReminder(t)
+	var asked chain.Network
+	reminders := d.closeReminders().Sized(func(_ context.Context, _ string, n chain.Network) (uint8, error) {
+		asked = n
+		return 18, nil
+	})
+	d.mustRemind(t, reminders, 1, 1)
+	got := d.closeReminderDues(t, p.ID)
+	if len(got) != 1 || got[0].TokenDecimals != 18 || got[0].TokenAmount != 500_000_000_000_000_000 ||
+		asked != chain.NetworkRobinhood {
+		t.Fatalf("events = %+v (asked %s), want a Robinhood sell of 0.5 at 18 decimals", got, asked)
+	}
+}
+
+func TestCloseReminderPoller_failsWhenTheListingDecimalsCannotBeRead(t *testing.T) {
+	t.Parallel()
+	d := newVoteDB(t)
+	p := d.robinhoodSellReminder(t)
+	down := errs.New(errs.CodeDBUnavailable, "test")
+	reminders := d.closeReminders().
+		Sized(func(context.Context, string, chain.Network) (uint8, error) { return 0, down })
+	if _, err := d.remindersTick(t.Context(), reminders); !errors.Is(err, down) {
+		t.Fatalf("Tick = %v, want the listing failure", err)
+	}
+	if got := d.closeReminderDues(t, p.ID); len(got) != 0 {
+		t.Fatalf("events = %+v, want none so the reminder retries", got)
 	}
 }

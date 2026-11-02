@@ -781,6 +781,11 @@ type PendingVote struct {
 	// Examples: null
 	TokenAmount *int64 `json:"token_amount"`
 
+	// TokenDecimals Decimals of `token_amount`. A Robinhood listing's token has 18, not the Solana token's 8. Null when there is no `token_amount` or it is the asset's own decimals.
+	//
+	// Examples: 18
+	TokenDecimals *int `json:"token_decimals,omitempty"`
+
 	// UsdcMicros USDC a buy spends, in micros. Null for a sell and for a rule proposal.
 	//
 	// Examples: 400000000
@@ -970,6 +975,11 @@ type Proposal struct {
 	//
 	// Examples: null
 	TokenAmount *int64 `json:"token_amount"`
+
+	// TokenDecimals Decimals of `token_amount`. A Robinhood listing's token has 18, not the Solana token's 8. Null when there is no `token_amount` or it is the asset's own decimals.
+	//
+	// Examples: 18
+	TokenDecimals *int `json:"token_decimals,omitempty"`
 
 	// UsdcMicros USDC a buy spends, in micros. Null for a sell and for a rule proposal.
 	//
@@ -1180,6 +1190,11 @@ type ProposalDetail struct {
 	//
 	// Examples: null
 	TokenAmount *int64 `json:"token_amount"`
+
+	// TokenDecimals Decimals of `token_amount`. A Robinhood listing's token has 18, not the Solana token's 8. Null when there is no `token_amount` or it is the asset's own decimals.
+	//
+	// Examples: 18
+	TokenDecimals *int `json:"token_decimals,omitempty"`
 
 	// UsdcMicros USDC a buy spends, in micros. Null for a sell and for a rule proposal.
 	//

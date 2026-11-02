@@ -64,6 +64,13 @@ func roundedQuo(num, den *big.Int) *big.Int {
 	return twice.Quo(twice, new(big.Int).Lsh(den, 1))
 }
 
+func tokenDecimals(reported, assets uint8) uint8 {
+	if reported > 0 {
+		return reported
+	}
+	return assets
+}
+
 func units(amount uint64, decimals uint8) string {
 	hundredths := roundedQuo(new(big.Int).Mul(new(big.Int).SetUint64(amount), big.NewInt(100)), pow10(decimals))
 	whole, frac := new(big.Int).QuoRem(hundredths, big.NewInt(100), new(big.Int))

@@ -415,7 +415,8 @@ func (h HTTP) detail(ctx context.Context, id ids.ProposalID, user ids.UserID) (a
 	out := api.ProposalDetail{
 		Id: p.Id, CabalId: p.CabalId, CabalName: p.CabalName, ProposerId: p.ProposerId, Kind: p.Kind,
 		Symbol: p.Symbol, UsdcMicros: p.UsdcMicros, TokenAmount: p.TokenAmount, QuoteOutAmount: p.QuoteOutAmount,
-		Thesis: p.Thesis, Status: p.Status, StatusReason: p.StatusReason, StatusMessage: p.StatusMessage,
+		TokenDecimals: p.TokenDecimals,
+		Thesis:        p.Thesis, Status: p.Status, StatusReason: p.StatusReason, StatusMessage: p.StatusMessage,
 		ExpiresAt: p.ExpiresAt, CreatedAt: p.CreatedAt, Tally: p.Tally, MyBallot: p.MyBallot,
 		Voters: make([]api.ProposalVoter, len(got.Voters)), CanVote: got.CanVote, CanWithdraw: got.CanWithdraw,
 		PriceComparison: p.PriceComparison, Network: p.Network,
@@ -480,6 +481,14 @@ func wireReceipt(out *api.LinkedSwap, f app.Fill) {
 	}
 }
 
+func decimalsOf(n uint8) *int {
+	if n == 0 {
+		return nil
+	}
+	v := int(n)
+	return &v
+}
+
 func baseAmount(n uint64) *int64 {
 	if n == 0 || n > math.MaxInt64 {
 		return nil
@@ -508,14 +517,15 @@ func (h HTTP) GetMyPendingVotes(
 			Kind: api.ProposalKind(
 				v.Kind,
 			),
-			Symbol:       present(v.Symbol),
-			RuleChange:   wirePendingRuleChange(v.Rule),
-			ExpiresAt:    v.ExpiresAt,
-			CreatedAt:    v.CreatedAt,
-			UsdcMicros:   baseAmount(v.USDC.Uint64()),
-			TokenAmount:  baseAmount(v.TokenAmount.Uint64()),
-			AssetName:    present(v.AssetName),
-			AssetLogoUrl: present(v.AssetLogo),
+			Symbol:        present(v.Symbol),
+			RuleChange:    wirePendingRuleChange(v.Rule),
+			ExpiresAt:     v.ExpiresAt,
+			CreatedAt:     v.CreatedAt,
+			UsdcMicros:    baseAmount(v.USDC.Uint64()),
+			TokenAmount:   baseAmount(v.TokenAmount.Uint64()),
+			TokenDecimals: decimalsOf(v.TokenDecimals),
+			AssetName:     present(v.AssetName),
+			AssetLogoUrl:  present(v.AssetLogo),
 			Proposer: api.PendingVoteProposer{
 				UserId: v.Proposer.ID.UUID(), Handle: present(v.Proposer.Handle),
 				DisplayName: v.Proposer.DisplayName, PhotoUrl: present(v.Proposer.PhotoURL),
@@ -541,6 +551,7 @@ func wireProposal(v app.ProposalView) api.Proposal {
 		RuleChange:      wireRuleChange(v.Rule),
 		UsdcMicros:      positive(v.USDCMicros),
 		TokenAmount:     positive(v.TokenAmount),
+		TokenDecimals:   decimalsOf(v.TokenDecimals),
 		QuoteOutAmount:  positive(v.QuoteOut),
 		Status:          api.ProposalStatus(v.Status),
 		ExpiresAt:       v.ExpiresAt,

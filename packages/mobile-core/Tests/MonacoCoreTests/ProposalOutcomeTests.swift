@@ -19,6 +19,19 @@ final class ProposalOutcomeTests: XCTestCase {
         XCTAssertEqual(outcomes.first?.toast(asset: Self.amazon), "Sold 0.2161 shares of Amazon")
     }
 
+    func testARobinhoodSellToastScalesByTheProposalsDecimalsNotTheSolanaTokens() throws {
+        let json = Self.sell("executed").replacingOccurrences(
+            of: #""token_amount":216100"#, with: #""token_amount":500000000000000000,"token_decimals":18"#)
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let proposal = ProposalSummary(try decoder.decode(Components.Schemas.Proposal.self, from: Data(json.utf8)))
+
+        let outcome = try XCTUnwrap(ProposalOutcome(from: .passed, to: proposal))
+
+        XCTAssertEqual(proposal.tokenDecimals, 18)
+        XCTAssertEqual(outcome.toast(asset: Self.amazon), "Sold 0.5 shares of Amazon")
+    }
+
     @MainActor
     func testABlockedSellFiresCouldntSellWithTheStatusMessage() async throws {
         let blocked = Self.sell("execution_blocked", message: "The cabal holds less than that.")

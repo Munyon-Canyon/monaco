@@ -81,7 +81,8 @@ public final class ProposeAmountModel {
         guard isOverLimit else { return .typed }
         switch trade {
         case .buy:
-            return .invalid(limitLine: ProposeFlowCopy.overCash, slot: ProposeFlowCopy.upTo(spendableCashMicros ?? 0))
+            return .invalid(
+                limitLine: ProposeFlowCopy.overCash, slot: ProposeFlowCopy.upTo(maxMicros ?? spendableCashMicros ?? 0))
         case .sell(let holding):
             return .invalid(limitLine: ProposeFlowCopy.overHolding, slot: ProposeFlowCopy.upTo(holding.valueMicros))
         }

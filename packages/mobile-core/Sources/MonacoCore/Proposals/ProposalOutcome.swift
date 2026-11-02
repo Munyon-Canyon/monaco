@@ -25,7 +25,8 @@ public struct ProposalOutcome: Equatable, Sendable {
         }
         guard let tokens = proposal.tokenAmount else { return "Sold \(name)" }
         let shares = TokenQuantityFormatter.label(
-            fromAtomics: String(tokens), decimals: asset?.decimals ?? ProposalShareFormatter.defaultDecimals,
+            fromAtomics: String(tokens),
+            decimals: proposal.tokenDecimals ?? asset?.decimals ?? ProposalShareFormatter.defaultDecimals,
             kind: kind)
         return "Sold \(shares) of \(name)"
     }

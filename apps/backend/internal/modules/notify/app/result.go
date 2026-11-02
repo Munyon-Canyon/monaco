@@ -137,8 +137,9 @@ func (k ResultFilled) Render(ctx context.Context, e events.TradeConfirmed, to id
 	if e.Action == "sell" {
 		filled = e.InAmount
 	}
+	decimals := tokenDecimals(e.TokenDecimals, asset.Decimals)
 	body := filledBody(
-		e.Action, units(filled, asset.Decimals), fillPrice(e.USDCMicros, filled, asset.Decimals), cast.voted[to],
+		e.Action, units(filled, decimals), fillPrice(e.USDCMicros, filled, decimals), cast.voted[to],
 	)
 	return k.message(ctx, e.CabalID, e.Source.ID, outcomeFilled,
 		resultTitle(assetLabel(asset), "passed", tally(cast.yes, cast.no)), body)

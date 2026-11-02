@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"math"
 	"time"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
@@ -11,6 +12,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/market"
 	rankingport "github.com/monaco/monaco/apps/backend/internal/modules/ranking/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/trading"
+	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 )
@@ -131,29 +133,39 @@ func (r *ProposalReads) priced(ctx context.Context, row sqlc.GetProposalRow, out
 	if err != nil {
 		return err
 	}
+	decimals, err := r.tokenDecimals(ctx, asset, chain.Network(row.Network))
+	if err != nil {
+		return err
+	}
+	if row.TokenAmount.Valid && chain.Network(row.Network).IsEVM() {
+		out.Proposal.TokenDecimals = decimals
+	}
 	live, err := r.livePrice(ctx, asset.ID)
 	if err != nil {
 		return err
 	}
-	if err := r.linkSwap(ctx, row, asset, out); err != nil {
+	if err := r.linkSwap(ctx, row, decimals, out); err != nil {
 		return err
+	}
+	if out.Swap != nil {
+		decimals = out.Fill.TokenDecimals
 	}
 	out.Stats = withPrices(ctx, out.Stats, priceInputs{
 		id: out.Proposal.ID, kind: row.Kind, usdc: money.MicrosFromUint64(unsigned(row.UsdcMicros.Int64)),
-		token: unsigned(row.TokenAmount.Int64), decimals: asset.Decimals, live: live, fill: out.Fill,
+		token: unsigned(row.TokenAmount.Int64), decimals: decimals, live: live, fill: out.Fill,
 	})
 	return nil
 }
 
 func (r *ProposalReads) linkSwap(
-	ctx context.Context, row sqlc.GetProposalRow, asset market.Asset, out *ProposalDetail,
+	ctx context.Context, row sqlc.GetProposalRow, decimals uint8, out *ProposalDetail,
 ) error {
 	swap, found, err := r.swaps.LatestBySource(ctx, trading.Source{Kind: "proposal", ID: row.ID})
 	if err != nil || !found {
 		return err
 	}
 	out.Swap = &swap
-	out.Fill = fillOf(swap, asset.Decimals)
+	out.Fill = fillOf(swap, decimals)
 	return nil
 }
 
@@ -205,6 +217,9 @@ func (r *ProposalReads) facts(ctx context.Context, row sqlc.GetProposalRow, req 
 }
 
 func fillOf(s trading.SwapView, decimals uint8) Fill {
+	if string(s.Action) == string(domain.KindBuy) && s.OutDecimals > 0 && s.OutDecimals <= math.MaxUint8 {
+		decimals = uint8(s.OutDecimals)
+	}
 	f := Fill{USDCMicros: s.InAmount, TokenAmount: s.OutAmount, TokenDecimals: decimals}
 	if string(s.Action) == string(domain.KindSell) {
 		f.USDCMicros, f.TokenAmount = f.TokenAmount, f.USDCMicros

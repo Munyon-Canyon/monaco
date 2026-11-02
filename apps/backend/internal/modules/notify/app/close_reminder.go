@@ -48,7 +48,7 @@ func (k CloseReminder) Render(ctx context.Context, e events.ProposalCloseReminde
 		if !found {
 			return Message{}, errs.New(errs.CodeAssetNotFound, opCloseReminder, slog.String("symbol", e.Symbol))
 		}
-		amount = units(e.TokenAmount, asset.Decimals) + " sh"
+		amount = units(e.TokenAmount, tokenDecimals(e.TokenDecimals, asset.Decimals)) + " sh"
 	}
 	view, err := k.Cabals.Cabal(ctx, ids.CabalIDFrom(e.CabalID))
 	if err != nil {

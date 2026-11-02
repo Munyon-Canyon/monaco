@@ -55,7 +55,7 @@ func (b routedBuy) sold(fill EVMSwapResult) step {
 				SourceBatchSize: req.SourceBatchSize, Action: string(req.Action), Symbol: req.Symbol,
 				InMint: req.InMint.Address, InAmount: req.InAmount, OutMint: req.OutMint.Address,
 				OutAmount: fill.Out, USDCMicros: money.MicrosFromUint64(fill.Out),
-				TxSignature: chain.Signature(fill.Hash), ConfirmedAt: at,
+				TxSignature: chain.Signature(fill.Hash), ConfirmedAt: at, TokenDecimals: b.listing.Decimals,
 			}
 		},
 	}

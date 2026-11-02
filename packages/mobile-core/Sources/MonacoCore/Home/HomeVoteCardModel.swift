@@ -14,6 +14,7 @@ public struct HomePendingVote: Identifiable, Equatable, Sendable {
     public let logoURL: URL?
     public let usdcMicros: Int64?
     public let tokenAmount: Int64?
+    public let tokenDecimals: Int?
     public let tally: ProposalTally
     public let replyCount: Int
     public let expiresAt: Date
@@ -26,7 +27,7 @@ public struct HomePendingVote: Identifiable, Equatable, Sendable {
     public init(
         id: String, cabalID: String, cabalName: String, kind: String, rule: String? = nil, symbol: String? = nil,
         assetName: String? = nil, logoURL: URL? = nil, usdcMicros: Int64? = nil, tokenAmount: Int64? = nil,
-        tally: ProposalTally, replyCount: Int, expiresAt: Date
+        tokenDecimals: Int? = nil, tally: ProposalTally, replyCount: Int, expiresAt: Date
     ) {
         self.id = id
         self.cabalID = cabalID
@@ -38,6 +39,7 @@ public struct HomePendingVote: Identifiable, Equatable, Sendable {
         self.logoURL = logoURL
         self.usdcMicros = usdcMicros
         self.tokenAmount = tokenAmount
+        self.tokenDecimals = tokenDecimals
         self.tally = tally
         self.replyCount = replyCount
         self.expiresAt = expiresAt
@@ -48,8 +50,8 @@ public struct HomePendingVote: Identifiable, Equatable, Sendable {
             id: value.proposalId, cabalID: value.cabalId, cabalName: value.cabalName, kind: value.kind.rawValue,
             rule: value.ruleChange?.rule.rawValue, symbol: value.symbol, assetName: value.assetName,
             logoURL: value.assetLogoUrl.flatMap(URL.init(string:)), usdcMicros: value.usdcMicros,
-            tokenAmount: value.tokenAmount, tally: ProposalTally(value.tally), replyCount: value.replyCount,
-            expiresAt: value.expiresAt)
+            tokenAmount: value.tokenAmount, tokenDecimals: value.tokenDecimals, tally: ProposalTally(value.tally),
+            replyCount: value.replyCount, expiresAt: value.expiresAt)
     }
 }
 
@@ -263,15 +265,15 @@ extension HomeVoteCardModel {
         let ticker = AssetSymbolFormatter.display(row.symbol ?? "")
         let amount: String? =
             row.isSell
-            ? row.tokenAmount.map(Self.shares)
+            ? row.tokenAmount.map { Self.shares($0, decimals: row.tokenDecimals) }
             : row.usdcMicros.map(CabalHeaderCopy.compactDollars)
         let name = "\(row.isSell ? "Sell" : "Buy") \(ticker)"
         return [name, amount].compactMap { $0 }.joined(separator: " \u{00B7} ")
     }
 
-    private static func shares(_ atomics: Int64) -> String {
+    private static func shares(_ atomics: Int64, decimals: Int?) -> String {
         TokenQuantityFormatter.label(
-            fromAtomics: String(atomics), decimals: AssetCatalogDefaults.decimals, kind: .stock)
+            fromAtomics: String(atomics), decimals: decimals ?? AssetCatalogDefaults.decimals, kind: .stock)
     }
 
     public func subhead(now: Date) -> String {
