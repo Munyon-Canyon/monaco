@@ -1,7 +1,7 @@
 ---
 id: home/dashboard
 title: The Home dashboard
-version: 8
+version: 9
 milestone: M16
 requires: [auth/sign-in]
 actors: [A, C]
@@ -11,9 +11,9 @@ xcuitest: [apps/mobile/MonacoUITests/Journeys/HomeDashboardJourney.swift, apps/m
 
 # The Home dashboard
 
-Home is the first tab a member sees. It shows the wordmark and the bell, their return in the 32 pt figure, one cash row, their cabals as rows and the Leaderboard. A member with no cabal gets a card that sends them to create one or explore the Cabals tab. The slot order and copy are in [Home](../../screens.md#home).
+Home is the first tab a member sees. It shows the wordmark and the bell, their return in the 32 pt figure, one cash row, their cabals as rows and the Leaderboard. A member with no cabal gets a card that lets them start a cabal or join with a link. The slot order and copy are in [Home](../../screens.md#home).
 
-Old app (`c838bd24`): `Home/HomeView.swift`. The net-worth hero with its gain chip, the P&L chart with range chips, the balance row, "Your cabals" with a row per cabal that opens the cabal, the empty "Browse cabals" state, pending votes, pull to refresh, and the avatar that opens Profile.
+Old app (`c838bd24`): `Home/HomeView.swift`. The net-worth hero with its gain chip, the P&L chart with range chips, the balance row, "Your cabals" with a row per cabal that opens the cabal, the empty state, pending votes, pull to refresh, and the avatar that opens Profile.
 
 The format of this doc is in [App journeys](../README.md).
 
@@ -39,12 +39,12 @@ The format of this doc is in [App journeys](../README.md).
 | S1.6 | A | tap | the Home tab, then `home-profile-button` | | The Profile tab is selected and `profile-header` shows within 15 s (screens.md Home: "the viewer's avatar, which opens the Profile tab"; old app: `HomeView` avatar opens Profile) |
 | S1.7 | A | tap, then read | the Home tab, then the chart | | The plain range labels `home-portfolio-range-<range>` (1H 1D 1W 1M 3M 6M All) show under the chart with 1M selected within 10 s (F `02-home-dark`) |
 
-### S2 A member with no cabal is sent to Cabals
+### S2 A member with no cabal is offered a new one
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S2.1 | C | tap | the Home tab | | `home-cabals-empty` shows "Start with your people" and "Create a cabal or open an invitation from a friend." with a "Create a cabal" button within 15 s (screens.md `HomeCabalsSlot`: "No cabals: "Start with your people" / "Create a cabal or open an invitation from a friend." with "Create a cabal" and an outline "Explore cabals""; old app: `HomeView` empty state) |
-| S2.2 | C | tap | "Explore cabals" | | The Cabals tab is selected and `cabals-root` shows within 10 s (screens.md `HomeCabalsSlot`: "an outline "Explore cabals" that selects the Cabals tab"; old app: `HomeView` "Browse cabals") |
+| S2.1 | C | tap | the Home tab | | `home-cabals-empty` shows "No cabals yet" and "A cabal is a few friends, one treasury and a vote on every trade." with a "Start a cabal" button within 15 s (screens.md `HomeFirstUseSlot`; old app: `HomeView` empty state) |
+| S2.2 | C | tap | "Start a cabal" | | The create cabal screen shows `create-group-name` within 10 s (screens.md `HomeFirstUseSlot`; old app: `HomeView` "Browse cabals") |
 
 ## Ground truth
 
