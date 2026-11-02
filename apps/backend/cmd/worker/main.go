@@ -60,12 +60,12 @@ func run(
 		return err
 	}
 	stops.add(func(context.Context) error { pool.Close(); return nil })
-	stops.add(flush)
 	conn, err := connectBus(ctx, cfg, meters)
 	if err != nil {
 		return err
 	}
 	stops.add(func(ctx context.Context) error { conn.Close(ctx); return nil })
+	stops.add(flush)
 	h, err := startWork(ctx, &stops, meters, mods, module.Deps{Config: cfg, Logger: logger, Pool: pool, Bus: conn})
 	if err != nil {
 		return err
