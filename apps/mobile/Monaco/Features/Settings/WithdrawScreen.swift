@@ -212,6 +212,12 @@ struct WithdrawKeypadView: View {
             }
             WithdrawNetworkChips(networks: model.networks, selected: model.network) { model.setNetwork($0) }
                 .allowsHitTesting(!isLocked)
+            if let title = model.checkPendingTitle {
+                Button(title) { Task { await model.checkAgain() } }
+                    .buttonStyle(.monacoOutline)
+                    .frame(maxWidth: .infinity)
+                    .accessibilityIdentifier("withdraw-check-again")
+            }
         }
     }
 }

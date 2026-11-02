@@ -490,6 +490,70 @@ extension WithdrawModelTests {
         XCTAssertEqual(sent.count, 1)
     }
 
+    func testAPendingWithdrawIsExposedAndNamedWhenADifferentOneIsRefused() async throws {
+        let rig = rig(
+            [
+                previewPath: [typed, typed, typed],
+                "/v1/me/withdrawals/authorizations": [granted],
+                "/v1/me/withdrawals": [.failure(URLError(.timedOut))],
+            ])
+        XCTAssertNil(rig.model.pendingMicros)
+        rig.model.setAddress(solana)
+        rig.model.setAmountText("250")
+        await flush(rig)
+        await rig.model.submit()
+        XCTAssertEqual(rig.model.pendingMicros, 250_000_000)
+        rig.model.setAmountText("300")
+        await flush(rig)
+
+        await rig.model.submit()
+
+        guard case .failed(let line) = rig.model.state else { return XCTFail("\(rig.model.state) is not failed") }
+        XCTAssertTrue(line.contains("$250"), line)
+        XCTAssertEqual(line, WithdrawCopy.pendingBlocked(amountMicros: 250_000_000, address: solana))
+        XCTAssertEqual(rig.model.pendingMicros, 250_000_000)
+    }
+
+    func testCheckAgainNamesThePendingAmountAndResubmitsItUnderTheSameKey() async throws {
+        let rig = rig(
+            [
+                previewPath: [typed, typed, typed],
+                "/v1/me/withdrawals/authorizations": [granted, granted],
+                "/v1/me/withdrawals": [.failure(URLError(.timedOut)), accepted],
+                withdrawalPath: [read("submitted")],
+            ])
+        XCTAssertNil(rig.model.checkPendingTitle)
+        rig.model.setAddress(solana)
+        rig.model.setAmountText("250")
+        await flush(rig)
+        await rig.model.submit()
+        rig.model.setAmountText("300")
+        await flush(rig)
+        XCTAssertEqual(rig.model.checkPendingTitle, "Check $250 again")
+
+        let check = Task { await rig.model.checkAgain() }
+        await flush(rig)
+        await check.value
+
+        XCTAssertEqual(rig.model.amountText, "250")
+        guard case .processing(let micros, _, _, _) = rig.model.state else {
+            return XCTFail("\(rig.model.state) is not processing")
+        }
+        XCTAssertEqual(micros, 250_000_000)
+        let key = try XCTUnwrap(HTTPField.Name(IdempotentSubmission.keyHeader))
+        let sent = await rig.transport.sent
+        let bodies = await rig.transport.sentBodies
+        var amounts: [String] = []
+        var keys: [String?] = []
+        for (request, body) in zip(sent, bodies) where request.path == "/v1/me/withdrawals" {
+            keys.append(request.headerFields[key])
+            let object = try body.flatMap { try JSONSerialization.jsonObject(with: $0) as? [String: String] }
+            amounts.append(object?["amount_micros"] ?? "")
+        }
+        XCTAssertEqual(keys, ["key-1", "key-1"])
+        XCTAssertEqual(amounts, ["250000000", "250000000"])
+    }
+
     func testWithdrawIsDisabledWhileANewQuoteLoads() async {
         let rig = rig([previewPath: [typed, typed]])
         rig.model.setAddress(solana)

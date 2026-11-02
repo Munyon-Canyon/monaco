@@ -104,6 +104,8 @@ public final class Withdrawing {
 
     public var pending: Pending? { submission.hasPendingKey ? submission.pending(Pending.self) : nil }
 
+    public var pendingMicros: Int64? { pending?.micros }
+
     public func submit(
         micros: Int64, toAddress: String, network: WithdrawNetwork = .solana
     ) async -> WithdrawAttempt {
