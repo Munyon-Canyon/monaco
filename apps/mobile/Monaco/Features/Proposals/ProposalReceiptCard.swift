@@ -14,7 +14,7 @@ struct ProposalReceiptCard: View {
     private var pendingUnits: String? {
         guard let atomics = detail.stats.sharesAtomics else { return nil }
         return ProposalResultCopy.pendingUnits(
-            atomics: TokenAmount.of(atomics), decimals: detail.stats.tokenDecimals,
+            atomics: atomics, decimals: detail.stats.tokenDecimals,
             exact: detail.stats.sharesExact || isSell,
             kind: model.asset?.kind ?? .stock)
     }

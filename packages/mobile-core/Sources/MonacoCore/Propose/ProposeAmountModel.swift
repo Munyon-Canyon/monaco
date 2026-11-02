@@ -68,14 +68,11 @@ public final class ProposeAmountModel {
 
     public var overLimitHelper: String {
         guard case .sell(let holding) = trade else { return Self.cashShort }
-        if holding.exceedsSettleLimit(forMicros: amountMicros) { return ProposeFlowCopy.lowerTheAmount }
         return holding.valueMicros > 0 ? "More than the cabal holds" : ProposeHolding.noPriceHelper
     }
 
     public var sellQuantityNote: String? {
-        guard case .sell(let holding) = trade, amountMicros > 0, holding.valueMicros > 0,
-            !holding.exceedsSettleLimit(forMicros: amountMicros)
-        else { return nil }
+        guard case .sell(let holding) = trade, amountMicros > 0, holding.valueMicros > 0 else { return nil }
         return "About \(holding.quantity(of: holding.tokenAmount(forMicros: amountMicros)))"
     }
 
@@ -88,9 +85,7 @@ public final class ProposeAmountModel {
                 limitLine: ProposeFlowCopy.overCash, slot: ProposeFlowCopy.upTo(maxMicros ?? 0))
         case .sell(let holding):
             return .invalid(
-                limitLine: holding.exceedsSettleLimit(forMicros: amountMicros)
-                    ? ProposeFlowCopy.lowerTheAmount : ProposeFlowCopy.overHolding,
-                slot: ProposeFlowCopy.upTo(holding.valueMicros))
+                limitLine: ProposeFlowCopy.overHolding, slot: ProposeFlowCopy.upTo(holding.valueMicros))
         }
     }
 
@@ -103,8 +98,7 @@ public final class ProposeAmountModel {
     public var isOverLimit: Bool {
         switch trade {
         case .buy: maxMicros.map { amountMicros > $0 } ?? false
-        case .sell(let holding):
-            amountMicros > holding.valueMicros || holding.exceedsSettleLimit(forMicros: amountMicros)
+        case .sell(let holding): amountMicros > holding.valueMicros
         }
     }
 
@@ -259,7 +253,7 @@ public final class ProposeAmountModel {
     }
 
     public func message(assetName: String) -> String? {
-        if isOverLimit, !trade.isSell || overLimitHelper == ProposeFlowCopy.lowerTheAmount { return overLimitHelper }
+        if isOverLimit, !trade.isSell { return overLimitHelper }
         guard !isLoading else { return nil }
         return preview?.message(assetName: assetName, isSell: trade.isSell)
     }

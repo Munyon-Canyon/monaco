@@ -247,10 +247,9 @@ func (h *ExecuteTradeHandler) checks(
 	switch {
 	case winner.Network.IsEVM() && cmd.Action == domain.ActionSell:
 		held := h.held(evmAsset(winner.Network, winner.TokenAddress))
-		return []tradeCheck{settles(winner), held, h.slippage, h.paused}
+		return []tradeCheck{held, h.slippage, h.paused}
 	case winner.Network.IsEVM():
 		return []tradeCheck{
-			settles(winner),
 			h.marketOpen(winner, asset),
 			h.routedFunds,
 			h.tradeCap,
@@ -287,20 +286,6 @@ func (h *ExecuteTradeHandler) tradable(
 		return SwapRequest{}, market.Asset{}, refusal{}, err
 	}
 	return h.request(cmd, asset, wallet), asset, refusal{}, nil
-}
-
-func settles(winner multichain.Listing) tradeCheck {
-	return func(_ context.Context, cmd ExecuteTrade, req *SwapRequest) (refusal, error) {
-		oversize := cmd.Action == domain.ActionSell && exceedsInt64(req.InAmount)
-		if cmd.Action == domain.ActionBuy && cmd.Route != nil {
-			q, ok := cmd.Route.QuoteFor(winner.ID)
-			oversize = ok && q.Oversize()
-		}
-		if oversize {
-			return refusal{code: errs.CodeTradeTooLarge}, nil
-		}
-		return refusal{}, nil
-	}
 }
 
 func (h *ExecuteTradeHandler) marketOpen(winner multichain.Listing, asset market.AssetID) tradeCheck {
@@ -538,11 +523,6 @@ func (h *ExecuteTradeHandler) block(ctx context.Context, d bus.Delivery, cmd Exe
 		slog.String("proposal_id", cmd.ProposalID.String()), slog.String("cabal_id", cmd.CabalID.String()),
 		slog.String("code", string(r.code)), slog.String("have", r.have.String()), slog.String("need", r.need.String()))
 	return nil
-}
-
-func exceedsInt64(u money.Units) bool {
-	_, err := u.Int64()
-	return err != nil
 }
 
 func clampUint64(u money.Units) uint64 {

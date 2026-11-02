@@ -110,7 +110,7 @@ final class WideTokenAmountDecodingTests: XCTestCase {
         XCTAssertEqual(trade.unitsText, "25.0000")
     }
 
-    func testAHoldingPastInt64KeepsItsExactTokenAmountAndStillCannotBeSoldWhole() throws {
+    func testAHoldingPastInt64KeepsItsExactTokenAmountAndCanBeSoldWhole() throws {
         let json = """
             {"symbol":"AAPLx","display_name":"Apple","kind":"equity","units":"25.0000","token_amount":0,
             "token_amount_str":"25000000000000000000","price_micros":231400000,"value_micros":5785000000,
@@ -120,8 +120,24 @@ final class WideTokenAmountDecodingTests: XCTestCase {
         let holding = ProposeHolding(try decode(Components.Schemas.CabalHolding.self, json))
         XCTAssertEqual(holding.tokenAmount, Self.twentyFive)
         XCTAssertTrue(holding.overflows)
-        XCTAssertTrue(holding.exceedsSettleLimit(forMicros: 5_785_000_000))
+        XCTAssertEqual(holding.tokenAmount(forMicros: 5_785_000_000), Self.twentyFive)
         XCTAssertEqual(holding.tokenAmount(forMicros: 2_314_000_000), Decimal(string: "10000000000000000000"))
+    }
+
+    func testTheStatsOfAFillPastInt64ReadTheSharesFromTheString() throws {
+        let past = """
+            {"treasury_share_bps":250,"closes_at":"2026-10-04T15:00:00Z","shares_atomics":null,
+            "shares_atomics_str":"25000000000000000000","shares_exact":true,"token_decimals":18}
+            """
+        let stats = ProposalStatsData(try decode(Components.Schemas.ProposalStats.self, past))
+        XCTAssertEqual(stats.sharesAtomics, Self.twentyFive)
+
+        let older = """
+            {"treasury_share_bps":250,"closes_at":"2026-10-04T15:00:00Z","shares_atomics":182000000,
+            "shares_exact":false,"token_decimals":8}
+            """
+        let legacy = ProposalStatsData(try decode(Components.Schemas.ProposalStats.self, older))
+        XCTAssertEqual(legacy.sharesAtomics, 182_000_000)
     }
 
     func testAFeedItemPastInt64ReadsItsStringFields() throws {

@@ -57,7 +57,7 @@ final class ProposeSellLocationTests: XCTestCase {
         XCTAssertNil(apple.network)
     }
 
-    func testAListingPastInt64IsKeptAndCannotBeSoldWhole() async {
+    func testAListingPastInt64IsKeptAndExactAtEverySellAmount() async {
         let apple = Self.robinhood25()
         let quarter: Int64 = 1_446_250_000
 
@@ -65,27 +65,36 @@ final class ProposeSellLocationTests: XCTestCase {
         XCTAssertTrue(apple.overflows)
         XCTAssertEqual(apple.tokenAmount, Decimal(string: "25000000000000000000"))
         XCTAssertEqual(apple.heldQuantity, "25 shares")
-        XCTAssertTrue(apple.exceedsSettleLimit(forMicros: 5_785_000_000))
-        XCTAssertTrue(apple.exceedsSettleLimit(forMicros: 2_776_800_000))
-        XCTAssertFalse(apple.exceedsSettleLimit(forMicros: 2_082_600_000))
+        XCTAssertEqual(apple.tokenAmount(forMicros: 5_785_000_000), Decimal(string: "25000000000000000000"))
+        XCTAssertEqual(apple.tokenAmount(forMicros: 2_776_800_000), Decimal(string: "12000000000000000000"))
         XCTAssertEqual(apple.tokenAmount(forMicros: 694_200_000), 3_000_000_000_000_000_000)
         XCTAssertEqual(apple.tokenAmount(forMicros: quarter), 6_250_000_000_000_000_000)
         XCTAssertEqual(apple.quantity(of: 3_000_000_000_000_000_000), "3 shares")
     }
 
-    func testASellPastInt64ShowsLowerTheAmountAndNeverReachesReview() async {
+    func testASellPastInt64IsNotRefusedAndDraftsTheExactAmount() async {
         let clock = TestClock()
         let model = ProposeAmountModel(
             service: PreviewService(), cabalID: "cabal", trade: .sell(Self.robinhood25()), clock: clock)
 
         model.setAmount(micros: 5_785_000_000)
+        XCTAssertFalse(model.isOverLimit)
+        XCTAssertEqual(model.keypadState, .typed)
+        XCTAssertEqual(model.sellQuantityNote, "About 25 shares")
+        let all: Decimal = Decimal(string: "25000000000000000000") ?? 0
+        XCTAssertEqual(model.draft, .sell(symbol: "AAPLx", tokenAmount: all, thesis: ""))
+
+        model.setAmount(micros: 2_776_800_000)
+        XCTAssertFalse(model.isOverLimit)
+        XCTAssertEqual(model.sellQuantityNote, "About 12 shares")
+        let some: Decimal = Decimal(string: "12000000000000000000") ?? 0
+        XCTAssertEqual(model.draft, .sell(symbol: "AAPLx", tokenAmount: some, thesis: ""))
+
+        model.setAmount(micros: 5_785_000_001)
         XCTAssertTrue(model.isOverLimit)
         XCTAssertEqual(
             model.keypadState,
-            .invalid(limitLine: ProposeFlowCopy.lowerTheAmount, slot: ProposeFlowCopy.upTo(5_785_000_000)))
-        XCTAssertEqual(model.message(assetName: "Apple"), "Lower the amount")
-        XCTAssertNil(model.sellQuantityNote)
-        XCTAssertFalse(model.reviewEnabled(assetName: "Apple"))
+            .invalid(limitLine: ProposeFlowCopy.overHolding, slot: ProposeFlowCopy.upTo(5_785_000_000)))
 
         model.setAmount(micros: 694_200_000)
         XCTAssertFalse(model.isOverLimit)
@@ -93,13 +102,13 @@ final class ProposeSellLocationTests: XCTestCase {
         XCTAssertEqual(model.draft, .sell(symbol: "AAPLx", tokenAmount: 3_000_000_000_000_000_000, thesis: ""))
     }
 
-    func testATooLargePreviewSaysLowerTheAmount() async {
+    func testATooLargeAdvisoryFromAnOlderServerStillBlocksReviewWithItsOwnMessage() async {
         let preview = ProposePreview(
             .init(
                 quoteOutAmount: nil, advisoryCode: "trade_too_large",
                 advisoryMessage: "This trade is too large to settle. Lower the amount.", potValueMicros: 1))
 
-        XCTAssertEqual(preview.message(assetName: "Apple"), "Lower the amount")
+        XCTAssertEqual(preview.message(assetName: "Apple"), "This trade is too large to settle. Lower the amount.")
         XCTAssertFalse(preview.reviewEnabled(amountMicros: 1, isLoading: false, assetName: "Apple"))
     }
 

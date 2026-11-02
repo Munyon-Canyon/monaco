@@ -1,4 +1,5 @@
 import Foundation
+import MonacoAPI
 
 public struct ProposalStats: Equatable, Sendable {
     public enum Tone: Equatable, Sendable { case plain, gain, loss }
@@ -121,7 +122,8 @@ public struct ProposalStats: Equatable, Sendable {
 
     private static func sharesText(_ stats: ProposalStatsData, exact: Bool) -> String {
         guard let atomics = stats.sharesAtomics,
-            let quantity = TokenQuantityFormatter.quantity(fromAtomics: String(atomics), decimals: stats.tokenDecimals)
+            let quantity = TokenQuantityFormatter.quantity(
+                fromAtomics: TokenAmount.text(atomics), decimals: stats.tokenDecimals)
         else { return missing }
         return sharesText(quantity, exact: exact)
     }

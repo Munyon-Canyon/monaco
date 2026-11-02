@@ -188,7 +188,7 @@ public struct ProposalSummary: Identifiable, Equatable, Sendable {
 
 public struct ProposalStatsData: Equatable, Sendable {
     public let priceMicros: Int64?
-    public let sharesAtomics: Int64?
+    public let sharesAtomics: Decimal?
     public let sharesExact: Bool
     public let tokenDecimals: Int
     public let treasuryShareBps: Int64?
@@ -197,7 +197,7 @@ public struct ProposalStatsData: Equatable, Sendable {
     public let sinceBps: Int64?
 
     public init(
-        priceMicros: Int64? = nil, sharesAtomics: Int64? = nil, sharesExact: Bool = false, tokenDecimals: Int = 0,
+        priceMicros: Int64? = nil, sharesAtomics: Decimal? = nil, sharesExact: Bool = false, tokenDecimals: Int = 0,
         treasuryShareBps: Int64? = nil, closesAt: Date, closedAt: Date? = nil, sinceBps: Int64? = nil
     ) {
         self.priceMicros = priceMicros
@@ -212,7 +212,7 @@ public struct ProposalStatsData: Equatable, Sendable {
 
     init(_ value: Components.Schemas.ProposalStats) {
         self.init(
-            priceMicros: value.priceMicros, sharesAtomics: value.sharesAtomics,
+            priceMicros: value.priceMicros, sharesAtomics: value.sharesAtomicsValue,
             sharesExact: value.sharesExact ?? false, tokenDecimals: value.tokenDecimals ?? 0,
             treasuryShareBps: value.treasuryShareBps, closesAt: value.closesAt, closedAt: value.closedAt,
             sinceBps: value.sinceBps)

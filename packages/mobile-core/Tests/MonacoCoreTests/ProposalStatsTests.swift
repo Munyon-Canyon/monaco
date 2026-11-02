@@ -140,6 +140,14 @@ final class ProposalStatsTests: XCTestCase {
         XCTAssertEqual(line(stats(fixture)), ["Price —", "Shares —", "Of treasury —", "Closes 1:53 PM"])
     }
 
+    func testASharesFigurePastInt64ReadsFromItsStringField() async throws {
+        var fixture = Components.Schemas.ProposalDetail.openNVDA(now: now)
+        fixture.stats.sharesAtomics = nil
+        fixture.stats.sharesAtomicsStr = "25000000000000000000"
+        fixture.stats.tokenDecimals = 18
+        XCTAssertEqual(line(stats(fixture)).dropFirst().first, "Shares ≈ 25")
+    }
+
     func testANullClosedAtShowsADash() async throws {
         var fixture = Components.Schemas.ProposalDetail.failedTSLA(now: now)
         fixture.stats.closedAt = nil

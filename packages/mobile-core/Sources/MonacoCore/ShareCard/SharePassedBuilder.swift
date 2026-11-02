@@ -32,9 +32,10 @@ enum ShareProposalText {
         AssetSymbolFormatter.display(proposal.symbol ?? "")
     }
 
-    static func sharesText(atomics: Int64?, decimals: Int) -> String? {
+    static func sharesText(atomics: Decimal?, decimals: Int) -> String? {
         guard let atomics else { return nil }
-        let label = TokenQuantityFormatter.label(fromAtomics: String(atomics), decimals: decimals, kind: .stock)
+        let label = TokenQuantityFormatter.label(
+            fromAtomics: TokenAmount.text(atomics), decimals: decimals, kind: .stock)
         return label.replacingOccurrences(of: " shares", with: "").replacingOccurrences(of: " share", with: "")
     }
 
@@ -85,7 +86,7 @@ public enum SharePassedBuilder {
         if case .filled(let value) = outcome { fill = value }
         let headerDate = fill?.time ?? stats.closedAt ?? proposal.expiresAt
         let markers = eyes.buySell ? markers(proposal: proposal, fill: fill, isSell: isSell) : []
-        let shares = ShareProposalText.sharesText(atomics: stats.sharesAtomics, decimals: decimals)
+        let shares = ShareProposalText.sharesText(atomics: stats.sharesAtomicsValue, decimals: decimals)
         let nowPrice = stats.priceMicros.flatMap { $0 > 0 ? $0 : nil }
         let figure = figure(
             proposal: proposal, outcome: outcome, tally: tally, nowPrice: nowPrice, dollars: eyes.pnlDollars,
@@ -173,7 +174,7 @@ public enum SharePassedBuilder {
             }
             let percent = PercentFormatter.format(basisPoints: bps, signed: true, fractionDigits: 1)
             let change = dollarChange(
-                atomics: proposal.stats.sharesAtomics, decimals: decimals, from: fill.priceMicros, to: nowPrice)
+                atomics: proposal.stats.sharesAtomicsValue, decimals: decimals, from: fill.priceMicros, to: nowPrice)
             var amount = percent
             var secondary: String?
             if dollars, let change {
@@ -191,15 +192,12 @@ public enum SharePassedBuilder {
         }
     }
 
-    static func dollarChange(atomics: Int64?, decimals: Int, from fill: Int64, to now: Int64) -> Int64? {
-        guard let atomics, atomics > 0, (0...19).contains(decimals) else { return nil }
-        let divisor = (0..<decimals).reduce(UInt64(1)) { total, _ in total * 10 }
-        let (high, low) = UInt64(atomics).multipliedFullWidth(by: (now - fill).magnitude)
-        guard high < divisor else { return nil }
-        let (quotient, remainder) = divisor.dividingFullWidth((high, low))
-        let rounded = quotient + (remainder >= divisor - remainder ? 1 : 0)
-        guard rounded <= UInt64(Int64.max) else { return nil }
-        return now < fill ? -Int64(rounded) : Int64(rounded)
+    static func dollarChange(atomics: Decimal?, decimals: Int, from fill: Int64, to now: Int64) -> Int64? {
+        guard let atomics, atomics > 0, (0...38).contains(decimals) else { return nil }
+        let gap = TokenAmount.of(now) - TokenAmount.of(fill)
+        let scaled = atomics * abs(gap) / TokenAmount.scale(decimals)
+        guard let rounded = TokenAmount.int64(TokenAmount.rounded(scaled, .plain)) else { return nil }
+        return now < fill ? -rounded : rounded
     }
 
     private static func statLines(

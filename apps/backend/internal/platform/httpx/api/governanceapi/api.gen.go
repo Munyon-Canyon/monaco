@@ -1497,6 +1497,11 @@ type ProposalStats struct {
 	// Examples: 182000000
 	SharesAtomics *int64 `json:"shares_atomics,omitempty"`
 
+	// SharesAtomicsStr `shares_atomics` as a decimal string, exact at any size. Null when `shares_atomics` is null. `shares_atomics` itself is the same value when it fits in an int64 and null above that.
+	//
+	// Examples: 182000000
+	SharesAtomicsStr *string `json:"shares_atomics_str,omitempty"`
+
 	// SharesExact True when `shares_atomics` is the trade's own amount, false when it is the estimate.
 	//
 	// Examples: false
