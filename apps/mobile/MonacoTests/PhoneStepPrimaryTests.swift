@@ -11,14 +11,8 @@ struct PhoneStepPrimaryTests {
         #expect(PhoneStepPrimary.resolve(linkedElsewhere: false, isCodeStep: true) == .link)
     }
 
-    @Test func aNumberLinkedElsewhereOffersSkipOnBothSteps() {
-        #expect(PhoneStepPrimary.resolve(linkedElsewhere: true, isCodeStep: false) == .skip)
-        #expect(PhoneStepPrimary.resolve(linkedElsewhere: true, isCodeStep: true) == .skip)
-    }
-
-    @Test func skipIsInTheToolbarOnlyWhenItIsNotTheCapsule() {
-        #expect(PhoneStepPrimary.sendCode.showsToolbarSkip)
-        #expect(PhoneStepPrimary.link.showsToolbarSkip)
-        #expect(!PhoneStepPrimary.skip.showsToolbarSkip)
+    @Test func aNumberLinkedElsewhereOffersSigningInWithItOnBothSteps() {
+        #expect(PhoneStepPrimary.resolve(linkedElsewhere: true, isCodeStep: false) == .signInWithNumber)
+        #expect(PhoneStepPrimary.resolve(linkedElsewhere: true, isCodeStep: true) == .signInWithNumber)
     }
 }

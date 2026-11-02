@@ -20,6 +20,7 @@ class PrivyAuthService: ObservableObject {
     /// their token, or the saved session is gone), so LoginView can explain why.
     /// Cleared on the next sign-in attempt.
     @Published var lastSignOutReason: String?
+    var signInHint: SignInHint?
     private(set) var pendingUser: PrivyUser?
 
     private var sessionStore = MonacoSessionStore()
@@ -286,6 +287,7 @@ class PrivyAuthService: ObservableObject {
 
     /// "Change number" / switching sign-in method.
     func resetLoginFlow() {
+        signInHint = nil
         flow.returnToAddressEntry()
     }
 
@@ -488,6 +490,7 @@ class PrivyAuthService: ObservableObject {
             signInEpoch += 1
             adoptAccessToken(token)
             lastSignOutReason = nil
+            signInHint = nil
             flow.authenticated(userID: user.id)
             if !isRestore {
                 sessionStore.markExplicitLogin()
@@ -630,4 +633,9 @@ extension PrivyAuthService: nonisolated MonacoAPI.AccessTokenProvider {
     func refreshedToken(replacing stale: String) async throws -> String? {
         try await refreshedAccessToken(replacing: stale)
     }
+}
+
+struct SignInHint: Equatable {
+    let method: LoginMethod
+    let address: String
 }

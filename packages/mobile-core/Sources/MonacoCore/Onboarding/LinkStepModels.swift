@@ -24,6 +24,7 @@ public enum LinkCopy {
     public static let changeNumber = "Change number"
     public static let newCodeSent = "New code sent."
     public static let phoneLinkedElsewhere = "This number is linked to another account."
+    public static let signInWithNumber = "Sign in with this number instead"
     public static let phoneAlreadyOnAccount = "Your account already has a number."
     public static let invalidCode = LoginFailureCopy.message(for: .codeRejected, step: .verifyCode)
     public static let phoneAdded = "Number added."
@@ -44,7 +45,8 @@ public enum LinkCopy {
 
     public static let auditedStrings = [
         phoneTitle, confirmingTitle, tryAgain, phoneSubtext, sendCode, sendingCode, linking, changeNumber, newCodeSent,
-        phoneLinkedElsewhere, phoneAlreadyOnAccount, invalidCode, phoneAdded, xTitle, xSubtext, connectX, connecting,
+        phoneLinkedElsewhere, signInWithNumber, phoneAlreadyOnAccount, invalidCode, phoneAdded, xTitle, xSubtext,
+        connectX, connecting,
         xLinkedElsewhere, xUnavailable,
         xConnected, skip, notNow, unknown, ResendCooldown.readyLabel,
     ]

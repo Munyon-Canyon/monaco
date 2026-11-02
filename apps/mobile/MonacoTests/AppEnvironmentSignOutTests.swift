@@ -47,6 +47,21 @@ struct AppEnvironmentSignOutTests {
         #expect(ended == ["member"])
     }
 
+    @Test func signingInWithTheNumberEndsTheSessionAndKeepsTheNumberForTheLoginForm() async {
+        var ended: [String] = []
+        let tokens = SessionTokens(privyToken: { "t1" }, refresh: { _ in nil })
+        let environment = environment(tokens: tokens, ended: { ended.append($0) })
+        let auth = environment.auth
+        defer { auth.signInHint = nil }
+
+        await environment.signOut(toSignInWithPhone: "+12025550100")
+
+        #expect(ended == ["member"])
+        #expect(auth.signInHint == SignInHint(method: .sms, address: "+12025550100"))
+        auth.resetLoginFlow()
+        #expect(auth.signInHint == nil)
+    }
+
     @Test func aDeletedAccountEndsTheSessionWithItsOwnLine() async {
         var ended: [String] = []
         let tokens = SessionTokens(privyToken: { "t1" }, refresh: { _ in nil })

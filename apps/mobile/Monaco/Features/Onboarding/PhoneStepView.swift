@@ -9,16 +9,14 @@ enum LinkStepMode {
 }
 
 enum PhoneStepPrimary: Equatable {
-    case skip
+    case signInWithNumber
     case link
     case sendCode
 
     static func resolve(linkedElsewhere: Bool, isCodeStep: Bool) -> PhoneStepPrimary {
-        if linkedElsewhere { return .skip }
+        if linkedElsewhere { return .signInWithNumber }
         return isCodeStep ? .link : .sendCode
     }
-
-    var showsToolbarSkip: Bool { self != .skip }
 }
 
 struct PhoneStepView: View {
@@ -39,7 +37,8 @@ struct PhoneStepView: View {
                 onboarding: onboarding ?? OnboardingAPI(api: environment.api),
                 clock: ContinuousClock()),
             onContinue: onContinue,
-            onSignOut: { await environment.signOut() }
+            onSignOut: { await environment.signOut() },
+            onSignInWithNumber: { await environment.signOut(toSignInWithPhone: $0) }
         )
         .analyticsScreen("onboarding_phone", step: mode == .onboarding ? .onboarding(.phoneShown) : nil)
     }
@@ -56,6 +55,7 @@ private struct PhoneStepForm: View {
     let confirmsSignInPhone: Bool
     let onContinue: () -> Void
     let onSignOut: () async -> Void
+    let onSignInWithNumber: (String?) async -> Void
 
     @State private var model: PhoneLinkModel
     @State private var number = ""
@@ -69,16 +69,23 @@ private struct PhoneStepForm: View {
     init(
         mode: LinkStepMode, confirmsSignInPhone: Bool, model: @autoclosure () -> PhoneLinkModel,
         onContinue: @escaping () -> Void,
-        onSignOut: @escaping () async -> Void
+        onSignOut: @escaping () async -> Void,
+        onSignInWithNumber: @escaping (String?) async -> Void
     ) {
         self.mode = mode
         self.confirmsSignInPhone = confirmsSignInPhone
         self.onContinue = onContinue
         self.onSignOut = onSignOut
+        self.onSignInWithNumber = onSignInWithNumber
         _model = State(wrappedValue: model())
     }
 
     private var e164: String? { E164PhoneNumber(number)?.value }
+
+    private var signInNumber: String? {
+        if case .code(let sentTo) = model.step { return sentTo }
+        return e164
+    }
 
     private var isCodeStep: Bool {
         if case .code = model.step { return true }
@@ -146,10 +153,9 @@ private struct PhoneStepForm: View {
                         title: OnboardingCopy.signOut, identifier: "onboarding-phone-step-sign-out",
                         isDisabled: model.isBusy
                     ) { Task { await onSignOut() } } : nil,
-                skip: primaryAction.showsToolbarSkip
-                    ? FirstRunAction(title: skipTitle, identifier: "phone-step-skip", isDisabled: model.isBusy) {
-                        Task { await skip() }
-                    } : nil)
+                skip: FirstRunAction(title: skipTitle, identifier: "phone-step-skip", isDisabled: model.isBusy) {
+                    Task { await skip() }
+                })
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("onboarding-phone-step")
@@ -202,8 +208,15 @@ private struct PhoneStepForm: View {
     @ViewBuilder
     private var primaryButton: some View {
         switch primaryAction {
-        case .skip:
-            skipPrimary
+        case .signInWithNumber:
+            Button {
+                Task { await onSignInWithNumber(signInNumber) }
+            } label: {
+                Text(LinkCopy.signInWithNumber)
+            }
+            .buttonStyle(.monacoPrimary)
+            .disabled(model.isBusy)
+            .accessibilityIdentifier("phone-step-sign-in-with-number")
         case .link:
             Button {
                 Task { await link() }
@@ -257,18 +270,6 @@ private struct PhoneStepForm: View {
     }
 
     private var skipTitle: String { mode == .sheet ? LinkCopy.notNow : LinkCopy.skip }
-
-    @ViewBuilder
-    private var skipPrimary: some View {
-        Button {
-            Task { await skip() }
-        } label: {
-            Text(skipTitle)
-        }
-        .buttonStyle(.monacoPrimary)
-        .disabled(model.isBusy)
-        .accessibilityIdentifier("phone-step-skip")
-    }
 
     private func sendCode() async {
         guard let e164 else { return }
