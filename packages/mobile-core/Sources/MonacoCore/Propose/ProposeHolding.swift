@@ -109,10 +109,6 @@ public struct ProposeHolding: Equatable, Hashable, Sendable, Identifiable {
 
     public var overflows: Bool { exactTokens > UInt128(Int64.max) }
 
-    public func exceedsSettleLimit(forMicros micros: Int64) -> Bool {
-        overflows && exactTokens(forMicros: micros) > UInt128(Int64.max)
-    }
-
     private func exactTokens(forMicros micros: Int64) -> UInt128 {
         guard micros > 0, valueMicros > 0 else { return 0 }
         if micros >= valueMicros - valueMicros % 10_000 { return exactTokens }

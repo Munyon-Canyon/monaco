@@ -1600,6 +1600,7 @@ components:
             filled amount once the swap confirms, exact, and before that `usdc_micros` ÷ `price_micros` rounded down, an
             estimate. Null for an unfilled buy with no `price_micros`.
           examples: [182000000]
+        shares_atomics_str: {type: [string, "null"], pattern: "^[0-9]+$", description: "`shares_atomics` as a decimal string, exact at any size. Null when `shares_atomics` is null. `shares_atomics` itself is the same value when it fits in an int64 and null above that.", examples: ["182000000"]}
         shares_exact:
           type: boolean
           description: True when `shares_atomics` is the trade's own amount, false when it is the estimate.

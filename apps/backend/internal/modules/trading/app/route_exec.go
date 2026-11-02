@@ -269,8 +269,10 @@ func (r *RouteExec) requote(ctx context.Context, b routedBuy) (swapQuote, bool, 
 		return swapQuote{}, true, err
 	}
 	out := money.Units{}
-	if err == nil && quote.GrossOutput != nil && quote.GrossOutput.IsInt64() && quote.GrossOutput.Sign() > 0 {
-		out = money.UnitsFromUint64(quote.GrossOutput.Uint64())
+	if err == nil && quote.GrossOutput != nil && quote.GrossOutput.Sign() > 0 {
+		if wide, convErr := money.UnitsFromBig(quote.GrossOutput); convErr == nil {
+			out = wide
+		}
 	}
 	floor := domain.SlippageOf(b.slippage).MinOut(out)
 	strayed, siblingErr := false, error(nil)

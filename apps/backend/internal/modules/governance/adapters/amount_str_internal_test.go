@@ -254,3 +254,28 @@ func TestPreviewTrade_readsTheStringAmountAndRefusesBoth(t *testing.T) {
 		t.Fatal("previewTrade with both amounts succeeded, want invalid_input")
 	}
 }
+
+func TestWireStats_aPastInt64ShareFigureIsExactInTheStringFieldAndNullInTheIntegerField(t *testing.T) {
+	t.Parallel()
+	for name, tc := range map[string]struct {
+		shares  string
+		integer any
+	}{
+		"past int64": {pastInt64, nil},
+		"at int64":   {atInt64Max, json.Number(atInt64Max)},
+		"small":      {"11363636", json.Number("11363636")},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			shares := mustUnits(t, tc.shares)
+			got := jsonOf(t, wireStats(app.Stats{Shares: &shares, TokenDecimals: 18}))
+			if got["shares_atomics"] != tc.integer || got["shares_atomics_str"] != tc.shares {
+				t.Errorf("shares_atomics = %v, shares_atomics_str = %v, want %v and %s",
+					got["shares_atomics"], got["shares_atomics_str"], tc.integer, tc.shares)
+			}
+		})
+	}
+	if got := jsonOf(t, wireStats(app.Stats{})); got["shares_atomics_str"] != nil {
+		t.Errorf("shares_atomics_str = %v, want null without shares", got["shares_atomics_str"])
+	}
+}

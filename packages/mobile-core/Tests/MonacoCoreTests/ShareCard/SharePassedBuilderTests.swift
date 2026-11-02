@@ -115,6 +115,16 @@ final class SharePassedBuilderTests: XCTestCase {
         XCTAssertNil(SharePassedBuilder.dollarChange(atomics: 1, decimals: 40, from: 1, to: 2))
     }
 
+    func testTheDollarChangeOfA25TokenFillIsExact() throws {
+        let atomics = try XCTUnwrap(Decimal(string: "25000000000000000000"))
+        XCTAssertEqual(
+            SharePassedBuilder.dollarChange(atomics: atomics, decimals: 18, from: 231_400_000, to: 241_400_000),
+            250_000_000)
+        XCTAssertEqual(
+            SharePassedBuilder.dollarChange(atomics: atomics, decimals: 18, from: 241_400_000, to: 231_400_000),
+            -250_000_000)
+    }
+
     func testANullPassedPriceDropsTheSeal() {
         var detail = Components.Schemas.ProposalDetail.meta(now: now)
         detail.passedPriceMicros = nil

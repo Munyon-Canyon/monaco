@@ -5,6 +5,10 @@ extension Components.Schemas.Proposal {
     public var quoteOutAmountValue: Decimal { TokenAmount.decimal(quoteOutAmountStr, fallback: quoteOutAmount) ?? 0 }
 }
 
+extension Components.Schemas.ProposalStats {
+    public var sharesAtomicsValue: Decimal? { TokenAmount.decimal(sharesAtomicsStr, fallback: sharesAtomics) }
+}
+
 extension Components.Schemas.ProposalDetail {
     public var tokenAmountValue: Decimal? { TokenAmount.decimal(tokenAmountStr, fallback: tokenAmount) }
     public var quoteOutAmountValue: Decimal { TokenAmount.decimal(quoteOutAmountStr, fallback: quoteOutAmount) ?? 0 }

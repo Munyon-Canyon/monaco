@@ -78,6 +78,7 @@ func wireStats(s app.Stats) api.ProposalStats {
 	}
 	if s.Shares != nil {
 		out.SharesAtomics = unitsAmount(*s.Shares)
+		out.SharesAtomicsStr = s.Shares.StringOrNil()
 	}
 	return out
 }

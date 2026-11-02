@@ -101,7 +101,7 @@ func advise(p *TradePreview, err error) error {
 	if !slices.Contains([]errs.Code{
 		errs.CodeAssetNotFound, errs.CodeAssetUntradable, errs.CodeAssetPaused, errs.CodeNoRoute,
 		errs.CodePotExceeded, errs.CodeInsufficientFunds, errs.CodePotCashShort, errs.CodeOverTradeCap,
-		errs.CodeCabalSharesShort, errs.CodeInvalidNetwork, errs.CodeQuoteUnavailable, errs.CodeTradeTooLarge,
+		errs.CodeCabalSharesShort, errs.CodeInvalidNetwork, errs.CodeQuoteUnavailable,
 	}, code) {
 		return err
 	}
