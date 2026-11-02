@@ -9,6 +9,23 @@ struct HomeVoteCard: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(ToastCenter.self) private var toasts
     @State private var holding = false
+    @State private var collapsed: Bool
+
+    static let collapseDelay: TimeInterval = 1
+
+    init(model: HomeVoteCardModel, identifierPrefix: String = "home", tab: MainTab = .home) {
+        self.model = model
+        self.identifierPrefix = identifierPrefix
+        self.tab = tab
+        _collapsed = State(initialValue: Self.hasCollapsed(model, now: .now))
+    }
+
+    static func hasCollapsed(_ model: HomeVoteCardModel, now: Date) -> Bool {
+        guard model.isSettled, let committedAt = model.committedAt else { return false }
+        return now.timeIntervalSince(committedAt) >= collapseDelay
+    }
+
+    private var collapseTrigger: Bool { model.isSettled && toasts.current != nil }
 
     private var row: HomePendingVote { model.row }
     private var tally: ProposalTally { model.tally }
@@ -18,7 +35,7 @@ struct HomeVoteCard: View {
             VStack(alignment: .leading, spacing: MonacoTheme.Space.sm) {
                 header
                 VoteTallyBar(yes: tally.yes, no: tally.no, eligible: tally.voters)
-                if let outcome = model.outcome, outcome.settled {
+                if let outcome = model.outcome, outcome.settled, collapsed {
                     settledLine(outcome)
                 } else {
                     buttons
@@ -29,7 +46,17 @@ struct HomeVoteCard: View {
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("\(identifierPrefix)-vote-card-\(model.id)")
         .task { await model.observe() }
+        .task(id: collapseTrigger) { await collapseWhenDue() }
+        .onChange(of: model.isSettled) { _, settled in if !settled { collapsed = false } }
         .onChange(of: model.phase) { _, new in phaseChanged(new) }
+    }
+
+    private func collapseWhenDue() async {
+        guard collapseTrigger, !collapsed, let committedAt = model.committedAt else { return }
+        let wait = committedAt.addingTimeInterval(Self.collapseDelay).timeIntervalSinceNow
+        if wait > 0 { try? await Task.sleep(for: .seconds(wait)) }
+        guard !Task.isCancelled else { return }
+        collapsed = true
     }
 
     private var header: some View {
