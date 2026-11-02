@@ -36,14 +36,14 @@ func listOverstatedSells(clk clock.Clock) command {
 			_, _ = fmt.Fprintln(stdout, "no overstated sells")
 		}
 		for _, s := range report.Sells {
-			_, _ = fmt.Fprintf(stdout, "swap=%s cabal=%s symbol=%s signature=%s recorded=%d chain=%d overstated=%d\n",
+			_, _ = fmt.Fprintf(stdout, "swap=%s cabal=%s symbol=%s signature=%s recorded=%s chain=%s overstated=%s\n",
 				s.SwapID.UUID(), s.CabalID.UUID(), s.Symbol, s.Signature, s.Recorded, s.OnChain, s.Overstated())
 		}
 		for _, c := range report.Cabals {
-			_, _ = fmt.Fprintf(stdout, "cabal=%s sells=%d overstated_micros=%d\n", c.CabalID.UUID(), c.Sells, c.Micros)
+			_, _ = fmt.Fprintf(stdout, "cabal=%s sells=%d overstated_micros=%s\n", c.CabalID.UUID(), c.Sells, c.Micros)
 		}
 		for _, s := range report.Unread {
-			_, _ = fmt.Fprintf(stdout, "unread swap=%s cabal=%s signature=%s recorded=%d code=%s\n",
+			_, _ = fmt.Fprintf(stdout, "unread swap=%s cabal=%s signature=%s recorded=%s code=%s\n",
 				s.SwapID.UUID(), s.CabalID.UUID(), s.Signature, s.Recorded, s.Code)
 		}
 		return 0

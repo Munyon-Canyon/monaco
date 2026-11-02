@@ -133,7 +133,7 @@ func (h *ResolveParkedSwapHandler) receiptFacts(ctx context.Context, cmd Resolve
 	case fill.State == FillSucceeded:
 		out := fill.Out
 		return chainFacts{}, fmt.Errorf(
-			"%w: its receipt shows it landed successfully and the treasury received %d; "+
+			"%w: its receipt shows it landed successfully and the treasury received %s; "+
 				"book it with force-resolve --to confirmed",
 			errs.New(errs.CodeInvalidInput, resolveParkedSwapOp, slog.String("swap_id", cmd.SwapID.String())),
 			out,
