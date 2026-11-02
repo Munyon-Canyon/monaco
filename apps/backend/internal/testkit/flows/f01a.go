@@ -16,6 +16,7 @@ const (
 	handleReserved = "did:privy:qa-handle-reserved"
 	handleTaken    = "did:privy:qa-handle-taken"
 	handleHolder   = "did:privy:qa-handle-holder"
+	handleSoonDone = "did:privy:qa-handle-soon-done"
 )
 
 func F01aSetHandleOK(s *scenario.Scenario) {
@@ -54,7 +55,7 @@ func F01aSetHandleHandleTaken(s *scenario.Scenario) {
 }
 
 func F01aSetHandleHandleTooSoon(s *scenario.Scenario) {
-	s.Given(scenario.Anonymous()).When(append(withHandle(phoneOK, "qa_first"),
+	s.Given(scenario.Anonymous()).When(append(withHandle(handleSoonDone, "qa_first"),
 		scenario.Post(linkPhonePath, `{"phone":"+15550000000"}`),
 		scenario.ExpectStatus(http.StatusOK),
 		scenario.Put(setHandlePath, `{"handle":"qa_second"}`),
