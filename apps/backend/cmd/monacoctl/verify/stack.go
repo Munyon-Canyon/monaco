@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -78,28 +79,85 @@ type Stack struct {
 	armed     bool
 	armedName string
 	apiEnv    []string
+	mu        sync.Mutex
+	early     chan error
+	earlyDone chan struct{}
 }
 
 func Up(ctx context.Context, o Options) (*Stack, error) {
+	s := newStack(o)
+	return s, s.Boot(ctx, o.Bins, o.CoverDir)
+}
+
+func newStack(o Options) *Stack {
 	s := &Stack{RunID: newRunID(), Logs: &Logs{}, opts: o, procs: map[string]*process{}}
 	s.TokenKey = "verify-" + s.RunID
 	if s.opts.Postgres == nil {
 		s.opts.Postgres = s.dockerPostgres
 	}
-	ctx, cancel := withDeadline(ctx, cmp.Or[clock.Clock](o.Clock, clock.Real{}), o.Budget.Stack,
-		&OverBudgetError{Phase: PhaseStack, Budget: o.Budget.Stack})
+	return s
+}
+
+func (s *Stack) stackDeadline(ctx context.Context) (context.Context, context.CancelFunc) {
+	return withDeadline(ctx, cmp.Or[clock.Clock](s.opts.Clock, clock.Real{}), s.opts.Budget.Stack,
+		&OverBudgetError{Phase: PhaseStack, Budget: s.opts.Budget.Stack})
+}
+
+func Begin(ctx context.Context, o Options) *Stack {
+	s := newStack(o)
+	s.early = make(chan error, 1)
+	s.earlyDone = make(chan struct{})
+	ctx, cancel := s.stackDeadline(ctx)
+	go func() {
+		defer close(s.earlyDone)
+		defer cancel()
+		s.early <- wrapCause(ctx, s.database(ctx))
+	}()
+	return s
+}
+
+func (s *Stack) Boot(ctx context.Context, bins Binaries, cover string) error {
+	s.opts.Bins, s.opts.CoverDir = bins, cover
+	ctx, cancel := s.stackDeadline(ctx)
 	defer cancel()
-	for _, step := range []func(context.Context) error{
-		s.postgres, withoutContext(s.nats), s.schema, s.processes, s.healthy,
-	} {
-		if err := step(ctx); err != nil {
-			if cause := context.Cause(ctx); cause != nil && !errors.Is(err, cause) {
-				err = fmt.Errorf("%w: %w", cause, err)
-			}
-			return s, err
+	first := s.database
+	if s.early != nil {
+		first = s.awaitDatabase
+	}
+	for _, step := range []func(context.Context) error{first, s.processes, s.healthy} {
+		if err := wrapCause(ctx, step(ctx)); err != nil {
+			return err
 		}
 	}
-	return s, nil
+	return nil
+}
+
+func wrapCause(ctx context.Context, err error) error {
+	if err == nil {
+		return nil
+	}
+	if cause := context.Cause(ctx); cause != nil && !errors.Is(err, cause) {
+		return fmt.Errorf("%w: %w", cause, err)
+	}
+	return err
+}
+
+func (s *Stack) database(ctx context.Context) error {
+	for _, step := range []func(context.Context) error{s.postgres, withoutContext(s.nats), s.schema} {
+		if err := step(ctx); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *Stack) awaitDatabase(ctx context.Context) error {
+	select {
+	case err := <-s.early:
+		return err
+	case <-ctx.Done():
+		return fmt.Errorf("wait for the database: %w", context.Cause(ctx))
+	}
 }
 
 func (s *Stack) postgres(ctx context.Context) (err error) {
@@ -179,10 +237,12 @@ func (s *Stack) processes(ctx context.Context) error {
 		apiEnv = append(apiEnv, "MONACO_BUS_API_RELAY=off")
 	}
 	s.apiEnv = apiEnv
-	if err := s.startAPI(ctx); err != nil {
-		return err
-	}
-	return s.startWorker(ctx, workerEnv...)
+	var wg sync.WaitGroup
+	var apiErr error
+	wg.Go(func() { apiErr = s.startAPI(ctx) })
+	workerErr := s.startWorker(ctx, workerEnv...)
+	wg.Wait()
+	return errors.Join(apiErr, workerErr)
 }
 
 const rpcBreakerOpen = "MONACO_TIMEOUT_RPC_BREAKER_OPEN=1s"
@@ -229,7 +289,9 @@ func (s *Stack) start(ctx context.Context, name, bin string, extra ...string) (*
 		env = append(env, "GOCOVERDIR="+s.opts.CoverDir)
 	}
 	p, err := startProcess(ctx, name, bin, env, s.Logs)
+	s.mu.Lock()
 	s.procs[name] = p
+	s.mu.Unlock()
 	return p, err
 }
 
@@ -296,6 +358,12 @@ func (s *Stack) Down(ctx context.Context) error {
 		&OverBudgetError{Phase: PhaseTeardown, Budget: budget})
 	defer cancel()
 	var err error
+	if s.earlyDone != nil {
+		select {
+		case <-s.earlyDone:
+		case <-ctx.Done():
+		}
+	}
 	for _, name := range []string{procWorker, procAPI, procFakes} {
 		if p := s.procs[name]; p != nil {
 			err = errors.Join(err, p.stop(ctx))
