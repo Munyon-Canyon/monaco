@@ -27,11 +27,13 @@ struct CashOutViewTests {
                 == "Cash out $50.03")
     }
 
-    @Test func theUnderMinimumMessageFloorsTheSlice() {
+    @Test func aSliceUnderTheMinimumCanOnlyCashOutAllAndAsksFirst() {
         let preview = CashOutPreview(sliceMicros: 95_000, shareUnits: 95_000, minMicros: 100_000, pause: nil)
-        let message = CashOutContent.belowMinimumMessage(preview)
-        #expect(message.contains("worth $0.09"))
-        #expect(message.contains("starts at $0.10"))
+        #expect(CashOutContent.canEnterAmount(preview))
+        #expect(preview.canOnlyCashOutAll)
+        #expect(preview.entered(typedMicros: 0) == 95_000)
+        #expect(preview.needsLeaveConfirmation(enteredMicros: 95_000))
+        #expect(CashOutAmountRule.leavePrompt(sliceMicros: 95_000) == "Your share is worth $0.09. Leave anyway?")
     }
 
     @Test func theReviewPointsAtNoQuoteItDoesNotShow() {

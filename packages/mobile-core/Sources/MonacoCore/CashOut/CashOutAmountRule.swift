@@ -30,7 +30,14 @@ public enum CashOutAmountRule {
 
     public static let tooSmall = "Too small to cash out"
 
-    public static func verdict(enteredMicros: Int64, sliceMicros: Int64, minimumMicros: Int64) -> Verdict {
+    public static func verdict(
+        enteredMicros: Int64, sliceMicros: Int64, minimumMicros: Int64, holdsShares: Bool = true
+    ) -> Verdict {
+        if holdsShares, sliceMicros < minimumMicros {
+            if enteredMicros == sliceMicros { return .sellsWholeSlice }
+            if enteredMicros > sliceMicros { return .overSlice }
+            return enteredMicros > 0 ? .belowMinimum : .noAmount
+        }
         guard enteredMicros > 0 else { return .noAmount }
         guard enteredMicros <= sliceMicros else { return .overSlice }
         guard enteredMicros >= minimumMicros else { return .belowMinimum }
@@ -38,8 +45,19 @@ public enum CashOutAmountRule {
     }
 
     public static func sliceIsBelowMinimum(sliceMicros: Int64, minimumMicros: Int64) -> Bool {
-        sliceMicros > 0 && sliceMicros < minimumMicros
+        sliceMicros < minimumMicros
     }
+
+    public static func needsLeaveConfirmation(for verdict: Verdict, sliceMicros: Int64, minimumMicros: Int64) -> Bool {
+        verdict == .sellsWholeSlice && sliceIsBelowMinimum(sliceMicros: sliceMicros, minimumMicros: minimumMicros)
+    }
+
+    public static func leavePrompt(sliceMicros: Int64) -> String {
+        "Your share is worth \(UsdAmountFormatter.format(flooredMicros: sliceMicros)). Leave anyway?"
+    }
+
+    public static let onlyAllMessage =
+        "Your share is worth less than the cash-out minimum, so you can only cash out all of it."
 
     public static func effectiveMicros(for verdict: Verdict, enteredMicros: Int64, sliceMicros: Int64) -> Int64 {
         switch verdict {
