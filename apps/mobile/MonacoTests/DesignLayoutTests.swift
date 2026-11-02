@@ -245,8 +245,9 @@ struct FLargeTextLayoutRuleTests {
         #expect(MonacoRowLayout(dynamicTypeSize: .accessibility5).isStacked)
     }
 
-    @Test func aSheetScrollsItsContentAtAccessibilitySizesEvenWhenFixed() {
-        #expect(!MonacoSheetDetents.scrollsContent(declared: false, dynamicTypeSize: .xxxLarge))
+    @Test func aSheetScrollsItsContentFromXxxLargeEvenWhenFixed() {
+        #expect(!MonacoSheetDetents.scrollsContent(declared: false, dynamicTypeSize: .xxLarge))
+        #expect(MonacoSheetDetents.scrollsContent(declared: false, dynamicTypeSize: .xxxLarge))
         #expect(MonacoSheetDetents.scrollsContent(declared: false, dynamicTypeSize: .accessibility1))
         #expect(MonacoSheetDetents.scrollsContent(declared: true, dynamicTypeSize: .large))
     }
@@ -278,11 +279,13 @@ struct FLargeTextLayoutRuleTests {
     }
 
     @Test(arguments: [MonacoSheetDetents.review, .votes, .result, .fitted])
-    func theSheetHelperAddsLargeOnlyAtAccessibilitySizes(sheet: MonacoSheetDetents) {
+    func theSheetHelperAddsLargeFromXxxLarge(sheet: MonacoSheetDetents) {
         let screen: CGFloat = 800
-        let regular = sheet.detents(fittedHeight: 200, screenHeight: screen, dynamicTypeSize: .xxxLarge)
+        let regular = sheet.detents(fittedHeight: 200, screenHeight: screen, dynamicTypeSize: .xxLarge)
+        let stacked = sheet.detents(fittedHeight: 200, screenHeight: screen, dynamicTypeSize: .xxxLarge)
         let large = sheet.detents(fittedHeight: 200, screenHeight: screen, dynamicTypeSize: .accessibility1)
         #expect(!regular.contains(.large))
+        #expect(stacked == regular + [.large])
         #expect(large == regular + [.large])
     }
 
