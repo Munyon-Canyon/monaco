@@ -575,3 +575,31 @@ func TestBoot_stopsWaitingForTheDatabaseWhenItsDeadlinePasses(t *testing.T) {
 		t.Logf("Down: %v", err)
 	}
 }
+
+func TestBegin_theStackUpClockDoesNotCountTheTimeBeforeBoot(t *testing.T) {
+	t.Parallel()
+	o := testOptions(t, "ok")
+	clk := fakeClock()
+	o.Clock = clk
+	release := make(chan struct{})
+	pg := o.Postgres
+	o.Postgres = func(ctx context.Context, runID string) (string, func(context.Context) error, error) {
+		select {
+		case <-release:
+		case <-ctx.Done():
+			return "", nil, context.Cause(ctx)
+		}
+		return pg(ctx, runID)
+	}
+	bins := o.Bins
+	o.Bins = Binaries{}
+	s := Begin(t.Context(), o)
+	clk.Advance(2 * o.Budget.Stack)
+	close(release)
+	if err := s.Boot(t.Context(), bins, t.TempDir()); err != nil {
+		t.Fatalf("Boot after the stack-up budget passed during the build = %v, want nil", err)
+	}
+	if err := s.Down(t.Context()); err != nil {
+		t.Fatalf("Down: %v", err)
+	}
+}
