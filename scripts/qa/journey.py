@@ -106,6 +106,7 @@ class Journey:
         funds = meta.get("funds", {})
         self.funds = funds if isinstance(funds, dict) else {}
         self.simslim = meta.get("simslim", "")
+        self.rpc = meta.get("rpc", "")
         self.scenarios = re.findall(r"^### (S\d+) ", body, re.M)
         self.steps = re.findall(r"^\| (S\d+\.\d+) \|", body, re.M)
         self.known = parse_known(body, self.steps)
@@ -277,6 +278,10 @@ def check_journeys(journeys, accounts, git_apply_check=None):
                 bad(journey.path, "funds for actor %s must be whole USDC from 1, got %r" % (actor, amount))
         if journey.simslim and not (ROOT / "ci" / "profiles" / ("%s.json" % journey.simslim)).is_file():
             bad(journey.path, "simslim names profile %r, which has no ci/profiles/%s.json" % (journey.simslim, journey.simslim))
+        if journey.rpc not in ("", "fake"):
+            bad(journey.path, "rpc is %r: the only value is fake" % journey.rpc)
+        if journey.rpc and journey.funds:
+            bad(journey.path, "rpc: fake and funds cannot both be set: a journey that moves real USDC reads the chain")
         for required in journey.requires:
             if required not in by_id:
                 bad(journey.path, "requires %r, which is not a journey doc" % required)
@@ -433,6 +438,7 @@ def backend_is_running(base_url=None, opener=None):
 # Two runs can share a Mac: slot 0 is api 8080 and worker 8081, slot 1 is 8180 and 8181. More would not fit in
 # 16 GB beside the simulators.
 SLOT_PORTS = ((8080, 8081), (8180, 8181))
+FAKES_PORTS = (8099, 8199)
 BACKEND_PORTS = SLOT_PORTS[0]
 SLOT_LOCK = "/tmp/monaco-qa-slot%d.lock"
 ACTOR_LOCK = "/tmp/monaco-qa-actor-%s.lock"
@@ -636,8 +642,53 @@ def stop_backend(process, grace=10, run=None, kill=os.kill, killpg=os.killpg, sl
         process.wait(timeout=5)
 
 
+def start_fakes(slot):
+    """The recorded fake Solana RPC (cmd/fakes) for this slot, built and listening: the process, or an error."""
+    port = FAKES_PORTS[slot]
+    refuse_busy_ports(listeners((port,)), (port,))
+    OUT.mkdir(parents=True, exist_ok=True)
+    binary, log = OUT / ("fakes-slot%d" % slot), OUT / ("fakes-slot%d.log" % slot)
+    print("starting the fake RPC on :%d (log: %s)" % (port, os.path.relpath(str(log), str(ROOT))))
+    sh(["go", "-C", "apps/backend", "build", "-o", str(binary), "./cmd/fakes"], check=True)
+    env = dict(os.environ, FAKES_ADDR="127.0.0.1:%d" % port)
+    with open(str(log), "w") as out:
+        process = subprocess.Popen([str(binary)], cwd=str(ROOT), env=env, stdout=out, stderr=subprocess.STDOUT,
+                                   start_new_session=True)
+    deadline = time.monotonic() + 30
+    while time.monotonic() < deadline:
+        if listeners((port,)):
+            return process
+        if process.poll() is not None:
+            break
+        time.sleep(0.5)
+    stop_backend(process)
+    raise JourneyError("the fake RPC did not listen on :%d, see %s" % (port, log))
+
+
 @contextlib.contextmanager
-def journey_backend(forced_slot=None):
+def fake_rpc_environment(slot):
+    """Points this run's backend and setup scripts at a fake RPC of its own (QA_FAKE_RPC, QA_FAKES_URL), unless the
+    caller already exported QA_FAKE_RPC and runs its own bin/fakes. The public Solana endpoint rate-limits (429)."""
+    if "QA_FAKE_RPC" in os.environ:
+        yield
+        return
+    process = start_fakes(slot)
+    saved = {key: os.environ.get(key) for key in ("QA_FAKE_RPC", "QA_FAKES_URL")}
+    os.environ["QA_FAKE_RPC"] = "1"
+    os.environ["QA_FAKES_URL"] = "http://127.0.0.1:%d" % FAKES_PORTS[slot]
+    try:
+        yield
+    finally:
+        for key, value in saved.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+        stop_backend(process)
+
+
+@contextlib.contextmanager
+def journey_backend(forced_slot=None, fake_rpc=False):
     """The api a run talks to. MONACO_API_BASE_URL names one that is already up; otherwise the run
     takes a slot's lock, refuses ports another process holds, and starts and stops its own backend. That backend
     runs the trade engine as a stub (TRADE_ENGINE=stub, local dev only) unless TRADE_ENGINE is set, which a run
@@ -650,11 +701,12 @@ def journey_backend(forced_slot=None):
         print("journey slot %d: api :%d, worker :%d" % ((slot,) + SLOT_PORTS[slot]), flush=True)
         refuse_busy_ports(listeners(SLOT_PORTS[slot]), SLOT_PORTS[slot])
         base_url = slot_base_url(slot)
-        process = start_backend(base_url, slot=slot)
-        try:
-            yield base_url
-        finally:
-            stop_backend(process)
+        with fake_rpc_environment(slot) if fake_rpc else contextlib.nullcontext():
+            process = start_backend(base_url, slot=slot)
+            try:
+                yield base_url
+            finally:
+                stop_backend(process)
     finally:
         lock.close()
 
@@ -1479,16 +1531,27 @@ def cmd_run(args):
         print(warning, file=sys.stderr)
     builder = once_builder(args)
     os.environ.setdefault("TRADE_ENGINE", backend_trade_engine(args))
-    with simulator_shutdown(args.keep_sims), journey_backend(args.slot) as api_base_url:
+    with simulator_shutdown(args.keep_sims), journey_backend(args.slot, backend_fake_rpc(args)) as api_base_url:
         if len(args.journey) == 1:
             return run_journey(args, api_base_url, args.journey[0], builder)
         return run_all(args, api_base_url, builder, only=args.journey)
 
 
+def picked_journeys(args):
+    journeys = load_journeys()
+    return list(journeys.values()) if args.all else [pick(journeys, name) for name in args.journey]
+
+
+def backend_fake_rpc(args):
+    """True when every journey of the run declares `rpc: fake` in its front matter and none moves real USDC: the
+    backend then reads Solana from the recorded fakes, never from the rate-limited public endpoint."""
+    picked = picked_journeys(args)
+    return bool(picked) and all(journey.rpc == "fake" and not journey.funds for journey in picked)
+
+
 def backend_trade_engine(args):
     """live when the run includes a journey with `funds` that will really move USDC, otherwise stub."""
-    journeys = load_journeys()
-    picked = list(journeys.values()) if args.all else [pick(journeys, name) for name in args.journey]
+    picked = picked_journeys(args)
     moves_money = any(journey.funds for journey in picked) and (
         not args.all or bool(os.environ.get("MONACO_QA_REFUND_ADDRESS")))
     return "live" if moves_money else "stub"

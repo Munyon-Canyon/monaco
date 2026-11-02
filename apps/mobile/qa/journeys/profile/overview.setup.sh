@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # journey.py runs this before each scenario. It completes actor A's onboarding (P2) and hands the test a
-# cabal A holds (P3), handing the test its id and name.
+# cabal A holds (P3), handing the test its id and name, and whether the backend gives A a month standing (P4).
 set -euo pipefail
 
 scenario="${1:?usage: overview.setup.sh <scenario>}"
@@ -44,6 +44,7 @@ token="$(scripts/qa/monacoctl.sh dev token --user "$user_id" --ttl 1h 2>"$log")"
 held="$(curl -fsS "$api/v1/me/portfolio" -H "Authorization: Bearer $token" |
   API="$api" TOKEN="$token" python3 -c 'import json, os, sys, urllib.request
 cabals = json.load(sys.stdin)["cabals"]
+cabals.sort(key=lambda item: (item["share_units"] > 0, item["value_micros"]), reverse=True)
 for item in cabals:
     request = urllib.request.Request(
         os.environ["API"] + "/v1/cabals/" + item["cabal"]["id"],
@@ -65,6 +66,10 @@ else
       python3 -c 'import json, sys; print(json.load(sys.stdin)["id"])')" || fail "could not create '$name' as actor A"
   fi
 fi
+standing="$(curl -fsS "$api/v1/users/$user_id" -H "Authorization: Bearer $token" |
+  python3 -c 'import json, sys; print("1" if json.load(sys.stdin).get("standing") else "0")')" ||
+  fail "could not read actor A's profile"
+hand_off hasStanding "$standing"
 hand_off cabalID "$cabal_id"
 hand_off cabalName "$name"
-echo "$scenario: actor A is ONBOARDING_COMPLETED and the cabal is '$name' ($cabal_id)"
+echo "$scenario: actor A is ONBOARDING_COMPLETED, standing=$standing, and the cabal is '$name' ($cabal_id)"
