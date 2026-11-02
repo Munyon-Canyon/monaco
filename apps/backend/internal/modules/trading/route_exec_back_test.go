@@ -336,6 +336,36 @@ func TestBridgeBack_aReturnWhoseSolanaLegIsExternalSettlesOnWhatPrivyDelivered(t
 	wantSteps(t, got[len(got)-3:], "bridge_back:pending:0", "bridge_back:submitted:7500", "bridge_back:succeeded:21282")
 }
 
+func TestBridgeBack_aReturnWhoseDeliveredAmountIsBelowTheQuotedFloorBooksNothing(t *testing.T) {
+	t.Parallel()
+	e := newRouteEnv(t)
+	_, swap := e.strand(t)
+	e.proposals.set(governance.Status("cancelled"))
+	e.privy.delivered = landedMicros - 1_000_000
+	e.privy.script(multichain.ActionSucceeded)
+
+	err := e.exec().BridgeBack(actorContext(t.Context()), ids.SwapIDFrom(swap))
+
+	if errs.CodeOf(err) != errs.CodeUpstreamUnavailable {
+		t.Fatalf("BridgeBack err = %v, want upstream_unavailable", err)
+	}
+	if status, _ := e.bridgeBackOf(t, swap); status != "submitted" {
+		t.Fatalf("bridge_back %q, want submitted with nothing booked", status)
+	}
+	e.privy.delivered = landedMicros - 100_000
+	if err := e.exec().BridgeBack(actorContext(t.Context()), ids.SwapIDFrom(swap)); err != nil {
+		t.Fatalf("BridgeBack with a delivery inside the bound err = %v", err)
+	}
+	got := e.steps(t, swap)
+	wantSteps(t, got[len(got)-1:], "bridge_back:succeeded:100000")
+
+	e.privy.delivered = landedMicros - 1_000_000
+	stranded, strandedErr := e.exec().Stranded(actorContext(t.Context()), ids.SwapIDFrom(swap))
+	if errs.CodeOf(strandedErr) != errs.CodeUpstreamUnavailable {
+		t.Fatalf("Stranded = %+v, %v, want upstream_unavailable", stranded, strandedErr)
+	}
+}
+
 func (e *routeEnv) queries() app.Queries { return app.NewQueries(e.pool) }
 
 func TestBridgeBack_theFillIsOwnedOnceTheReturnSucceedsAndExpectedWhileItIsInFlight(t *testing.T) {

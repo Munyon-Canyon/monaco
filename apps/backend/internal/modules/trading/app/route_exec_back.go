@@ -56,7 +56,10 @@ func (r *RouteExec) bridgeBack(ctx context.Context, b routedBuy) (domain.StepSta
 		if err != nil {
 			return money.Micros{}, domain.Arrival{}, err
 		}
-		got := atMost(arrived, amount)
+		got, err := b.backArrived(arrived, amount)
+		if err != nil {
+			return money.Micros{}, domain.Arrival{}, err
+		}
 		fee, err := amount.Sub(got)
 		return fee, backArrival(got, fill), err
 	}
@@ -100,7 +103,19 @@ func (r *RouteExec) observedBack(ctx context.Context, b routedBuy) (money.Micros
 		return money.Micros{}, false, err
 	}
 	arrived, _, err := r.arrival(ctx, b, action)
-	return atMost(arrived, step.Amount), err == nil, err
+	if err == nil {
+		arrived, err = b.backArrived(arrived, step.Amount)
+	}
+	return arrived, err == nil, err
+}
+
+func (b routedBuy) backArrived(arrived, sent money.Micros) (money.Micros, error) {
+	if arrived.Cmp(arrivalFloor(sent, b.estimate)) < 0 {
+		return money.Micros{}, errs.New(errs.CodeUpstreamUnavailable, "trading.RouteExec.backArrived",
+			slog.String("swap_id", b.id.String()), slog.String("reason", "bridge_fee_over_quote"),
+			slog.String("sent", sent.String()), slog.String("arrived", arrived.String()))
+	}
+	return atMost(arrived, sent), nil
 }
 
 type StrandedCash struct {
