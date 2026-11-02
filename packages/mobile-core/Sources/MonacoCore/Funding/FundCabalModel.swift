@@ -30,6 +30,7 @@ public final class FundCabalModel {
     private var resting: FundCabalState = .empty
     private var cashAfterMicros: Int64 = 0
     private var isFirstFund = false
+    private var previewedMicros: Int64 = 0
     private var presented = false
     private var closed = false
     private var generation = 0
@@ -87,7 +88,8 @@ public final class FundCabalModel {
     public var canSubmit: Bool {
         guard let micros = amountMicros, micros > 0 else { return false }
         switch state {
-        case .typed, .unconfirmed, .failed: return true
+        case .unconfirmed: return true
+        case .typed, .failed: return previewedMicros == micros
         case .empty, .invalid, .belowMinimum, .paused, .submitting, .settled: return false
         }
     }
@@ -125,6 +127,7 @@ public final class FundCabalModel {
 
     public var buttonTitle: String? {
         guard canSubmit, let micros = amountMicros else { return nil }
+        if case .unconfirmed = state { return FundCabalCopy.checkAgain }
         return FundCabalCopy.button(micros: micros)
     }
 
@@ -140,6 +143,7 @@ public final class FundCabalModel {
     public func amountChanged() {
         pendingPreview?.cancel()
         generation += 1
+        clearFailedTransfer()
         guard watchedTransferID == nil else { return }
         guard let micros = amountMicros, micros > 0 else {
             pendingPreview = nil
@@ -156,6 +160,7 @@ public final class FundCabalModel {
 
     public func submit() async {
         guard canSubmit, let micros = amountMicros else { return }
+        clearFailedTransfer()
         isFirstFund = FirstFundModel.heldNoShare(sliceBps: preview?.sliceBpsNow)
         cashAfterMicros = max(maxMicros - micros, 0)
         resting = .submitting
@@ -174,8 +179,25 @@ public final class FundCabalModel {
             case .needsMoney(let message), .toast(let message): resting = .failed(message)
             }
         case .unconfirmed(let message):
-            resting = .unconfirmed(message)
+            if let pending = funding.pendingMicros, pending != micros {
+                amountText = AmountText.plain(AmountText.roundDownToCents(AmountText.dollars(micros: pending)))
+                resting = .unconfirmed(FundCabalCopy.pendingBlocked(micros: pending))
+            } else {
+                resting = .unconfirmed(message)
+            }
         }
+    }
+
+    private func clearFailedTransfer() {
+        guard let id = watchedTransferID, case .failed = settlements.fund[id] else { return }
+        if presented {
+            settlements.dismiss(id)
+            presented = false
+        }
+        watchedTransferID = nil
+        funding.reset()
+        resting = .empty
+        applyPreview(preview, micros: amountMicros ?? 0)
     }
 
     public func dismiss() {
@@ -208,6 +230,7 @@ public final class FundCabalModel {
             }
             guard issued == generation else { return }
             preview = wire
+            previewedMicros = micros
             shareUnavailable = false
             if settled {
                 cashAfterMicros = maxMicros
@@ -219,6 +242,7 @@ public final class FundCabalModel {
             let failure = APIError(error)
             if Self.isPricesStale(failure) {
                 shareUnavailable = true
+                previewedMicros = micros
                 if preview == nil { resting = .empty }
             } else if preview == nil {
                 resting = .failed(BalanceSource.message(for: failure))

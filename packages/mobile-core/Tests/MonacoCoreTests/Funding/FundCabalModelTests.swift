@@ -378,16 +378,78 @@ extension FundCabalModelTests {
         XCTAssertEqual(keys[0], keys[1])
     }
 
-    func testAChangedAmountUnderAPendingKeyIsRefusedAndShowsUnconfirmed() async {
-        let rig = await typedRig([.failure(URLError(.timedOut))])
+    func testAChangedAmountUnderAPendingKeyNamesThePendingAmountAndPrefillsIt() async {
+        let rig = await typedRig([.failure(URLError(.timedOut)), .json(.ok, preview(after: 3700))])
         await rig.model.submit()
 
-        rig.model.amountText = "300"
+        await type("300", into: rig)
+        await settle(rig, .typed(sliceNow: 3500, sliceAfter: 3700))
         await rig.model.submit()
 
-        XCTAssertEqual(rig.model.state, .unconfirmed(MoneyFlowCopy.unconfirmed.summary))
+        XCTAssertEqual(rig.model.state, .unconfirmed(FundCabalCopy.pendingBlocked(micros: 250_000_000)))
+        XCTAssertEqual(
+            rig.model.line,
+            "Your $250 fund may still be going through. Check it again before funding a different amount.")
+        XCTAssertEqual(rig.model.amountText, "250")
+        XCTAssertEqual(rig.model.buttonTitle, "Check again")
+        XCTAssertTrue(rig.model.canSubmit)
         let posts = await rig.transport.sent.filter { $0.path?.hasSuffix("/fund") == true }
         XCTAssertEqual(posts.count, 1)
+    }
+
+    func testFundCannotBeSubmittedForAnAmountThePreviewHasNotSeen() async {
+        let rig = await typedRig([.json(.ok, preview(after: 3700))])
+        XCTAssertTrue(rig.model.canSubmit)
+
+        let before = rig.clock.state.current.requested.count
+        rig.model.amountText = "300"
+        rig.model.amountChanged()
+
+        XCTAssertFalse(rig.model.canSubmit)
+        XCTAssertNil(rig.model.buttonTitle)
+        await rig.model.submit()
+        let early = await rig.transport.sent.filter { $0.path?.hasSuffix("/fund") == true }
+        XCTAssertTrue(early.isEmpty)
+        _ = await rig.clock.state.until { $0.requested.count > before }
+        rig.clock.advance(by: .milliseconds(250))
+        _ = await waitUntil { rig.model.canSubmit }
+        XCTAssertEqual(rig.model.buttonTitle, "Fund $300")
+    }
+
+    func testRetryingAFailedFundSendsANewTransferUnderANewKey() async throws {
+        let second = "01890a5d-ac96-774b-bcce-b302099a8058"
+        let rig = await typedRig([
+            .json(.accepted, accepted), .json(.ok, transfer("failed")),
+            .json(.accepted, #"{"transfer_id":"\#(second)","status":"submitted"}"#), .hang,
+        ])
+        await rig.model.submit()
+        await settle(rig, .failed(FundProgress.didNotGoThrough))
+        XCTAssertTrue(rig.model.canSubmit)
+
+        await rig.model.submit()
+
+        XCTAssertEqual(rig.model.watchedTransferID, second)
+        XCTAssertEqual(rig.model.state, .submitting)
+        let header = try keyHeader()
+        let keys = await rig.transport.sent.filter { $0.path?.hasSuffix("/fund") == true }.map {
+            $0.headerFields[header]
+        }
+        XCTAssertEqual(keys.count, 2)
+        XCTAssertNotEqual(keys[0], keys[1])
+    }
+
+    func testEditingTheAmountAfterAFailedFundPreviewsAgain() async {
+        let rig = await typedRig([
+            .json(.accepted, accepted), .json(.ok, transfer("failed")), .json(.ok, preview(after: 3550)),
+        ])
+        await rig.model.submit()
+        await settle(rig, .failed(FundProgress.didNotGoThrough))
+
+        await type("100", into: rig)
+
+        await settle(rig, .typed(sliceNow: 3500, sliceAfter: 3550))
+        XCTAssertNil(rig.model.watchedTransferID)
+        XCTAssertTrue(rig.model.canSubmit)
     }
 
     func testARefusalShowsTheFailureCopyAndKeepsTheAmount() async throws {

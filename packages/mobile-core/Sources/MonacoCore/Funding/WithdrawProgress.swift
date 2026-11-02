@@ -79,10 +79,10 @@ public final class Withdrawing {
     private let submission: IdempotentSubmission
     private let schedule: ReconcileSchedule
 
-    private struct Pending: Codable, Equatable {
-        let micros: Int64
-        let toAddress: String
-        let network: String
+    public struct Pending: Codable, Equatable, Sendable {
+        public let micros: Int64
+        public let toAddress: String
+        public let network: String
     }
 
     static let inFlightRetries = 3
@@ -101,6 +101,8 @@ public final class Withdrawing {
     public static let slot = "withdraw"
 
     public var isSubmitting: Bool { progress == .submitting }
+
+    public var pending: Pending? { submission.hasPendingKey ? submission.pending(Pending.self) : nil }
 
     public func submit(
         micros: Int64, toAddress: String, network: WithdrawNetwork = .solana
