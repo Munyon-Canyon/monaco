@@ -150,7 +150,8 @@ paths:
         units are minted at the live price once the transfer is final. Poll GET /v1/fund-transfers/{id}
         for the outcome. Only members can fund. A paused cabal answers `cabal_paused`, a banned one answers
         `cabal_banned`, an amount over the available balance answers `insufficient_funds`, and a pot with shares but no value answers
-        `pot_value_zero`.
+        `pot_value_zero`. A holding without a fresh, accepted price answers `price_unavailable` before any
+        transfer is signed or recorded, so no USDC moves; retry once prices update.
       parameters:
         - $ref: "#/components/parameters/IdempotencyKey"
         - name: id
