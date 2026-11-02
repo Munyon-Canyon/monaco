@@ -47,6 +47,16 @@ struct ChromeTests {
                 == [.height(200), .large])
     }
 
+    @Test func sheetsOpenAtLargeFromXxxLargeAndAtTheFirstDetentBelow() {
+        let withLarge: [PresentationDetent] = [.height(240), .large]
+        let halfOnly: [PresentationDetent] = [.medium]
+        #expect(MonacoSheetDetents.preferred(in: withLarge, dynamicTypeSize: .xxxLarge) == .large)
+        #expect(MonacoSheetDetents.preferred(in: withLarge, dynamicTypeSize: .accessibility3) == .large)
+        #expect(MonacoSheetDetents.preferred(in: withLarge, dynamicTypeSize: .xxLarge) == .height(240))
+        #expect(MonacoSheetDetents.preferred(in: halfOnly, dynamicTypeSize: .large) == .medium)
+        #expect(MonacoSheetDetents.preferred(in: halfOnly, dynamicTypeSize: .xxxLarge) == .medium)
+    }
+
     @Test func fittedUnderHalfReturnsTheFittedHeight() {
         #expect(MonacoSheetDetents.fitted.detents(fittedHeight: 240, screenHeight: 852) == [.height(240)])
         #expect(MonacoSheetDetents.result.detents(fittedHeight: 240, screenHeight: 852) == [.height(240)])

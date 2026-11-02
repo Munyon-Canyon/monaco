@@ -59,8 +59,14 @@ struct CabalInviteCard: View {
         .accessibilityIdentifier("cabal-invite-cover")
     }
 
+    private var stacks: Bool { dynamicTypeSize >= .xxxLarge }
+
     private var identity: some View {
-        HStack(spacing: MonacoTheme.Space.sm) {
+        let layout =
+            stacks
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: MonacoTheme.Space.sm))
+            : AnyLayout(HStackLayout(spacing: MonacoTheme.Space.sm))
+        return layout {
             CabalMark(
                 groupId: preview.cabalID, name: preview.name, size: CabalInviteMetrics.crestSize,
                 pictureUrl: preview.pictureURL)
@@ -68,7 +74,8 @@ struct CabalInviteCard: View {
                 Text(preview.name)
                     .font(MonacoTheme.Typo.title2)
                     .foregroundStyle(MonacoTheme.primaryText)
-                    .lineLimit(dynamicTypeSize >= .xxxLarge ? nil : 1)
+                    .lineLimit(stacks ? nil : 1)
+                    .fixedSize(horizontal: false, vertical: stacks)
                 Text(preview.facts)
                     .font(MonacoTheme.Typo.subhead)
                     .foregroundStyle(MonacoTheme.secondaryText)
@@ -79,15 +86,23 @@ struct CabalInviteCard: View {
 
     @ViewBuilder private var inviter: some View {
         if let person = preview.inviter, let line = preview.inviterLine {
-            HStack(spacing: MonacoTheme.Space.s) {
-                MonacoAvatar(
-                    photoURL: person.photoURL, displayName: person.displayName, size: CabalInviteMetrics.inviterPhoto)
-                Text(line)
-                    .font(MonacoTheme.Typo.body)
-                    .foregroundStyle(MonacoTheme.primaryText)
-                    .lineLimit(dynamicTypeSize >= .xxxLarge ? nil : 1)
-                    .accessibilityIdentifier("cabal-invite-inviter")
-                Spacer(minLength: MonacoTheme.Space.s)
+            let layout =
+                stacks
+                ? AnyLayout(VStackLayout(alignment: .leading, spacing: MonacoTheme.Space.s))
+                : AnyLayout(HStackLayout(spacing: MonacoTheme.Space.s))
+            layout {
+                HStack(spacing: MonacoTheme.Space.s) {
+                    MonacoAvatar(
+                        photoURL: person.photoURL, displayName: person.displayName,
+                        size: CabalInviteMetrics.inviterPhoto)
+                    Text(line)
+                        .font(MonacoTheme.Typo.body)
+                        .foregroundStyle(MonacoTheme.primaryText)
+                        .lineLimit(stacks ? nil : 1)
+                        .fixedSize(horizontal: false, vertical: stacks)
+                        .accessibilityIdentifier("cabal-invite-inviter")
+                }
+                if !stacks { Spacer(minLength: MonacoTheme.Space.s) }
                 CabalInviteFaces(faces: preview.faces, moreText: preview.moreText)
             }
         }

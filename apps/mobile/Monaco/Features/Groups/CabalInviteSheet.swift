@@ -98,7 +98,7 @@ struct CabalInviteSheet: View {
             .scrollBounceBehavior(.basedOnSize)
             buttons
         }
-        .presentationDetents(Set(MonacoSheetDetents.half + (dynamicTypeSize >= .xxxLarge ? [.large] : [])))
+        .monacoPresentationDetents(MonacoSheetDetents.half + (dynamicTypeSize >= .xxxLarge ? [.large] : []))
         .presentationDragIndicator(.visible)
         .presentationContentInteraction(.scrolls)
         .presentationBackgroundInteraction(.disabled)

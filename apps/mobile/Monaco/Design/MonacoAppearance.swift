@@ -235,6 +235,10 @@ enum MonacoSheetDetents {
         declared || dynamicTypeSize >= .xxxLarge
     }
 
+    static func preferred(in detents: [PresentationDetent], dynamicTypeSize: DynamicTypeSize) -> PresentationDetent {
+        dynamicTypeSize >= .xxxLarge && detents.contains(.large) ? .large : (detents.first ?? .medium)
+    }
+
     @MainActor
     func detents(
         fittedHeight: CGFloat, screenHeight: CGFloat = MonacoSheetDetents.screenHeight,
@@ -337,7 +341,7 @@ private struct MonacoSheetFrame<Content: View>: View {
             sheetContent
         }
         .monacoSheetChrome()
-        .presentationDetents(Set(available))
+        .monacoPresentationDetents(available)
     }
 
     @ViewBuilder
@@ -366,7 +370,32 @@ private struct MonacoSheetFrame<Content: View>: View {
     }
 }
 
+private struct MonacoDetentSelection: ViewModifier {
+    let detents: [PresentationDetent]
+
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @State private var chosen: PresentationDetent?
+
+    func body(content: Content) -> some View {
+        content
+            .presentationDetents(
+                Set(detents),
+                selection: Binding(
+                    get: { chosen ?? MonacoSheetDetents.preferred(in: detents, dynamicTypeSize: dynamicTypeSize) },
+                    set: { chosen = $0 }
+                )
+            )
+            .onChange(of: dynamicTypeSize) {
+                chosen = nil
+            }
+    }
+}
+
 extension View {
+    func monacoPresentationDetents(_ detents: [PresentationDetent]) -> some View {
+        modifier(MonacoDetentSelection(detents: detents))
+    }
+
     fileprivate func monacoSheetChrome() -> some View {
         modifier(MonacoSheetChrome())
     }
