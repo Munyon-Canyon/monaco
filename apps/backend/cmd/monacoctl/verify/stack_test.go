@@ -575,3 +575,32 @@ func TestBoot_stopsWaitingForTheDatabaseWhenItsDeadlinePasses(t *testing.T) {
 		t.Logf("Down: %v", err)
 	}
 }
+
+func TestBoot_doesNotChargeTheBuildTimeDatabaseStepToTheStackBudget(t *testing.T) {
+	t.Parallel()
+	o := testOptions(t, "ok")
+	clk := fakeClock()
+	o.Clock = clk
+	bins := o.Bins
+	o.Bins = Binaries{}
+	pg := o.Postgres
+	migrated := make(chan struct{})
+	o.Postgres = func(ctx context.Context, runID string) (string, func(context.Context) error, error) {
+		defer close(migrated)
+		clk.Advance(o.Budget.Stack)
+		select {
+		case <-ctx.Done():
+			return "", nil, context.Cause(ctx)
+		case <-time.After(200 * time.Millisecond):
+		}
+		return pg(ctx, runID)
+	}
+	s := Begin(t.Context(), o)
+	<-migrated
+	if err := s.Boot(t.Context(), bins, t.TempDir()); err != nil {
+		t.Fatalf("Boot = %v, want the stack up: the database step ran during the build", err)
+	}
+	if err := s.Down(t.Context()); err != nil {
+		t.Fatalf("Down: %v", err)
+	}
+}
