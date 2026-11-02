@@ -201,7 +201,7 @@ struct ProposalCard: View {
         }
         guard let amount = summary.tokenAmount else { return asset?.kind == .preIpo ? "0 tokens" : "0 shares" }
         return TokenQuantityFormatter.label(
-            fromAtomics: String(amount), decimals: asset?.decimals ?? AssetCatalogDefaults.decimals,
+            atomics: amount, decimals: asset?.decimals ?? AssetCatalogDefaults.decimals,
             kind: asset?.kind ?? .stock)
     }
 }

@@ -1,4 +1,5 @@
 import Foundation
+import MonacoAPI
 
 /// Typographic minus sign (U+2212) used for every negative figure shown to people.
 let typographicMinus = "\u{2212}"
@@ -357,6 +358,16 @@ public enum TokenQuantityFormatter {
             atomics >= 0
         else { return nil }
         return atomics / Decimal(sign: .plus, exponent: decimals, significand: 1)
+    }
+
+    public static func quantity(atomics: Decimal, decimals: Int) -> Decimal? {
+        guard atomics >= 0 else { return nil }
+        return atomics / TokenAmount.scale(decimals)
+    }
+
+    public static func label(atomics: Decimal, decimals: Int, kind: AssetKind) -> String {
+        guard let quantity = quantity(atomics: atomics, decimals: decimals) else { return TokenAmount.text(atomics) }
+        return label(quantity: quantity, kind: kind)
     }
 
     /// "1.5 tokens", "1 token", "1.2034 shares" — at most 4 decimals, trailing zeros trimmed.

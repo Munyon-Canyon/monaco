@@ -13,7 +13,7 @@ public struct HomePendingVote: Identifiable, Equatable, Sendable {
     public let assetName: String?
     public let logoURL: URL?
     public let usdcMicros: Int64?
-    public let tokenAmount: Int64?
+    public let tokenAmount: Decimal?
     public let tokenDecimals: Int?
     public let tally: ProposalTally
     public let replyCount: Int
@@ -26,7 +26,7 @@ public struct HomePendingVote: Identifiable, Equatable, Sendable {
 
     public init(
         id: String, cabalID: String, cabalName: String, kind: String, rule: String? = nil, symbol: String? = nil,
-        assetName: String? = nil, logoURL: URL? = nil, usdcMicros: Int64? = nil, tokenAmount: Int64? = nil,
+        assetName: String? = nil, logoURL: URL? = nil, usdcMicros: Int64? = nil, tokenAmount: Decimal? = nil,
         tokenDecimals: Int? = nil, tally: ProposalTally, replyCount: Int, expiresAt: Date
     ) {
         self.id = id
@@ -50,7 +50,7 @@ public struct HomePendingVote: Identifiable, Equatable, Sendable {
             id: value.proposalId, cabalID: value.cabalId, cabalName: value.cabalName, kind: value.kind.rawValue,
             rule: value.ruleChange?.rule.rawValue, symbol: value.symbol, assetName: value.assetName,
             logoURL: value.assetLogoUrl.flatMap(URL.init(string:)), usdcMicros: value.usdcMicros,
-            tokenAmount: value.tokenAmount, tokenDecimals: value.tokenDecimals, tally: ProposalTally(value.tally),
+            tokenAmount: value.tokenAmountValue, tokenDecimals: value.tokenDecimals, tally: ProposalTally(value.tally),
             replyCount: value.replyCount, expiresAt: value.expiresAt)
     }
 }
@@ -264,9 +264,9 @@ extension HomeVoteCardModel {
         return [name, amount].compactMap { $0 }.joined(separator: " \u{00B7} ")
     }
 
-    private static func shares(_ atomics: Int64, decimals: Int?) -> String {
+    private static func shares(_ atomics: Decimal, decimals: Int?) -> String {
         TokenQuantityFormatter.label(
-            fromAtomics: String(atomics), decimals: decimals ?? AssetCatalogDefaults.decimals, kind: .stock)
+            atomics: atomics, decimals: decimals ?? AssetCatalogDefaults.decimals, kind: .stock)
     }
 
     public func subhead(now: Date) -> String {

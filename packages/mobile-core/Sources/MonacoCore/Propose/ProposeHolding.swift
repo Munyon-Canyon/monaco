@@ -1,9 +1,10 @@
+import Foundation
 import MonacoAPI
 
 public struct ProposeHolding: Equatable, Hashable, Sendable, Identifiable {
     public struct Location: Equatable, Hashable, Sendable, Identifiable {
         public let network: Components.Schemas.Network
-        public let tokenAmount: Int64
+        public let tokenAmount: Decimal
         public let valueMicros: Int64
         public let exactTokens: UInt128
 
@@ -16,7 +17,7 @@ public struct ProposeHolding: Equatable, Hashable, Sendable, Identifiable {
     public let ticker: String
     public let name: String
     public let kind: AssetKind
-    public let tokenAmount: Int64
+    public let tokenAmount: Decimal
     public let priceMicros: Int64
     public let valueMicros: Int64
     public let exactTokens: UInt128
@@ -39,8 +40,8 @@ public struct ProposeHolding: Equatable, Hashable, Sendable, Identifiable {
             let first = locations.first(where: { $0.network == .solana }) ?? locations.first
         else {
             network = nil
-            tokenAmount = holding.tokenAmount
-            exactTokens = UInt128(clamping: holding.tokenAmount)
+            tokenAmount = holding.tokenAmountValue
+            exactTokens = Self.exact(holding.tokenAmountValue)
             valueMicros = holding.valueMicros
             unitsTenThousandths = Int64(holding.units.replacingOccurrences(of: ".", with: "")) ?? 0
             return
@@ -74,16 +75,16 @@ public struct ProposeHolding: Equatable, Hashable, Sendable, Identifiable {
         var found: [Location] = (holding.listings ?? []).compactMap { listing in
             guard let exact = UInt128(listing.tokenAmount), exact > 0 else { return nil }
             return Location(
-                network: listing.network, tokenAmount: Int64(listing.tokenAmount) ?? Int64.max,
+                network: listing.network, tokenAmount: TokenAmount.parse(listing.tokenAmount) ?? 0,
                 valueMicros: listing.valueMicros, exactTokens: exact)
         }
-        if holding.tokenAmount > 0, !found.contains(where: { $0.network == .solana }) {
+        if holding.tokenAmountValue > 0, !found.contains(where: { $0.network == .solana }) {
             let elsewhere = found.reduce(Int64(0)) { $0 + $1.valueMicros }
             found.insert(
                 Location(
-                    network: .solana, tokenAmount: holding.tokenAmount,
+                    network: .solana, tokenAmount: holding.tokenAmountValue,
                     valueMicros: max(0, holding.valueMicros - elsewhere),
-                    exactTokens: UInt128(clamping: holding.tokenAmount)),
+                    exactTokens: Self.exact(holding.tokenAmountValue)),
                 at: 0)
         }
         return found
@@ -120,14 +121,19 @@ public struct ProposeHolding: Equatable, Hashable, Sendable, Identifiable {
         return product.partialValue / UInt128(valueMicros)
     }
 
-    public func tokenAmount(forMicros micros: Int64) -> Int64 {
+    public func tokenAmount(forMicros micros: Int64) -> Decimal {
         guard micros > 0 else { return 0 }
-        if overflows {
-            let exact = exactTokens(forMicros: micros)
-            return Int64(clamping: exact)
-        }
+        if overflows { return Self.decimal(exactTokens(forMicros: micros)) }
         if micros >= valueMicros - valueMicros % 10_000 { return tokenAmount }
-        return ProposeMath.tokenAmount(units: tokenAmount, dollars: micros, holdingValue: valueMicros)
+        return Self.decimal(ProposeMath.tokenAmount(units: exactTokens, dollars: micros, holdingValue: valueMicros))
+    }
+
+    private static func exact(_ amount: Decimal) -> UInt128 {
+        UInt128(TokenAmount.text(max(amount, 0))) ?? 0
+    }
+
+    private static func decimal(_ exact: UInt128) -> Decimal {
+        TokenAmount.parse(String(exact)) ?? 0
     }
 
     public var heldQuantity: String {
@@ -138,16 +144,13 @@ public struct ProposeHolding: Equatable, Hashable, Sendable, Identifiable {
         return Self.label(tenThousandths: total, kind: kind)
     }
 
-    public func quantity(of amount: Int64) -> String {
-        if overflows {
-            let scaled = UInt128(max(unitsTenThousandths, 0)) * UInt128(max(amount, 0)) / exactTokens
-            return Self.label(tenThousandths: min(Int64(clamping: scaled), unitsTenThousandths), kind: kind)
-        }
-        let clamped = min(max(amount, 0), tokenAmount)
-        let scaled =
-            tokenAmount > 0
-            ? tokenAmount.dividingFullWidth(unitsTenThousandths.multipliedFullWidth(by: clamped)).quotient : 0
-        return Self.label(tenThousandths: scaled, kind: kind)
+    public func quantity(of amount: Decimal) -> String {
+        guard exactTokens > 0 else { return Self.label(tenThousandths: 0, kind: kind) }
+        let clamped = min(Self.exact(amount), exactTokens)
+        let weight = UInt128(max(unitsTenThousandths, 0))
+        let product = weight.multipliedReportingOverflow(by: clamped)
+        let scaled = product.overflow ? weight / exactTokens * clamped : product.partialValue / exactTokens
+        return Self.label(tenThousandths: min(Int64(clamping: scaled), max(unitsTenThousandths, 0)), kind: kind)
     }
 
     private static func label(tenThousandths scaled: Int64, kind: AssetKind) -> String {

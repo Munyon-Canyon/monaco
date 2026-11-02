@@ -26,7 +26,7 @@ final class ProposalPriceMoveTests: XCTestCase {
 
     func testLargeAtomicsDoNotOverflow() throws {
         let move = try XCTUnwrap(
-            ProposalPriceMove(votedQuote: Int64.max / 2, currentQuote: Int64.max / 4, isSell: false))
+            ProposalPriceMove(votedQuote: Decimal(Int64.max / 2), currentQuote: Decimal(Int64.max / 4), isSell: false))
         XCTAssertEqual(move.basisPoints, 10_000)
     }
 

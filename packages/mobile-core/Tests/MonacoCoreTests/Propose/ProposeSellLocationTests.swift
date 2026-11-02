@@ -63,7 +63,7 @@ final class ProposeSellLocationTests: XCTestCase {
 
         XCTAssertEqual(apple.network, .robinhood)
         XCTAssertTrue(apple.overflows)
-        XCTAssertEqual(apple.tokenAmount, Int64.max)
+        XCTAssertEqual(apple.tokenAmount, Decimal(string: "25000000000000000000"))
         XCTAssertEqual(apple.heldQuantity, "25 shares")
         XCTAssertTrue(apple.exceedsSettleLimit(forMicros: 5_785_000_000))
         XCTAssertTrue(apple.exceedsSettleLimit(forMicros: 2_776_800_000))

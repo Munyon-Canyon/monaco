@@ -1,11 +1,12 @@
 import Foundation
+import MonacoAPI
 
 public struct ProposalPriceMove: Equatable, Sendable {
-    public let votedQuote: Int64
-    public let currentQuote: Int64
+    public let votedQuote: Decimal
+    public let currentQuote: Decimal
     public let isSell: Bool
 
-    public init?(votedQuote: Int64, currentQuote: Int64, isSell: Bool) {
+    public init?(votedQuote: Decimal, currentQuote: Decimal, isSell: Bool) {
         guard votedQuote > 0, currentQuote > 0 else { return nil }
         self.votedQuote = votedQuote
         self.currentQuote = currentQuote
@@ -14,12 +15,10 @@ public struct ProposalPriceMove: Equatable, Sendable {
 
     public var basisPoints: Int {
         let (from, to) = isSell ? (votedQuote, currentQuote) : (currentQuote, votedQuote)
-        let base = UInt64(from)
-        let diff = UInt64(abs(to - from))
-        let product = diff.multipliedFullWidth(by: 10_000)
-        guard product.high < base else { return 100_000_000 }
-        let (quotient, remainder) = base.dividingFullWidth(product)
-        return min(Int(clamping: remainder * 2 >= base ? quotient + 1 : quotient), 100_000_000)
+        let scaled = abs(to - from) * 10_000 / from
+        return min(
+            TokenAmount.int64(TokenAmount.rounded(scaled, .plain)).map { Int(clamping: $0) } ?? 100_000_000, 100_000_000
+        )
     }
 
     public var percentText: String {

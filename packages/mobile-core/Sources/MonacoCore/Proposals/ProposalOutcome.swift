@@ -1,4 +1,5 @@
 import Foundation
+import MonacoAPI
 
 public struct ProposalOutcome: Equatable, Sendable {
     public static let retention: TimeInterval = 24 * 3600
@@ -25,7 +26,7 @@ public struct ProposalOutcome: Equatable, Sendable {
         }
         guard let tokens = proposal.tokenAmount else { return "Sold \(name)" }
         let shares = TokenQuantityFormatter.label(
-            fromAtomics: String(tokens),
+            atomics: tokens,
             decimals: proposal.tokenDecimals ?? asset?.decimals ?? ProposalShareFormatter.defaultDecimals,
             kind: kind)
         return "Sold \(shares) of \(name)"

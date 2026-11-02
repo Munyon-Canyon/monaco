@@ -1,7 +1,8 @@
+import Foundation
 import MonacoAPI
 
 public struct ProposePreview: Equatable, Sendable {
-    public let quoteOutAmount: Int64?
+    public let quoteOutAmount: Decimal?
     public let advisoryCode: String?
     public let advisoryMessage: String?
     public let potValueMicros: Int64
@@ -10,7 +11,7 @@ public struct ProposePreview: Equatable, Sendable {
     public let priceComparison: Components.Schemas.PriceComparison?
 
     public init(_ preview: Components.Schemas.TradePreview) {
-        quoteOutAmount = preview.quoteOutAmount
+        quoteOutAmount = preview.quoteOutAmountValue
         advisoryCode = preview.advisoryCode
         advisoryMessage = preview.advisoryMessage
         potValueMicros = preview.potValueMicros
@@ -20,6 +21,8 @@ public struct ProposePreview: Equatable, Sendable {
     }
 
     public func bestPrice(isSell: Bool) -> BestPrice? { BestPrice(priceComparison, isSell: isSell) }
+
+    public var quoteOutMicros: Int64? { quoteOutAmount.flatMap(TokenAmount.int64) }
 
     public var maxMicros: Int64 { potValueMicros }
     public var potHelperText: String { "The pot has \(UsdAmountFormatter.format(micros: potValueMicros))" }

@@ -5,7 +5,7 @@ extension ProposeReviewModel {
     public var showsThesis: Bool { !isPreIpoBuy }
 
     public var amountLabel: String {
-        isSell ? heroAmount : PreIpoDates.wholeDollars(draft.amount)
+        isSell ? heroAmount : PreIpoDates.wholeDollars(draft.micros)
     }
 
     public var assetLine: String {
@@ -17,7 +17,7 @@ extension ProposeReviewModel {
     private var estimatePriceMicros: Int64? { preIpo?.steps.last(where: \.isEstimate)?.priceMicros }
 
     private var estimatedShares: ProposalStats.Cell? {
-        estimatePriceMicros.flatMap { ProposalStats.estimatedShares(usdcMicros: draft.amount, estimateMicros: $0) }
+        estimatePriceMicros.flatMap { ProposalStats.estimatedShares(usdcMicros: draft.micros, estimateMicros: $0) }
     }
 
     public var cabalLine: String {
@@ -64,7 +64,7 @@ extension ProposeReviewModel {
 
     private var treasuryBps: Int64? {
         let pot = preview.potValueMicros
-        let value = isSell ? (preview.quoteOutAmount ?? 0) : draft.amount
+        let value = isSell ? (preview.quoteOutMicros ?? 0) : draft.micros
         guard pot > 0, value > 0, value <= Int64.max / 10_000 else { return nil }
         return value * 10_000 / pot
     }

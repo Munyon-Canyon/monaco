@@ -53,7 +53,7 @@ public final class ProposeReviewModel {
         switch trade {
         case .sell(let holding): "Sell \(holding.quantity(of: draft.amount)) of \(holding.ticker)"
         case .buy(let symbol, let kind, _):
-            "Buy \(UsdAmountFormatter.format(micros: draft.amount)) of \(buyName ?? AssetSymbolFormatter.display(symbol, kind: kind))"
+            "Buy \(UsdAmountFormatter.format(micros: draft.micros)) of \(buyName ?? AssetSymbolFormatter.display(symbol, kind: kind))"
         }
     }
 
@@ -63,7 +63,7 @@ public final class ProposeReviewModel {
     public var heroAmount: String {
         switch trade {
         case .sell(let holding): holding.quantity(of: draft.amount)
-        case .buy: UsdAmountFormatter.format(micros: draft.amount)
+        case .buy: UsdAmountFormatter.format(micros: draft.micros)
         }
     }
 
@@ -75,7 +75,7 @@ public final class ProposeReviewModel {
     }
 
     public var bestPrice: BestPrice? {
-        bestChain?.bestPrice(forMicros: draft.amount) ?? preview.bestPrice(isSell: isSell)
+        bestChain?.bestPrice(forMicros: draft.micros) ?? preview.bestPrice(isSell: isSell)
     }
 
     public var isEstimate: Bool { bestChain != nil }
@@ -142,7 +142,7 @@ public final class ProposeReviewModel {
         if let network = holding.network, holding.locations.count > 1 || network != .solana {
             rows.append(Row(label: "Sells on", value: BestPrice.chainName(network)))
         }
-        if let out = preview.quoteOutAmount, out > 0 {
+        if let out = preview.quoteOutMicros, out > 0 {
             rows.append(Row(label: "Raises", value: "about \(UsdAmountFormatter.format(micros: out))"))
         }
         if holding.tokenAmount - draft.amount > 0 {
@@ -256,7 +256,7 @@ public final class ProposeReviewModel {
     func quantity(_ preview: ProposePreview) -> Decimal? {
         guard case .buy(_, _, let tokenDecimals) = trade, let tokenDecimals, let out = preview.quoteOutAmount, out > 0
         else { return nil }
-        return TokenQuantityFormatter.quantity(fromAtomics: String(out), decimals: tokenDecimals)
+        return TokenQuantityFormatter.quantity(atomics: out, decimals: tokenDecimals)
     }
 
     func price(quantity: Decimal?) -> Decimal? {
@@ -268,8 +268,8 @@ public final class ProposeReviewModel {
 
     private var potPercent: Int64? {
         let pot = preview.potValueMicros
-        guard pot > 0, draft.amount <= Int64.max / 100 else { return nil }
-        return (draft.amount * 100 + pot / 2) / pot
+        guard pot > 0, draft.micros <= Int64.max / 100 else { return nil }
+        return (draft.micros * 100 + pot / 2) / pot
     }
 }
 

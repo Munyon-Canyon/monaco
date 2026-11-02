@@ -9,7 +9,7 @@ public struct FirstFundVote: Equatable, Sendable {
     public let assetName: String
     public let logoURL: String?
     public let usdcMicros: Int64?
-    public let tokenAmount: Int64?
+    public let tokenAmount: Decimal?
     public let yes: Int
     public let no: Int
     public let voters: Int
@@ -19,7 +19,7 @@ public struct FirstFundVote: Equatable, Sendable {
 
     public init(
         proposalID: String, kind: String, symbol: String, assetName: String, logoURL: String?, usdcMicros: Int64?,
-        tokenAmount: Int64?, yes: Int, no: Int, voters: Int, needed: Int, replies: Int, expiresAt: Date
+        tokenAmount: Decimal?, yes: Int, no: Int, voters: Int, needed: Int, replies: Int, expiresAt: Date
     ) {
         self.proposalID = proposalID
         self.kind = kind
@@ -43,7 +43,7 @@ public struct FirstFundVote: Equatable, Sendable {
         assetName = vote.assetName ?? ""
         logoURL = vote.assetLogoUrl
         usdcMicros = vote.usdcMicros
-        tokenAmount = vote.tokenAmount
+        tokenAmount = vote.tokenAmountValue
         yes = Int(vote.tally.yes)
         no = Int(vote.tally.no)
         voters = Int(vote.tally.voters)
