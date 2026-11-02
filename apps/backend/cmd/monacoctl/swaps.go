@@ -33,6 +33,7 @@ const swapsUsage = `usage:
   monacoctl swaps failed-bridge-backs
   monacoctl swaps retry-bridge-back --swap <uuid> --reason <text> [--yes]
   monacoctl swaps return-evm-cash --swap <uuid> --reason <text> [--yes]
+  monacoctl swaps choose-arrival <swap> --tx <hash> --reason <text> [--network <network>] [--yes]
   monacoctl swaps overstated-sells`
 
 func toolSwaps(env toolEnv) tool { return swapsTool(env.environ, clock.Real{}, os.Stdin) }
@@ -77,6 +78,7 @@ func swapsToolWith(environ []string, clk clock.Clock, stdin io.Reader, ports cas
 			"failed-bridge-backs": listFailedBridgeBacks(clk),
 			"retry-bridge-back":   retryBridgeBack(environ, clk, stdin),
 			"return-evm-cash":     returnEVMCash(environ, clk, stdin, ports),
+			"choose-arrival":      chooseArrival(environ, clk, stdin, ports),
 			"overstated-sells":    listOverstatedSells(clk),
 		}, nil, environ, args, stdout, stderr)
 	}

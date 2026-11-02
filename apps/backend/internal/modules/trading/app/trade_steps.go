@@ -109,26 +109,35 @@ func (j Journal) succeeded(
 func (j Journal) Arrived(ctx context.Context, ref domain.StepRef, arrival domain.Arrival) (domain.TradeStep, error) {
 	var after domain.TradeStep
 	err := j.UoW.Do(ctx, func(ctx context.Context, tx db.Tx) error {
-		q := sqlc.New(tx.Queries())
-		before, err := readStep(ctx, q, ref.SwapID, ref.Step)
-		fee, arrived, arrivalErr := arrivalColumns(before.Amount, arrival)
-		if err = errors.Join(err, arrivalErr); err != nil {
-			return err
-		}
-		n, err := q.RecordTradeStepArrival(ctx, sqlc.RecordTradeStepArrivalParams{
-			ArrivedMicros: arrived, ArrivalTx: arrival.TxHash, At: j.Clock.Now(),
-			TradeID: ref.SwapID.UUID(), Step: string(ref.Step),
-		})
-		if err == nil {
-			after, err = readStep(ctx, q, ref.SwapID, ref.Step)
-		}
-		if err != nil || n == 0 {
-			return err
-		}
-		tx.AfterCommit(func(ctx context.Context) { logStep(ctx, ref, before.Status, after, fee) })
-		return tx.Events.Append(ctx, stepChanged(ref, after, fee))
+		var err error
+		after, _, err = j.arrived(ctx, tx, ref, arrival)
+		return err
 	})
 	return after, err
+}
+
+func (j Journal) arrived(
+	ctx context.Context, tx db.Tx, ref domain.StepRef, arrival domain.Arrival,
+) (domain.TradeStep, bool, error) {
+	q := sqlc.New(tx.Queries())
+	before, err := readStep(ctx, q, ref.SwapID, ref.Step)
+	fee, arrived, arrivalErr := arrivalColumns(before.Amount, arrival)
+	if err = errors.Join(err, arrivalErr); err != nil {
+		return domain.TradeStep{}, false, err
+	}
+	n, err := q.RecordTradeStepArrival(ctx, sqlc.RecordTradeStepArrivalParams{
+		ArrivedMicros: arrived, ArrivalTx: arrival.TxHash, At: j.Clock.Now(),
+		TradeID: ref.SwapID.UUID(), Step: string(ref.Step),
+	})
+	var after domain.TradeStep
+	if err == nil {
+		after, err = readStep(ctx, q, ref.SwapID, ref.Step)
+	}
+	if err != nil || n == 0 {
+		return after, false, err
+	}
+	tx.AfterCommit(func(ctx context.Context) { logStep(ctx, ref, before.Status, after, fee) })
+	return after, true, tx.Events.Append(ctx, stepChanged(ref, after, fee))
 }
 
 func (j Journal) ArrivalTxs(ctx context.Context, network chain.Network) ([]string, error) {

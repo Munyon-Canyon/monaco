@@ -53,6 +53,7 @@ type fakeChain struct {
 	logs     []chainLog
 	maxSpan  uint64
 	failLogs bool
+	reverted map[string]bool
 	calls    map[string]int
 	froms    []uint64
 	budget   int
@@ -125,6 +126,8 @@ func (c *fakeChain) answer(method string, params []json.RawMessage) (any, string
 		return map[string]string{"timestamp": fmt.Sprintf("0x%x", chainStart().Unix()+int64(n%(1<<40)))}, ""
 	case "eth_getLogs":
 		return c.getLogs(params[0])
+	case "eth_getTransactionReceipt":
+		return c.receipt(params[0])
 	}
 	return nil, "method not found"
 }
@@ -157,6 +160,31 @@ func (c *fakeChain) getLogs(param json.RawMessage) (any, string) {
 		})
 	}
 	return out, ""
+}
+
+func (c *fakeChain) receipt(param json.RawMessage) (any, string) {
+	var hash string
+	_ = json.Unmarshal(param, &hash)
+	logs := []map[string]any{}
+	var block uint64
+	for _, l := range c.logs {
+		if l.tx != hash {
+			continue
+		}
+		block = l.block
+		logs = append(logs, map[string]any{
+			"address": l.token, "topics": []string{transfer, topic(l.from), topic(l.to)},
+			"data": fmt.Sprintf("0x%064x", l.amount), "transactionHash": l.tx, "removed": false,
+		})
+	}
+	if len(logs) == 0 {
+		return nil, ""
+	}
+	status := "0x1"
+	if c.reverted[hash] {
+		status = "0x0"
+	}
+	return map[string]any{"status": status, "blockNumber": fmt.Sprintf("0x%x", block), "logs": logs}, ""
 }
 
 func (c *fakeChain) takeCalls() map[string]int {

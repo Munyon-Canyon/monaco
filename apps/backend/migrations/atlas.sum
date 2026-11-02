@@ -1,4 +1,4 @@
-h1:MdXJfsnxtCti2hQMtmHf4DlaMmwNSMrA/L1DXmrICKw=
+h1:hYdUl3LFRBVUHxo8O467fLWNAluRSLBzPaQgYOf1DZc=
 20260927140427_platform.sql h1:dpKT9ALI2RTf1SBI4IzLY9kt47VTa8+JAziYaHsX5Jw=
 20260927185159_idempotency.sql h1:iYIp5Y5kBuPj5UJGcOifMeosr8qf0tj17c+5bmF37zE=
 20260929120000_system.sql h1:m6n0Y3tCc4MlfYNzi6Fh01YnogvlBbpQb1/X4WCtW40=
@@ -158,3 +158,4 @@ h1:MdXJfsnxtCti2hQMtmHf4DlaMmwNSMrA/L1DXmrICKw=
 20261101204000_treasury_fund_refund.sql h1:EmqtXywhUjGoTknFQd63hXnCJWc+RJvpo46RHH55mOk=
 20261101210000_user_sessions.sql h1:TfGDU9YYpKqm2360A7eEHj6d3D/YFEw3huP1s9IQlfU=
 20261101213000_cabal_member_suspended.sql h1:E7U4oca+ynvK/Ff2jFn5/tbfvumzgk/ob/tqXbxfmoY=
+20261101220000_trading_choose_arrival_action.sql h1:F6KbmfUTcCDhgIym8HwUNLY02t1k2hh4D6EgESNFrs0=

@@ -123,6 +123,27 @@ Base no longer wins once the stranded cash has to pay the bridge, so the retry b
   - An in-app withdrawal sent it to the QA pot: withdrawal `01a12c4e-563c-798d-b2f5-f2a29f287713`, [`62HKVC6g…xDHSk`](https://solscan.io/tx/62HKVC6gKCTnyNYpokzT9QteUN8uBJQRRJGfU51JuEscsnU4x9j2vdPKej9xhqVFhyaTnKaQ8nVp1Yfd7QcxDHSk).
   - About 0.10 USDC stays in the QA cabal until #5279 corrects its ledger.
 
+## Resolve an ambiguous bridge arrival
+
+Privy gives no destination transaction hash for a bridge leg, so the backend finds the arrival by scanning the cabal's treasury EVM address for an inbound cash transfer. A swap whose `bridge_out` step is `succeeded` but whose `arrival_tx` is still empty is waiting for that choice, and it stays out of the ledger until someone makes it. This happens when more than one in-range transfer reached the treasury address inside the bridge window and the backend cannot tell which one carries the bridge.
+
+1. Find the candidates on the block explorer for the treasury address (the admin stuck queue lists the swap). Pick the transfer that the bridge sent: the one from the bridge's address, for the amount Privy reports as `destination_amount`.
+2. Choose it:
+
+        cd apps/backend
+        go run ./cmd/monacoctl swaps choose-arrival <swap> --tx <hash> --reason "<why this transfer>"
+
+    The command reads the transaction by hash and prints a `plan` line with the arrived amount and the fee it implies. It asks `[y/N]` before it books (`--yes` skips the prompt). The `--tx` must be a hash from the same network as the `bridge_out` step.
+3. It books the transfer only when all of these hold, and otherwise refuses with a reason in the error:
+    - the `bridge_out` step is `succeeded` and has no `arrival_tx` (`bridge_out_not_succeeded`, `arrival_already_booked`);
+    - no other step has booked the hash (`arrival_tx_already_booked`);
+    - the transaction succeeded, is past the network's safe depth, and holds exactly one cash `Transfer` to the cabal's treasury EVM address (`not_a_cash_transfer_to_treasury`);
+    - its amount is at least the amount sent less the quoted bridge fee and the slack the arrival scan allows, and at most the amount sent (`amount_out_of_range`).
+4. One transaction writes `arrived_micros` and `arrival_tx` with the guarded update (`arrival_tx IS NULL`), appends the `trade.step_changed` event and records a `choose_arrival` row in `swap_operator_actions` with the operator, the reason, the hash and the amounts. Running the command again with the same hash changes nothing and prints `changed=false`. A different hash is refused once one is booked.
+5. The route resumes by itself. The worker's EVM trades poller picks the unfinished swap up on its next tick, reads the booked arrival instead of scanning, and swaps what arrived. A parked swap needs `monacoctl swaps unpark --swap <id> --reason <text>` first.
+
+The other candidate transfers stay on the treasury address and are not booked against this swap, so check where each came from before you close the case.
+
 ## Not yet proven on chain
 
 This run proved several steps on mainnet:
