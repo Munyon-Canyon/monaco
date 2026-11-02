@@ -69,6 +69,17 @@ nonisolated final class CommentActionsSampleUITests: XCTestCase {
     }
 
     @MainActor
+    func testDoubleTappingACommentHeartsIt() {
+        let app = launch()
+        let body = element(app, "comment-body-aapl-nora")
+        XCTAssertTrue(body.waitForExistence(timeout: 15), "Nora's comment is drawn")
+        body.doubleTap()
+        let chip = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'red heart, 2 reactions'")).firstMatch
+        XCTAssertTrue(chip.waitForExistence(timeout: 10), "the viewer's heart joins Nora's one")
+        XCTAssertTrue(chip.label.contains("yours"), "the chip is the viewer's, so selected")
+    }
+
+    @MainActor
     func testCopyToastsCopied() {
         let app = launch()
         longPress(app, "aapl-nora")

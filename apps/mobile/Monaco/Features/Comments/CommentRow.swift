@@ -99,11 +99,13 @@ struct CommentRow: View {
             frameBox.frame = $0
         }
         .onTapGesture(count: 2) { if row.canReact { onDoubleTap() } }
-        .onLongPressGesture {
-            guard canLongPress, let onLongPress else { return }
-            Haptics.tap()
-            onLongPress(frameBox.frame)
-        }
+        .highPriorityGesture(
+            LongPressGesture().onEnded { _ in
+                guard canLongPress, let onLongPress else { return }
+                Haptics.tap()
+                onLongPress(frameBox.frame)
+            }
+        )
         .accessibilityElement(children: .contain)
         .accessibilityLabel(row.spoken(age: time))
         .accessibilityIdentifier("comment-row-\(row.id)")
