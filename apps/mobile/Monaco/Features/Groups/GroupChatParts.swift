@@ -194,16 +194,14 @@ struct ChatList<Header: View, Content: View>: View {
 
     private static func position(_ geometry: ScrollGeometry) -> ChatScrollTracker.Position {
         let bottom = geometry.contentOffset.y + geometry.containerSize.height
-        return .init(
-            offset: geometry.contentOffset.y,
-            isAtEnd: bottom >= geometry.contentSize.height - ChatScrollTracker.pinnedSlack
-        )
+        return .init(distanceFromEnd: geometry.contentSize.height - bottom)
     }
 
     private func track(_ phase: ScrollPhase) {
         switch phase {
         case .interacting: tracker.dragBegan()
-        case .idle: tracker.scrollSettled()
+        case .decelerating: tracker.dragEnded()
+        case .idle: if tracker.scrollSettled() { scrollToBottomRequests += 1 }
         default: return
         }
     }
