@@ -6,16 +6,16 @@ struct CatchUpCaughtUp: View {
     let screen: CatchUpScreen
     let openFeed: () -> Void
 
-    private static let crestSize: CGFloat = 72
+    private static let crestSize: CGFloat = 56
 
     var body: some View {
-        VStack(spacing: MonacoTheme.Space.m) {
+        VStack(spacing: MonacoTheme.Space.sm) {
             if let first = screen.cabals.first {
                 CabalMark(groupId: first.id, name: first.name, size: Self.crestSize, pictureUrl: first.pictureUrl)
                     .accessibilityHidden(true)
             }
             Text(CatchUpCopy.caughtUpTitle)
-                .font(MonacoTheme.Typo.title)
+                .font(MonacoTheme.Typo.section)
                 .foregroundStyle(MonacoTheme.ink)
             Text(CatchUpCopy.caughtUpLine(cabals: screen.cabals))
                 .font(MonacoTheme.Typo.subhead)
@@ -28,7 +28,8 @@ struct CatchUpCaughtUp: View {
             .accessibilityIdentifier("catch-up-open-feed")
         }
         .padding(.horizontal, MonacoTheme.Space.gutter)
-        .padding(.vertical, MonacoTheme.Space.l)
+        .padding(.top, MonacoTheme.Space.m)
+        .padding(.bottom, MonacoTheme.Space.l)
         .frame(maxWidth: .infinity)
         .accessibilityElement(children: .contain)
     }

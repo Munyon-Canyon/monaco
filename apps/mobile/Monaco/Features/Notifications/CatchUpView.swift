@@ -27,6 +27,7 @@ struct CatchUpView: View {
             .monacoCanvas()
             .navigationTitle(CatchUpCopy.title)
             .navigationBarTitleDisplayMode(.large)
+            .toolbar(.hidden, for: .tabBar)
             .toolbar { oneByOne }
             .fullScreenCover(item: $deckStart) { start in deck(start) }
             .task { await start() }
@@ -113,9 +114,7 @@ struct CatchUpView: View {
         }
         CatchUpSection(
             title: CatchUpCopy.clearedHeader, identifier: "cleared", items: screen.cleared, now: now(), actions: nil)
-        if screen.isCaughtUp {
-            Color.clear.frame(height: MonacoTheme.Space.tabClear).accessibilityHidden(true).catchUpListRow()
-        }
+        Color.clear.frame(height: MonacoTheme.Space.l).accessibilityHidden(true).catchUpListRow()
     }
 
     private func markRead(_ item: Components.Schemas.CatchUpItem) {

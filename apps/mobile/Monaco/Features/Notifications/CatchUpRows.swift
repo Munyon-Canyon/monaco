@@ -27,11 +27,12 @@ struct CatchUpSection: View {
     var body: some View {
         if !items.isEmpty {
             MonacoSectionHeader(title, count: items.count)
+                .secondaryCount()
                 .padding(.horizontal, MonacoTheme.Space.gutter)
                 .accessibilityIdentifier("catch-up-section-\(identifier)")
                 .catchUpListRow()
             ForEach(items, id: \.key) { item in
-                CatchUpRow(item: item, now: now, actions: actions)
+                CatchUpRow(item: item, now: now, actions: actions, showsRule: item.key != items.last?.key)
                     .catchUpListRow()
             }
         }
@@ -42,9 +43,12 @@ struct CatchUpRow: View {
     let item: Components.Schemas.CatchUpItem
     let now: Date
     let actions: CatchUpRowActions?
+    var showsRule = false
 
     @Environment(\.calendar) private var calendar
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    private static let ruleInset = MonacoTheme.Space.gutter + RankedRowMetrics.avatarSize + MonacoTheme.Space.sm
 
     var body: some View {
         if let actions {
@@ -57,11 +61,16 @@ struct CatchUpRow: View {
                     .foregroundStyle(MonacoTheme.muted)
             }
             .padding(.horizontal, MonacoTheme.Space.gutter)
-            .padding(.vertical, MonacoTheme.Space.m)
+            .padding(.vertical, RankedRowMetrics.verticalPadding)
             .frame(minHeight: MonacoRowLayout.minHeight)
+            .overlay(alignment: .bottom) { rule }
             .accessibilityElement(children: .combine)
             .accessibilityIdentifier("catch-up-row-\(item.key)")
         }
+    }
+
+    @ViewBuilder private var rule: some View {
+        if showsRule { MonacoRule().padding(.leading, Self.ruleInset) }
     }
 
     private var rowLayout: AnyLayout {
@@ -85,8 +94,9 @@ struct CatchUpRow: View {
             trailing(actions)
         }
         .padding(.horizontal, MonacoTheme.Space.gutter)
-        .padding(.vertical, MonacoTheme.Space.m)
+        .padding(.vertical, RankedRowMetrics.verticalPadding)
         .frame(minHeight: MonacoRowLayout.minHeight)
+        .overlay(alignment: .bottom) { rule }
         .swipeActions(edge: .leading, allowsFullSwipe: true) {
             Button {
                 actions.clear(item)
@@ -116,21 +126,28 @@ struct CatchUpRow: View {
 
     @ViewBuilder private var detail: some View {
         if let quote = CatchUpCopy.quote(item) {
-            (Text(Image(systemName: "arrowshape.turn.up.left")) + Text(" ") + Text(quote.author).bold()
-                + Text(" \(quote.text)"))
-                .font(MonacoTheme.Typo.caption)
-                .foregroundStyle(MonacoTheme.bodyText)
-                .lineLimit(2)
-                .monacoPrivate()
-                .padding(.leading, MonacoTheme.Space.s)
-                .overlay(alignment: .leading) {
-                    Rectangle().fill(MonacoTheme.hairline).frame(width: 2)
-                }
+            HStack(spacing: MonacoTheme.Space.s) {
+                Image(monaco: .replyArrow)
+                    .foregroundStyle(MonacoTheme.brand)
+                    .accessibilityHidden(true)
+                (Text(quote.author).font(MonacoTheme.Typo.subheadStrong).foregroundStyle(MonacoTheme.primaryText)
+                    + Text(" ")
+                    + Text(quote.text).font(MonacoTheme.Typo.subhead)
+                    .foregroundStyle(MonacoTheme.secondaryText))
+                    .lineLimit(1)
+                    .monacoPrivate()
+            }
+            .font(MonacoTheme.Typo.caption)
+            .padding(.leading, MonacoTheme.Space.s)
+            .overlay(alignment: .leading) {
+                Rectangle().fill(MonacoTheme.hairline).frame(width: 2)
+            }
         } else if item.kind == .waitingVote, let proposal = item.proposal {
             let tally = CatchUpCopy.tally(proposal)
             HStack(spacing: MonacoTheme.Space.xs) {
                 Image(systemName: "checkmark").foregroundStyle(MonacoTheme.tint)
                 Text(tally.yes)
+                Text("\u{00B7}").foregroundStyle(MonacoTheme.secondaryText).padding(.horizontal, MonacoTheme.Space.xs)
                 Image(systemName: "xmark").foregroundStyle(MonacoTheme.loss)
                 Text(tally.no)
             }

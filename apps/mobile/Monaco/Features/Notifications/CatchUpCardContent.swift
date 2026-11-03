@@ -114,6 +114,7 @@ struct CatchUpCardContent: View {
             Text(CatchUpDeckCopy.statusLine(proposal, now: now))
                 .font(MonacoTheme.Typo.subhead)
                 .foregroundStyle(MonacoTheme.secondaryText)
+                .padding(.top, MonacoTheme.Space.s)
         }
     }
 

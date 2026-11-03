@@ -41,7 +41,7 @@ struct CatchUpCardComment: View {
             .monacoPrivate()
         }
         .padding(MonacoTheme.Space.sm)
-        .background(MonacoTheme.canvas, in: RoundedRectangle(cornerRadius: MonacoTheme.Radius.card))
+        .background(MonacoTheme.surfaceSunken, in: RoundedRectangle(cornerRadius: MonacoTheme.Radius.card))
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("catch-up-deck-comment")
     }

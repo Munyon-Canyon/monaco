@@ -14,7 +14,7 @@ public enum CatchUpCopy {
     public static let resultsHeader = "Results"
     public static let clearedHeader = "Cleared today"
     public static let clearAction = "Clear"
-    public static let caughtUpTitle = "You're caught up"
+    public static let caughtUpTitle = "You’re caught up"
     public static let openFeed = "Open Feed"
     public static let fillFailedMarker = "didn't go through"
     public static let clearFailedToast = "Couldn't clear that. Try again."
