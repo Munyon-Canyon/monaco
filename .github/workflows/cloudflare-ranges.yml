@@ -1,0 +1,101 @@
+name: Cloudflare ranges
+
+# The rate limiter trusts the client IP header only from Cloudflare peers, and the list of
+# Cloudflare ranges is hard-coded in apps/backend/internal/platform/httpx/ratelimit/cloudflare.go.
+# Every day this job fetches the ranges Cloudflare publishes and fails when they differ from that
+# list. A failing run opens (or comments on) one GitHub issue labelled cloudflare-ranges.
+on:
+  schedule:
+    - cron: "17 9 * * *"
+  workflow_dispatch:
+  # A change to this workflow or to the list runs it on its own PR. PR runs never touch issues:
+  # the alert step only prints what it would have done.
+  pull_request:
+    branches: [staging]
+    paths:
+      - .github/workflows/cloudflare-ranges.yml
+      - apps/backend/internal/platform/httpx/ratelimit/cloudflare.go
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cloudflare-ranges-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compare
+        id: compare
+        run: |
+          set -euo pipefail
+          ours="$RUNNER_TEMP/ours.txt"
+          theirs="$RUNNER_TEMP/theirs.txt"
+          grep -o 'MustParsePrefix("[^"]*")' apps/backend/internal/platform/httpx/ratelimit/cloudflare.go \
+            | sed 's/^MustParsePrefix("//; s/")$//' | sort -u > "$ours"
+          {
+            curl -fsSL --retry 3 https://www.cloudflare.com/ips-v4
+            echo
+            curl -fsSL --retry 3 https://www.cloudflare.com/ips-v6
+            echo
+          } | grep -v '^[[:space:]]*$' | sort -u > "$theirs"
+          if [ ! -s "$ours" ]; then
+            echo "::error::No prefixes found in cloudflare.go"
+            exit 1
+          fi
+          if [ ! -s "$theirs" ]; then
+            echo "::error::Cloudflare published no ranges"
+            exit 1
+          fi
+          added="$(grep -vxFf "$ours" "$theirs" || true)"
+          removed="$(grep -vxFf "$theirs" "$ours" || true)"
+          if [ -z "$added" ] && [ -z "$removed" ]; then
+            echo "Cloudflare ranges match cloudflare.go"
+            exit 0
+          fi
+          body="$RUNNER_TEMP/body.md"
+          {
+            echo "Cloudflare's published ranges differ from \`apps/backend/internal/platform/httpx/ratelimit/cloudflare.go\`. Update the list there (see #7525)."
+            echo
+            echo "Added by Cloudflare:"
+            if [ -n "$added" ]; then printf '%s\n' "$added" | sed 's/^/- /'; else echo "- none"; fi
+            echo
+            echo "Removed by Cloudflare:"
+            if [ -n "$removed" ]; then printf '%s\n' "$removed" | sed 's/^/- /'; else echo "- none"; fi
+            echo
+            echo "Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          } > "$body"
+          cat "$body" >> "$GITHUB_STEP_SUMMARY"
+          if [ -n "$added" ]; then printf '%s\n' "$added" | while read -r p; do echo "::error::Added by Cloudflare: $p"; done; fi
+          if [ -n "$removed" ]; then printf '%s\n' "$removed" | while read -r p; do echo "::error::Removed by Cloudflare: $p"; done; fi
+          echo "differs=true" >> "$GITHUB_OUTPUT"
+          exit 1
+
+      - name: Open or comment on the alert issue
+        if: failure() && steps.compare.outputs.differs == 'true' && github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          body="$RUNNER_TEMP/body.md"
+          number="$(gh issue list --label cloudflare-ranges --state open --limit 1 --json number --jq '.[0].number // empty')"
+          if [ -n "$number" ]; then
+            gh issue comment "$number" --body-file "$body"
+          else
+            gh label create cloudflare-ranges --force --description "Cloudflare IP ranges drifted from the rate limiter list"
+            gh issue create --title "Cloudflare IP ranges differ from the rate limiter list" --label cloudflare-ranges --body-file "$body"
+          fi
+
+      - name: Print the alert a scheduled run would send
+        if: failure() && steps.compare.outputs.differs == 'true' && github.event_name == 'pull_request'
+        run: |
+          echo "A scheduled run would open or comment on the cloudflare-ranges issue with:"
+          cat "$RUNNER_TEMP/body.md"
