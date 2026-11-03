@@ -2,7 +2,6 @@ import SwiftUI
 
 enum SectionHeaderMetrics {
     static let countSize: CGFloat = 24
-    static let chevronSize: CGFloat = 13
     static let hitHeight: CGFloat = 44
     static let topSpacing = MonacoTheme.Space.section
     static let bottomSpacing = MonacoTheme.Space.titleGap
@@ -45,7 +44,7 @@ struct MonacoSectionHeader: View {
         return copy
     }
 
-    func countText(_ text: String) -> Self {
+    func countText(_ text: String?) -> Self {
         var copy = self
         copy.titleSuffix = text
         return copy
@@ -59,7 +58,6 @@ struct MonacoSectionHeader: View {
     }
 
     @ScaledMetric(relativeTo: .subheadline) private var countSize = SectionHeaderMetrics.countSize
-    @ScaledMetric(relativeTo: .subheadline) private var chevronSize = SectionHeaderMetrics.chevronSize
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private var stacks: Bool { dynamicTypeSize.isAccessibilitySize }
@@ -96,10 +94,15 @@ struct MonacoSectionHeader: View {
                     }
                 }
                 if let infoAction {
-                    MonacoGlassButton(
-                        systemImage: MonacoIcon.info.symbol, accessibilityLabel: "About \(title)", style: .quiet,
-                        size: .compact, action: infoAction
-                    )
+                    Button(action: infoAction) {
+                        Image(systemName: "info.circle")
+                            .font(MonacoTheme.Typo.section)
+                            .foregroundStyle(MonacoTheme.tint)
+                            .frame(width: StatMetrics.infoTarget, height: StatMetrics.infoTarget)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("About \(title)")
                     .accessibilityIdentifier(infoIdentifier ?? "")
                 }
             }
@@ -107,17 +110,12 @@ struct MonacoSectionHeader: View {
             if let trailing {
                 if let action {
                     Button(action: action) {
-                        HStack(spacing: MonacoTheme.Space.xs) {
-                            Text(trailing)
-                                .font(MonacoTheme.Typo.captionStrong)
-                                .lineLimit(stacks ? nil : 1)
-                            Image(systemName: "chevron.right")
-                                .font(.system(size: chevronSize, weight: .semibold))
-                                .accessibilityHidden(true)
-                        }
-                        .foregroundStyle(MonacoTheme.brand)
-                        .frame(minHeight: SectionHeaderMetrics.hitHeight)
-                        .contentShape(Rectangle())
+                        Text(trailing)
+                            .font(MonacoTheme.Typo.captionStrong)
+                            .lineLimit(stacks ? nil : 1)
+                            .foregroundStyle(MonacoTheme.brand)
+                            .frame(minHeight: SectionHeaderMetrics.hitHeight)
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                     .accessibilityIdentifier(actionIdentifier ?? "")

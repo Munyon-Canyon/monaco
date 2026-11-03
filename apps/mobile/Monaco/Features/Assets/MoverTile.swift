@@ -46,7 +46,7 @@ struct MoverTile: View {
                 .foregroundStyle(MonacoTheme.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
             Text(move ?? "—")
-                .font(MonacoTheme.Typo.display)
+                .font(MonacoTheme.Typo.title2)
                 .foregroundStyle(MonacoTheme.signed(move))
                 .fixedSize()
             if let series = asset.sparkline, !dynamicTypeSize.isAccessibilitySize {

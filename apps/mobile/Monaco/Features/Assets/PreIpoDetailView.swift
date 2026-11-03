@@ -122,7 +122,7 @@ struct PreIpoDetailView: View {
             hero
             VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
                 Text(name)
-                    .font(MonacoTheme.Typo.title)
+                    .font(MonacoTheme.Typo.title2)
                     .foregroundStyle(MonacoTheme.primaryText)
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
@@ -196,9 +196,9 @@ extension PreIpoDetailView {
     private func price(_ profile: PreIpoDetail.Profile) -> some View {
         let parts = AssetDetailHeader.heroParts(profile.estimateText)
         return (Text(verbatim: parts.whole) + Text(verbatim: parts.cents).foregroundStyle(MonacoTheme.secondaryText))
-            .moneyFigure(.hero)
+            .moneyFigure(.display)
             .lineLimit(1)
-            .minimumScaleFactor(MoneyStyle.hero.minimumScaleFactor)
+            .minimumScaleFactor(MoneyStyle.display.minimumScaleFactor)
             .accessibilityLabel("\(PreIpoCopy.estimateTitle), \(profile.estimateText), \(profile.estimateCaption)")
             .accessibilityIdentifier("asset-pre-ipo-price")
     }

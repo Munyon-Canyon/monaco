@@ -24,6 +24,7 @@ struct AssetDetailClientView: View {
     var body: some View {
         content
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar(.hidden, for: .tabBar)
             .toolbar { toolbar }
             .sheet(isPresented: $showsStatsInfo) {
                 if let facts = model?.detail?.marketStats { AssetMarketStatsInfo(facts: facts) }
@@ -128,12 +129,14 @@ struct AssetDetailClientView: View {
             ToolbarItem(placement: .topBarTrailing) {
                 let isWatched = environment.watchlist.isWatched(symbol)
                 MonacoGlassButton(
-                    systemImage: "star", accessibilityLabel: isWatched ? "Remove from watchlist" : "Add to watchlist",
-                    style: isWatched ? .selected : .quiet, placement: .toolbar, action: toggleWatch
+                    systemImage: isWatched ? "star.fill" : "star",
+                    accessibilityLabel: isWatched ? "Remove from watchlist" : "Add to watchlist",
+                    style: .quiet, placement: .toolbar, action: toggleWatch
                 )
                 .accessibilityAddTraits(isWatched ? .isSelected : [])
                 .accessibilityIdentifier("asset-watch-star")
             }
+            CabalToolbarSplit.spacer
             ToolbarItem(placement: .topBarTrailing) {
                 MonacoGlassButton(
                     icon: .share, accessibilityLabel: "Share \(model?.detail?.name ?? symbol)", style: .quiet,

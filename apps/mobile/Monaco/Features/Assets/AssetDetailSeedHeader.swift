@@ -22,9 +22,9 @@ struct AssetDetailSeedHeader: View {
             .padding(.bottom, MonacoTheme.Space.m)
             if let micros = seed.priceMicros {
                 Text(UsdAmountFormatter.format(micros: micros))
-                    .moneyFont(.hero)
+                    .moneyFont(.display)
                     .lineLimit(1)
-                    .minimumScaleFactor(MoneyStyle.hero.minimumScaleFactor)
+                    .minimumScaleFactor(MoneyStyle.display.minimumScaleFactor)
             }
             if let basisPoints = seed.changeBasisPoints {
                 HStack(spacing: MonacoTheme.Space.sm) {

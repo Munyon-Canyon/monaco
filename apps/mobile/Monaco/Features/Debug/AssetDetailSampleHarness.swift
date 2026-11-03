@@ -59,8 +59,10 @@ enum AssetDetailSampleScenario: String, CaseIterable {
         case .loading: script.mode = .hang
         case .failed: script.mode = .assetsUnavailable
         }
+        if self == .open { script.makeFrameNVIDIA() }
         let age = self == .stale ? Self.staleMinutes * 60 : 0
         script.asset.priceAsOf = Date().addingTimeInterval(-age)
+        script.assets[script.asset.symbol]?.priceAsOf = script.asset.priceAsOf
         if self == .open || self == .manyClosed { script.showInYourCabals(closedFirst: self == .manyClosed) }
         return script
     }
@@ -93,6 +95,40 @@ extension SampleAPIScript {
     mutating func show(_ detail: Components.Schemas.AssetDetail) {
         asset = detail
         assets[detail.symbol] = detail
+    }
+
+    fileprivate mutating func makeFrameNVIDIA() {
+        let start: Int64 = 211_170_000
+        let end: Int64 = 220_000_000
+        asset.priceMicros = end
+        asset.changeBps = 418
+        assets[asset.symbol]?.priceMicros = end
+        assets[asset.symbol]?.changeBps = 418
+        let lastBar: Int64 = 1_790_085_300
+        let swings: [Int64] = [
+            0, 1_200_000, 2_000_000, 600_000, -500_000, 300_000, 1_500_000, 2_200_000, 800_000, 1_600_000,
+            2_400_000, 1_000_000, 1_800_000, 400_000, 0,
+        ]
+        let span = candleCount / (swings.count - 1)
+        var points: [Components.Schemas.ChartPoint] = []
+        for index in 0..<candleCount {
+            let curve = (end - start) * Int64(index) / Int64(candleCount - 1)
+            let segment = min(index / span, swings.count - 2)
+            let within = Int64(index - segment * span)
+            let slow = swings[segment] + (swings[segment + 1] - swings[segment]) * within / Int64(span)
+            let ripple = Int64((index * 37) % 5 - 2) * 120_000
+            let noise = index == candleCount - 1 ? 0 : slow + ripple
+            let close = start + curve + noise
+            let open = index == 0 ? start : points[index - 1].closeMicros
+            points.append(
+                Components.Schemas.ChartPoint(
+                    t: Date(timeIntervalSince1970: TimeInterval(lastBar - Int64(candleCount - 1 - index) * 300)),
+                    openMicros: open, highMicros: max(open, close) + 150_000, lowMicros: min(open, close) - 150_000,
+                    closeMicros: close))
+        }
+        chart = Components.Schemas.AssetChart(
+            range: ._1d, interval: ._5m, bucketSeconds: 300, points: points, empty: false,
+            attribution: "Data provided by CoinGecko", nextBefore: nil, previousCloseMicros: start)
     }
 
     fileprivate mutating func makeLoss() {

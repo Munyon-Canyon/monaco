@@ -46,7 +46,7 @@ struct MarketsPreIpoRow: View {
                     }
                     Text(PreIpoRowCopy.eligibility(tradable: asset.isTradable))
                         .font(MonacoTheme.Typo.caption)
-                        .foregroundStyle(asset.isTradable ? MonacoTheme.profit : MonacoTheme.secondaryText)
+                        .foregroundStyle(MonacoTheme.secondaryText)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
