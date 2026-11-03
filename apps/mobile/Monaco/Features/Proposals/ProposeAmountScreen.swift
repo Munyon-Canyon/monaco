@@ -124,6 +124,7 @@ struct ProposeAmountScreen: View {
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("\(operation) \(displayName)")
             .accessibilityAddTraits(.isHeader)
+            .accessibilityIdentifier("propose-amount-operation")
             if case .sell(let holding) = model.trade, holding.locations.count > 1 {
                 ProposeLocationSection(holding: holding, choose: model.chooseLocation)
             }
