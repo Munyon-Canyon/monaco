@@ -188,7 +188,7 @@ enum ShareSampleData {
             photoURL: nil, ownershipBps: 3_500, valueMicros: 7_000_000_000, netContributedMicros: 6_687_600_000,
             pnlMicros: 312_400_000, firstFundedAt: date(2026, 8, 4))
         let start = date(2026, 8, 4)
-        let values: [Int64] = [3_000, 3_080, 3_020, 3_150, 6_700, 6_620, 6_850, 6_790, 7_000]
+        let values: [Int64] = [3_000, 3_900, 3_300, 4_800, 4_100, 5_900, 5_200, 6_700, 6_100, 7_000]
         let points = values.enumerated().map {
             ShareChartPoint(
                 time: start.addingTimeInterval(TimeInterval($0.offset) * 8 * 86_400),

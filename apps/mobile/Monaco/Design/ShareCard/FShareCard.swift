@@ -42,7 +42,8 @@ struct FShareCard: View {
                 .padding(.horizontal, 14 * scale)
                 .padding(.top, 14 * scale)
             FShareChart(chart: spec.chart, tone: spec.figure.tone, progress: progress, scale: scale)
-                .frame(maxHeight: .infinity)
+                .frame(maxHeight: size.height * 0.3)
+            Spacer(minLength: 0)
             lower
                 .padding(.horizontal, 14 * scale)
                 .padding(.bottom, 14 * scale)

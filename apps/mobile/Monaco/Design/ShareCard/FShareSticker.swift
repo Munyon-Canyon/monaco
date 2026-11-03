@@ -18,7 +18,7 @@ struct FShareSticker: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: MonacoTheme.Space.s * scale) {
+        VStack(alignment: .leading, spacing: MonacoTheme.Space.xs * scale) {
             HStack(spacing: MonacoTheme.Space.s * scale) {
                 mark
                 Text(spec.name).font(.system(size: 18 * scale, weight: .bold)).foregroundStyle(Color.white)
@@ -26,16 +26,13 @@ struct FShareSticker: View {
             if let ticker = spec.ticker {
                 HStack(spacing: 8 * scale) {
                     StockMark(symbol: ticker.symbol, size: 24 * scale, logoURL: ticker.logoURL)
-                    Text(ticker.symbol).font(.system(size: 18 * scale, weight: .bold)).foregroundStyle(Color.white)
-                    if let detail = ticker.detail {
-                        Text("\u{00B7} \(detail)").font(.system(size: 14 * scale).monospacedDigit())
-                            .foregroundStyle(MonacoTheme.secondaryText)
-                    }
+                    Text(ticker.detail.map { "\(ticker.symbol) \u{00B7} \($0)" } ?? ticker.symbol)
+                        .font(.system(size: 16 * scale, weight: .medium)).foregroundStyle(Color.white)
                 }
             }
             HStack(alignment: .lastTextBaseline, spacing: MonacoTheme.Space.titleGap * scale) {
                 Text(spec.figureMain)
-                    .font(.system(size: 54 * scale, weight: .black).width(.condensed).monospacedDigit())
+                    .font(.system(size: 50 * scale, weight: .black).width(.condensed).monospacedDigit())
                     .minimumScaleFactor(0.5)
                     .foregroundStyle(tone)
                 if let secondary = spec.figureSecondary {
@@ -59,12 +56,15 @@ struct FShareSticker: View {
     }
 
     private var wordmark: some View {
-        HStack(alignment: .center) {
+        HStack(alignment: .bottom) {
             Text("monaco").font(.system(size: 32 * scale, weight: .bold)).foregroundStyle(Color.white)
             Spacer()
             if let code = spec.code {
-                Text("Join with code \(code)").font(.system(size: 14 * scale, weight: .semibold))
-                    .foregroundStyle(Color.white.opacity(0.9))
+                VStack(alignment: .trailing, spacing: 0) {
+                    Text("Join with code").font(.system(size: 13 * scale)).foregroundStyle(MonacoTheme.secondaryText)
+                    Text(code.uppercased()).font(.system(size: 16 * scale, weight: .semibold).monospacedDigit())
+                        .foregroundStyle(Color.white.opacity(0.9))
+                }
             }
         }
     }

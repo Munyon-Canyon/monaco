@@ -324,7 +324,7 @@ struct ShareCheckerboard: View {
         Canvas { context, size in
             let columns = Int((size.width / Self.tile).rounded(.up))
             let rows = Int((size.height / Self.tile).rounded(.up))
-            context.fill(Path(CGRect(origin: .zero, size: size)), with: .color(MonacoTheme.canvas))
+            context.fill(Path(CGRect(origin: .zero, size: size)), with: .color(MonacoTheme.surface))
             for row in 0..<rows {
                 for column in 0..<columns where (row + column).isMultiple(of: 2) {
                     let origin = CGPoint(x: CGFloat(column) * Self.tile, y: CGFloat(row) * Self.tile)
