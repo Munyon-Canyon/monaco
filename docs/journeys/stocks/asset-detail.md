@@ -51,7 +51,7 @@ Starts signed in (auth/sign-in).
 | Step | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- |
 | S2.1 | tap, type, then tap | the Markets tab `tab-assets`, then `monaco-search-field`, then `assets-row-JRNYAx` | `JRNYA` | Within 15 s, `asset-detail-root` shows |
-| S2.2 | scroll to | `asset-stats` | | Within 10 s, `asset-stats` shows the Market stats grid: open, previous close, day high and low, and 52-week high and low, leaving out a cell the candles cannot give, then a "24h volume" cell when the seeded asset has a volume reading from the last 36 hours. Old app: the Stats card. screens.md: "Market stats" (open, previous close, day high and low, 52-week high and low, 24h volume). Market cap and supply open soon, so the grid has no cell for them |
+| S2.2 | scroll to | `asset-stats` | | Within 10 s, `asset-stats` shows the Market stats grid: open, previous close, day high and low, and 52-week high and low, leaving out a cell the candles cannot give, then a "24h volume" cell when the seeded asset has a volume reading from the last 36 hours. Old app: the Stats card. screens.md: "Market stats" (open, previous close, day high and low, 52-week high and low, 24h volume). The grid has no market cap or supply cell |
 
 ### S3 A Pre-IPO token
 
@@ -104,7 +104,7 @@ Looking at a stock writes nothing, and S1.9 backs out of Amount. After a run, `a
 - The market session chip, `asset-detail-session` ("Market closed"). It shows by wall-clock time. `MarketSessionCopyTests` covers the copy.
 - Loading older bars at the left edge. The seed has one page, so there is no older page to fetch. `AssetDetailClientModelTests` covers `loadOlder`.
 - "Price history builds up over time." and "The curve draws as the token trades." for a short history. The seed gives every row two samples, which draws a curve. `AssetDetailClientModelTests` covers the short-history rule.
-- The "Unavailable" button and the warn notice for an untradable asset, the stale price notice and the "opens soon" lines. `AssetDetailSampleUITests` covers them against the sample harness (`untradable`, `stale`, `open`). [stocks/watchlist](watchlist.md) covers the watch star.
+- The "Unavailable" button and the warn notice for an untradable asset, the stale price notice and the absence of any "opens soon" copy. `AssetDetailSampleUITests` covers them against the sample harness (`untradable`, `stale`, `open`). [stocks/watchlist](watchlist.md) covers the watch star.
 - The "24h volume" cell. No setup seeds an `asset_volumes` row for the journey assets, so S2.2 draws no cell for it. `MarketMappingTests` covers the mapping and `UsdAmountFormatter.compact(micros:)`.
 - The live price tick flash. It needs a new sample mid-scenario.
 - "Private-market reference" and "About <token>". The asset screen does not render them (`GET /v1/assets/{symbol}` does not serve them), so S3 no longer has steps for them.
