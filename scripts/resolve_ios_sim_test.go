@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 )
 
 // simScripts are the scripts a scratch checkout carries; they find the checkout from
@@ -223,6 +224,24 @@ func TestResolveIOSSim_laneCopiesTheNewestRuntimeWithoutSlim(t *testing.T) {
 	want := "create Monaco lane-b com.apple.CoreSimulator.SimDeviceType.iPhone-17 com.apple.CoreSimulator.SimRuntime.iOS-26-0"
 	if got := createLog(t, state); len(got) != 1 || got[0] != want {
 		t.Fatalf("creates %q, want %q", got, want)
+	}
+}
+
+// A lock directory with no pid is what a waiter leaves when it moves aside a lock whose
+// creator has not yet written its pid, then puts it back after that creator gave up.
+func TestResolveIOSSim_laneTakesOverALockThatNamesNoOwner(t *testing.T) {
+	t.Parallel()
+	lane := simCheckout(t, "orphan")
+	if err := os.MkdirAll(filepath.Join(lane, ".build", "lane-sim.lock"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	start := time.Now()
+	r := runSim(t, lane, "resolve-ios-sim.sh", "simctl", t.TempDir())
+	if r.err != nil || r.udid == "" {
+		t.Fatalf("resolve-ios-sim.sh = %q (%v), want the lane simulator\n%s", r.udid, r.err, r.out)
+	}
+	if took := time.Since(start); took > 30*time.Second {
+		t.Fatalf("took %s to take over the ownerless lock, want well under the 120s lock timeout", took)
 	}
 }
 
