@@ -847,6 +847,75 @@ if [[ $1 == inspect ]]; then echo true; else /bin/cat; fi"""})
         self.assertFalse(journey.backend_is_running("http://api.example", opener))
 
 
+class PruneQACabals(unittest.TestCase):
+    """cmd_run prunes once; apps/mobile/qa/journeys/prune.sh runs here with a fake psql on PATH."""
+
+    SCRIPT = journey.QA / "prune.sh"
+
+    def run_script(self, url, psql_output=""):
+        folder = tempfile.TemporaryDirectory()
+        self.addCleanup(folder.cleanup)
+        bin_dir = Path(folder.name)
+        log = bin_dir / "calls"
+        tool = bin_dir / "psql"
+        tool.write_text("#!/bin/bash\necho \"psql $*\" >> %s\n/bin/cat >> %s\nprintf '%%s' '%s'\n" % (log, log, psql_output))
+        tool.chmod(0o755)
+        env = {"PATH": "%s:/usr/bin:/bin" % bin_dir, "DATABASE_URL": url,
+               "JOURNEY_RUN_STARTED": "2026-10-30T12:00:00Z"}
+        done = subprocess.run(["/bin/bash", str(self.SCRIPT)], env=env, stdout=subprocess.PIPE,
+                              stderr=subprocess.PIPE, universal_newlines=True)
+        return done, log.read_text() if log.exists() else ""
+
+    def test_prune_runs_once_even_with_several_journeys(self):
+        calls = []
+        args = types.SimpleNamespace(all=False, journey=["auth/sign-in", "cabals/join"], scenario=None,
+                                     keep_sims=False, slot=None)
+
+        @contextlib.contextmanager
+        def backend(*a):
+            yield "http://127.0.0.1:8080"
+
+        with unittest.mock.patch.object(journey, "xcode_version_warning", return_value=""), \
+                unittest.mock.patch.object(journey, "once_builder", return_value=None), \
+                unittest.mock.patch.object(journey, "backend_trade_engine", return_value="stub"), \
+                unittest.mock.patch.object(journey, "simulator_shutdown", lambda keep: contextlib.nullcontext()), \
+                unittest.mock.patch.object(journey, "journey_backend", backend), \
+                unittest.mock.patch.object(journey, "prune_qa_cabals", lambda started: calls.append(started)), \
+                unittest.mock.patch.object(journey, "run_all", return_value=0) as run_all:
+            self.assertEqual(journey.cmd_run(args), 0)
+        run_all.assert_called_once()
+        self.assertEqual(len(calls), 1)
+
+    def test_a_failed_prune_warns_and_does_not_raise(self):
+        def runner(args, **kwargs):
+            return types.SimpleNamespace(returncode=3)
+
+        err = StringIO()
+        with contextlib.redirect_stderr(err):
+            journey.prune_qa_cabals(journey.datetime.datetime.now(journey.datetime.timezone.utc), runner=runner)
+        self.assertIn("prune of old QA cabals failed (exit 3)", err.getvalue())
+
+    def test_a_remote_database_is_refused_without_a_psql_call(self):
+        for url in ("postgres://u:p@db.example.com:5432/monaco", "postgres://u:p@localhost.evil.com/monaco"):
+            done, calls = self.run_script(url)
+            self.assertEqual(done.returncode, 0)
+            self.assertIn("refused", done.stdout)
+            self.assertEqual(calls, "")
+
+    def test_a_local_database_gets_one_transaction_that_skips_funded_cabals(self):
+        done, calls = self.run_script("postgres://monaco:monaco@[::1]:54322/monaco",
+                                      "skipped|id1|QA rich\nclosed|id2|QA old\nleft|id3|QA other\n")
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertEqual(calls.count("psql "), 1)
+        for text in ("BEGIN;", "COMMIT;", "fund_transfers", "cabal_positions", "p.units > 0",
+                     "SET status = 'banned'", "DELETE FROM cabal_members", "LIKE 'QA %'", "interval '1 hour'",
+                     "started=2026-10-30T12:00:00Z"):
+            self.assertIn(text, calls)
+        self.assertNotIn("DELETE FROM cabals", calls)
+        self.assertIn("prune: skipped cabal id1 (QA rich)", done.stdout)
+        self.assertIn("prune: pruned 2 cabals, skipped 1 funded", done.stdout)
+
+
 class Runner(Tree):
     def test_the_truth_check_receives_the_actor_environment(self):
         loaded = journey.load_journeys()["auth/sign-in"]

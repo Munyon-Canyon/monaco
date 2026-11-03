@@ -1521,6 +1521,20 @@ def cmd_list(args):
 EXIT_CODES = {"PASS": 0, "FAIL": 1, "TIMEOUT": 1, "ERROR": 2}
 
 
+def prune_qa_cabals(started_at, runner=sh):
+    """Close the QA cabals earlier runs left behind, once, before the first setup (prune.sh holds the rules).
+    A failure prints a warning and the run goes on."""
+    env = dict(os.environ)
+    env["JOURNEY_RUN_STARTED"] = started_at.strftime("%Y-%m-%dT%H:%M:%SZ")
+    try:
+        done = runner(["scripts/with-dotenv-local.sh", "apps/mobile/qa/journeys/prune.sh"], timeout=120, env=env)
+    except (OSError, BudgetExpired) as error:
+        print("warning: prune of old QA cabals failed: %s" % error, file=sys.stderr)
+        return
+    if done.returncode != 0:
+        print("warning: prune of old QA cabals failed (exit %d)" % done.returncode, file=sys.stderr)
+
+
 def cmd_run(args):
     if args.all == bool(args.journey):
         raise JourneyError("name one or more journeys, or pass --all")
@@ -1531,7 +1545,9 @@ def cmd_run(args):
         print(warning, file=sys.stderr)
     builder = once_builder(args)
     os.environ.setdefault("TRADE_ENGINE", backend_trade_engine(args))
+    started_at = datetime.datetime.now(datetime.timezone.utc)
     with simulator_shutdown(args.keep_sims), journey_backend(args.slot, backend_fake_rpc(args)) as api_base_url:
+        prune_qa_cabals(started_at)
         if len(args.journey) == 1:
             return run_journey(args, api_base_url, args.journey[0], builder)
         return run_all(args, api_base_url, builder, only=args.journey)
