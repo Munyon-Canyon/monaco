@@ -523,11 +523,25 @@ contended=0     # 1 once a wait loop ran; a free lock records 0, since $SECONDS 
 
 # Live xcodebuilds building into $derived, one pid per line. Waiting xcode-lock.sh lines
 # are left out: they name xcodebuild only as an argument.
+# physical_path PATH BASE: PATH made absolute against BASE, with symlinks in its parent resolved,
+# so ".build/DerivedData" in two checkouts never compares equal.
+physical_path() {
+  local path="${1%/}" parent
+  [[ "$path" == /* ]] || path="${2%/}/$path"
+  parent="$(cd "${path%/*}" 2>/dev/null && pwd -P)" || parent="${path%/*}"
+  printf '%s/%s\n' "$parent" "${path##*/}"
+}
+
+# An xcodebuild's relative -derivedDataPath is relative to its own working directory, not ours.
 outside_builds() {
-  local pid cmd
+  local pid cmd path cwd
   ps -axww -o pid,command | while read -r pid cmd; do
-    if [[ "$cmd" == *xcodebuild* && "$cmd" != *xcode-lock* ]] &&
-      [[ " $cmd " == *" -derivedDataPath $derived "* || " $cmd " == *" -derivedDataPath $derived/ "* ]]; then
+    [[ "$cmd" == *xcodebuild* && "$cmd" != *xcode-lock* && " $cmd " == *" -derivedDataPath "* ]] || continue
+    path="${cmd#* -derivedDataPath }"
+    path="${path%% *}"
+    cwd="$(lsof -a -p "$pid" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p' | head -1)"
+    [[ "$path" == /* || -n "$cwd" ]] || continue
+    if [[ "$(physical_path "$path" "$cwd")" == "$derived_physical" ]]; then
       echo "$pid"
     fi
   done
@@ -535,6 +549,7 @@ outside_builds() {
 
 if [[ -n "$derived" ]]; then
   mkdir -p "${derived_lock%/*}"
+  derived_physical="$(physical_path "$derived" "$PWD")"
   next_log=0
   while true; do
     owner="$(cat "$derived_lock/pid" 2>/dev/null || true)"
