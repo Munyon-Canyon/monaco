@@ -54,6 +54,7 @@ struct ReactionRow<Trailing: View>: View {
                 QuickReactionTray(target: target, onOpenPicker: { isPickerOpen = true }, onPick: onToggle) {
                     isTrayOpen = false
                 }
+                .padding(.bottom, MonacoTheme.Space.s)
                 .transition(.opacity)
             }
         }

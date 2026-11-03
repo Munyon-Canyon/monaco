@@ -18,7 +18,7 @@ struct FeedPost<Foot: View>: View {
 
     var body: some View {
         let facts = FeedPostFacts(item, now: now)
-        VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
+        VStack(alignment: .leading, spacing: 0) {
             post(facts)
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel(facts.spoken)
@@ -27,7 +27,7 @@ struct FeedPost<Foot: View>: View {
             foot
                 .padding(.leading, FeedPostMetrics.lead + FeedPostMetrics.gap)
         }
-        .padding(.vertical, MonacoTheme.Space.sm)
+        .padding(.top, MonacoTheme.Space.s)
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .contain)
     }

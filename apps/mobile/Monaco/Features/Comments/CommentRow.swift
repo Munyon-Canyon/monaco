@@ -184,6 +184,7 @@ struct CommentRow: View {
         ) {
             if canReply { replyButton }
         }
+        .padding(.top, -MonacoTheme.Space.s)
     }
 
     @ViewBuilder private func authorLink(

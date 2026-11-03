@@ -3,8 +3,14 @@ import MonacoCore
 import SwiftUI
 import UIKit
 
+enum CommentThreadHeaderMetrics {
+    static let top = MonacoTheme.Space.sm
+    static let bottom = MonacoTheme.Space.s
+}
+
 struct CommentThreadView: View {
     let model: CommentsModel
+    var pinsHeader = false
     @Environment(\.sectionScrollProxy) private var scroll
     @State private var deleting: CommentThreadRow?
     @State private var reporting: ReportTarget?
@@ -15,37 +21,71 @@ struct CommentThreadView: View {
     @Environment(ToastCenter.self) private var toasts
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            MonacoSectionHeader(CommentsCopy.title, count: model.commentCount)
-                .secondaryCount()
-                .padding(.horizontal, MonacoTheme.Space.gutter)
-            content
+        thread
+            .task(id: model.scrollRequest) { await scrollToRequest() }
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("comment-thread")
+            .commentNotices(model)
+            .reportSheet($reporting)
+            .blockConfirmation($blocking)
+            .fullScreenCover(item: $actions, onDismiss: runAfterDismiss) { target in
+                actionsOverlay(target)
+                    .presentationBackground(.clear)
+            }
+            .sheet(item: $picking) { row in
+                EmojiPickerSheet(onPick: { emoji in Task { await model.react(emoji, to: row) } })
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .monacoBlocksChanged)) { _ in
+                Task { await model.refresh() }
+            }
+            .confirmationDialog(
+                "Delete this comment?",
+                isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } }),
+                titleVisibility: .visible,
+                presenting: deleting
+            ) { row in
+                Button(CommentsCopy.delete, role: .destructive) { Task { await model.delete(row) } }
+                Button("Cancel", role: .cancel) {}
+            }
+    }
+
+    @ViewBuilder private var thread: some View {
+        if pinsHeader {
+            LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
+                Section {
+                    content
+                } header: {
+                    pinnedHeader
+                }
+            }
+        } else {
+            VStack(alignment: .leading, spacing: 0) {
+                MonacoSectionHeader(CommentsCopy.title, count: model.commentCount)
+                    .secondaryCount()
+                    .padding(.horizontal, MonacoTheme.Space.gutter)
+                content
+            }
         }
-        .task(id: model.scrollRequest) { await scrollToRequest() }
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("comment-thread")
-        .commentNotices(model)
-        .reportSheet($reporting)
-        .blockConfirmation($blocking)
-        .fullScreenCover(item: $actions, onDismiss: runAfterDismiss) { target in
-            actionsOverlay(target)
-                .presentationBackground(.clear)
+    }
+
+    private var pinnedHeader: some View {
+        HStack(spacing: MonacoTheme.Space.s) {
+            Text(CommentsCopy.title)
+                .font(MonacoTheme.Typo.section)
+                .foregroundStyle(MonacoTheme.primaryText)
+                .accessibilityAddTraits(.isHeader)
+            if model.commentCount > 0 {
+                Text("\(model.commentCount)")
+                    .font(MonacoTheme.Typo.section.monospacedDigit())
+                    .foregroundStyle(MonacoTheme.secondaryText)
+            }
         }
-        .sheet(item: $picking) { row in
-            EmojiPickerSheet(onPick: { emoji in Task { await model.react(emoji, to: row) } })
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .monacoBlocksChanged)) { _ in
-            Task { await model.refresh() }
-        }
-        .confirmationDialog(
-            "Delete this comment?",
-            isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } }),
-            titleVisibility: .visible,
-            presenting: deleting
-        ) { row in
-            Button(CommentsCopy.delete, role: .destructive) { Task { await model.delete(row) } }
-            Button("Cancel", role: .cancel) {}
-        }
+        .padding(.top, CommentThreadHeaderMetrics.top)
+        .padding(.bottom, CommentThreadHeaderMetrics.bottom)
+        .padding(.horizontal, MonacoTheme.Space.gutter)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(MonacoTheme.canvas)
+        .accessibilityIdentifier("comment-thread-header")
     }
 
     @ViewBuilder private var content: some View {

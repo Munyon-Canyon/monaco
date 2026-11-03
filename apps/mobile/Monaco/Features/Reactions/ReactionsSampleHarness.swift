@@ -27,6 +27,7 @@ private struct ReactionsSampleScreen: View {
     @State private var items: [Components.Schemas.FeedItem]
     @State private var toast: MonacoToast?
     @State private var isPickerOpen: Bool
+    @State private var isSettled = false
     private let frequent: FrequentEmojiStore
 
     init(scenario: ReactionsSampleScenario) {
@@ -47,6 +48,12 @@ private struct ReactionsSampleScreen: View {
     }
 
     var body: some View {
+        FeedSampleTabFrame {
+            NavigationStack { feed }
+        }
+    }
+
+    private var feed: some View {
         ScrollView {
             VStack(spacing: 0) {
                 ForEach(items, id: \.id) { item in
@@ -54,7 +61,7 @@ private struct ReactionsSampleScreen: View {
                         ReactionRow(
                             target: .feedItem(item.id),
                             reactions: model.reactions(for: .feedItem(item.id), fallback: item.reactions),
-                            startsOpen: scenario == .trayOpen && item.id == items.first?.id,
+                            startsOpen: scenario == .trayOpen && isSettled && item.id == items.first?.id,
                             onToggle: { toggle($0, on: item) }
                         ) {
                             MonacoReactionChip.reply(count: Int(item.commentCount)) {}
@@ -66,7 +73,19 @@ private struct ReactionsSampleScreen: View {
                 }
             }
         }
+        .id(isSettled)
+        .task {
+            try? await Task.sleep(for: .milliseconds(600))
+            isSettled = true
+        }
         .background(MonacoTheme.background)
+        .navigationTitle(FeedTab.title)
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Image(monaco: .filter).foregroundStyle(MonacoTheme.primaryText)
+            }
+        }
         .sheet(isPresented: $isPickerOpen) {
             if let item = items.first {
                 EmojiPickerSheet(initialQuery: scenario == .search ? "eyes" : "") { toggle($0, on: item) }

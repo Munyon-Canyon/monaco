@@ -6,12 +6,13 @@ struct FeedProposalAttachment: View {
     let identifier: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
+        VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
             VoteTallyBar(yes: tally.yes, no: tally.no, eligible: tally.voters)
             VoteTallyEnds(
                 yes: tally.yes, no: tally.no, middle: "", identifierPrefix: "feed", identifierSuffix: identifier)
             VoteStatusLine(
-                result: nil, facts: [tally.statusLine], identifierPrefix: "feed", identifierSuffix: identifier)
+                result: nil, facts: [tally.statusLine], identifierPrefix: "feed", identifierSuffix: identifier,
+                minHeight: 0)
         }
         .padding(.vertical, MonacoTheme.Space.xs)
     }

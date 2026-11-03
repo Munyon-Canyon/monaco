@@ -128,7 +128,6 @@ private struct PostContent: View {
                     content(phase)
                     Color.clear.frame(height: 0).id(endID)
                 }
-                .padding(.top, MonacoTheme.Space.s)
             }
             .contentMargins(.bottom, PostMetrics.endGap, for: .scrollContent)
             .scrollDismissesKeyboard(.interactively)
@@ -189,8 +188,8 @@ private struct PostContent: View {
     }
 
     private var thread: some View {
-        CommentThreadView(model: model.comments)
-            .padding(.top, MonacoTheme.Space.section)
+        CommentThreadView(model: model.comments, pinsHeader: true)
+            .padding(.top, MonacoTheme.Space.s)
     }
 }
 

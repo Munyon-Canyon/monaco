@@ -84,7 +84,8 @@ struct FeedOutsideTally: View {
                 .accessibilityLabel("\(tally.yes) yes, \(tally.no) no")
                 .accessibilityIdentifier("feed-vote-ends-\(identifier)")
             VoteStatusLine(
-                result: nil, facts: [tally.statusLine], identifierPrefix: "feed", identifierSuffix: identifier)
+                result: nil, facts: [tally.statusLine], identifierPrefix: "feed", identifierSuffix: identifier,
+                minHeight: 0)
         }
         .padding(.vertical, MonacoTheme.Space.xs)
     }

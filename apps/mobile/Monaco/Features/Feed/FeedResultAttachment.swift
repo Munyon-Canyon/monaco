@@ -32,6 +32,6 @@ struct FeedResultAttachment: View {
                     height: FeedResultMetrics.sparklineHeight)
             }
         }
-        .padding(.vertical, MonacoTheme.Space.s)
+        .padding(.vertical, MonacoTheme.Space.xs)
     }
 }
