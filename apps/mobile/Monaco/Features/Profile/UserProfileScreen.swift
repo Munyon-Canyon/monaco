@@ -44,6 +44,9 @@ struct UserProfileScreen: View {
                     .accessibilityIdentifier("user-profile-share")
                 }
                 if context.userID != environment.viewer?.userID {
+                    if #available(iOS 26.0, *) {
+                        ToolbarSpacer(.fixed, placement: .topBarTrailing)
+                    }
                     ToolbarItem(placement: .topBarTrailing) { UserProfileMoreMenu().environment(model) }
                 }
             }

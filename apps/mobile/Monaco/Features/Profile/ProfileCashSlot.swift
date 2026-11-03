@@ -77,7 +77,7 @@ struct ProfileCashRow: View {
 
     private var glyph: some View {
         Image(systemName: MonacoIcon.card.symbol)
-            .font(MonacoTheme.Typo.title2)
+            .font(MonacoTheme.Typo.headline)
             .foregroundStyle(MonacoTheme.primaryText)
             .frame(width: ProfileCashMetrics.glyphWidth)
             .accessibilityHidden(true)

@@ -6,6 +6,8 @@ public enum OwnStanding: Equatable, Sendable {
     case ranked(ratePercent: Int, right: Int, resolved: Int, rank: Int, rankedCount: Int)
     case unranked(resolved: Int, moreToRank: Int)
 
+    public static let votesToRank = 5
+
     init?(_ payload: Components.Schemas.PublicProfile.StandingPayload?) {
         guard let payload else { return nil }
         if let rank = payload.rank, let rate = payload.rateBps {
@@ -120,6 +122,11 @@ public final class OwnProfileModel {
     }
 
     public var standing: OwnStanding? { OwnStanding(user?.standing) }
+
+    public var displayedStanding: OwnStanding? {
+        guard user != nil else { return nil }
+        return standing ?? .unranked(resolved: 0, moreToRank: OwnStanding.votesToRank)
+    }
 
     public var sessionProfile: SessionProfile? {
         guard let user else { return nil }

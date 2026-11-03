@@ -378,7 +378,7 @@ private struct UserProfileCounts: View {
                 .font(MonacoTheme.Typo.caption)
                 .foregroundStyle(MonacoTheme.muted)
                 .fixedSize(horizontal: false, vertical: true)
-                .frame(minHeight: MonacoButtonMetrics.hitTarget, alignment: .leading)
+                .frame(minHeight: ProfileStandingMetrics.line, alignment: .leading)
                 .accessibilityIdentifier("user-profile-in-common")
         }
     }
@@ -408,8 +408,8 @@ private struct UserProfileCounts: View {
                 .foregroundStyle(MonacoTheme.muted)
         }
         .fixedSize(horizontal: false, vertical: true)
-        .frame(minHeight: MonacoButtonMetrics.hitTarget)
-        .contentShape(Rectangle())
+        .frame(minHeight: ProfileStandingMetrics.line)
+        .contentShape(Rectangle().inset(by: -ProfileStandingMetrics.tapOutset))
         .accessibilityElement(children: .combine)
     }
 }

@@ -13,7 +13,7 @@ public struct MemberActivityRow: Equatable, Sendable, Identifiable {
             switch self {
             case .voted: "checkmark.circle"
             case .proposed: "arrow.up.right"
-            case .replied: "bubble.left"
+            case .replied: "message"
             case .toppedBoard: "crown"
             }
         }

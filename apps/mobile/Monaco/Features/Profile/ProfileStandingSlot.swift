@@ -9,6 +9,11 @@ enum ProfileStandingSlot: ProfileSection {
     }
 }
 
+enum ProfileStandingMetrics {
+    static let line: CGFloat = 24
+    static let tapOutset: CGFloat = 10
+}
+
 private struct ProfileStanding: View {
     @Environment(OwnProfileModel.self) private var own: OwnProfileModel?
 
@@ -16,11 +21,11 @@ private struct ProfileStanding: View {
         if let own, let counts = own.counts {
             VStack(alignment: .leading, spacing: 0) {
                 ProfileCountsLine(userID: own.userID, counts: counts)
-                if let standing = own.standing {
+                if let standing = own.displayedStanding {
                     NavigationLink(value: AnyAppRoute(LeaderboardRoute(board: .people, range: .oneMonth))) {
                         ProfileCopyText(line: standing.line)
-                            .frame(minHeight: MonacoButtonMetrics.hitTarget, alignment: .leading)
-                            .contentShape(Rectangle())
+                            .frame(minHeight: ProfileStandingMetrics.line, alignment: .leading)
+                            .contentShape(Rectangle().inset(by: -ProfileStandingMetrics.tapOutset))
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel(standing.line.plain)
@@ -85,8 +90,8 @@ private struct ProfileCountsLine: View {
                 .foregroundStyle(MonacoTheme.secondaryText)
         }
         .fixedSize(horizontal: false, vertical: true)
-        .frame(minHeight: MonacoButtonMetrics.hitTarget)
-        .contentShape(Rectangle())
+        .frame(minHeight: ProfileStandingMetrics.line)
+        .contentShape(Rectangle().inset(by: -ProfileStandingMetrics.tapOutset))
         .accessibilityElement(children: .combine)
     }
 }

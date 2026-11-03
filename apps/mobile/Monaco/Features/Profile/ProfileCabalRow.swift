@@ -53,7 +53,7 @@ struct ProfileCabalRowView: View {
     var body: some View {
         NavigationLink(value: AnyAppRoute(CabalRoute(id: cabalID))) {
             HStack(alignment: dynamicTypeSize.isAccessibilitySize ? .top : .center, spacing: MonacoTheme.Space.sm) {
-                CabalMark(groupId: cabalID, name: name, size: .header, pictureUrl: pictureURL)
+                CabalMark(groupId: cabalID, name: name, size: .row, pictureUrl: pictureURL)
                 VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
                     Text(name)
                         .font(MonacoTheme.Typo.rowTitle)
@@ -79,7 +79,7 @@ struct ProfileCabalRowView: View {
             .overlay(alignment: .bottom) {
                 if !isLast {
                     MonacoRule()
-                        .padding(.leading, MonacoTheme.Space.sm + CabalMark.Size.header.rawValue)
+                        .padding(.leading, MonacoTheme.Space.sm + CabalMark.Size.row.rawValue)
                         .padding(.horizontal, MonacoTheme.Space.gutter)
                 }
             }

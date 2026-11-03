@@ -90,6 +90,9 @@ struct UserProfileSampleScreen: View {
                 systemImage: MonacoIcon.share.symbol, accessibilityLabel: "Share", placement: .toolbar
             ) {}
         }
+        if #available(iOS 26.0, *) {
+            ToolbarSpacer(.fixed, placement: .topBarTrailing)
+        }
         ToolbarItem(placement: .topBarTrailing) {
             Menu {
                 Button {
