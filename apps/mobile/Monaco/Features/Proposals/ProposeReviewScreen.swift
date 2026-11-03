@@ -108,24 +108,34 @@ struct ProposeReviewScreen: View {
     private func form(_ model: MonacoCore.ProposeReviewModel) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
-                MonacoCard(style: .inset) {
-                    VStack(spacing: 0) {
-                        assetRow(model)
+                VStack(spacing: 0) {
+                    assetRow(model)
+                    MonacoRule()
+                    cabalRow(model)
+                    if model.showsThesis {
                         MonacoRule()
-                        cabalRow(model)
-                        if model.showsThesis {
-                            MonacoRule()
-                            thesisRow(model)
-                        }
+                        thesisRow(model)
                     }
                 }
+                .padding(.horizontal, MonacoTheme.Space.m)
+                .background(
+                    RoundedRectangle(cornerRadius: MonacoTheme.Radius.card, style: .continuous)
+                        .fill(MonacoTheme.surfaceSunken)
+                )
+                .environment(\.monacoKeyRowsInset, true)
                 if model.isPreIpoBuy {
                     ProposalPreIpoLedger(
                         lines: model.preIpoLedger, eligibility: .eligible, showsEligibility: false,
                         identifier: "propose-review-preipo-ledger")
                 } else {
                     StatGrid(
-                        items: model.stats.map { StatItem(label: $0.label, value: $0.value) }
+                        items: model.stats.map { StatItem(label: $0.label, value: $0.value) }, inCard: false
+                    )
+                    .padding(.vertical, StatMetrics.cardPaddingVertical)
+                    .padding(.horizontal, StatMetrics.cardPaddingHorizontal)
+                    .background(
+                        RoundedRectangle(cornerRadius: MonacoTheme.Radius.small, style: .continuous)
+                            .fill(MonacoTheme.surfaceSunken)
                     )
                     .accessibilityElement(children: .contain)
                     .accessibilityIdentifier("propose-review-stats")
@@ -213,8 +223,7 @@ struct ProposeReviewScreen: View {
         .padding(.top, MonacoTheme.Space.sm)
         .padding(.bottom, MonacoTheme.Space.s)
         .frame(maxWidth: .infinity)
-        .background(reduceTransparency ? AnyShapeStyle(MonacoTheme.surface) : AnyShapeStyle(.regularMaterial))
-        .overlay(alignment: .top) { MonacoRule() }
+        .background(MonacoTheme.sheetSurface)
     }
 
     @ViewBuilder
@@ -281,6 +290,7 @@ extension ProposeReviewScreen {
                         }
                         .frame(minWidth: CommentRowMetrics.replyTarget, minHeight: CommentRowMetrics.replyTarget)
                         .contentShape(Rectangle())
+                        .padding(.vertical, -(CommentRowMetrics.replyTarget - MonacoTheme.Space.m) / 2)
                         .accessibilityLabel(ProposeFlowCopy.marketOrderTitle)
                         .accessibilityIdentifier("propose-review-market-order-info")
                     }

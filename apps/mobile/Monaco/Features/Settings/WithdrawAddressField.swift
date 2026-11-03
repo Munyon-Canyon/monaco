@@ -52,17 +52,25 @@ struct WithdrawAddressField: View {
             }
             .frame(maxWidth: .infinity, alignment: .topLeading)
             HStack(spacing: MonacoTheme.Space.xs) {
-                PasteButton(payloadType: String.self) { strings in
-                    guard let first = strings.first else { return }
-                    text = first.trimmingCharacters(in: .whitespacesAndNewlines)
-                }
-                .labelStyle(.iconOnly)
-                .buttonBorderShape(.circle)
-                .tint(MonacoTheme.tint)
-                .frame(minWidth: MonacoButtonMetrics.hitTarget, minHeight: MonacoButtonMetrics.hitTarget)
-                .contentShape(Rectangle())
-                .disabled(!isEnabled)
-                .accessibilityIdentifier("withdraw-paste")
+                Image(systemName: "clipboard")
+                    .font(.system(.body))
+                    .foregroundStyle(MonacoTheme.tint)
+                    .frame(width: MonacoButtonMetrics.hitTarget, height: MonacoButtonMetrics.hitTarget)
+                    .accessibilityHidden(true)
+                    .overlay {
+                        PasteButton(payloadType: String.self) { strings in
+                            guard let first = strings.first else { return }
+                            text = first.trimmingCharacters(in: .whitespacesAndNewlines)
+                        }
+                        .labelStyle(.iconOnly)
+                        .buttonBorderShape(.circle)
+                        .frame(minWidth: MonacoButtonMetrics.hitTarget, minHeight: MonacoButtonMetrics.hitTarget)
+                        .opacity(0.015)
+                        .contentShape(Rectangle())
+                        .disabled(!isEnabled)
+                        .accessibilityLabel("Paste")
+                        .accessibilityIdentifier("withdraw-paste")
+                    }
                 if let onScan {
                     Button(action: onScan) {
                         Image(systemName: "qrcode.viewfinder")

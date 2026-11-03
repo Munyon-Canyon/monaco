@@ -36,7 +36,7 @@ final class WithdrawModelTests: XCTestCase {
         await flush(rig)
 
         XCTAssertEqual(rig.model.state, .typed)
-        XCTAssertEqual(rig.model.line, "120.00 USDC · fee 0.50 USDC")
+        XCTAssertEqual(rig.model.line, "120.00 USDC · fee $0.50")
         XCTAssertEqual(rig.model.buttonTitle, "Withdraw $120")
         XCTAssertTrue(rig.model.canSubmit)
         let bodies = await previewBodies(rig.transport)
@@ -50,7 +50,7 @@ final class WithdrawModelTests: XCTestCase {
         await flush(rig)
 
         XCTAssertEqual(rig.model.state, .invalid(maxMicros: 499_500_000, overMicros: 150_500_000))
-        XCTAssertEqual(rig.model.line, "650.00 USDC · fee 0.50 USDC")
+        XCTAssertEqual(rig.model.line, "650.00 USDC · fee $0.50")
         XCTAssertEqual(rig.model.limitSlot, "Up to $499.50")
         XCTAssertNil(rig.model.buttonTitle)
         XCTAssertFalse(rig.model.canSubmit)
@@ -63,7 +63,7 @@ final class WithdrawModelTests: XCTestCase {
         await flush(rig)
 
         XCTAssertEqual(rig.model.state, .typed)
-        XCTAssertEqual(rig.model.line, "119.50 USDC · fee 0.50 USDC")
+        XCTAssertEqual(rig.model.line, "119.50 USDC · fee $0.50")
     }
 
     func testAnAmountUnderTheMinimumIsBelowMinimum() async {
@@ -401,7 +401,7 @@ extension WithdrawModelTests {
         rig.model.setAmountText("120")
         await flush(rig)
 
-        XCTAssertEqual(rig.model.line, "≈ 119.99 USDC · fee 0.01 USDC")
+        XCTAssertEqual(rig.model.line, "≈ 119.99 USDC · fee $0.01")
     }
 
     func testASolanaAmountReadsExactlyInOneUnit() async {
@@ -410,7 +410,7 @@ extension WithdrawModelTests {
         rig.model.setAmountText("120")
         await flush(rig)
 
-        XCTAssertEqual(rig.model.line, "120.00 USDC · fee 0.50 USDC")
+        XCTAssertEqual(rig.model.line, "120.00 USDC · fee $0.50")
     }
 
     func testARefusedAddressKeepsWithdrawDisabledUntilTheAddressChanges() async throws {
