@@ -161,7 +161,12 @@ public enum CommentsCopy {
     public static let deleted = "Comment deleted"
     public static let delete = "Delete"
     public static let reply = "Reply"
-    public static let postAccessibility = "Send reply"
+    public static func sendAccessibility(_ target: ReplyTarget?) -> String {
+        switch target {
+        case .comment: "Send reply"
+        case .thread, .post, nil: "Post comment"
+        }
+    }
     public static let gifAccessibility = "Add a GIF"
     public static let plusAccessibility = "Add a poll, quote or stock"
     public static let gifTitle = "GIF"

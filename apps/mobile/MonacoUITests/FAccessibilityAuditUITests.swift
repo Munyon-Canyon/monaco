@@ -23,9 +23,9 @@ enum FAuditScreens {
         }
 
     private static let composerFields: [Allowed] =
-        ["f__04-reply-composer", "f__05-post-reply"].map {
+        [("f__04-reply-composer", "Send reply"), ("f__05-post-reply", "Post comment")].map {
             (
-                screen: $0, identifier: "comment-composer-field", label: "", type: "hit",
+                screen: $0.0, identifier: "comment-composer-field", label: $0.1, type: "hit",
                 description: "", reason: fieldReason
             )
         }

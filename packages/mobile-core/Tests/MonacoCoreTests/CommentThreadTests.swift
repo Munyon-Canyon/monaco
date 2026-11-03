@@ -7,6 +7,14 @@ final class CommentThreadTests: XCTestCase {
     private typealias Comment = Components.Schemas.Comment
     private typealias Thread = Components.Schemas.CommentThread
 
+    func testTheComposerIsLabelledPostCommentUnlessItRepliesToAComment() {
+        let row = CommentThreadRow(comment: .sample("c1"), isReply: false)
+
+        XCTAssertEqual(CommentsCopy.sendAccessibility(nil), "Post comment")
+        XCTAssertEqual(CommentsCopy.sendAccessibility(.thread), "Post comment")
+        XCTAssertEqual(CommentsCopy.sendAccessibility(.comment(row)), "Send reply")
+    }
+
     func testRowsKeepTheServersOrderEachThreadFollowedByItsReplies() {
         let threads = [
             Thread(comment: .sample("c1"), replies: [.sample("c3", parent: "c1"), .sample("c4", parent: "c1")]),
