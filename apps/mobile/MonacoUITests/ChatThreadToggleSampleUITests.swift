@@ -58,7 +58,7 @@ nonisolated final class ChatThreadToggleSampleUITests: XCTestCase {
         XCTAssertTrue(toggle.waitForExistence(timeout: 10))
         XCTAssertEqual(toggle.value as? String, "0", "the switch starts off")
 
-        toggle.coordinate(withNormalizedOffset: CGVector(dx: 0.92, dy: 0.5)).tap()
+        toggle.tapSwitch()
         XCTAssertEqual(toggle.value as? String, "1", "tapping the switch turns it on")
         reply("agree with Ana", in: app)
         XCTAssertEqual(toggle.value as? String, "0", "the switch resets after a send")

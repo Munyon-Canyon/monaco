@@ -52,7 +52,7 @@ nonisolated final class SettingsNotificationsSampleUITests: XCTestCase {
         expectation(for: unlocked, evaluatedWith: decisions)
         waitForExpectations(timeout: 10)
 
-        decisions.tap()
+        decisions.tapSwitch()
         let off = NSPredicate(format: "value == '0'")
         expectation(for: off, evaluatedWith: decisions)
         waitForExpectations(timeout: 10)

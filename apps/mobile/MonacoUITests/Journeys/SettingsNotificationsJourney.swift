@@ -113,7 +113,8 @@ enum SettingsNotificationsJourney {
         }
 
         recorder.step("S4.2", "turn Decision requests off") {
-            app.switches[decisions].tap()
+            let toggle = app.switches[decisions]
+            toggle.tapSwitch()
             switchReads(app, decisions, "0", step: "S4.2")
             switchReads(app, replies, "1", step: "S4.2")
         }
