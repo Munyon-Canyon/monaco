@@ -2,7 +2,7 @@ import XCTest
 
 enum MoneyBestPriceTradeJourney {
     static let id = "money/best-price-trade"
-    static let version = 3
+    static let version = 4
 
     static let screenTimeout: TimeInterval = 15
     static let checkTimeout: TimeInterval = 10

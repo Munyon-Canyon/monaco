@@ -1,7 +1,7 @@
 ---
 id: governance/propose-buy
 title: Propose, vote and trade
-version: 10
+version: 11
 milestone: M14
 requires: [auth/sign-in]
 actors: [A, B]
@@ -49,7 +49,7 @@ With two voters and "Majority", a buy needs both yes votes.
 | --- | --- | --- | --- | --- | --- |
 | S2.1 | A | run | `openCabal(named:)` | `{cabalName}` | `cabal-header-name` reads `{cabalName}`, and `cabal-action-propose` is enabled with no "Only voters can propose" caption, within 15 s |
 | S2.2 | A | tap | `cabal-action-propose` | | The Propose action sheet (`propose-chooser-sheet`) shows `propose-kind-buy` "Buy stock", `propose-kind-sell` "Sell a holding" with "No holdings to sell" and disabled, and `propose-chooser-cancel` "Cancel", within 10 s |
-| S2.3 | A | tap, type, then tap | `propose-kind-buy`, `monaco-search-field`, then the `propose-buy-stock-<symbol>` row for GOOGL | `GOOGL` | The screen titled "Buy stock" shows the search field within 10 s. Then `amount-keypad-screen` shows within 10 s |
+| S2.3 | A | tap, type, then tap | `propose-kind-buy`, `monaco-search-field`, then the `propose-buy-stock-<symbol>` row for GOOGL | `GOOGL` | The screen titled "Buy stock" shows the search field within 10 s. Then `propose-amount-screen` shows within 10 s |
 | S2.4 | A | tap | `amount-keypad-5` | `5` | `amount-keypad-limit-line` shows within 5 s, and there is no `amount-keypad-action` |
 | S2.5 | A | tap, tap, then tap | `amount-keypad-delete`, `amount-keypad-1`, then `amount-keypad-action` | `1` | The sheet `propose-review-screen` shows within 10 s: the stock row `propose-review-market-order` reads "Buy · market order", the cabal row names `{cabalName}`, `propose-review-thesis` shows, and `propose-review-stats` shows "Shares", "Price", "Of treasury" and "To pass" |
 | S2.6 | A | tap | `propose-review-send` | | `propose-review-sent` shows within 10 s. Close returns to the cabal page (`cabal-header-name` reads `{cabalName}`) within 10 s |
