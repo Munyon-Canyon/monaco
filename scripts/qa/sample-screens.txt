@@ -879,7 +879,7 @@ f__09-withdraw-invalid              -MonacoWithdrawSample invalid
 f__09-withdraw-settled              -MonacoWithdrawSample settled
 f__10-profile-own                   -MonacoProfileSample ready
 f__10-profile-own-scrolled          -MonacoProfileSample ready -MonacoSampleScroll bottom
-f__10-profile-other                 -MonacoProfileSample personPublic
+f__10-profile-other                 -MonacoProfileSample personChristelleActivity
 f__10-profile-other-cabals          -MonacoProfileSample personChristelleCabals
 f__11-invite-sheet                  -MonacoProfileSample invite
 f__18-invite-landing                -MonacoInviteLandingSample frame

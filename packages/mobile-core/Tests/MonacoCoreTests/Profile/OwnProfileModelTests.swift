@@ -35,7 +35,7 @@ final class OwnProfileModelTests: XCTestCase {
         XCTAssertEqual(line.runs.filter(\.isStrong).map(\.text), ["3", "2"])
     }
 
-    func testNoEligibleVotesHideTheStanding() async throws {
+    func testNoEligibleVotesFallBackToTheFiveVoteStanding() async throws {
         var user = Components.Schemas.PublicProfile.sampleOwn
         user.standing = nil
 
@@ -43,6 +43,14 @@ final class OwnProfileModelTests: XCTestCase {
         await model.load()
 
         XCTAssertNil(model.standing)
+        XCTAssertEqual(model.displayedStanding, .unranked(resolved: 0, moreToRank: 5))
+        XCTAssertEqual(model.displayedStanding?.line.plain, "0 resolved this month · 5 more to rank")
+    }
+
+    func testNoStandingIsNotShownBeforeTheProfileLoads() async throws {
+        let (model, _, _) = try make([.profile(.sampleOwn)])
+
+        XCTAssertNil(model.displayedStanding)
     }
 
     func testTheCardNamesTheMemberTheHandleAndWhenTheyJoined() async throws {
