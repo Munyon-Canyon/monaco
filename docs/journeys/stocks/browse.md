@@ -36,7 +36,7 @@ Starts signed in (auth/sign-in).
 | S1.1 | tap | the Markets tab, `tab-assets` | | Within 15 s, `assets-root` shows under the large title "Markets", with `monaco-search-field` holding the placeholder "Stocks and Pre-IPO" and the chips `markets-chip-All` (selected), `markets-chip-Watchlist`, `markets-chip-Pre-IPO` and `markets-chip-Held`. The chip identifiers carry the chip's title, so they are not lowercase |
 | S1.2 | type | `monaco-search-field` | `Journey` | Within 15 s, `assets-row-JRNYAx` shows reading "JRNYA", "Journey Alpha" and "$123.45", and there is no `stocks-sort` and no `stocks-filter` |
 | S1.3 | tap Cancel, then tap | `markets-search-cancel`, then `markets-chip-Pre-IPO` | | Within 10 s, `markets-chip-Pre-IPO` is selected and `markets-preipo-row-JRNYPx` reads "Journey Private" with "Eligible" or "Research only", and `markets-preipo-row-JRNYAx` does not show |
-| S1.4 | tap, type, then scroll to | `markets-chip-All`, `monaco-search-field`, then `assets-row-JRNYZx` | `Journey` | Within 30 s, `assets-row-JRNYZx` reading "Journey Zulu" shows. The All chip draws only Watchlist, Pre-IPO and Moving today, so the paged catalogue is reached through search |
+| S1.4 | tap, type, then scroll to | `markets-chip-All`, `monaco-search-field`, then `assets-row-JRNYZx` | `Journey` | Within 30 s, `assets-row-JRNYZx` reading "Journey Zulu" shows. The All chip draws Watchlist, Stocks (the popular names), Pre-IPO and Moving today, so a name with no popular rank is reached through search |
 | S1.5 | tap Cancel, then tap | `markets-search-cancel`, then `markets-chip-Held` | | Within 10 s, `markets-held-empty` shows "Your cabals don't hold any stocks yet." for a member whose cabals hold nothing |
 
 ### S2 Search

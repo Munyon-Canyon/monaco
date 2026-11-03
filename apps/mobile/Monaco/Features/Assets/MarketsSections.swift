@@ -70,6 +70,31 @@ private struct MarketsWatchlistRow: View {
     }
 }
 
+struct MarketsStocksSection: View {
+    let rows: [MarketAsset]
+    let open: (MarketAsset) -> Void
+    let seeAll: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            MonacoSectionHeader(
+                "Stocks", trailing: "See all", actionIdentifier: "markets-stocks-see-all", action: seeAll
+            )
+            .padding(.horizontal, MonacoTheme.Space.gutter)
+            LazyVStack(spacing: 0) {
+                ForEach(rows) { asset in
+                    MarketsWatchRow(
+                        asset: asset, subline: asset.ticker, isLast: asset.id == rows.last?.id,
+                        identifier: "markets-stocks-row-\(asset.symbol)", open: open
+                    )
+                }
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("markets-stocks")
+    }
+}
+
 struct MarketsPreIpoSection: View {
     let rows: [MarketAsset]
     var showsSeeAll = true

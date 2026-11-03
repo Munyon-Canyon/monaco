@@ -12,6 +12,10 @@ extension StocksTabModel {
         Array(watchlistRows.filter { !Self.isPreIpo($0) }.prefix(Self.sectionLimit))
     }
 
+    public var stocksPreview: [MarketAsset] {
+        Array(stocks.rows.filter { $0.kind != .preIpo }.prefix(Self.sectionLimit))
+    }
+
     public var moverPreview: [MarketAsset] { Array(movers.prefix(Self.sectionLimit)) }
 
     public var preIpoPreview: [MarketAsset] { Array(preIpo.rows.prefix(Self.sectionLimit)) }

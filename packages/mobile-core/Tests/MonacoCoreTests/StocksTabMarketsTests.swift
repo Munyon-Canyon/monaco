@@ -14,6 +14,7 @@ final class StocksTabMarketsTests: XCTestCase {
         let transport = PrefixTransport([
             ("/v1/assets?filter=pre_ipo", try Self.page(["tSpaceX": 5])),
             ("/v1/assets?filter=movers", try Self.page(["TSLAx": -240])),
+            ("/v1/assets?filter=popular", try Self.page(["AAPLx": 120])),
             ("/v1/me/market-facts", Self.factsBody),
         ])
         let model = makeModel(transport, symbols: ["NVDAx"])
@@ -21,7 +22,9 @@ final class StocksTabMarketsTests: XCTestCase {
         await model.loadMarkets()
 
         let targets = transport.sent
-        XCTAssertEqual(targets.count, 4)
+        XCTAssertEqual(targets.count, 5)
+        XCTAssertEqual(targets.filter { $0.hasPrefix("/v1/assets?filter=popular") }.count, 1)
+        XCTAssertEqual(model.stocksPreview.map(\.symbol), ["AAPLx"])
         XCTAssertEqual(targets.filter { $0.hasPrefix("/v1/assets?filter=movers") }.count, 1)
         XCTAssertEqual(targets.filter { $0.hasPrefix("/v1/assets?filter=pre_ipo") }.count, 1)
         XCTAssertEqual(targets.filter { $0.hasPrefix("/v1/assets/quotes?symbols=NVDAx") }.count, 1)
