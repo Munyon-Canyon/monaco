@@ -9,12 +9,15 @@ import re
 import shlex
 import subprocess
 import sys
+import urllib.parse
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from functools import lru_cache
 
-# PRs land in TRUNK through the Graphite merge queue, which takes a PR when it carries QUEUE_LABEL.
+# Agents land a PR in TRUNK with `gh pr merge <n> --squash` once REQUIRED_CHECK passed on its head commit.
 TRUNK = "staging"
+REQUIRED_CHECK = "ci / ci-ok"
+# QUEUE_LABEL put a PR in the Graphite merge queue, which no longer lands PRs. Only land-stack still adds it.
 QUEUE_LABEL = "merge-queue"
 # fast-track jumps the Graphite merge queue. Only a human adds it.
 FAST_TRACK_LABEL = "fast-track"
@@ -425,11 +428,9 @@ def rule_merge_needs_verify(inv: Invocation) -> str | None:
         pr = json.loads(view.stdout)
         if pr["baseRefName"] == "main":
             return f"PR #{pr['number']} targets main. Only the operator merges into main, by hand in GitHub."
-        if pr["baseRefName"] == TRUNK:
-            return (f"PR #{pr['number']} targets {TRUNK}, which takes PRs only through the Graphite merge queue; "
-                    "a direct merge skips stage 2. Land the stack with `monacoctl agents land-stack <top-pr>`, "
-                    f"which adds the {QUEUE_LABEL} label to each PR once stage 1 passes.")
         slug = re.match(r"https://github\.com/([^/]+/[^/]+)/pull/", pr["url"]).group(1)
+        if pr["baseRefName"] == TRUNK:
+            return trunk_merge_refusal(inv, pr, slug)
         statuses = run(["gh", "api", f"repos/{slug}/commits/{pr['headRefOid']}/statuses?per_page=100"], inv.cwd)
         if statuses.returncode != 0:
             return f"could not read statuses for {pr['headRefOid']}: {statuses.stderr.strip()}"
@@ -441,6 +442,25 @@ def rule_merge_needs_verify(inv: Invocation) -> str | None:
     state = verify[0].get("state") if verify else "missing"
     return (f"PR #{pr['number']} head {pr['headRefOid'][:12]} has no verify success (latest: {state}). "
             "An independent verifier posts it after checking that exact sha.")
+
+
+def trunk_merge_refusal(inv: Invocation, pr: dict, slug: str) -> str | None:
+    args = inv.argv[3:]
+    squash = any(a in {"-s", "--squash"} for a in args)
+    other = any(a in {"-m", "--merge", "-r", "--rebase"} for a in args)
+    if not squash or other:
+        return f"PR #{pr['number']} targets {TRUNK}, which takes squash merges only: use `gh pr merge {pr['number']} --squash`."
+    query = urllib.parse.quote(REQUIRED_CHECK, safe="")
+    runs = run(["gh", "api", f"repos/{slug}/commits/{pr['headRefOid']}/check-runs?check_name={query}"], inv.cwd)
+    if runs.returncode != 0:
+        return f"could not read {REQUIRED_CHECK} for {pr['headRefOid']}: {runs.stderr.strip()}"
+    checks = [c for c in json.loads(runs.stdout)["check_runs"] if c.get("name") == REQUIRED_CHECK]
+    latest = max(checks, key=lambda c: c["id"], default=None)
+    if latest and latest.get("conclusion") == "success":
+        return None
+    state = "missing" if latest is None else latest.get("conclusion") or latest.get("status")
+    return (f"PR #{pr['number']} head {pr['headRefOid'][:12]}: {REQUIRED_CHECK} is {state}. "
+            f"Merge into {TRUNK} once {REQUIRED_CHECK} succeeds on the head commit.")
 
 
 def rule_edit_base(inv: Invocation) -> str | None:

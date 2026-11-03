@@ -220,6 +220,11 @@ func ghStub(t *testing.T, statuses string) (env []string, calls string) {
 
 func ghStubOnBase(t *testing.T, base, statuses string) (env []string, calls string) {
 	t.Helper()
+	return ghStubWithChecks(t, base, statuses, `{"total_count":0,"check_runs":[]}`)
+}
+
+func ghStubWithChecks(t *testing.T, base, statuses, checkRuns string) (env []string, calls string) {
+	t.Helper()
 	dir := t.TempDir()
 	calls = filepath.Join(dir, "calls")
 	view := fmt.Sprintf(`{"baseRefName":%q,"number":42,"headRefOid":"0123456789abcdef0123456789abcdef01234567","url":"https://github.com/o/r/pull/42"}`, base)
@@ -228,9 +233,10 @@ echo "$*" >> %q
 case "$1 $2" in
   "pr view") echo '%s' ;;
   "api repos/o/r/commits/0123456789abcdef0123456789abcdef01234567/statuses?per_page=100") echo '%s' ;;
+  "api repos/o/r/commits/0123456789abcdef0123456789abcdef01234567/check-runs?check_name=ci%%20%%2F%%20ci-ok") echo '%s' ;;
   *) echo "unexpected: $*" >&2; exit 1 ;;
 esac
-`, calls, view, statuses))
+`, calls, view, statuses, checkRuns))
 	return []string{"PATH=" + filepath.Join(dir, "bin") + ":" + os.Getenv("PATH")}, calls
 }
 
@@ -441,12 +447,50 @@ func TestAgentGuard_gtSyncLeavesOtherStacksUnrestacked(t *testing.T) {
 	}
 }
 
-func TestAgentGuard_stagingTakesPRsOnlyThroughTheQueue(t *testing.T) {
+func ciOK(id int, status, conclusion string) string {
+	return fmt.Sprintf(`{"id":%d,"name":"ci / ci-ok","status":%q,"conclusion":%s}`, id, status, conclusion)
+}
+
+func checkRuns(runs ...string) string {
+	return fmt.Sprintf(`{"total_count":%d,"check_runs":[%s]}`, len(runs), strings.Join(runs, ","))
+}
+
+func TestAgentGuard_stagingTakesASquashMergeOnceCiOkIsGreen(t *testing.T) {
 	t.Parallel()
 	cwd := t.TempDir()
-	env, _ := ghStubOnBase(t, "staging", `[`+status("success", "verifier", 2)+`]`)
-	for _, cmd := range []string{"gh pr merge 42 --squash", "gh pr merge 42 --auto", "gh pr merge --auto 42 --squash"} {
-		assertBlocked(t, guard(t, cwd, cmd, env...), cmd, "takes PRs only through the Graphite merge queue")
+	env, calls := ghStubWithChecks(t, "staging", `[]`, checkRuns(ciOK(1, "completed", `"failure"`), ciOK(2, "completed", `"success"`)))
+	for _, cmd := range []string{"gh pr merge 42 --squash", "gh pr merge --squash 42", "gh pr merge 42 -s --delete-branch"} {
+		assertAllowed(t, guard(t, cwd, cmd, env...), cmd)
+	}
+	got, _ := os.ReadFile(calls)
+	if !strings.Contains(string(got), "check-runs?check_name=ci%20%2F%20ci-ok") {
+		t.Errorf("want the ci / ci-ok check run read from the head commit, got %q", got)
+	}
+}
+
+func TestAgentGuard_stagingBlocksAMergeUntilCiOkIsGreen(t *testing.T) {
+	t.Parallel()
+	cwd := t.TempDir()
+	for name, tc := range map[string]struct{ runs, want string }{
+		"missing": {checkRuns(), "ci / ci-ok is missing"},
+		"pending": {checkRuns(ciOK(1, "in_progress", "null")), "ci / ci-ok is in_progress"},
+		"queued":  {checkRuns(ciOK(1, "queued", "null")), "ci / ci-ok is queued"},
+		"failed":  {checkRuns(ciOK(1, "completed", `"failure"`)), "ci / ci-ok is failure"},
+		"latest failed": {checkRuns(ciOK(2, "completed", `"success"`), ciOK(3, "completed", `"failure"`)),
+			"ci / ci-ok is failure"},
+	} {
+		env, _ := ghStubWithChecks(t, "staging", `[]`, tc.runs)
+		assertBlocked(t, guard(t, cwd, "gh pr merge 42 --squash", env...), name, tc.want)
+	}
+}
+
+func TestAgentGuard_stagingTakesOnlySquashMerges(t *testing.T) {
+	t.Parallel()
+	cwd := t.TempDir()
+	env, _ := ghStubWithChecks(t, "staging", `[]`, checkRuns(ciOK(1, "completed", `"success"`)))
+	for _, cmd := range []string{"gh pr merge 42 --merge", "gh pr merge 42 --rebase", "gh pr merge 42 -m",
+		"gh pr merge 42 -r", "gh pr merge 42", "gh pr merge 42 --auto", "gh pr merge 42 --squash --rebase"} {
+		assertBlocked(t, guard(t, cwd, cmd, env...), cmd, "use `gh pr merge 42 --squash`")
 	}
 }
 

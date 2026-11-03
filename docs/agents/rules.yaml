@@ -185,21 +185,21 @@ rules:
     surface: [agents-md]
     enforced_by: prose
   - id: A15
-    title: "small Graphite stacks"
-    text: "Ship changes as Graphite stacks of small PRs, never one large PR. Graphite (`gt`) is a required tool installed by `just install`."
+    title: "one PR per ticket"
+    text: "Ship each ticket as one PR, or a short stack of small PRs, never one large PR."
     audience: all
     surface: [agents-md]
     enforced_by: prose
   - id: A16
-    title: "Graphite branching"
-    text: "Create branches with `gt create`, amend with `gt modify`, push with `gt submit --stack --no-interactive --draft`, and never open a stacked PR with `gh pr create`."
+    title: "branch, push and open"
+    text: "Branch from `staging`, push with `git push -u origin <branch>`, open the PR with `gh pr create --base staging --draft`, then set the body with `scripts/pr-body.sh`."
     audience: all
     surface: [agents-md]
     enforced_by: prose
     covers: [A17]
   - id: A18
     title: "each PR stands alone"
-    text: "Each PR builds and passes `monacoctl agents check` on its own; CI runs the full suite on the top PR of a stack only, so lower PRs are proven by `agents check`."
+    text: "Run `monacoctl agents check` before every push; each PR builds and passes it on its own, and CI runs the full suite on the top PR of a stack only, so lower PRs are proven by `agents check`."
     audience: all
     surface: [agents-md]
     enforced_by: prose
@@ -225,13 +225,13 @@ rules:
     covers: [A22, A23]
   - id: A24
     title: "trunk is staging"
-    text: "Stacks build on the trunk `staging` (the default branch) and land through the Graphite merge queue."
+    text: "PRs build on the trunk `staging` (the default branch) and land by squash merge, one commit per PR."
     audience: all
     surface: [agents-md, standing-orders]
     enforced_by: prose
   - id: A25
-    title: "land right after submit"
-    text: "Always land: right after `gt submit` and `scripts/pr-body.sh`, run `monacoctl agents land-stack <top-pr>` once without asking, unless the user says in the current conversation not to land or queue, then follow it with `monacoctl agents watch` under Monitor."
+    title: "land once green"
+    text: "Always land: once `ci / ci-ok` is green on the PR's head commit, run `gh pr merge <n> --squash` without asking, unless the user says in the current conversation not to land."
     audience: all
     surface: [agents-md, monaco-milestone, backend-agents-md, standing-orders]
     enforced_by: prose
@@ -243,8 +243,8 @@ rules:
     surface: [monaco-milestone, standing-orders]
     enforced_by: prose
   - id: A27
-    title: "no direct merge"
-    text: "Never `gh pr merge` (direct or `--auto`)."
+    title: "squash merge on green"
+    text: "Merge into `staging` only with `gh pr merge <n> --squash`, once `ci / ci-ok` succeeded on the head commit; never merge into `main`."
     audience: all
     surface: [agents-md, monaco-milestone, standing-orders]
     enforced_by: hook:rule_merge_needs_verify
@@ -349,7 +349,7 @@ rules:
     enforced_by: prose
   - id: A43
     title: "three verification stages"
-    text: "Verification runs in three stages, per `docs/architecture/backend-platform.md#verification-scope`: agents run `monacoctl agents check` on every PR, CI stage 1 runs the full suite on the top PR of a stack (lower PRs' `ci / ci-ok` passes with every job skipped), except the macOS `ios` job (app build plus MonacoTests), which runs only in the hourly staging indicator (#3399), and the Graphite merge queue runs only build, vet, tidy and generated files before anything lands on `staging`. Every hour, when `staging` moved, `staging.yml` runs the full suite again as an advisory indicator that gates nothing (it ran on every push until #2950, which left PR runs waiting for the free plan's 20 concurrent jobs). The operator approved this split, so it is not skipping. Ticket Done-when, milestone manual verification, `just build mobile` and gold-sim QA still apply when the change touches what they cover."
+    text: "Verification runs in two stages, per `docs/architecture/backend-platform.md#verification-scope`: agents run `monacoctl agents check` on every PR, CI stage 1 runs the full suite on the top PR of a stack (lower PRs' `ci / ci-ok` passes with every job skipped), except the macOS `ios` job (app build plus MonacoTests), which runs only in the hourly staging indicator (#3399), and agents squash-merge into `staging` once `ci / ci-ok` is green on the head commit, with no merge-queue stage. Every hour, when `staging` moved, `staging.yml` runs the full suite again as an advisory indicator that gates nothing (it ran on every push until #2950, which left PR runs waiting for the free plan's 20 concurrent jobs). The operator approved this split, so it is not skipping. Ticket Done-when, milestone manual verification, `just build mobile` and gold-sim QA still apply when the change touches what they cover."
     audience: all
     surface: [agents-md, cursor-rules/never-skip-verification]
     enforced_by: prose

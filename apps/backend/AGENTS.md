@@ -11,7 +11,7 @@ Each module under `internal/modules` has `domain`, `app` and `adapters`, and imp
 New rules go in `docs/agents/rules.yaml`. The list below is rendered from it.
 
 <!-- BEGIN GENERATED rules:backend-agents-md (docs/agents/rules.yaml) -->
-- Always land: right after `gt submit` and `scripts/pr-body.sh`, run `monacoctl agents land-stack <top-pr>` once without asking, unless the user says in the current conversation not to land or queue, then follow it with `monacoctl agents watch` under Monitor.
+- Always land: once `ci / ci-ok` is green on the PR's head commit, run `gh pr merge <n> --squash` without asking, unless the user says in the current conversation not to land.
 - Domain is pure (no context, no I/O, no other module): enforced by `lint:apps/backend/.golangci.base.yml`.
 - App holds commands and queries and defines the ports it needs: enforced by `lint:apps/backend/.golangci.base.yml`.
 - Never edit `.golangci.yml`; it is generated from `.golangci.base.yml`: enforced by `hook:agent-guard.py`.

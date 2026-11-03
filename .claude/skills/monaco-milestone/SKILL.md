@@ -35,9 +35,9 @@ The status comment on the tracking issue carries the batch, so CI keeps it curre
 
 <!-- New rules go in docs/agents/rules.yaml; `go generate ./...` in apps/backend renders them below. -->
 <!-- BEGIN GENERATED rules:monaco-milestone (docs/agents/rules.yaml) -->
-- Always land: right after `gt submit` and `scripts/pr-body.sh`, run `monacoctl agents land-stack <top-pr>` once without asking, unless the user says in the current conversation not to land or queue, then follow it with `monacoctl agents watch` under Monitor.
+- Always land: once `ci / ci-ok` is green on the PR's head commit, run `gh pr merge <n> --squash` without asking, unless the user says in the current conversation not to land.
 - If stage 1 is still running, `land-stack` arms the stack, and `agents watch` lands it once stage 1 passes, or prints `armed stack #<top> disarmed: ...` when it fails. The verifier's `verify` status is advisory: landing does not wait on it. It adds the `merge-queue` label to every PR of the stack, and the queue squashes each PR into one commit on `staging` (title, ` (#N)`, then the body), so a landed PR shows as closed, not merged (merged when it landed on stage 0), a `revert-<top>` PR from `agents watch` is landed, not fought, and `Closes #N` in its body closes the ticket.
-- no direct merge: enforced by `hook:rule_merge_needs_verify`.
+- squash merge on green: enforced by `hook:rule_merge_needs_verify`.
 - no base edits: enforced by `hook:rule_edit_base`.
 - queue labels: enforced by `hook:rule_queue_label`.
 - If a stack drops out of the queue, fix it with `gt modify` and `gt submit --stack`, then rerun `land-stack`.
