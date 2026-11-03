@@ -180,7 +180,7 @@ struct InviteLandingScreen: View {
             figure("Turnout", stats.turnout)
         }
         .padding(MonacoTheme.Space.m)
-        .background(MonacoTheme.surfaceSunken)
+        .background(MonacoTheme.surface)
         .clipShape(RoundedRectangle(cornerRadius: MonacoTheme.Radius.card, style: .continuous))
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("invite-landing-stats")
@@ -269,7 +269,7 @@ private struct InviteLandingProposal: View {
                     .foregroundStyle(MonacoTheme.secondaryText)
             }
             .padding(MonacoTheme.Space.m)
-            .background(MonacoTheme.surfaceSunken)
+            .background(MonacoTheme.surface)
             .clipShape(RoundedRectangle(cornerRadius: MonacoTheme.Radius.card, style: .continuous))
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("invite-landing-proposal")

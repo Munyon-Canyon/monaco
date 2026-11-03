@@ -99,6 +99,7 @@ struct CabalInviteSheet: View {
             buttons
         }
         .monacoPresentationDetents(MonacoSheetDetents.half + (dynamicTypeSize >= .xxxLarge ? [.large] : []))
+        .presentationBackground(MonacoTheme.sheetSurface)
         .presentationDragIndicator(.visible)
         .presentationContentInteraction(.scrolls)
         .presentationBackgroundInteraction(.disabled)
