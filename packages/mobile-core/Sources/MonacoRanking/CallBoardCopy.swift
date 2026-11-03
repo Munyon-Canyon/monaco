@@ -165,6 +165,9 @@ public enum CallBoardCopy {
     public static func rate(_ pct: Int?) -> String { pct.map { "\($0)%" } ?? dash }
 
     public static func record(right: Int, resolved: Int) -> String { "\(right) of \(resolved) right" }
+    public static func cardStat(rate: String, right: Int, resolved: Int) -> String {
+        "\(rate) · \(right) of \(resolved)"
+    }
 
     public static func turnout(voted: Int, eligible: Int) -> String { "Voted \(voted) of \(eligible)" }
 

@@ -69,8 +69,11 @@ struct CallBoardYouCard: View {
         VStack(spacing: MonacoTheme.Space.xs) {
             CallBoardAvatar(row: row, size: CallBoardCardMetrics.avatar)
             Text(label ?? row.name).font(MonacoTheme.Typo.headline).foregroundStyle(MonacoTheme.primaryText)
-            Text("\(row.rate) · \(row.record)").font(MonacoTheme.Typo.subhead)
+            Text(row.cardStat).font(MonacoTheme.Typo.subhead)
                 .foregroundStyle(MonacoTheme.secondaryText)
+                .multilineTextAlignment(.center)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
         }
     }
 }

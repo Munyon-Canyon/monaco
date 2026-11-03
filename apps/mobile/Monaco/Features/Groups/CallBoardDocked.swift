@@ -68,6 +68,8 @@ struct CallBoardDocked: View {
             Text(card.me.rate).font(MonacoTheme.Typo.headline).foregroundStyle(MonacoTheme.primaryText)
             Text(card.me.record).font(MonacoTheme.Typo.subhead).foregroundStyle(MonacoTheme.secondaryText)
         }
+        .fixedSize(horizontal: true, vertical: false)
+        .layoutPriority(1)
     }
 
     private var summary: some View {
