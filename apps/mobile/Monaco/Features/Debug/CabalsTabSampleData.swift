@@ -125,11 +125,6 @@ final class CabalsTabSampleHarnessEntry: SampleHarnessEntry {
         return AnyView(CabalsTabSampleHarness(auth: auth))
     }
 }
-extension LeaderboardFilters {
-    static var cabalsTabSample: LeaderboardFilters {
-        .standard
-    }
-}
 
 final class CreateCabalSampleHarnessEntry: SampleHarnessEntry {
     static let launchArgument = "-MonacoCreateCabalSample"

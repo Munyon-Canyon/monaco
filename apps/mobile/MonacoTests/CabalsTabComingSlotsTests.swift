@@ -18,10 +18,9 @@ struct CabalsTabComingSlotsTests {
         #expect(sections.contains { $0 == CabalsShareListSlot.self })
     }
 
-    @Test func theOldListInvitesAndBoardSlotsAreGoneFromTheTab() {
+    @Test func theOldListAndInvitesSlotsAreGoneFromTheTab() {
         let sections = CabalsTabScreen.sections
         #expect(!sections.contains { $0 == CabalsInvitesSlot.self })
-        #expect(!sections.contains { $0 == CabalsBoardSlot.self })
     }
 
     @Test func invitesLeadOnlyWhenTheGridPassesThreeRows() {
