@@ -21,7 +21,7 @@ Where code goes and how state flows is `docs/architecture/ios.md`. Read it first
   - `MonacoGlassButton`, `BottomCTA`'s dock and the sheet helper (`monacoSheet`, `MonacoSheetDetents`): #6470.
   - The post reaction chip (`MonacoReactionChip`, on `ReactionChipMetrics`: 24 visible, 44 × 44 tap), the reaction row and the reply control: #6469. The composer: #6548; its ⊕ menu (Poll, Quote the thesis, Share a stock): #6563; the GIF sheet on the GIPHY iOS SDK: #6556.
   - If a final type name differs once those land, the ticket that renames it updates this list.
-- 15pt floor: never shrink text to match a frame. A 13pt row sub-line or caption is `Typo.subhead` or `Typo.caption`.
+- 13pt floor (founder, 11-02, #7801; reverses the 10-27 15pt floor): F's sizes, nothing below 13pt, Dynamic Type always on. A 13pt row sub-line or caption is `Typo.subhead` or `Typo.caption`; never shrink text below the role to match a frame.
 - Lists, not boxes: flat rows on the canvas with an inset hairline. A card holds one object.
 - Sheets open at the half detent through #6470's sheet helper, which owns the detents, including the accessibility-size exception. Never set detents by hand.
 - Chats take no image uploads: never add a photo or camera attach to the composer, a reply or a discussion. GIFs come from the GIPHY SDK.

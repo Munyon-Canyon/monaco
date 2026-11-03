@@ -253,7 +253,7 @@ enum MonacoTheme {
         }
     }
 
-    /// One family: SF Pro. Sizes keep the floor #4110 set after hands-on QA found text too small.
+    /// One family: SF Pro. Row sub-lines and captions take F's 13 (founder, 11-02, #7801); nothing is smaller.
     /// A role at a system text style's size uses that style; display and button have no
     /// matching style and pre-scale with `scaled`. Figures add `.monospacedDigit()`; nothing sets letter-spacing,
     /// because SF Pro's optical tracking is the tracking.
@@ -272,12 +272,12 @@ enum MonacoTheme {
         static let headline = Font.subheadline.weight(.semibold)
         /// 15 regular: a thesis, comments, sheet and empty-state copy.
         static let body = Font.subheadline
-        /// 15 regular (F's 13 at the 15 pt floor): second lines, trailing changes, stat labels.
-        static let subhead = Font.subheadline
+        /// 13/18 regular: second lines, trailing changes, stat labels.
+        static let subhead = Font.footnote
         /// 15 semibold: text links, chip and segment labels, toast text, a reaction chip's count.
         static let subheadStrong = Font.subheadline.weight(.semibold)
-        /// 15 medium: timestamps, "Closes in 2d", attribution.
-        static let caption = Font.subheadline.weight(.medium)
+        /// 13 medium: timestamps, "Closes in 2d", attribution.
+        static let caption = Font.footnote.weight(.medium)
         /// 15 semibold: the "You" tag, a count capsule, an outcome chip.
         static let captionStrong = Font.subheadline.weight(.semibold)
         /// 15 semibold, tabular: rank numerals in rows and on the podium.
