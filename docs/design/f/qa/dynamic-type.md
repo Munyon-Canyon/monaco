@@ -18,7 +18,7 @@ Build: Debug `Monaco.app` from `149c981ab` (`staging` at `0e9545061` plus #7078'
 
 All 475 pairs were shot. The sim lock's 30-minute hold stopped the first run partway through `extra-extra-extra-large`; the second run shot the six frames it had missed, then AX1 and AX5. Nine frames were shot again at all five sizes with `MONACO_QA_SCREEN_SETTLE=8` because their first shots showed the wrong screen. Even then, `15-passed` draws an empty page at every size, and the `16-catch-up*` lines sometimes stop on Home, so 20 pairs are recorded as `no shot` (#7127). Each frame's five shots were laid side by side and judged by eye against the rules.
 
-`FDynamicTypeAuditUITests` (#7078) runs `.dynamicType` and `.textClipped` on the same 95 frames at xxxLarge and AX5, one test method per frame group: `scripts/qa/xcode-lock.sh xcode xcodebuild test-without-building ... -only-testing:MonacoUITests/FDynamicTypeAuditUITests/<group>`. Its allow-list holds only reports with no element and the members-all request row's false positive (#7201) and the review sheet's backdrop 'Propose buy' text (#7206), so while the defects below are open it fails on their frames; it was not run to completion in #6586 (see [Next steps](#next-steps)).
+`FDynamicTypeAuditUITests` (#7078) runs `.textClipped` in its own audit call first and `.dynamicType` in a second call (#7398), because the `.dynamicType` audit re-renders the app at other text sizes while it runs and made `.textClipped` read layouts that were still changing, on the same 95 frames at xxxLarge and AX5, one test method per frame group: `scripts/qa/xcode-lock.sh xcode xcodebuild test-without-building ... -only-testing:MonacoUITests/FDynamicTypeAuditUITests/<group>`. Its allow-list holds only reports with no element and the members-all request row's false positive (#7201) and the review sheet's backdrop 'Propose buy' text (#7206), so while the defects below are open it fails on their frames; it was not run to completion in #6586 (see [Next steps](#next-steps)).
 
 Sizes: `large` is the default, `xxLarge` is the prototype's "Larger text" step, `xxxLarge` is the largest non-accessibility size, `AX1` is `accessibility-medium` and `AX5` is `accessibility-extra-extra-extra-large`.
 
@@ -622,6 +622,24 @@ The Feed and post page wrap instead of clipping at large text (#7203). The feed 
 | [`16-catch-up-empty-scrolled`](../screens/16-catch-up-empty-scrolled.png) | xxxLarge | ok | — | — |
 | [`16-catch-up-empty-scrolled`](../screens/16-catch-up-empty-scrolled.png) | AX1 | ok | — | — |
 | [`16-catch-up-empty-scrolled`](../screens/16-catch-up-empty-scrolled.png) | AX5 | ok | — | — |
+
+## Audit rerun, 2026-10-31 (#7398)
+
+Build: Debug app from the #7398 branch on `staging` at `4b86bbf6c`, lane simulator `Monaco 7398` (iPhone 17 class, iOS 27.0), `test-without-building -only-testing:MonacoUITests/FDynamicTypeAuditUITests/test12Sheets` and `.../test13Leaderboard`. The other 15 groups were not rerun: at about 40 s per frame and size the full class takes about two hours.
+
+| Frame | Size | Findings after the split | Judged |
+| --- | --- | --- | --- |
+| `12-toast` | xxxLarge | 'Weekend investors bought $250 of NVDAx', 'Weekend investors · 42m · Comment Left 3', '5 of 8 voted · ends in 4h · Comment Left 6', at scroll 1 and 2 only | not judged: rows under the floating tab bar after a swipe; the offscreen check may miss the tab bar |
+| `12-toast` | AX5 | none | ok |
+| `12-info-sheet` | xxxLarge | 'Market stats', the disclosure line, 'CoinGecko', 'Updated' and its time, 'Delay' | noise: every one draws whole in a screenshot at xxxLarge |
+| `12-info-sheet` | AX5 | 'Market stats' | likely noise: the same title draws whole at xxxLarge; AX5 not screenshotted |
+| `13-leaderboard-C-people`, `13-leaderboard-C`, `13-leaderboard-C-scrolled`, `13-leaderboard-C-cabals` | xxxLarge, AX5 | none | ok |
+| `13-leaderboard-C-unranked` | AX5 | 'This week Oct 19 – 25' | allow-listed: wraps to two lines and draws whole |
+| `13-leaderboard-C-unranked` | xxxLarge | none | ok |
+
+The split removes every Leaderboard finding but one, but the info sheet still reports labels that draw whole, so on presented sheets `.textClipped` still reads something other than the drawn text; a finding there is not yet proof of clipping.
+
+As a gate check, with a 60 pt one-line label planted on the `12-toast` sample, `test12Sheets` failed on that label at both sizes and all three scroll positions, and the label was removed again.
 
 ## Rules that held everywhere
 
