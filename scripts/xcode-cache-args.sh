@@ -6,7 +6,9 @@
 # These stay command-line settings: an xcconfig does not reach the Swift package targets.
 # Prefix mapping makes the worktree and DerivedData paths the same in every cache key, so a
 # second worktree hits the first one's entries. SourcePackages is keyed by a hash of
-# Package.resolved so lanes on different package versions stay apart.
+# Package.resolved so lanes on different package versions stay apart. The compilation cache is
+# keyed by the Xcode build version: entries a previous toolchain wrote fail its verification
+# as "cache poisoned" (about 700 per build after the Xcode 27.2 update) and recompile anyway.
 # See docs/how-to/local-simulator.md#shared-compilation-cache.
 # On Apple silicon the build excludes x86_64: test builds compile some package targets as
 # x86_64 macOS 10.13 host tools, and a cached compile of those fails with "IR generation
@@ -21,13 +23,14 @@ dd=${1:-$wt/.build/DerivedData}
 arch_args=()
 caching=YES
 if [[ "$(uname -m)" == arm64 ]]; then arch_args=(EXCLUDED_ARCHS=x86_64); else caching=NO; fi
+toolchain=$(xcodebuild -version 2>/dev/null | awk '/Build version/ {print $3}')
 pins=$(shasum apps/mobile/Monaco.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved | cut -c1-12)
 
 printf '%s\n' \
   -clonedSourcePackagesDirPath "$primary/.build/SourcePackages/$pins" \
   -onlyUsePackageVersionsFromResolvedFile \
   "COMPILATION_CACHE_ENABLE_CACHING=$caching" \
-  "COMPILATION_CACHE_CAS_PATH=$primary/.build/CompilationCache" \
+  "COMPILATION_CACHE_CAS_PATH=$primary/.build/CompilationCache/${toolchain:-unknown}" \
   SWIFT_ENABLE_PREFIX_MAPPING=YES CLANG_ENABLE_PREFIX_MAPPING=YES \
   SWIFT_ENABLE_PROJECT_PREFIX_MAPPING=YES CLANG_ENABLE_PROJECT_PREFIX_MAPPING=YES \
   "SWIFT_OTHER_PREFIX_MAPPINGS=$dd=/^dd $wt=/^wt" \
