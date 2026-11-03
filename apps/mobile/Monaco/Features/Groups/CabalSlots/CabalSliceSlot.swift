@@ -20,7 +20,7 @@ struct CabalSliceBand: View {
     var body: some View {
         content
             .padding(.horizontal, MonacoTheme.Space.gutter)
-            .padding(.top, -(SectionStackMetrics.spacing - MonacoTheme.Space.sm))
+            .padding(.top, CabalPageMetrics.statsLead)
     }
 
     @ViewBuilder private var content: some View {

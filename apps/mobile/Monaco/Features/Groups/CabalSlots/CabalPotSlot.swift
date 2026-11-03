@@ -24,11 +24,6 @@ private struct CabalTreasuryLine: View {
             let action: (() -> Void)? = isEmpty ? nil : { openHistory() }
             CabalMoveReader(cabalID: cabalID) { move in
                 CabalPotBand(model: model, move: move, openHistory: action)
-                    .background {
-                        GeometryReader { proxy in
-                            Color.clear.preference(key: CabalPotBottom.self, value: proxy.frame(in: .global).maxY)
-                        }
-                    }
             }
         }
     }
@@ -110,18 +105,14 @@ struct CabalPotBand: View {
     let model: CabalPotModel?
     var move: CabalHeaderCopy.Move?
     var openHistory: (() -> Void)?
-    var isPinned = false
-
-    private static let pull = SectionStackMetrics.spacing - MonacoTheme.Space.sm
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         content
-            .frame(maxWidth: .infinity, minHeight: isPinned ? 0 : Self.pull + MonacoTheme.Space.xs, alignment: .leading)
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, MonacoTheme.Space.gutter)
-            .padding(.vertical, isPinned ? MonacoTheme.Space.xs : 0)
-            .padding(.top, isPinned ? 0 : -Self.pull)
+            .padding(.top, CabalPageMetrics.treasuryLead)
     }
 
     @ViewBuilder private var content: some View {
@@ -248,12 +239,12 @@ private struct CabalPotHarnessScreen: View {
     var body: some View {
         NavigationStack(path: $path) {
             ScrollView {
-                SectionStackLayout(spacing: SectionStackMetrics.spacing) {
+                SectionStackLayout(spacing: CabalPageMetrics.spacing) {
                     CabalPotBand(model: model)
                     CabalSliceBand(model: model)
                     CabalTreasuryBody(model: model, cabalID: pot.cabalId, move: nil) { path.append(AnyAppRoute($0)) }
                 }
-                .padding(.top, MonacoTheme.Space.gutter + SectionStackMetrics.spacing)
+                .padding(.top, MonacoTheme.Space.gutter + CabalPageMetrics.spacing)
             }
             .monacoCanvas()
             .navigationDestination(for: AnyAppRoute.self) { $0.destination() }

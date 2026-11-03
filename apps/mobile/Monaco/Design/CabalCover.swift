@@ -18,7 +18,7 @@ struct CabalCover<Overlay: View>: View {
     @Environment(\.displayScale) private var displayScale
 
     private static var heroHeight: CGFloat { 132 }
-    private static var heroTallHeight: CGFloat { 172 }
+    private static var heroTallHeight: CGFloat { 160 }
 
     init(
         cabalId: String,

@@ -5,10 +5,9 @@ The cabal screen names its holding rows `cabal-position-<ticker>` instead of `ca
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/apps/mobile/Monaco/Features/Groups/CabalTreasuryTab.swift b/apps/mobile/Monaco/Features/Groups/CabalTreasuryTab.swift
-index a431b1705..5e4e5a7d5 100644
 --- a/apps/mobile/Monaco/Features/Groups/CabalTreasuryTab.swift
 +++ b/apps/mobile/Monaco/Features/Groups/CabalTreasuryTab.swift
-@@ -120,7 +120,7 @@ struct CabalTreasuryBody: View {
+@@ -127,7 +127,7 @@
                          CabalTreasuryPositionRow(position: position, isLast: position.id == positions.last?.id)
                      }
                      .buttonStyle(.monacoRow)
@@ -16,4 +15,4 @@ index a431b1705..5e4e5a7d5 100644
 +                    .accessibilityIdentifier("cabal-position-\(position.ticker)")
                  }
              }
-         }
+             .padding(.top, CabalTreasuryMetrics.rowsLead)

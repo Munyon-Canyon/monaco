@@ -81,7 +81,6 @@ struct CabalActionsRow: View {
             } else {
                 actionsContent
                     .padding(.horizontal, MonacoTheme.Space.gutter)
-                    .padding(.top, -(SectionStackMetrics.spacing - MonacoTheme.Space.sm))
             }
         }
     }

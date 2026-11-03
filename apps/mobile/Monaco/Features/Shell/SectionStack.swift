@@ -11,6 +11,7 @@ enum SectionStackMetrics {
 struct SectionStack<Context>: View {
     let context: Context
     let sections: [any ScreenSection<Context>.Type]
+    var spacing: CGFloat = SectionStackMetrics.spacing
     @Environment(\.insideMonacoSheet) private var insideSheet
 
     static func live(_ sections: [any ScreenSection<Context>.Type]) -> [any ScreenSection<Context>.Type] {
@@ -20,7 +21,7 @@ struct SectionStack<Context>: View {
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                SectionStackLayout(spacing: SectionStackMetrics.spacing) {
+                SectionStackLayout(spacing: spacing) {
                     ForEach(Array(Self.live(sections).enumerated()), id: \.offset) { _, section in
                         AnyView(section.body(for: context))
                     }
