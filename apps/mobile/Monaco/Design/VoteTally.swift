@@ -286,6 +286,7 @@ struct VoteStatusLine: View {
     let facts: [String]
     let identifierPrefix: String
     var identifierSuffix: String? = nil
+    var minHeight: CGFloat = MonacoButtonMetrics.hitTarget
 
     private var markSymbol: String? {
         switch result {
@@ -330,7 +331,7 @@ struct VoteStatusLine: View {
         .foregroundStyle(MonacoTheme.secondaryText)
         .lineLimit(nil)
         .fixedSize(horizontal: false, vertical: true)
-        .frame(maxWidth: .infinity, minHeight: MonacoButtonMetrics.hitTarget, alignment: .leading)
+        .frame(maxWidth: .infinity, minHeight: minHeight, alignment: .leading)
         .contentShape(.accessibility, Rectangle())
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(ProposalVoteCopy.spoken(facts: facts))
