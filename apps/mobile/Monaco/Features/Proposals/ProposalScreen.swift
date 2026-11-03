@@ -30,6 +30,7 @@ struct ProposalScreen: View {
                 .environment(\.proposalDetail, model)
                 .environment(refresh)
                 .refreshable { await refresh.run() }
+                .toolbar(.hidden, for: .tabBar)
                 .toolbar {
                     ToolbarItem(placement: .topBarTrailing) {
                         MonacoGlassButton(

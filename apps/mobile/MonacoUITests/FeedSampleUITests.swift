@@ -28,6 +28,15 @@ nonisolated final class FeedSampleUITests: XCTestCase {
     }
 
     @MainActor
+    func testFeedRootShowsTheTabBarWithFeedSelected() {
+        let app = launch("-feedHarness", "items")
+        XCTAssertTrue(app.buttons["feed-filter"].waitForExistence(timeout: 15), "the feed did not load")
+        XCTAssertTrue(app.tabBars.firstMatch.exists, "the Feed root draws the tab bar")
+        XCTAssertEqual(app.tabBars.buttons.count, 5, "the bar has the five roots")
+        XCTAssertTrue(app.tabBars.buttons["Feed"].isSelected, "Feed is the selected tab")
+    }
+
+    @MainActor
     func testFilterMenuListsTheFourScopesAndMarksTheChosenOne() {
         let app = launch("-feedHarness", "items")
         let filter = app.buttons["feed-filter"]

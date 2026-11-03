@@ -170,6 +170,7 @@ private struct GifProposalSamplePage: View {
         SectionStack(context: ProposalContext(proposalID: "proposal-1"), sections: sections.map { $0.erased })
             .defaultScrollAnchor(scrolled ? .bottom : .top)
             .environment(\.proposalDetail, model)
+            .toolbar(.hidden, for: .tabBar)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     MonacoGlassButton(icon: .share, accessibilityLabel: "Share", style: .quiet, placement: .toolbar) {}

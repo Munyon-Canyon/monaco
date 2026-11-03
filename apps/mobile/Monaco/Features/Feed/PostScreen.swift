@@ -47,6 +47,7 @@ struct PostScreen: View {
         }
         .navigationTitle(PostCopy.title)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar(.hidden, for: .tabBar)
         .toolbar {
             ToolbarItem(placement: .principal) {
                 Text(PostCopy.title)

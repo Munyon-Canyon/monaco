@@ -95,6 +95,8 @@ nonisolated final class ProposalFeedSampleUITests: XCTestCase {
     @MainActor
     func testOpen_voteSitsInTheContent_andTheBottomHoldsOnlyTheComposer() throws {
         launch("open")
+        XCTAssertTrue(element("comment-composer-field").waitForExistence(timeout: 10), "the composer never drew")
+        XCTAssertFalse(app.tabBars.firstMatch.exists, "a proposal with a pinned composer shows no tab bar")
         let yes = element("proposal-vote-yes")
         let no = element("proposal-vote-no")
         XCTAssertTrue(yes.waitForExistence(timeout: 10), "Yes never drew")

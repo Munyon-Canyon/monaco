@@ -316,11 +316,38 @@ private struct FeedHarnessScreen: View {
     @State private var path: [AnyAppRoute] = []
 
     var body: some View {
-        NavigationStack(path: $path) {
-            FeedView(makeModel: { _ in .preview(mode, clock: ContinuousClock()) })
-                .navigationDestination(for: AnyAppRoute.self) { $0.destination() }
+        FeedSampleTabFrame {
+            NavigationStack(path: $path) {
+                FeedView(makeModel: { _ in .preview(mode, clock: ContinuousClock()) })
+                    .navigationDestination(for: AnyAppRoute.self) { $0.destination() }
+            }
+            .defaultScrollAnchor(SampleScrollAnchor.requested(by: SampleScrollAnchor.flag))
         }
-        .defaultScrollAnchor(SampleScrollAnchor.requested(by: SampleScrollAnchor.flag))
+    }
+}
+
+struct FeedSampleTabFrame<Content: View>: View {
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        TabView(selection: .constant(MainTab.feed)) {
+            ForEach(MainTab.allCases) { tab in
+                Group {
+                    if tab == .feed {
+                        content
+                    } else {
+                        MonacoTheme.canvas.ignoresSafeArea()
+                    }
+                }
+                .tabItem {
+                    Label(tab.title, systemImage: tab.systemImage)
+                        .environment(\.symbolVariants, tab == .feed ? .fill : .none)
+                        .accessibilityIdentifier(tab.accessibilityIdentifier)
+                }
+                .tag(tab)
+            }
+        }
+        .tint(MonacoTheme.tint)
     }
 }
 #endif
