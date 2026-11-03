@@ -134,7 +134,7 @@ private struct ReactionsSampleTokens: MonacoAPI.AccessTokenProvider {
     func refreshedToken(replacing _: String) async throws -> String? { nil }
 }
 
-private final class ReactionsSampleTransport: ClientTransport, Sendable {
+final class ReactionsSampleTransport: ClientTransport, Sendable {
     let fails: Bool
     private let state: Mutex<[String: [Components.Schemas.Reaction]]>
 

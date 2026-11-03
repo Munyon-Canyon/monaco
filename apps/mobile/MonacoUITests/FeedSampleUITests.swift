@@ -50,16 +50,22 @@ nonisolated final class FeedSampleUITests: XCTestCase {
     }
 
     @MainActor
-    func testLikeTogglesLocallyAndShareOpensTheSystemSheet() {
+    func testAReactionSticksAndReplyOpensThePost() {
         let app = launch("-feedHarness", "items")
-        let like = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'feed-like-'")).firstMatch
-        XCTAssertTrue(like.waitForExistence(timeout: 15), "no like button")
-        XCTAssertFalse(like.isSelected)
-        like.tap()
-        XCTAssertTrue(like.isSelected, "the like did not stick")
-        let share = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'feed-share-'")).firstMatch
-        share.tap()
-        XCTAssertTrue(app.otherElements["ActivityListView"].waitForExistence(timeout: 15), "no system share sheet")
+        let id = "00000000-0000-7000-8000-0000000fe105"
+        let key = "feed-\(id)"
+        XCTAssertTrue(app.buttons["feed-filter"].waitForExistence(timeout: 15), "the feed did not load")
+        FeedReactAndReplyJourney.addReaction(app, to: key, search: "fire", hex: "1F525", step: "feed sample")
+        let chip = app.element("reaction-chip-\(key)-1F525")
+        XCTAssertTrue(chip.waitForExistence(timeout: 10), "the reaction did not stick as a chip")
+        XCTAssertTrue(chip.label.contains("1"), "the chip does not count the reaction: \(chip.label)")
+
+        let reply = app.element("feed-reply-\(id)")
+        app.scrollIntoReach(reply)
+        XCTAssertTrue(reply.waitForExistence(timeout: 5), "no reply control on the post")
+        reply.tap()
+        let close = app.element("reply-sheet-close")
+        XCTAssertTrue(close.waitForExistence(timeout: 10), "the reply control opened no reply sheet")
     }
 
     @MainActor
