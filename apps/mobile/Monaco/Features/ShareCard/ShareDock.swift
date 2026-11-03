@@ -111,12 +111,20 @@ struct ShareDock: View {
                 identifier: \.identifier, onSelect: { format = $0 })
             stacksButtons {
                 Button(action: share) {
-                    Label("Share", systemImage: MonacoIcon.share.symbol)
+                    Label {
+                        Text("Share")
+                    } icon: {
+                        Image(systemName: MonacoIcon.share.symbol).font(MonacoTheme.Typo.caption).fontWeight(.light)
+                    }
                 }
                 .buttonStyle(.monacoPrimary)
                 .accessibilityIdentifier("share-send")
                 Button(action: copyImage) {
-                    Label("Copy image", systemImage: MonacoIcon.copy.symbol)
+                    Label {
+                        Text("Copy image")
+                    } icon: {
+                        Image(systemName: MonacoIcon.copy.symbol).font(MonacoTheme.Typo.caption).fontWeight(.light)
+                    }
                 }
                 .buttonStyle(.monacoOutline)
                 .accessibilityIdentifier("share-copy-image")
@@ -147,6 +155,9 @@ struct ShareEyeChip: View {
         } label: {
             HStack(spacing: MonacoTheme.Space.xs) {
                 Image(systemName: isOn ? MonacoIcon.eye.symbol : "eye.slash")
+                    .font(MonacoTheme.Typo.caption)
+                    .fontWeight(.light)
+                    .foregroundStyle(MonacoTheme.secondaryText)
                     .accessibilityHidden(true)
                 Text(eye.title(ledger: isLedger))
                     .fixedSize(horizontal: false, vertical: true)

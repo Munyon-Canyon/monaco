@@ -192,7 +192,7 @@ struct ShareScreenContent: View {
                     width: proxy.size.width - MonacoTheme.Space.gutter * 2,
                     height: proxy.size.height - (showsReplay ? replayReserve : 0) - MonacoTheme.Space.s * 2)
                 let fitted = Self.fit(format, in: box)
-                VStack(spacing: MonacoTheme.Space.s) {
+                VStack(spacing: MonacoTheme.Space.xs) {
                     stage(spec, fitted: fitted, progress: progress)
                     if showsReplay { replayRow(spec, progress: progress) }
                 }
@@ -242,13 +242,23 @@ struct ShareScreenContent: View {
                 spec: ShareReplay.spec(spec, at: progress), format: format, eyes: eyes, size: fitted,
                 progress: progress
             )
-            .background { if format == .sticker { ShareCheckerboard() } }
+            .background {
+                if format == .sticker {
+                    ShareCheckerboard()
+                        .clipShape(RoundedRectangle(cornerRadius: MonacoTheme.Radius.shareCard, style: .continuous))
+                }
+            }
         } else if let rendered {
             Image(uiImage: rendered.image)
                 .resizable()
                 .scaledToFit()
                 .frame(width: fitted.width, height: fitted.height)
-                .background { if format == .sticker { ShareCheckerboard() } }
+                .background {
+                    if format == .sticker {
+                        ShareCheckerboard()
+                            .clipShape(RoundedRectangle(cornerRadius: MonacoTheme.Radius.shareCard, style: .continuous))
+                    }
+                }
                 .accessibilityLabel(spec.spoken)
                 .accessibilityAddTraits(.isImage)
                 .accessibilityIdentifier(spec.facts.isLedger ? "ledger-share-card" : "share-card")
