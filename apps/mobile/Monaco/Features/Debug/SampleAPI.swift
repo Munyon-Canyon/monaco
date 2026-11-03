@@ -30,6 +30,8 @@ nonisolated struct SampleAPIScript: Sendable {
     var pot = Components.Schemas.CabalPot.sampleInvested
     var proposal: Components.Schemas.ProposalDetail?
     var membersOnlyReplies = false
+    var comments: [Components.Schemas.CommentThread]?
+    var commentsHaveMore = false
     var vote = VoteAnswer.ordinary
     var undo = UndoAnswer.accepted
     var pendingVotes: [Components.Schemas.PendingVote] = []
@@ -242,7 +244,8 @@ nonisolated final class SampleAPIProtocol: URLProtocol {
                 ?? cabalReply(id: parts[2], tail: tail, range: range, script: script)
         }
         if parts.count >= 3, parts[1] == "proposals" {
-            return proposalReply(id: parts[2], tail: Array(parts.dropFirst(3)), method: method, script: script)
+            return proposalReply(
+                id: parts[2], tail: Array(parts.dropFirst(3)), method: method, query: query, script: script)
         }
         if parts.count >= 2, parts[1] == "assets" {
             return assetReply(tail: Array(parts.dropFirst(2)), query: query, script: script)
@@ -407,7 +410,9 @@ nonisolated extension SampleAPIProtocol {
         }
     }
 
-    private static func proposalReply(id: String, tail: [String], method: String, script: SampleAPIScript) -> Reply {
+    private static func proposalReply(
+        id: String, tail: [String], method: String, query: [String: String], script: SampleAPIScript
+    ) -> Reply {
         guard var proposal = script.proposals[id] ?? script.proposal else {
             return problem(503, "unavailable", "Proposals can't be read right now.")
         }
@@ -443,10 +448,12 @@ nonisolated extension SampleAPIProtocol {
                 Components.Schemas.RetractVoteResult(
                     proposalId: proposal.id, status: proposal.status, tally: proposal.tally))
         case ("GET", "comments"):
+            let isFirstPage = query["cursor"] == nil
             return json(
                 Components.Schemas.ProposalCommentPage(
                     feedObjectId: "01920000-0000-7000-8000-000000000007",
-                    items: threadsWithPosted(proposalThreads), nextCursor: nil))
+                    items: isFirstPage ? threadsWithPosted(script.comments ?? proposalThreads) : [],
+                    nextCursor: isFirstPage && script.commentsHaveMore ? "sample-next" : nil))
         case ("POST", "comments"):
             guard let posted = postedComments.withLock({ $0.last }) else {
                 return problem(400, "invalid_request", "No comment in the request.")

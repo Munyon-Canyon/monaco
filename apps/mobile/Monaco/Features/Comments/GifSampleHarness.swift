@@ -63,13 +63,20 @@ enum GifHost: String {
 struct GifSampleStill: View {
     let id: String
 
-    private static let palette: [Color] = [
-        MonacoTheme.brand, MonacoTheme.profit, MonacoTheme.warning, MonacoTheme.loss,
-    ]
+    nonisolated static func scene(for id: String) -> MonacoWorldScene {
+        guard let number = id.split(separator: "-").last.flatMap({ Int($0) }) else {
+            return MonacoWorldScene.forSeed(id)
+        }
+        return MonacoWorldScene(index: (number * 3) % MonacoWorldScene.count)
+    }
 
     var body: some View {
-        let index = id.unicodeScalars.reduce(0) { $0 + Int($1.value) } % Self.palette.count
-        Self.palette[index].opacity(0.55)
+        Color.clear.overlay {
+            Image(Self.scene(for: id).imageName)
+                .resizable()
+                .scaledToFill()
+        }
+        .clipped()
     }
 }
 
@@ -306,7 +313,7 @@ nonisolated final class SampleGifURLProtocol: URLProtocol {
             let response = HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)
         else { return }
         client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
-        client?.urlProtocol(self, didLoad: SampleGifData.bytes)
+        client?.urlProtocol(self, didLoad: SampleGifData.bytes(for: url))
         client?.urlProtocolDidFinishLoading(self)
     }
 
@@ -314,12 +321,15 @@ nonisolated final class SampleGifURLProtocol: URLProtocol {
 }
 
 nonisolated enum SampleGifData {
-    static let bytes: Data = {
-        let colors: [UIColor] = [.systemBlue, .systemGreen, .systemOrange, .systemRed]
+    private static let zooms: [CGFloat] = [1.0, 1.06, 1.12, 1.06]
+
+    static func bytes(for url: URL) -> Data {
+        let id = url.pathComponents.dropFirst().first ?? ""
+        guard let photo = UIImage(named: GifSampleStill.scene(for: id).imageName) else { return Data() }
         let data = NSMutableData()
         guard
             let destination = CGImageDestinationCreateWithData(
-                data, UTType.gif.identifier as CFString, colors.count, nil)
+                data, UTType.gif.identifier as CFString, zooms.count, nil)
         else { return Data() }
         let file = [kCGImagePropertyGIFDictionary: [kCGImagePropertyGIFLoopCount: 0]]
         CGImageDestinationSetProperties(destination, file as CFDictionary)
@@ -328,12 +338,14 @@ nonisolated enum SampleGifData {
         let format = UIGraphicsImageRendererFormat()
         format.scale = 1
         let renderer = UIGraphicsImageRenderer(size: size, format: format)
-        for (index, color) in colors.enumerated() {
-            let image = renderer.image { context in
-                color.setFill()
-                context.fill(CGRect(origin: .zero, size: size))
-                UIColor.white.setFill()
-                context.fill(CGRect(x: CGFloat(index) * 50, y: 50, width: 50, height: 50))
+        for zoom in zooms {
+            let image = renderer.image { _ in
+                let fill = max(size.width / photo.size.width, size.height / photo.size.height) * zoom
+                let drawn = CGSize(width: photo.size.width * fill, height: photo.size.height * fill)
+                photo.draw(
+                    in: CGRect(
+                        x: (size.width - drawn.width) / 2, y: (size.height - drawn.height) / 2,
+                        width: drawn.width, height: drawn.height))
             }
             if let cgImage = image.cgImage {
                 CGImageDestinationAddImage(destination, cgImage, frame as CFDictionary)
@@ -341,6 +353,6 @@ nonisolated enum SampleGifData {
         }
         CGImageDestinationFinalize(destination)
         return data as Data
-    }()
+    }
 }
 #endif

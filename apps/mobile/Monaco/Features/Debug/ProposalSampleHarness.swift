@@ -127,16 +127,19 @@ enum ProposalSampleScenario: String, CaseIterable {
         case .nvdaOpen:
             script.asset = .nvda
             script.proposal = .votableNVDA()
+            script.showReplies(ProposalSampleThreads.open, total: 6)
         case .nvdaPassed:
             script.asset = .nvda
             script.proposal = Components.Schemas.ProposalDetail.filledNVDA()
                 .closedResult(yes: 4, no: 1, voters: 6, needed: 4, ballot: .yes, order: 4, sides: false)
+            script.showReplies(ProposalSampleThreads.passed, total: 7)
         case .closedSidesOn:
             script.asset = .nvda
             script.proposal = Components.Schemas.ProposalDetail.filledNVDA()
                 .closedResult(yes: 2, no: 1, voters: 5, needed: 3, ballot: .yes, order: 2, sides: true)
                 .withNonVoters(["Sam", "Mia"])
                 .withPhotoVoters()
+            script.showReplies(ProposalSampleThreads.passed, total: 7)
         case .closedSidesPrivate:
             script.asset = .nvda
             script.proposal = .passedNVDA().withHiddenSides()
@@ -144,6 +147,7 @@ enum ProposalSampleScenario: String, CaseIterable {
             script.asset = .nvda
             script.proposal = Components.Schemas.ProposalDetail.filledNVDA()
                 .closedResult(yes: 4, no: 1, voters: 6, needed: 4, ballot: .yes, order: 4, sides: false)
+            script.showReplies(ProposalSampleThreads.passed, total: 7)
         case .nvdaPassedMoment:
             script.asset = .nvda
             script.proposal = Components.Schemas.ProposalDetail.filledNVDA().voted(.yes)
@@ -154,12 +158,15 @@ enum ProposalSampleScenario: String, CaseIterable {
             script.asset = .teslaTSLA
             script.proposal = Components.Schemas.ProposalDetail.failedTSLA()
                 .closedResult(yes: 2, no: 2, voters: 5, needed: 3, ballot: .no, order: 2, sides: false)
+            script.showReplies(ProposalSampleThreads.failed, total: 4)
         case .spaceXOpen:
             script.asset = .spaceX
             script.proposal = .preIpoSpaceX().votedYesOfSix()
+            script.showReplies(ProposalSampleThreads.preIpo, total: 3)
         case .voteOrdinary:
             script.asset = .nvda
             script.proposal = .votableNVDA()
+            script.showReplies(ProposalSampleThreads.open, total: 6)
         case .votePicked, .voteHolding:
             script.asset = .nvda
             script.proposal = .votableNVDA()
