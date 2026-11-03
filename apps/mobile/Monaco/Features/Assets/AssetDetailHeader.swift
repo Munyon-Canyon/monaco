@@ -57,7 +57,7 @@ struct AssetDetailHeader: View {
                 symbol: detail.symbol, displayName: detail.name, assetKind: detail.kind, size: Self.logoSize,
                 logoURL: detail.market.logoURL)
             Text(detail.name)
-                .font(MonacoTheme.Typo.title)
+                .font(MonacoTheme.Typo.title2)
                 .foregroundStyle(MonacoTheme.primaryText)
                 .lineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)
@@ -83,15 +83,15 @@ struct AssetDetailHeader: View {
     @ViewBuilder private var price: some View {
         if let scrub {
             Text(scrub.price)
-                .moneyFont(.hero)
+                .moneyFont(.display)
                 .lineLimit(1)
-                .minimumScaleFactor(MoneyStyle.hero.minimumScaleFactor)
+                .minimumScaleFactor(MoneyStyle.display.minimumScaleFactor)
                 .accessibilityIdentifier("asset-detail-price")
         } else if let micros = detail.priceMicros {
             Self.hero(UsdAmountFormatter.format(micros: micros))
-                .moneyFont(.hero)
+                .moneyFont(.display)
                 .lineLimit(1)
-                .minimumScaleFactor(MoneyStyle.hero.minimumScaleFactor)
+                .minimumScaleFactor(MoneyStyle.display.minimumScaleFactor)
                 .priceTickFlash(
                     priceTick, in: RoundedRectangle(cornerRadius: MonacoTheme.Radius.chip, style: .continuous),
                     expand: MonacoTheme.Space.xs
@@ -99,10 +99,10 @@ struct AssetDetailHeader: View {
                 .accessibilityIdentifier("asset-detail-price")
         } else {
             Text("—")
-                .moneyFont(.hero)
+                .moneyFont(.display)
                 .foregroundStyle(MonacoTheme.secondaryText)
                 .lineLimit(1)
-                .minimumScaleFactor(MoneyStyle.hero.minimumScaleFactor)
+                .minimumScaleFactor(MoneyStyle.display.minimumScaleFactor)
         }
     }
 

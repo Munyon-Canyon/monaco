@@ -21,7 +21,7 @@ struct MonacoScreen<Content: View>: View {
 }
 
 enum MonacoSearchFieldMetrics {
-    static let minHeight: CGFloat = 48
+    static let minHeight: CGFloat = 44
     static let iconSize: CGFloat = 18
 }
 
@@ -42,7 +42,7 @@ struct MonacoSearchField: View {
             TextField("", text: $text, prompt: Text(placeholder).foregroundStyle(MonacoTheme.secondaryText))
                 .font(MonacoTheme.Typo.body)
                 .foregroundStyle(MonacoTheme.ink)
-                .tint(MonacoTheme.ink)
+                .tint(MonacoTheme.accent)
                 .autocorrectionDisabled()
                 .submitLabel(.search)
                 .disabled(!isEnabled)
@@ -65,7 +65,7 @@ struct MonacoSearchField: View {
         .padding(.trailing, text.isEmpty || !showsClear ? MonacoTheme.Space.sm : 0)
         .frame(minHeight: MonacoSearchFieldMetrics.minHeight)
         .background(
-            RoundedRectangle(cornerRadius: MonacoTheme.Radius.search, style: .continuous)
+            Capsule(style: .continuous)
                 .fill(MonacoTheme.surfaceSunken)
         )
         .opacity(isEnabled ? 1 : 0.6)

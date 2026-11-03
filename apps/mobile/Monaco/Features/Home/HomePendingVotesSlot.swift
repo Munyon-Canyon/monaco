@@ -47,12 +47,12 @@ struct HomePendingVotes: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             if let model {
-                HomeSectionHeader(
-                    title: "Your vote", count: model.waitingCount > 0 ? model.waitingCount : nil,
-                    trailing: "All proposals"
+                MonacoSectionHeader(
+                    "Your vote", count: model.waitingCount > 0 ? model.waitingCount : nil, trailing: "All proposals"
                 ) {
                     environment.navigator.open(PendingVotesRoute(), in: .home)
                 }
+                .secondaryCount()
                 switch model.phase {
                 case .loading: loading
                 case .failed: failed(model)

@@ -46,7 +46,7 @@ private struct HomeFeedPreview: View {
         let hidden = rows.isEmpty || waitsForFirstUse
         VStack(alignment: .leading, spacing: 0) {
             if !hidden {
-                HomeSectionHeader(title: header, trailing: "See all", actionIdentifier: "home-feed-see-all") {
+                MonacoSectionHeader(header, trailing: "See all", actionIdentifier: "home-feed-see-all") {
                     environment.navigator.selectedTab = .feed
                 }
                 .padding(.horizontal, MonacoTheme.Space.gutter)

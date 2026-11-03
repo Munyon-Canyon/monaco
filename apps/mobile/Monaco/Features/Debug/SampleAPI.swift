@@ -523,6 +523,13 @@ nonisolated extension SampleAPIProtocol {
                 assetList(
                     query: query, empty: script.mode == .empty, paused: script.includesPausedStock, script: script))
         case 1:
+            if tail[0] == "quotes" {
+                let wanted = Set((query["symbols"] ?? "").split(separator: ",").map(String.init))
+                let all = assetList(
+                    query: [:], empty: script.mode == .empty, paused: script.includesPausedStock, script: script)
+                let quoted = all.assets.filter { wanted.contains($0.symbol) }
+                return json(Components.Schemas.AssetList(assets: quoted, nextCursor: nil))
+            }
             if let detail = script.assets[tail[0]] { return json(detail) }
             let listed = script.catalog.first { $0.symbol == tail[0] }
             return json(listed.map(Components.Schemas.AssetDetail.init(listing:)) ?? script.asset)

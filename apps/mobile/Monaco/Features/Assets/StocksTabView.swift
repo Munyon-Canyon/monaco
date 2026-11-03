@@ -43,6 +43,7 @@ struct StocksTabView: View {
         }
         .monacoTopLevelHeader(title: StocksTab.title)
         .toolbar(searching ? .hidden : .automatic, for: .navigationBar)
+        .toolbar(searching ? .hidden : .automatic, for: .tabBar)
         .toolbar {
             if !searching {
                 ToolbarItem(placement: .topBarTrailing) {
