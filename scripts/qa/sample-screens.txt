@@ -838,10 +838,10 @@ f__12-toast                         -MonacoParitySample toast-settled
 f__12-info-sheet                    -MonacoParitySample info-sheet
 f__12-info-sheet-content            -MonacoParitySample info-sheet-content
 f__04-vote-closed                   -MonacoProposalSample nvdaFilled
-f__04-proposal-passed               -MonacoProposalSample nvdaPassed
+f__04-proposal-passed               -MonacoProposalSample nvdaPassed -MonacoSampleScroll bottom
 f__15-passed                        -MonacoProposalSample nvdaPassedMoment
-f__04-proposal-sides                -MonacoProposalSample closedSidesOn
-f__04-proposal-failed               -MonacoProposalSample tslaFailed
+f__04-proposal-sides                -MonacoProposalSample closedSidesOn -MonacoSampleScroll bottom
+f__04-proposal-failed               -MonacoProposalSample tslaFailed -MonacoSampleScroll bottom
 f__04-proposal-preipo               -MonacoProposalSample spaceXOpen
 f__04-reply-composer                -composerHarness sheetComment
 f__04-composer-menu                 -composerHarness menu
