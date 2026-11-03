@@ -18,7 +18,7 @@ struct CallBoardUnrankedCardView: View {
                 }
             }
             CallBoardClimbBar(fraction: card.climb)
-            Text(card.pending).font(.footnote).foregroundStyle(MonacoTheme.primaryText)
+            Text(card.pending).font(MonacoTheme.Typo.subhead).foregroundStyle(MonacoTheme.primaryText)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: .infinity)
         }
