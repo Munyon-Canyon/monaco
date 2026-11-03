@@ -58,7 +58,7 @@ struct AssetInYourCabals: View {
         MonacoRow(title: row.title, subtitle: row.subtitle, subtitleLineLimit: 3, isLast: isLast) {
             cover(id: row.cabalID, name: row.cabalName, pictureURL: row.pictureURL)
         } trailing: {
-            Text(row.trailing).moneyFigure(.caption).foregroundStyle(MonacoTheme.secondaryText)
+            CabalLiveCount(yes: row.yes, no: row.no)
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel([row.title, row.subtitle, row.trailing].joined(separator: ", "))

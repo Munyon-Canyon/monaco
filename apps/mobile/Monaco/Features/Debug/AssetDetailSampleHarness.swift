@@ -116,7 +116,7 @@ extension SampleAPIScript {
             let segment = min(index / span, swings.count - 2)
             let within = Int64(index - segment * span)
             let slow = swings[segment] + (swings[segment + 1] - swings[segment]) * within / Int64(span)
-            let ripple = Int64((index * 37) % 5 - 2) * 120_000
+            let ripple = Int64((index * 37) % 5 - 2) * 30_000
             let noise = index == candleCount - 1 ? 0 : slow + ripple
             let close = start + curve + noise
             let open = index == 0 ? start : points[index - 1].closeMicros
