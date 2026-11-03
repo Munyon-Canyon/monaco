@@ -50,6 +50,37 @@ Fixes to the test from this run:
 
 After those fixes, `testHoldCommitsOnPressAndHold` (0.8 s press commits), `testShortPressDoesNotCommit` (0.2 s does not), `testVoteButtonsAreLabelled` and `testUndoToastIsReachable` (Undo is a hittable 44 pt button while the toast is up) all pass: `** TEST SUCCEEDED **`, 4 tests, same simulator.
 
+## Rerun after #7393 (2026-10-31)
+
+Run: groups 03, 04, 05, 10, 11, 12, 14, 15 and 19 on the lane sim "Monaco 7393" (iPhone 17, iOS 27.0, headless). Other groups were not rerun.
+
+The audit now reports each distinct issue (identifier, label, type, description) once per frame. Earlier counts repeated an issue once per swipe pass.
+
+The allowlist `FAuditScreens.allowed` matches screen, identifier, label, type and description prefix, and every entry has a reason. Entries:
+
+- Sheet backdrop "Potentially inaccessible text" on f__04-reply-composer, f__04-gif-sheet, f__05-post-reply, f__11-invite-sheet, f__12-info-sheet, f__14-hold-sheet, f__14-wrap-sheet, f__15-passed and f__19-permission-sheet. With a sheet up the tree holds only the dismiss region and the sheet, so the flagged text is the screen behind it, not the title or grabber the first run guessed.
+- The focused reply-sheet `comment-composer-field` hit on f__04-reply-composer and f__05-post-reply (UIKit text field frame, 227x19).
+The system keyboard's predictive cells did not show in this run, so they have no entry. The run also allowed the hidden hero initials on f__03-cabal-empty; #7741 has since labelled that picture ("Picture of <cabal>"), so the entry was dropped before landing.
+
+Distinct issues allowed: 12. Left: 61. Per group, left: 03 hit 2, detect 1 · 04 hit 40 · 05 hit 11 · 10 hit 2, detect 1 · 12 hit 3 · 14 hit 1. Groups 11, 15 and 19 pass.
+
+Where the remaining issues go:
+
+- Comment bodies `comment-body-*` (04: 26, 05: 11) go to #7374.
+- The `proposal-vote-status`, `proposal-vote-settled`, `home-vote-settled-*`, `platform-balance-value`, `profile-balance-value`, `home-portfolio-chip` and `cabal-pot-value` hit regions go to #7390.
+- The 03-cabals-tab and 10-profile-other detect issues and the 03-cabal-members-all "Leo" row hit go to #7394.
+
+All three tickets have since landed: #7716 (#7374), #7741 (#7394) and #7390's fix. These counts are from 10-31 and predate them; the 11-02 group 03 and 10 rerun is above.
+
+Fixes that took:
+
+- Relative times and `proposal-result-tally` are no longer flagged.
+- "Asked to join" and `post-share` are not flagged in these groups.
+- The Profile Positions figure ("$11,582.00") now speaks "Positions" with a dollar amount and is no longer flagged as not human-readable.
+- The Propose review cabal row reads its mark and name as one element.
+
+Still flagged: `cabal-pot-value` (Treasury, $600.00) on 03-cabal-empty, which goes to #7390.
+
 ## Code reads
 
 ### Vote buttons: one `VotePair` on every hold surface

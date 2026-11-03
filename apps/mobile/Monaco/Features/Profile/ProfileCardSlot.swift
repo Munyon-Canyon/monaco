@@ -146,6 +146,9 @@ private struct ProfileCardFigures: View {
                 .accessibilityIdentifier("profile-positions-info")
             }
             positionsFigure
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(ProfileCopy.positionsLabel)
+                .accessibilityValue(spokenPositions)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .contain)
@@ -194,6 +197,16 @@ private struct ProfileCardFigures: View {
         case .loading: "loading"
         case .failed: "unavailable"
         case .figure(_, let text, _): PnLSpeech.dollars(text)
+        }
+    }
+
+    private var spokenPositions: String {
+        switch positions {
+        case .idle, .loading: "loading"
+        case .failed: "unavailable"
+        case .loaded(let summary):
+            SignedUsdFormatter.parse(summary.stats.inCabals).map { PnLSpeech.spokenAmount($0 < 0 ? -$0 : $0) }
+                ?? "unavailable"
         }
     }
 

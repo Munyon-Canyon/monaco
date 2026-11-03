@@ -162,13 +162,16 @@ struct ProposeReviewScreen: View {
 
     private func cabalRow(_ model: MonacoCore.ProposeReviewModel) -> some View {
         HStack(spacing: MonacoTheme.Space.sm) {
-            CabalMark(groupId: cabalID, name: model.cabal.name, size: 32)
-            VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
-                Text(model.cabal.name).font(MonacoTheme.Typo.headline).foregroundStyle(MonacoTheme.ink)
-                    .fixedSize(horizontal: false, vertical: true)
-                Text(model.cabalLine).font(MonacoTheme.Typo.subhead).foregroundStyle(MonacoTheme.secondaryText)
-                    .fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: MonacoTheme.Space.sm) {
+                CabalMark(groupId: cabalID, name: model.cabal.name, size: 32)
+                VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
+                    Text(model.cabal.name).font(MonacoTheme.Typo.headline).foregroundStyle(MonacoTheme.ink)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text(model.cabalLine).font(MonacoTheme.Typo.subhead).foregroundStyle(MonacoTheme.secondaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
+            .accessibilityElement(children: .combine)
             Spacer(minLength: 0)
             if let onChangeCabal {
                 Button(ProposeFlowCopy.changeCabal, action: onChangeCabal)
