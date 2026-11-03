@@ -68,7 +68,7 @@ nonisolated final class ProposalFeedSampleUITests: XCTestCase {
         capture("02-proposal-vote")
 
         castVote("yes")
-        XCTAssertTrue(toast(containing: "Voted Yes").waitForExistence(timeout: 5), "no toast after voting")
+        XCTAssertTrue(labelled(containing: "Voted Yes").waitForExistence(timeout: 5), "no toast after voting")
         XCTAssertTrue(
             element("proposal-change-vote").waitForExistence(timeout: 5), "the vote section should offer Change")
         XCTAssertFalse(element("proposal-vote-yes").exists, "the Yes button should be gone once voted")
@@ -77,7 +77,7 @@ nonisolated final class ProposalFeedSampleUITests: XCTestCase {
         element("proposal-change-vote").tap()
         XCTAssertTrue(element("proposal-vote-no").waitForExistence(timeout: 5), "Change never offered No")
         castVote("no")
-        XCTAssertTrue(toast(containing: "Changed to No").waitForExistence(timeout: 5), "no toast after changing")
+        XCTAssertTrue(labelled(containing: "Changed to No").waitForExistence(timeout: 5), "no toast after changing")
 
         XCTAssertTrue(element("comment-thread").waitForExistence(timeout: 10), "the thread never drew")
         let quotes = app.staticTexts.matching(NSPredicate(format: "label == %@", "Earnings next week."))
@@ -94,14 +94,14 @@ nonisolated final class ProposalFeedSampleUITests: XCTestCase {
         let keyboardWasUp = app.keyboards.firstMatch.exists
         element("comment-composer-send").tap()
         XCTAssertTrue(
-            app.staticTexts["Count me in if we cap it at $25."].waitForExistence(timeout: 5),
+            labelled(containing: "Count me in if we cap it at $25.").waitForExistence(timeout: 5),
             "the posted comment never reached the thread")
         if keyboardWasUp {
             XCTAssertTrue(
                 app.keyboards.firstMatch.waitForNonExistence(timeout: 5), "the keyboard stayed up over the thread")
         }
         XCTAssertTrue(
-            waitUntilHittable(app.staticTexts["Count me in if we cap it at $25."]),
+            waitUntilHittable(labelled(containing: "Count me in if we cap it at $25.")),
             "the posted comment is off screen or behind the composer"
         )
         capture("05-comment-posted")
@@ -115,13 +115,13 @@ nonisolated final class ProposalFeedSampleUITests: XCTestCase {
         sheetField.typeText("Agreed, Nvidia next.")
         element("comment-composer-send").tap()
         XCTAssertTrue(
-            app.staticTexts["Agreed, Nvidia next."].waitForExistence(timeout: 5),
+            labelled(containing: "Agreed, Nvidia next.").waitForExistence(timeout: 5),
             "the posted reply never reached the thread")
         XCTAssertTrue(
             app.staticTexts["Reply to Maya"].waitForNonExistence(timeout: 5),
             "the reply sheet should close after posting")
         XCTAssertTrue(
-            waitUntilHittable(app.staticTexts["Agreed, Nvidia next."]),
+            waitUntilHittable(labelled(containing: "Agreed, Nvidia next.")),
             "the posted reply is off screen or behind the composer"
         )
         capture("06-reply-posted")
@@ -145,7 +145,7 @@ nonisolated final class ProposalFeedSampleUITests: XCTestCase {
         scrollAboveComposer(yes)
         capture("30-vote-open")
 
-        scrollIntoReach(element("comment-row-c1"))
+        app.swipeUp()
         XCTAssertLessThan(yes.frame.minY, before, "the vote should scroll with the content, not float")
         XCTAssertTrue(field.isHittable, "the composer should stay reachable at the bottom")
     }
@@ -166,7 +166,7 @@ nonisolated final class ProposalFeedSampleUITests: XCTestCase {
 
     @MainActor
     func testVoted_showsYouVotedAndChangeVote() throws {
-        launch("voted")
+        launch("votesRecorded")
         let voted = element("proposal-voted")
         XCTAssertTrue(voted.waitForExistence(timeout: 10), "the voted line never drew")
         XCTAssertTrue(voted.label.contains("You voted Yes"), "the voted line should name the ballot: \(voted.label)")
@@ -235,9 +235,8 @@ nonisolated final class ProposalFeedSampleUITests: XCTestCase {
             NSPredicate(format: "identifier BEGINSWITH 'proposal-voter-'"))
         XCTAssertEqual(voters.count, 3, "the sheet should list the three voters")
         XCTAssertTrue(
-            app.descendants(matching: .any).matching(NSPredicate(format: "label == %@", "Kai voted yes")).firstMatch
-                .exists,
-            "Kai's yes is missing")
+            voters.matching(NSPredicate(format: "label ENDSWITH %@", " voted yes")).firstMatch.exists,
+            "the yes voter's row is missing")
         capture("07-votes-sheet")
         app.buttons["Close"].tap()
         XCTAssertTrue(element("proposal-vote-yes").waitForExistence(timeout: 5), "Close should return to the proposal")
