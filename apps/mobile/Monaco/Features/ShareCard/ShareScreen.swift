@@ -235,13 +235,22 @@ struct ShareScreenContent: View {
         return image
     }
 
+    private func stickerInset(_ fitted: CGSize) -> CGSize {
+        guard format == .sticker else { return fitted }
+        let pad = MonacoTheme.Space.l * 2
+        let scale = max(0, min((fitted.width - pad) / fitted.width, (fitted.height - pad) / fitted.height))
+        return CGSize(width: fitted.width * scale, height: fitted.height * scale)
+    }
+
     @ViewBuilder
     private func stage(_ spec: ShareCardSpec, fitted: CGSize, progress: Double?) -> some View {
+        let inner = stickerInset(fitted)
         if let progress {
             ShareExportView(
-                spec: ShareReplay.spec(spec, at: progress), format: format, eyes: eyes, size: fitted,
+                spec: ShareReplay.spec(spec, at: progress), format: format, eyes: eyes, size: inner,
                 progress: progress
             )
+            .frame(width: fitted.width, height: fitted.height)
             .background {
                 if format == .sticker {
                     ShareCheckerboard()
@@ -252,6 +261,7 @@ struct ShareScreenContent: View {
             Image(uiImage: rendered.image)
                 .resizable()
                 .scaledToFit()
+                .frame(width: inner.width, height: inner.height)
                 .frame(width: fitted.width, height: fitted.height)
                 .background {
                     if format == .sticker {
