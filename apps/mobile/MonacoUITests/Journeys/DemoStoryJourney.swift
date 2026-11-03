@@ -2,7 +2,7 @@ import XCTest
 
 enum DemoStoryJourney {
     static let id = "demo/story"
-    static let version = 8
+    static let version = 9
 
     static let screenTimeout: TimeInterval = 15
     static let formTimeout: TimeInterval = 10
@@ -151,7 +151,7 @@ enum DemoStoryJourney {
             XCTAssertTrue(row.waitForExistence(timeout: formTimeout), "S4.2: no GOOGL row")
             row.tap()
             XCTAssertTrue(
-                app.element("amount-keypad-screen").waitForExistence(timeout: formTimeout), "S4.2: no amount screen")
+                app.element("propose-amount-screen").waitForExistence(timeout: formTimeout), "S4.2: no amount screen")
             MoneyFundCabalJourney.typeAmount(app, "1")
             app.buttons["amount-keypad-action"].tap()
             XCTAssertTrue(
