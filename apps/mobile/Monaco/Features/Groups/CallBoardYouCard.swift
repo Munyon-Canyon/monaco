@@ -34,7 +34,9 @@ struct CallBoardYouCard: View {
             }
             CallBoardClimbBar(fraction: card.climb)
             if let gap = card.gapLine {
-                Text(gap).font(MonacoTheme.Typo.headline).foregroundStyle(MonacoTheme.primaryText)
+                Text(gap).font(MonacoTheme.Typo.subhead).foregroundStyle(MonacoTheme.primaryText)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity)
             }
         }
         .padding(MonacoTheme.Space.m)
@@ -53,7 +55,7 @@ struct CallBoardYouCard: View {
 
     private var middle: some View {
         VStack(spacing: MonacoTheme.Space.xs) {
-            Text(card.rankText).font(MonacoTheme.Typo.title).foregroundStyle(MonacoTheme.primaryText)
+            Text(card.rankText).font(MonacoTheme.Typo.title).foregroundStyle(MonacoTheme.secondaryText)
             Text(card.ofLine).font(MonacoTheme.Typo.subhead).foregroundStyle(MonacoTheme.secondaryText)
             if let line = card.neighbourLine {
                 Text(line).font(MonacoTheme.Typo.caption).foregroundStyle(MonacoTheme.secondaryText)

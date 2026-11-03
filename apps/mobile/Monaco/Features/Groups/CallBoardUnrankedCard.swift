@@ -1,20 +1,26 @@
 import MonacoRanking
 import SwiftUI
 
+enum CallBoardUnrankedCardMetrics {
+    static let avatar: CGFloat = 40
+}
+
 struct CallBoardUnrankedCardView: View {
     let card: CallBoardUnrankedCard
 
     var body: some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.sm) {
             HStack(spacing: MonacoTheme.Space.sm) {
-                CallBoardAvatar(row: card.subject, size: CallBoardCardMetrics.avatar)
+                CallBoardAvatar(row: card.subject, size: CallBoardUnrankedCardMetrics.avatar)
                 VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
                     Text(card.title).font(MonacoTheme.Typo.headline).foregroundStyle(MonacoTheme.primaryText)
                     Text(card.progress).font(MonacoTheme.Typo.subhead).foregroundStyle(MonacoTheme.secondaryText)
                 }
             }
             CallBoardClimbBar(fraction: card.climb)
-            Text(card.pending).font(MonacoTheme.Typo.subhead).foregroundStyle(MonacoTheme.secondaryText)
+            Text(card.pending).font(MonacoTheme.Typo.subhead).foregroundStyle(MonacoTheme.primaryText)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: .infinity)
         }
         .padding(MonacoTheme.Space.m)
         .frame(maxWidth: .infinity, alignment: .leading)
