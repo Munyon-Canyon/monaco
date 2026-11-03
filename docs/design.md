@@ -4,7 +4,7 @@ The look in one sentence: **Apple native, dark first: a black (or white) canvas,
 
 This is design option F, "Native", which the founder chose on 10-26. The [F package](design/f/README.md) holds the frames, the gallery, the [notes](design/f/notes.md) with the build map and fixture table, and the [kit](design/f/kit.md). This page is the rule set; the package is the picture.
 
-Kept: SF Pro only, tabular figures, every colour and font a token, the 15pt text floor, the slot architecture, toasts for confirmations, the product words, pixel-animal default avatars, the "monaco" wordmark as Home's title, the rounded profile card, native chart behaviour (candles, intervals, pinch and pan, crosshair).
+Kept: SF Pro only, tabular figures, every colour and font a token, the 15pt text floor, the slot architecture, toasts for confirmations, the product words, Monaco-character default faces and Monaco world scenes as default cabal pictures, the "monaco" wordmark as Home's title, the rounded profile card, native chart behaviour (candles, intervals, pinch and pan, crosshair).
 
 Gone: the v3 paper canvas and its ink-green text, cards drawn with a border everywhere, capsule P&L pills, cover-art cabal cards with text on a scrim (rows lead with the cabal's **crest**; the cabal page keeps its picture as a plain header with nothing drawn on it), the dark identity card's palette (the profile card is a `surface` card at radius 12), segment pickers for sections, range pills, the chart gradient, hand-tuned glass fills.
 
@@ -23,7 +23,7 @@ Each one is a check you run on a screenshot. Frames: [`01-tokens-controls`](desi
 3. **Flat lists, few cards.** Lists sit on the canvas with an inset hairline that starts at the label column. A card (`cell` fill, radius 12, no border, no shadow) holds one object only: the vote card, the cash row, the stat row, a settings group, the profile card. Never stack two separators.
 4. **One prominent button per screen**: 50pt, radius 10, `brand` fill. A button row holds at most two buttons.
 5. **Two lines per row, one trailing fact.** A figure over its change counts as one fact. Previews show four or five rows plus "See all".
-6. **Images everywhere.** Ticker logos, people's photos (circles), and cabal crests (a square cut of the cabal's picture, radius 6). Without a picture, a crest is the cabal's initials on its identity hue (cabals have no symbol field, so the kit's "one symbol" is not built; founder, 10-27: Q22).
+6. **Images everywhere.** Ticker logos, people's photos (circles), and cabal crests (a square cut of the cabal's picture, radius 6). Without a photo, a person is one of Monaco's 22 characters and, without a picture, a cabal shows one of 26 Monaco world scenes, each picked by a stable hash of the id (founder, 11-02, #7765, which supersedes Q22). The initials on the identity hue show only while a picture loads. Cabals have no symbol field, so the kit's "one symbol" is not built.
 7. **Native chrome.**
    - the system tab bar;
    - large titles that fold into the inline bar;
@@ -177,7 +177,7 @@ Other founder answers of 10-27, each by its number in the tracking issue:
 
 - **Q19, Q20:** the two exceptions to "no crypto words", under Composition rules.
 - **Q21:** sheets take the large detent at accessibility text sizes; the sheet helper (#6470) owns it.
-- **Q22:** a crest without a picture is the cabal's initials on its identity hue.
+- **Q22:** a crest without a picture was the cabal's initials on its identity hue; since 11-02 (#7765) it is a Monaco world scene, and the initials show only while a picture loads.
 - **Q23:** AA corrections to the colour values are #6432's, written back to the Colour table.
 - **Q24:** the toast stays at least 4s.
 - **Q25:** screens with no F frame, below.

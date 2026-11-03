@@ -2,7 +2,7 @@ import XCTest
 
 enum ProfileNudgeJourney {
     static let id = "profile/nudge"
-    static let version = 4
+    static let version = 5
 
     static let nudgeCopy = "Connect X to find people you follow"
     static let rateLimitCopy = "Too many requests. Try again in a moment."
@@ -21,9 +21,9 @@ enum ProfileNudgeJourney {
                 XCTAssertTrue(
                     picker.waitForExistence(timeout: 10) && picker.isEnabled, "S1.1: the avatar is not tappable")
                 picker.tap()
-                let fox = app.buttons["face-option-fox"]
-                XCTAssertTrue(fox.waitForExistence(timeout: 5), "S1.1: no fox on the face sheet")
-                fox.tap()
+                let bev = app.buttons["face-option-bev"]
+                XCTAssertTrue(bev.waitForExistence(timeout: 5), "S1.1: no Bev on the face sheet")
+                bev.tap()
                 labels.append(ProfileEditJourney.toastLabel(app, step: "S1.1", timeout: 30))
             }
             XCTAssertTrue(

@@ -13,6 +13,7 @@ struct CabalCover<Overlay: View>: View {
     private let overlay: Overlay
 
     @State private var loadedPicture: UIImage?
+    @State private var pictureFailed = false
     @MonacoReduceTransparency private var reduceTransparency
     @Environment(\.displayScale) private var displayScale
 
@@ -87,6 +88,10 @@ struct CabalCover<Overlay: View>: View {
                     Image(uiImage: picture)
                         .resizable()
                         .scaledToFill()
+                } else if pictureURL == nil || pictureFailed {
+                    Image(MonacoWorldScene.forSeed(cabalId).imageName)
+                        .resizable()
+                        .scaledToFill()
                 }
             }
             .clipped()
@@ -106,6 +111,7 @@ struct CabalCover<Overlay: View>: View {
 
     private func loadPicture() async {
         loadedPicture = nil
+        pictureFailed = false
         guard let pictureURL else { return }
         let store = MonacoRemoteImageStore.avatars
         if let cached = store.cachedImage(for: pictureURL) {
@@ -113,7 +119,11 @@ struct CabalCover<Overlay: View>: View {
             return
         }
         let fetched = await store.image(for: pictureURL)
-        guard !Task.isCancelled, let fetched else { return }
+        guard !Task.isCancelled else { return }
+        guard let fetched else {
+            pictureFailed = true
+            return
+        }
         withAnimation(.easeOut(duration: 0.2)) { loadedPicture = fetched }
     }
 }

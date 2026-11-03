@@ -142,14 +142,7 @@ struct FirstFundContent: View {
         CabalCover(
             cabalId: value.cabal.id, tint: tint, pictureURL: CabalMark.resolvedURL(value.cabal.pictureUrl),
             style: .heroTall
-        ) {
-            if CabalMark.resolvedURL(value.cabal.pictureUrl) == nil {
-                Text(CabalMark.initials(for: value.cabal.name))
-                    .font(MonacoTheme.Typo.display)
-                    .foregroundStyle(MonacoTheme.onCover)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
-        }
+        )
         .accessibilityHidden(true)
     }
 

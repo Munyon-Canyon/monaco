@@ -205,19 +205,10 @@ struct CabalHeroCover: View {
             style: tall ? .heroTall : .hero
         ) {
             if plain {
-                plainOverlay
+                EmptyView()
             } else {
                 nameOverlay
             }
-        }
-    }
-
-    @ViewBuilder private var plainOverlay: some View {
-        if CabalMark.resolvedURL(editor.pictureUrl) == nil {
-            Text(CabalMark.initials(for: cabal.name))
-                .font(MonacoTheme.Typo.display)
-                .foregroundStyle(MonacoTheme.onCover)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 

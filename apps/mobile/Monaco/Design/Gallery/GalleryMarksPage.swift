@@ -79,6 +79,17 @@ struct GalleryCabalMarkSamples: View {
                         }
                     }
                 }
+                GalleryCase(caption: "Default world scenes, all \(MonacoWorldScene.count)") {
+                    GalleryGrid(minimum: 96) {
+                        ForEach(MonacoWorldScene.all, id: \.index) { scene in
+                            Image(scene.imageName)
+                                .resizable()
+                                .scaledToFill()
+                                .frame(height: 56)
+                                .clipShape(RoundedRectangle(cornerRadius: MonacoTheme.Radius.tile, style: .continuous))
+                        }
+                    }
+                }
             }
         }
     }

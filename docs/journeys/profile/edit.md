@@ -1,7 +1,7 @@
 ---
 id: profile/edit
 title: Edit your profile
-version: 6
+version: 7
 milestone: M9
 requires: [auth/sign-in]
 actors: [A]
@@ -54,7 +54,7 @@ Starts signed in (auth/sign-in).
 
 | Step | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- |
-| S3.1 | tap, then tap | the Profile tab, then `profile-photo-edit` | | `face-picker-sheet` shows within 5 s with "Your face", eight `face-option-…` animals and `face-choose-photo` reading "Choose a photo" |
+| S3.1 | tap, then tap | the Profile tab, then `profile-photo-edit` | | `face-picker-sheet` shows within 5 s with "Your face", 22 `face-option-…` characters and `face-choose-photo` reading "Choose a photo" |
 | S3.2 | tap, then tap | `face-choose-photo`, then the first image labelled "Photo, …" in the library | | `monaco-toast-banner` reads "Profile photo updated." within 20 s |
 
 ### S4 The name survives a relaunch
@@ -71,7 +71,7 @@ After a run, A's `users` row has `display_name = 'Alfred {QA.run}'` and a `photo
 
 ## Not covered
 
-- Telling a library photo from an animal on the avatar. An animal is stored as a photo too, and the avatar always reads "Edit profile photo". The toast in S3.2 says which one was picked.
+- Telling a library photo from a character on the avatar. A character is stored as a photo too, and the avatar always reads "Edit profile photo". The toast in S3.2 says which one was picked.
 - Saving a new username. A handle is unique and can change only once per period, so a run would use up actor A's next change. `HandleAvailabilityCheckerTests` covers the checks, and the Edit profile sample scenarios cover the field states.
 - Saving the bio and the "Show my 1M return" toggle. The journey leaves both alone so A's profile stays the same across runs. `ProfileBioRulesTests` and `AppSessionStoreTests` cover the limit and the save.
 - A name the server rejects after the field accepts it. `SessionAPITests` covers the `display_name_invalid` mapping.

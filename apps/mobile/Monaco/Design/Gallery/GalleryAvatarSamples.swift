@@ -13,10 +13,11 @@ struct GalleryAvatarSamples: View {
     var body: some View {
         GalleryGroup(title: "Avatars") {
             VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
-                GalleryCase(caption: "Default animals") {
+                GalleryCase(caption: "Default characters") {
                     GalleryGrid(minimum: 48) {
-                        ForEach(PixelAnimal.allCases, id: \.self) { animal in
-                            MonacoAvatar(photoURL: nil, displayName: animal.spokenName, size: 40, seed: animal.rawValue)
+                        ForEach(MonacoCharacter.allCases, id: \.self) { character in
+                            MonacoAvatar(
+                                photoURL: nil, displayName: character.spokenName, size: 40, seed: character.rawValue)
                         }
                     }
                 }

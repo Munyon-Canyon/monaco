@@ -1,7 +1,7 @@
 ---
 id: profile/nudge
 title: Profile nudge and limits
-version: 4
+version: 5
 milestone: M9
 requires: [auth/sign-in]
 actors: [A]
@@ -31,7 +31,7 @@ Starts signed in (auth/sign-in).
 
 | Step | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- |
-| S1.1 | tap, then tap, up to 8 times | the Profile tab, `profile-photo-edit`, then `face-option-fox` | | Each pick ends in a `monaco-toast-banner` within 30 s. One of them reads "Too many requests. Try again in a moment." |
+| S1.1 | tap, then tap, up to 8 times | the Profile tab, `profile-photo-edit`, then `face-option-bev` | | Each pick ends in a `monaco-toast-banner` within 30 s. One of them reads "Too many requests. Try again in a moment." |
 
 ### S2 The nudge banner
 
