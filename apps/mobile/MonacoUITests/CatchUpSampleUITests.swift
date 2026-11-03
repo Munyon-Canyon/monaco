@@ -13,8 +13,9 @@ nonisolated final class CatchUpSampleUITests: XCTestCase {
         app.launchArguments = ["-MonacoCatchUpSample", "six"]
         app.launch()
         let row = app.descendants(matching: .any).matching(identifier: "catch-up-row-\(Self.tsla)").firstMatch
-        for _ in 0..<4 where !row.waitForExistence(timeout: 3) { app.swipeUp() }
-        XCTAssertTrue(row.exists, "the six sample did not open")
+        let window = app.windows.firstMatch
+        for _ in 0..<4 where !(row.waitForExistence(timeout: 3) && window.frame.contains(row.frame)) { app.swipeUp() }
+        XCTAssertTrue(row.exists && window.frame.contains(row.frame), "the six sample did not open")
 
         let start = row.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.5))
         let end = row.coordinate(withNormalizedOffset: CGVector(dx: 0.4, dy: 0.5))
@@ -36,7 +37,7 @@ nonisolated final class CatchUpSampleUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["-MonacoCatchUpSample", "caughtUp"]
         app.launch()
-        XCTAssertTrue(app.staticTexts["You're caught up"].waitForExistence(timeout: 10), "the caught-up state shows")
+        XCTAssertTrue(app.staticTexts["You’re caught up"].waitForExistence(timeout: 10), "the caught-up state shows")
         XCTAssertTrue(app.buttons["catch-up-open-feed"].exists, "Open Feed is offered")
         XCTAssertTrue(
             app.descendants(matching: .any).matching(identifier: "catch-up-section-cleared").firstMatch.exists,
@@ -106,7 +107,7 @@ nonisolated final class CatchUpSampleUITests: XCTestCase {
             app.buttons["catch-up-deck-clear"].tap()
             _ = app.buttons["catch-up-deck-clear"].waitForExistence(timeout: 2)
         }
-        XCTAssertTrue(app.staticTexts["You're caught up"].waitForExistence(timeout: 10), "the list shows caught up")
+        XCTAssertTrue(app.staticTexts["You’re caught up"].waitForExistence(timeout: 10), "the list shows caught up")
     }
 
     @MainActor

@@ -92,7 +92,7 @@ extension Components.Schemas.CatchUp {
         ],
         invites: [
             item(
-                "invite:00000000-0000-7000-8000-00000000e001", .invite, unread: true, ago: 2 * 3_600,
+                "invite:00000000-0000-7000-8000-00000000e001", .invite, unread: true, ago: 86_400,
                 actor: person(3, "Sam"), cabal: quantKids,
                 invite: .init(id: "00000000-0000-7000-8000-00000000e001", memberCount: 5, topHoldingName: "OpenAI"))
         ],
@@ -136,7 +136,7 @@ extension Components.Schemas.CatchUp {
         ],
         invites: [
             item(
-                "invite:00000000-0000-7000-8000-00000000e001", .invite, unread: true, ago: 2 * 3_600,
+                "invite:00000000-0000-7000-8000-00000000e001", .invite, unread: true, ago: 86_400,
                 actor: person(3, "Sam"), cabal: quantKids,
                 invite: .init(id: "00000000-0000-7000-8000-00000000e001", memberCount: 5, topHoldingName: "OpenAI"))
         ],

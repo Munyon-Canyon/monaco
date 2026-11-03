@@ -14,9 +14,10 @@ struct CatchUpCardUpNext: View {
                 CatchUpDeckCopy.upNext, count: items.count, trailing: CatchUpDeckCopy.seeAll,
                 actionIdentifier: "catch-up-deck-see-all", action: onSeeAll
             )
+            .secondaryCount()
             .padding(.horizontal, MonacoTheme.Space.gutter)
             ForEach(items, id: \.key) { item in
-                CatchUpCardUpNextRow(item: item, now: now)
+                CatchUpCardUpNextRow(item: item, now: now, showsRule: item.key != items.last?.key)
             }
         }
         .accessibilityElement(children: .contain)
@@ -27,6 +28,7 @@ struct CatchUpCardUpNext: View {
 struct CatchUpCardUpNextRow: View {
     let item: Components.Schemas.CatchUpItem
     let now: Date
+    var showsRule = true
 
     @Environment(\.calendar) private var calendar
 
@@ -52,9 +54,14 @@ struct CatchUpCardUpNextRow: View {
             }
         }
         .padding(.horizontal, MonacoTheme.Space.gutter)
-        .padding(.vertical, MonacoTheme.Space.m)
+        .padding(.vertical, RankedRowMetrics.verticalPadding)
         .frame(minHeight: MonacoRowLayout.minHeight)
-        .overlay(alignment: .bottom) { MonacoRule().padding(.leading, MonacoTheme.Space.gutter) }
+        .overlay(alignment: .bottom) {
+            if showsRule {
+                MonacoRule().padding(
+                    .leading, MonacoTheme.Space.gutter + RankedRowMetrics.avatarSize + MonacoTheme.Space.sm)
+            }
+        }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(CatchUpCopy.accessibilityLabel(item, now: now, calendar: calendar))
         .accessibilityIdentifier("catch-up-deck-next-\(item.key)")

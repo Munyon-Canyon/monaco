@@ -97,7 +97,7 @@ struct CatchUpCardView: View {
             .padding(MonacoTheme.Space.cardPadding)
             .background(MonacoTheme.surface, in: RoundedRectangle(cornerRadius: MonacoTheme.Radius.card))
             .background(alignment: .bottom) { edges }
-            .padding(.horizontal, MonacoTheme.Space.gutter)
+            .padding(.horizontal, MonacoTheme.Space.xl)
             .padding(.bottom, MonacoTheme.Space.s)
             .id(item.key)
             .offset(x: drag)
@@ -113,11 +113,11 @@ struct CatchUpCardView: View {
         ZStack(alignment: .bottom) {
             RoundedRectangle(cornerRadius: MonacoTheme.Radius.card)
                 .fill(MonacoTheme.surface.opacity(0.6))
-                .padding(.horizontal, MonacoTheme.Space.xl)
-                .offset(y: MonacoTheme.Space.m)
+                .padding(.horizontal, MonacoTheme.Space.s)
+                .offset(y: MonacoTheme.Space.sm)
             RoundedRectangle(cornerRadius: MonacoTheme.Radius.card)
                 .fill(MonacoTheme.surface.opacity(0.8))
-                .padding(.horizontal, MonacoTheme.Space.l)
+                .padding(.horizontal, -MonacoTheme.Space.s)
                 .offset(y: MonacoTheme.Space.s)
         }
         .accessibilityHidden(true)
