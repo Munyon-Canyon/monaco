@@ -188,11 +188,13 @@ struct FundCabalSampleServer: ClientTransport {
 struct FundCabalSampleHarness: View {
     let amountText: String
     let submits: Bool
+    private(set) var heldKey: AmountKey?
 
     @State private var model: FundCabalModel
 
     init(state: FundCabalSampleState) {
         self.init(amountText: state.amountText, submits: state.submits, server: state.server)
+        heldKey = state == .typed ? .digit(0) : nil
     }
 
     init(amountText: String, submits: Bool, server: FundCabalSampleServer) {
@@ -219,6 +221,7 @@ struct FundCabalSampleHarness: View {
             .toolbar(.hidden, for: .navigationBar)
         }
         .tint(MonacoTheme.ink)
+        .environment(\.amountKeypadHeldKey, heldKey)
         .task { await run() }
     }
 

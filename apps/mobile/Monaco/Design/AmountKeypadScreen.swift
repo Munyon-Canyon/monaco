@@ -54,7 +54,7 @@ struct AmountKeypadScreen<Source: View, Header: View>: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.displayScale) private var displayScale
-    @ScaledMetric(relativeTo: .subheadline) private var infoSize: CGFloat = 17
+    @ScaledMetric(relativeTo: .subheadline) private var infoSize: CGFloat = 14
 
     init(
         amountText: Binding<String>,
@@ -114,8 +114,15 @@ struct AmountKeypadScreen<Source: View, Header: View>: View {
 
     private var navRow: some View {
         ZStack {
-            sourcePill
-                .padding(.horizontal, MonacoButtonMetrics.hitTarget)
+            ViewThatFits(in: .horizontal) {
+                sourcePill
+                    .padding(.horizontal, MonacoButtonMetrics.hitTarget + MonacoTheme.Space.s)
+                HStack(spacing: 0) {
+                    Spacer(minLength: 0)
+                    sourcePill
+                    Color.clear.frame(width: MonacoButtonMetrics.hitTarget + MonacoTheme.Space.s, height: 0)
+                }
+            }
             HStack {
                 Spacer(minLength: 0)
                 MonacoGlassButton(systemImage: "xmark", accessibilityLabel: "Close", action: onClose)
@@ -124,7 +131,6 @@ struct AmountKeypadScreen<Source: View, Header: View>: View {
             }
         }
         .padding(.horizontal, MonacoTheme.Space.gutter)
-        .padding(.top, MonacoTheme.Space.s)
     }
 
     @ViewBuilder
@@ -188,28 +194,6 @@ struct AmountKeypadScreen<Source: View, Header: View>: View {
         .frame(maxWidth: .infinity)
     }
 
-    @ViewBuilder
-    private var lineView: some View {
-        if case .settled(let settledLine) = state {
-            lineText(settledLine)
-        } else if let line {
-            HStack(spacing: 0) {
-                lineText(line.text)
-                if let info = line.info {
-                    Button(action: info) {
-                        Image(systemName: "info.circle")
-                            .font(.system(size: infoSize))
-                            .foregroundStyle(MonacoTheme.tint)
-                            .frame(width: MonacoButtonMetrics.hitTarget, height: MonacoButtonMetrics.hitTarget)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("More about this amount")
-                }
-            }
-        }
-    }
-
     private var hairline: some View {
         Rectangle()
             .fill(MonacoTheme.hairline)
@@ -249,6 +233,7 @@ struct AmountKeypadScreen<Source: View, Header: View>: View {
             }
         }
         .padding(.horizontal, MonacoTheme.Space.gutter)
+        .padding(.top, MonacoTheme.Space.m)
     }
 
     private func presetChip(_ preset: AmountPreset) -> some View {
@@ -258,7 +243,7 @@ struct AmountKeypadScreen<Source: View, Header: View>: View {
             Haptics.selection()
             amountText = next
         } label: {
-            Text(preset.label).monacoChipLabel(isSelected: false, isPreset: true, fillsWidth: true)
+            AmountKeypadChip(label: preset.label)
         }
         .buttonStyle(.plain)
         .disabled(state.isSettled || isWorking || next == nil)
@@ -291,7 +276,7 @@ struct AmountKeypadScreen<Source: View, Header: View>: View {
         .frame(maxWidth: .infinity, minHeight: MonacoButtonMetrics.minimumHeight)
         .padding(.horizontal, MonacoTheme.Space.gutter)
         .padding(.top, MonacoTheme.Space.s)
-        .padding(.bottom, MonacoTheme.Space.m)
+        .padding(.bottom, MonacoTheme.Space.s)
     }
 
     private func slotText(_ text: String) -> some View {
@@ -304,6 +289,34 @@ struct AmountKeypadScreen<Source: View, Header: View>: View {
 }
 
 extension AmountKeypadScreen {
+    @ViewBuilder
+    private var lineView: some View {
+        if case .settled(let settledLine) = state {
+            lineText(settledLine)
+        } else if let line {
+            HStack(spacing: MonacoTheme.Space.xs) {
+                lineText(line.text)
+                if line.info != nil {
+                    Color.clear.frame(width: infoSize, height: 0)
+                }
+            }
+            .overlay(alignment: .trailing) {
+                if let info = line.info {
+                    Button(action: info) {
+                        Image(systemName: "info.circle")
+                            .font(.system(size: infoSize))
+                            .foregroundStyle(MonacoTheme.tint)
+                            .frame(width: MonacoButtonMetrics.hitTarget, height: MonacoButtonMetrics.hitTarget)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .offset(x: (MonacoButtonMetrics.hitTarget - infoSize) / 2)
+                    .accessibilityLabel("More about this amount")
+                }
+            }
+        }
+    }
+
     private func lineText(_ text: String) -> some View {
         Text(text)
             .font(MonacoTheme.Typo.subhead)
@@ -312,6 +325,27 @@ extension AmountKeypadScreen {
             .fixedSize(horizontal: false, vertical: true)
             .monacoPrivateFigure()
             .accessibilityIdentifier("amount-keypad-line")
+    }
+}
+
+private struct AmountKeypadChip: View {
+    static let height: CGFloat = 32
+
+    let label: String
+    @Environment(\.isEnabled) private var isEnabled
+
+    var body: some View {
+        let colors = MonacoChipLabel.colors(isSelected: false, isEnabled: isEnabled)
+        Text(label)
+            .font(MonacoTheme.Typo.subheadStrong)
+            .foregroundStyle(colors.label)
+            .lineLimit(1)
+            .minimumScaleFactor(0.8)
+            .padding(.horizontal, MonacoTheme.Space.m)
+            .frame(maxWidth: .infinity, minHeight: Self.height)
+            .background(Capsule().fill(colors.fill))
+            .frame(minHeight: MonacoButtonMetrics.hitTarget)
+            .contentShape(Rectangle())
     }
 }
 

@@ -155,4 +155,30 @@ struct AmountKeypadScreenTests {
             }
         }
     }
+
+    @Test func theInfoButtonKeepsAFortyFourPointTargetWithoutGrowingTheLine() async throws {
+        try await Self.shown(.typed, text: "250") { nodes, _ in
+            let info = try #require(nodes.first { $0.accessibilityLabel == "More about this amount" })
+            #expect(info.accessibilityFrame.width >= 44 && info.accessibilityFrame.height >= 44)
+            let line = try #require(nodes.first { Self.identifier($0) == "amount-keypad-line" })
+            #expect(line.accessibilityFrame.height < 44, "\(line.accessibilityFrame)")
+        }
+    }
+
+    @Test func keyRowsAreSixtyApartAndTheChipsKeepTheirTouchTarget() async throws {
+        try await Self.shown(.typed, text: "250") { nodes, _ in
+            var frames: [String: CGRect] = [:]
+            for node in nodes {
+                if let id = Self.identifier(node), frames[id] == nil { frames[id] = node.accessibilityFrame }
+            }
+            let one = try #require(frames["amount-keypad-1"])
+            let four = try #require(frames["amount-keypad-4"])
+            #expect(abs(four.minY - one.minY - 60) < 0.5, "\(one) \(four)")
+            for id in Self.presetIDs {
+                let chip = try #require(frames[id], "\(id) missing")
+                #expect(chip.height >= 44, "\(id) is \(chip)")
+            }
+            #expect(AmountKeypadMetrics.keyHeight - 2 * AmountKeypadMetrics.pressedInset == 52)
+        }
+    }
 }

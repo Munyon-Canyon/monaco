@@ -200,6 +200,7 @@ struct WithdrawSampleHarness: View {
     let address: String
     let network: WithdrawNetwork
     let submits: Bool
+    private(set) var heldKey: AmountKey?
 
     @State private var model: WithdrawModel
 
@@ -207,6 +208,7 @@ struct WithdrawSampleHarness: View {
         self.init(
             amountText: state.amountText, address: state.address, network: state.network, submits: state.submits,
             server: state.server)
+        heldKey = state == .typed ? .digit(0) : nil
     }
 
     init(amountText: String, address: String, network: WithdrawNetwork, submits: Bool, server: WithdrawSampleServer) {
@@ -223,6 +225,7 @@ struct WithdrawSampleHarness: View {
                 .toolbar(.hidden, for: .navigationBar)
         }
         .tint(MonacoTheme.ink)
+        .environment(\.amountKeypadHeldKey, heldKey)
         .task { await run() }
     }
 
