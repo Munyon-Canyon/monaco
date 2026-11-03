@@ -237,20 +237,17 @@ struct ComposerSendDisc: View {
     var body: some View {
         ZStack {
             Circle()
-                .fill(MonacoTheme.primaryButtonFill)
+                .fill(isLive ? MonacoTheme.primaryButtonFill : MonacoTheme.surfaceSunken)
             if isSending {
                 ProgressView()
                     .tint(MonacoTheme.onBrand)
             } else {
                 Image(monaco: .up)
                     .font(MonacoTheme.Typo.subheadStrong)
-                    .foregroundStyle(MonacoTheme.primaryButtonLabel)
+                    .foregroundStyle(isLive ? MonacoTheme.primaryButtonLabel : MonacoTheme.muted)
             }
         }
         .frame(width: CommentRowMetrics.replyTarget, height: CommentRowMetrics.replyTarget)
-        .opacity(isLive ? 1 : ComposerSendDisc.idleOpacity)
         .animation(.easeOut(duration: 0.15), value: isLive)
     }
-
-    static let idleOpacity = MonacoButtonMetrics.disabledFillOpacity
 }

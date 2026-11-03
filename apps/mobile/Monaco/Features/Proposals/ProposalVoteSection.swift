@@ -11,6 +11,8 @@ struct ProposalVoteSection: View {
     }
 
     static let committedHold: Duration = .milliseconds(1_200)
+    static let statusOverlap: CGFloat = 8
+    static let remindOverlap: CGFloat = 6
 
     let model: ProposalDetailModel
     let summary: ProposalSummary
@@ -109,6 +111,7 @@ struct ProposalVoteSection: View {
             VoteStatusLine(result: nil, facts: model.statusFacts, identifierPrefix: "proposal")
         }
         .buttonStyle(.plain)
+        .padding(.vertical, -Self.statusOverlap)
         .accessibilityHint("Shows who voted")
         .sheet(isPresented: $showsVotes) { ProposalVotesSheet(model: model) }
     }
@@ -118,8 +121,8 @@ struct ProposalVoteSection: View {
             role == .memberNotVoter
             ? ProposalVoteCopy.readOnlyVoterLabel(cabalName: summary.cabalName)
             : ProposalVoteCopy.readOnlyLabel(cabalName: summary.cabalName)
-        return MonacoCard {
-            VStack(alignment: .leading, spacing: MonacoTheme.Space.sm) {
+        return MonacoCard(style: .tight) {
+            VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
                 VoteTallyBar(yes: tally.yes, no: tally.no, eligible: voters)
                 VoteTallyEnds(yes: tally.yes, no: tally.no, middle: middle, identifierPrefix: "proposal")
                     .padding(.vertical, MonacoTheme.Space.s)
@@ -132,8 +135,8 @@ struct ProposalVoteSection: View {
     }
 
     private var pair: some View {
-        MonacoCard {
-            VStack(alignment: .leading, spacing: MonacoTheme.Space.sm) {
+        MonacoCard(style: .tight) {
+            VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
                 VoteTallyBar(yes: tally.yes, no: tally.no, eligible: voters)
                 VotePair(
                     yes: tally.yes, no: tally.no, selection: selection, isEnabled: !isSettled,
@@ -185,8 +188,8 @@ struct ProposalVoteSection: View {
 
     private func voted(_ side: ProposalBallot) -> some View {
         let line = ProposalVoteCopy.committedOrdinary(choice: side, tally: tally)
-        return MonacoCard {
-            VStack(alignment: .leading, spacing: MonacoTheme.Space.sm) {
+        return MonacoCard(style: .tight) {
+            VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
                 VoteTallyBar(yes: tally.yes, no: tally.no, eligible: voters)
                 HStack(spacing: MonacoTheme.Space.sm) {
                     Image(systemName: "checkmark.seal.fill")
@@ -273,6 +276,7 @@ extension ProposalVoteSection {
         {
             RemindControl(isOn: remind.isOn, onTitle: "Remind me at close") { toggleRemind(remind) }
                 .disabled(remind.isSending)
+                .padding(.vertical, -Self.remindOverlap)
                 .accessibilityLabel(remind.isOn ? "Remind me at close, on" : "Remind me at close")
                 .accessibilityIdentifier("proposal-remind")
         }

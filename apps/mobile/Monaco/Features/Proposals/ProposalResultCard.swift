@@ -13,24 +13,25 @@ struct ProposalResultCard<Sides: View>: View {
 
     private var seal: (symbol: String, color: Color) {
         switch ProposalResultCopy.seal(status: status) {
-        case .passed: ("checkmark.circle.fill", MonacoTheme.brand)
-        case .failed: ("xmark.circle", MonacoTheme.muted)
-        case .neutral: ("minus.circle", MonacoTheme.muted)
+        case .passed: ("checkmark.seal.fill", MonacoTheme.profit)
+        case .failed: ("xmark.circle", MonacoTheme.secondaryText)
+        case .neutral: ("minus.circle", MonacoTheme.secondaryText)
         }
     }
 
     var body: some View {
-        MonacoCard {
-            VStack(alignment: .leading, spacing: MonacoTheme.Space.sm) {
+        MonacoCard(style: .tight) {
+            VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
                 HStack(spacing: MonacoTheme.Space.s) {
                     Text(ProposalResultCopy.headline(status: status, tally: tally))
                         .font(MonacoTheme.Typo.display)
                         .foregroundStyle(MonacoTheme.ink)
-                    Spacer(minLength: MonacoTheme.Space.s)
                     Image(systemName: seal.symbol)
-                        .font(.title)
+                        .font(MonacoTheme.Typo.headline)
+                        .imageScale(.large)
                         .foregroundStyle(seal.color)
                         .accessibilityHidden(true)
+                    Spacer(minLength: 0)
                 }
                 VoteTallyBar(
                     yes: tally.yes, no: tally.no, eligible: tally.voters,
@@ -79,6 +80,7 @@ struct ProposalResultCard<Sides: View>: View {
         }
         .font(MonacoTheme.Typo.subhead)
         .frame(minHeight: MonacoButtonMetrics.hitTarget)
+        .padding(.vertical, -MonacoTheme.Space.s)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(ProposalResultCopy.tallyLine(tally: tally))
         if model == nil {

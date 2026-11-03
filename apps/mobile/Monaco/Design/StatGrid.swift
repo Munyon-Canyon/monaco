@@ -140,7 +140,7 @@ struct StatGrid: View {
                 .accessibilityHidden(item.info != nil)
         }
         .frame(
-            maxWidth: .infinity, minHeight: StatMetrics.cellMinHeight,
+            maxWidth: .infinity, minHeight: singleLineValues ? nil : StatMetrics.cellMinHeight,
             alignment: singleLineValues ? .topLeading : .bottomLeading
         )
         .modifier(StatCellAccessibility(item: item))
