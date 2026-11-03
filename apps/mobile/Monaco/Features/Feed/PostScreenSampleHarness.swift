@@ -41,18 +41,20 @@ private struct FeedPostHarnessScreen: View {
     }
 
     var body: some View {
-        NavigationStack(path: $path) {
-            FeedView(makeModel: { _ in .preview(.items, clock: ContinuousClock()) })
-                .navigationDestination(for: AnyAppRoute.self) { route in
-                    if route.is(FeedPostSampleRoute.self) {
-                        PostScreen(
-                            itemID: FeedItemDetailModel.previewItemID, startsAtEnd: mode == .end,
-                            makeModel: { _, _, _ in model },
-                            makeFeed: { _ in .preview(.items, clock: ContinuousClock()) })
-                    } else {
-                        route.destination()
+        FeedSampleTabFrame {
+            NavigationStack(path: $path) {
+                FeedView(makeModel: { _ in .preview(.items, clock: ContinuousClock()) })
+                    .navigationDestination(for: AnyAppRoute.self) { route in
+                        if route.is(FeedPostSampleRoute.self) {
+                            PostScreen(
+                                itemID: FeedItemDetailModel.previewItemID, startsAtEnd: mode == .end,
+                                makeModel: { _, _, _ in model },
+                                makeFeed: { _ in .preview(.items, clock: ContinuousClock()) })
+                        } else {
+                            route.destination()
+                        }
                     }
-                }
+            }
         }
         .task { await act() }
     }

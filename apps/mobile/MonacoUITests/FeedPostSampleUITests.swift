@@ -52,6 +52,7 @@ nonisolated final class FeedPostSampleUITests: XCTestCase {
         XCTAssertTrue(app.buttons["View 1 reply"].exists, "Nora's fold reads View 1 reply")
         XCTAssertTrue(app.textFields["comment-composer-field"].exists, "the composer is docked")
         XCTAssertTrue(app.buttons["comment-composer-send"].exists, "the composer has Send")
+        XCTAssertFalse(app.tabBars.firstMatch.exists, "a post with a pinned composer shows no tab bar")
         screenshot(app, "post-logan")
     }
 
