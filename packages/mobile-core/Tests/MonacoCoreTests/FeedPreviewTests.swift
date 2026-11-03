@@ -14,6 +14,17 @@ final class FeedPreviewTests: XCTestCase {
         XCTAssertEqual(model.items.map(\.id), all)
     }
 
+    func testTheItemsHarnessKeepsAReaction() async throws {
+        let model = FeedModel.preview(.items, clock: TestClock())
+        await model.load()
+        let item = try XCTUnwrap(model.items.first)
+        await model.react("🔥", on: item)
+        let updated = try XCTUnwrap(model.items.first { $0.id == item.id })
+        let fire = try XCTUnwrap(model.reactions(for: updated).first { $0.emoji == "🔥" })
+        XCTAssertTrue(fire.mine)
+        XCTAssertEqual(fire.count, 1)
+    }
+
     func testThePnlPrivateHarnessHidesEveryPersonsReturn() async {
         let model = FeedModel.preview(.pnlPrivate, clock: TestClock())
         await model.load()

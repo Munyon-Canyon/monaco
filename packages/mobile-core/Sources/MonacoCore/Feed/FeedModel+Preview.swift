@@ -305,6 +305,12 @@ private actor FeedPreviewPager {
 private struct FeedPreviewTransport: ClientTransport {
     let mode: FeedModel.PreviewMode
     private let pager = FeedPreviewPager()
+    private let reactions = ReactionsSampleTransport(
+        fails: false,
+        reactions: Dictionary(
+            (FeedPreviewFixtures.items + FeedPreviewFixtures.olderItems + FeedPreviewFixtures.outsideItems)
+                .map { ($0.id, $0.reactions) },
+            uniquingKeysWith: { first, _ in first }))
 
     init(mode: FeedModel.PreviewMode) {
         self.mode = mode
@@ -312,8 +318,8 @@ private struct FeedPreviewTransport: ClientTransport {
 
     func send(
         _ request: HTTPRequest,
-        body _: HTTPBody?,
-        baseURL _: URL,
+        body: HTTPBody?,
+        baseURL: URL,
         operationID: String
     ) async throws -> (HTTPResponse, HTTPBody?) {
         if mode == .failed { throw URLError(.notConnectedToInternet) }
@@ -321,6 +327,9 @@ private struct FeedPreviewTransport: ClientTransport {
         if operationID == "getUser" { return try Self.reply(Self.profile) }
         if operationID == "putFeedLike" || operationID == "deleteFeedLike" {
             return (HTTPResponse(status: .noContent), nil)
+        }
+        if operationID == "putFeedReaction" || operationID == "deleteFeedReaction" {
+            return try await reactions.send(request, body: body, baseURL: baseURL, operationID: operationID)
         }
         let params = URLComponents(string: request.path ?? "")?.queryItems ?? []
         let value = { (name: String) in params.first { $0.name == name }?.value }
