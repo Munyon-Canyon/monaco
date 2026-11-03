@@ -35,6 +35,7 @@ struct StocksTabView: View {
                     model: model, held: held, query: $query, searching: $searching, open: openAsset,
                     openSymbol: openSymbol,
                     openWatchlist: { environment.navigator.open(WatchlistRoute(), in: .stocks) },
+                    openStocks: { environment.navigator.open(MarketsListRoute(order: .name), in: .stocks) },
                     openMovers: { environment.navigator.open(MarketsListRoute(order: .movers), in: .stocks) })
             } else {
                 ScrollView { MarketsLoading() }
@@ -148,6 +149,7 @@ private struct StocksTabScreen: View {
     let open: (MarketAsset) -> Void
     let openSymbol: (String) -> Void
     let openWatchlist: () -> Void
+    let openStocks: () -> Void
     let openMovers: () -> Void
 
     @State private var showsPreIpoInfo = false
@@ -267,13 +269,18 @@ private struct StocksTabScreen: View {
     }
 
     @ViewBuilder private var allSections: some View {
-        if model.watchlistRows.isEmpty, model.preIpo.phase == .loaded, model.preIpo.rows.isEmpty {
+        if model.watchlistRows.isEmpty, model.stocksPreview.isEmpty, model.preIpo.phase == .loaded,
+            model.preIpo.rows.isEmpty
+        {
             EmptyState(title: "No stocks to show", systemImage: "chart.line.uptrend.xyaxis")
                 .accessibilityIdentifier("assets-empty")
         }
         MarketsWatchlistSection(
             model: model, rows: model.watchlistPreview, open: open, openSymbol: openSymbol,
             seeAll: { Task { await model.show(.watchlist) } }, manage: openWatchlist)
+        if !model.stocksPreview.isEmpty {
+            MarketsStocksSection(rows: model.stocksPreview, open: open, seeAll: openStocks)
+        }
         if !model.preIpoPreview.isEmpty {
             MarketsPreIpoSection(
                 rows: model.preIpoPreview, open: open, seeAll: { Task { await model.show(.preIpo) } },

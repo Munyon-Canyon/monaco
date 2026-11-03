@@ -27,7 +27,7 @@ public final class StocksTabModel {
         }
     }
     public nonisolated static let availableBrowses: [Browse] = [.all, .watchlist, .preIpo, .held]
-    public enum Section: Equatable, Sendable { case preIpo, all, search }
+    public enum Section: Equatable, Sendable { case preIpo, stocks, all, search }
     public enum Phase: Equatable, Sendable {
         case idle, loading, loaded
         case failed(APIError)
@@ -42,6 +42,7 @@ public final class StocksTabModel {
     public static let pageLimit = 20
     public private(set) var query = ""
     public private(set) var preIpo = SectionState()
+    public private(set) var stocks = SectionState()
     public private(set) var all = SectionState()
     public private(set) var search = SectionState()
     public private(set) var lastError: APIError?
@@ -93,7 +94,17 @@ public final class StocksTabModel {
         let issued = generation
         replacementGenerations.insert(issued)
         defer { replacementGenerations.remove(issued) }
+        async let listed: Void = replaceStocks(issued: issued)
         await replace(activeSection, issued: issued)
+        await listed
+    }
+    private func replaceStocks(issued: Int) async {
+        guard isMarkets else { return }
+        await replace(.stocks, issued: issued)
+    }
+    private func refreshStocks(issued: Int) async {
+        guard isMarkets else { return }
+        await refresh(.stocks, issued: issued)
     }
     public func loadMarkets() async {
         isMarkets = true
@@ -110,39 +121,6 @@ public final class StocksTabModel {
         searchTask = nil
         isStale = false
         if !isMarkets { await load() }
-    }
-    public func searchLines(for asset: MarketAsset) -> (title: String, subline: String) {
-        let name = asset.name.trimmingCharacters(in: .whitespacesAndNewlines)
-        let ticker = asset.ticker
-        guard name.count > ticker.count, name.lowercased().hasPrefix(ticker.lowercased()) else {
-            return (name, ticker)
-        }
-        let trim = CharacterSet.whitespacesAndNewlines.union(.punctuationCharacters)
-        let rest = name.dropFirst(ticker.count).trimmingCharacters(in: trim)
-        return (ticker, rest.isEmpty ? name : rest)
-    }
-    public func setQuery(_ text: String) {
-        query = text
-        isStale = false
-        searchTask?.cancel()
-        generation += 1
-        let issued = generation
-        guard !Self.trimmed(text).isEmpty else {
-            searchTask = Task { [weak self] in
-                guard let self else { return }
-                guard issued == self.generation else { return }
-                self.searchTask = nil
-                await self.load()
-            }
-            return
-        }
-        search = .init(phase: .loading)
-        searchTask = Task { [weak self] in
-            guard let self else { return }
-            do { try await self.clock.sleep(for: Self.searchDebounce) } catch { return }
-            guard !Task.isCancelled else { return }
-            await self.replace(.search, issued: issued)
-        }
     }
     public func loadMore() async {
         await loadMore(activeSection)
@@ -173,7 +151,9 @@ public final class StocksTabModel {
         replacementGenerations.insert(issued)
         defer { replacementGenerations.remove(issued) }
         async let moving: Void = isMarkets ? loadMovers() : ()
+        async let listed: Void = refreshStocks(issued: issued)
         await refresh(activeSection, issued: issued)
+        await listed
         await refreshWatchlist()
         await moving
     }
@@ -209,7 +189,12 @@ public final class StocksTabModel {
     }
     private func page(_ section: Section?, cursor: String?) async throws -> MarketAssetPage {
         let searchQuery = section == .search ? Self.trimmed(query) : nil
-        let filter: Operations.GetAssets.Input.Query.FilterPayload = section == .preIpo ? .preIpo : .all
+        let filter: Operations.GetAssets.Input.Query.FilterPayload =
+            switch section {
+            case .preIpo: .preIpo
+            case .stocks: .popular
+            default: .all
+            }
         let list = try await api.read { client in
             try await client.getAssets(
                 query: .init(q: searchQuery, filter: filter, limit: Self.pageLimit, cursor: cursor)
@@ -226,6 +211,7 @@ public final class StocksTabModel {
         get {
             switch section {
             case .preIpo: preIpo
+            case .stocks: stocks
             case .all: all
             case .search: search
             case nil: search
@@ -234,6 +220,7 @@ public final class StocksTabModel {
         set {
             switch section {
             case .preIpo: preIpo = newValue
+            case .stocks: stocks = newValue
             case .all: all = newValue
             case .search: search = newValue
             case nil: search = newValue
@@ -255,5 +242,40 @@ public final class StocksTabModel {
     func loadQuotes() async { await quotes?.load() }
     func loadMissingQuotes() async { await quotes?.loadMissing() }
     private static func trimmed(_ text: String) -> String { text.trimmingCharacters(in: .whitespacesAndNewlines) }
+}
+extension StocksTabModel {
+    public func searchLines(for asset: MarketAsset) -> (title: String, subline: String) {
+        let name = asset.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let ticker = asset.ticker
+        guard name.count > ticker.count, name.lowercased().hasPrefix(ticker.lowercased()) else {
+            return (name, ticker)
+        }
+        let trim = CharacterSet.whitespacesAndNewlines.union(.punctuationCharacters)
+        let rest = name.dropFirst(ticker.count).trimmingCharacters(in: trim)
+        return (ticker, rest.isEmpty ? name : rest)
+    }
+    public func setQuery(_ text: String) {
+        query = text
+        isStale = false
+        searchTask?.cancel()
+        generation += 1
+        let issued = generation
+        guard !Self.trimmed(text).isEmpty else {
+            searchTask = Task { [weak self] in
+                guard let self else { return }
+                guard issued == self.generation else { return }
+                self.searchTask = nil
+                await self.load()
+            }
+            return
+        }
+        search = .init(phase: .loading)
+        searchTask = Task { [weak self] in
+            guard let self else { return }
+            do { try await self.clock.sleep(for: Self.searchDebounce) } catch { return }
+            guard !Task.isCancelled else { return }
+            await self.replace(.search, issued: issued)
+        }
+    }
 }
 private final class ReloadHook { var run: (@MainActor () async -> Void)? }
