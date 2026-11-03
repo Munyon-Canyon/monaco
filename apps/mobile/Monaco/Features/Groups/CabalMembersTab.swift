@@ -53,28 +53,30 @@ private struct CabalMembersTabBody: View {
                     }
                 }
             }
-            MonacoGroupedList {
-                NavigationLink(value: AnyAppRoute(MembersRoute(cabalID: cabal.id))) {
-                    MonacoRow(
-                        title: CabalMemberCopy.seeAll(cabal.memberCount), titleColor: MonacoTheme.brand, chevron: true,
-                        isLast: !canInvite,
-                        leading: { SunkenGlyphMark(systemImage: "person.2") }, trailing: { EmptyView() })
-                }
-                .buttonStyle(.monacoRow)
-                .accessibilityIdentifier("cabal-members-see-all")
-                if canInvite {
-                    Button {
-                        showsInvite = true
-                    } label: {
-                        MonacoRow(
-                            title: CabalMemberCopy.invite, titleColor: MonacoTheme.brand, isLast: true,
-                            leading: { SunkenGlyphMark(systemImage: "person.badge.plus") }, trailing: { EmptyView() })
+            MonacoCard(style: .inset) {
+                VStack(spacing: 0) {
+                    NavigationLink(value: AnyAppRoute(MembersRoute(cabalID: cabal.id))) {
+                        CabalCardRow(
+                            symbol: "person.2", tone: MonacoTheme.brand,
+                            title: CabalMemberCopy.seeAll(cabal.memberCount),
+                            titleTone: MonacoTheme.brand, detail: nil, isLast: !canInvite,
+                            trailing: { MonacoRowChevron() })
                     }
                     .buttonStyle(.monacoRow)
-                    .accessibilityIdentifier("cabal-members-invite")
+                    .accessibilityIdentifier("cabal-members-see-all")
+                    if canInvite {
+                        Button {
+                            showsInvite = true
+                        } label: {
+                            CabalCardRow(
+                                symbol: "person.badge.plus", tone: MonacoTheme.brand, title: CabalMemberCopy.invite,
+                                titleTone: MonacoTheme.brand, detail: nil, isLast: true, trailing: { EmptyView() })
+                        }
+                        .buttonStyle(.monacoRow)
+                        .accessibilityIdentifier("cabal-members-invite")
+                    }
                 }
             }
-            .tintedCard()
             .padding(.horizontal, MonacoTheme.Space.gutter)
             Text(CabalMemberCopy.membersFooter)
                 .font(MonacoTheme.Typo.caption)
@@ -84,12 +86,5 @@ private struct CabalMembersTabBody: View {
                 .accessibilityIdentifier("cabal-members-footer")
         }
         .sheet(isPresented: $showsInvite) { CabalInviteSheet(cabal: cabal) }
-    }
-}
-
-extension View {
-    func tintedCard() -> some View {
-        background(MonacoTheme.brandWash)
-            .clipShape(RoundedRectangle(cornerRadius: MonacoTheme.Radius.card, style: .continuous))
     }
 }

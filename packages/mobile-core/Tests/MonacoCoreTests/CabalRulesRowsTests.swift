@@ -59,7 +59,11 @@ final class CabalRulesRowsTests: XCTestCase {
         cabal.rules.proposalExpirySeconds = 604_800
         XCTAssertEqual(value(rows(cabal), .voteWindow), "7 d")
         cabal.rules.proposalExpirySeconds = 7200
-        XCTAssertEqual(value(rows(cabal), .voteWindow), "2 hours")
+        XCTAssertEqual(value(rows(cabal), .voteWindow), "2 h")
+        cabal.rules.proposalExpirySeconds = 21_600
+        XCTAssertEqual(value(rows(cabal), .voteWindow), "6 h")
+        cabal.rules.proposalExpirySeconds = 5_400
+        XCTAssertEqual(value(rows(cabal), .voteWindow), "1 hour")
     }
 
     func testMaxPerTradeWithoutACapIsNoLimit() async {

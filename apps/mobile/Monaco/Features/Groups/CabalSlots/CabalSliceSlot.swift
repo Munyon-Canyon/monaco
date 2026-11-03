@@ -39,16 +39,42 @@ struct CabalSliceBand: View {
             }
         case .loaded(let summary):
             if summary.slice != nil {
-                StatGrid(items: Self.items(summary, openVotes: Int(cabalModel?.cabal?.openProposalCount ?? 0)))
-                    .monacoPrivate()
-                    .accessibilityElement(children: .contain)
-                    .accessibilityIdentifier("cabal-stat-block")
+                statGrid(Self.items(summary, openVotes: openVotes))
+            } else if isMember {
+                statGrid(Self.placeholderItems(openVotes: openVotes, share: "$0", slice: "0%"))
             } else {
                 Color.clear.frame(height: 0)
             }
         case .failed:
-            Color.clear.frame(height: 0)
+            if isMember {
+                statGrid(Self.placeholderItems(openVotes: openVotes, share: Self.unknown, slice: Self.unknown))
+            } else {
+                Color.clear.frame(height: 0)
+            }
         }
+    }
+
+    static let unknown = "\u{2013}"
+
+    private var isMember: Bool { cabalModel?.cabal?.me != nil }
+
+    private var openVotes: Int { Int(cabalModel?.cabal?.openProposalCount ?? 0) }
+
+    private func statGrid(_ items: [StatItem]) -> some View {
+        StatGrid(items: items)
+            .monacoPrivate()
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("cabal-stat-block")
+    }
+
+    static func placeholderItems(openVotes: Int, share: String, slice: String) -> [StatItem] {
+        var items = [
+            StatItem(label: "Your share", value: share),
+            StatItem(label: "Of treasury", value: slice),
+            StatItem(label: "Open votes", value: "\(openVotes)"),
+        ]
+        if LaunchFeatures.bots { items.append(StatItem(label: "Bot", value: CabalHeaderCopy.botValue)) }
+        return items
     }
 
     static func items(_ summary: CabalPotSummary, openVotes: Int) -> [StatItem] {

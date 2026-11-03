@@ -26,7 +26,7 @@ struct CabalEmptyReader<Content: View>: View {
 }
 
 enum CabalEmptyTint {
-    static let washOpacity = 0.16
+    static let washOpacity = 0.24
     static let wash = MonacoTheme.CabalTint.teal.fill.opacity(washOpacity)
 }
 

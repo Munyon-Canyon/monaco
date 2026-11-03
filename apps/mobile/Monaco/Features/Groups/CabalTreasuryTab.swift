@@ -337,14 +337,16 @@ struct CabalTreasuryActions: View {
             Haptics.selection()
             open(CashOutRoute(cabalID: cabalID))
         } label: {
-            MonacoRow(
-                title: CabalTreasuryRows.cashOutLabel, chevron: true,
-                leading: { icon(MonacoIcon.cashOut.symbol) },
+            CabalCardRow(
+                symbol: MonacoIcon.cashOut.symbol, title: CabalTreasuryRows.cashOutLabel, detail: nil, isLast: false,
                 trailing: {
-                    Text(amount)
-                        .moneyFigure(.row, weight: .regular)
-                        .foregroundStyle(MonacoTheme.secondaryText)
-                        .lineLimit(1)
+                    HStack(spacing: MonacoTheme.Space.sm) {
+                        Text(amount)
+                            .moneyFigure(.row, weight: .regular)
+                            .foregroundStyle(MonacoTheme.secondaryText)
+                            .lineLimit(1)
+                        MonacoRowChevron()
+                    }
                 }
             )
         }
@@ -353,31 +355,26 @@ struct CabalTreasuryActions: View {
     }
 
     private var historyRow: some View {
-        Button {
+        let stacked = dynamicTypeSize >= .xxxLarge
+        return Button {
             Haptics.selection()
             open(CabalTreasuryHistoryRoute(cabalID: cabalID))
         } label: {
-            if dynamicTypeSize >= .xxxLarge {
-                MonacoRow(
-                    title: CabalTreasuryRows.historyLabel, subtitle: history, subtitleLineLimit: 6, chevron: true,
-                    isLast: true,
-                    leading: { icon(MonacoIcon.clock.symbol) },
-                    trailing: { EmptyView() }
-                )
-            } else {
-                MonacoRow(
-                    title: CabalTreasuryRows.historyLabel, chevron: true, isLast: true,
-                    leading: { icon(MonacoIcon.clock.symbol) },
-                    trailing: {
-                        if let history {
+            CabalCardRow(
+                symbol: MonacoIcon.clock.symbol, title: CabalTreasuryRows.historyLabel,
+                detail: stacked ? history : nil, isLast: true,
+                trailing: {
+                    HStack(spacing: MonacoTheme.Space.sm) {
+                        if let history, !stacked {
                             Text(history)
                                 .font(MonacoTheme.Typo.rowTitle)
                                 .foregroundStyle(MonacoTheme.secondaryText)
                                 .lineLimit(1)
                         }
+                        MonacoRowChevron()
                     }
-                )
-            }
+                }
+            )
         }
         .buttonStyle(.monacoRow)
         .accessibilityIdentifier("cabal-treasury-history")

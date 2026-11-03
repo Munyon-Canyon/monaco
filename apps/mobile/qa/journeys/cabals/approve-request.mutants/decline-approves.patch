@@ -9,12 +9,12 @@ b
 diff --git a/apps/mobile/Monaco/Features/Groups/MembersView.swift b/apps/mobile/Monaco/Features/Groups/MembersView.swift
 --- a/apps/mobile/Monaco/Features/Groups/MembersView.swift
 +++ b/apps/mobile/Monaco/Features/Groups/MembersView.swift
-@@ -123,7 +123,7 @@ private struct MembersAllList: View {
+@@ -134,7 +134,7 @@ private struct MembersAllList: View {
              MembersRequestRow(
                  request: request, isDeciding: model.deciding.contains(request.id),
                  approve: { Task { await model.approve(request.id) } },
 -                decline: { Task { await model.deny(request.id) } })
 +                decline: { Task { await model.approve(request.id) } })
-         case .header(let title):
-             MonacoSectionHeader(title)
-                 .padding(.horizontal, MonacoTheme.Space.gutter)
+         case .header(let title, let count):
+             MonacoSectionHeader(title, count: count)
+                 .secondaryCount()

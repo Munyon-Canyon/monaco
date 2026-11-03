@@ -2,7 +2,7 @@ import XCTest
 
 nonisolated final class CabalRulesSampleUITests: XCTestCase {
     private static let rows = [
-        ("votesToPass", "5 of 8"), ("voteWindow", "24 h"), ("maxPerTrade", "20% of cash"),
+        ("votesToPass", "5 of 8"), ("voteWindow", "6 h"), ("maxPerTrade", "20% of cash"),
         ("whoCanPropose", "Voters"), ("cashOut", "Anytime, your share"),
         ("showSides", "After a vote closes"),
     ]

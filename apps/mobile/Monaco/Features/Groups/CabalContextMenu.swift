@@ -102,6 +102,10 @@ struct CabalInviteHost: View {
 }
 
 #if DEBUG
+enum CabalContextMenuSampleMetrics {
+    static let panelWidth: CGFloat = 270
+}
+
 struct CabalContextMenuSampleSheet: View {
     let tile: CabalTile
     let votes: Int
@@ -111,20 +115,18 @@ struct CabalContextMenuSampleSheet: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             CabalContextMenuPreview(tile: tile, votes: votes)
-            VStack(spacing: MonacoTheme.Space.s) {
-                group(.trade)
-                group(.people)
-            }
-            .padding(.horizontal, MonacoTheme.Space.gutter)
+            panel
+                .frame(maxWidth: CabalContextMenuSampleMetrics.panelWidth)
+                .padding(.horizontal, MonacoTheme.Space.gutter)
             Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(.ultraThinMaterial)
+        .background(.ultraThickMaterial)
         .accessibilityIdentifier("cabals-menu-sample")
     }
 
-    private func group(_ group: CabalMenuAction.Group) -> some View {
-        let rows = actions.filter { $0.group == group }
+    private var panel: some View {
+        let rows = actions
         return VStack(spacing: 0) {
             ForEach(Array(rows.enumerated()), id: \.element.id) { index, action in
                 if index > 0 { Divider().overlay(MonacoTheme.hairline) }
