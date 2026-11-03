@@ -2,7 +2,7 @@ import MonacoRanking
 import SwiftUI
 
 enum CallBoardCardMetrics {
-    static let avatar: CGFloat = 40
+    static let avatar: CGFloat = 64
     static let barHeight: CGFloat = 6
 }
 

@@ -3,7 +3,7 @@ import SwiftUI
 
 enum CallBoardPodiumMetrics {
     static let raise: CGFloat = 8
-    static let avatar: CGFloat = 56
+    static let avatar: CGFloat = 40
 }
 
 struct CallBoardPodium: View {
