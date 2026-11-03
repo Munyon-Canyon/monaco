@@ -4,7 +4,7 @@ import SwiftUI
 
 enum HomeCashRowMetrics {
     static let skeletonWidth: CGFloat = 96
-    static let tile: CGFloat = 40
+    static let tile: CGFloat = 32
     static let infoTarget: CGFloat = 44
 }
 
@@ -66,13 +66,9 @@ struct HomeCashRow: View {
 
     private var cardTile: some View {
         Image(systemName: MonacoIcon.card.symbol)
-            .font(MonacoTheme.Typo.title2)
+            .font(MonacoTheme.Typo.section)
             .foregroundStyle(MonacoTheme.primaryText)
             .frame(width: HomeCashRowMetrics.tile, height: HomeCashRowMetrics.tile)
-            .background(
-                MonacoTheme.surfaceSunken,
-                in: RoundedRectangle(cornerRadius: MonacoTheme.Radius.chip)
-            )
             .accessibilityHidden(true)
     }
 

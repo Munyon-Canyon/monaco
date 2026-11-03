@@ -46,7 +46,7 @@ private struct HomeFeedPreview: View {
         let hidden = rows.isEmpty || waitsForFirstUse
         VStack(alignment: .leading, spacing: 0) {
             if !hidden {
-                MonacoSectionHeader(header, trailing: "See all") {
+                HomeSectionHeader(title: header, trailing: "See all", actionIdentifier: "home-feed-see-all") {
                     environment.navigator.selectedTab = .feed
                 }
                 .padding(.horizontal, MonacoTheme.Space.gutter)
@@ -171,9 +171,11 @@ private struct HomeFeedPreviewRow: View {
         VStack(alignment: .trailing, spacing: MonacoTheme.Space.xs) {
             switch row.trailing {
             case .split(let yes, let no):
-                Text("✓ \(yes) · ✕ \(no)")
+                (Text("\u{2713}").foregroundStyle(MonacoTheme.profit)
+                    + Text(" \(yes) \u{00B7} ").foregroundStyle(MonacoTheme.secondaryText)
+                    + Text("\u{2715}").foregroundStyle(MonacoTheme.loss)
+                    + Text(" \(no)").foregroundStyle(MonacoTheme.secondaryText))
                     .font(MonacoTheme.Typo.subhead)
-                    .foregroundStyle(MonacoTheme.secondaryText)
             case .amount(let dollars, _):
                 if let dollars { figure(dollars) }
                 change

@@ -816,11 +816,11 @@ f__01-tokens-controls   -MonacoDesignGallery -MonacoDesignGalleryTab controls -M
 f__01-chart-variants    -MonacoDesignGallery -MonacoDesignGalleryTab charts -MonacoDesignGalleryAppearance dark
 f__02-home-dark                     -MonacoHomeSample fReady
 f__02-home-light                    -MonacoHomeSample fReadyLight
-f__02-home-scrolled                 -MonacoHomeSample fScrolled -MonacoSampleScroll 0.35
+f__02-home-scrolled                 -MonacoHomeSample fScrolled -MonacoSampleScroll 0.7
 f__02-home-empty                    -MonacoHomeSample fFirstUse
-f__04b-hold-1-pick                  -MonacoHomeSample fVotePick -MonacoSampleScroll 0.35
-f__04b-hold-2-holding               -MonacoHomeSample fVoteHolding -MonacoSampleScroll 0.35
-f__04b-hold-3-committed             -MonacoHomeSample fVoteCommitted -MonacoSampleScroll 0.35
+f__04b-hold-1-pick                  -MonacoHomeSample fVotePick
+f__04b-hold-2-holding               -MonacoHomeSample fVoteHolding
+f__04b-hold-3-committed             -MonacoHomeSample fVoteCommitted
 f__03-cabals-tab                    -MonacoCabalsTabSample -MonacoCabalsTabSampleScenario fReady
 f__03-cabals-tab-menu               -MonacoCabalsTabSample -MonacoCabalsTabSampleScenario fMenu
 f__03-cabal-treasury                -MonacoGroupDetailSample fTreasury

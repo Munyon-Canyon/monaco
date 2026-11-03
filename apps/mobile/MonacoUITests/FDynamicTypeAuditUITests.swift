@@ -219,14 +219,14 @@ extension FDynamicTypeAuditUITests {
     private static let group02: [Screen] = [
         Screen("f__02-home-dark", "-MonacoHomeSample fReady"),
         Screen("f__02-home-light", "-MonacoHomeSample fReadyLight"),
-        Screen("f__02-home-scrolled", "-MonacoHomeSample fScrolled -MonacoSampleScroll 0.35"),
+        Screen("f__02-home-scrolled", "-MonacoHomeSample fScrolled -MonacoSampleScroll 0.7"),
         Screen("f__02-home-empty", "-MonacoHomeSample fFirstUse"),
     ]
 
     private static let group04: [Screen] = [
-        Screen("f__04b-hold-1-pick", "-MonacoHomeSample fVotePick -MonacoSampleScroll 0.35"),
-        Screen("f__04b-hold-2-holding", "-MonacoHomeSample fVoteHolding -MonacoSampleScroll 0.35"),
-        Screen("f__04b-hold-3-committed", "-MonacoHomeSample fVoteCommitted -MonacoSampleScroll 0.35"),
+        Screen("f__04b-hold-1-pick", "-MonacoHomeSample fVotePick"),
+        Screen("f__04b-hold-2-holding", "-MonacoHomeSample fVoteHolding"),
+        Screen("f__04b-hold-3-committed", "-MonacoHomeSample fVoteCommitted"),
         Screen("f__04-proposal-dark", "-MonacoProposalSample nvdaOpen"),
         Screen("f__04-proposal-light", "-MonacoProposalSample nvdaOpen"),
         Screen("f__04-proposal-scrolled", "-MonacoProposalSample nvdaOpen -MonacoSampleScroll bottom"),

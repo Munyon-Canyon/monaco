@@ -10,6 +10,10 @@ enum HomeChartSlot: HomeSection {
     }
 }
 
+enum HomeChartMetrics {
+    static let height: CGFloat = 120
+}
+
 struct HomeChartView: View {
     @Environment(PortfolioModel.self) private var portfolio: PortfolioModel?
     @Environment(\.homeReads) private var reads
@@ -51,19 +55,22 @@ struct HomeChartView: View {
     }
 
     private var chartSkeleton: some View {
-        CurveScrubChartFrame(showsDateRange: false) { SkeletonBlock(height: nil, radius: MonacoTheme.Radius.cardTight) }
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("Loading the chart")
-            .accessibilityIdentifier("home-portfolio-chart-loading")
+        CurveScrubChartFrame(height: HomeChartMetrics.height, showsDateRange: false) {
+            SkeletonBlock(height: nil, radius: MonacoTheme.Radius.cardTight)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Loading the chart")
+        .accessibilityIdentifier("home-portfolio-chart-loading")
     }
 
     @ViewBuilder private func plot(_ curve: ValueCurve?, range: LeaderboardRange) -> some View {
         if let curve {
             CurveScrubChart(
-                curve: curve, plot: .pnl, range: range, showsDateRange: false, selection: $selection,
+                curve: curve, plot: .pnl, range: range, height: HomeChartMetrics.height, showsDateRange: false,
+                selection: $selection,
                 identifier: "home-pnl-chart")
         } else {
-            CurveScrubChartFrame(showsDateRange: false) {
+            CurveScrubChartFrame(height: HomeChartMetrics.height, showsDateRange: false) {
                 Text(range.shortHistoryLine)
                     .font(MonacoTheme.Typo.caption)
                     .foregroundStyle(MonacoTheme.muted)

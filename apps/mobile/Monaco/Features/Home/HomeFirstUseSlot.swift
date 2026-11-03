@@ -46,7 +46,7 @@ private struct HomeFirstUse: View {
 
     @ViewBuilder private var content: some View {
         Group {
-            Image(systemName: MonacoIcon.pair.symbol)
+            Image(systemName: "person.2")
                 .font(MonacoTheme.Typo.title)
                 .foregroundStyle(MonacoTheme.secondaryText)
                 .accessibilityHidden(true)
