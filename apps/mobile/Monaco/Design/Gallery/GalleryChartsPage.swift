@@ -100,11 +100,27 @@ struct GalleryFillChart: View {
                         }
                     }
             }
-            line.stroke(
-                MonacoTheme.profitVivid, style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
+            line.stroke(MonacoTheme.profitVivid, style: MonacoLineStyle.stroke)
+            GeometryReader { proxy in
+                Circle()
+                    .fill(MonacoTheme.profitVivid)
+                    .frame(width: MonacoLineStyle.endDotRadius * 2, height: MonacoLineStyle.endDotRadius * 2)
+                    .position(x: proxy.size.width - MonacoLineStyle.endDotRadius, y: MonacoLineStyle.endDotRadius)
+            }
         }
         .frame(height: 96)
         .accessibilityHidden(true)
+    }
+}
+
+struct GalleryRangeLabels: View {
+    private static let ranges: [String] = ["1H", "1D", "1W", "1M", "3M", "6M", "All"]
+
+    var body: some View {
+        MonacoPlainLabelRow(
+            items: Self.ranges, selection: "1M", spacing: MonacoTheme.Space.s, equalWidth: false,
+            alwaysFits: true, scrollInset: 0, label: { $0 }, accessibilityName: { $0 },
+            identifier: { "gallery-range-\($0)" }, onSelect: { _ in })
     }
 }
 
@@ -115,6 +131,7 @@ struct GalleryFillVariants: View {
                 ForEach(GalleryFillStyle.allCases, id: \.self) { style in
                     VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
                         GalleryFillChart(style: style)
+                        GalleryRangeLabels()
                         GalleryCaption(style.caption)
                     }
                     .frame(maxWidth: .infinity, alignment: .topLeading)

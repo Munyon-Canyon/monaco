@@ -5,7 +5,6 @@ struct GalleryTypePage: View {
     private enum Sample {
         case text(String, Font)
         case figure(String, String, MoneyStyle)
-        case percent(Int64, MoneyStyle)
     }
 
     private struct Role {
@@ -38,7 +37,7 @@ struct GalleryTypePage: View {
         Role(
             name: "Figure", spec: "20 / 25 semibold",
             use: "A figure inside a tile or card: mover percentage, Pre-IPO valuation, a feed card's headline",
-            sample: .percent(790, .card)),
+            sample: .figure("+7.9%", "", .card)),
         Role(
             name: "Rank", spec: "15 / 20 semibold", use: "Rank numerals in rows and on the podium, tabular",
             sample: .text("4", MonacoTheme.Typo.rank)),
@@ -125,8 +124,6 @@ struct GalleryTypePage: View {
             .moneyFont(style)
             .lineLimit(1)
             .minimumScaleFactor(style.minimumScaleFactor)
-        case .percent(let basisPoints, let style):
-            PercentText(basisPoints: basisPoints, style: style)
         }
     }
 }
