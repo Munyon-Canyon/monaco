@@ -37,9 +37,49 @@ struct HomeSectionHeader: View {
         }
     }
 
+    private var suffix: String? {
+        if let countText { return countText }
+        guard let count, count > 0 else { return nil }
+        return "\(count)"
+    }
+
     @ViewBuilder private func header(trailing: String?) -> some View {
-        let base = MonacoSectionHeader(
-            title, count: count, trailing: trailing, actionIdentifier: actionIdentifier, action: action)
-        if let countText { base.countText(countText) } else { base }
+        if let trailing, !dynamicTypeSize.isAccessibilitySize {
+            HStack(spacing: MonacoTheme.Space.s) {
+                titleLine
+                Spacer(minLength: MonacoTheme.Space.s)
+                Button(action: action) {
+                    Text(trailing)
+                        .font(MonacoTheme.Typo.captionStrong)
+                        .foregroundStyle(MonacoTheme.brand)
+                        .lineLimit(1)
+                        .frame(minHeight: SectionHeaderMetrics.hitHeight)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier(actionIdentifier ?? "")
+            }
+            .frame(minHeight: SectionHeaderMetrics.hitHeight)
+            .padding(.bottom, SectionHeaderMetrics.bottomSpacing)
+        } else {
+            titleLine
+                .frame(minHeight: SectionHeaderMetrics.hitHeight, alignment: .leading)
+                .padding(.bottom, SectionHeaderMetrics.bottomSpacing)
+        }
+    }
+
+    private var titleLine: some View {
+        HStack(spacing: MonacoTheme.Space.s) {
+            Text(title)
+                .font(MonacoTheme.Typo.section)
+                .foregroundStyle(MonacoTheme.primaryText)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityAddTraits(.isHeader)
+            if let suffix {
+                Text(suffix)
+                    .font(MonacoTheme.Typo.section.monospacedDigit())
+                    .foregroundStyle(MonacoTheme.secondaryText)
+            }
+        }
     }
 }

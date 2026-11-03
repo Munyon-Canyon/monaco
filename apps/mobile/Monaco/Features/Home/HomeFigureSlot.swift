@@ -13,6 +13,7 @@ enum HomeFigureSlot: HomeSection {
 enum HomeFigureMetrics {
     static let skeletonFigureWidth: CGFloat = 180
     static let skeletonLineWidth: CGFloat = 140
+    static let lineReach: CGFloat = 12
 }
 
 struct HomeFigureView: View {
@@ -62,7 +63,7 @@ struct HomeFigureView: View {
             }
         }
         .padding(.horizontal, MonacoTheme.Space.gutter)
-        .padding(.top, MonacoTheme.Space.m)
+        .padding(.top, MonacoTheme.Space.s)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
@@ -100,8 +101,9 @@ struct HomeFigureView: View {
                 Text(copy.words).foregroundStyle(MonacoTheme.secondaryText)
             }
             .font(MonacoTheme.Typo.subhead)
-            .frame(minHeight: MonacoButtonMetrics.hitTarget)
-            .contentShape(.accessibility, Rectangle())
+            .contentShape(
+                .accessibility, Rectangle().inset(by: -HomeFigureMetrics.lineReach)
+            )
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(
                 HomeFigureCopy.spoken(netWorthMicros: netWorth, pnlMicros: pnl, returnBps: bps, range: range)
@@ -129,7 +131,7 @@ struct HomeFigureSkeleton: View {
                 .skeletonBar(width: HomeFigureMetrics.skeletonLineWidth, radius: MonacoTheme.Radius.chip)
         }
         .padding(.horizontal, MonacoTheme.Space.gutter)
-        .padding(.top, MonacoTheme.Space.m)
+        .padding(.top, MonacoTheme.Space.s)
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement()
         .accessibilityLabel("Loading your net worth")

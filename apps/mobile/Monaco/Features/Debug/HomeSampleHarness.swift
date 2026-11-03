@@ -52,9 +52,9 @@ extension HomeSampleScenario {
         case .partlyFunded: HomeSampleData.script(.partlyFunded, proposals: [])
         case .staleStake: HomeSampleData.stale(HomeSampleData.script(.loss, proposals: []))
         case .settlingStake: HomeSampleData.settling(HomeSampleData.script(.loss, proposals: []))
-        case .fVotePick, .fVoteHolding, .fVoteCommitted: HomeSampleData.script(.loss, proposals: [.fVote])
+        case .fVotePick, .fVoteHolding, .fVoteCommitted, .fReady, .fReadyLight, .fScrolled:
+            HomeSampleData.script(.fAccount, proposals: [.fVote])
         case .fVoteRule: HomeSampleData.script(.loss, proposals: [.fRule])
-        case .fReady, .fReadyLight, .fScrolled: HomeSampleData.script(.fAccount, proposals: [.fVote])
         case .fUnfunded: HomeSampleData.script(.fUnfunded, proposals: [.fVote])
         case .fFirstUse: HomeSampleData.firstUseScript()
         }
