@@ -175,8 +175,10 @@ func newRecipeSandbox(t *testing.T) recipeSandbox {
 	return recipeSandbox{root: root, calls: calls, fundPort: fundPort, env: append(os.Environ(),
 		"PATH="+fakebin+string(os.PathListSeparator)+os.Getenv("PATH"),
 		"CALLS="+calls,
-		// Long enough for the fund page, started beside api and worker, to be recorded before they exit.
-		"RECORDING_STUB="+recordingStub+"[[ -z \"${MONACO_FUND_PAGE_PORT:-}\" || \"$(basename \"$0\")\" == monacoctl ]] || echo \"leak $(basename \"$0\")\" >> \"$CALLS\"\nsleep 1\n",
+		// With WAIT_FOR_FUND_PAGE set, api and worker stay up until the fund page's npx call is
+		// recorded (30s at most), so the recipe's exit trap cannot kill Vite before it logs.
+		"RECORDING_STUB="+recordingStub+"[[ -z \"${MONACO_FUND_PAGE_PORT:-}\" || \"$(basename \"$0\")\" == monacoctl ]] || echo \"leak $(basename \"$0\")\" >> \"$CALLS\"\n"+
+			"if [[ -n \"${WAIT_FOR_FUND_PAGE:-}\" && \"$(basename \"$0\")\" != monacoctl ]]; then for _ in $(seq 1 300); do grep -q '^npx ' \"$CALLS\" && break; sleep 0.1; done; else sleep 1; fi\n",
 		"MONACO_LOG_DIR=",
 		"LISTENER="+listener,
 		fmt.Sprintf("MONACO_FUND_PAGE_PORT=%d", fundPort),
@@ -259,7 +261,7 @@ func TestJustRunBackend_startsTheFundPageAgainstTheLocalApi(t *testing.T) {
 	t.Parallel()
 	s := newRecipeSandbox(t)
 
-	calls := s.just(t, "run", "backend")
+	_, calls := s.justWithEnv(t, []string{"WAIT_FOR_FUND_PAGE=1"}, "run", "backend")
 
 	for _, call := range calls {
 		if strings.HasPrefix(call, "leak ") {
@@ -280,7 +282,7 @@ func TestJustRunBackend_installsTheFundPageDependenciesWhenMissing(t *testing.T)
 		t.Fatal(err)
 	}
 
-	calls := s.just(t, "run", "backend")
+	_, calls := s.justWithEnv(t, []string{"WAIT_FOR_FUND_PAGE=1"}, "run", "backend")
 
 	install, vite := -1, -1
 	for i, call := range calls {
