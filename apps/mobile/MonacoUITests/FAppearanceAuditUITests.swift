@@ -86,10 +86,7 @@ nonisolated final class FAppearanceAuditUITests: XCTestCase {
         ("f__13-leaderboard-C-cabals", ["-MonacoLeaderboardSample", "cabalsMonth"]),
         ("f__13-leaderboard-C-people", ["-MonacoLeaderboardSample", "peopleMonth"]),
         ("f__13-leaderboard-C-scrolled", ["-MonacoLeaderboardSample", "friendsMonth", "-MonacoSampleScroll", "1"]),
-        (
-            "f__13-leaderboard-C-unranked",
-            ["-MonacoLeaderboardSample", "peopleWeekUnranked", "-MonacoSampleScroll", "1"]
-        ),
+        ("f__13-leaderboard-C-unranked", ["-MonacoLeaderboardSample", "peopleWeekUnranked"]),
         ("f__14-hold-sheet", ["-MonacoProposalSample", "holdYes"]),
         ("f__14-ledger-story", ["-MonacoLedgerSample", "story"]),
         ("f__14-wrap-sheet", ["-MonacoLedgerSample", "week42"]),

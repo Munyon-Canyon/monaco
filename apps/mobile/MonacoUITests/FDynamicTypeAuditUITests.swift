@@ -408,7 +408,7 @@ extension FDynamicTypeAuditUITests {
         Screen("f__13-leaderboard-C", "-MonacoLeaderboardSample friendsMonth"),
         Screen("f__13-leaderboard-C-scrolled", "-MonacoLeaderboardSample friendsMonth -MonacoSampleScroll 1"),
         Screen("f__13-leaderboard-C-cabals", "-MonacoLeaderboardSample cabalsMonth"),
-        Screen("f__13-leaderboard-C-unranked", "-MonacoLeaderboardSample peopleWeekUnranked -MonacoSampleScroll 1"),
+        Screen("f__13-leaderboard-C-unranked", "-MonacoLeaderboardSample peopleWeekUnranked"),
     ]
 
     private static let group16: [Screen] = [
