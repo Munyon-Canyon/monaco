@@ -1,7 +1,7 @@
 ---
 id: governance/propose-sell
 title: Propose a sell
-version: 7
+version: 8
 milestone: M13
 requires: [auth/sign-in]
 actors: [A]
@@ -34,7 +34,7 @@ The format of this doc is in [App journeys](../README.md).
 | S1.1 | A | tap, type, then tap | the Cabals tab, `cabals-search-field`, then the `cabals-search-result-<id>` | `QA sell {QA.run}` | `cabal-header-name` reads `QA sell {QA.run}`, and `cabal-action-propose` "Propose" next to `cabal-action-fund` "Fund" is enabled within 15 s (F `03-cabal-treasury`) |
 | S1.2 | A | tap | `cabal-action-propose` | | Propose offers Buy and Sell (`propose-chooser-sheet` while PV keeps the sheet) and shows `propose-kind-sell` within 10 s, and it is enabled, not "No holdings to sell" |
 | S1.3 | A | tap | `propose-kind-sell` | | The screen titled "Sell" shows the header "What the cabal owns" and the AAPL row within 10 s (old app: `ProposeSellView`) |
-| S1.4 | A | tap | `propose-sell-<symbol>` for AAPL | | The keypad (`amount-keypad-screen`, #6573) shows within 10 s, `amount-keypad-source` reads the shares held, and the chips `amount-keypad-preset-<label>` read "25%", "50%", "All" |
+| S1.4 | A | tap | `propose-sell-<symbol>` for AAPL | | The Propose amount screen (`propose-amount-screen`, #7357) shows within 10 s, `amount-keypad-source` reads the shares held, and the chips `amount-keypad-preset-<label>` read "25%", "50%", "All" |
 | S1.5 | A | tap, then tap | `amount-keypad-preset-25%`, then `amount-keypad-action` | | `amount-keypad-amount` reads a figure, not $0, and the sheet titled "Propose sell" (`propose-review-sheet`, #6567) shows the stat row `propose-review-stats` "Shares · Price · Of treasury · To pass" within 10 s |
 | S1.6 | A | tap | `propose-review-send` "Send to vote" | | The toast "Proposal sent" shows and the flow closes back to the cabal screen within 10 s |
 
