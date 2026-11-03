@@ -309,10 +309,11 @@ extension GovernanceProposeBuyJourney {
 
     static func expectPot(_ app: XCUIApplication, _ value: String, timeout: TimeInterval, step: String) {
         let pot = app.element("cabal-pot-value")
-        XCTAssertTrue(
-            JoinJourney.waitForLabel(pot, containing: value, timeout: timeout),
-            "\(step): the pot does not read \(value) within \(Int(timeout)) s: \(pot.label)"
-        )
+        guard JoinJourney.waitForLabel(pot, containing: value, timeout: timeout) else {
+            let seen = pot.exists ? pot.label : "no cabal-pot-value on the cabal page"
+            XCTFail("\(step): the pot does not read \(value) within \(Int(timeout)) s: \(seen)")
+            return
+        }
     }
 
     static func seeTheTrade(_ app: XCUIApplication, cabal: String, recorder: JourneyRecorder) {

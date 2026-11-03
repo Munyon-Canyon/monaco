@@ -186,6 +186,7 @@ struct CabalScreen: View {
                     }
                     .opacity(lineShown ? 1 : 0)
                     .accessibilityHidden(!lineShown)
+                    .accessibilityElement(children: .contain)
                     .accessibilityIdentifier("cabal-pot-pinned")
             }
             if lineShown && tabsShown {
