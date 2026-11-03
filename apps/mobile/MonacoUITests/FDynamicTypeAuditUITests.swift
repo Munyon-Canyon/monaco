@@ -174,12 +174,16 @@ nonisolated final class FDynamicTypeAuditUITests: XCTestCase {
         guard app.staticTexts.firstMatch.waitForExistence(timeout: 30) else {
             return ["\(screen.name) at \(size): the screen never drew"]
         }
-        Thread.sleep(forTimeInterval: 2)
         for position in 0...Self.swipes {
             if position > 0 { app.swipeUp() }
+            waitForStillLayout(app)
             let viewport = app.windows.firstMatch.frame
             let tabBar = app.tabBars.firstMatch
-            let tabBarTop = tabBar.exists ? tabBar.frame.minY : viewport.maxY
+            let tabBarTop =
+                tabBar.exists
+                ? ([tabBar.frame.minY] + tabBar.buttons.allElementsBoundByIndex.map(\.frame.minY)).min()
+                    ?? tabBar.frame.minY
+                : viewport.maxY
             let navigationBar = app.navigationBars.firstMatch
             let navigationBarBottom = navigationBar.exists ? navigationBar.frame.maxY : viewport.minY
             do {
@@ -206,6 +210,22 @@ nonisolated final class FDynamicTypeAuditUITests: XCTestCase {
             }
         }
         return failures
+    }
+
+    @MainActor
+    private func waitForStillLayout(_ app: XCUIApplication) {
+        var previous: [CGRect]?
+        for _ in 0..<20 {
+            let current = (try? app.snapshot()).map(Self.staticTextFrames)
+            if let current, current == previous { return }
+            previous = current
+            Thread.sleep(forTimeInterval: 0.25)
+        }
+    }
+
+    private static func staticTextFrames(_ snapshot: XCUIElementSnapshot) -> [CGRect] {
+        let own = snapshot.elementType == .staticText ? [snapshot.frame] : []
+        return own + snapshot.children.flatMap(staticTextFrames)
     }
 
     private static func allowedReason(_ screen: String, _ element: String) -> String? {

@@ -641,6 +641,10 @@ The split removes every Leaderboard finding but one, but the info sheet still re
 
 As a gate check, with a 60 pt one-line label planted on the `12-toast` sample, `test12Sheets` failed on that label at both sizes and all three scroll positions, and the label was removed again.
 
+## Settled audit (#7401)
+
+The audit now waits until the static-text frames stop moving before it reads frames and audits, after launch and after every swipe, instead of a fixed 2 s sleep. A row partly under the floating tab bar is scrolled content and counts as off-screen, measured from the bar's drawn top (the bar and its buttons). The working explanation for the `12-toast` and `12-info-sheet` findings in the table above is that the audit read layout that was still moving: the toast rows appear only after a swipe, and the info sheet's labels draw whole once its detent settles. A rerun of `test12Sheets` on this build confirms or rules that out.
+
 ## Rules that held everywhere
 
 - The vote tally (rule 3): the bar keeps full width, Yes and No sit side by side up to xxxLarge and stack at AX sizes without overlapping, and no count is cut. `DesignLayoutTests` pins the stacking (`VoteHoldRow`).
