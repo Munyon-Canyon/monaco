@@ -1,7 +1,7 @@
 ---
 id: money/cash-out
 title: Cash out
-version: 5
+version: 6
 milestone: M15
 requires: [auth/sign-in]
 actors: [A]
@@ -17,6 +17,8 @@ A member with money in Monaco opens a cabal's "Cash out", picks 25%, cashes out,
 
 Version 4 (F launch, #6576): no F frame draws Cash out (founder decision Q26). It keeps today's `AmountEntry` with the restyled keys and the presets "25%", "50%" and "All", and its review step. S2 is `MoneyWithdrawJourney.withdrawAll`, the one-screen Withdraw.
 
+Version 6 (#7348): the S1 setup funds 1 USDC of A's 2 into the cabal, so A has a slice to cash out, and S1.2 opens the Treasury tab before it taps `cabal-treasury-cash-out`.
+
 Old app (`c838bd24`): the cabal screen -> "Sell" -> `Redeem/SellCabalView.swift` with "25%", "50%", "All" and "Cash out $X", which pops back with a toast. Then Withdraw to wallet. Spec: "Money: Cash out" (`CashOutRoute`) and "Withdraw" (`WithdrawRoute`) in [screens.md](../../screens.md).
 
 The format of this doc is in [App journeys](../README.md).
@@ -28,7 +30,7 @@ The format of this doc is in [App journeys](../README.md).
 | P1 | Actor A has signed in once (`auth/sign-in`), and their `privy_user_id` is in `apps/mobile/qa/journeys/accounts.tsv` |
 | P2 | The dev database is migrated (`just migrate db`). `scripts/qa/journey.py run` starts the backend with `just run backend` |
 | P3 | Whoever runs the journey sent A 2 USDC from the QA pot (`monacoctl qa fund`) or the Phantom MCP agent wallet, as [Journeys that move money](../README.md#journeys-that-move-money) says, and set `MONACO_QA_REFUND_ADDRESS` |
-| P4 | `apps/mobile/qa/journeys/money/cash-out.setup.sh` ran right before the scenario, through `scripts/qa/seed.sh`. For S1, A creates the cabal `QA cash out {QA.run}` through the API. No route funds a cabal on staging (#651), so A has no slice in it yet |
+| P4 | `apps/mobile/qa/journeys/money/cash-out.setup.sh` ran right before the scenario, through `scripts/qa/seed.sh`. For S1, A creates the cabal `QA cash out {QA.run}` through the API, then funds 1 USDC of their 2 into it (`POST /v1/cabals/{id}/fund`), and the setup waits until the fund transfer reads settled. A has a slice and keeps 1 USDC as cash |
 
 ## Scenarios
 
