@@ -6,6 +6,7 @@ import SwiftUI
 enum ParitySampleScenario: String, CaseIterable {
     case toastSettled = "toast-settled"
     case infoSheet = "info-sheet"
+    case infoSheetContent = "info-sheet-content"
 
     static let launchArgument = "-MonacoParitySample"
 
@@ -19,14 +20,14 @@ enum ParitySampleScenario: String, CaseIterable {
     var tab: MainTab {
         switch self {
         case .toastSettled: .home
-        case .infoSheet: .stocks
+        case .infoSheet, .infoSheetContent: .stocks
         }
     }
 
     var routes: [any AppRoute] {
         switch self {
         case .infoSheet: [ParityInfoSheetRoute()]
-        case .toastSettled: []
+        case .toastSettled, .infoSheetContent: []
         }
     }
 
@@ -40,7 +41,7 @@ enum ParitySampleScenario: String, CaseIterable {
                     myVote: ProposalMyVote(order: 5, of: 8, yesOrder: 5, noOrder: 0, decided: true))
                 $0.preview(.committed(outcome), sharesEstimate: "1.82")
             }
-        case .infoSheet: nil
+        case .infoSheet, .infoSheetContent: nil
         }
     }
 
@@ -54,7 +55,7 @@ enum ParitySampleScenario: String, CaseIterable {
                 settled.tally = .init(yes: 5, no: 1, voters: 8, needed: 5)
                 return settled
             }
-        case .infoSheet:
+        case .infoSheet, .infoSheetContent:
             script.asset = .nvda
             script.asset.priceAsOf = .now
         }
@@ -85,7 +86,7 @@ nonisolated struct ParityInfoSheetRoute: AppRoute {
 private struct ParityInfoSheetHost: View {
     @State private var shows = true
 
-    private static var facts: MarketStatsFacts {
+    static var facts: MarketStatsFacts {
         MarketStatsFacts(
             listingNetworks: [.solana, .base, .robinhood], tradesContinuously: true, priceSource: .coingecko,
             priceAsOf: .now, pollInterval: .seconds(60))
@@ -105,6 +106,7 @@ final class ParitySampleHarnessEntry: SampleHarnessEntry {
         ) { scenario in
             SampleAPIProtocol.install(scenario.script)
             if scenario == .toastSettled { return AnyView(ParityToastSettledFrame(auth: auth, scenario: scenario)) }
+            if scenario == .infoSheetContent { return AnyView(MarketStatsSheet(facts: ParityInfoSheetHost.facts)) }
             return AnyView(SampleAppFrame(auth: auth, tab: scenario.tab, routes: scenario.routes))
         }
     }

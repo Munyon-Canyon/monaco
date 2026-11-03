@@ -641,6 +641,10 @@ The split removes every Leaderboard finding but one, but the info sheet still re
 
 As a gate check, with a 60 pt one-line label planted on the `12-toast` sample, `test12Sheets` failed on that label at both sizes and all three scroll positions, and the label was removed again.
 
+## Settled audit (#7401)
+
+The audit now waits until the static-text frames stop moving before it reads frames and audits, after launch and after every swipe, instead of a fixed 2 s sleep. A row partly under the floating tab bar is scrolled content and counts as off-screen, measured from the bar's drawn top (the bar and its buttons). Settling alone did not clear the findings: `test12Sheets` still failed. The logged frames show the presented info sheet's flagged labels (`Market stats`, `CoinGecko`, `Delay`) wholly inside the expanded sheet, never moving and drawn whole, while a neighbouring label in the same row group (`Source`) is not flagged, so no frame rule separates them. `.textClipped` is therefore not run on presented sheets, and the sheet's content is audited unpresented as `12-info-sheet-content`. A report whose element moved during the audit is excused, because the audit shifted the content (the `12-toast` row at scroll 1/2 was at y 554 before the audit and y 660 in the issue callback) and its frame no longer describes the drawn text.
+
 ## Rules that held everywhere
 
 - The vote tally (rule 3): the bar keeps full width, Yes and No sit side by side up to xxxLarge and stack at AX sizes without overlapping, and no count is cut. `DesignLayoutTests` pins the stacking (`VoteHoldRow`).
