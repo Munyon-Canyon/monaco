@@ -431,6 +431,12 @@ extension XCUIApplication {
     }
 }
 
+extension XCUIElement {
+    func tapSwitch() {
+        coordinate(withNormalizedOffset: CGVector(dx: value as? String == "1" ? 0.08 : 0.92, dy: 0.5)).tap()
+    }
+}
+
 extension XCTestCase {
     func attachScreenshot(of app: XCUIApplication, named name: String) {
         let attachment = XCTAttachment(screenshot: app.screenshot())

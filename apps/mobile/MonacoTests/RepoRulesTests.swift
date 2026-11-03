@@ -26,13 +26,32 @@ struct RepoRulesTests {
         #expect(flagged.isEmpty, "use monacoPrivateFigure() so masked text stays accessible: \(flagged)")
     }
 
-    private static func appSources(filePath: String = #filePath) throws -> [(String, String)] {
+    @Test
+    func noUITestTapsASwitchWithoutTapSwitch() throws {
+        let flagged = try Self.appSources(directory: "MonacoUITests").flatMap { path, source in
+            SwitchTapRule.violations(in: source).map { "\(path):\($0)" }
+        }
+        #expect(flagged.isEmpty, "a switch ignores a centre tap, use tapSwitch() instead: \(flagged)")
+    }
+
+    private static func appSources(
+        directory: String = "Monaco", filePath: String = #filePath
+    ) throws -> [(String, String)] {
         let root = URL(filePath: filePath).deletingLastPathComponent().deletingLastPathComponent()
-            .appending(path: "Monaco")
+            .appending(path: directory)
         let files = try #require(FileManager.default.enumerator(at: root, includingPropertiesForKeys: nil))
         return try files.compactMap { $0 as? URL }.filter { $0.pathExtension == "swift" }.map { url in
             let path = String(url.standardizedFileURL.path.dropFirst(root.standardizedFileURL.path.count + 1))
             return (path, try String(contentsOf: url, encoding: .utf8))
+        }
+    }
+}
+
+enum SwitchTapRule {
+    static func violations(in source: String) -> [Int] {
+        source.split(separator: "\n", omittingEmptySubsequences: false).enumerated().compactMap { index, line in
+            line.range(of: #"switches\[[^\]]*\]\.(tap|coordinate)\("#, options: .regularExpression) == nil
+                ? nil : index + 1
         }
     }
 }
