@@ -1,3 +1,4 @@
 {
-  "except": ["siri"]
+  "except": ["siri"],
+  "keep": ["com.apple.gamed"]
 }
