@@ -108,10 +108,9 @@ struct WithdrawKeypadView: View {
         model.maxMicros.map { AmountText.dollars(micros: $0) }
     }
 
-    private var cashLabel: String {
-        if case .settled(_, _, _, _, let after?) = model.state { return FundSourceCopy.cash(micros: after) }
-        guard let available = model.quote?.availableMicros else { return "Cash" }
-        return FundSourceCopy.cash(micros: available)
+    private var cashMicros: Int64? {
+        if case .settled(_, _, _, _, let after?) = model.state { return after }
+        return model.quote?.availableMicros
     }
 
     var body: some View {
@@ -182,12 +181,20 @@ struct WithdrawKeypadView: View {
     private var sourcePill: some View {
         Image(systemName: "creditcard")
             .font(MonacoTheme.Typo.headline)
-            .foregroundStyle(MonacoTheme.secondaryText)
-            .accessibilityHidden(true)
-        Text(cashLabel)
-            .font(MonacoTheme.Typo.headline)
             .foregroundStyle(MonacoTheme.primaryText)
+            .accessibilityHidden(true)
+        cashText
+            .lineLimit(1)
+            .minimumScaleFactor(0.5)
             .monacoPrivate()
+    }
+
+    private var cashText: Text {
+        let label = Text("Cash").font(MonacoTheme.Typo.headline).foregroundStyle(MonacoTheme.primaryText)
+        guard let cashMicros else { return label }
+        let amount = Text(" " + UsdAmountFormatter.format(flooredMicros: cashMicros))
+            .font(MonacoTheme.Typo.subhead).foregroundStyle(MonacoTheme.secondaryText)
+        return label + amount
     }
 
     private var header: some View {

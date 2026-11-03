@@ -21,10 +21,10 @@ final class WithdrawCopyTests: XCTestCase {
 
     func testTheTypedLineForAnOnTopFeeAnIncludedFeeAndAZeroFee() {
         XCTAssertEqual(
-            WithdrawCopy.typedLine(receiveMicros: 120_000_000, feeMicros: 500_000), "120.00 USDC · fee 0.50 USDC")
+            WithdrawCopy.typedLine(receiveMicros: 120_000_000, feeMicros: 500_000), "120.00 USDC · fee $0.50")
         XCTAssertEqual(
             WithdrawCopy.typedLine(receiveMicros: 9_992_500, feeMicros: 7_500, isEstimate: true),
-            "≈ 9.99 USDC · fee 0.01 USDC")
+            "≈ 9.99 USDC · fee $0.01")
         XCTAssertEqual(WithdrawCopy.typedLine(receiveMicros: 120_000_000, feeMicros: 0), "120.00 USDC · no fee")
         XCTAssertEqual(WithdrawCopy.typedLine(receiveMicros: 120_000_000, feeMicros: nil), "120.00 USDC")
     }

@@ -53,7 +53,7 @@ public enum WithdrawCopy {
     public static func typedLine(receiveMicros: Int64, feeMicros: Int64?, isEstimate: Bool = false) -> String {
         let receive = "\(isEstimate ? "≈ " : "")\(units(receiveMicros))"
         guard let feeMicros else { return receive }
-        return feeMicros == 0 ? "\(receive) · no fee" : "\(receive) · fee \(units(feeMicros))"
+        return feeMicros == 0 ? "\(receive) · no fee" : "\(receive) · fee \(fee(feeMicros))"
     }
 
     private static func units(_ micros: Int64) -> String {
