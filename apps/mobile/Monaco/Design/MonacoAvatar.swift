@@ -29,8 +29,6 @@ enum MonacoAvatarRing {
     }
 }
 
-/// A member's photo, else their initials in white on a tint picked from their id (the name
-/// when the screen has no id), so a renamed member keeps their colour.
 struct MonacoAvatar: View {
     let photoURL: String?
     let displayName: String
@@ -56,12 +54,12 @@ struct MonacoAvatar: View {
                         .resizable()
                         .scaledToFill()
                 } else if didFail {
-                    placeholder
+                    character
                 } else {
                     placeholder
                 }
             } else {
-                placeholder
+                character
             }
         }
         .frame(width: size, height: size)
@@ -95,9 +93,17 @@ struct MonacoAvatar: View {
         }
     }
 
+    private var key: String { (seed ?? "").isEmpty ? displayName : seed ?? "" }
+
+    private var character: some View {
+        Image(MonacoCharacter.forSeed(key).imageName)
+            .resizable()
+            .interpolation(.high)
+            .scaledToFill()
+    }
+
     private var placeholder: some View {
-        let key = (seed ?? "").isEmpty ? displayName : seed ?? ""
-        return Circle()
+        Circle()
             .fill(MonacoTheme.CabalTint.forGroupId(key).fill)
             .overlay {
                 Text(CabalMark.initials(for: displayName))

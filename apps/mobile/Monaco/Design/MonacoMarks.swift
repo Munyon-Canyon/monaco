@@ -1,16 +1,14 @@
 import MonacoCore
 import SwiftUI
 
-/// A cabal's identity: its picture when it has one, otherwise a saturated tile
-/// (tint from the group id) with 1–2 initials in white.
-///
-/// The tinted initials are not a spinner, they are the answer for a cabal with
-/// no picture — so they are also what a loading picture shows. The tile is a
-/// fixed `size × size` either way, so an arriving picture never moves anything.
+/// A cabal's identity: its picture when it has one, otherwise the Monaco world scene its
+/// group id hashes to. A tint with 1–2 initials in white shows only while a picture loads.
+/// The mark is a fixed `size × size` either way, so an arriving picture never moves anything.
 struct CabalMark: View {
     private let tint: MonacoTheme.CabalTint
     private let initials: String
     private let name: String
+    private let scene: MonacoWorldScene
     private let size: CGFloat
     private let pictureURL: URL?
     private let accessibilityLabel: String?
@@ -33,6 +31,7 @@ struct CabalMark: View {
     ) {
         markForm = shape
         tint = .forGroupId(groupId)
+        scene = .forSeed(groupId)
         initials = CabalMark.initials(for: name)
         self.name = name
         self.size = size
@@ -86,6 +85,12 @@ struct CabalMark: View {
                         .frame(width: size, height: size)
                         .clipShape(shape)
                         .transition(.opacity)
+                } else if pictureURL == nil || pictureFailed {
+                    Image(scene.imageName)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: size, height: size)
+                        .clipShape(shape)
                 } else {
                     initialsLabel
                 }

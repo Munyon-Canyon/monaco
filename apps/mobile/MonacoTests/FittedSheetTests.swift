@@ -11,7 +11,7 @@ import UIKit
 struct FittedSheetTests {
     @Test(.timeLimit(.minutes(1)))
     func theFacePickerShowsItsPhotoButtonWhole() async throws {
-        let sheet = FacePickerSheet(currentAnimal: nil, onPickAnimal: { _ in }, onPickPhoto: { _ in })
+        let sheet = FacePickerSheet(currentCharacter: nil, onPickCharacter: { _ in }, onPickPhoto: { _ in })
         try await Self.expectWhole("face-choose-photo", titled: "Your face", in: AnyView(sheet))
     }
 

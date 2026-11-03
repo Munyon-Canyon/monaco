@@ -1,43 +1,48 @@
 import PhotosUI
 import SwiftUI
 
-/// The sheet behind the avatar: the eight pixel animals to pick from, and the photo library
-/// for a member who would rather be themselves. Picking an animal uploads it as the
+/// The sheet behind the avatar: Monaco's 22 characters to pick from, and the photo library
+/// for a member who would rather be themselves. Picking a character uploads it as the
 /// profile photo, so every device and every other member sees the same face and the
 /// profile needs no second field for it. The default is a hash of the member's id, and
-/// two friends in a cabal of three land on the same animal about a third of the time;
-/// this is how one of them stops being the other.
+/// two friends in a cabal land on the same character now and then; this is how one of
+/// them stops being the other.
 struct FacePickerSheet: View {
-    /// The animal the member wears today because they have no photo. Ringed in the grid;
-    /// nil when a photo is set, since a stored photo says nothing about which animal it was.
-    let currentAnimal: PixelAnimal?
-    let onPickAnimal: (PixelAnimal) -> Void
+    /// The character the member wears today because they have no photo. Ringed in the grid;
+    /// nil when a photo is set, since a stored photo says nothing about which character it was.
+    let currentCharacter: MonacoCharacter?
+    let onPickCharacter: (MonacoCharacter) -> Void
     let onPickPhoto: (PhotosPickerItem) -> Void
 
     @State private var selection: PhotosPickerItem?
 
-    private let columns = Array(
-        repeating: GridItem(.flexible(), spacing: MonacoTheme.Space.m),
-        count: 4
-    )
+    private static let columns = 4
+
+    private let rows: [[MonacoCharacter]] = stride(from: 0, to: MonacoCharacter.allCases.count, by: columns).map {
+        Array(MonacoCharacter.allCases[$0..<min($0 + columns, MonacoCharacter.allCases.count)])
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.l) {
-            Text("Pick an animal, or use a photo.")
+            Text("Pick a character, or use a photo.")
                 .font(MonacoTheme.Typo.body)
                 .foregroundStyle(MonacoTheme.muted)
-
-            LazyVGrid(columns: columns, spacing: MonacoTheme.Space.m) {
-                ForEach(PixelAnimal.allCases, id: \.self) { animal in
-                    face(animal)
-                }
-            }
 
             PhotosPicker(selection: $selection, matching: .images, photoLibrary: .shared()) {
                 Text("Choose a photo")
             }
             .buttonStyle(.monacoSecondary)
             .accessibilityIdentifier("face-choose-photo")
+
+            Grid(horizontalSpacing: MonacoTheme.Space.m, verticalSpacing: MonacoTheme.Space.m) {
+                ForEach(rows, id: \.first) { row in
+                    GridRow {
+                        ForEach(row, id: \.self) { character in
+                            face(character)
+                        }
+                    }
+                }
+            }
         }
         .padding(.horizontal, MonacoTheme.Space.gutter)
         .padding(.bottom, MonacoTheme.Space.xl)
@@ -51,14 +56,14 @@ struct FacePickerSheet: View {
         }
     }
 
-    private func face(_ animal: PixelAnimal) -> some View {
-        let isCurrent = animal == currentAnimal
+    private func face(_ character: MonacoCharacter) -> some View {
+        let isCurrent = character == currentCharacter
         return Button {
-            onPickAnimal(animal)
+            onPickCharacter(character)
         } label: {
-            Image(animal.imageName)
+            Image(character.imageName)
                 .resizable()
-                .interpolation(.none)
+                .interpolation(.high)
                 .scaledToFill()
                 .frame(width: 64, height: 64)
                 .clipShape(Circle())
@@ -71,15 +76,15 @@ struct FacePickerSheet: View {
                 .frame(maxWidth: .infinity)
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(animal.spokenName)
+        .accessibilityLabel(character.spokenName)
         .accessibilityAddTraits(isCurrent ? .isSelected : [])
-        .accessibilityIdentifier("face-option-\(animal.rawValue)")
+        .accessibilityIdentifier("face-option-\(character.rawValue)")
     }
 }
 
 #Preview {
     Color.clear
         .sheet(isPresented: .constant(true)) {
-            FacePickerSheet(currentAnimal: .cat, onPickAnimal: { _ in }, onPickPhoto: { _ in })
+            FacePickerSheet(currentCharacter: .bev, onPickCharacter: { _ in }, onPickPhoto: { _ in })
         }
 }

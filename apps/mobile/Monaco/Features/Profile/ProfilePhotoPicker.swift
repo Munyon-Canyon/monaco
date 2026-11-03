@@ -8,7 +8,7 @@ enum ProfilePhotoBadge {
     case pencil(ring: Color)
 }
 
-/// Avatar that opens the face sheet on tap: the eight pixel animals, or the photo library.
+/// Avatar that opens the face sheet on tap: Monaco's characters, or the photo library.
 /// Either way the pick is uploaded as the signed-in member's profile photo. The one place
 /// faces are changed; Profile and the first-run screen embed it.
 struct ProfilePhotoPicker: View {
@@ -61,10 +61,10 @@ struct ProfilePhotoPicker: View {
         .accessibilityIdentifier(accessibilityID)
         .sheet(isPresented: $showFaces) {
             FacePickerSheet(
-                currentAnimal: nil,
-                onPickAnimal: { animal in
+                currentCharacter: nil,
+                onPickCharacter: { character in
                     showFaces = false
-                    Task { await wear(animal) }
+                    Task { await wear(character) }
                 },
                 onPickPhoto: { item in
                     showFaces = false
@@ -106,15 +106,15 @@ struct ProfilePhotoPicker: View {
         }
     }
 
-    /// An animal is uploaded as a PNG straight from the catalog: the preparer's JPEG
-    /// pass is for photos, and would only soften the pixels.
-    private func wear(_ animal: PixelAnimal) async {
+    /// A character is uploaded as a PNG straight from the catalog: the preparer's JPEG
+    /// pass is for photos, and would only soften the art.
+    private func wear(_ character: MonacoCharacter) async {
         await uploads.run {
-            guard let data = UIImage(named: animal.imageName)?.pngData() else {
+            guard let data = UIImage(named: character.imageName)?.pngData() else {
                 onResult(MonacoToast(message: "That face is missing. Try another.", isSuccess: false))
                 return
             }
-            await save(data, success: "You're \(animal.withArticle) now.")
+            await save(data, success: "You're \(character.spokenName) now.")
         }
     }
 

@@ -2,7 +2,7 @@ import XCTest
 
 enum ProfileEditJourney {
     static let id = "profile/edit"
-    static let version = 6
+    static let version = 7
 
     static let emptyNameCopy = "Display name is required."
     static let savedCopy = "Profile saved."
@@ -164,8 +164,8 @@ enum ProfileEditJourney {
             app.buttons["profile-photo-edit"].tap()
             XCTAssertTrue(app.element("face-picker-sheet").waitForExistence(timeout: 5), "S3.1: no face sheet")
             XCTAssertTrue(app.staticTexts["Your face"].exists, "S3.1: the sheet is not titled 'Your face'")
-            let animals = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'face-option-'"))
-            XCTAssertEqual(animals.count, 8, "S3.1: the sheet does not offer eight animals")
+            let characters = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'face-option-'"))
+            XCTAssertEqual(characters.count, 22, "S3.1: the sheet does not offer 22 characters")
             let choose = app.element("face-choose-photo")
             XCTAssertTrue(choose.exists && choose.label == "Choose a photo", "S3.1: no 'Choose a photo'")
         }
