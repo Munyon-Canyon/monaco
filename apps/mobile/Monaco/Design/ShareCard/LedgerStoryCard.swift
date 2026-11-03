@@ -65,7 +65,8 @@ struct LedgerStoryCard: View {
             VStack(alignment: .leading, spacing: 2 * scale) {
                 Text(spec.header.title).font(.system(size: 18 * scale, weight: .bold)).foregroundStyle(Color.white)
                 Text(spec.header.subtitle).font(.system(size: 14 * scale)).foregroundStyle(MonacoTheme.secondaryText)
-                    .lineLimit(2)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
             }
             Spacer(minLength: 0)
         }
