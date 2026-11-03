@@ -12,7 +12,20 @@ struct AmountKeypad: View {
 
 enum AmountKeypadMetrics {
     static let keyHeight: CGFloat = 60
-    static let keyFont = Font.title
+    static let keyFont = Font.largeTitle
+    static let deleteFont = Font.title3
+    static let pressedInset: CGFloat = MonacoTheme.Space.xs
+}
+
+private struct AmountKeypadHeldKeyKey: EnvironmentKey {
+    static let defaultValue: AmountKey? = nil
+}
+
+extension EnvironmentValues {
+    var amountKeypadHeldKey: AmountKey? {
+        get { self[AmountKeypadHeldKeyKey.self] }
+        set { self[AmountKeypadHeldKeyKey.self] = newValue }
+    }
 }
 
 private struct AmountKeypadGrid: View {
@@ -20,6 +33,7 @@ private struct AmountKeypadGrid: View {
     @ScaledMetric(relativeTo: .title) private var rowHeight: CGFloat = AmountKeypadMetrics.keyHeight
     @State private var pressedKey: AmountKey?
     @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.amountKeypadHeldKey) private var heldKey
 
     private static let rows: [[AmountKey]] = [
         [.digit(1), .digit(2), .digit(3)],
@@ -47,7 +61,8 @@ private struct AmountKeypadGrid: View {
             .frame(maxWidth: .infinity, minHeight: max(rowHeight, MonacoButtonMetrics.hitTarget))
             .background(
                 RoundedRectangle(cornerRadius: MonacoTheme.Radius.keypadKey, style: .continuous)
-                    .fill(pressedKey == key && isEnabled ? MonacoTheme.surfaceSunken : Color.clear)
+                    .fill((pressedKey == key || heldKey == key) && isEnabled ? MonacoTheme.surfaceSunken : Color.clear)
+                    .padding(.vertical, AmountKeypadMetrics.pressedInset)
             )
             .contentShape(Rectangle())
             .onTapGesture { press(key) }
@@ -86,7 +101,7 @@ private struct AmountKeypadGrid: View {
             Text(".").font(AmountKeypadMetrics.keyFont).foregroundStyle(
                 isEnabled ? MonacoTheme.primaryText : MonacoTheme.disabledLabel)
         case .delete:
-            Image(systemName: "delete.left").font(AmountKeypadMetrics.keyFont).foregroundStyle(
+            Image(systemName: "delete.left").font(AmountKeypadMetrics.deleteFont).foregroundStyle(
                 isEnabled ? MonacoTheme.primaryText : MonacoTheme.disabledLabel)
         }
     }
