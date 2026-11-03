@@ -20,8 +20,8 @@ struct FShareChart: View {
             ZStack(alignment: .topLeading) {
                 Canvas { context, _ in
                     let baseline = Double(layout.size.height)
-                    guard let line = MonacoLineStyle.line(xs: layout.xs, ys: layout.ys),
-                        let area = MonacoLineStyle.area(xs: layout.xs, ys: layout.ys, baseline: baseline)
+                    guard let line = Self.straightLine(xs: layout.xs, ys: layout.ys),
+                        let area = Self.straightArea(xs: layout.xs, ys: layout.ys, baseline: baseline)
                     else { return }
                     context.clip(to: Path(CGRect(x: 0, y: 0, width: cutoff, height: layout.size.height)))
                     context.fill(area, with: .color(lineColor.opacity(MonacoLineStyle.fillOpacity)))
@@ -42,6 +42,22 @@ struct FShareChart: View {
             }
         }
         .accessibilityHidden(true)
+    }
+
+    private static func straightLine(xs: [Double], ys: [Double]) -> Path? {
+        guard let firstX = xs.first, let firstY = ys.first, xs.count == ys.count, xs.count >= 2 else { return nil }
+        var line = Path()
+        line.move(to: CGPoint(x: firstX, y: firstY))
+        for index in 1..<xs.count { line.addLine(to: CGPoint(x: xs[index], y: ys[index])) }
+        return line
+    }
+
+    private static func straightArea(xs: [Double], ys: [Double], baseline: Double) -> Path? {
+        guard var area = straightLine(xs: xs, ys: ys), let firstX = xs.first, let lastX = xs.last else { return nil }
+        area.addLine(to: CGPoint(x: lastX, y: baseline))
+        area.addLine(to: CGPoint(x: firstX, y: baseline))
+        area.closeSubpath()
+        return area
     }
 
     struct Disc {
@@ -108,7 +124,41 @@ struct FShareChart: View {
                             )
                         }))
             }
-            discs = built
+            discs = Self.stacked(built, height: calloutHeight, scale: scale, size: size)
+        }
+
+        private static func stacked(_ discs: [Disc], height: CGFloat, scale: CGFloat, size: CGSize) -> [Disc] {
+            var result = discs
+            let gap = 2 * scale
+            func rect(_ callout: (text: String, center: CGPoint)) -> CGRect {
+                let width = (CGFloat(callout.text.count) * 6.4 + 24) * scale
+                return CGRect(
+                    x: callout.center.x - width / 2, y: callout.center.y - height / 2, width: width, height: height)
+            }
+            let order = result.indices.sorted { result[$0].marker.time < result[$1].marker.time }
+            for (position, index) in order.enumerated() {
+                guard let later = result[index].callout else { continue }
+                for earlierIndex in order[..<position] {
+                    guard let earlier = result[earlierIndex].callout,
+                        rect(earlier).intersects(rect(later))
+                    else { continue }
+                    let current = result[index].callout ?? later
+                    let lifted = (
+                        text: earlier.text, center: CGPoint(x: earlier.center.x, y: current.center.y - height - gap)
+                    )
+                    let pushed = (
+                        text: current.text, center: CGPoint(x: current.center.x, y: earlier.center.y + height + gap)
+                    )
+                    if pushed.center.y + height / 2 <= size.height || size.height < 100 * scale {
+                        result[index] = Disc(
+                            marker: result[index].marker, center: result[index].center, callout: pushed)
+                    } else {
+                        result[earlierIndex] = Disc(
+                            marker: result[earlierIndex].marker, center: result[earlierIndex].center, callout: lifted)
+                    }
+                }
+            }
+            return result
         }
 
         func cutoffX(progress: Double) -> CGFloat {
