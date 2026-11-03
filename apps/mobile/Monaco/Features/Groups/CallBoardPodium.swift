@@ -4,6 +4,7 @@ import SwiftUI
 enum CallBoardPodiumMetrics {
     static let raise: CGFloat = 8
     static let avatar: CGFloat = 40
+    static let crownRise: CGFloat = 14
 }
 
 struct CallBoardPodium: View {
@@ -25,6 +26,7 @@ struct CallBoardPodium: View {
             }
         }
         .padding(.horizontal, MonacoTheme.Space.gutter)
+        .padding(.top, MonacoTheme.Space.s)
     }
 
     @ViewBuilder private var places: some View {
@@ -43,11 +45,16 @@ struct CallBoardPodium: View {
     private func place(_ row: CallBoardRowValue) -> some View {
         let first = row.rank == 1
         return VStack(spacing: MonacoTheme.Space.xs) {
-            Image(systemName: "crown.fill")
-                .foregroundStyle(MonacoTheme.crown)
-                .opacity(first ? 1 : 0)
-                .accessibilityHidden(true)
             CallBoardAvatar(row: row, size: CallBoardPodiumMetrics.avatar)
+                .overlay(alignment: .top) {
+                    if first {
+                        Image(systemName: "crown.fill")
+                            .font(MonacoTheme.Typo.caption)
+                            .foregroundStyle(MonacoTheme.crown)
+                            .offset(y: -CallBoardPodiumMetrics.crownRise)
+                            .accessibilityHidden(true)
+                    }
+                }
             Text("\(row.rate) \(row.movementGlyph)")
                 .font(MonacoTheme.Typo.headline).monospacedDigit().foregroundStyle(MonacoTheme.primaryText)
             Text(row.record).font(MonacoTheme.Typo.subhead).foregroundStyle(MonacoTheme.secondaryText)

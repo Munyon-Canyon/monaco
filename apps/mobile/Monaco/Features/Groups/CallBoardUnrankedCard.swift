@@ -22,7 +22,7 @@ struct CallBoardUnrankedCardView: View {
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: .infinity)
         }
-        .padding(MonacoTheme.Space.m)
+        .padding(MonacoTheme.Space.cardPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             MonacoTheme.surface, in: RoundedRectangle(cornerRadius: MonacoTheme.Radius.card, style: .continuous)

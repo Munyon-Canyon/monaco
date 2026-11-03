@@ -39,7 +39,7 @@ struct CallBoardYouCard: View {
                     .frame(maxWidth: .infinity)
             }
         }
-        .padding(MonacoTheme.Space.m)
+        .padding(MonacoTheme.Space.cardPadding)
         .background(
             MonacoTheme.surface, in: RoundedRectangle(cornerRadius: MonacoTheme.Radius.card, style: .continuous)
         )
