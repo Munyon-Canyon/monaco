@@ -16,21 +16,12 @@ enum CabalsTabSampleData {
     enum Scenario: String {
         /// Signed in, cabals loaded. The default.
         case normal
-        /// The cabals list, their return chart and the board all failed to read.
-        /// Each offers a retry and none claims the member has no cabals.
+        /// The cabals list failed to read. It offers a retry and does not claim the
+        /// member has no cabals.
         case cabalsUnavailable
-        /// No read has answered yet, so the list, the chart and the board show
-        /// their placeholders.
+        /// No read has answered yet, so the list shows its placeholders.
         case cabalsLoading
-        case ready
-        case noAction
         case empty
-        case filtered
-        case noShare
-        case pnlUnavailable
-        case rankLoading
-        case rankError
-        case rankEmpty
         case fReady
         case fUnfunded
         case fMenu
@@ -55,14 +46,7 @@ enum CabalsTabSampleData {
         case .normal: SampleAPIScript()
         case .cabalsUnavailable: SampleAPIScript(mode: .cabalsUnavailable)
         case .cabalsLoading: SampleAPIScript(mode: .hang)
-        case .ready, .filtered: HomeSampleData.script(.loss, proposals: [.needsVote])
-        case .noAction: HomeSampleData.script(.loss, proposals: [])
         case .empty: emptyScript
-        case .noShare: unfundedScript
-        case .pnlUnavailable: noReturnScript
-        case .rankLoading: ready(board: .hanging)
-        case .rankError: ready(board: .failing)
-        case .rankEmpty: ready(board: .empty)
         case .fReady, .fMenu: fReadyScript
         case .fUnfunded: fUnfundedScript
         }
@@ -106,31 +90,6 @@ enum CabalsTabSampleData {
         return script
     }
 
-    @MainActor
-    private static var unfundedScript: SampleAPIScript {
-        var script = HomeSampleData.script(.loss, proposals: [.needsVote])
-        script.portfolio?.cabals[0].valueMicros = 0
-        script.portfolio?.cabals[0].pnlMicros = 0
-        script.portfolio?.cabals[0].returnBps = nil
-        script.portfolio?.cabals[0].sliceBps = 0
-        script.ownershipBps[HomeSampleData.bigBallers] = 0
-        return script
-    }
-
-    @MainActor
-    private static var noReturnScript: SampleAPIScript {
-        var script = HomeSampleData.script(.loss, proposals: [.needsVote])
-        script.portfolio?.cabals[0].returnBps = nil
-        return script
-    }
-
-    @MainActor
-    private static func ready(board: SampleAPIScript.CabalBoardMode) -> SampleAPIScript {
-        var script = HomeSampleData.script(.loss, proposals: [.needsVote])
-        script.cabalBoardMode = board
-        return script
-    }
-
     nonisolated static let createdCabalID = "5b1f0c9e-0007-4c55-9a51-000000000007"
 
     /// A stubbed create that always succeeds.
@@ -168,11 +127,7 @@ final class CabalsTabSampleHarnessEntry: SampleHarnessEntry {
 }
 extension LeaderboardFilters {
     static var cabalsTabSample: LeaderboardFilters {
-        guard CabalsTabSampleData.matches(ProcessInfo.processInfo.arguments), CabalsTabSampleData.scenario == .filtered
-        else { return .standard }
-        var filters = LeaderboardFilters.standard
-        filters.sort = .pnlAmount
-        return filters
+        .standard
     }
 }
 
