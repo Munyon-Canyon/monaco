@@ -114,14 +114,22 @@ struct CabalContextMenuSampleSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
+            Spacer(minLength: 0)
             CabalContextMenuPreview(tile: tile, votes: votes)
             panel
                 .frame(maxWidth: CabalContextMenuSampleMetrics.panelWidth)
                 .padding(.horizontal, MonacoTheme.Space.gutter)
             Spacer(minLength: 0)
+            Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(.ultraThickMaterial)
+        .background {
+            ZStack {
+                Rectangle().fill(.ultraThickMaterial)
+                MonacoTheme.scrim
+            }
+            .ignoresSafeArea()
+        }
         .accessibilityIdentifier("cabals-menu-sample")
     }
 

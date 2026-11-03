@@ -34,7 +34,6 @@ struct AssetDetailHeader: View {
             }
             afterHours
         }
-        .padding(.top, MonacoTheme.Space.xs)
         .padding(.bottom, MonacoTheme.Space.m)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Self.spokenSummary(detail: detail, scrub: scrub))

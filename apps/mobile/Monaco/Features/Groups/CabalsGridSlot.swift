@@ -72,15 +72,14 @@ struct CabalsGridSection: View {
             CabalInviteHost(cabalID: tile.id)
         }
         #if DEBUG
-        .overlay {
-            if let tile = sampleMenu {
-                CabalContextMenuSampleSheet(
-                    tile: tile, votes: needs?.byCabal[tile.id] ?? 0, actions: menuActions(tile)
-                ) { action in
-                    sampleMenu = nil
-                    perform(action, on: tile)
-                }
+        .fullScreenCover(item: $sampleMenu) { tile in
+            CabalContextMenuSampleSheet(
+                tile: tile, votes: needs?.byCabal[tile.id] ?? 0, actions: menuActions(tile)
+            ) { action in
+                sampleMenu = nil
+                perform(action, on: tile)
             }
+            .presentationBackground(.clear)
         }
         .task(id: store.tiles.first?.id) {
             guard CabalsTabSampleData.scenario == .fMenu, sampleMenu == nil else { return }

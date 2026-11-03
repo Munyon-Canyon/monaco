@@ -147,7 +147,6 @@ struct ProposalDetailSlotView: View {
             }
             if model.canWithdraw { withdrawButton }
         }
-        .padding(.top, MonacoTheme.Space.m)
     }
 
     @ViewBuilder private func closed(_ detail: ProposalDetail, _ summary: ProposalSummary, _ model: ProposalDetailModel)
