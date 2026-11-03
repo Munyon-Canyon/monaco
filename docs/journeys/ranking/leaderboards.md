@@ -29,7 +29,7 @@ The format of this doc is in [App journeys](../README.md).
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S1.1 | A | tap, then tap | the Home tab, then `home-leaderboard-row` | | The row reads "… leads · …%" and "This month · you are #n of m" within 15 s, and tapping it opens `leaderboard-page` showing the "Leaderboard" title (`leaderboard-title`) within 15 s |
+| S1.1 | A | tap, then tap | the Home tab, then `home-leaderboard-row` | | The row reads "… leads · …%" and "This month · you are #n of m" within 15 s, and tapping it opens `leaderboard-page` titled "Leaderboard" within 15 s |
 | S1.2 | A | read | `leaderboard-period-week`, `-month`, `-all`, `leaderboard-tab-people`, `-cabals`, `-friends` | | "Month" is the selected period and People is the selected tab (`13-leaderboard-C-people`) |
 | S1.3 | A | read | `leaderboard-you-card`, "Top three", "Around you" | | The You card reads "#n of m people". "Top three" shows three `leaderboard-podium-<rank>` places. "Around you" lists `leaderboard-row-<A id>` reading a rate with "percent" and "n of m right" |
 | S1.4 | A | read | `leaderboard-section-unranked`, `leaderboard-row-<unranked id>` | | A is ranked, so People shows no `leaderboard-section-unranked` and no row for the voter with two resolved votes, who is under the five-vote floor. The list shows only to an unranked viewer (#6970) |

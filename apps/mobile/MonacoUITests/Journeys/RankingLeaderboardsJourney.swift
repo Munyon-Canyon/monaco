@@ -41,7 +41,7 @@ enum RankingLeaderboardsJourney {
                 app.element("leaderboard-page").waitForExistence(timeout: 15),
                 "S1.1: the row did not open leaderboard-page")
             XCTAssertTrue(
-                app.element("leaderboard-title").waitForExistence(timeout: 10),
+                app.navigationBars["Leaderboard"].waitForExistence(timeout: 10),
                 "S1.1: the page is not titled \"Leaderboard\"")
         }
 

@@ -19,7 +19,6 @@ struct LeaderboardView: View {
     @State private var model: CallBoardModel?
     @State private var viewerRowVisible = true
     @State private var showsInfo = false
-    @State private var titleVisible = true
 
     var body: some View {
         Group {
@@ -30,8 +29,8 @@ struct LeaderboardView: View {
             }
         }
         .monacoCanvas()
-        .navigationTitle(titleVisible ? "" : CallBoardCopy.title)
-        .navigationBarTitleDisplayMode(.inline)
+        .navigationTitle(CallBoardCopy.title)
+        .navigationBarTitleDisplayMode(.large)
         .navigationBarBackButtonHidden()
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
@@ -71,20 +70,8 @@ struct LeaderboardView: View {
     private func page(_ model: CallBoardModel) -> some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
-                Text(CallBoardCopy.title)
-                    .font(MonacoTheme.Typo.display)
-                    .foregroundStyle(MonacoTheme.primaryText)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, MonacoTheme.Space.gutter)
-                    .padding(.top, MonacoTheme.Space.s)
-                    .padding(.bottom, MonacoTheme.Space.sm)
-                    .onScrollVisibilityChange(threshold: 0.01) { titleVisible = $0 }
-                    .accessibilityAddTraits(.isHeader)
-                    .accessibilityIdentifier("leaderboard-title")
                 CallBoardHeader(
-                    title: headerTitle(model), range: headerRange(model), selection: periodBinding(model)
-                )
-                .padding(.bottom, MonacoTheme.Space.m)
+                    title: headerTitle(model), range: headerRange(model), selection: periodBinding(model))
                 Section {
                     content(model)
                 } header: {
@@ -241,7 +228,7 @@ struct CallBoardBody: View {
                 rows: [screen.around[index]], bandID: screen.bandID,
                 onLastAppear: index == screen.around.count - 1 ? onLastAppear : {}
             )
-            .onScrollVisibilityChange { viewerRowVisible = $0 }
+            .onScrollVisibilityChange(threshold: 0.01) { viewerRowVisible = $0 }
             CallBoardRows(rows: Array(screen.around[(index + 1)...]), bandID: screen.bandID, onLastAppear: onLastAppear)
         } else {
             CallBoardRows(rows: screen.around, bandID: screen.bandID, onLastAppear: onLastAppear)
