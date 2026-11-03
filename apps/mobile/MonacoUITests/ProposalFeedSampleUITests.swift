@@ -82,7 +82,6 @@ nonisolated final class ProposalFeedSampleUITests: XCTestCase {
         XCTAssertTrue(element("comment-row-c2").exists, "the folded reply is missing")
         capture("04-detail-thread")
 
-        scrollIntoReach(element("comment-row-c4"))
         postFromTheComposer("Count me in if we cap it at $25.")
         capture("05-comment-posted")
 
