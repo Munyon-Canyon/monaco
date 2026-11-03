@@ -117,7 +117,7 @@ struct ProposeReviewScreen: View {
                         thesisRow(model)
                     }
                 }
-                .padding(.horizontal, MonacoTheme.Space.m)
+                .padding(.horizontal, MonacoTheme.Space.gutter)
                 .background(
                     RoundedRectangle(cornerRadius: MonacoTheme.Radius.card, style: .continuous)
                         .fill(MonacoTheme.surfaceSunken)
