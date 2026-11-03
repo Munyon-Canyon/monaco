@@ -65,7 +65,7 @@ private struct CabalHeader: View {
                         width: CabalMark.Size.row.rawValue, height: CabalMark.Size.row.rawValue,
                         radius: MonacoTheme.Radius.tile)
                     VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
-                        Text(" ").font(MonacoTheme.Typo.title).skeletonBar(width: 220)
+                        Text(" ").font(MonacoTheme.Typo.title2).skeletonBar(width: 220)
                         Text(" ").font(MonacoTheme.Typo.caption).skeletonBar(width: 160)
                     }
                 }
@@ -111,7 +111,7 @@ private struct CabalIdentityRow: View {
                 accessibilityLabel: "Picture of \(cabal.name)")
             VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
                 Text(cabal.name)
-                    .font(MonacoTheme.Typo.title)
+                    .font(MonacoTheme.Typo.title2)
                     .foregroundStyle(MonacoTheme.primaryText)
                     .lineLimit(dynamicTypeSize.isAccessibilitySize ? 3 : 2)
                     .truncationMode(.tail)

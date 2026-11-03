@@ -50,7 +50,7 @@ private struct MembersAllList: View {
 
     private enum Item: Identifiable {
         case request(CabalPendingRequest)
-        case header(String)
+        case header(String, count: Int)
         case member(CabalMemberEntry, group: CabalMemberGroup)
         case invite
         case footer
@@ -58,7 +58,7 @@ private struct MembersAllList: View {
         var id: String {
             switch self {
             case .request(let request): "request-\(request.id)"
-            case .header(let title): "header-\(title)"
+            case .header(let title, _): "header-\(title)"
             case .member(let entry, _): "member-\(entry.id)"
             case .invite: "invite"
             case .footer: "footer"
@@ -76,7 +76,7 @@ private struct MembersAllList: View {
         for entry in model.rows {
             let group = CabalMemberGroup(entry.row)
             if group != last, let totals = model.totals {
-                items.append(.header(CabalMemberCopy.sectionTitle(group, totals: totals)))
+                items.append(.header(group.plural, count: CabalMemberCopy.count(group, totals: totals)))
                 last = group
             }
             items.append(.member(entry, group: group))
@@ -115,6 +115,7 @@ private struct MembersAllList: View {
                 .accessibilityIdentifier("members-invite-button")
             }
         }
+        .toolbar(.hidden, for: .tabBar)
         .sheet(isPresented: $showsInvite) { CabalInviteSheet(cabal: cabal) }
         .accessibilityIdentifier("members-list")
     }
@@ -134,8 +135,9 @@ private struct MembersAllList: View {
                 request: request, isDeciding: model.deciding.contains(request.id),
                 approve: { Task { await model.approve(request.id) } },
                 decline: { Task { await model.deny(request.id) } })
-        case .header(let title):
-            MonacoSectionHeader(title)
+        case .header(let title, let count):
+            MonacoSectionHeader(title, count: count)
+                .secondaryCount()
                 .padding(.horizontal, MonacoTheme.Space.gutter)
         case .member(let entry, _):
             Button {
@@ -148,17 +150,17 @@ private struct MembersAllList: View {
             .buttonStyle(.monacoRow)
             .onAppear { Task { await model.loadMore(after: entry) } }
         case .invite:
-            Button {
-                showsInvite = true
-            } label: {
-                MonacoRow(
-                    title: CabalMemberCopy.inviteTo(CabalHeaderCopy.shortName(cabal.name)),
-                    titleColor: MonacoTheme.brand, isLast: true,
-                    leading: { SunkenGlyphMark(systemImage: "person.badge.plus") },
-                    trailing: { EmptyView() })
+            MonacoCard(style: .inset) {
+                Button {
+                    showsInvite = true
+                } label: {
+                    CabalCardRow(
+                        symbol: "person.badge.plus", tone: MonacoTheme.brand,
+                        title: CabalMemberCopy.inviteTo(CabalHeaderCopy.shortName(cabal.name)),
+                        titleTone: MonacoTheme.brand, detail: nil, isLast: true, trailing: { EmptyView() })
+                }
+                .buttonStyle(.monacoRow)
             }
-            .buttonStyle(.monacoRow)
-            .tintedCard()
             .padding(.horizontal, MonacoTheme.Space.gutter)
             .accessibilityIdentifier("members-invite-row")
         case .footer:

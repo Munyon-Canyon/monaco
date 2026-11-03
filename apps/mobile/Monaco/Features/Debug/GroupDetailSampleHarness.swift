@@ -179,7 +179,7 @@ enum GroupDetailSampleData {
             cabal.openProposalCount = 1
             cabal.createdAt = Date(timeIntervalSince1970: 1_786_000_000)
             cabal.rules.threshold = "majority"
-            cabal.rules.proposalExpirySeconds = 86_400
+            cabal.rules.proposalExpirySeconds = 21_600
             cabal.rules.maxTradeBps = 2000
             cabal.admins = [
                 .init(

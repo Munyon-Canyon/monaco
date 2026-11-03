@@ -70,6 +70,7 @@ private struct CabalRulesBody: View {
     @Environment(ToastCenter.self) private var toasts
     @Environment(\.hostMainTab) private var hostMainTab
     @Environment(\.cabalModel) private var cabalModel
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var proposal: CabalRuleProposalModel?
 
     private var canPropose: Bool { cabal.me?.canPropose == true }
@@ -110,10 +111,8 @@ private struct CabalRulesBody: View {
     @ViewBuilder
     private func ruleRow(_ row: CabalRulesRows.Row, isLast: Bool, showSides: Bool) -> some View {
         if row.kind == .showSides {
-            MonacoRow(
-                title: row.title, subtitle: row.value, subtitleLineLimit: 6, isLast: isLast,
-                trailingIsInteractive: true,
-                leading: { icon(row.kind) },
+            CabalCardRow(
+                symbol: CabalRulesTabCopy.symbol(row.kind), title: row.title, detail: row.value, isLast: isLast,
                 trailing: {
                     let binding = sidesBinding(current: showSides)
                     Toggle(row.title, isOn: binding)
@@ -128,25 +127,20 @@ private struct CabalRulesBody: View {
             )
             .accessibilityIdentifier("cabal-rules-\(row.kind.rawValue)")
         } else {
-            MonacoRow(
-                title: row.title, isLast: isLast,
-                leading: { icon(row.kind) },
+            CabalCardRow(
+                symbol: CabalRulesTabCopy.symbol(row.kind), title: row.title, detail: nil, isLast: isLast,
                 trailing: {
                     Text(row.value)
-                        .font(MonacoTheme.Typo.rowTitle)
+                        .font(MonacoTheme.Typo.body)
                         .foregroundStyle(MonacoTheme.secondaryText)
+                        .lineLimit(dynamicTypeSize.isAccessibilitySize ? 3 : 1)
+                        .minimumScaleFactor(0.8)
+                        .multilineTextAlignment(.trailing)
                 }
             )
             .accessibilityElement(children: .combine)
             .accessibilityIdentifier("cabal-rules-\(row.kind.rawValue)")
         }
-    }
-
-    private func icon(_ kind: CabalRulesRows.Kind) -> some View {
-        Image(systemName: CabalRulesTabCopy.symbol(kind))
-            .font(MonacoTheme.Typo.rowTitle)
-            .foregroundStyle(MonacoTheme.secondaryText)
-            .accessibilityHidden(true)
     }
 
     private func sidesBinding(current: Bool) -> Binding<Bool> {
@@ -176,5 +170,56 @@ private struct CabalRulesBody: View {
     private func open(_ proposalID: String) {
         environment.navigator.open(
             ProposalRoute(proposalID: proposalID), in: hostMainTab ?? environment.navigator.selectedTab)
+    }
+}
+
+enum CabalCardRowMetrics {
+    static let minHeight: CGFloat = 52
+    static let iconWidth: CGFloat = 24
+    static let leadingInset: CGFloat = MonacoTheme.Space.xs
+    static let dividerInset: CGFloat = leadingInset + iconWidth + MonacoTheme.Space.m
+}
+
+struct CabalCardRow<Trailing: View>: View {
+    let symbol: String
+    var tone: Color = MonacoTheme.primaryText
+    let title: String
+    var titleTone: Color = MonacoTheme.primaryText
+    let detail: String?
+    let isLast: Bool
+    @ViewBuilder let trailing: () -> Trailing
+
+    var body: some View {
+        HStack(spacing: MonacoTheme.Space.m) {
+            Image(systemName: symbol)
+                .font(.title3)
+                .foregroundStyle(tone)
+                .frame(width: CabalCardRowMetrics.iconWidth)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
+                Text(title)
+                    .font(MonacoTheme.Typo.rowTitle)
+                    .foregroundStyle(titleTone)
+                    .fixedSize(horizontal: false, vertical: true)
+                if let detail {
+                    Text(detail)
+                        .font(MonacoTheme.Typo.subhead)
+                        .foregroundStyle(MonacoTheme.secondaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .layoutPriority(1)
+            Spacer(minLength: MonacoTheme.Space.s)
+            trailing()
+        }
+        .padding(.leading, CabalCardRowMetrics.leadingInset)
+        .padding(.vertical, MonacoTheme.Space.s)
+        .frame(minHeight: CabalCardRowMetrics.minHeight)
+        .contentShape(Rectangle())
+        .overlay(alignment: .bottom) {
+            if !isLast {
+                MonacoRule().padding(.leading, CabalCardRowMetrics.dividerInset)
+            }
+        }
     }
 }

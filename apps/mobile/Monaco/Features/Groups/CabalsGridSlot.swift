@@ -225,9 +225,9 @@ struct CabalsGridSection: View {
                     .overlay {
                         Image(systemName: MonacoIcon.plus.symbol)
                             .font(.title3.weight(.medium))
-                            .foregroundStyle(MonacoTheme.secondaryText)
+                            .foregroundStyle(MonacoTheme.accent)
                     }
-                label("New cabal")
+                label("New cabal", tone: MonacoTheme.secondaryText)
             }
             .frame(maxWidth: .infinity)
         }
@@ -236,10 +236,10 @@ struct CabalsGridSection: View {
         .accessibilityIdentifier("cabals-new-tile")
     }
 
-    private func label(_ text: String) -> some View {
+    private func label(_ text: String, tone: Color = MonacoTheme.primaryText) -> some View {
         Text(text)
             .font(MonacoTheme.Typo.caption)
-            .foregroundStyle(MonacoTheme.primaryText)
+            .foregroundStyle(tone)
             .lineLimit(dynamicTypeSize > .large ? 2 : 1)
             .fixedSize(horizontal: false, vertical: true)
             .truncationMode(.middle)

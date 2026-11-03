@@ -49,8 +49,13 @@ public struct CabalRulesRows: Equatable, Sendable {
         case .oneHour: "1 h"
         case .oneDay: "24 h"
         case .oneWeek: "7 d"
-        case nil: CabalRulesSummary.durationLabel(seconds: seconds)
+        case nil: wholeHours(seconds) ?? CabalRulesSummary.durationLabel(seconds: seconds)
         }
+    }
+
+    private static func wholeHours(_ seconds: Int32) -> String? {
+        guard seconds >= 3_600, seconds < 172_800, seconds % 3_600 == 0 else { return nil }
+        return "\(seconds / 3_600) h"
     }
 
     static func maxPerTrade(_ bps: Int32?) -> String {
