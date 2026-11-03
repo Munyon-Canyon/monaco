@@ -32,7 +32,7 @@ func (c *EVMCash) Balance(ctx context.Context, network chain.Network, owner chai
 	}
 	call := map[string]string{"to": network.Cash().Address, "data": balanceOfSelector + topicOf(owner)[2:]}
 	var result string
-	scan := arrivalScan{client: client, pace: &pacer{}, network: network, owner: owner, attrs: attrs}
+	scan := arrivalScan{client: client, tally: &tally{}, network: network, owner: owner, attrs: attrs}
 	if err := scan.call(ctx, "eth_call", []any{call, "latest"}, &result); err != nil {
 		return money.Micros{}, err
 	}

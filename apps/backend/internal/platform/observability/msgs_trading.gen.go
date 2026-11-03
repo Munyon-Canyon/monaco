@@ -25,5 +25,6 @@ func init() {
 		TradingRoutedSwapResolved,
 		TradingEVMArrivalsChunk,
 		TradingBridgeOutcomeUnknown,
+		TradingEVMArrivalsScan,
 	)
 }

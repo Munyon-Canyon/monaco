@@ -153,6 +153,7 @@ For a stuck money row, [Money runbook](../how-to/money-runbook.md) maps the sign
 | `trading.engine.blocked` | `proposal_id`, `cabal_id`, `code`, `have`, `need` |
 | `trading.engine.stubbed` | `proposal_id`, `kind`, `symbol`, `usdc_micros` |
 | `trading.evm_arrivals.chunk` | `network`, `owner`, `from`, `to`, `chunk`, `rpc_message` |
+| `trading.evm_arrivals.scan` | `network`, `owner`, `calls`, `refused`, `from`, `to`, `next`, `found` |
 | `trading.evm_cash_return.queued` | `swap_id`, `requested_swap_id`, `cabal_id`, `network`, `landed_micros`, `on_chain_micros`, `amount_micros`, `uncovered_micros`, `actor`, `reason` |
 | `trading.evm_cash_return.uncovered` | `swap_id`, `cabal_id`, `network`, `landed_micros`, `on_chain_micros`, `uncovered_micros`, `actor`, `reason` |
 | `trading.retry.requested` | `swap_id`, `cabal_id`, `proposal_id`, `requested_by` |

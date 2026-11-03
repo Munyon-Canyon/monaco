@@ -86,17 +86,28 @@ func NewEVMArrivals(rpc map[chain.Network]*httpclient.Client, maxBlocks int64, c
 	}
 }
 
-type pacer struct {
+type tally struct {
 	clock   clock.Clock
-	started bool
+	calls   int
+	refused int
+	from    int64
+	last    int64
+	next    int64
 }
 
-func (p *pacer) wait() {
-	if p.started {
-		<-p.clock.After(arrivalPace)
+func (t *tally) wait() {
+	if t.calls > 0 {
+		<-t.clock.After(arrivalPace)
 	}
-	p.started = true
+	t.calls++
 }
+
+type evmBlock struct {
+	Number    hexInt `json:"number"`
+	Timestamp hexInt `json:"timestamp"`
+}
+
+func (b evmBlock) at() time.Time { return time.Unix(int64(b.Timestamp), 0) }
 
 type arrivalLog struct {
 	Address string   `json:"address"`
@@ -115,7 +126,7 @@ type logFilter struct {
 
 type arrivalScan struct {
 	client  *httpclient.Client
-	pace    *pacer
+	tally   *tally
 	network chain.Network
 	owner   chain.EVMAddress
 	attrs   []slog.Attr
@@ -145,7 +156,7 @@ func (a *EVMArrivals) Inbound(
 	transfer, recipient := transferEventTopic, topicOf(owner)
 	s := arrivalScan{
 		client:  client,
-		pace:    &pacer{clock: a.clock},
+		tally:   &tally{clock: a.clock},
 		network: network,
 		owner:   owner,
 		attrs:   attrs,
@@ -157,7 +168,6 @@ func (a *EVMArrivals) Inbound(
 	key := arrivalKey{network: network, owner: owner, since: since.UnixNano()}
 	got, found, err := a.inbound(ctx, s, key, since)
 	a.mu.Lock()
-	defer a.mu.Unlock()
 	switch {
 	case rateLimited(err):
 		b := a.throttled[network]
@@ -167,21 +177,29 @@ func (a *EVMArrivals) Inbound(
 	case err == nil:
 		delete(a.throttled, network)
 	}
+	a.mu.Unlock()
+	t := s.tally
+	observability.Info(ctx, observability.TradingEVMArrivalsScan,
+		slog.String("network", string(network)), slog.String("owner", owner.String()),
+		slog.Int("calls", t.calls), slog.Int("refused", t.refused), slog.Int64("from", t.from),
+		slog.Int64("to", t.last), slog.Int64("next", t.next), slog.Bool("found", found))
 	return got, found, err
 }
 
 func (a *EVMArrivals) inbound(
 	ctx context.Context, s arrivalScan, key arrivalKey, since time.Time,
 ) (app.EVMArrival, bool, error) {
-	var head hexInt
-	if err := s.call(ctx, "eth_blockNumber", []any{}, &head); err != nil {
+	var head evmBlock
+	if err := s.call(ctx, "eth_getBlockByNumber", []any{"latest", false}, &head); err != nil {
 		return app.EVMArrival{}, false, err
 	}
-	cur, err := a.cursor(ctx, s, key, since, int64(head))
+	cur, err := a.cursor(ctx, s, key, since, head)
 	if err != nil {
 		return app.EVMArrival{}, false, err
 	}
-	got, found, cur, err := s.scan(ctx, cur, int64(head)-safeDepth(s.network))
+	s.tally.from, s.tally.last = cur.next, cur.next-1
+	got, found, cur, err := s.scan(ctx, cur, int64(head.Number)-safeDepth(s.network))
+	s.tally.next = cur.next
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if found {
@@ -206,7 +224,7 @@ func rateLimited(err error) bool {
 }
 
 func (a *EVMArrivals) cursor(
-	ctx context.Context, s arrivalScan, key arrivalKey, since time.Time, head int64,
+	ctx context.Context, s arrivalScan, key arrivalKey, since time.Time, head evmBlock,
 ) (arrivalCursor, error) {
 	a.mu.Lock()
 	cur, ok := a.cursors[key]
@@ -239,6 +257,7 @@ func (s arrivalScan) scan(
 		if err != nil {
 			return app.EVMArrival{}, false, cur, err
 		}
+		s.tally.last = to
 		if got, found, err := s.first(logs); err != nil || found {
 			return got, found, cur, err
 		}
@@ -311,7 +330,7 @@ func (a *EVMArrivals) Transfer(
 	if !ok {
 		return app.EVMArrival{}, false, errs.New(errs.CodeInvalidInput, evmTransferOp, attrs...)
 	}
-	s := arrivalScan{client: client, pace: &pacer{clock: a.clock}, network: network, owner: owner, attrs: attrs}
+	s := arrivalScan{client: client, tally: &tally{clock: a.clock}, network: network, owner: owner, attrs: attrs}
 	var receipt *txReceipt
 	var head hexInt
 	err := s.call(ctx, "eth_getTransactionReceipt", []any{txHash}, &receipt)
@@ -349,24 +368,25 @@ func (s arrivalScan) transferTo(
 		append(s.attrs, slog.String("reason", "several_transfers_to_treasury"))...)
 }
 
-func (s arrivalScan) firstBlockAt(ctx context.Context, at time.Time, head int64) (int64, error) {
-	lo, hi := int64(0), head+1
-	for lo < hi {
-		mid := lo + (hi-lo)/2
-		var block struct {
-			Timestamp hexInt `json:"timestamp"`
-		}
-		if err := s.call(ctx, "eth_getBlockByNumber", []any{hexQuantity(mid), false}, &block); err != nil {
-			return 0, err
-		}
-		if time.Unix(int64(block.Timestamp), 0).Before(at) {
-			lo = mid + 1
-		} else {
-			hi = mid
-		}
+func (s arrivalScan) firstBlockAt(ctx context.Context, at time.Time, head evmBlock) (int64, error) {
+	top := int64(head.Number)
+	if !at.Before(head.at()) {
+		return top + 1, nil
 	}
-	return lo, nil
+	ago := head.at().Sub(at)
+	guess := max(top-blocksIn(ago, s.network.BlockInterval()), 0)
+	var sample evmBlock
+	if err := s.call(ctx, "eth_getBlockByNumber", []any{hexQuantity(guess), false}, &sample); err != nil {
+		return 0, err
+	}
+	span, elapsed := top-int64(sample.Number), head.at().Sub(sample.at())
+	if span <= 0 || elapsed <= 0 {
+		return guess, nil
+	}
+	return max(top-blocksIn(ago, elapsed/time.Duration(span)), 0), nil
 }
+
+func blocksIn(d, interval time.Duration) int64 { return int64((d + interval - 1) / interval) }
 
 func (s arrivalScan) logs(ctx context.Context, from, to int64) ([]arrivalLog, error) {
 	f := s.filter
@@ -394,12 +414,13 @@ func (h *hexInt) UnmarshalJSON(raw []byte) error {
 
 func (s arrivalScan) call(ctx context.Context, method string, params []any, into any) error {
 	attrs := append(slices.Clone(s.attrs), slog.String("method", method))
-	s.pace.wait()
+	s.tally.wait()
 	raw, _ := json.Marshal(rpcCall{JSONRPC: "2.0", ID: 1, Method: method, Params: params})
 	req, _ := http.NewRequestWithContext(ctx, http.MethodPost, "", bytes.NewReader(raw))
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := s.client.Do(ctx, req)
 	if err != nil {
+		s.tally.refused++
 		return errs.Wrap(err, errs.CodeRPCUnavailable, evmArrivalsOp, attrs...)
 	}
 	defer func() { _ = resp.Body.Close() }()
@@ -408,6 +429,9 @@ func (s arrivalScan) call(ctx context.Context, method string, params []any, into
 		Error  *rpcError       `json:"error"`
 	}
 	decodeErr := json.NewDecoder(io.LimitReader(resp.Body, evmMaxBody)).Decode(&reply)
+	if reply.Error != nil || resp.StatusCode != http.StatusOK {
+		s.tally.refused++
+	}
 	if reply.Error != nil {
 		return errs.Wrap(reply.Error, errs.CodeRPCUnavailable, evmArrivalsOp, append(attrs,
 			slog.Int("status", resp.StatusCode), slog.Int("rpc_code", reply.Error.Code),

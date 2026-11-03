@@ -111,3 +111,8 @@ var TradingBridgeOutcomeUnknown = Msg{
 	Name:     "trading.bridge.outcome_unknown",
 	Required: []string{"swap_id", "cabal_id", "step", "network", "action_id"},
 }
+
+var TradingEVMArrivalsScan = Msg{
+	Name:     "trading.evm_arrivals.scan",
+	Required: []string{"network", "owner", "calls", "refused", "from", "to", "next", "found"},
+}
