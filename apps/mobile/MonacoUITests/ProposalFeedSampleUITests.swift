@@ -278,7 +278,7 @@ nonisolated final class ProposalFeedSampleUITests: XCTestCase {
 
 extension ProposalFeedSampleUITests {
     @MainActor
-    private func toast(containing text: String) -> XCUIElement {
+    private func labelled(containing text: String) -> XCUIElement {
         app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", text)).firstMatch
     }
 
