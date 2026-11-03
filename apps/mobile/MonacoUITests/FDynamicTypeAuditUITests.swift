@@ -4,9 +4,11 @@ nonisolated final class FDynamicTypeAuditUITests: XCTestCase {
     private struct Screen {
         let name: String
         let arguments: [String]
+        let presentsSheet: Bool
 
-        init(_ name: String, _ arguments: String) {
+        init(_ name: String, _ arguments: String, presentsSheet: Bool = false) {
             self.name = name
+            self.presentsSheet = presentsSheet
             self.arguments = arguments.split(separator: " ").map(String.init)
         }
     }
@@ -24,6 +26,14 @@ nonisolated final class FDynamicTypeAuditUITests: XCTestCase {
     private static let requestRowReason =
         "the join request row draws whole at AX5 in the screenshot and the accessibility tree; "
         + "the audit still flags its name and sub-line after eight layout variants (#7235)"
+
+    private static let presentedSheetReason =
+        "on the presented market stats sheet .textClipped flags labels that lie wholly inside the expanded sheet "
+        + "and draw whole ('CoinGecko' flagged, 'Source' beside it not), so the sheet's content is audited "
+        + "unpresented as f__12-info-sheet-content (#7401)"
+
+    private static let movedReason =
+        "the audit moved the element after the layout settled, so its frame no longer describes the drawn text (#7401)"
 
     private static let proposeBuyBackdropReason =
         "the 'Propose buy' text behind the presented review sheet is flagged at every scroll position "
@@ -149,8 +159,8 @@ nonisolated final class FDynamicTypeAuditUITests: XCTestCase {
             Self.group05, Self.group06, Self.group07, Self.group08, Self.group09, Self.group10, Self.group11,
             Self.group18, Self.group13, Self.group16,
         ].flatMap { $0 }
-        XCTAssertEqual(all.count, 95)
-        XCTAssertEqual(Set(all.map(\.name)).count, 95)
+        XCTAssertEqual(all.count, 96)
+        XCTAssertEqual(Set(all.map(\.name)).count, 96)
     }
 
     @MainActor
@@ -187,22 +197,34 @@ nonisolated final class FDynamicTypeAuditUITests: XCTestCase {
             let navigationBar = app.navigationBars.firstMatch
             let navigationBarBottom = navigationBar.exists ? navigationBar.frame.maxY : viewport.minY
             do {
-                try app.performAccessibilityAudit(for: .textClipped) { issue in
-                    let element = issue.element.map { "\($0.elementType.rawValue) '\($0.label)'" } ?? "no element"
-                    let outsideViewport = issue.element.map { element in
-                        let frame = element.frame
-                        return frame.minY < navigationBarBottom || frame.maxY > tabBarTop
-                            || frame.minX < viewport.minX
-                            || frame.maxX > viewport.maxX
+                if screen.presentsSheet {
+                    XCTContext.runActivity(named: Self.presentedSheetReason) { _ in }
+                } else {
+                    let settled = (try? app.snapshot()).map(Self.staticTextFramesByLabel) ?? [:]
+                    try app.performAccessibilityAudit(for: .textClipped) { issue in
+                        let element = issue.element.map { "\($0.elementType.rawValue) '\($0.label)'" } ?? "no element"
+                        let outsideViewport = issue.element.map { element in
+                            let frame = element.frame
+                            return frame.minY < navigationBarBottom || frame.maxY > tabBarTop
+                                || frame.minX < viewport.minX
+                                || frame.maxX > viewport.maxX
+                        }
+                        let moved = issue.element.map { element in
+                            element.elementType == .staticText
+                                && !(settled[element.label] ?? []).contains {
+                                    Self.sameFrame($0, element.frame)
+                                }
+                        }
+                        let reason =
+                            outsideViewport == true
+                            ? Self.offscreenReason
+                            : moved == true ? Self.movedReason : Self.allowedReason(screen.name, element)
+                        if reason != nil { return true }
+                        failures.append(
+                            "\(screen.name) at \(size), scroll \(position): text clipped on \(element): "
+                                + issue.compactDescription)
+                        return true
                     }
-                    let reason =
-                        outsideViewport == true
-                        ? Self.offscreenReason : Self.allowedReason(screen.name, element)
-                    if reason != nil { return true }
-                    failures.append(
-                        "\(screen.name) at \(size), scroll \(position): text clipped on \(element): "
-                            + issue.compactDescription)
-                    return true
                 }
                 try app.performAccessibilityAudit(for: .dynamicType) { _ in true }
             } catch {
@@ -226,6 +248,20 @@ nonisolated final class FDynamicTypeAuditUITests: XCTestCase {
     private static func staticTextFrames(_ snapshot: XCUIElementSnapshot) -> [CGRect] {
         let own = snapshot.elementType == .staticText ? [snapshot.frame] : []
         return own + snapshot.children.flatMap(staticTextFrames)
+    }
+
+    private static func staticTextFramesByLabel(_ snapshot: XCUIElementSnapshot) -> [String: [CGRect]] {
+        var frames: [String: [CGRect]] = [:]
+        if snapshot.elementType == .staticText { frames[snapshot.label] = [snapshot.frame] }
+        for child in snapshot.children {
+            frames.merge(staticTextFramesByLabel(child)) { $0 + $1 }
+        }
+        return frames
+    }
+
+    private static func sameFrame(_ a: CGRect, _ b: CGRect) -> Bool {
+        abs(a.minX - b.minX) <= 1 && abs(a.minY - b.minY) <= 1 && abs(a.width - b.width) <= 1
+            && abs(a.height - b.height) <= 1
     }
 
     private static func allowedReason(_ screen: String, _ element: String) -> String? {
@@ -267,7 +303,8 @@ extension FDynamicTypeAuditUITests {
 
     private static let group12: [Screen] = [
         Screen("f__12-toast", "-MonacoParitySample toast-settled"),
-        Screen("f__12-info-sheet", "-MonacoParitySample info-sheet"),
+        Screen("f__12-info-sheet", "-MonacoParitySample info-sheet", presentsSheet: true),
+        Screen("f__12-info-sheet-content", "-MonacoParitySample info-sheet-content"),
     ]
 
     private static let group03: [Screen] = [

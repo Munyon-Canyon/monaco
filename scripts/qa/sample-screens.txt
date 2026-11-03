@@ -836,6 +836,7 @@ f__04-vote-committed                -MonacoProposalSample voteSettles
 f__19-permission-sheet              -MonacoProposalSample permissionSheet
 f__12-toast                         -MonacoParitySample toast-settled
 f__12-info-sheet                    -MonacoParitySample info-sheet
+f__12-info-sheet-content            -MonacoParitySample info-sheet-content
 f__04-vote-closed                   -MonacoProposalSample nvdaFilled
 f__04-proposal-passed               -MonacoProposalSample nvdaPassed
 f__15-passed                        -MonacoProposalSample nvdaPassedMoment
