@@ -35,7 +35,9 @@ private struct ReactionsSampleScreen: View {
         defaults.removePersistentDomain(forName: "reactions-harness")
         frequent = FrequentEmojiStore(defaults: defaults)
         for emoji in ["🤝", "🙌", "💪", "👀", "🎉", "😂", "❤️", "👍"] { frequent.record(emoji) }
-        let items = [Components.Schemas.FeedItem.threads[0], .samples[1], .samples[3]]
+        var proposal = Components.Schemas.FeedItem.threads[0]
+        proposal.reactions = [.init(emoji: "💪", count: 3, mine: false), .init(emoji: "👀", count: 2, mine: false)]
+        let items = [proposal, .samples[1], .samples[3]]
         _model = State(
             initialValue: ReactionsModel.sample(
                 reactions: Dictionary(uniqueKeysWithValues: items.map { ($0.id, $0.reactions) }),

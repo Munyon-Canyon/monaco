@@ -59,7 +59,9 @@ private struct LedgerStorySample: View {
         var ledger = Components.Schemas.Ledger.week42
         let start = ledger.windowStart
         ledger.series = (0..<42).map { (step: Int) -> Components.Schemas.LedgerPoint in
-            let bps: Int64 = Int64(step * 3) + Int64(step % 5) * 4 - 20
+            let dip: Int64 = Int64(max(0, 8 - abs(step - 14))) * 3
+            let rise: Int64 = Int64(max(0, step - 24)) * 2
+            let bps: Int64 = 20 - dip + rise + Int64(step % 3)
             let at: Date = start.addingTimeInterval(Double(step) * 14_400)
             return Components.Schemas.LedgerPoint(at: at, returnBps: bps)
         }
@@ -67,7 +69,9 @@ private struct LedgerStorySample: View {
         let call = Components.Schemas.LedgerMarker(at: callAt, kind: .call, symbol: "AMZN", label: "Called AMZN")
         ledger.markers = [call]
         let cover = SampleImage.flat(.indigo, name: "ledger-cover")?.absoluteString
-        ledger.cabals = ledger.cabals.map { cabal in
+        let order = ["AC Capital", "Tech Titans", "Degens"]
+        let rank = { (cabal: Components.Schemas.LedgerCabal) in order.firstIndex(of: cabal.name) ?? order.count }
+        ledger.cabals = ledger.cabals.sorted { rank($0) < rank($1) }.map { cabal in
             Components.Schemas.LedgerCabal(id: cabal.id, name: cabal.name, pictureUrl: cover)
         }
         return LedgerShareContent(
