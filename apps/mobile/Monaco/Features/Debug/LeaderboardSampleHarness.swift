@@ -61,7 +61,7 @@ final class LeaderboardSampleHarnessEntry: SampleHarnessEntry {
         ) { scenario in
             SampleAPIProtocol.install(SampleAPIScript())
             return AnyView(
-                SampleAppFrame(auth: auth, tab: .cabals, routes: [LeaderboardSampleRoute(scenario: scenario)]))
+                SampleAppFrame(auth: auth, tab: .home, routes: [LeaderboardSampleRoute(scenario: scenario)]))
         }
     }
 }

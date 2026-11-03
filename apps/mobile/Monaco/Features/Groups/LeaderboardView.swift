@@ -6,6 +6,20 @@ import SwiftUI
 
 enum CallBoardMetrics {
     static let skeletonRows = 6
+    static let titleFoldOffset: CGFloat = 36
+}
+
+struct CallBoardLargeTitle: View {
+    let text: String
+
+    var body: some View {
+        Text(text)
+            .font(MonacoTheme.Typo.display)
+            .foregroundStyle(MonacoTheme.primaryText)
+            .padding(.horizontal, MonacoTheme.Space.gutter)
+            .accessibilityHidden(true)
+            .accessibilityIdentifier("leaderboard-large-title")
+    }
 }
 
 struct LeaderboardView: View {
@@ -19,6 +33,7 @@ struct LeaderboardView: View {
     @State private var model: CallBoardModel?
     @State private var viewerRowVisible = true
     @State private var showsInfo = false
+    @State private var titleFolded = false
 
     var body: some View {
         Group {
@@ -30,9 +45,16 @@ struct LeaderboardView: View {
         }
         .monacoCanvas()
         .navigationTitle(CallBoardCopy.title)
-        .navigationBarTitleDisplayMode(.large)
+        .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden()
         .toolbar {
+            ToolbarItem(placement: .principal) {
+                Text(CallBoardCopy.title)
+                    .font(MonacoTheme.Typo.section).foregroundStyle(MonacoTheme.primaryText)
+                    .opacity(titleFolded ? 1 : 0)
+                    .accessibilityHidden(!titleFolded)
+                    .accessibilityAddTraits(.isHeader)
+            }
             ToolbarItem(placement: .topBarLeading) {
                 MonacoGlassButton(
                     systemImage: "chevron.left", accessibilityLabel: CallBoardCopy.back, style: .quiet,
@@ -70,6 +92,7 @@ struct LeaderboardView: View {
     private func page(_ model: CallBoardModel) -> some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
+                CallBoardLargeTitle(text: CallBoardCopy.title)
                 CallBoardHeader(
                     title: headerTitle(model), range: headerRange(model), selection: periodBinding(model))
                 Section {
@@ -83,6 +106,11 @@ struct LeaderboardView: View {
                     .monacoUnderlineTabsPinned()
                 }
             }
+        }
+        .onScrollGeometryChange(for: Bool.self) { geometry in
+            geometry.contentOffset.y + geometry.contentInsets.top > CallBoardMetrics.titleFoldOffset
+        } action: { _, folded in
+            titleFolded = folded
         }
         .refreshable { await model.load() }
         .safeAreaInset(edge: .bottom) {
@@ -204,7 +232,7 @@ struct CallBoardBody: View {
                 CallBoardUnrankedCardView(card: unranked)
             }
             if !screen.top.isEmpty {
-                CallBoardSectionTitle(text: screen.podiumTitle)
+                CallBoardSectionTitle(text: screen.podiumTitle, afterCard: followsCard)
                 CallBoardPodium(rows: screen.top)
             }
             if !screen.around.isEmpty {
@@ -219,6 +247,10 @@ struct CallBoardBody: View {
             }
         }
         .accessibilityElement(children: .contain)
+    }
+
+    private var followsCard: Bool {
+        (showMoment && screen.moment != nil) || screen.card != nil || screen.unrankedCard != nil
     }
 
     @ViewBuilder private var around: some View {
@@ -240,13 +272,14 @@ struct CallBoardSectionTitle: View {
     let text: String
     var count: Int?
     var identifier: String?
+    var afterCard = false
 
     var body: some View {
         (Text(text).foregroundStyle(MonacoTheme.primaryText)
             + Text(count.map { " \($0)" } ?? "").foregroundStyle(MonacoTheme.secondaryText))
             .font(MonacoTheme.Typo.section)
             .padding(.horizontal, MonacoTheme.Space.gutter)
-            .padding(.top, MonacoTheme.Space.l)
+            .padding(.top, afterCard ? MonacoTheme.Space.m : MonacoTheme.Space.l)
             .padding(.bottom, MonacoTheme.Space.s)
             .accessibilityAddTraits(.isHeader)
             .accessibilityIdentifier(identifier ?? "leaderboard-section")
