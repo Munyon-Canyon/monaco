@@ -42,6 +42,8 @@ final class AssetInYourCabalsTests: XCTestCase {
         XCTAssertEqual(facts.title, "AC Capital \u{00B7} Buy $400")
         XCTAssertEqual(facts.subtitle, "5 of 8 voted \u{00B7} 6 replies \u{00B7} ends in 4h")
         XCTAssertEqual(facts.trailing, "\u{2713} 4 \u{00B7} \u{2715} 1")
+        XCTAssertEqual(facts.yes, 4)
+        XCTAssertEqual(facts.no, 1)
         XCTAssertEqual(facts.proposalID, "proposal-1")
     }
 

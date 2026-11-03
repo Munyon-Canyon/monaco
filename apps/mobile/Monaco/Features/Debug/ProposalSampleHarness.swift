@@ -134,7 +134,8 @@ enum ProposalSampleScenario: String, CaseIterable {
         case .closedSidesOn:
             script.asset = .nvda
             script.proposal = Components.Schemas.ProposalDetail.filledNVDA()
-                .closedResult(yes: 2, no: 1, voters: 3, needed: 2, ballot: .yes, order: 2, sides: true)
+                .closedResult(yes: 2, no: 1, voters: 5, needed: 3, ballot: .yes, order: 2, sides: true)
+                .withNonVoters(["Sam", "Mia"])
                 .withPhotoVoters()
         case .closedSidesPrivate:
             script.asset = .nvda
@@ -387,6 +388,17 @@ extension Components.Schemas.ProposalDetail {
         var detail = voted(.yes)
         detail.canVote = true
         detail.tally = .init(yes: 2, no: 0, voters: 6, needed: 4)
+        return detail
+    }
+
+    fileprivate func withNonVoters(_ names: [String]) -> Self {
+        var detail = self
+        for (index, name) in names.enumerated() {
+            detail.voters.append(
+                .init(
+                    userId: "sample-non-voter-\(index)", voted: false, choice: nil, castAt: nil, displayName: name,
+                    photoUrl: nil))
+        }
         return detail
     }
 

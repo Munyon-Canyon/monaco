@@ -47,6 +47,8 @@ public struct AssetOpenProposalRowFacts: Equatable, Sendable, Identifiable {
     public let title: String
     public let subtitle: String
     public let trailing: String
+    public let yes: Int
+    public let no: Int
 
     public var id: String { proposalID }
 
@@ -64,6 +66,8 @@ public struct AssetOpenProposalRowFacts: Equatable, Sendable, Identifiable {
             tally: ProposalTally(yes: tally.yes, no: tally.no, voters: tally.voters, needed: tally.needed),
             replies: Int(item.commentCount), expiresAt: expiresAt, now: now)
         trailing = "✓ \(tally.yes) · ✕ \(tally.no)"
+        yes = Int(tally.yes)
+        no = Int(tally.no)
     }
 
     private static func dollars(_ micros: Int64) -> String {
