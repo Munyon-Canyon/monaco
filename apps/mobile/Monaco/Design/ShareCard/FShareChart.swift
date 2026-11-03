@@ -196,7 +196,7 @@ private struct FShareDisc: View {
                     .frame(width: FShareChart.sealSize * scale, height: FShareChart.sealSize * scale)
                 Image(systemName: "checkmark.seal.fill")
                     .font(.system(size: FShareChart.sealSize * scale))
-                    .foregroundStyle(MonacoTheme.profit)
+                    .foregroundStyle(Color.white)
             } else {
                 Circle().fill(Color.black)
                     .frame(width: ring, height: ring)
@@ -223,10 +223,18 @@ private struct FShareCallout: View {
         }
     }
 
+    private var glyphColor: Color {
+        switch kind {
+        case .buy: MonacoTheme.profit
+        case .sell: MonacoTheme.loss
+        case .seal: Color.white
+        }
+    }
+
     var body: some View {
         HStack(spacing: 4 * scale) {
             Text(glyph)
-                .foregroundStyle(kind == .sell ? MonacoTheme.loss : MonacoTheme.profit)
+                .foregroundStyle(glyphColor)
             Text(text).foregroundStyle(Color.white)
         }
         .font(.system(size: 13 * scale, weight: .semibold).monospacedDigit())
