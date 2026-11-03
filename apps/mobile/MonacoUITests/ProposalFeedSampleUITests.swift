@@ -81,6 +81,16 @@ nonisolated final class ProposalFeedSampleUITests: XCTestCase {
         scrollIntoReach(element("comment-row-c2"))
         XCTAssertTrue(element("comment-row-c2").exists, "the folded reply is missing")
         capture("04-detail-thread")
+
+        scrollIntoReach(element("comment-row-c4"))
+        postFromTheComposer("Count me in if we cap it at $25.")
+        capture("05-comment-posted")
+
+        let reply = element("comment-reply-c1")
+        scrollIntoReach(reply)
+        reply.tap()
+        postFromTheComposer("Agreed, Nvidia next.")
+        capture("06-reply-posted")
     }
 
     @MainActor
@@ -131,6 +141,11 @@ nonisolated final class ProposalFeedSampleUITests: XCTestCase {
         XCTAssertFalse(element("proposal-vote-no").exists, "the No button should be gone once voted")
         scrollAboveComposer(element("proposal-change-vote"))
         capture("31-vote-voted")
+
+        app.buttons["Close"].tap()
+        element("proposal-change-vote").tap()
+        castVote("no")
+        XCTAssertTrue(labelled(containing: "Changed to No").waitForExistence(timeout: 5), "no toast after changing")
     }
 
     @MainActor
@@ -232,6 +247,19 @@ extension ProposalFeedSampleUITests {
     @MainActor
     private func labelled(containing text: String) -> XCUIElement {
         app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", text)).firstMatch
+    }
+
+    @MainActor
+    private func postFromTheComposer(_ text: String) {
+        let field = element("comment-composer-field")
+        XCTAssertTrue(field.waitForExistence(timeout: 5), "the composer never drew")
+        field.tap()
+        field.typeText(text)
+        element("comment-composer-send").tap()
+        let posted = element("comment-thread").descendants(matching: .any).matching(
+            NSPredicate(format: "identifier BEGINSWITH 'comment-row-' AND label CONTAINS %@", text)
+        ).firstMatch
+        XCTAssertTrue(posted.waitForExistence(timeout: 10), "\"\(text)\" never reached the thread")
     }
 
     @MainActor
