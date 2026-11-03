@@ -31,7 +31,6 @@ struct CabalProposals: View {
 
     var body: some View {
         VStack(spacing: 0) { content }
-            .padding(.top, -(SectionStackMetrics.spacing - MonacoTheme.Space.l))
             .task {
                 let model = preparedModel()
                 refresh?.register("cabal-proposals") { await model.refresh() }

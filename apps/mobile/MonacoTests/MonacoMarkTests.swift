@@ -147,7 +147,7 @@ struct CabalCoverTests {
 
     @Test func heroIsAtLeastItsMinimumHeight() {
         #expect(size(of: .hero, url: nil).height >= 132)
-        #expect(size(of: .heroTall, url: nil).height >= 172)
+        #expect(size(of: .heroTall, url: nil).height >= 160)
         #expect(size(of: .thumb(34), url: nil) == CGSize(width: 34, height: 34))
     }
 

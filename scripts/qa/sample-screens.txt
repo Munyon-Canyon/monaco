@@ -265,8 +265,8 @@ cabal-f-treasury-light            -MonacoGroupDetailSample fTreasuryLight
 cabal-f-treasury-scrolled         -MonacoGroupDetailSample fTreasuryScrolled -AppleInterfaceStyle Dark -MonacoSampleScroll 1
 cabal-f-treasury-history          -MonacoGroupDetailSample fTreasuryHistory -AppleInterfaceStyle Dark
 cabal-f-rules                     -MonacoGroupDetailSample fRules -AppleInterfaceStyle Dark
-cabal-f-rules-scrolled            -MonacoGroupDetailSample fRulesScrolled -AppleInterfaceStyle Dark -MonacoSampleScroll 0.6
-cabal-f-rules-sides               -MonacoGroupDetailSample fRulesSides -AppleInterfaceStyle Dark -MonacoSampleScroll 0.6
+cabal-f-rules-scrolled            -MonacoGroupDetailSample fRulesScrolled -AppleInterfaceStyle Dark -MonacoSampleScroll 1
+cabal-f-rules-sides               -MonacoGroupDetailSample fRulesSides -AppleInterfaceStyle Dark -MonacoSampleScroll 1
 cabal-f-empty                     -MonacoGroupDetailSample fEmpty -AppleInterfaceStyle Dark
 cabal-f-rule-proposal             -MonacoGroupDetailSample fRuleProposal -MonacoSampleRuleSheet -AppleInterfaceStyle Dark
 cabal-f-rule-proposal-open        -MonacoGroupDetailSample fRuleProposalOpen -AppleInterfaceStyle Dark
@@ -932,7 +932,7 @@ gif-reply-bubble-dark         -gifHarness bubble -AppleInterfaceStyle Dark
 gif-reply-reduce-motion       -gifHarness reduceMotion
 gif-viewer                    -gifHarness viewer
 upgrade-required              -upgradeHarness blocked
-cabal-f-members-scrolled          -MonacoGroupDetailSample fMembersScrolled -AppleInterfaceStyle Dark -MonacoSampleScroll 0.6
+cabal-f-members-scrolled          -MonacoGroupDetailSample fMembersScrolled -AppleInterfaceStyle Dark -MonacoSampleScroll 1
 cabal-f-members-all               -MonacoGroupDetailSample fMembersAll -AppleInterfaceStyle Dark
 cabal-f-voters                    -MonacoGroupDetailSample fVoters -AppleInterfaceStyle Dark
 cabal-f-members-large             -MonacoGroupDetailSample fMembersLarge -AppleInterfaceStyle Dark

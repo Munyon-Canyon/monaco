@@ -42,16 +42,21 @@ private struct CabalStartersList: View {
             VStack(alignment: .leading, spacing: 0) {
                 MonacoSectionHeader(CabalStartersModel.title)
                     .padding(.horizontal, MonacoTheme.Space.gutter)
-                ForEach(rows) { row in
-                    Button {
-                        environment.navigator.open(
-                            AssetRoute(symbol: row.asset.symbol), in: hostMainTab ?? environment.navigator.selectedTab)
-                    } label: {
-                        CabalStarterRow(starter: row, isLast: row.id == rows.last?.id)
+                    .padding(.top, CabalTreasuryMetrics.rowsLead)
+                VStack(spacing: 0) {
+                    ForEach(rows) { row in
+                        Button {
+                            environment.navigator.open(
+                                AssetRoute(symbol: row.asset.symbol),
+                                in: hostMainTab ?? environment.navigator.selectedTab)
+                        } label: {
+                            CabalStarterRow(starter: row, isLast: row.id == rows.last?.id)
+                        }
+                        .buttonStyle(.monacoRow)
+                        .accessibilityIdentifier("cabal-starter-\(row.asset.symbol)")
                     }
-                    .buttonStyle(.monacoRow)
-                    .accessibilityIdentifier("cabal-starter-\(row.asset.symbol)")
                 }
+                .padding(.top, CabalTreasuryMetrics.rowsLead)
             }
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("cabal-starters")

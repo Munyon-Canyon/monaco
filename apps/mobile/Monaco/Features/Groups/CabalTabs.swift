@@ -14,25 +14,17 @@ struct CabalTabsTop: PreferenceKey {
     }
 }
 
-struct CabalPotBottom: PreferenceKey {
-    static let defaultValue: CGFloat? = nil
-
-    static func reduce(value: inout CGFloat?, nextValue: () -> CGFloat?) {
-        value = nextValue() ?? value
-    }
-}
-
-enum CabalPotPin {
-    static func isPinned(potBottom: CGFloat?, barBottom: CGFloat) -> Bool {
-        guard let potBottom else { return false }
-        return potBottom <= barBottom
-    }
+enum CabalPageMetrics {
+    static let spacing = MonacoTheme.Space.sm
+    static let tabsGap = MonacoTheme.Space.sm
+    static let treasuryLead: CGFloat = -(spacing - MonacoTheme.Space.xs)
+    static let statsLead: CGFloat = -spacing
 }
 
 enum CabalTabsPin {
-    static func isPinned(tabsTop: CGFloat?, barBottom: CGFloat, lineHeight: CGFloat = 0) -> Bool {
+    static func isPinned(tabsTop: CGFloat?, barBottom: CGFloat) -> Bool {
         guard let tabsTop else { return false }
-        return tabsTop <= barBottom + lineHeight
+        return tabsTop <= barBottom
     }
 }
 
@@ -77,7 +69,7 @@ private struct CabalTabsLive: View {
 
     var body: some View {
         let selection = shared ?? local
-        VStack(alignment: .leading, spacing: SectionStackMetrics.spacing) {
+        VStack(alignment: .leading, spacing: CabalPageMetrics.tabsGap) {
             CabalTabBar(selection: selection, memberCount: cabalModel?.cabal?.memberCount)
                 .background {
                     GeometryReader { proxy in
@@ -86,7 +78,7 @@ private struct CabalTabsLive: View {
                 }
                 .accessibilityElement(children: .contain)
                 .accessibilityIdentifier("cabal-tabs")
-            SectionStackLayout(spacing: SectionStackMetrics.spacing) {
+            SectionStackLayout(spacing: CabalPageMetrics.spacing) {
                 ForEach(Array(CabalTabs.sections(for: selection.tab).enumerated()), id: \.offset) { _, section in
                     AnyView(section.body(for: context))
                 }

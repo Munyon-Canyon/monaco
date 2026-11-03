@@ -66,7 +66,6 @@ struct CabalEmptyCard: View {
         .padding(MonacoTheme.Space.cardPadding)
         .background(CabalEmptyTint.wash, in: RoundedRectangle(cornerRadius: MonacoTheme.Radius.card))
         .padding(.horizontal, MonacoTheme.Space.gutter)
-        .padding(.top, -(SectionStackMetrics.spacing - MonacoTheme.Space.sm))
         .accessibilityIdentifier("cabal-empty-card")
         .sheet(isPresented: $showsInvite) { CabalInviteSheet(cabal: cabal) }
     }

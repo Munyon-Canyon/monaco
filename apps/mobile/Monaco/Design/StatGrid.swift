@@ -22,7 +22,7 @@ extension StatItem: Equatable {
 
 enum StatMetrics {
     static let columnGap: CGFloat = 12
-    static let cellMinHeight: CGFloat = 56
+    static let cellMinHeight: CGFloat = 44
     static let pairGap: CGFloat = 20
     static let cardPaddingVertical: CGFloat = 12
     static let cardPaddingHorizontal: CGFloat = 16

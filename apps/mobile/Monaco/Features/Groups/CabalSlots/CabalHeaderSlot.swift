@@ -34,7 +34,7 @@ enum CabalHeroMetrics {
     static let nameInset: CGFloat = 20
     static let bottomInset: CGFloat = 54
     static let skeletonHeight: CGFloat = 132
-    static let tallSkeletonHeight: CGFloat = 172
+    static let tallSkeletonHeight: CGFloat = 160
     static let discLeading: CGFloat = 10
     static let discBottom: CGFloat = 8
 }
@@ -48,7 +48,6 @@ private struct CabalHeader: View {
     var body: some View {
         content
             .padding(.horizontal, MonacoTheme.Space.gutter)
-            .padding(.top, MonacoTheme.Space.s)
             .onChange(of: model?.failureTick) { _, _ in
                 guard model?.cabal != nil, let error = model?.lastError else { return }
                 toasts.show(error)

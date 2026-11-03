@@ -26,7 +26,10 @@ enum CabalTreasuryCopy {
 }
 
 enum CabalTreasuryMetrics {
-    static let sectionGap = MonacoTheme.Space.l
+    static let sectionGap = MonacoTheme.Space.m
+    static let cashTile: CGFloat = 40
+    static let headerLead = -(sectionGap - MonacoTheme.Space.xs)
+    static let rowsLead = -MonacoTheme.Space.sm
 }
 
 struct CabalTreasuryTab: View {
@@ -111,7 +114,7 @@ struct CabalTreasuryBody: View {
     }
 
     private func positions(_ positions: [CabalTreasuryRows.Position]) -> some View {
-        VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
+        VStack(alignment: .leading, spacing: 0) {
             MonacoSectionHeader(CabalTreasuryRows.positionsLabel, count: positions.count)
                 .secondaryCount()
                 .padding(.horizontal, MonacoTheme.Space.gutter)
@@ -127,7 +130,9 @@ struct CabalTreasuryBody: View {
                     .accessibilityIdentifier("cabal-holding-\(position.ticker)")
                 }
             }
+            .padding(.top, CabalTreasuryMetrics.rowsLead)
         }
+        .padding(.top, CabalTreasuryMetrics.headerLead)
     }
 
     private func note(_ text: String, id: String) -> some View {
@@ -208,7 +213,7 @@ struct CabalTreasuryCashCard: View {
                     amount
                 }
             }
-            .frame(minHeight: MonacoButtonMetrics.hitTarget)
+            .frame(minHeight: CabalTreasuryMetrics.cashTile)
         }
         .padding(.horizontal, MonacoTheme.Space.gutter)
         .accessibilityElement(children: .contain)
@@ -220,7 +225,7 @@ struct CabalTreasuryCashCard: View {
         Image(systemName: MonacoIcon.card.symbol)
             .font(MonacoTheme.Typo.title2)
             .foregroundStyle(MonacoTheme.primaryText)
-            .frame(width: HomeCashRowMetrics.tile, height: HomeCashRowMetrics.tile)
+            .frame(width: CabalTreasuryMetrics.cashTile, height: CabalTreasuryMetrics.cashTile)
             .background(MonacoTheme.surfaceSunken, in: RoundedRectangle(cornerRadius: MonacoTheme.Radius.chip))
             .accessibilityHidden(true)
     }
