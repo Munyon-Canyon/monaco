@@ -33,7 +33,7 @@ What an engineer needs from the designer's notes. The frames are in `screens/`, 
 
 The founder's notes: the reaction buttons are too big, and the logo and ticker could be bigger. The final numbers, in phone points of the 393 × 852 frames:
 
-- **Reaction chip on a post:** 24 visible, 44 × 44 to tap (its own 44 width, 10 above and below the 24). At least 44 wide, padding 8, 4 between chips. Emoji, count, + and the reply glyph are Footnote semibold 13 in the frame; in the app they are 15, under the 15 pt floor (founder decision Q1, listed in the tracking issue).
+- **Reaction chip on a post:** 24 visible, 44 × 44 to tap (its own 44 width, 10 above and below the 24). At least 44 wide, padding 8, 4 between chips. Emoji, count, + and the reply glyph are Footnote semibold 13 in the frame; in the app they stay on the 15 pt strong roles (`Typo.subheadStrong`, `captionStrong`), which #7801 did not move; its 13 pt floor applies to row sub-lines, stat labels and captions.
 - **A reply's chip** stays 22 visible, 44 × 44 to tap.
 - **Feed post logo:** 36, radius 15 % of its size (5.4).
 - **Ticker and amount line:** Headline 17 semibold (`.font(.headline)`) when a logo leads the line. The cabal and the fact keep Footnote 13. Lines with no logo (Nora joined, "Tech Titans") keep 15.

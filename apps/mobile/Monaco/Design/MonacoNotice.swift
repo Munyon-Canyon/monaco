@@ -84,7 +84,9 @@ struct MonacoNotice: View {
                     .foregroundStyle(MonacoTheme.primaryText)
             }
             .fixedSize(horizontal: false, vertical: true)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, MonacoTheme.Space.sm)
+            .frame(maxWidth: .infinity, minHeight: MonacoButtonMetrics.hitTarget, alignment: .leading)
+            .contentShape(.accessibility, Rectangle())
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(spokenText)
             if let action {
@@ -93,7 +95,6 @@ struct MonacoNotice: View {
                     .accessibilityIdentifier(actionIdentifier ?? "")
             }
         }
-        .padding(.vertical, MonacoTheme.Space.sm)
         .padding(.horizontal, MonacoTheme.Space.m)
         .background(RoundedRectangle(cornerRadius: MonacoTheme.Radius.notice, style: .continuous).fill(tone.fill))
         .accessibilityElement(children: .contain)
