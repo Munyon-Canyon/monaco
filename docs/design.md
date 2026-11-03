@@ -4,7 +4,7 @@ The look in one sentence: **Apple native, dark first: a black (or white) canvas,
 
 This is design option F, "Native", which the founder chose on 10-26. The [F package](design/f/README.md) holds the frames, the gallery, the [notes](design/f/notes.md) with the build map and fixture table, and the [kit](design/f/kit.md). This page is the rule set; the package is the picture.
 
-Kept: SF Pro only, tabular figures, every colour and font a token, the 15pt text floor, the slot architecture, toasts for confirmations, the product words, pixel-animal default avatars, the "monaco" wordmark as Home's title, the rounded profile card, native chart behaviour (candles, intervals, pinch and pan, crosshair).
+Kept: SF Pro only, tabular figures, every colour and font a token, the 13pt text floor, the slot architecture, toasts for confirmations, the product words, pixel-animal default avatars, the "monaco" wordmark as Home's title, the rounded profile card, native chart behaviour (candles, intervals, pinch and pan, crosshair).
 
 Gone: the v3 paper canvas and its ink-green text, cards drawn with a border everywhere, capsule P&L pills, cover-art cabal cards with text on a scrim (rows lead with the cabal's **crest**; the cabal page keeps its picture as a plain header with nothing drawn on it), the dark identity card's palette (the profile card is a `surface` card at radius 12), segment pickers for sections, range pills, the chart gradient, hand-tuned glass fills.
 
@@ -78,9 +78,9 @@ Ticker tiles keep the issuer logo, with a `surfaceSunken` tile and `primaryText`
 
 ## Type
 
-One family, SF Pro, at the size floor #4110 set after hands-on QA found text too small. A role at a system text style's size uses that style, so Dynamic Type scales every role. Every figure is `.monospacedDigit()`. No letter-spacing overrides.
+One family, SF Pro, at F's sizes, with a 13pt floor. A role at a system text style's size uses that style, so Dynamic Type scales every role. Every figure is `.monospacedDigit()`. No letter-spacing overrides.
 
-**The 15pt floor (founder, 10-27: Q1):** the frames draw row sub-lines, stat labels and captions at 13pt; the app sets them at 15pt, so screens come out a little taller than the frames. Never shrink text to match one.
+**The 13pt floor (founder, 11-02, #7801):** row sub-lines, stat labels and captions are F's 13pt (`.footnote`, 13/18), and nothing in the app is smaller at the default size. This reverses the 10-27 Q1 decision that kept #4110's 15pt floor, which made screens show fewer rows than the frames. Dynamic Type stays on for every role. `secondaryText` clears 4.5:1 on canvas, cell and fill (5.99 / 5.37 / 4.77, Q23) at 13pt regular.
 
 From [`01-tokens-type`](design/f/screens/01-tokens-type.png). #6440 owns the type, spacing and radii code; if its final names differ, #6440 updates these tables in its PR.
 
@@ -97,14 +97,14 @@ From [`01-tokens-type`](design/f/screens/01-tokens-type.png). #6440 owns the typ
 | Row title | `Typo.headline` | 15/20 semibold | 15 | row, post, comment and tile titles; row values |
 | Feed post ticker and amount | `Typo.section` | 17/22 semibold (Headline) | 17 | the line a 36 logo leads; lines without a logo keep `Typo.headline` 15 |
 | Content | `Typo.body` | 15/20 regular | 15 | thesis, comments, sheet and empty-state copy |
-| Row sub | `Typo.subhead` | 13/18 regular | **15** (floor) | second lines, trailing changes, stat labels |
-| Caption | `Typo.caption` | 13 | **15** (floor) | timestamps, chips, chart dates |
+| Row sub | `Typo.subhead` | 13/18 regular | 13 | second lines, trailing changes, stat labels |
+| Caption | `Typo.caption` | 13 | 13 | timestamps, chips, chart dates |
 | Home figure | `moneyFont(.home)` | 32/36 semibold | 32 | Home's net worth only (founder, 10-26) |
 | Money hero | `moneyFont(.hero)` | 44/48 semibold | 44 | the keypad's amount only |
 
 Rules:
 
-- Nothing under 15pt in the app. System surfaces keep the system's sizes: status bar, inline nav title, tab bar, keyboard, menus, notifications.
+- Nothing under 13pt in the app at the default size, and Dynamic Type always on. System surfaces keep the system's sizes: status bar, inline nav title, tab bar, keyboard, menus, notifications.
 - No caps except ticker tiles and system group headers.
 - No SF Mono except the wallet address, inside `MonacoWalletAddressText` only.
 - Tabular figures wherever money or a count appears.
@@ -171,7 +171,7 @@ The founder made these decisions and they are final. Tickets apply them and do n
 11. **Toasts over popups.** An ordinary vote's toast has Undo; the vote that settles a proposal has none (founder, 10-27).
 12. **Keep:** the 3.5% APY label on cash rows, the Propose "Trading bot" row, multichain withdraw (Solana, Base, Arbitrum, Ethereum), the Phantom keypad, docked Deposit, the rounded profile card, the "monaco" wordmark as Home's title.
 13. **Comments and GIFs on every Feed post** (10-27). Any post can be replied to from the Feed; reply reactions are per-emoji chips; GIF sits in both reply sheets; every chip, quick emoji and text Reply is 44 × 44 to tap. **No image uploads in chats** for the first version (10-27 evening): a reply is text, emoji reactions, a GIF (from GIPHY through its iOS SDK, rated pg-13, never an upload), a Poll, a quoted thesis or a shared stock. The composer's ⊕ menu is Poll · Quote the thesis · Share a stock, with no Photo. Profile and cabal pictures are not chats and stay. **Feed post sizes** (10-27 evening): reaction chips 24 visible on a 44 × 44 tap, the asset logo 36, the ticker and amount line Headline 17.
-14. **The 15pt text floor (#4110) stays** (founder, 10-27: Q1). F draws row sub-lines, stat labels and captions at 13pt; the app sets them at 15pt, and parity accepts the extra height.
+14. **The text floor is F's 13pt** (founder, 11-02, #7801, reversing 10-27: Q1). Row sub-lines, stat labels and captions are 13pt, as F draws them.
 
 Other founder answers of 10-27, each by its number in the tracking issue:
 
@@ -194,8 +194,8 @@ These take F's tokens and shared controls (#6440 to #6470, #6432) with no screen
 - Captions and groups: `docs/design/f/index.html`, opened from a checkout.
 - What each frame becomes, and who builds it: the build map in [notes.md](design/f/notes.md).
 - Also drawn in the package: [`04-composer-menu`](design/f/screens/04-composer-menu.png) (the ⊕ menu), [`05-feed-A`](design/f/screens/05-feed-A.png) (the Feed post at its final sizes), and [`01-tokens-later`](design/f/screens/01-tokens-later.png) (phase 2 only: Follow, the streak row, the season row; never built here).
-- **Parity** means the Launch frame's order, tokens, controls, copy and states match, in Dark and in Light, allowing the extra height the 15pt floor causes, with real data, real photos and real crests in place of the fixtures. Later frames are never parity targets in this milestone.
-- **The four kit frames** (`01-tokens`, `01-tokens-type`, `01-tokens-controls`, `01-chart-variants`) are spec boards drawn on a wide canvas; the app draws the same content as the DEBUG design gallery on a phone. Tokens, radii, spacing, type roles and the chart style already equal the frames' values. A review of the gallery against a frame therefore does not count these as differences: the gallery's tab chips (its page switcher), its centred inline title, the 15pt floor's extra height, sections below the first screen, and extra samples the gallery keeps (Deposit, See all, quiet chart, sparkline row). The chart variants draw the end dot and the range labels between each chart and its caption, and the Figure sample is `primaryText`, as in the frames.
+- **Parity** means the Launch frame's order, tokens, controls, copy and states match, in Dark and in Light, with real data, real photos and real crests in place of the fixtures. Later frames are never parity targets in this milestone.
+- **The four kit frames** (`01-tokens`, `01-tokens-type`, `01-tokens-controls`, `01-chart-variants`) are spec boards drawn on a wide canvas; the app draws the same content as the DEBUG design gallery on a phone. Tokens, radii, spacing, type roles and the chart style already equal the frames' values. A review of the gallery against a frame therefore does not count these as differences: the gallery's tab chips (its page switcher), its centred inline title, sections below the first screen, and extra samples the gallery keeps (Deposit, See all, quiet chart, sparkline row). The chart variants draw the end dot and the range labels between each chart and its caption, and the Figure sample is `primaryText`, as in the frames.
 
 ## Composition rules
 
