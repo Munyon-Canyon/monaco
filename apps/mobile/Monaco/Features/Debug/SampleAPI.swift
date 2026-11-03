@@ -68,7 +68,6 @@ nonisolated struct SampleAPIScript: Sendable {
     var closedProposalsFail = false
     var closedProposalsHang = false
     var catalog: [Components.Schemas.AssetSummary] = []
-    var failsAfterAssetReads: Int?
     var invitePreview = InvitePreview.frame
     var held: Components.Schemas.HeldList?
     var assetFeed: [Components.Schemas.FeedItem] = []
@@ -114,10 +113,13 @@ nonisolated final class SampleAPIProtocol: URLProtocol {
             replies: []),
     ]
     private static let portfolioReads = Mutex(0)
-    private static let assetReads = Mutex(0)
+    private static let assetReadsDown = Mutex(false)
+
+    static func failAssetReads() { assetReadsDown.withLock { $0 = true } }
 
     static func install(_ next: SampleAPIScript) {
         script.withLock { $0 = next }
+        assetReadsDown.withLock { $0 = false }
         let needsRegistering = registered.withLock { done in
             defer { done = true }
             return !done
@@ -535,14 +537,8 @@ nonisolated extension SampleAPIProtocol {
 
     private static func assetReply(tail: [String], query: [String: String], script: SampleAPIScript) -> Reply {
         let chartOnly = script.mode == .chartUnavailable && tail.last == "chart"
-        let exhausted = script.failsAfterAssetReads.map { limit in
-            tail.count <= 1
-                && assetReads.withLock { reads in
-                    reads += 1
-                    return reads > limit
-                }
-        }
-        if script.mode == .assetsUnavailable || chartOnly || exhausted == true {
+        let down = assetReadsDown.withLock { $0 }
+        if script.mode == .assetsUnavailable || chartOnly || (down && tail.count <= 1) {
             return problem(503, "unavailable", "Stocks can't be read right now.")
         }
         switch tail.count {
