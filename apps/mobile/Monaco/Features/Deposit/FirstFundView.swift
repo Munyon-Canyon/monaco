@@ -118,7 +118,7 @@ struct FirstFundContent: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
+            VStack(alignment: .leading, spacing: MonacoTheme.Space.sm) {
                 HStack {
                     MonacoGlassButton(systemImage: "xmark", accessibilityLabel: "Close", action: onDone)
                         .accessibilityIdentifier("first-fund-close")
@@ -129,11 +129,17 @@ struct FirstFundContent: View {
                 StatGrid(items: FirstFundCopy.stats(value))
                 if let vote = value.vote { firstVote(vote) }
                 members
-                actions
             }
             .padding(.horizontal, MonacoTheme.Space.gutter)
             .padding(.top, MonacoTheme.Space.s)
-            .padding(.bottom, MonacoTheme.Space.l)
+            .padding(.bottom, MonacoTheme.Space.m)
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            actions
+                .padding(.horizontal, MonacoTheme.Space.gutter)
+                .padding(.top, MonacoTheme.Space.s)
+                .padding(.bottom, MonacoTheme.Space.s)
+                .background(MonacoTheme.canvas)
         }
         .monacoCanvas()
     }

@@ -25,6 +25,7 @@ struct CommentActionsOverlay: View {
 
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.displayScale) private var displayScale
     @State private var stackHeight: CGFloat = 0
 
     private var canReplyHere: Bool { canReply && row.canReact }
@@ -74,7 +75,7 @@ struct CommentActionsOverlay: View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
             QuickReactionTray(
                 target: .comment(row.id), onOpenPicker: onOpenPicker, onPick: onReact, onClose: onDismiss)
-            CommentRow(row: row, reactions: reactions, canReply: false, onReply: {})
+            CommentRow(row: row, reactions: reactions, canReply: canReplyHere, onReply: onReply)
                 .frame(
                     width: frame.width, height: dynamicTypeSize.isAccessibilitySize ? nil : frame.height,
                     alignment: .topLeading
@@ -90,23 +91,44 @@ struct CommentActionsOverlay: View {
     }
 
     private var menu: some View {
-        VStack(spacing: 0) {
-            if canReplyHere {
-                action(CommentsCopy.reply, icon: .replyArrow, id: "reply", perform: onReply)
-            }
-            action("Copy", icon: .copy, id: "copy", perform: onCopy)
-            if let onReport {
-                action("Report", icon: .report, id: "report", destructive: true, perform: onReport)
-            }
-            if let onBlock {
-                action("Block", icon: .hand, id: "block", destructive: true, perform: onBlock)
-            }
-            if let onDelete {
-                action(CommentsCopy.delete, icon: .trash, id: "delete", destructive: true, perform: onDelete)
+        let items = menuItems
+        return VStack(spacing: 0) {
+            ForEach(items.indices, id: \.self) { index in
+                if index > 0 {
+                    Rectangle().fill(MonacoTheme.hairline).frame(height: 1 / displayScale)
+                }
+                items[index]
             }
         }
+        .frame(width: frame.width * Self.menuWidthFraction, alignment: .leading)
         .background(RoundedRectangle(cornerRadius: MonacoTheme.Radius.card).fill(MonacoTheme.surface))
         .clipShape(RoundedRectangle(cornerRadius: MonacoTheme.Radius.card))
+        .overlay(
+            RoundedRectangle(cornerRadius: MonacoTheme.Radius.card)
+                .strokeBorder(MonacoTheme.hairline, lineWidth: 1 / displayScale)
+        )
+    }
+
+    private static let menuWidthFraction: CGFloat = 0.69
+
+    private var menuItems: [AnyView] {
+        var items: [AnyView] = []
+        if canReplyHere {
+            items.append(AnyView(action(CommentsCopy.reply, icon: .replyArrow, id: "reply", perform: onReply)))
+        }
+        items.append(AnyView(action("Copy", icon: .copy, id: "copy", perform: onCopy)))
+        if let onReport {
+            items.append(
+                AnyView(action("Report", icon: .report, id: "report", destructive: true, perform: onReport)))
+        }
+        if let onBlock {
+            items.append(AnyView(action("Block", icon: .hand, id: "block", destructive: true, perform: onBlock)))
+        }
+        if let onDelete {
+            items.append(
+                AnyView(action(CommentsCopy.delete, icon: .trash, id: "delete", destructive: true, perform: onDelete)))
+        }
+        return items
     }
 
     private func action(
