@@ -26,15 +26,15 @@
 - Use dotenvx for repo secrets (`.env.local` for dev, `.env.production` for prod). Teammates share encrypted `.env.local` plus `.env.keys` in the clone root (gitignored). Without `.env.keys`, `with-dotenv-local.sh` decrypts from an exported `DOTENV_PRIVATE_KEY_LOCAL` / `DOTENV_PRIVATE_KEY` (how cloud agents get secrets). Backend `just run` / `just test backend` re-exec under `scripts/with-dotenv-local.sh`.
 - Mobile Privy: `ensure-ios-privy-config.sh` → xcconfig; `with-ios-privy-env.sh` / `./scripts/ios-sim` → `SIMCTL_CHILD_*` at simctl launch only (relaunch from sim home icon drops creds). iOS scripts require `PRIVY_APP_CLIENT_ID` from decrypted `.env.local`—legacy `PRIVY_AUTH_ID` in plain `.env` must not substitute. Justfile `dotenv-load` only reads plain `.env`.
 - Repo onboarding must be machine-agnostic—another dev clones, decrypts, and runs the same way; prune machine-specific docs or commands.
-- Ship changes as Graphite stacks of small PRs, never one large PR. Graphite (`gt`) is a required tool installed by `just install`.
-- Create branches with `gt create`, amend with `gt modify`, push with `gt submit --stack --no-interactive --draft`, and never open a stacked PR with `gh pr create`.
-- Each PR builds and passes `monacoctl agents check` on its own; CI runs the full suite on the top PR of a stack only, so lower PRs are proven by `agents check`.
+- Ship each ticket as one PR, or a short stack of small PRs, never one large PR.
+- Branch from `staging`, push with `git push -u origin <branch>`, open the PR with `gh pr create --base staging --draft`, then set the body with `scripts/pr-body.sh`.
+- Run `monacoctl agents check` before every push; each PR builds and passes it on its own, and CI runs the full suite on the top PR of a stack only, so lower PRs are proven by `agents check`.
 - There is no PR size cap; split a branch only when the split helps a reader.
 - The PR format check is advisory: `pr-format.yml` warns and stays green, and `scripts/pr-body.sh` sets the body even when the check finds problems, so fix findings when convenient and never loop on them.
 - PR titles say what the PR changes, present tense, with no issue number or commit-type prefix (link the issue under Why), and bodies follow `.github/pull_request_template.md` (pr-summary style: TLDR, Why, What changed, Proof, What came up, Reviewer focus), set with `scripts/pr-body.sh <pr> "<title>" <file>`, which runs the PR format check and marks the draft ready.
-- Stacks build on the trunk `staging` (the default branch) and land through the Graphite merge queue.
-- Always land: right after `gt submit` and `scripts/pr-body.sh`, run `monacoctl agents land-stack <top-pr>` once without asking, unless the user says in the current conversation not to land or queue, then follow it with `monacoctl agents watch` under Monitor.
-- no direct merge: enforced by `hook:rule_merge_needs_verify`.
+- PRs build on the trunk `staging` (the default branch) and land by squash merge, one commit per PR.
+- Always land: once `ci / ci-ok` is green on the PR's head commit, run `gh pr merge <n> --squash` without asking, unless the user says in the current conversation not to land.
+- squash merge on green: enforced by `hook:rule_merge_needs_verify`.
 - no base edits: enforced by `hook:rule_edit_base`.
 - No `Lands stack:` line and no `<feature>-checkpoint-<N>` branches.
 - queue labels: enforced by `hook:rule_queue_label`.
@@ -50,7 +50,7 @@
 - After landing, remove the worktree and put primary on the named branch with a clean tree matching HEAD so the user can build/test from repo root via `git checkout <branch>`—do not leave work only in `.worktrees/` or let primary disk revert the branch.
 - For Privy dashboard verification or client settings during agent QA, use the attached Privy browser tab; do not ask the user to make dashboard changes.
 - Prefer Privy API/dashboard ops over ad-hoc product PATCH-in-loop for legacy wallet signer fixes.
-- Verification runs in three stages, per `docs/architecture/backend-platform.md#verification-scope`: agents run `monacoctl agents check` on every PR, CI stage 1 runs the full suite on the top PR of a stack (lower PRs' `ci / ci-ok` passes with every job skipped), except the macOS `ios` job (app build plus MonacoTests), which runs only in the hourly staging indicator (#3399), and the Graphite merge queue runs only build, vet, tidy and generated files before anything lands on `staging`. Every hour, when `staging` moved, `staging.yml` runs the full suite again as an advisory indicator that gates nothing (it ran on every push until #2950, which left PR runs waiting for the free plan's 20 concurrent jobs). The operator approved this split, so it is not skipping. Ticket Done-when, milestone manual verification, `just build mobile` and gold-sim QA still apply when the change touches what they cover.
+- Verification runs in two stages, per `docs/architecture/backend-platform.md#verification-scope`: agents run `monacoctl agents check` on every PR, CI stage 1 runs the full suite on the top PR of a stack (lower PRs' `ci / ci-ok` passes with every job skipped), except the macOS `ios` job (app build plus MonacoTests), which runs only in the hourly staging indicator (#3399), and agents squash-merge into `staging` once `ci / ci-ok` is green on the head commit, with no merge-queue stage. Every hour, when `staging` moved, `staging.yml` runs the full suite again as an advisory indicator that gates nothing (it ran on every push until #2950, which left PR runs waiting for the free plan's 20 concurrent jobs). The operator approved this split, so it is not skipping. Ticket Done-when, milestone manual verification, `just build mobile` and gold-sim QA still apply when the change touches what they cover.
 - Every PR that touches `apps/mobile/**` must pass a local `just build mobile` before it is pushed, and Proof cites it.
 - Every PR that touches Darwin-only code in `packages/mobile-core` must pass a local macOS `swift test` before it is pushed.
 - Never skip or shrink a check in that set unless the user explicitly says to skip in the current message.
