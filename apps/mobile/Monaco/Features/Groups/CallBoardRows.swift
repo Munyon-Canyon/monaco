@@ -24,7 +24,8 @@ struct CallBoardRows: View {
                 NavigationLink(value: CallBoardRoutes.route(for: row)) {
                     RankedRow(
                         rank: row.rank.map { .ranked($0, movement: row.movement.signedPlaces) } ?? .unranked,
-                        name: row.title, isYou: row.isViewer, subtitle: row.turnout, figure: row.rate,
+                        name: row.name, suffix: row.isMine ? CallBoardCopy.yoursSuffix : nil, isYou: row.isViewer,
+                        subtitle: row.turnout, figure: row.rate,
                         detail: row.record, isYouBand: row.isViewer || row.id == bandID
                     ) {
                         CallBoardAvatar(row: row, size: RankedRowMetrics.avatarSize)

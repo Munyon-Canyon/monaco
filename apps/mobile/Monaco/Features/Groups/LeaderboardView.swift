@@ -19,6 +19,7 @@ struct LeaderboardView: View {
     @State private var model: CallBoardModel?
     @State private var viewerRowVisible = true
     @State private var showsInfo = false
+    @State private var titleVisible = true
 
     var body: some View {
         Group {
@@ -29,8 +30,8 @@ struct LeaderboardView: View {
             }
         }
         .monacoCanvas()
-        .navigationTitle(CallBoardCopy.title)
-        .navigationBarTitleDisplayMode(.large)
+        .navigationTitle(titleVisible ? "" : CallBoardCopy.title)
+        .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden()
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
@@ -70,8 +71,20 @@ struct LeaderboardView: View {
     private func page(_ model: CallBoardModel) -> some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
+                Text(CallBoardCopy.title)
+                    .font(MonacoTheme.Typo.display)
+                    .foregroundStyle(MonacoTheme.primaryText)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, MonacoTheme.Space.gutter)
+                    .padding(.top, MonacoTheme.Space.s)
+                    .padding(.bottom, MonacoTheme.Space.sm)
+                    .onScrollVisibilityChange(threshold: 0.01) { titleVisible = $0 }
+                    .accessibilityAddTraits(.isHeader)
+                    .accessibilityIdentifier("leaderboard-title")
                 CallBoardHeader(
-                    title: headerTitle(model), range: headerRange(model), selection: periodBinding(model))
+                    title: headerTitle(model), range: headerRange(model), selection: periodBinding(model)
+                )
+                .padding(.bottom, MonacoTheme.Space.m)
                 Section {
                     content(model)
                 } header: {

@@ -36,9 +36,11 @@ enum RankedRowSpeech {
     }
 
     static func spoken(
-        rank: RankedRowRank, name: String, isYou: Bool, subtitle: String, figure: String, detail: String
+        rank: RankedRowRank, name: String, suffix: String? = nil, isYou: Bool, subtitle: String, figure: String,
+        detail: String
     ) -> String {
-        let person = isYou ? "\(name), you" : name
+        let named = name + (suffix ?? "")
+        let person = isYou ? "\(named), you" : named
         let result = [figure.replacingOccurrences(of: "%", with: " percent"), detail]
             .filter { !$0.isEmpty }.joined(separator: ", ")
         switch rank {
@@ -62,6 +64,7 @@ struct RankedRow<Leading: View>: View {
 
     let rank: Rank
     let name: String
+    let suffix: String?
     let isYou: Bool
     let subtitle: String
     let figure: String
@@ -70,11 +73,12 @@ struct RankedRow<Leading: View>: View {
     @ViewBuilder let leading: Leading
 
     init(
-        rank: Rank, name: String, isYou: Bool, subtitle: String, figure: String, detail: String,
-        isYouBand: Bool? = nil, @ViewBuilder leading: () -> Leading
+        rank: Rank, name: String, suffix: String? = nil, isYou: Bool, subtitle: String, figure: String,
+        detail: String, isYouBand: Bool? = nil, @ViewBuilder leading: () -> Leading
     ) {
         self.rank = rank
         self.name = name
+        self.suffix = suffix
         self.isYou = isYou
         self.subtitle = subtitle
         self.figure = figure
@@ -128,7 +132,8 @@ struct RankedRow<Leading: View>: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(
             RankedRowSpeech.spoken(
-                rank: rank, name: name, isYou: isYou, subtitle: subtitle, figure: figure, detail: detail))
+                rank: rank, name: name, suffix: suffix, isYou: isYou, subtitle: subtitle, figure: figure, detail: detail
+            ))
     }
 
     private var avatar: some View {
@@ -192,9 +197,12 @@ struct RankedRow<Leading: View>: View {
     }
 
     private var nameText: Text {
-        let base = Text(name).font(MonacoTheme.Typo.headline).foregroundStyle(MonacoTheme.primaryText)
-        guard isYou else { return base }
-        return base + Text(" · you").font(MonacoTheme.Typo.headline).foregroundStyle(MonacoTheme.secondaryText)
+        var text = Text(name).font(MonacoTheme.Typo.headline).foregroundStyle(MonacoTheme.primaryText)
+        if let suffix {
+            text = text + Text(suffix).font(MonacoTheme.Typo.headline).foregroundStyle(MonacoTheme.secondaryText)
+        }
+        guard isYou else { return text }
+        return text + Text(" · you").font(MonacoTheme.Typo.headline).foregroundStyle(MonacoTheme.secondaryText)
     }
 
     private func trailing(alignment: HorizontalAlignment) -> some View {
