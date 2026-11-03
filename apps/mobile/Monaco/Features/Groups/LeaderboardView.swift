@@ -228,7 +228,7 @@ struct CallBoardBody: View {
                 rows: [screen.around[index]], bandID: screen.bandID,
                 onLastAppear: index == screen.around.count - 1 ? onLastAppear : {}
             )
-            .onScrollVisibilityChange(threshold: 0.01) { viewerRowVisible = $0 }
+            .onScrollVisibilityChange { viewerRowVisible = $0 }
             CallBoardRows(rows: Array(screen.around[(index + 1)...]), bandID: screen.bandID, onLastAppear: onLastAppear)
         } else {
             CallBoardRows(rows: screen.around, bandID: screen.bandID, onLastAppear: onLastAppear)
