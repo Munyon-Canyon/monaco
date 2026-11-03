@@ -133,17 +133,22 @@ nonisolated final class ChatScrollSampleUITests: XCTestCase {
         }
 
         // Twenty points, inside the 40pt window that counts as the end of the thread. Dragged
-        // slowly and *held* before lifting, because a flick carries momentum and would coast
-        // right out of the window — which would be the reader genuinely leaving, not the case
-        // under test.
+        // at a fixed slow velocity (30 pt/s) and *held* a full second before lifting, because a
+        // flick carries momentum and would coast right out of the window — which would be the
+        // reader genuinely leaving, not the case under test.
         let thread = anyElement(app, "chat-thread")
         let start = thread.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
         start.press(
             forDuration: 0.1,
             thenDragTo: start.withOffset(CGVector(dx: 0, dy: 20)),
-            withVelocity: .slow,
-            thenHoldForDuration: 0.5
+            withVelocity: XCUIGestureVelocity(30),
+            thenHoldForDuration: 1.0
         )
+
+        if !newest.isHittable {
+            XCTFail("the gesture coasted out of the pinned window")
+            return
+        }
 
         // The busy sample posts one of these on every poll.
         let arrivals = app.staticTexts.matching(
