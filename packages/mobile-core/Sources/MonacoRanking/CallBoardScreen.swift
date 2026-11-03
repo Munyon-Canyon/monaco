@@ -53,6 +53,7 @@ public struct CallBoardRowValue: Equatable, Sendable, Identifiable {
     public let isMine: Bool
     public let rate: String
     public let record: String
+    public let cardStat: String
     public let turnout: String
     public let title: String
     public let unrankedSubtitle: String
@@ -81,6 +82,7 @@ public struct CallBoardRowValue: Equatable, Sendable, Identifiable {
         self.isMine = isMine
         rate = CallBoardCopy.rate(pct)
         record = CallBoardCopy.record(right: Int(right), resolved: Int(resolved))
+        cardStat = CallBoardCopy.cardStat(rate: CallBoardCopy.rate(pct), right: Int(right), resolved: Int(resolved))
         turnout =
             subject.kind == .cabal
             ? CallBoardCopy.turnoutPercent(bps: Int(turnoutBps))
