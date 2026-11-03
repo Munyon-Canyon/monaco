@@ -25,11 +25,16 @@ nonisolated final class CommentComposerSampleUITests: XCTestCase {
         XCTAssertTrue(field.waitForExistence(timeout: 15), "no composer field")
         XCTAssertEqual(field.placeholderValue, "Say something")
         let gif = app.buttons["comment-composer-gif"]
-        XCTAssertFalse(app.buttons["comment-composer-plus"].exists, "the plus shows with no menu rows")
+        let plus = app.buttons["comment-composer-plus"]
+        XCTAssertTrue(plus.exists, "no plus")
         XCTAssertTrue(gif.exists, "no GIF")
         XCTAssertGreaterThan(gif.frame.minX, field.frame.minX, "the GIF button is not inside the field")
         XCTAssertFalse(app.buttons["comment-composer-send"].isEnabled, "an empty field can send")
         XCTAssertFalse(app.otherElements["reply-sheet"].exists, "a sheet opened by itself")
+        plus.tap()
+        XCTAssertTrue(element(app, "composer-menu-stock").waitForExistence(timeout: 10), "no Share a stock row")
+        XCTAssertFalse(element(app, "composer-menu-poll").exists, "the poll row shows with no poll")
+        XCTAssertFalse(element(app, "composer-menu-thesis").exists, "the thesis row shows with no thesis")
     }
 
     @MainActor
@@ -42,7 +47,7 @@ nonisolated final class CommentComposerSampleUITests: XCTestCase {
         XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 10), "the field is not focused")
         XCTAssertTrue(app.buttons["reply-sheet-close"].exists, "no close")
         let fields = app.textFields.matching(identifier: "comment-composer-field")
-        XCTAssertEqual(fields.count, 1, "the docked bar is still there")
+        XCTAssertEqual(fields.allElementsBoundByIndex.filter(\.isHittable).count, 1, "the docked bar is still there")
     }
 
     @MainActor
