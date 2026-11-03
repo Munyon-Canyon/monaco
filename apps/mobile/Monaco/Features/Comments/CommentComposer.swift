@@ -163,6 +163,7 @@ struct ComposerField: View {
             .padding(.vertical, MonacoTheme.Space.sm)
             .frame(minHeight: CommentRowMetrics.replyTarget)
             .contentShape(Rectangle())
+            .accessibilityLabel(CommentsCopy.sendAccessibility(model.replySheet))
             .accessibilityIdentifier("comment-composer-field")
             .monacoPrivate()
             if let onGif { ComposerGifButton(action: onGif) }
@@ -224,7 +225,7 @@ struct ComposerSendButton: View {
         .frame(minWidth: CommentRowMetrics.replyTarget, minHeight: CommentRowMetrics.replyTarget)
         .contentShape(Rectangle())
         .disabled(!canPost)
-        .accessibilityLabel(CommentsCopy.postAccessibility)
+        .accessibilityLabel(CommentsCopy.sendAccessibility(model.replySheet))
         .accessibilityIdentifier("comment-composer-send")
     }
 }
