@@ -53,6 +53,11 @@ nonisolated final class StocksTabSampleUITests: XCTestCase {
     }
 
     @MainActor
+    private func chip(_ app: XCUIApplication, _ title: String) -> XCUIElement {
+        anyElement(app, "markets-chip-\(title)")
+    }
+
+    @MainActor
     private func waitForAbsence(of element: XCUIElement, timeout: TimeInterval = 25) -> Bool {
         let gone = expectation(for: NSPredicate(format: "exists == false"), evaluatedWith: element)
         return XCTWaiter().wait(for: [gone], timeout: timeout) == .completed
@@ -60,10 +65,16 @@ nonisolated final class StocksTabSampleUITests: XCTestCase {
 
     @MainActor
     func testEveryScenarioDraws() throws {
-        let scenarios = ["ready", "watchlistEmpty", "noResults", "loading", "stale", "failed", "empty", "paused"]
+        let scenarios = [
+            "ready", "watchlistEmpty", "noResults", "loading", "stale", "failed", "empty", "paused", "movers", "held",
+        ]
         for scenario in scenarios {
             let app = launch(scenario)
-            waitForTab(app, scenario)
+            if scenario == "noResults" {
+                _ = waitForSearchField(app, scenario)
+            } else {
+                waitForTab(app, scenario)
+            }
             attachScreenshot(app, name: "markets-\(scenario)")
             app.terminate()
         }
@@ -76,44 +87,94 @@ nonisolated final class StocksTabSampleUITests: XCTestCase {
 
         _ = waitForSearchField(app, "ready")
         XCTAssertEqual(app.textFields["monaco-search-field"].placeholderValue, "Stocks and Pre-IPO")
-        XCTAssertTrue(anyElement(app, "markets-mover-NVDAx").waitForExistence(timeout: 25), "no mover tile")
+        for title in ["All", "Watchlist", "Pre-IPO", "Held"] {
+            XCTAssertTrue(chip(app, title).exists, "no \(title) chip")
+        }
+        let watchlist = anyElement(app, "markets-watchlist")
+        XCTAssertTrue(watchlist.waitForExistence(timeout: 25), "no Watchlist section")
         XCTAssertTrue(anyElement(app, "markets-watchlist-row-AAPLx").waitForExistence(timeout: 25), "no watched row")
-        XCTAssertTrue(app.buttons["markets-watchlist-manage"].exists, "no Manage link")
-        attachScreenshot(app, name: "markets-ready-top")
-        scrollTo(app, anyElement(app, "markets-popular-row-NVDAx"), "Popular now")
-        scrollTo(app, anyElement(app, "assets-row-NVDAx"), "All stocks")
-        XCTAssertTrue(anyElement(app, "stocks-sort").exists, "no Sort select")
-        XCTAssertTrue(anyElement(app, "stocks-filter").exists, "no Filter select")
-        attachScreenshot(app, name: "markets-ready-bottom")
+        let preIpo = anyElement(app, "markets-preipo")
+        scrollTo(app, preIpo, "Pre-IPO")
+        let movers = anyElement(app, "markets-movers")
+        scrollTo(app, movers, "Moving today")
+        XCTAssertLessThan(watchlist.frame.minY, preIpo.frame.minY, "Watchlist should lead Pre-IPO")
+        XCTAssertLessThan(preIpo.frame.minY, movers.frame.minY, "Pre-IPO should lead Moving today")
     }
 
     @MainActor
-    func testMoversAreOrderedByTheBiggestDayMove() throws {
+    func testTheWatchlistShowsFiveRowsAndSeeAllShowsEveryRow() throws {
         let app = launch("ready")
         waitForTab(app, "ready")
 
-        let nvidia = anyElement(app, "markets-mover-NVDAx")
-        XCTAssertTrue(nvidia.waitForExistence(timeout: 25), "no mover tile")
-        XCTAssertLessThan(nvidia.frame.minX, anyElement(app, "markets-mover-AMDx").frame.minX, "NVDA should lead AMD")
-        nvidia.swipeLeft()
+        XCTAssertTrue(anyElement(app, "markets-watchlist-row-AMZNx").waitForExistence(timeout: 25), "no fifth row")
+        XCTAssertFalse(anyElement(app, "markets-watchlist-row-MSFTx").exists, "the section previews five rows")
+        let seeAll = anyElement(app, "markets-watchlist-see-all")
+        XCTAssertTrue(seeAll.exists, "no See all link")
+        seeAll.tap()
+
+        XCTAssertTrue(anyElement(app, "markets-watchlist-row-MSFTx").waitForExistence(timeout: 25), "See all lost rows")
+        XCTAssertTrue(anyElement(app, "markets-watchlist-row-tSpaceX").exists, "See all should list Pre-IPO rows")
+        XCTAssertFalse(anyElement(app, "markets-watchlist-see-all").exists, "the Watchlist chip has no See all")
+        XCTAssertTrue(waitForAbsence(of: anyElement(app, "markets-movers")), "the Watchlist chip drops other sections")
+    }
+
+    @MainActor
+    func testChipsFilterTheList() throws {
+        let app = launch("ready")
+        waitForTab(app, "ready")
+        XCTAssertTrue(anyElement(app, "markets-watchlist-row-NVDAx").waitForExistence(timeout: 25), "no rows")
+
+        chip(app, "Pre-IPO").tap()
+        XCTAssertTrue(anyElement(app, "markets-preipo-row-tSpaceX").waitForExistence(timeout: 25), "no SpaceX")
+        XCTAssertTrue(waitForAbsence(of: anyElement(app, "markets-watchlist")), "Pre-IPO should not list the Watchlist")
+        XCTAssertFalse(anyElement(app, "markets-preipo-see-all").exists, "the Pre-IPO chip has no See all")
+        XCTAssertFalse(anyElement(app, "markets-movers").exists, "the Pre-IPO chip has no Moving today")
+
+        chip(app, "Watchlist").tap()
+        XCTAssertTrue(anyElement(app, "markets-watchlist-row-TSLAx").waitForExistence(timeout: 25), "no Watchlist rows")
+        XCTAssertTrue(waitForAbsence(of: anyElement(app, "markets-preipo")), "Watchlist should not list Pre-IPO")
+
+        chip(app, "All").tap()
+        XCTAssertTrue(anyElement(app, "markets-preipo").waitForExistence(timeout: 25), "All lost the Pre-IPO section")
+        scrollTo(app, anyElement(app, "markets-movers"), "Moving today")
+    }
+
+    @MainActor
+    func testTheHeldChipListsWhatCabalsHold() throws {
+        let app = launch("held")
+        waitForTab(app, "held")
+
+        XCTAssertTrue(anyElement(app, "markets-held").waitForExistence(timeout: 25), "the Held list never drew")
+        XCTAssertTrue(anyElement(app, "markets-held-total").exists, "no held total")
+        XCTAssertFalse(anyElement(app, "markets-watchlist").exists, "Held should not list the Watchlist")
+
+        chip(app, "All").tap()
+        XCTAssertTrue(anyElement(app, "markets-watchlist").waitForExistence(timeout: 25), "All lost the Watchlist")
+        XCTAssertTrue(waitForAbsence(of: anyElement(app, "markets-held")), "All should not list Held")
+    }
+
+    @MainActor
+    func testMovingTodayKeepsTheBiggestMoveFirst() throws {
+        let app = launch("movers")
+        waitForTab(app, "movers")
+
+        let amd = anyElement(app, "markets-mover-AMDx")
+        scrollTo(app, amd, "the AMD tile")
+        let netflix = anyElement(app, "markets-mover-NFLXx")
         let tesla = anyElement(app, "markets-mover-TSLAx")
-        XCTAssertTrue(tesla.waitForExistence(timeout: 10), "the rail never reached Tesla")
-        let apple = anyElement(app, "markets-mover-AAPLx")
-        XCTAssertTrue(apple.waitForExistence(timeout: 10), "the fourth tile is missing")
-        XCTAssertLessThan(tesla.frame.minX, apple.frame.minX, "TSLA should lead AAPL")
-        XCTAssertFalse(anyElement(app, "markets-mover-MSFTx").exists, "the rail holds four tiles")
-    }
+        XCTAssertTrue(netflix.waitForExistence(timeout: 10), "no Netflix tile")
+        XCTAssertTrue(tesla.waitForExistence(timeout: 10), "no Tesla tile")
+        XCTAssertLessThan(amd.frame.minX, netflix.frame.minX, "AMD (+7.9%) should lead Netflix (+5.2%)")
+        XCTAssertLessThan(netflix.frame.minX, tesla.frame.minX, "Netflix (+5.2%) should lead Tesla (-2.4%)")
+        XCTAssertTrue(amd.label.hasPrefix("AMD"), "the tile should name AMD, got \(amd.label)")
 
-    @MainActor
-    func testManageOpensTheWatchlist() throws {
-        let app = launch("ready")
-        waitForTab(app, "ready")
-
-        let manage = app.buttons["markets-watchlist-manage"]
-        XCTAssertTrue(manage.waitForExistence(timeout: 25), "no Manage link")
-        manage.tap()
-
-        XCTAssertTrue(app.navigationBars["Your watchlist"].waitForExistence(timeout: 25), "Manage did not open it")
+        amd.swipeLeft()
+        let amazon = anyElement(app, "markets-mover-AMZNx")
+        let microsoft = anyElement(app, "markets-mover-MSFTx")
+        XCTAssertTrue(amazon.waitForExistence(timeout: 10), "the rail never reached Amazon")
+        XCTAssertTrue(microsoft.waitForExistence(timeout: 10), "the fifth tile is missing")
+        XCTAssertLessThan(amazon.frame.minX, microsoft.frame.minX, "Amazon (-2.1%) should lead Microsoft (+1.6%)")
+        XCTAssertFalse(anyElement(app, "markets-mover-NVDAx").exists, "the rail holds five tiles")
     }
 
     @MainActor
@@ -122,18 +183,18 @@ nonisolated final class StocksTabSampleUITests: XCTestCase {
         waitForTab(app, "watchlistEmpty")
 
         XCTAssertTrue(app.staticTexts["Your market, at a glance"].waitForExistence(timeout: 25), "no glance card")
-        XCTAssertTrue(app.staticTexts["Add stocks to your watchlist."].exists)
+        XCTAssertTrue(app.staticTexts["Star a stock to watch it here."].exists, "no invitation")
+        XCTAssertFalse(anyElement(app, "markets-watchlist-see-all").exists, "an empty watchlist has no See all")
         app.buttons["markets-watchlist-add"].tap()
 
         XCTAssertTrue(app.navigationBars["Your watchlist"].waitForExistence(timeout: 25), "Add did not open it")
-        attachScreenshot(app, name: "markets-watchlist-empty-add")
     }
 
     @MainActor
     func testSearchReplacesBrowsingWithResultsAndComesBack() throws {
         let app = launch("ready")
         waitForTab(app, "ready")
-        XCTAssertTrue(anyElement(app, "markets-mover-NVDAx").waitForExistence(timeout: 25), "the tab never drew")
+        XCTAssertTrue(anyElement(app, "markets-watchlist").waitForExistence(timeout: 25), "the tab never drew")
 
         let field = waitForSearchField(app, "ready")
         field.tap()
@@ -141,52 +202,20 @@ nonisolated final class StocksTabSampleUITests: XCTestCase {
 
         XCTAssertTrue(anyElement(app, "assets-row-GOOGLx").waitForExistence(timeout: 25), "search results never drew")
         XCTAssertTrue(waitForAbsence(of: anyElement(app, "assets-row-NVDAx")), "NVIDIA does not match Alphabet")
-        XCTAssertFalse(app.staticTexts["Top movers"].exists, "search mode drops the browse sections")
+        XCTAssertTrue(waitForAbsence(of: anyElement(app, "markets-watchlist")), "search mode drops the browse sections")
 
-        app.buttons["Cancel"].firstMatch.tap()
-        XCTAssertTrue(anyElement(app, "markets-mover-NVDAx").waitForExistence(timeout: 25), "browsing never came back")
+        anyElement(app, "markets-search-cancel").tap()
+        XCTAssertTrue(anyElement(app, "markets-watchlist").waitForExistence(timeout: 25), "browsing never came back")
     }
 
     @MainActor
     func testASearchWithNoMatchSaysSo() throws {
         let app = launch("noResults")
-        waitForTab(app, "noResults")
+        _ = waitForSearchField(app, "noResults")
 
         XCTAssertTrue(app.staticTexts["No results for “zzzz”"].waitForExistence(timeout: 25), "no empty answer")
         XCTAssertTrue(app.staticTexts["Try a company name or ticker."].exists)
-        attachScreenshot(app, name: "markets-no-results")
-    }
-
-    @MainActor
-    func testTheFilterNarrowsTheList() throws {
-        let app = launch("ready")
-        waitForTab(app, "ready")
-        let filter = anyElement(app, "stocks-filter")
-        scrollTo(app, filter, "the Filter select")
-
-        filter.tap()
-        app.buttons["Pre-IPO"].tap()
-
-        XCTAssertTrue(anyElement(app, "assets-row-tSpaceX").waitForExistence(timeout: 25), "Pre-IPO lost its row")
-        XCTAssertTrue(waitForAbsence(of: anyElement(app, "assets-row-NVDAx")), "Pre-IPO should not list NVIDIA")
-        attachScreenshot(app, name: "markets-filter-pre-ipo")
-    }
-
-    @MainActor
-    func testOnlyTheDefaultSortCanBePicked() throws {
-        let app = launch("ready")
-        waitForTab(app, "ready")
-        let sort = anyElement(app, "stocks-sort")
-        scrollTo(app, sort, "the Sort select")
-
-        sort.tap()
-
-        XCTAssertTrue(app.buttons["Default"].waitForExistence(timeout: 10), "no Default option")
-        XCTAssertTrue(app.staticTexts["More sorts open soon"].exists, "no explanation for the other sorts")
-        for title in ["Volume", "Trade count", "Name A–Z", "Price change"] {
-            XCTAssertFalse(app.buttons[title].isEnabled, "\(title) should be disabled")
-        }
-        attachScreenshot(app, name: "markets-sort-menu")
+        XCTAssertFalse(anyElement(app, "markets-watchlist").exists, "search mode drops the browse sections")
     }
 
     @MainActor
@@ -194,11 +223,14 @@ nonisolated final class StocksTabSampleUITests: XCTestCase {
         let app = launch("stale")
         waitForTab(app, "stale")
 
-        XCTAssertTrue(anyElement(app, "markets-mover-NVDAx").waitForExistence(timeout: 25), "the rows never drew")
+        XCTAssertTrue(anyElement(app, "markets-watchlist-row-NVDAx").waitForExistence(timeout: 25), "no rows")
         let notice = anyElement(app, "markets-stale")
         XCTAssertTrue(notice.waitForExistence(timeout: 30), "no stale notice")
-        XCTAssertTrue(app.staticTexts["Prices delayed · just now."].exists, "the notice copy is not the spec's")
-        XCTAssertTrue(anyElement(app, "markets-mover-NVDAx").exists, "the rows must stay")
+        XCTAssertTrue(
+            notice.label.contains("Prices delayed · just now.") || app.staticTexts["Prices delayed · just now."].exists,
+            "the notice copy is not the spec's"
+        )
+        XCTAssertTrue(anyElement(app, "markets-watchlist-row-NVDAx").exists, "the rows must stay")
         attachScreenshot(app, name: "markets-stale")
     }
 
@@ -210,7 +242,7 @@ nonisolated final class StocksTabSampleUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Couldn't load this view"].waitForExistence(timeout: 25), "no failure state")
         XCTAssertEqual(app.buttons["assets-failed"].label, "Try again")
         XCTAssertFalse(app.textFields["monaco-search-field"].exists, "a full-screen error has no search field")
-        XCTAssertFalse(anyElement(app, "assets-row-NVDAx").exists, "a failed read must not show rows")
+        XCTAssertFalse(anyElement(app, "markets-watchlist").exists, "a failed read must not show sections")
     }
 
     @MainActor
@@ -228,7 +260,13 @@ nonisolated final class StocksTabSampleUITests: XCTestCase {
         let app = launch("paused")
         waitForTab(app, "paused")
 
-        scrollTo(app, anyElement(app, "assets-row-NEWCO"), "the unpriced Newco row")
+        let first = anyElement(app, "markets-mover-SBUXx")
+        scrollTo(app, first, "the paused Starbucks tile")
+        XCTAssertTrue(first.label.contains("today"), "got \(first.label)")
+        first.swipeLeft()
+        let tile = anyElement(app, "markets-mover-NEWCO")
+        XCTAssertTrue(tile.waitForExistence(timeout: 10), "the unpriced Newco tile never drew")
+        XCTAssertTrue(tile.label.hasSuffix("today unavailable"), "Newco has no move, got \(tile.label)")
     }
 
     @MainActor
@@ -237,10 +275,11 @@ nonisolated final class StocksTabSampleUITests: XCTestCase {
         waitForTab(app, "ready at AX5")
 
         XCTAssertTrue(
-            anyElement(app, "markets-mover-NVDAx").waitForExistence(timeout: 30),
-            "the rail should stack at AX5"
+            anyElement(app, "markets-watchlist-row-NVDAx").waitForExistence(timeout: 30),
+            "the rows should stack at AX5"
         )
         XCTAssertTrue(app.textFields["monaco-search-field"].exists, "the search field should survive AX5")
+        XCTAssertEqual(app.textFields["monaco-search-field"].placeholderValue, "Search")
         attachScreenshot(app, name: "markets-ax5")
     }
 

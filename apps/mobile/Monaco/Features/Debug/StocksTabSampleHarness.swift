@@ -22,11 +22,10 @@ enum StocksTabSampleScenario: String, CaseIterable {
     var script: SampleAPIScript {
         var script = SampleAPIScript(catalog: MarketsSampleCatalog.marketsAssets)
         switch self {
-        case .ready, .watchlistEmpty, .noResults: break
+        case .ready, .watchlistEmpty, .noResults, .stale: break
         case .held: script.held = .sampleAndres
         case .search: script = SampleAPIScript(catalog: MarketsSampleCatalog.searchAssets)
         case .loading: script.mode = .hang
-        case .stale: script.failsAfterAssetReads = 1 + StocksTabSampleScenario.watchedCount
         case .failed: script.mode = .assetsUnavailable
         case .empty: script.mode = .empty
         case .paused: script = SampleAPIScript(includesPausedStock: true)
@@ -59,8 +58,6 @@ enum StocksTabSampleScenario: String, CaseIterable {
     var hints: any HintConnecting {
         self == .stale ? SampleTickHints(after: .seconds(2)) : SampleSilentHints()
     }
-
-    private static let watchedCount = MarketsSampleCatalog.marketsWatched.count
 }
 
 enum MoversSample {
@@ -98,7 +95,10 @@ nonisolated struct SampleTickHints: HintConnecting {
         return AsyncStream { continuation in
             let tick = Task {
                 try? await Task.sleep(for: after)
-                if filter.matches(hint) { continuation.yield(hint) }
+                if filter.matches(hint) {
+                    SampleAPIProtocol.failAssetReads()
+                    continuation.yield(hint)
+                }
             }
             continuation.onTermination = { _ in tick.cancel() }
         }
