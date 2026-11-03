@@ -268,7 +268,7 @@ The page is the header (#6481: cover, name and facts line, stat block, Fund and 
 
 | Tab | Slots (until the tab tickets land) |
 | --- | --- |
-| Treasury (`cabal-tab-treasury`) | `CabalHoldingsSlot` (the allocation bar, one row per holding that opens `CabalHoldingRoute`, a "Cash" row that opens `GroupCashRoute`), `CabalValueChartSlot` (the return line, the chart and `1W 1M All`), `CabalActivitySlot` ("Group activity" with "See all"). #6511 fills it |
+| Treasury (`cabal-tab-treasury`) | `CabalHoldingsSlot` (the allocation bar, one row per holding that opens `CabalHoldingRoute`, a "Cash" row that opens `GroupCashRoute`), `CabalActivitySlot` ("Group activity" with "See all"). #6511 fills it |
 | Rules (`cabal-tab-rules`) | `CabalRulesRowSlot`: today's "The rules" card (Who can join, Who votes, Votes stay open, Current threshold) with "Edit" for the creator. #6523 fills it |
 | Members (`cabal-tab-members`) | `CabalMembersSlot`: the first five members with role, record and share, "See all N", Invite and the footer (#6534) |
 | Voters (`cabal-tab-voters`) | `CabalVotersSlot`: every member grouped "Vote (N)" and "Don't vote (N)", with propose actions in each row's menu (#6534) |
