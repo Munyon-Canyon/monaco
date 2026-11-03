@@ -31,10 +31,16 @@ private struct ProposalCommentsSlotView: View {
                 .onAppear { model.onCountChange = { detail?.setReplyCount($0) } }
                 .onChange(of: model.lastPostedID) { _, id in
                     guard let id else { return }
-                    withAnimation { scroll?.scrollTo(id, anchor: .center) }
+                    Task { await scrollToPosted(id) }
                 }
                 .task(id: model.phase) { await applyFocus(model) }
         }
+    }
+
+    private func scrollToPosted(_ id: String) async {
+        scroll?.scrollTo(ProposalFocus.repliesAnchorID, anchor: .bottom)
+        await Task.yield()
+        withAnimation { scroll?.scrollTo(id, anchor: .center) }
     }
 
     private func applyFocus(_ model: CommentsModel) async {
