@@ -1,7 +1,36 @@
 import XCTest
 
 enum FAuditScreens {
-    static let allowed: [(screen: String, identifier: String, type: String, reason: String)] = []
+    typealias Allowed = (
+        screen: String, identifier: String, label: String, type: String, description: String, reason: String
+    )
+
+    private static let backdropReason =
+        "sheet backdrop: with the sheet up the tree holds only the dismiss region and the sheet; the flagged text is the screen behind it (#7393)"
+    private static let backdropScreens = [
+        "f__04-reply-composer", "f__04-gif-sheet", "f__05-post-reply", "f__11-invite-sheet",
+        "f__12-info-sheet", "f__14-hold-sheet", "f__14-wrap-sheet", "f__15-passed", "f__19-permission-sheet",
+    ]
+    private static let fieldReason =
+        "UIKit text field frame: the focused reply-sheet field measures 227x19 as a UIKit text field; the inline composer is fixed by #7271"
+
+    private static let backdrops: [Allowed] =
+        backdropScreens.map {
+            (
+                screen: $0, identifier: "", label: "", type: "detect",
+                description: "Potentially inaccessible text", reason: backdropReason
+            )
+        }
+
+    private static let composerFields: [Allowed] =
+        ["f__04-reply-composer", "f__05-post-reply"].map {
+            (
+                screen: $0, identifier: "comment-composer-field", label: "", type: "hit",
+                description: "", reason: fieldReason
+            )
+        }
+
+    static let allowed: [Allowed] = backdrops + composerFields
 
     static let all: [(id: String, arguments: String)] = [
         ("f__02-home-dark", "-MonacoHomeSample fReady"),
@@ -247,10 +276,11 @@ nonisolated final class FAccessibilityAuditUITests: XCTestCase {
         try await Task.sleep(nanoseconds: 1_500_000_000)
 
         var seen = Set<String>()
+        var issues = Set<String>()
         var last = ""
         for pass in 0...Self.maxSwipes {
             let signature = report(app, id: id, pass: pass, seen: &seen)
-            try runAudit(app, id: id)
+            try runAudit(app, id: id, issues: &issues)
             if signature == last { break }
             last = signature
             app.swipeUp()
@@ -259,15 +289,21 @@ nonisolated final class FAccessibilityAuditUITests: XCTestCase {
     }
 
     @MainActor
-    private func runAudit(_ app: XCUIApplication, id: String) throws {
+    private func runAudit(_ app: XCUIApplication, id: String, issues: inout Set<String>) throws {
+        var seen = issues
+        defer { issues = seen }
         try app.performAccessibilityAudit(
             for: [.hitRegion, .sufficientElementDescription, .elementDetection, .trait]
         ) { issue in
             let identifier = issue.element?.identifier ?? ""
+            let label = issue.element?.label ?? ""
             let type = Self.name(issue.auditType)
-            print("audit|\(id)|\(identifier)|\(issue.element?.label ?? "")|\(type)|\(issue.compactDescription)")
+            let description = issue.compactDescription
+            if !seen.insert("\(identifier)|\(label)|\(type)|\(description)").inserted { return true }
+            print("audit|\(id)|\(identifier)|\(label)|\(type)|\(description)")
             return FAuditScreens.allowed.contains {
-                $0.screen == id && $0.identifier == identifier && $0.type == type && !$0.reason.isEmpty
+                $0.screen == id && $0.identifier == identifier && $0.label == label && $0.type == type
+                    && description.hasPrefix($0.description) && !$0.reason.isEmpty
             }
         }
     }
