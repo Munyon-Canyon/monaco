@@ -26,12 +26,16 @@ type guard struct {
 	limiter           *Limiter
 	actorKey          ActorKey
 	trustProxyHeaders bool
+	cloudflare        []netip.Prefix
 }
 
 func Middleware(
 	l *Limiter, policies Policies, actorKey ActorKey, trustProxyHeaders bool,
 ) func(http.Handler) http.Handler {
-	g := guard{limiter: l, actorKey: actorKey, trustProxyHeaders: trustProxyHeaders}
+	g := guard{
+		limiter: l, actorKey: actorKey, trustProxyHeaders: trustProxyHeaders,
+		cloudflare: cloudflareRanges(),
+	}
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if rt, ok := policies.routes[r.Pattern]; ok && !g.allow(w, r, rt) {
@@ -70,7 +74,7 @@ func (g guard) id(r *http.Request, s scope) (id, keyKind string, ok bool) {
 		}
 		return id, keyKind, ok
 	}
-	ip, source := clientIP(r, g.trustProxyHeaders)
+	ip, source := g.clientIP(r)
 	observability.Debug(r.Context(), observability.RateLimitKeySource, slog.String("source", source))
 	return ip, "ip", true
 }
@@ -84,9 +88,9 @@ const (
 	sourceRemoteAddr = "remote-addr"
 )
 
-func clientIP(r *http.Request, trustProxyHeaders bool) (ip, source string) {
-	if trustProxyHeaders {
-		if ip, source = proxiedIP(r); ip != "" {
+func (g guard) clientIP(r *http.Request) (ip, source string) {
+	if g.trustProxyHeaders {
+		if ip, source = g.proxiedIP(r); ip != "" {
 			return ip, source
 		}
 	}
@@ -97,11 +101,15 @@ func clientIP(r *http.Request, trustProxyHeaders bool) (ip, source string) {
 	return host, sourceRemoteAddr
 }
 
-func proxiedIP(r *http.Request) (ip, source string) {
+func (g guard) proxiedIP(r *http.Request) (ip, source string) {
+	entries := strings.Split(strings.Join(r.Header.Values(forwardedHeader), ","), ",")
+	peer, err := netip.ParseAddr(strings.TrimSpace(entries[len(entries)-1]))
+	if err != nil || !isCloudflare(g.cloudflare, peer) {
+		return "", ""
+	}
 	if v := parsedIP(r.Header.Get(cloudflareHeader)); v != "" {
 		return v, sourceCloudflare
 	}
-	entries := strings.Split(strings.Join(r.Header.Values(forwardedHeader), ","), ",")
 	i := len(entries) - 1 - trustedProxyHops
 	if i < 0 {
 		return "", ""
