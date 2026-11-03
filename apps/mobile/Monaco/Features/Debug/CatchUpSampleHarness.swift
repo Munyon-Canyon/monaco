@@ -10,10 +10,7 @@ enum CatchUpSampleScenario: String {
     static let launchArgument = "-MonacoCatchUpSample"
     static let legacyArgument = "-activityFeedHarness"
 
-    static func matching(_ arguments: [String]) -> CatchUpSampleScenario? {
-        if let flag = arguments.firstIndex(of: launchArgument), arguments.indices.contains(flag + 1) {
-            return CatchUpSampleScenario(rawValue: arguments[flag + 1])
-        }
+    static func legacyScenario(_ arguments: [String]) -> CatchUpSampleScenario? {
         guard let flag = arguments.firstIndex(of: legacyArgument) else { return nil }
         let name = arguments.indices.contains(flag + 1) ? arguments[flag + 1] : "unread"
         switch name {
@@ -58,8 +55,15 @@ nonisolated struct CatchUpSampleRoute: AppRoute {
 final class CatchUpSampleHarnessEntry: SampleHarnessEntry {
     @MainActor
     override class func root(arguments: [String], auth: PrivyAuthService) -> AnyView? {
-        guard let scenario = CatchUpSampleScenario.matching(arguments) else { return nil }
-        return AnyView(SampleAppFrame(auth: auth, tab: .home, routes: [CatchUpSampleRoute(scenario: scenario)]))
+        let build: (CatchUpSampleScenario) -> AnyView = { scenario in
+            AnyView(SampleAppFrame(auth: auth, tab: .home, routes: [CatchUpSampleRoute(scenario: scenario)]))
+        }
+        if let root = scenarioRoot(
+            CatchUpSampleScenario.self, flag: CatchUpSampleScenario.launchArgument, arguments: arguments, build: build)
+        {
+            return root
+        }
+        return CatchUpSampleScenario.legacyScenario(arguments).map(build)
     }
 }
 

@@ -38,12 +38,6 @@ enum MoneyFlowSampleScenario: String, CaseIterable {
 
     static let launchArgument = "-MonacoMoneyFlowSample"
 
-    static func matching(_ arguments: [String]) -> MoneyFlowSampleScenario? {
-        guard let flag = arguments.firstIndex(of: launchArgument), arguments.indices.contains(flag + 1) else {
-            return nil
-        }
-        return MoneyFlowSampleScenario(rawValue: arguments[flag + 1])
-    }
 }
 
 struct MoneyFlowSampleHarness: View {
@@ -216,9 +210,12 @@ enum MoneyFlowSampleData {
 final class MoneyFlowSampleHarnessEntry: SampleHarnessEntry {
     @MainActor
     override class func root(arguments: [String], auth: PrivyAuthService) -> AnyView? {
-        guard let scenario = MoneyFlowSampleScenario.matching(arguments) else { return nil }
-        SampleAPIProtocol.install(scenario.script)
-        return AnyView(MoneyFlowSampleHarness(scenario: scenario, auth: auth))
+        return scenarioRoot(
+            MoneyFlowSampleScenario.self, flag: MoneyFlowSampleScenario.launchArgument, arguments: arguments
+        ) { scenario in
+            SampleAPIProtocol.install(scenario.script)
+            return AnyView(MoneyFlowSampleHarness(scenario: scenario, auth: auth))
+        }
     }
 }
 #endif

@@ -12,13 +12,6 @@ enum WatchlistSampleScenario: String, CaseIterable {
 
     static let launchArgument = "-MonacoWatchlistSample"
 
-    static func matching(_ arguments: [String]) -> WatchlistSampleScenario? {
-        guard let flag = arguments.firstIndex(of: launchArgument), arguments.indices.contains(flag + 1) else {
-            return nil
-        }
-        return WatchlistSampleScenario(rawValue: arguments[flag + 1])
-    }
-
     var script: SampleAPIScript {
         var script = SampleAPIScript(catalog: MarketsSampleCatalog.assets)
         switch self {
@@ -37,11 +30,14 @@ enum WatchlistSampleScenario: String, CaseIterable {
 final class WatchlistSampleHarnessEntry: SampleHarnessEntry {
     @MainActor
     override class func root(arguments: [String], auth: PrivyAuthService) -> AnyView? {
-        guard let scenario = WatchlistSampleScenario.matching(arguments) else { return nil }
-        SampleAPIProtocol.install(scenario.script)
-        MarketsSampleCatalog.install(watched: scenario.watched)
-        return AnyView(
-            SampleAppFrame(auth: auth, tab: .stocks, routes: [WatchlistRoute(query: scenario.query)]))
+        return scenarioRoot(
+            WatchlistSampleScenario.self, flag: WatchlistSampleScenario.launchArgument, arguments: arguments
+        ) { scenario in
+            SampleAPIProtocol.install(scenario.script)
+            MarketsSampleCatalog.install(watched: scenario.watched)
+            return AnyView(
+                SampleAppFrame(auth: auth, tab: .stocks, routes: [WatchlistRoute(query: scenario.query)]))
+        }
     }
 }
 #endif

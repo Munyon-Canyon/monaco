@@ -11,12 +11,6 @@ enum GroupNavSampleEntry: String, CaseIterable {
 
     static let launchArgument = "-MonacoGroupNavSample"
 
-    static func matching(_ arguments: [String]) -> GroupNavSampleEntry? {
-        guard let flag = arguments.firstIndex(of: launchArgument), arguments.indices.contains(flag + 1) else {
-            return nil
-        }
-        return GroupNavSampleEntry(rawValue: arguments[flag + 1])
-    }
 }
 
 extension GroupNavSampleEntry {
@@ -46,9 +40,12 @@ struct GroupNavSampleHarness: View {
 final class GroupNavSampleHarnessEntry: SampleHarnessEntry {
     @MainActor
     override class func root(arguments: [String], auth: PrivyAuthService) -> AnyView? {
-        guard let entry = GroupNavSampleEntry.matching(arguments) else { return nil }
-        SampleAPIProtocol.install(SampleAPIScript())
-        return AnyView(GroupNavSampleHarness(entry: entry, auth: auth))
+        return scenarioRoot(
+            GroupNavSampleEntry.self, flag: GroupNavSampleEntry.launchArgument, arguments: arguments
+        ) { entry in
+            SampleAPIProtocol.install(SampleAPIScript())
+            return AnyView(GroupNavSampleHarness(entry: entry, auth: auth))
+        }
     }
 }
 #endif
