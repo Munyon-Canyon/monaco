@@ -16,7 +16,7 @@ struct VoteHoldButton: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    static let height: CGFloat = 50
+    static let height: CGFloat = 44
     static let strokeWidth: CGFloat = 2
 
     static func spokenLabel(side: VoteSide, count: Int, isCommitted: Bool) -> String {

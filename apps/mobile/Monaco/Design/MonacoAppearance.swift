@@ -32,13 +32,9 @@ enum MonacoAppearance {
             systemName: "chevron.left", withConfiguration: UIImage.SymbolConfiguration(weight: .semibold))
 
         let standard = UINavigationBarAppearance()
-        if #available(iOS 26, *) {
-            standard.configureWithDefaultBackground()
-        } else {
-            standard.configureWithOpaqueBackground()
-            standard.backgroundColor = canvas
-            standard.shadowColor = border
-        }
+        standard.configureWithOpaqueBackground()
+        standard.backgroundColor = canvas
+        standard.shadowColor = border
         standard.titleTextAttributes = titleAttributes
         standard.largeTitleTextAttributes = largeTitleAttributes
         standard.backButtonAppearance = backButton

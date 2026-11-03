@@ -221,13 +221,16 @@ struct FLargeTextLayoutRuleTests {
     }
 
     private static func yesNo() -> some View {
-        VoteHoldRow(yes: Color.red.frame(height: 50), no: Color.blue.frame(height: 50))
+        VoteHoldRow(
+            yes: Color.red.frame(height: VoteHoldButton.height),
+            no: Color.blue.frame(height: VoteHoldButton.height))
     }
 
     @Test func theVotePairStacksAtAccessibility1AndSitsSideBySideBefore() {
-        #expect(Self.fitted(Self.yesNo(), at: .large).height == 50)
-        #expect(Self.fitted(Self.yesNo(), at: .accessibility1).height > 50)
-        #expect(Self.fitted(Self.yesNo(), at: .accessibility5).height > 50)
+        #expect(VoteHoldButton.height == 44)
+        #expect(Self.fitted(Self.yesNo(), at: .large).height == 44)
+        #expect(Self.fitted(Self.yesNo(), at: .accessibility1).height > 44)
+        #expect(Self.fitted(Self.yesNo(), at: .accessibility5).height > 44)
     }
 
     @Test func theStatRowGoesFourToTwoByTwoAtXXLargeAndOnePerRowAtAccessibility1() {

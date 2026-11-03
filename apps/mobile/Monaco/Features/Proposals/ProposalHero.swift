@@ -68,6 +68,7 @@ struct ProposalHero: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .padding(.vertical, -(MonacoButtonMetrics.hitTarget - MonacoTheme.Space.l) / 2)
         .accessibilityIdentifier("proposal-crest-line")
     }
 

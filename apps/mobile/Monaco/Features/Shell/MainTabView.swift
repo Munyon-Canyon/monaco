@@ -111,13 +111,8 @@ extension View {
         }
     }
 
-    @ViewBuilder
     fileprivate func systemNavigationBackground() -> some View {
-        if #available(iOS 26, *) {
-            self
-        } else {
-            toolbarBackground(MonacoTheme.canvas, for: .navigationBar)
-                .toolbarBackground(.visible, for: .navigationBar)
-        }
+        toolbarBackground(MonacoTheme.canvas, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
     }
 }
