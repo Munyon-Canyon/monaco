@@ -27,29 +27,32 @@ struct MonacoInfoSheet: View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
             Text(message)
                 .font(MonacoTheme.Typo.body)
-                .foregroundStyle(MonacoTheme.secondaryText)
+                .foregroundStyle(MonacoTheme.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
-            MonacoCard {
-                VStack(spacing: 0) {
-                    ForEach(Array(rows.enumerated()), id: \.offset) { index, row in
-                        if index > 0 { Divider() }
-                        rowLayout {
-                            Text(row.label)
-                                .font(MonacoTheme.Typo.headline)
-                                .foregroundStyle(MonacoTheme.primaryText)
-                                .fixedSize(horizontal: false, vertical: true)
-                            if !stacksRows { Spacer(minLength: MonacoTheme.Space.s) }
-                            Text(row.value)
-                                .font(MonacoTheme.Typo.body)
-                                .foregroundStyle(MonacoTheme.secondaryText)
-                                .multilineTextAlignment(stacksRows ? .leading : .trailing)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                        .padding(.vertical, MonacoTheme.Space.sm)
-                        .accessibilityElement(children: .combine)
+            VStack(spacing: 0) {
+                ForEach(Array(rows.enumerated()), id: \.offset) { index, row in
+                    if index > 0 { Divider() }
+                    rowLayout {
+                        Text(row.label)
+                            .font(MonacoTheme.Typo.headline)
+                            .foregroundStyle(MonacoTheme.primaryText)
+                            .fixedSize(horizontal: false, vertical: true)
+                        if !stacksRows { Spacer(minLength: MonacoTheme.Space.s) }
+                        Text(row.value)
+                            .font(MonacoTheme.Typo.body)
+                            .foregroundStyle(MonacoTheme.secondaryText)
+                            .multilineTextAlignment(stacksRows ? .leading : .trailing)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
+                    .padding(.vertical, MonacoTheme.Space.sm)
+                    .accessibilityElement(children: .combine)
                 }
             }
+            .padding(.horizontal, MonacoTheme.Space.m)
+            .background(
+                RoundedRectangle(cornerRadius: MonacoTheme.Radius.card, style: .continuous)
+                    .fill(MonacoTheme.surfaceSunken)
+            )
             Button(MarketStatsCopy.ok) { dismiss() }
                 .buttonStyle(.monacoSecondary)
                 .accessibilityIdentifier("\(identifier)-ok")

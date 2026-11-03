@@ -20,8 +20,8 @@ struct FeedQuietWeek: View {
     private var header: some View {
         VStack(spacing: MonacoTheme.Space.sm) {
             Image(monaco: .feed)
-                .font(.title2.weight(.semibold))
-                .foregroundStyle(MonacoTheme.brand)
+                .font(.largeTitle)
+                .foregroundStyle(MonacoTheme.secondaryText)
                 .accessibilityHidden(true)
             Text("Quiet week")
                 .font(MonacoTheme.Typo.section)
@@ -36,7 +36,8 @@ struct FeedQuietWeek: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.horizontal, MonacoTheme.Space.gutter)
-        .padding(.vertical, MonacoTheme.Space.l)
+        .padding(.top, MonacoTheme.Space.xl)
+        .padding(.bottom, MonacoTheme.Space.l)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("feed-quiet-week")
     }
@@ -68,8 +69,10 @@ struct FeedOutsideTally: View {
     let identifier: String
 
     private var split: Text {
-        Text(Image(systemName: "checkmark")) + Text(verbatim: " \(tally.yes) · ")
-            + Text(Image(systemName: "xmark")) + Text(verbatim: " \(tally.no)")
+        Text(Image(systemName: "checkmark")).foregroundColor(MonacoTheme.profit)
+            + Text(verbatim: " \(tally.yes) · ")
+            + Text(Image(systemName: "xmark")).foregroundColor(MonacoTheme.loss)
+            + Text(verbatim: " \(tally.no)")
     }
 
     var body: some View {
