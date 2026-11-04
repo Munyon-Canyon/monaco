@@ -1,0 +1,2 @@
+id	flow	module	trigger	command	events	consumers	outcomes	status	doc
+22d	Write a chat moment	social	consumer:cabal.created	WriteChatMoment			ok;InvalidInput;crash:before-commit	built	docs/architecture/chat.md#moments

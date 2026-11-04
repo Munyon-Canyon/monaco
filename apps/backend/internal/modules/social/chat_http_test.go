@@ -131,7 +131,7 @@ func TestChatRoutes_postRendersTheStoredMessageWithItsAuthor(t *testing.T) {
 	f := newChatRoutes(t)
 	got := f.mustPost(t, f.member(0), api.PostChatMessageRequest{Body: ptr(" gm ")})
 	want := api.ChatMessage{
-		Id: got.Id, Body: ptr("gm"), CreatedAt: f.now,
+		Id: got.Id, Kind: api.ChatMessageKindUser, Body: ptr("gm"), CreatedAt: f.now,
 		Author: api.ChatAuthor{
 			Id: f.member(0).UUID(), Handle: ptr("kai"), DisplayName: "Kai",
 			PhotoUrl: ptr("https://cdn.example.com/kai.jpg"),

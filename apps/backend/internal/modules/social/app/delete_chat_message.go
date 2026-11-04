@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
+	"github.com/monaco/monaco/apps/backend/internal/modules/social/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
@@ -38,7 +39,9 @@ func (h *DeleteChatMessageHandler) Handle(ctx context.Context, cmd DeleteChatMes
 			return err
 		case !found || row.CabalID != cmd.CabalID.UUID():
 			return errs.New(errs.CodeChatMessageNotFound, op, slog.String("message_id", cmd.MessageID.String()))
-		case row.AuthorID != cmd.Caller.UUID():
+		case row.Kind == string(domain.ChatKindSystem):
+			return errs.New(errs.CodeInvalidInput, op, slog.String("reason", domain.ReasonSystemMessage))
+		case row.AuthorID.Bytes != cmd.Caller.UUID():
 			return errs.New(errs.CodeChatMessageNotOwned, op)
 		case row.Deleted:
 			return nil

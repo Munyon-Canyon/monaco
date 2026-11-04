@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const addChatReaction = `-- name: AddChatReaction :one
@@ -141,9 +142,9 @@ type LiveChatMessageAuthorParams struct {
 	CabalID uuid.UUID
 }
 
-func (q *Queries) LiveChatMessageAuthor(ctx context.Context, arg LiveChatMessageAuthorParams) (uuid.UUID, error) {
+func (q *Queries) LiveChatMessageAuthor(ctx context.Context, arg LiveChatMessageAuthorParams) (pgtype.UUID, error) {
 	row := q.db.QueryRow(ctx, liveChatMessageAuthor, arg.ID, arg.CabalID)
-	var author_id uuid.UUID
+	var author_id pgtype.UUID
 	err := row.Scan(&author_id)
 	return author_id, err
 }

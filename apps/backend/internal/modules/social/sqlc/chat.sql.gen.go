@@ -44,6 +44,7 @@ WITH newest AS (
   FROM cabal_messages
   WHERE cabal_id = $1
     AND (parent_id IS NULL OR also_in_channel)
+    AND kind <> 'system'
     AND deleted_at IS NULL
   ORDER BY created_at DESC, id DESC
   LIMIT 1
@@ -147,7 +148,7 @@ func (q *Queries) GetChatCursor(ctx context.Context, arg GetChatCursorParams) (G
 }
 
 const getChatMessage = `-- name: GetChatMessage :one
-SELECT id, cabal_id, author_id, body, created_at, parent_id, also_in_channel, reply_count, last_reply_at, proposal_id, deleted_at
+SELECT id, cabal_id, author_id, body, created_at, parent_id, also_in_channel, reply_count, last_reply_at, proposal_id, deleted_at, kind, moment, dedupe_key
 FROM cabal_messages
 WHERE id = $1 AND cabal_id = $2
 `
@@ -172,30 +173,34 @@ func (q *Queries) GetChatMessage(ctx context.Context, arg GetChatMessageParams) 
 		&i.LastReplyAt,
 		&i.ProposalID,
 		&i.DeletedAt,
+		&i.Kind,
+		&i.Moment,
+		&i.DedupeKey,
 	)
 	return i, err
 }
 
 const getChatMessageByID = `-- name: GetChatMessageByID :one
-SELECT id, cabal_id FROM cabal_messages WHERE id = $1
+SELECT id, cabal_id, kind FROM cabal_messages WHERE id = $1
 `
 
 type GetChatMessageByIDRow struct {
 	ID      uuid.UUID
 	CabalID uuid.UUID
+	Kind    string
 }
 
 func (q *Queries) GetChatMessageByID(ctx context.Context, id uuid.UUID) (GetChatMessageByIDRow, error) {
 	row := q.db.QueryRow(ctx, getChatMessageByID, id)
 	var i GetChatMessageByIDRow
-	err := row.Scan(&i.ID, &i.CabalID)
+	err := row.Scan(&i.ID, &i.CabalID, &i.Kind)
 	return i, err
 }
 
 const insertChatMessage = `-- name: InsertChatMessage :one
 INSERT INTO cabal_messages (id, cabal_id, author_id, body, created_at, parent_id, also_in_channel)
 VALUES (
-  $1, $2, $3, NULLIF($4::text, ''), $5, NULLIF($6::uuid, '00000000-0000-0000-0000-000000000000'),
+  $1, $2, $3::uuid, NULLIF($4::text, ''), $5, NULLIF($6::uuid, '00000000-0000-0000-0000-000000000000'),
   $7
 )
 RETURNING id, cabal_id, author_id, body, created_at, parent_id, also_in_channel
@@ -214,7 +219,7 @@ type InsertChatMessageParams struct {
 type InsertChatMessageRow struct {
 	ID            uuid.UUID
 	CabalID       uuid.UUID
-	AuthorID      uuid.UUID
+	AuthorID      pgtype.UUID
 	Body          pgtype.Text
 	CreatedAt     time.Time
 	ParentID      pgtype.UUID
@@ -244,8 +249,42 @@ func (q *Queries) InsertChatMessage(ctx context.Context, arg InsertChatMessagePa
 	return i, err
 }
 
+const insertChatMoment = `-- name: InsertChatMoment :one
+INSERT INTO cabal_messages (id, cabal_id, kind, moment, dedupe_key, created_at)
+VALUES ($1, $2, 'system', $3::jsonb, $4::text, $5)
+ON CONFLICT (cabal_id, dedupe_key) WHERE dedupe_key IS NOT NULL DO UPDATE SET dedupe_key = cabal_messages.dedupe_key
+RETURNING id, cabal_id, created_at
+`
+
+type InsertChatMomentParams struct {
+	ID        uuid.UUID
+	CabalID   uuid.UUID
+	Moment    []byte
+	DedupeKey string
+	CreatedAt time.Time
+}
+
+type InsertChatMomentRow struct {
+	ID        uuid.UUID
+	CabalID   uuid.UUID
+	CreatedAt time.Time
+}
+
+func (q *Queries) InsertChatMoment(ctx context.Context, arg InsertChatMomentParams) (InsertChatMomentRow, error) {
+	row := q.db.QueryRow(ctx, insertChatMoment,
+		arg.ID,
+		arg.CabalID,
+		arg.Moment,
+		arg.DedupeKey,
+		arg.CreatedAt,
+	)
+	var i InsertChatMomentRow
+	err := row.Scan(&i.ID, &i.CabalID, &i.CreatedAt)
+	return i, err
+}
+
 const listChatChannel = `-- name: ListChatChannel :many
-SELECT id, cabal_id, author_id, body, created_at, parent_id, also_in_channel, reply_count, last_reply_at, proposal_id, deleted_at,
+SELECT id, cabal_id, author_id, body, created_at, parent_id, also_in_channel, reply_count, last_reply_at, proposal_id, deleted_at, kind, moment,
   blocked_author.hit AS blocked
 FROM cabal_messages
 CROSS JOIN LATERAL (
@@ -256,22 +295,24 @@ CROSS JOIN LATERAL (
 ) AS blocked_author
 WHERE cabal_id = $2
   AND (parent_id IS NULL OR also_in_channel)
+  AND (kind <> 'system' OR $3::bool)
   AND (deleted_at IS NULL OR (parent_id IS NULL AND reply_count > 0))
   AND (
     NOT blocked_author.hit
     OR (parent_id IS NULL AND reply_count > 0)
   )
   AND (
-    NOT $3::bool
-    OR (created_at, id) < ($4::timestamptz, $5::uuid)
+    NOT $4::bool
+    OR (created_at, id) < ($5::timestamptz, $6::uuid)
   )
 ORDER BY created_at DESC, id DESC
-LIMIT $6::int
+LIMIT $7::int
 `
 
 type ListChatChannelParams struct {
 	Viewer    uuid.UUID
 	CabalID   uuid.UUID
+	Moments   bool
 	HasBefore bool
 	BeforeAt  time.Time
 	BeforeID  uuid.UUID
@@ -281,7 +322,7 @@ type ListChatChannelParams struct {
 type ListChatChannelRow struct {
 	ID            uuid.UUID
 	CabalID       uuid.UUID
-	AuthorID      uuid.UUID
+	AuthorID      pgtype.UUID
 	Body          pgtype.Text
 	CreatedAt     time.Time
 	ParentID      pgtype.UUID
@@ -290,6 +331,8 @@ type ListChatChannelRow struct {
 	LastReplyAt   pgtype.Timestamptz
 	ProposalID    pgtype.UUID
 	DeletedAt     pgtype.Timestamptz
+	Kind          string
+	Moment        []byte
 	Blocked       bool
 }
 
@@ -297,6 +340,7 @@ func (q *Queries) ListChatChannel(ctx context.Context, arg ListChatChannelParams
 	rows, err := q.db.Query(ctx, listChatChannel,
 		arg.Viewer,
 		arg.CabalID,
+		arg.Moments,
 		arg.HasBefore,
 		arg.BeforeAt,
 		arg.BeforeID,
@@ -321,6 +365,8 @@ func (q *Queries) ListChatChannel(ctx context.Context, arg ListChatChannelParams
 			&i.LastReplyAt,
 			&i.ProposalID,
 			&i.DeletedAt,
+			&i.Kind,
+			&i.Moment,
 			&i.Blocked,
 		); err != nil {
 			return nil, err
@@ -334,7 +380,7 @@ func (q *Queries) ListChatChannel(ctx context.Context, arg ListChatChannelParams
 }
 
 const listChatChannelAfter = `-- name: ListChatChannelAfter :many
-SELECT id, cabal_id, author_id, body, created_at, parent_id, also_in_channel, reply_count, last_reply_at, proposal_id, deleted_at,
+SELECT id, cabal_id, author_id, body, created_at, parent_id, also_in_channel, reply_count, last_reply_at, proposal_id, deleted_at, kind, moment,
   blocked_author.hit AS blocked
 FROM cabal_messages
 CROSS JOIN LATERAL (
@@ -345,19 +391,21 @@ CROSS JOIN LATERAL (
 ) AS blocked_author
 WHERE cabal_id = $2
   AND (parent_id IS NULL OR also_in_channel)
+  AND (kind <> 'system' OR $3::bool)
   AND (deleted_at IS NULL OR (parent_id IS NULL AND reply_count > 0))
   AND (
     NOT blocked_author.hit
     OR (parent_id IS NULL AND reply_count > 0)
   )
-  AND (created_at, id) > ($3::timestamptz, $4::uuid)
+  AND (created_at, id) > ($4::timestamptz, $5::uuid)
 ORDER BY created_at, id
-LIMIT $5::int
+LIMIT $6::int
 `
 
 type ListChatChannelAfterParams struct {
 	Viewer   uuid.UUID
 	CabalID  uuid.UUID
+	Moments  bool
 	AfterAt  time.Time
 	AfterID  uuid.UUID
 	RowLimit int32
@@ -366,7 +414,7 @@ type ListChatChannelAfterParams struct {
 type ListChatChannelAfterRow struct {
 	ID            uuid.UUID
 	CabalID       uuid.UUID
-	AuthorID      uuid.UUID
+	AuthorID      pgtype.UUID
 	Body          pgtype.Text
 	CreatedAt     time.Time
 	ParentID      pgtype.UUID
@@ -375,6 +423,8 @@ type ListChatChannelAfterRow struct {
 	LastReplyAt   pgtype.Timestamptz
 	ProposalID    pgtype.UUID
 	DeletedAt     pgtype.Timestamptz
+	Kind          string
+	Moment        []byte
 	Blocked       bool
 }
 
@@ -382,6 +432,7 @@ func (q *Queries) ListChatChannelAfter(ctx context.Context, arg ListChatChannelA
 	rows, err := q.db.Query(ctx, listChatChannelAfter,
 		arg.Viewer,
 		arg.CabalID,
+		arg.Moments,
 		arg.AfterAt,
 		arg.AfterID,
 		arg.RowLimit,
@@ -405,6 +456,8 @@ func (q *Queries) ListChatChannelAfter(ctx context.Context, arg ListChatChannelA
 			&i.LastReplyAt,
 			&i.ProposalID,
 			&i.DeletedAt,
+			&i.Kind,
+			&i.Moment,
 			&i.Blocked,
 		); err != nil {
 			return nil, err
@@ -418,7 +471,7 @@ func (q *Queries) ListChatChannelAfter(ctx context.Context, arg ListChatChannelA
 }
 
 const listChatReplies = `-- name: ListChatReplies :many
-SELECT id, cabal_id, author_id, body, created_at, parent_id, also_in_channel, reply_count, last_reply_at, proposal_id, deleted_at
+SELECT id, cabal_id, author_id, body, created_at, parent_id, also_in_channel, reply_count, last_reply_at, proposal_id, deleted_at, kind, moment, dedupe_key
 FROM cabal_messages
 WHERE parent_id = $1::uuid
   AND deleted_at IS NULL
@@ -471,6 +524,9 @@ func (q *Queries) ListChatReplies(ctx context.Context, arg ListChatRepliesParams
 			&i.LastReplyAt,
 			&i.ProposalID,
 			&i.DeletedAt,
+			&i.Kind,
+			&i.Moment,
+			&i.DedupeKey,
 		); err != nil {
 			return nil, err
 		}
@@ -518,7 +574,7 @@ func (q *Queries) ListSeenBy(ctx context.Context, arg ListSeenByParams) ([]uuid.
 }
 
 const lockChatMessage = `-- name: LockChatMessage :one
-SELECT id, cabal_id, author_id, parent_id, (deleted_at IS NOT NULL)::bool AS deleted
+SELECT id, cabal_id, author_id, parent_id, kind, (deleted_at IS NOT NULL)::bool AS deleted
 FROM cabal_messages
 WHERE id = $1
 FOR UPDATE
@@ -527,8 +583,9 @@ FOR UPDATE
 type LockChatMessageRow struct {
 	ID       uuid.UUID
 	CabalID  uuid.UUID
-	AuthorID uuid.UUID
+	AuthorID pgtype.UUID
 	ParentID pgtype.UUID
+	Kind     string
 	Deleted  bool
 }
 
@@ -540,6 +597,7 @@ func (q *Queries) LockChatMessage(ctx context.Context, id uuid.UUID) (LockChatMe
 		&i.CabalID,
 		&i.AuthorID,
 		&i.ParentID,
+		&i.Kind,
 		&i.Deleted,
 	)
 	return i, err
@@ -572,6 +630,7 @@ WITH newest AS (
   FROM cabal_messages
   WHERE cabal_id = $1
     AND (parent_id IS NULL OR also_in_channel)
+    AND kind <> 'system'
     AND deleted_at IS NULL
   ORDER BY created_at DESC, id DESC
   LIMIT 1
@@ -650,15 +709,15 @@ WHERE (id = $1 OR parent_id = $1)
 ORDER BY author_id
 `
 
-func (q *Queries) ThreadParticipants(ctx context.Context, parentID uuid.UUID) ([]uuid.UUID, error) {
+func (q *Queries) ThreadParticipants(ctx context.Context, parentID uuid.UUID) ([]pgtype.UUID, error) {
 	rows, err := q.db.Query(ctx, threadParticipants, parentID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []uuid.UUID
+	var items []pgtype.UUID
 	for rows.Next() {
-		var author_id uuid.UUID
+		var author_id pgtype.UUID
 		if err := rows.Scan(&author_id); err != nil {
 			return nil, err
 		}
@@ -679,7 +738,8 @@ SELECT c.id::uuid AS cabal_id, (
     WHERE m.cabal_id = c.id
       AND (m.parent_id IS NULL OR m.also_in_channel)
       AND m.deleted_at IS NULL
-      AND m.author_id <> $1
+      AND m.kind <> 'system'
+      AND m.author_id <> $1::uuid
       AND NOT EXISTS (
         SELECT 1 FROM user_blocks b
         WHERE b.blocker_id = $1::uuid AND b.blocked_id = m.author_id

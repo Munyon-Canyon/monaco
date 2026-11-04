@@ -27,6 +27,7 @@ type ChatChannelQuery struct {
 	Before  *uuid.UUID
 	After   *uuid.UUID
 	Limit   int
+	Moments bool
 }
 
 type ChatThreadQuery struct {
@@ -35,6 +36,7 @@ type ChatThreadQuery struct {
 	ParentID uuid.UUID
 	Before   *uuid.UUID
 	Limit    int
+	Moments  bool
 }
 
 type ChatThread struct {
@@ -54,52 +56,67 @@ func ListChatChannel(ctx context.Context, db sqlc.DBTX, members Members, q ChatC
 	reads := sqlc.New(db)
 	var rows []channelRow
 	if q.After != nil {
-		var at domain.Keyset
-		if at, err = chatCursor(ctx, reads, q.CabalID, *q.After); err != nil {
-			return nil, err
-		}
-		var after []sqlc.ListChatChannelAfterRow
-		after, err = reads.ListChatChannelAfter(ctx, sqlc.ListChatChannelAfterParams{
-			CabalID: q.CabalID.UUID(), Viewer: q.Viewer.UUID(), AfterAt: at.At, AfterID: at.ID, RowLimit: limit,
-		})
-		rows = channelRows(after, func(r sqlc.ListChatChannelAfterRow) channelRow {
-			return channelRow{sqlc.CabalMessage{
-				ID: r.ID, CabalID: r.CabalID, AuthorID: r.AuthorID, Body: r.Body, CreatedAt: r.CreatedAt,
-				ParentID: r.ParentID, AlsoInChannel: r.AlsoInChannel, ReplyCount: r.ReplyCount,
-				LastReplyAt: r.LastReplyAt, ProposalID: r.ProposalID, DeletedAt: r.DeletedAt,
-			}, r.Blocked}
-		})
+		rows, err = listAfter(ctx, reads, q, limit)
 	} else {
-		params := sqlc.ListChatChannelParams{CabalID: q.CabalID.UUID(), Viewer: q.Viewer.UUID(), RowLimit: limit}
-		if params.HasBefore, params.BeforeAt, params.BeforeID, err = optionalCursor(
-			ctx, reads, q.CabalID, q.Before,
-		); err != nil {
-			return nil, err
-		}
-		var before []sqlc.ListChatChannelRow
-		before, err = reads.ListChatChannel(ctx, params)
-		rows = channelRows(before, func(r sqlc.ListChatChannelRow) channelRow {
-			return channelRow{sqlc.CabalMessage{
-				ID: r.ID, CabalID: r.CabalID, AuthorID: r.AuthorID, Body: r.Body, CreatedAt: r.CreatedAt,
-				ParentID: r.ParentID, AlsoInChannel: r.AlsoInChannel, ReplyCount: r.ReplyCount,
-				LastReplyAt: r.LastReplyAt, ProposalID: r.ProposalID, DeletedAt: r.DeletedAt,
-			}, r.Blocked}
-		})
+		rows, err = listBefore(ctx, reads, q, limit)
 	}
 	if err != nil {
-		return nil, errs.Wrap(err, errs.CodeInternal, op)
+		return nil, err
 	}
-	page := make([]ChatMessage, len(rows))
-	for i, row := range rows {
-		page[i] = storedMessage(row.CabalMessage)
-		if row.blocked {
-			page[i].Deleted, page[i].Body = true, ""
-		}
-	}
+	page := channelPage(rows)
 	if q.Before != nil {
 		return page, nil
 	}
 	return page, withSeenCount(ctx, reads, q.CabalID, page)
+}
+
+func listAfter(ctx context.Context, reads *sqlc.Queries, q ChatChannelQuery, limit int32) ([]channelRow, error) {
+	at, err := chatCursor(ctx, reads, q.CabalID, *q.After)
+	if err != nil {
+		return nil, err
+	}
+	after, err := reads.ListChatChannelAfter(ctx, sqlc.ListChatChannelAfterParams{
+		CabalID: q.CabalID.UUID(), Viewer: q.Viewer.UUID(), AfterAt: at.At, AfterID: at.ID, RowLimit: limit,
+		Moments: q.Moments,
+	})
+	if err != nil {
+		return nil, errs.Wrap(err, errs.CodeInternal, "social.ListChatChannel")
+	}
+	return channelRows(after, func(r sqlc.ListChatChannelAfterRow) channelRow {
+		return channelRow{sqlc.CabalMessage{
+			ID: r.ID, CabalID: r.CabalID, AuthorID: r.AuthorID, Body: r.Body, CreatedAt: r.CreatedAt,
+			ParentID: r.ParentID, AlsoInChannel: r.AlsoInChannel, ReplyCount: r.ReplyCount,
+			LastReplyAt: r.LastReplyAt, ProposalID: r.ProposalID, DeletedAt: r.DeletedAt, Kind: r.Kind,
+			Moment: r.Moment,
+		}, r.Blocked}
+	}), nil
+}
+
+func listBefore(ctx context.Context, reads *sqlc.Queries, q ChatChannelQuery, limit int32) ([]channelRow, error) {
+	params := sqlc.ListChatChannelParams{
+		CabalID: q.CabalID.UUID(), Viewer: q.Viewer.UUID(), RowLimit: limit, Moments: q.Moments,
+	}
+	var err error
+	if params.HasBefore, params.BeforeAt, params.BeforeID, err = optionalCursor(
+		ctx,
+		reads,
+		q.CabalID,
+		q.Before,
+	); err != nil {
+		return nil, err
+	}
+	before, err := reads.ListChatChannel(ctx, params)
+	if err != nil {
+		return nil, errs.Wrap(err, errs.CodeInternal, "social.ListChatChannel")
+	}
+	return channelRows(before, func(r sqlc.ListChatChannelRow) channelRow {
+		return channelRow{sqlc.CabalMessage{
+			ID: r.ID, CabalID: r.CabalID, AuthorID: r.AuthorID, Body: r.Body, CreatedAt: r.CreatedAt,
+			ParentID: r.ParentID, AlsoInChannel: r.AlsoInChannel, ReplyCount: r.ReplyCount,
+			LastReplyAt: r.LastReplyAt, ProposalID: r.ProposalID, DeletedAt: r.DeletedAt, Kind: r.Kind,
+			Moment: r.Moment,
+		}, r.Blocked}
+	}), nil
 }
 
 func GetChatThread(ctx context.Context, db sqlc.DBTX, members Members, q ChatThreadQuery) (ChatThread, error) {
@@ -118,24 +135,23 @@ func GetChatThread(ctx context.Context, db sqlc.DBTX, members Members, q ChatThr
 	case row.ParentID.Valid:
 		return ChatThread{}, errs.New(errs.CodeChatParentIsReply, op)
 	}
-	blocked, err := reads.IsBlocked(ctx, sqlc.IsBlockedParams{Blocker: q.Viewer.UUID(), Blocked: row.AuthorID})
+	blocked, err := reads.IsBlocked(ctx, sqlc.IsBlockedParams{Blocker: q.Viewer.UUID(), Blocked: row.AuthorID.Bytes})
 	if err != nil {
 		return ChatThread{}, errs.Wrap(err, errs.CodeInternal, op)
 	}
 	parent := storedMessage(row)
+	if momentHidden(parent, q.Moments) {
+		return ChatThread{}, errs.New(errs.CodeChatMessageNotFound, op, slog.String("kind", string(parent.Kind)))
+	}
 	if blocked {
 		parent.Deleted, parent.Body = true, ""
 	}
 	if parent.Deleted && row.ReplyCount == 0 {
 		return ChatThread{}, errs.New(errs.CodeChatMessageNotFound, op, slog.Bool("deleted", true))
 	}
-	params := sqlc.ListChatRepliesParams{ParentID: q.ParentID, Viewer: q.Viewer.UUID(), RowLimit: limit}
-	if q.Before != nil {
-		at, err := threadCursor(ctx, reads, q)
-		if err != nil {
-			return ChatThread{}, err
-		}
-		params.HasBefore, params.BeforeAt, params.BeforeID = true, at.At, at.ID
+	params, err := replyParams(ctx, reads, q, limit)
+	if err != nil {
+		return ChatThread{}, err
 	}
 	replies, err := reads.ListChatReplies(ctx, params)
 	if err != nil {
@@ -143,6 +159,37 @@ func GetChatThread(ctx context.Context, db sqlc.DBTX, members Members, q ChatThr
 	}
 	slices.Reverse(replies)
 	return ChatThread{Parent: parent, Replies: storedMessages(replies)}, nil
+}
+
+func channelPage(rows []channelRow) []ChatMessage {
+	page := make([]ChatMessage, 0, len(rows))
+	for _, row := range rows {
+		m := storedMessage(row.CabalMessage)
+		if m.Kind == domain.ChatKindSystem && m.Moment == nil {
+			continue
+		}
+		if row.blocked {
+			m.Deleted, m.Body = true, ""
+		}
+		page = append(page, m)
+	}
+	return page
+}
+
+func replyParams(
+	ctx context.Context, reads *sqlc.Queries, q ChatThreadQuery, limit int32,
+) (sqlc.ListChatRepliesParams, error) {
+	params := sqlc.ListChatRepliesParams{ParentID: q.ParentID, Viewer: q.Viewer.UUID(), RowLimit: limit}
+	if q.Before == nil {
+		return params, nil
+	}
+	at, err := threadCursor(ctx, reads, q)
+	params.HasBefore, params.BeforeAt, params.BeforeID = true, at.At, at.ID
+	return params, err
+}
+
+func momentHidden(m ChatMessage, moments bool) bool {
+	return m.Kind == domain.ChatKindSystem && (!moments || m.Moment == nil)
 }
 
 func checkChatRead(
@@ -217,8 +264,9 @@ func storedMessages(rows []sqlc.CabalMessage) []ChatMessage {
 func storedMessage(row sqlc.CabalMessage) ChatMessage {
 	m := ChatMessage{
 		ID:            row.ID,
+		Kind:          domain.ChatKind(row.Kind),
 		CabalID:       ids.CabalIDFrom(row.CabalID),
-		AuthorID:      ids.UserIDFrom(row.AuthorID),
+		AuthorID:      ids.UserIDFrom(row.AuthorID.Bytes),
 		Body:          row.Body.String,
 		CreatedAt:     row.CreatedAt.UTC(),
 		ParentID:      row.ParentID.Bytes,
@@ -233,6 +281,11 @@ func storedMessage(row sqlc.CabalMessage) ChatMessage {
 	}
 	if m.Deleted {
 		m.Body = ""
+	}
+	if m.Kind == domain.ChatKindSystem {
+		if moment, err := domain.ParseChatMoment(row.Moment); err == nil {
+			m.Moment = &moment
+		}
 	}
 	return m
 }

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const deleteChatPollVote = `-- name: DeleteChatPollVote :execrows
@@ -59,7 +60,7 @@ type GetChatPollParams struct {
 
 type GetChatPollRow struct {
 	Payload  []byte
-	AuthorID uuid.UUID
+	AuthorID pgtype.UUID
 }
 
 func (q *Queries) GetChatPoll(ctx context.Context, arg GetChatPollParams) (GetChatPollRow, error) {

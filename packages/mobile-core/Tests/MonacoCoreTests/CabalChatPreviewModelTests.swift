@@ -94,7 +94,8 @@ final class CabalChatPreviewModelTests: XCTestCase {
 
     private static func message() -> Components.Schemas.ChatMessage {
         Components.Schemas.ChatMessage(
-            id: "m-1", author: .init(id: "u-1", handle: "alex", displayName: "Alex", photoUrl: nil), body: "gm",
+            id: "m-1", kind: .user, author: .init(id: "u-1", handle: "alex", displayName: "Alex", photoUrl: nil),
+            body: "gm",
             createdAt: Date(timeIntervalSince1970: 1_790_000_000), alsoInChannel: false, replyCount: 0, deleted: false,
             reactions: [], reactionCount: 0)
     }

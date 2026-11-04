@@ -84,7 +84,7 @@ func (h *PostChatMessageHandler) Handle(ctx context.Context, cmd PostChatMessage
 			V:             1,
 			MessageID:     row.ID,
 			CabalID:       row.CabalID,
-			AuthorID:      row.AuthorID,
+			AuthorID:      row.AuthorID.Bytes,
 			ParentID:      parentOf(row.ParentID.Bytes),
 			AlsoInChannel: row.AlsoInChannel,
 			CreatedAt:     row.CreatedAt.UTC(),
@@ -155,8 +155,9 @@ func storeChatAttachment(
 func postedMessage(row sqlc.InsertChatMessageRow) ChatMessage {
 	return ChatMessage{
 		ID:            row.ID,
+		Kind:          domain.ChatKindUser,
 		CabalID:       ids.CabalIDFrom(row.CabalID),
-		AuthorID:      ids.UserIDFrom(row.AuthorID),
+		AuthorID:      ids.UserIDFrom(row.AuthorID.Bytes),
 		Body:          row.Body.String,
 		CreatedAt:     row.CreatedAt.UTC(),
 		ParentID:      row.ParentID.Bytes,
@@ -218,8 +219,8 @@ func (a audience) participants(ctx context.Context, q *sqlc.Queries, reply *doma
 		return nil, errs.Wrap(err, errs.CodeInternal, "social.PostChatMessage.participants")
 	}
 	for _, id := range authors {
-		if a.current[id] && len(out) < maxThreadParticipants {
-			out = append(out, id)
+		if a.current[id.Bytes] && len(out) < maxThreadParticipants {
+			out = append(out, id.Bytes)
 		}
 	}
 	return out, nil

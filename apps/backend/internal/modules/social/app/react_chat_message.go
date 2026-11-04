@@ -135,7 +135,7 @@ func liveChatAuthor(ctx context.Context, q *sqlc.Queries, cmd ReactChatMessage, 
 	case err != nil:
 		return uuid.Nil, errs.Wrap(err, errs.CodeInternal, op)
 	}
-	return author, nil
+	return author.Bytes, nil
 }
 
 func refuseBlockedAuthor(ctx context.Context, tx db.Tx, viewer ids.UserID, author uuid.UUID, op string) error {

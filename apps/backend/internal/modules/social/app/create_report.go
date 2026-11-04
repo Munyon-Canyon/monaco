@@ -92,6 +92,10 @@ func (h *CreateReportHandler) requireTarget(
 		if err != nil {
 			return lookupFailure(err, kind)
 		}
+		if row.Kind == string(domain.ChatKindSystem) {
+			return errs.New(errs.CodeInvalidInput, op,
+				slog.String("reason", domain.ReasonSystemMessage), slog.String("message_id", target.String()))
+		}
 		return h.requireMember(ctx, ids.CabalIDFrom(row.CabalID), reporter, kind)
 	case domain.ReportComment:
 		row, err := sqlc.New(h.d.Reads).GetComment(ctx, target)

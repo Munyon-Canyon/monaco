@@ -314,7 +314,7 @@ public struct ChatTimeline: Equatable, Sendable {
 
     private static func message(for send: Unsent, viewerID: String) -> ChatMessage {
         ChatMessage(
-            id: send.key,
+            id: send.key, kind: .user,
             author: .init(id: viewerID, handle: nil, displayName: "", photoUrl: nil),
             body: send.postedBody,
             createdAt: send.createdAt,

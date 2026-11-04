@@ -20,7 +20,7 @@ enum ChatFixtures {
         reactions: [Components.Schemas.Reaction] = []
     ) -> ChatMessage {
         ChatMessage(
-            id: id,
+            id: id, kind: .user,
             author: .init(id: author, handle: nil, displayName: author == viewerID ? "Me" : "Kai", photoUrl: nil),
             body: body ?? "text \(id)",
             createdAt: epoch.addingTimeInterval(minutes * 60),

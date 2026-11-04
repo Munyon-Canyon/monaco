@@ -96,3 +96,22 @@ func TestUnreadCounts_skipsBlockedAuthors(t *testing.T) {
 		t.Fatalf("a third member's unread = %d, want the unblocked message", got)
 	}
 }
+
+func TestUnreadCounts_skipSystemRows(t *testing.T) {
+	t.Parallel()
+	f := newChatFixture(t)
+	f.mustSend(t, f.member(0), "one", nil)
+	f.clock.Advance(time.Second)
+	f.mustMarkSeen(t, f.member(1))
+	f.clock.Advance(time.Second)
+	if _, err := f.pool.Exec(t.Context(), `INSERT INTO cabal_messages (id, cabal_id, kind, moment, created_at)
+		VALUES (gen_random_uuid(), $1, 'system', '{"kind":"cabal_created"}', $2)`, f.cabal.ID.UUID(), f.clock.Now()); err != nil {
+		t.Fatal(err)
+	}
+	if got := f.unread(t, f.member(1), f.cabal.ID)[f.cabal.ID]; got != 0 {
+		t.Fatalf("unread = %d, want 0: a system row never counts", got)
+	}
+	if got := f.unread(t, f.member(2), f.cabal.ID)[f.cabal.ID]; got != 1 {
+		t.Fatalf("unread for a member who never marked = %d, want the user message only", got)
+	}
+}

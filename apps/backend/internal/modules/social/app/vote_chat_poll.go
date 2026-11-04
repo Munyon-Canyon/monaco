@@ -117,7 +117,7 @@ func (d ChatDeps) requireOpenChatPoll(
 	if pollClosed(attachment.Poll.ClosesAt, d.Clock.Now()) {
 		return nil, uuid.Nil, errs.New(errs.CodePollClosed, op, slog.String("message_id", message.String()))
 	}
-	return attachment, row.AuthorID, nil
+	return attachment, row.AuthorID.Bytes, nil
 }
 
 func (d ChatDeps) settleChatPoll(
