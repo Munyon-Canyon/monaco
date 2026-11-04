@@ -17,7 +17,6 @@ enum MonacoDesignGallery {
 
     static var appearance: ColorScheme? {
         switch value(after: "-MonacoDesignGalleryAppearance") {
-        case "light": .light
         case "dark": .dark
         default: nil
         }

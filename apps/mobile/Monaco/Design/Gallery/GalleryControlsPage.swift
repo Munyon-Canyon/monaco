@@ -419,12 +419,10 @@ struct GalleryVoteSamples: View {
     var body: some View {
         GalleryGroup(title: "Vote") {
             VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
-                ForEach([ColorScheme.dark, .light], id: \.self) { scheme in
-                    GalleryVoteStates()
-                        .padding(MonacoTheme.Space.m)
-                        .background(MonacoTheme.canvas)
-                        .environment(\.colorScheme, scheme)
-                }
+                GalleryVoteStates()
+                    .padding(MonacoTheme.Space.m)
+                    .background(MonacoTheme.canvas)
+                    .environment(\.colorScheme, .dark)
                 GalleryCase(caption: "Live pair: press and hold for 0.6 s, lift early to cancel") {
                     VotePair(
                         yes: 4, no: 1, selection: $live, isEnabled: true, identifierPrefix: "gallery",

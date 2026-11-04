@@ -54,9 +54,7 @@ struct GalleryMoneyPage: View {
                 VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
                     MonacoSectionHeader("Keypad")
                     ForEach(GalleryKeypadSample.all) { sample in
-                        ForEach([ColorScheme.dark, .light], id: \.self) { scheme in
-                            GalleryKeypadFrame(sample: sample, scheme: scheme)
-                        }
+                        GalleryKeypadFrame(sample: sample)
                     }
                 }
 
@@ -112,18 +110,16 @@ private struct GalleryKeypadSample: Identifiable {
 
 private struct GalleryKeypadFrame: View {
     let sample: GalleryKeypadSample
-    let scheme: ColorScheme
     @State private var text: String
 
-    init(sample: GalleryKeypadSample, scheme: ColorScheme) {
+    init(sample: GalleryKeypadSample) {
         self.sample = sample
-        self.scheme = scheme
         _text = State(initialValue: sample.text)
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
-            Text("\(sample.id) · \(scheme == .dark ? "dark" : "light")")
+            Text(sample.id)
                 .font(MonacoTheme.Typo.subhead)
                 .foregroundStyle(MonacoTheme.secondaryText)
             screen
@@ -134,7 +130,7 @@ private struct GalleryKeypadFrame: View {
                     RoundedRectangle(cornerRadius: MonacoTheme.Radius.card, style: .continuous)
                         .strokeBorder(MonacoTheme.hairline, lineWidth: 1)
                 )
-                .environment(\.colorScheme, scheme)
+                .environment(\.colorScheme, .dark)
         }
     }
 
