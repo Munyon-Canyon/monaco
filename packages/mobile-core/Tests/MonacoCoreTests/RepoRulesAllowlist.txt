@@ -22,7 +22,6 @@ float-money	packages/mobile-core/Sources/MonacoCore/ProposalFeedFormatters.swift
 float-money	packages/mobile-core/Sources/MonacoCore/SparklineSeries.swift	12
 gutter	apps/mobile/Monaco/Features/Auth/SessionGateView.swift	1
 gutter	apps/mobile/Monaco/Features/Comments/CommentComposer.swift	1
-gutter	apps/mobile/Monaco/Features/Groups/CabalRulesSection.swift	1
 gutter	apps/mobile/Monaco/Features/Groups/CabalsJoinSlot.swift	1
 gutter	apps/mobile/Monaco/Features/Groups/GroupChatParts.swift	2
 gutter	apps/mobile/Monaco/Features/Groups/GroupChatRowView.swift	1
