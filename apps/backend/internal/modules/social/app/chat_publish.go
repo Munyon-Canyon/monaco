@@ -17,6 +17,7 @@ const (
 	EventMessageDeleted  = "message.deleted"
 	EventSeenUpdated     = "seen.updated"
 	EventReactionUpdated = "reaction.updated"
+	EventPollUpdated     = "poll.updated"
 )
 
 type ChatWire func(ctx context.Context, m ChatMessage) (any, error)
@@ -45,6 +46,17 @@ type ReactionUpdated struct {
 	MessageID uuid.UUID       `json:"message_id"`
 	Reactions []ReactionCount `json:"reactions"`
 	Total     int32           `json:"total"`
+}
+
+type PollOptionCount struct {
+	Position int `json:"position"`
+	Votes    int `json:"votes"`
+}
+
+type PollUpdated struct {
+	MessageID  uuid.UUID         `json:"message_id"`
+	Options    []PollOptionCount `json:"options"`
+	TotalVotes int               `json:"total_votes"`
 }
 
 type ChatPublisher struct {
@@ -85,6 +97,15 @@ func (p ChatPublisher) reactionUpdated(ctx context.Context, cabal ids.CabalID, i
 		counts[i] = ReactionCount{Emoji: r.Emoji.String(), Count: r.Count}
 	}
 	p.send(ctx, cabal, id, EventReactionUpdated, ReactionUpdated{MessageID: id, Reactions: counts, Total: s.Total})
+}
+
+func (p ChatPublisher) pollUpdated(ctx context.Context, cabal ids.CabalID, id uuid.UUID, v PollView) {
+	ctx = context.WithoutCancel(ctx)
+	counts := make([]PollOptionCount, len(v.Options))
+	for i, o := range v.Options {
+		counts[i] = PollOptionCount{Position: o.Position, Votes: o.Count}
+	}
+	p.send(ctx, cabal, id, EventPollUpdated, PollUpdated{MessageID: id, Options: counts, TotalVotes: v.Total})
 }
 
 func (p ChatPublisher) send(ctx context.Context, cabal ids.CabalID, id uuid.UUID, event string, data any) {

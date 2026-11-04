@@ -5,6 +5,7 @@ func socialRegistrations() []Registration {
 		Register[BlockCreated](TypeBlockCreated, 1),
 		Register[BlockRemoved](TypeBlockRemoved, 1),
 		Register[ChatMessagePosted](TypeChatMessagePosted, 1),
+		Register[ChatPollVoted](TypeChatPollVoted, 1),
 		Register[ChatReactionAdded](TypeChatReactionAdded, 1),
 		Register[ChatReactionRemoved](TypeChatReactionRemoved, 1),
 		Register[CommentCreated](TypeCommentCreated, 1),

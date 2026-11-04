@@ -269,8 +269,8 @@ func TestChatAttachment_refusesBadShapes(t *testing.T) {
 	if err := photo.UnmarshalJSON([]byte(`{"kind":"photo"}`)); err != nil {
 		t.Fatal(err)
 	}
-	var poll api.ChatAttachmentInput
-	if err := poll.UnmarshalJSON([]byte(`{"kind":"poll","question":"q","options":["a","b"]}`)); err != nil {
+	var oneOption api.ChatAttachmentInput
+	if err := oneOption.UnmarshalJSON([]byte(`{"kind":"poll","question":"q","options":["a"]}`)); err != nil {
 		t.Fatal(err)
 	}
 	var badGif api.ChatAttachmentInput
@@ -289,7 +289,7 @@ func TestChatAttachment_refusesBadShapes(t *testing.T) {
 		"empty":        {api.PostChatMessageRequest{}, errs.CodeChatBodyInvalid},
 		"blank":        {api.PostChatMessageRequest{Body: ptr("  ")}, errs.CodeChatBodyInvalid},
 		"unknown kind": {api.PostChatMessageRequest{Attachment: &photo}, errs.CodeInvalidInput},
-		"poll":         {api.PostChatMessageRequest{Attachment: &poll}, errs.CodeInvalidInput},
+		"one option":   {api.PostChatMessageRequest{Attachment: &oneOption}, errs.CodeInvalidInput},
 		"bad gif":      {api.PostChatMessageRequest{Attachment: &badGif}, errs.CodeInvalidInput},
 	} {
 		if _, err := f.postAs(t, f.member(0), c.req); errs.CodeOf(err) != c.code {

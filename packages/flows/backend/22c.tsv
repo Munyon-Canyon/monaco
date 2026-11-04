@@ -1,0 +1,2 @@
+id	flow	module	trigger	command	events	consumers	outcomes	status	doc
+22c	Vote in a chat poll	social	PUT /v1/cabals/{id}/messages/{message_id}/poll/vote;DELETE /v1/cabals/{id}/messages/{message_id}/poll/vote	VoteChatPoll;UnvoteChatPoll	chat.poll_voted		ok;InvalidInput;NotCabalMember;ChatMessageNotFound;PollClosed;Unauthorized;crash:before-commit	built	docs/architecture/chat.md#polls

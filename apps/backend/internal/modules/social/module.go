@@ -357,6 +357,8 @@ func (m *Module) http() adapters.HTTP {
 		DeleteChat:              app.NewDeleteChatMessageHandler(chat),
 		ReactChat:               app.NewReactChatMessageHandler(chat),
 		UnreactChat:             app.NewUnreactChatMessageHandler(chat),
+		VoteChatPollCmd:         app.NewVoteChatPollHandler(chat),
+		UnvoteChatPollCmd:       app.NewUnvoteChatPollHandler(chat),
 		MarkSeen:                app.NewMarkChatSeenHandler(chat),
 		Token:                   app.NewRealtimeTokenHandler(m.members, m.realtime),
 		CreateComment:           app.NewCreateCommentHandler(comments),

@@ -28,6 +28,23 @@ type PollView struct {
 
 func pollClosed(closesAt, now time.Time) bool { return !now.Before(closesAt) }
 
+func newPoll(createdAt time.Time, att *domain.Attachment) (*domain.Attachment, *PollView, []int32) {
+	positions := make([]int32, len(att.Poll.Options))
+	view := &PollView{
+		ClosesAt: createdAt.Add(att.Poll.ClosesIn).UTC(),
+		Options:  make([]PollOptionView, len(positions)),
+	}
+	for i, label := range att.Poll.Options {
+		positions[i] = int32(i)
+		view.Options[i] = PollOptionView{Position: i, Label: label}
+	}
+	stored := *att
+	poll := *att.Poll
+	poll.ClosesAt = view.ClosesAt
+	stored.Poll = &poll
+	return &stored, view, positions
+}
+
 func storePoll(
 	ctx context.Context, q *sqlc.Queries, row sqlc.FeedComment, att *domain.Attachment,
 ) (*domain.Attachment, *PollView, error) {
@@ -35,26 +52,14 @@ func storePoll(
 	if att.Poll == nil {
 		return att, nil, nil
 	}
-	positions := make([]int32, len(att.Poll.Options))
-	view := &PollView{
-		ClosesAt: row.CreatedAt.Add(att.Poll.ClosesIn).UTC(),
-		Options:  make([]PollOptionView, len(positions)),
-	}
-	for i, label := range att.Poll.Options {
-		positions[i] = int32(i)
-		view.Options[i] = PollOptionView{Position: i, Label: label}
-	}
+	stored, view, positions := newPoll(row.CreatedAt, att)
 	err := q.InsertCommentPollOptions(ctx, sqlc.InsertCommentPollOptionsParams{
 		CommentID: row.ID, Positions: positions, Labels: att.Poll.Options,
 	})
 	if err != nil {
 		return nil, nil, errs.Wrap(err, errs.CodeInternal, op)
 	}
-	stored := *att
-	poll := *att.Poll
-	poll.ClosesAt = view.ClosesAt
-	stored.Poll = &poll
-	return &stored, view, nil
+	return stored, view, nil
 }
 
 func pollViews(
