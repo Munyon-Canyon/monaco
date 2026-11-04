@@ -12,27 +12,29 @@ final class WithdrawCopyTests: XCTestCase {
         Withdrawal(withdrawalID: id, status: status, amountMicros: 120_000_000, txSignature: signature)
     }
 
-    func testTheEmptyLineForAnOnTopFeeAZeroFeeAndAnUnknownFee() {
-        XCTAssertEqual(WithdrawCopy.emptyLine(feeMicros: 500_000, network: .solana), "Fee $0.50 · USDC on Solana")
-        XCTAssertEqual(WithdrawCopy.emptyLine(feeMicros: 0, network: .solana), "No fee · USDC on Solana")
+    func testTheFeeLineSaysTheFeeAndTheWait() {
         XCTAssertEqual(
-            WithdrawCopy.emptyLine(feeMicros: nil, network: .base), "Fee shown once you type · USDC on Base")
+            WithdrawCopy.feeLine(feeMicros: 500_000, arrivalSeconds: 60), "$0.50 fee · arrives in about a minute")
+        XCTAssertEqual(WithdrawCopy.feeLine(feeMicros: 0, arrivalSeconds: 60), "No fee · arrives in about a minute")
+        XCTAssertEqual(
+            WithdrawCopy.feeLine(feeMicros: 500_000, arrivalSeconds: 120), "$0.50 fee · arrives in about 2 minutes")
+        XCTAssertEqual(WithdrawCopy.feeLine(feeMicros: nil, arrivalSeconds: 60), "Fee shown once you type")
+        XCTAssertEqual(WithdrawCopy.feeLine(feeMicros: 500_000, arrivalSeconds: nil), "Fee shown once you type")
     }
 
-    func testTheTypedLineForAnOnTopFeeAnIncludedFeeAndAZeroFee() {
+    func testTheAddressEndingKeepsTheLastFourCharacters() {
         XCTAssertEqual(
-            WithdrawCopy.typedLine(receiveMicros: 120_000_000, feeMicros: 500_000), "120.00 USDC · fee $0.50")
+            WithdrawCopy.addressEnding("9xQeWvG816bUx9EPjHmaT23yvVMvM9fQj4a8PHF4H6P"), "Address ending 4H6P")
         XCTAssertEqual(
-            WithdrawCopy.typedLine(receiveMicros: 9_992_500, feeMicros: 7_500, isEstimate: true),
-            "≈ 9.99 USDC · fee $0.01")
-        XCTAssertEqual(WithdrawCopy.typedLine(receiveMicros: 120_000_000, feeMicros: 0), "120.00 USDC · no fee")
-        XCTAssertEqual(WithdrawCopy.typedLine(receiveMicros: 120_000_000, feeMicros: nil), "120.00 USDC")
+            WithdrawCopy.addressEnding("0x5aaeb6053f3e94c9b9a09f33669435e7ef1beaed"), "Address ending eaed")
+        XCTAssertEqual(WithdrawCopy.addressEnding("abc"), "Address ending abc")
+        XCTAssertEqual(WithdrawCopy.addressEnding("  abcdVFin \n"), "Address ending VFin")
     }
 
     func testTheLimitLineSlotAndButton() {
         XCTAssertEqual(
             WithdrawCopy.limitLine(maxMicros: 499_500_000, overMicros: 150_500_000),
-            "You can send $499.50 · $150.50 over")
+            "You can send $499.50 after the fee.")
         XCTAssertEqual(WithdrawCopy.limitSlot(maxMicros: 499_500_000), "Up to $499.50")
         XCTAssertEqual(WithdrawCopy.button(amountMicros: 120_000_000), "Withdraw $120")
         XCTAssertEqual(WithdrawCopy.button(amountMicros: 1_250_000), "Withdraw $1.25")
@@ -72,9 +74,9 @@ final class WithdrawCopyTests: XCTestCase {
         var strings = [
             WithdrawCopy.assetLabel, WithdrawCopy.addAddress, WithdrawCopy.feeFailed, WithdrawCopy.invalidAddress,
             WithdrawCopy.ownDeposit, WithdrawCopy.switchToBase, WithdrawCopy.baseAddressOnSolana,
-            WithdrawCopy.emptyLine(feeMicros: nil, network: .base),
-            WithdrawCopy.emptyLine(feeMicros: 0, network: .solana),
-            WithdrawCopy.typedLine(receiveMicros: 1, feeMicros: 0),
+            WithdrawCopy.feeLine(feeMicros: 0, arrivalSeconds: 60),
+            WithdrawCopy.feeLine(feeMicros: nil, arrivalSeconds: nil),
+            WithdrawCopy.addressEnding("abcd"),
             WithdrawCopy.limitLine(maxMicros: 1, overMicros: 1), WithdrawCopy.limitSlot(maxMicros: 1),
             WithdrawCopy.belowMinimum(minMicros: 1), WithdrawCopy.button(amountMicros: 1),
             WithdrawCopy.settledLine(network: .solana, arrivalSeconds: 60),
@@ -126,11 +128,11 @@ final class WithdrawCopyTests: XCTestCase {
 
     func testTheLimitIsRoundedDownSoTypingItIsAccepted() {
         XCTAssertEqual(
-            WithdrawCopy.limitLine(maxMicros: 10_005_000, overMicros: 5_000), "You can send $10 · $0.01 over")
+            WithdrawCopy.limitLine(maxMicros: 10_005_000, overMicros: 5_000), "You can send $10 after the fee.")
         XCTAssertEqual(WithdrawCopy.limitSlot(maxMicros: 10_005_000), "Up to $10")
         XCTAssertEqual(WithdrawCopy.limitSlot(maxMicros: 9_999_999), "Up to $9.99")
         XCTAssertEqual(
-            WithdrawCopy.limitLine(maxMicros: 9_999_999, overMicros: 1_000_000), "You can send $9.99 · $1 over")
+            WithdrawCopy.limitLine(maxMicros: 9_999_999, overMicros: 1_000_000), "You can send $9.99 after the fee.")
     }
 
     func testTheFullBalanceLabelReplacesTheAmountInTheToast() {

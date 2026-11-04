@@ -44,24 +44,19 @@ public enum WithdrawCopy {
         UsdAmountFormatter.format(micros: micros)
     }
 
-    public static func emptyLine(feeMicros: Int64?, network: WithdrawNetwork) -> String {
-        guard let feeMicros else { return "Fee shown once you type · \(assetLabel) on \(network.name)" }
-        let lead = feeMicros == 0 ? "No fee" : "Fee \(fee(feeMicros))"
-        return "\(lead) · \(assetLabel) on \(network.name)"
+    public static func feeLine(feeMicros: Int64?, arrivalSeconds: Int?) -> String {
+        guard let feeMicros, let arrivalSeconds else { return "Fee shown once you type" }
+        let lead = feeMicros == 0 ? "No fee" : "\(fee(feeMicros)) fee"
+        return "\(lead) · arrives in \(wait(arrivalSeconds))"
     }
 
-    public static func typedLine(receiveMicros: Int64, feeMicros: Int64?, isEstimate: Bool = false) -> String {
-        let receive = "\(isEstimate ? "≈ " : "")\(units(receiveMicros))"
-        guard let feeMicros else { return receive }
-        return feeMicros == 0 ? "\(receive) · no fee" : "\(receive) · fee \(fee(feeMicros))"
-    }
-
-    private static func units(_ micros: Int64) -> String {
-        "\(UsdAmountFormatter.format(micros: micros).dropFirst()) \(assetLabel)"
+    public static func addressEnding(_ address: String) -> String {
+        let trimmed = address.trimmingCharacters(in: .whitespacesAndNewlines)
+        return "Address ending \(trimmed.count < 4 ? trimmed : String(trimmed.suffix(4)))"
     }
 
     public static func limitLine(maxMicros: Int64, overMicros: Int64) -> String {
-        "You can send \(flooredDollars(maxMicros)) · \(dollars(overMicros)) over"
+        "You can send \(flooredDollars(maxMicros)) after the fee."
     }
 
     public static func limitSlot(maxMicros: Int64) -> String {
