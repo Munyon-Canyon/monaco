@@ -11,9 +11,11 @@ struct CabalsHoldTip: View {
     static let dismissedKey = "cabals.holdTip.dismissed"
 
     private static let resetOnLaunch: Void = {
+        #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("-MonacoResetHoldTip") {
             UserDefaults.standard.removeObject(forKey: dismissedKey)
         }
+        #endif
     }()
 
     @AppStorage(CabalsHoldTip.dismissedKey) private var dismissed = false
