@@ -5,6 +5,7 @@ struct CabalsTabScreen: View {
     static let sections: [any CabalsTabSection.Type] = [
         CabalsJoinSlot.self,
         CabalsVoteSlot.self,
+        CabalsUpNextSlot.self,
         CabalsGridSlot.self,
         CabalsShareListSlot.self,
     ]
