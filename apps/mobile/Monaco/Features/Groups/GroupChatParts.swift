@@ -2,17 +2,6 @@ import MonacoAPI
 import MonacoCore
 import SwiftUI
 
-struct GroupChatEmptyView: View {
-    var body: some View {
-        EmptyState(
-            title: GroupChatCopy.emptyTitle, message: GroupChatCopy.emptyHint, systemImage: MonacoIcon.chat.symbol
-        )
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .accessibilityElement(children: .combine)
-        .accessibilityIdentifier("chat-empty")
-    }
-}
-
 struct GroupChatLoadFailureView: View {
     var message = GroupChatCopy.loadFailure
     let retry: () -> Void
@@ -117,6 +106,7 @@ struct ChatList<Header: View, Content: View>: View {
     let listID: String
     let loadOlder: () -> Void
     let refresh: () async -> Void
+    var pinsToBottom = false
     @ViewBuilder let header: Header
     @ViewBuilder let content: Content
 
@@ -125,6 +115,7 @@ struct ChatList<Header: View, Content: View>: View {
     @State private var scrollToBottomRequests = 0
     @State private var rowToKeepInView: String?
     @State private var topRowBeforeLoadingOlder: String?
+    @State private var containerHeight: CGFloat = 0
 
     private static var bottomAnchor: String { "chat-bottom" }
 
@@ -153,6 +144,10 @@ struct ChatList<Header: View, Content: View>: View {
                 }
                 .padding(.horizontal, MonacoTheme.Space.gutter)
                 .padding(.bottom, MonacoTheme.Space.sm)
+                .frame(minHeight: pinsToBottom ? containerHeight : 0, alignment: .bottom)
+            }
+            .onScrollGeometryChange(for: CGFloat.self, of: { $0.containerSize.height }) { _, height in
+                if pinsToBottom { containerHeight = height }
             }
             .defaultScrollAnchor(.bottom, for: .initialOffset)
             .defaultScrollAnchor(.bottom, for: .sizeChanges)

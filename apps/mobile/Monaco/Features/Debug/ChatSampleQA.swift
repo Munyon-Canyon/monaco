@@ -48,13 +48,23 @@ private struct ChatSampleHost: View {
     @State private var network: NetworkPathModel
     @State private var reactions = ReactionsModel.sample(reactions: [:], fails: false, clock: ContinuousClock())
     private let sendsOnLaunch: Bool
+    private let cabal: Components.Schemas.Cabal
 
     init(scenario: ChatSampleScenario, acts: Bool, offline: Bool) {
         sendsOnLaunch =
             acts
             && (scenario.failSends || scenario.failFirstSend || scenario.closedOnSend || scenario.neverPosts)
+        cabal = Self.cabal(startEmpty: scenario.startEmpty)
         _session = State(initialValue: ChatSession.sample(scenario) { Date() })
         _network = State(initialValue: NetworkPathModel(forcedOffline: offline))
+    }
+
+    private static func cabal(startEmpty: Bool) -> Components.Schemas.Cabal {
+        guard startEmpty else { return .sample(role: "member") }
+        var cabal = Components.Schemas.Cabal.sampleWithMembers(role: "member")
+        cabal.name = "Big Ballers"
+        cabal.openProposalCount = 0
+        return cabal
     }
 
     private static let stockSearch: StockSearch = { _ in
@@ -71,7 +81,7 @@ private struct ChatSampleHost: View {
         GroupChatScreen(
             cabalID: ChatSession.sampleCabalID,
             session: session,
-            cabal: .sample(role: "member"),
+            cabal: cabal,
             proposals: proposals,
             network: network,
             gifs: SampleGifProvider(),

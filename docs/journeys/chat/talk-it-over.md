@@ -1,7 +1,7 @@
 ---
 id: chat/talk-it-over
 title: Talk it over
-version: 6
+version: 7
 milestone: M19
 requires: [auth/sign-in]
 actors: [A, B]
@@ -33,7 +33,7 @@ One simulator runs every actor, and each switch signs one member out and the nex
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S1.1 | A | tap, type, tap, then tap | `openCabal(named:)` (the Cabals tab, then the cabal's tile), `cabal-more-button`, then `cabal-more-chat` | `QA {QA.run}` | `chat-title` reads `QA {QA.run}`. `chat-empty` reads "Start the conversation" over "Messages here stay with your cabal. Proposal-specific discussion stays attached to the proposal." The composer's placeholder is "Message your cabal" and `chat-send` is disabled, all within 15 s (screens.md Chat) |
+| S1.1 | A | tap, type, tap, then tap | `openCabal(named:)` (the Cabals tab, then the cabal's tile), `cabal-more-button`, then `cabal-more-chat` | `QA {QA.run}` | `chat-title` reads `QA {QA.run}`. `chat-quiet-title` reads "No vote open." The composer's placeholder begins "Message" and `chat-send` is disabled, all within 15 s (screens.md Chat) |
 
 ### S2 Send, and the other member sees it
 
