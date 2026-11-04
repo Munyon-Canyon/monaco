@@ -82,8 +82,7 @@ struct VoteHoldSheet: View {
                 .buttonStyle(.monacoText)
         default:
             if let summary = model.summary, let tally = model.tally {
-                MonacoCard { row(model, summary) }
-                card(model, summary, tally)
+                voteCard(model, summary, tally)
                 Button("Read the thesis") { openProposal() }
                     .buttonStyle(.monacoText)
                     .frame(maxWidth: .infinity)
@@ -105,82 +104,65 @@ struct VoteHoldSheet: View {
         return "\(head) \u{00B7} \(amount.hasSuffix(".00") ? String(amount.dropLast(3)) : amount)"
     }
 
-    private func row(_ model: VoteHoldModel, _ summary: ProposalSummary) -> some View {
-        let proposer = model.detail.members.first { $0.id == summary.proposerID }?.name
-        let list = ProposalListRow(
-            summary: summary, asset: model.detail.asset, proposer: proposer ?? "Member", now: .now)
-        return Button {
-            openProposal()
-        } label: {
-            HStack(spacing: MonacoTheme.Space.sm) {
-                if summary.isRule {
-                    SunkenGlyphMark(icon: .thesis, size: StockMarkSize.row.rawValue)
-                } else {
-                    StockMark(
-                        symbol: summary.symbol, displayName: list.assetName, assetKind: list.kind, size: .row,
-                        logoURL: list.logoURL)
-                }
-                VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
-                    Text(Self.title(summary))
-                        .font(MonacoTheme.Typo.headline)
-                        .foregroundStyle(MonacoTheme.primaryText)
-                        .fixedSize(horizontal: false, vertical: true)
-                    if let change = summary.ruleChange, summary.isRule {
-                        Text(change.detailLine)
-                            .font(MonacoTheme.Typo.subhead)
-                            .foregroundStyle(MonacoTheme.primaryText)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .accessibilityIdentifier("vote-hold-rule-change")
-                    }
-                    Text([summary.cabalName, proposer].compactMap { $0 }.joined(separator: " · "))
-                        .font(MonacoTheme.Typo.subhead)
-                        .foregroundStyle(MonacoTheme.secondaryText)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                Spacer(minLength: 0)
+    static func line(_ summary: ProposalSummary, tally: ProposalTally, replies: Int?, now: Date) -> VoteCardLine {
+        ProposalVoteCopy.cardLine(
+            cabalName: summary.cabalName, tally: tally, replies: replies, expiresAt: summary.expiresAt, now: now)
+    }
+
+    private func voteCard(_ model: VoteHoldModel, _ summary: ProposalSummary, _ tally: ProposalTally) -> some View {
+        let list = ProposalListRow(summary: summary, asset: model.detail.asset, proposer: "", now: .now)
+        return VoteCard(
+            title: Self.title(summary),
+            mark: summary.isRule ? .rule : .stock(symbol: summary.symbol, name: list.assetName, logoURL: list.logoURL),
+            line: Self.line(summary, tally: tally, replies: model.detail.value?.replyCount, now: .now),
+            yes: tally.yes, no: tally.no, eligible: tally.voters,
+            identifierPrefix: "vote-hold", identifierSuffix: nil, onOpen: openProposal
+        ) {
+            if let change = summary.ruleChange, summary.isRule {
+                Text(change.detailLine)
+                    .font(MonacoTheme.Typo.subhead)
+                    .foregroundStyle(MonacoTheme.primaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("vote-hold-rule-change")
             }
+            actions(model, summary, tally)
         }
-        .buttonStyle(.plain)
         .accessibilityIdentifier("vote-hold-row")
     }
 
-    @ViewBuilder private func card(_ model: VoteHoldModel, _ summary: ProposalSummary, _ tally: ProposalTally)
+    @ViewBuilder private func actions(_ model: VoteHoldModel, _ summary: ProposalSummary, _ tally: ProposalTally)
         -> some View
     {
-        VStack(alignment: .leading, spacing: MonacoTheme.Space.sm) {
-            VoteTallyBar(yes: tally.yes, no: tally.no, eligible: tally.voters)
-            switch model.phase {
-            case .ready:
-                pair(model, summary, tally)
-            case .alreadyVoted(let side):
-                let line = ProposalVoteCopy.committedOrdinary(choice: side, tally: tally)
-                HStack {
-                    Text(line.title)
-                        .font(MonacoTheme.Typo.headline)
-                        .foregroundStyle(MonacoTheme.primaryText)
-                        .accessibilityIdentifier("proposal-voted")
-                    Spacer()
-                    Button("Change") { model.detail.beginChange() }
-                        .buttonStyle(.monacoText)
-                        .accessibilityIdentifier("proposal-change-vote")
-                }
-                VoteStatusLine(result: nil, facts: model.detail.statusFacts, identifierPrefix: "proposal")
-            case .closed:
-                Text("This vote has closed.")
+        switch model.phase {
+        case .ready:
+            pair(model, summary, tally)
+        case .alreadyVoted(let side):
+            let line = ProposalVoteCopy.committedOrdinary(choice: side, tally: tally)
+            HStack {
+                Text(line.title)
                     .font(MonacoTheme.Typo.headline)
                     .foregroundStyle(MonacoTheme.primaryText)
-                    .accessibilityIdentifier("vote-hold-closed")
-                Button("See the result") { openProposal() }
+                    .accessibilityIdentifier("proposal-voted")
+                Spacer()
+                Button("Change") { model.detail.beginChange() }
                     .buttonStyle(.monacoText)
-                    .accessibilityIdentifier("vote-hold-result")
-            case .viewOnly:
-                Text(ProposalVoteCopy.readOnlyLabel(cabalName: summary.cabalName))
-                    .font(MonacoTheme.Typo.subhead)
-                    .foregroundStyle(MonacoTheme.secondaryText)
-                    .accessibilityIdentifier("vote-hold-view-only")
-            case .loading, .failed:
-                EmptyView()
+                    .accessibilityIdentifier("proposal-change-vote")
             }
+        case .closed:
+            Text("This vote has closed.")
+                .font(MonacoTheme.Typo.headline)
+                .foregroundStyle(MonacoTheme.primaryText)
+                .accessibilityIdentifier("vote-hold-closed")
+            Button("See the result") { openProposal() }
+                .buttonStyle(.monacoText)
+                .accessibilityIdentifier("vote-hold-result")
+        case .viewOnly:
+            Text(ProposalVoteCopy.readOnlyLabel(cabalName: summary.cabalName))
+                .font(MonacoTheme.Typo.subhead)
+                .foregroundStyle(MonacoTheme.secondaryText)
+                .accessibilityIdentifier("vote-hold-view-only")
+        case .loading, .failed:
+            EmptyView()
         }
     }
 
@@ -200,7 +182,6 @@ struct VoteHoldSheet: View {
             VoteStatusLine(result: nil, facts: facts, identifierPrefix: "proposal")
                 .accessibilityIdentifier("proposal-vote-settled")
         } else {
-            VoteStatusLine(result: nil, facts: model.detail.statusFacts, identifierPrefix: "proposal")
             if case .picked = model.detail.voteSelection {
                 Label(
                     ProposalVoteCopy.hint(holding ? .holding : .picked),
