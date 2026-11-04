@@ -46,11 +46,14 @@ func (h *VoteChatPollHandler) Handle(ctx context.Context, cmd VoteChatPoll) (Pol
 	if err != nil {
 		return PollView{}, err
 	}
-	attachment, err := h.d.requireOpenChatPoll(ctx, cmd.CabalID, cmd.MessageID)
+	attachment, author, err := h.d.requireOpenChatPoll(ctx, cmd.CabalID, cmd.MessageID)
 	if err != nil {
 		return PollView{}, err
 	}
 	err = h.d.UoW.Do(ctx, func(ctx context.Context, tx db.Tx) error {
+		if err := refuseBlockedAuthor(ctx, tx, cmd.Viewer, author, op); err != nil {
+			return err
+		}
 		rows, err := sqlc.New(tx.Queries()).UpsertChatPollVote(ctx, sqlc.UpsertChatPollVoteParams{
 			MessageID: cmd.MessageID, UserID: cmd.Viewer.UUID(), Position: position, At: h.d.Clock.Now().UTC(),
 		})
@@ -76,7 +79,7 @@ func (h *UnvoteChatPollHandler) Handle(ctx context.Context, cmd UnvoteChatPoll) 
 	if err := requireMember(ctx, h.d.Members, cmd.CabalID, cmd.Viewer); err != nil {
 		return PollView{}, err
 	}
-	attachment, err := h.d.requireOpenChatPoll(ctx, cmd.CabalID, cmd.MessageID)
+	attachment, _, err := h.d.requireOpenChatPoll(ctx, cmd.CabalID, cmd.MessageID)
 	if err != nil {
 		return PollView{}, err
 	}
@@ -99,22 +102,22 @@ func (h *UnvoteChatPollHandler) Handle(ctx context.Context, cmd UnvoteChatPoll) 
 
 func (d ChatDeps) requireOpenChatPoll(
 	ctx context.Context, cabal ids.CabalID, message uuid.UUID,
-) (*domain.Attachment, error) {
+) (*domain.Attachment, uuid.UUID, error) {
 	const op = "social.requireOpenChatPoll"
-	payload, err := sqlc.New(d.Reads).GetChatPoll(ctx, sqlc.GetChatPollParams{
+	row, err := sqlc.New(d.Reads).GetChatPoll(ctx, sqlc.GetChatPollParams{
 		MessageID: message, CabalID: cabal.UUID(),
 	})
 	switch {
 	case errors.Is(err, sql.ErrNoRows):
-		return nil, errs.New(errs.CodeChatMessageNotFound, op, slog.String("message_id", message.String()))
+		return nil, uuid.Nil, errs.New(errs.CodeChatMessageNotFound, op, slog.String("message_id", message.String()))
 	case err != nil:
-		return nil, errs.Wrap(err, errs.CodeInternal, op)
+		return nil, uuid.Nil, errs.Wrap(err, errs.CodeInternal, op)
 	}
-	attachment := domain.DecodeAttachment(string(domain.AttachmentPoll), payload)
+	attachment := domain.DecodeAttachment(string(domain.AttachmentPoll), row.Payload)
 	if pollClosed(attachment.Poll.ClosesAt, d.Clock.Now()) {
-		return nil, errs.New(errs.CodePollClosed, op, slog.String("message_id", message.String()))
+		return nil, uuid.Nil, errs.New(errs.CodePollClosed, op, slog.String("message_id", message.String()))
 	}
-	return attachment, nil
+	return attachment, row.AuthorID, nil
 }
 
 func (d ChatDeps) settleChatPoll(
