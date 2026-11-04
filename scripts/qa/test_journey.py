@@ -587,29 +587,45 @@ class FakeRpc(Tree):
     def args(self):
         return unittest.mock.Mock(**{"all": False, "journey": ["auth/sign-in"]})
 
-    def test_a_journey_without_rpc_reads_the_chain(self):
+    def test_a_journey_without_rpc_reads_the_fakes(self):
         self.assertEqual(journey.load_journeys()["auth/sign-in"].rpc, "")
-        self.assertFalse(journey.backend_fake_rpc(self.args()))
+        self.assertTrue(journey.backend_fake_rpc(self.args()))
 
     def test_rpc_fake_passes_and_asks_for_the_fakes(self):
         self.declare("fake")
         self.assertEqual(self.problems(), [])
         self.assertTrue(journey.backend_fake_rpc(self.args()))
 
+    def test_rpc_live_passes_and_keeps_the_real_endpoint(self):
+        self.declare("live")
+        self.assertEqual(self.problems(), [])
+        self.assertFalse(journey.backend_fake_rpc(self.args()))
+
     def test_another_rpc_value_is_named(self):
         self.declare("mainnet")
-        self.assertIn("rpc is 'mainnet': the only value is fake", self.problems()[0])
+        self.assertIn("rpc is 'mainnet': the values are fake and live", self.problems()[0])
 
     def test_rpc_fake_with_funds_is_refused(self):
         self.write("docs/journeys/auth/sign-in.md",
                    DOC.replace("actors: [A]\n", "actors: [A]\nrpc: fake\nfunds:\n  A: 2\n"))
         self.assertIn("rpc: fake and funds cannot both be set", self.problems()[0])
 
-    def test_a_run_with_one_journey_that_does_not_declare_it_keeps_the_public_rpc(self):
-        declared = unittest.mock.Mock(rpc="fake", funds={})
-        other = unittest.mock.Mock(rpc="", funds={})
-        with unittest.mock.patch.object(journey, "load_journeys", lambda: {"a": declared, "b": other}):
-            self.assertTrue(journey.backend_fake_rpc(unittest.mock.Mock(**{"all": False, "journey": ["a"]})))
+    def test_a_journey_with_funds_keeps_the_real_endpoint_without_declaring_anything(self):
+        self.write("docs/journeys/auth/sign-in.md", DOC.replace("actors: [A]\n", "actors: [A]\nfunds:\n  A: 2\n"))
+        self.assertEqual(self.problems(), [])
+        self.assertFalse(journey.backend_fake_rpc(self.args()))
+
+    def test_one_live_or_funded_journey_keeps_the_real_endpoint_for_the_whole_run(self):
+        plain = unittest.mock.Mock(rpc="", funds={})
+        fake = unittest.mock.Mock(rpc="fake", funds={})
+        live = unittest.mock.Mock(rpc="live", funds={})
+        funded = unittest.mock.Mock(rpc="", funds={"A": 2})
+        run = lambda *names: unittest.mock.Mock(**{"all": False, "journey": list(names)})
+        with unittest.mock.patch.object(
+                journey, "load_journeys", lambda: {"p": plain, "f": fake, "l": live, "m": funded}):
+            self.assertTrue(journey.backend_fake_rpc(run("p", "f")))
+            self.assertFalse(journey.backend_fake_rpc(run("p", "l")))
+            self.assertFalse(journey.backend_fake_rpc(run("p", "m")))
             self.assertFalse(journey.backend_fake_rpc(unittest.mock.Mock(**{"all": True, "journey": []})))
 
 

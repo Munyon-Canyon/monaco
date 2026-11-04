@@ -83,7 +83,7 @@ func (s *Server) ablyPublish(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	s.ably = append(s.ably, published...)
 	s.mu.Unlock()
-	s.serveFixture(w, []string{ablyFixture})
+	s.serveFixture(r.Context(), w, []string{ablyFixture})
 }
 
 func (s *Server) ablyRevoke(w http.ResponseWriter, r *http.Request) {

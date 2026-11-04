@@ -1,6 +1,8 @@
 package fakes_test
 
 import (
+	"bytes"
+	"log/slog"
 	"net/http"
 	"strings"
 	"testing"
@@ -186,5 +188,52 @@ func TestRPC_SeededJourneyMintsAnswerWithEightDecimals(t *testing.T) {
 		if err != nil || got.Mint.Address != mint || got.Mint.Decimals != 8 || got.TokenProgram != chain.SPLProgram {
 			t.Fatalf("MintConfig(%s) = %+v, %v; want an 8 decimal spl-token mint", mint, got, err)
 		}
+	}
+}
+
+func TestRPC_EveryBackendMethodAnswersForUnseededAddresses(t *testing.T) {
+	t.Parallel()
+	const stranger = `"9ixcyg5nNxGCJLtSyJYibP7EgQBw4BfpNLbDe7GQ14eh"`
+	const sig = `"5VERv8NMvzbJMEkV8xnrLkEaWRtSz9CosKDYjCJjBRnbJLgp8uirBgmQpjKhoR4tjF3ZpRzrFmBV6UjKdiSZkQUW"`
+	const usdc = `"` + string(usdcMint) + `"`
+	for method, params := range map[string]string{
+		"getAccountInfo":          stranger + `,{"encoding":"jsonParsed"}`,
+		"getBalance":              stranger,
+		"getBlockHeight":          `{"commitment":"finalized"}`,
+		"getEpochInfo":            `{"commitment":"confirmed"}`,
+		"getLatestBlockhash":      `{"commitment":"confirmed"}`,
+		"getMultipleAccounts":     `[` + stranger + `,` + usdc + `],{"encoding":"jsonParsed"}`,
+		"getSignatureStatuses":    `[` + sig + `]`,
+		"getSignaturesForAddress": stranger + `,{"limit":10}`,
+		"getTokenAccountsByOwner": stranger + `,{"mint":` + usdc + `},{"encoding":"jsonParsed"}`,
+		"getTransaction":          sig + `,{"encoding":"jsonParsed"}`,
+		"isBlockhashValid":        `"7be9CjQttHDBAkNkocfWMgzW5yDB853CYkhN7ZmBJsgF"`,
+	} {
+		t.Run(method, func(t *testing.T) {
+			t.Parallel()
+			got := mustCall(t.Context(), t, inProc(), http.MethodPost, "/rpc",
+				`{"jsonrpc":"2.0","id":1,"method":"`+method+`","params":[`+params+`]}`)
+			if got.status != http.StatusOK || !strings.Contains(got.body, `"result"`) ||
+				strings.Contains(got.body, `"error"`) {
+				t.Fatalf("%s for an unseeded address = %d %q, want a result", method, got.status, got.body)
+			}
+		})
+	}
+}
+
+func TestRPC_AnUnknownMethodFailsLoudly(t *testing.T) {
+	t.Parallel()
+	var logged bytes.Buffer
+	srv := fakes.New()
+	srv.SetLog(slog.New(slog.NewTextHandler(&logged, nil)))
+	client := httpclient.New("fakes", httpclient.WithBaseURL("http://fakes.test"),
+		httpclient.WithTimeout(time.Minute), httpclient.WithTransport(inProcess{srv}))
+	got := mustCall(t.Context(), t, client, http.MethodPost, "/rpc",
+		`{"jsonrpc":"2.0","id":1,"method":"getProgramAccounts","params":[]}`)
+	if got.status != http.StatusNotImplemented || !strings.Contains(got.body, "/rpc/getProgramAccounts") {
+		t.Fatalf("unknown method = %d %q, want 501 naming the route", got.status, got.body)
+	}
+	if !strings.Contains(logged.String(), "/rpc/getProgramAccounts") {
+		t.Fatalf("log = %q, want the fakes log to name the unanswered route", logged.String())
 	}
 }
