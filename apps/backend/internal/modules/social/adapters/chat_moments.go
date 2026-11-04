@@ -15,6 +15,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
+	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 )
 
 type ChatMoments struct {
@@ -32,7 +33,9 @@ func (h ChatMoments) Created(ctx context.Context, tx db.Tx, e events.CabalCreate
 func (h ChatMoments) Joined(ctx context.Context, tx db.Tx, e events.CabalMemberJoined, at time.Time) error {
 	moment, err := domain.NewMemberJoinedMoment(ids.UserIDFrom(e.UserID))
 	if err != nil {
-		return err
+		observability.Debug(ctx, observability.SocialChatMomentSkipped, slog.String("reason", "nil_user"),
+			slog.Any("cause", err))
+		return nil
 	}
 	join := e.RequestID
 	if join == uuid.Nil {
@@ -50,7 +53,11 @@ func (h ChatMoments) FetchFilled(ctx context.Context, e events.TradeConfirmed) (
 		return app.AssetCard{}, nil
 	}
 	mint, _ := tradeLeg(e)
-	return h.Assets.AssetByMint(ctx, string(mint))
+	asset, err := h.Assets.AssetByMint(ctx, string(mint))
+	if errs.CodeOf(err) == errs.CodeAssetNotFound {
+		return app.AssetCard{}, nil
+	}
+	return asset, err
 }
 
 func (h ChatMoments) ApplyFilled(
@@ -60,6 +67,10 @@ func (h ChatMoments) ApplyFilled(
 		return nil
 	}
 	const op = "social.ChatMoments.ApplyFilled"
+	if asset.ID == uuid.Nil {
+		observability.Debug(ctx, observability.SocialChatMomentSkipped, slog.String("reason", "asset_not_found"))
+		return nil
+	}
 	_, tokens := tradeLeg(e)
 	shares, err := tokens.Uint64()
 	if err != nil {

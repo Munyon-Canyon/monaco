@@ -31,7 +31,7 @@ func TestFlow22e_WriteChatProposalMessage_OK(t *testing.T) {
 	}
 }
 
-func TestFlow22e_WriteChatProposalMessage_ProposalNotFound(t *testing.T) {
+func TestChatProposal_AMissingProposalIsAcknowledged(t *testing.T) {
 	t.Parallel()
 	f := newChatRoutes(t)
 	e := f.proposalEvent("buy")

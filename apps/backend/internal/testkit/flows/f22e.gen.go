@@ -5,7 +5,6 @@ package flows
 func (defined) ScriptsF22e() map[string]Script {
 	return map[string]Script{
 		"F22eWriteChatProposalMessageOK":                F22eWriteChatProposalMessageOK,
-		"F22eWriteChatProposalMessageProposalNotFound":  F22eWriteChatProposalMessageProposalNotFound,
 		"F22eWriteChatProposalMessageCrashBeforeCommit": F22eWriteChatProposalMessageCrashBeforeCommit,
 	}
 }

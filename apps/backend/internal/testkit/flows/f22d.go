@@ -66,24 +66,6 @@ func F22dWriteMemberJoinedMomentOK(s *scenario.Scenario) {
 		)
 }
 
-func F22dWriteMemberJoinedMomentInvalidInput(s *scenario.Scenario) {
-	s.Given(chatCabal("moment-invalid")...).
-		When(
-			scenario.Eventually("the cabal_created row", func(s *scenario.Scenario) bool { return keyedRows(s, "created") == 1 }),
-			func(s *scenario.Scenario) {
-				publishEvent(s, events.CabalMemberJoined{
-					V: 1, CabalID: uuid.MustParse(s.Recall("cabal")), UserID: uuid.Nil, Role: "member", Via: "open",
-				})
-			},
-			scenario.EventuallyLog(observability.BusDispatched, map[string]string{"code": string(errs.CodeInvalidInput)}),
-		).
-		Then(func(s *scenario.Scenario) {
-			if got := keyedRows(s, "joined:"+uuid.Nil.String()+":%"); got != 0 {
-				s.Fatalf("flows: the cabal holds %d rows for the nil user, want 0", got)
-			}
-		})
-}
-
 func F22dWriteMemberJoinedMomentCrashBeforeCommit(s *scenario.Scenario) {
 	request := uuid.MustParse("01920000-0000-7000-8000-0000000000c1")
 	var key string
@@ -188,32 +170,11 @@ func F22dWriteTradeFilledMomentOK(s *scenario.Scenario) {
 		})
 }
 
-func F22dWriteTradeFilledMomentAssetNotFound(s *scenario.Scenario) {
-	s.Given(chatCabal("moment-fill-missing")...).
-		When(
-			func(s *scenario.Scenario) {
-				unlisted := chain.SolanaAddress("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA")
-				publishEvent(s, tradeConfirmed(s, unlisted, "buy"))
-			},
-			scenario.EventuallyLog(observability.BusDispatched, map[string]string{"code": string(errs.CodeAssetNotFound)}),
-		).
-		Then(func(s *scenario.Scenario) {
-			if got := keyedRows(s, "fill:%"); got != 0 {
-				s.Fatalf("flows: the cabal holds %d trade_filled rows, want 0", got)
-			}
-		})
-}
-
 func (defined) AloneF22d() []Script {
-	return []Script{F22dWriteMemberJoinedMomentInvalidInput, F22dWriteTradeFilledMomentAssetNotFound}
+	return []Script{F22dWriteTradeFilledMomentOK}
 }
 
 func (defined) LettersF22d() map[string][]Letter {
-	unlisted := Letter{Subject: events.TypeTradeConfirmed, Code: errs.CodeAssetNotFound}
-	invalidJoin := Letter{Subject: events.TypeCabalMemberJoined, Code: errs.CodeInvalidInput}
 	unbooked := Letter{Subject: events.TypeTradeConfirmed, Code: errs.CodeInvalidInput}
-	return map[string][]Letter{
-		"F22dWriteMemberJoinedMomentInvalidInput": {invalidJoin},
-		"F22dWriteTradeFilledMomentAssetNotFound": {unlisted, unbooked},
-	}
+	return map[string][]Letter{"F22dWriteTradeFilledMomentOK": {unbooked}}
 }

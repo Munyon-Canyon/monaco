@@ -454,3 +454,23 @@ func TestActivityConsumer_recordsAFailedCashOutWithItsStartAmount(t *testing.T) 
 		})
 	}
 }
+
+func TestActivityConsumer_aFillOfAnUnlistedMintIsRecordedWithoutAnError(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	cabal := f.funded(t)
+	e := buy(cabal, f.ids.NewV7(), 60_000_000, 3_000_000, 0)
+	e.OutMint = chain.SolanaAddress("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA")
+	err := f.do(func(ctx context.Context, tx db.Tx) error {
+		return adapters.Activity{Hints: &hints{}}.Confirmed(ctx, tx, e, confirmedAt())
+	})
+	if err != nil {
+		t.Fatalf("Confirmed returned %v, want nil", err)
+	}
+	got := f.activity(t)
+	if len(got) != 1 {
+		t.Fatalf("activity = %+v, want one row", got)
+	}
+	wantActivity(t, got[0], "buy", "confirmed", str(string(e.OutMint)), str("60000000"), str("3000000"),
+		str(string(swapSig)))
+}
