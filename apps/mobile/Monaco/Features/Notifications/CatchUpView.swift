@@ -50,6 +50,7 @@ struct CatchUpView: View {
                     deckStart = CatchUpDeckStart(key: nil)
                 } label: {
                     Label(CatchUpCopy.oneByOne, systemImage: "square.stack")
+                        .labelStyle(.titleAndIcon)
                         .font(MonacoTheme.Typo.subheadStrong)
                         .foregroundStyle(MonacoTheme.primaryText)
                         .modifier(OneByOnePill())
