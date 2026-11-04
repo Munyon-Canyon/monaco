@@ -3,7 +3,7 @@ import XCTest
 
 enum JoinJourney {
     static let id = "cabals/join"
-    static let version = 11
+    static let version = 12
 
     static let screenTimeout: TimeInterval = 15
 
@@ -23,6 +23,10 @@ enum JoinJourney {
             FollowAndBoardsJourney.waitUntil(10) { (banner.exists && banner.label.contains(message)) || text.exists },
             "\(step): the toast \"\(message)\" did not show within 10 s"
         )
+    }
+
+    static func firstName(_ name: String) -> String {
+        name.split(whereSeparator: \.isWhitespace).first.map(String.init) ?? name
     }
 
     static func expectHero(_ app: XCUIApplication, containing text: String, step: String, timeout: TimeInterval) {
@@ -187,7 +191,7 @@ enum JoinJourney {
                 "S1.8: the request is still on the Members screen"
             )
             app.tapBack()
-            expectHero(app, containing: "2 members", step: "S1.8", timeout: 10)
+            expectHero(app, containing: firstName(member), step: "S1.8", timeout: 10)
         }
     }
 

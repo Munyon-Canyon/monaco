@@ -2,7 +2,7 @@ import XCTest
 
 enum CabalsApproveRequestJourney {
     static let id = "cabals/approve-request"
-    static let version = 5
+    static let version = 6
 
     static let screenTimeout: TimeInterval = 15
 
@@ -104,7 +104,7 @@ enum CabalsApproveRequestJourney {
                 "S2.2: the request is still on the Members screen"
             )
             app.tapBack()
-            JoinJourney.expectHero(app, containing: "2 members", step: "S2.2", timeout: 10)
+            JoinJourney.expectHero(app, containing: JoinJourney.firstName(member), step: "S2.2", timeout: 10)
         }
     }
 }

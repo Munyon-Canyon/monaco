@@ -14,13 +14,15 @@ nonisolated final class CabalsLeaveJourneyUITests: XCTestCase {
 
         try session.scenario("S1") {
             try session.act(as: "B")
-            CabalsLeaveJourney.memberLeaves(app, run: run, recorder: recorder)
+            let creator = try session.account("A").name
+            CabalsLeaveJourney.memberLeaves(app, run: run, creator: creator, recorder: recorder)
             attachScreenshot(of: app, named: "S1-B-left")
         }
 
         try session.scenario("S2") {
             try session.act(as: "A")
-            CabalsLeaveJourney.creatorStays(app, run: run, recorder: recorder)
+            let member = try session.account("B").name
+            CabalsLeaveJourney.creatorStays(app, run: run, member: member, recorder: recorder)
             attachScreenshot(of: app, named: "S2-A-creator-note")
         }
     }

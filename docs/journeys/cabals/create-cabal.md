@@ -1,7 +1,7 @@
 ---
 id: cabals/create-cabal
 title: Create a cabal
-version: 14
+version: 15
 milestone: M10
 requires: [auth/sign-in]
 actors: [A, B]
@@ -45,7 +45,7 @@ Starts on the form (S1).
 | S2.2 | tap | "Approval required" in `create-rule-join`, "People I pick" in `create-rule-voters`, "1 hour" in `create-rule-expiry` | | Each choice is selected. The journey picks the join rule itself, so it does not depend on which choice the form starts on. Old app: the four segmented rules in `CreateGroupView` |
 | S2.3 | tap twice | `create-group-submit` | | The cabal screen shows within 20 s: `cabal-header-name` is the typed name, and the form is gone. The second tap proves "Creating…" holds off a duplicate. Old app: Create pushed `GroupDetailView` |
 | S2.4 | wait | the toast | | "Cabal created." shows within 20 s of the S2.3 tap, read while the cabal screen loads because the toast stays up 2.5 s. Old app: the same toast over `GroupDetailView` |
-| S2.5 | wait | `cabal-member-count` | | Starts with "1 member" (the label goes on: "1 member · started today · you are admin"), the `CabalHeaderSlot` count. Old app: the member count on `GroupDetailView`'s header |
+| S2.5 | wait | `cabal-member-count` | | Starts with "1 member" (the label goes on: "1 member · started today"), the `CabalHeaderSlot` count. Old app: the member count on `GroupDetailView`'s header |
 | S2.6 | tap | Back | | Once the toast goes, the push pre-prompt (`push-pre-prompt`) is answered "Not now" if it shows.  The Cabals tab shows `cabals-grid` within 10 s, and exactly one `cabals-tile-<id>` button in it is named the typed name. Old app: Back to `CabalsTabView`'s cabals strip (F: the grid tile) |
 
 ### S3 A blank name cannot be submitted
@@ -67,7 +67,7 @@ A creates a cabal, B opens it by name and asks to join, A approves from the Memb
 | S4.2 | A | type, tap "Approval required" in `create-rule-join`, then tap | `create-group-name`, then `create-group-submit` | `QA duo {QA.run}` | `cabal-header-name` reads `QA duo {QA.run}` within 20 s, and the toast "Cabal created." shows within 20 s of the tap, read first because it stays up 2.5 s. Old app: Create in `CreateGroupView` pushed `GroupDetailView` |
 | S4.3 | B | tap | `app.openCabal(named:)` for `QA duo {QA.run}` (the Cabals tab, then the "+" menu's "Find a cabal" search) | `QA duo {QA.run}` | `cabal-header-name` reads `QA duo {QA.run}` and `cabal-join-button` shows within 15 s. screens.md: `CabalJoinSlot`, "Request to join" |
 | S4.4 | B | tap | `cabal-join-button` | | The toast "Request sent. You'll be in once the creator says yes." shows within 10 s, and `cabal-join-requested` reads "Request pending" within 15 s. B is not a member yet. |
-| S4.5 | A | tap | `app.openCabal(named:)` for `QA duo {QA.run}`, the Members tab (`openCabalTab("members")`), `cabal-members-see-all`, then `cabal-join-approve` on the request row | `QA duo {QA.run}` | The toast "Approved." shows, the request row is gone, a row names B within 15 s, and after the back button `cabal-member-count` reads "2 members" within 15 s. The request row sits on Members · all (`MembersView`), not on the Members tab preview. Old app: `GroupDetailView`'s `MemberBoardSection` |
+| S4.5 | A | tap | `app.openCabal(named:)` for `QA duo {QA.run}`, the Members tab (`openCabalTab("members")`), `cabal-members-see-all`, then `cabal-join-approve` on the request row | `QA duo {QA.run}` | The toast "Approved." shows, the request row is gone, a row names B within 15 s, and after the back button `cabal-member-count` reads the other member's first name within 15 s. The request row sits on Members · all (`MembersView`), not on the Members tab preview. Old app: `GroupDetailView`'s `MemberBoardSection` |
 
 ## Ground truth
 

@@ -2,7 +2,7 @@ import XCTest
 
 enum CabalsLeaveJourney {
     static let id = "cabals/leave"
-    static let version = 6
+    static let version = 7
 
     static let screenTimeout: TimeInterval = 15
 
@@ -32,15 +32,16 @@ enum CabalsLeaveJourney {
         ).firstMatch
     }
 
-    static func memberLeaves(_ app: XCUIApplication, run: String, recorder: JourneyRecorder) {
+    static func memberLeaves(_ app: XCUIApplication, run: String, creator: String, recorder: JourneyRecorder) {
         let name = leaveCabal(run: run)
 
         recorder.step("S1.1", "open the cabal as a member") {
             app.openCabal(named: name)
             XCTAssertTrue(
                 JoinJourney.waitForLabel(
-                    app.element("cabal-member-count"), containing: "2 members", timeout: screenTimeout),
-                "S1.1: the hero does not read 2 members: \(app.element("cabal-member-count").label)"
+                    app.element("cabal-member-count"), containing: JoinJourney.firstName(creator),
+                    timeout: screenTimeout),
+                "S1.1: the hero does not name \(creator): \(app.element("cabal-member-count").label)"
             )
         }
 
@@ -75,13 +76,14 @@ enum CabalsLeaveJourney {
         }
     }
 
-    static func creatorStays(_ app: XCUIApplication, run: String, recorder: JourneyRecorder) {
+    static func creatorStays(_ app: XCUIApplication, run: String, member: String, recorder: JourneyRecorder) {
         recorder.step("S2.1", "open the cabal as its creator") {
             app.openCabal(named: stayCabal(run: run))
             XCTAssertTrue(
                 JoinJourney.waitForLabel(
-                    app.element("cabal-member-count"), containing: "2 members", timeout: screenTimeout),
-                "S2.1: the hero does not read 2 members: \(app.element("cabal-member-count").label)"
+                    app.element("cabal-member-count"), containing: JoinJourney.firstName(member), timeout: screenTimeout
+                ),
+                "S2.1: the hero does not name \(member): \(app.element("cabal-member-count").label)"
             )
         }
 

@@ -3,7 +3,7 @@ import XCTest
 
 enum CreateCabalJourney {
     static let id = "cabals/create-cabal"
-    static let version = 14
+    static let version = 15
 
     private static let listTimeout: TimeInterval = 15
     private static let formTimeout: TimeInterval = 10
@@ -231,8 +231,8 @@ enum CreateCabalJourney {
             app.tapBack()
             XCTAssertTrue(
                 JoinJourney.waitForLabel(
-                    app.element("cabal-member-count"), containing: "2 members", timeout: listTimeout),
-                "S4.5: the hero does not read 2 members: \(app.element("cabal-member-count").label)"
+                    app.element("cabal-member-count"), containing: JoinJourney.firstName(friend), timeout: listTimeout),
+                "S4.5: the hero does not name \(friend): \(app.element("cabal-member-count").label)"
             )
         }
     }
