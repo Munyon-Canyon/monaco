@@ -1,0 +1,25 @@
+journey: home/dashboard
+expect-fail: S1
+
+The "Welcome, <first name>" line over the net worth figure is gone. S1.1 expects `home-welcome` above `home-portfolio-total`, so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Home/HomeFigureSlot.swift b/apps/mobile/Monaco/Features/Home/HomeFigureSlot.swift
+index 6a8f660ab..b2c3db0f4 100644
+--- a/apps/mobile/Monaco/Features/Home/HomeFigureSlot.swift
++++ b/apps/mobile/Monaco/Features/Home/HomeFigureSlot.swift
+@@ -64,14 +64,6 @@ struct HomeFigureView: View {
+                     .foregroundStyle(MonacoTheme.secondaryText)
+                     .accessibilityIdentifier("home-portfolio-all-cash")
+             } else if let netWorth = portfolio?.netWorth {
+-                if let greeting {
+-                    Text(greeting)
+-                        .font(.body)
+-                        .foregroundStyle(MonacoTheme.secondaryText)
+-                        .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
+-                        .truncationMode(.tail)
+-                        .accessibilityIdentifier("home-welcome")
+-                }
+                 figure(netWorth)
+                 line(netWorth)
+             }
