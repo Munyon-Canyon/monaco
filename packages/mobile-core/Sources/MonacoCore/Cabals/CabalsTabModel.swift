@@ -190,6 +190,7 @@ public final class CabalsTabStore {
     public let tab: CabalsTabModel
     public let order: CabalOrderModel
     public let votes: HomePendingVotesModel
+    public let top: CabalsTopModel
     public let needs = HomeVoteNeeds()
 
     public init(api: APIClient, hints: any HintSource, portfolio: PortfolioModel?) {
@@ -202,6 +203,7 @@ public final class CabalsTabStore {
                 await portfolio?.load()
             })
         votes = HomePendingVotesModel(api: api, hints: hints)
+        top = CabalsTopModel(api: api, hints: hints)
     }
 
     public var content: CabalsTabContent? { tab.content }
