@@ -63,6 +63,50 @@ final class FeedVoteCardTests: XCTestCase {
         XCTAssertEqual(card.tally.yes, 5)
     }
 
+    private func unloadedModel(_ transport: StubTransport) -> FeedModel {
+        FeedModel(
+            api: APIClient(serverURL: testServerURL, tokens: StubTokenProvider(token: "token"), transport: transport),
+            viewerID: nil, hints: FakeHintStream(), clock: TestClock())
+    }
+
+    func testPostPageGetsACardWithoutTheItemInThePager() async throws {
+        let first = proposal()
+        let model = unloadedModel(StubTransport(scripted: []))
+        let card = try XCTUnwrap(model.voteCard(for: first))
+        XCTAssertTrue(try XCTUnwrap(model.voteCard(for: first)) === card)
+        var later = first
+        later.tally = .init(yes: 5, no: 1, voters: 8, needed: 5)
+        XCTAssertTrue(try XCTUnwrap(model.voteCard(for: later)) === card)
+        XCTAssertEqual(card.tally.yes, 5)
+        XCTAssertNil(model.voteCard(for: proposal(canVote: false)))
+    }
+
+    func testCastingThroughThePostPageCardPostsOneBallot() async throws {
+        let item = proposal()
+        let id = try XCTUnwrap(item.proposalId)
+        let cast = """
+            {"proposal_id":"\(id)","status":"open","tally":{"yes":5,"no":1,"voters":8,"needed":5},"my_ballot":"yes",\
+            "undo_until":null,"my_vote":{"order":5,"of":8,"yes_order":5,"no_order":0,"decided":false}}
+            """
+        let transport = StubTransport(routes: ["/v1/proposals/\(id)/votes": [.json(.ok, cast)]])
+        let model = unloadedModel(transport)
+        let card = try XCTUnwrap(model.voteCard(for: item))
+        let outcome = await card.vote(.yes)
+        XCTAssertEqual(outcome?.choice, .yes)
+        let sent = await transport.sent
+        XCTAssertEqual(sent.map(\.path), ["/v1/proposals/\(id)/votes"])
+        XCTAssertTrue(card.isCommitted)
+    }
+
+    func testFeedCardShowsTheBallotCastElsewhere() async throws {
+        let voted = proposal(ballot: .yes)
+        let model = unloadedModel(StubTransport(scripted: [try page([voted])]))
+        await model.load()
+        let card = try XCTUnwrap(model.voteCard(for: voted))
+        XCTAssertTrue(card.isCommitted)
+        XCTAssertEqual(card.selectedSide, .yes)
+    }
+
     func testBuyTitleAndLineWithHours() async throws {
         let model = try card(proposal())
         XCTAssertEqual(model.headline, "Buy NVDA \u{00B7} $400")
