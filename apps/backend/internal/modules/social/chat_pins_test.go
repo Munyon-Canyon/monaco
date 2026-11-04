@@ -433,6 +433,16 @@ func TestChatPins_failWithInternalWhenTheStoreFails(t *testing.T) {
 		},
 		{"pin when the event cannot be appended", nil, `DROP TABLE events CASCADE`, pinRun},
 		{"pin when the message cannot be read back", nil, armRead, pinRun},
+		{"pin when the block check fails", nil, `DROP TABLE user_blocks CASCADE`, pinRun},
+		{"unpin when the block check fails", pinTarget, `DROP TABLE user_blocks CASCADE`, unpinRun},
+		{
+			"list when the block check fails", pinTarget, `DROP TABLE user_blocks CASCADE`,
+			func(t *testing.T, f chatPinner, _ uuid.UUID) error {
+				t.Helper()
+				_, err := app.ListChatPins(t.Context(), f.pool, f.deps.Members, f.cabal.ID, f.member(0))
+				return err
+			},
+		},
 		{"unpin when the lookup fails", nil, `DROP TABLE cabal_messages CASCADE`, unpinRun},
 		{
 			"unpin when the update fails", pinTarget,
@@ -566,5 +576,49 @@ func TestChatPinRoutes_pinListAndUnpinAMessage(t *testing.T) {
 	unpinned, err := f.routes.UnpinChatMessage(admin, api.UnpinChatMessageRequestObject{Id: cabal, MessageId: m.Id})
 	if got, ok := unpinned.(api.UnpinChatMessage200JSONResponse); err != nil || !ok || got.PinnedAt != nil {
 		t.Fatalf("unpin = %#v, %v, want the message unpinned", unpinned, err)
+	}
+}
+
+func TestChatPins_maskABlockedAuthorForTheViewerWhoBlockedThem(t *testing.T) {
+	t.Parallel()
+	f := newChatPinner(t)
+	author, blocker := f.member(1), f.member(0)
+	m := f.mustSend(t, author, "from the blocked", nil)
+	insertBlock(t, f.pool, f.deps.IDs.NewV7(), blocker, author)
+
+	pinned, err := f.pinAs(t, blocker, m.ID)
+	if err != nil || !pinned.Deleted || pinned.Body != "" || pinned.ID != m.ID {
+		t.Fatalf("pin response = %+v, %v, want the blocked author's message masked", pinned, err)
+	}
+	got, err := app.ListChatPins(t.Context(), f.pool, f.deps.Members, f.cabal.ID, blocker)
+	if err != nil || len(got) != 1 || !got[0].Deleted || got[0].Body != "" || got[0].PinnedAt == nil {
+		t.Fatalf("blocker's pins = %+v, %v, want one masked pin", got, err)
+	}
+}
+
+func TestUnpinChatMessage_masksABlockedAuthorForTheCaller(t *testing.T) {
+	t.Parallel()
+	f := newChatPinner(t)
+	author, blocker := f.member(1), f.member(0)
+	m := f.mustSend(t, author, "from the blocked", nil)
+	f.mustPin(t, blocker, m.ID)
+	insertBlock(t, f.pool, f.deps.IDs.NewV7(), blocker, author)
+	unpinned, err := f.unpinAs(t, blocker, m.ID)
+	if err != nil || !unpinned.Deleted || unpinned.Body != "" || unpinned.PinnedAt != nil {
+		t.Fatalf("unpin response = %+v, %v, want masked and unpinned", unpinned, err)
+	}
+}
+
+func TestChatPins_showTheBodyToAViewerWhoDidNotBlockTheAuthor(t *testing.T) {
+	t.Parallel()
+	f := newChatPinner(t)
+	author, blocker, other := f.member(1), f.member(0), f.member(2)
+	m := f.mustSend(t, author, "from the blocked", nil)
+	f.mustPin(t, author, m.ID)
+	insertBlock(t, f.pool, f.deps.IDs.NewV7(), blocker, author)
+
+	got, err := app.ListChatPins(t.Context(), f.pool, f.deps.Members, f.cabal.ID, other)
+	if err != nil || len(got) != 1 || got[0].Deleted || got[0].Body != "from the blocked" {
+		t.Fatalf("other member's pins = %+v, %v, want the body", got, err)
 	}
 }
