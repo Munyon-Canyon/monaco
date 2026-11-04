@@ -8,6 +8,7 @@ enum AssetDetailSampleScenario: String, CaseIterable {
     case manyClosed
     case loss
     case statsDashes
+    case statsInfo
     case candlesSparse
     case candlesLong
     case noHolders
@@ -31,7 +32,7 @@ enum AssetDetailSampleScenario: String, CaseIterable {
     var script: SampleAPIScript {
         var script = SampleAPIScript()
         switch self {
-        case .open, .noProposals: script.show(.nvda)
+        case .open, .noProposals, .statsInfo: script.show(.nvda)
         case .manyClosed: script.show(.nvda)
         case .loss: script.makeLoss()
         case .statsDashes: script.show(.nvdaDashes)
@@ -167,9 +168,10 @@ final class AssetDetailSampleHarnessEntry: SampleHarnessEntry {
             let script = scenario.script
             SampleAPIProtocol.install(script)
             MarketsSampleCatalog.install(watched: scenario == .open ? [script.asset.symbol] : [])
-            return AnyView(
-                SampleAppFrame(auth: auth, tab: .stocks, routes: [AssetRoute(symbol: script.asset.symbol)])
-            )
+            let frame = SampleAppFrame(auth: auth, tab: .stocks, routes: [AssetRoute(symbol: script.asset.symbol)])
+            guard scenario == .statsInfo else { return AnyView(frame) }
+            let facts = MarketStatsFacts(script.asset)
+            return AnyView(frame.sheet(isPresented: .constant(true)) { AssetMarketStatsInfo(facts: facts) })
         }
     }
 }
