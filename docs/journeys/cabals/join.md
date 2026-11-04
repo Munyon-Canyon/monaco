@@ -1,7 +1,7 @@
 ---
 id: cabals/join
 title: Join a cabal
-version: 13
+version: 14
 milestone: M10
 requires: [auth/sign-in]
 actors: [A, B]
@@ -42,7 +42,7 @@ The setup creates both cabals through the API, so this journey does not depend o
 | S1.5 | B | open | the cabal `QA pot {QA.run}` through `openCabal(named:)` | | `cabal-header-name` reads `QA pot {QA.run}` and `cabal-join-button` shows within 15 s. screens.md: `CabalJoinSlot`, "Request to join" |
 | S1.6 | B | tap | `cabal-join-button` | | The toast "Request sent. You'll be in once the creator says yes." shows within 10 s. `cabal-join-requested` reads "Request pending" next to `cabal-join-cancel` within 15 s |
 | S1.7 | A | open, tap, then tap | the cabal through `openCabal(named:)`, the Members tab, then `cabal-members-see-all` | | One `cabal-join-request-row` names B and reads "Asked to join" within 15 s |
-| S1.8 | A | tap | `cabal-join-approve` in the row | | The toast "Approved." shows within 10 s. The request row is gone, and after the back button `cabal-member-count` reads the other member's first name within 10 s |
+| S1.8 | A | tap | `cabal-join-approve` in the row | | The toast "{B's name} joined QA pot {QA.run}." shows within 10 s. The request row is gone, and after the back button `cabal-member-count` reads the other member's first name within 10 s |
 | S1.9 | B | open | the cabal `QA pot {QA.run}` through `openCabal(named:)` | | `cabal-action-fund` shows within 15 s, and there is no `cabal-join-requested` or `cabal-join-button`. screens.md: `CabalActionsSlot` for a member |
 
 ### S2 Join an open cabal
