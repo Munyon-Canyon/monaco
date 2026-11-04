@@ -27,7 +27,6 @@ public enum MarketStatsCopy {
     public static let delayLabel = "Delay"
     public static let noSource = "—"
     public static let notPriced = "Not priced yet"
-    public static let ok = "OK"
     static let continuousTail = "It trades 24/7."
 
     public static func message(_ facts: MarketStatsFacts) -> String {
@@ -84,7 +83,7 @@ public enum MarketStatsCopy {
     }
 
     public static let auditedStrings: [String] = [
-        title, estimateTitle, estimateMessage, sourceLabel, updatedLabel, delayLabel, noSource, notPriced, ok,
+        title, estimateTitle, estimateMessage, sourceLabel, updatedLabel, delayLabel, noSource, notPriced,
         "Prices are for the tokenized stock on Solana, not the exchange listing. It trades 24/7.",
         "Jupiter", "CoinGecko", "up to 1 min", "up to 2 min", "up to 30 s",
     ]

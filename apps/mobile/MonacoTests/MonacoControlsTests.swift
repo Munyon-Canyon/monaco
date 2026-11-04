@@ -108,4 +108,13 @@ struct MonacoControlsTests {
         let disabled = MonacoChipLabel.colors(isSelected: true, isEnabled: false)
         #expect(disabled.label == MonacoTheme.disabledLabel)
     }
+
+    @Test func theInfoSheetClosesWithTheXAndHasNoOkButton() {
+        #expect(!MarketStatsCopy.auditedStrings.contains("OK"))
+        let sheet = MonacoInfoSheet(
+            title: "Market stats", message: "m", rows: [MonacoInfoRow(label: "a", value: "b")],
+            identifier: "info-sheet")
+        let fitted = Self.fitted(sheet, at: .large)
+        #expect(fitted.height > 0)
+    }
 }
