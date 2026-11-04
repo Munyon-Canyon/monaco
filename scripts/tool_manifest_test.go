@@ -33,6 +33,44 @@ func TestToolManifest_everyInvokedBinaryIsInstalled(t *testing.T) {
 	}
 }
 
+func TestShellBins_readsAGitSubcommandInAnAssignedSubstitutionAsGit(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name string
+		src  string
+		want []string
+	}{
+		{
+			name: "night.sh rev-list line",
+			src:  `  since="$(git rev-list -1 --before=24.hours origin/staging 2>/dev/null || true)"`,
+			want: []string{"git"},
+		},
+		{
+			name: "unquoted assignment",
+			src:  `base=$(git merge-base HEAD origin/staging)`,
+			want: []string{"git"},
+		},
+		{
+			name: "backtick assignment",
+			src:  "sha=`git rev-parse HEAD`",
+		},
+		{
+			name: "plain assignment then a command",
+			src:  `FOO=bar run-x`,
+			want: []string{"run-x"},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got := shellBins(tc.src, nil)
+			if !slices.Equal(got, tc.want) {
+				t.Fatalf("shellBins() = %#v, want %#v", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestShellBins_skipsCasePatterns(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
@@ -597,6 +635,9 @@ func commandWord(seg string, builtin, funcs map[string]bool) []string {
 	fields := strings.Fields(seg)
 	i := 0
 	for i < len(fields) && (isAssign(fields[i]) || strings.HasPrefix(fields[i], "-") || fields[i] == "sudo" || fields[i] == "command" || fields[i] == "exec" || fields[i] == "env" || fields[i] == "time" || fields[i] == "nohup" || fields[i] == "nice" || fields[i] == "timeout" || fields[i] == "xargs") {
+		if isAssign(fields[i]) && (strings.Contains(fields[i], "$(") || strings.Contains(fields[i], "`")) {
+			return nil
+		}
 		i++
 	}
 	if i >= len(fields) {
@@ -617,7 +658,7 @@ func keepBin(word string, builtin, funcs map[string]bool) bool {
 		return false
 	}
 	switch word {
-	case "api", "bad", "clean", "closes", "command", "compose", "delta", "depth", "error", "get", "has", "import", "inside", "issue", "lines", "list", "must", "next", "number", "or", "pr", "print", "merge-base", "rev-parse", "run", "scripts", "ubuntu-latest", "version", "qa-report", "ios-sim-clipboard-bridge", "Nightly", "Print", "Test", "synchronous_commit":
+	case "api", "bad", "clean", "closes", "command", "compose", "delta", "depth", "error", "get", "has", "import", "inside", "issue", "lines", "list", "must", "next", "number", "or", "pr", "print", "run", "scripts", "ubuntu-latest", "version", "qa-report", "ios-sim-clipboard-bridge", "Nightly", "Print", "Test", "synchronous_commit":
 		return false
 	}
 	return true
