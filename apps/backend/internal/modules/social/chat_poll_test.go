@@ -283,3 +283,12 @@ func TestChatPoll_routesCarryTheViewersVoteOnEveryReadAndRefuseABodylessVote(t *
 	_, err = f.channel(t, f.member(1), api.GetChatMessagesParams{})
 	wantCode(t, err, errs.CodeInternal)
 }
+
+func TestChatPoll_routesRefuseAnAnonymousCaller(t *testing.T) {
+	t.Parallel()
+	f := newChatRoutes(t)
+	_, err := f.routes.VoteChatPoll(t.Context(), api.VoteChatPollRequestObject{})
+	wantCode(t, err, errs.CodeUnauthorized)
+	_, err = f.routes.UnvoteChatPoll(t.Context(), api.UnvoteChatPollRequestObject{})
+	wantCode(t, err, errs.CodeUnauthorized)
+}
