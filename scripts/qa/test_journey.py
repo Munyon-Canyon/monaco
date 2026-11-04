@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Tests for journey.py: the doc parser, the doc-against-test checks, and the log readers.
 
-Run: python3 scripts/qa/test_journey.py
+Run: python3 scripts/qa/test_journey.py (all classes, in parallel shards), or name tests as unittest.main takes them.
 """
 
 import contextlib
@@ -2614,7 +2614,7 @@ class Seed(unittest.TestCase):
         self.server.server_close()
 
     def qa_api(self, path, shell="bash"):
-        script = 'source scripts/qa/seed.sh; qa_token() { echo tok; }; qa_api A GET %s' % path
+        script = 'source scripts/qa/seed.sh; qa_token() { echo tok; }; sleep() { :; }; qa_api A GET %s' % path
         env = dict(os.environ, MONACO_API_BASE_URL="http://127.0.0.1:%d" % self.server.server_port)
         return subprocess.run([shell, "-c", script], cwd=str(Path(__file__).resolve().parents[2]), env=env,
                               stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
@@ -3222,5 +3222,29 @@ class EvidenceReport(Repo):
             self.assertTrue(out.getvalue().startswith("| Journey | Runs |"))
 
 
+SHARDS = 6
+
+
+def run_in_shards():
+    """Runs the test classes in SHARDS processes; most tests wait on a subprocess, a server or a timeout."""
+    suites = unittest.defaultTestLoader.loadTestsFromModule(sys.modules[__name__])
+    classes = sorted({type(test).__name__ for suite in suites for test in suite})
+    started = time.monotonic()
+    procs = [subprocess.Popen([sys.executable, "-m", "unittest", "-q"] + ["test_journey." + name for name in classes[i::SHARDS]],
+                              cwd=str(Path(__file__).resolve().parent), stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                              universal_newlines=True)
+             for i in range(SHARDS)]
+    failed = 0
+    for proc in procs:
+        out = proc.communicate()[0]
+        if proc.returncode != 0:
+            failed += 1
+            sys.stdout.write(out)
+    print("%d test classes in %d shards, %d failed, %.1f s" % (len(classes), SHARDS, failed, time.monotonic() - started))
+    return 1 if failed else 0
+
+
 if __name__ == "__main__":
-    unittest.main()
+    if len(sys.argv) > 1:
+        unittest.main()
+    sys.exit(run_in_shards())
