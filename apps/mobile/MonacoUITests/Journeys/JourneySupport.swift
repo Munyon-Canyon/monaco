@@ -458,8 +458,8 @@ extension XCUIApplication {
         return sheet.waitForNonExistence(timeout: 5)
     }
 
-    func openCabal(named name: String, timeout: TimeInterval = 15, step: String = "journey") {
-        tab("Cabals").tap()
+    func openCabal(named name: String, tab: String = "treasury", timeout: TimeInterval = 15, step: String = "journey") {
+        self.tab("Cabals").tap()
         let tile = buttons.matching(
             NSPredicate(format: "identifier BEGINSWITH 'cabals-tile-' AND label CONTAINS %@", name)
         ).firstMatch
@@ -469,12 +469,29 @@ extension XCUIApplication {
         } else {
             JoinJourney.openBySearch(self, name, step: "openCabal")
         }
+        let titled = ["cabal-header-name", "cabal-inline-title"].map { id in
+            descendants(matching: .any).matching(
+                NSPredicate(format: "identifier == %@ AND label CONTAINS %@", id, name)
+            ).firstMatch
+        }
+        guard waitForFirst(of: titled, timeout: timeout) != nil else {
+            XCTFail("\(step): cabal-header-name did not read \(name) on the \(tab) tab within \(Int(timeout)) s")
+            return
+        }
+        if tab.lowercased() == "chat" {
+            openCabalTab("chat", step: step)
+            XCTAssertTrue(
+                element("chat-view").waitForExistence(timeout: timeout),
+                "\(step): chat-view did not show on the chat tab within \(Int(timeout)) s")
+            return
+        }
+        openCabalTab(tab, step: step)
         let header = element("cabal-header-name")
         let shown = NSPredicate(format: "label CONTAINS %@", name)
         let ready = XCTNSPredicateExpectation(predicate: shown, object: header)
         XCTAssertEqual(
             XCTWaiter().wait(for: [ready], timeout: timeout), .completed,
-            "\(step): cabal-header-name did not read \(name) within \(Int(timeout)) s")
+            "\(step): cabal-header-name did not read \(name) on the \(tab) tab within \(Int(timeout)) s")
     }
 
     func isAboveTabBar(_ element: XCUIElement) -> Bool {
