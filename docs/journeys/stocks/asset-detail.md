@@ -26,6 +26,7 @@ The format of this doc is in [App journeys](../README.md).
 | P4 | S5 needs a cabal of A's that holds `JRNYAx`. A treasury position comes only from a confirmed trade, and the trade path is #2136's, so the setup script seeds no holding and S5 runs against a member with none |
 | P5 | S1 needs A in at least two cabals so Propose a buy opens the cabal picker. The S1 setup counts the active cabals A votes in (banned cabals do not count, since the app lists only active ones) and has A create cabals `QA stocks {QA.run} <n>` through the API for the shortfall (cabal creation is rate limited, and earlier runs leave cabals), and marks A done with onboarding |
 | P6 | The run never calls the live Jupiter API. The steps read only what `GET /v1/assets/{symbol}` and its chart serve from the seeded rows |
+| P7 | Scenarios run in order in one app session. When a stock page from the previous scenario is still showing, each scenario's open step (S2.1, S3.1, S4.1, S5.1) first has A tap back and Cancel `markets-search-cancel`, and waits for the tab bar `tab-assets` |
 
 ## Scenarios
 

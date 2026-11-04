@@ -21,6 +21,13 @@ enum StocksAssetDetailJourney {
     }
 
     static func openAsset(_ app: XCUIApplication, _ asset: StocksBrowseJourney.SeededAsset, step: String) {
+        if app.element("asset-detail-root").exists {
+            app.navigationBars.buttons["BackButton"].tap()
+            StocksBrowseJourney.cancelSearch(app, step: step)
+            XCTAssertTrue(
+                app.element("tab-assets").waitForExistence(timeout: 10),
+                "\(step): backing out of the previous stock page did not show the tab bar")
+        }
         StocksBrowseJourney.openStocks(app, step: step)
         XCTAssertTrue(
             StocksBrowseJourney.searchField(app).waitForExistence(timeout: 15),
