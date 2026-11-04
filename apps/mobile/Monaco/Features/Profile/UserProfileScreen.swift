@@ -33,8 +33,8 @@ struct UserProfileScreen: View {
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .environment(refresh)
-        .environment(model)
         .environment(cabalsModel)
+        .environment(model)
         .toolbar {
             if model?.phase == .loaded {
                 if context.userID != environment.viewer?.userID {
