@@ -14,5 +14,12 @@ enum SampleScrollAnchor {
         if UIApplication.shared.preferredContentSizeCategory.isAccessibilityCategory { return nil }
         return UnitPoint(x: 0, y: CGFloat(fraction))
     }
+
+    static func section(in arguments: [String] = ProcessInfo.processInfo.arguments) -> String? {
+        guard let index = arguments.firstIndex(of: flag), arguments.indices.contains(index + 1) else { return nil }
+        let value = arguments[index + 1]
+        if value == "center" || value == "bottom" || Float(value) != nil { return nil }
+        return value
+    }
 }
 #endif

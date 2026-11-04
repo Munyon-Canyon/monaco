@@ -7,13 +7,19 @@ struct GalleryPage<Content: View>: View {
     @ViewBuilder let content: Content
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: MonacoTheme.Space.section) {
-                content
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(alignment: .leading, spacing: MonacoTheme.Space.section) {
+                    content
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, MonacoTheme.Space.gutter)
+                .padding(.bottom, MonacoTheme.Space.xl)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, MonacoTheme.Space.gutter)
-            .padding(.bottom, MonacoTheme.Space.xl)
+            .task {
+                guard let section = SampleScrollAnchor.section() else { return }
+                proxy.scrollTo(section, anchor: .top)
+            }
         }
         .monacoCanvas()
         .navigationTitle(title)
@@ -23,13 +29,27 @@ struct GalleryPage<Content: View>: View {
 
 struct GalleryGroup<Content: View>: View {
     let title: String
+    let id: String
     @ViewBuilder let content: Content
+
+    init(title: String, id: String? = nil, @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.id = id ?? Self.slug(title)
+        self.content = content()
+    }
+
+    static func slug(_ title: String) -> String {
+        title.lowercased()
+            .split(whereSeparator: { !($0.isLetter || $0.isNumber) })
+            .joined(separator: "-")
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.sm) {
             MonacoSectionHeader(title)
             content
         }
+        .id(id)
     }
 }
 

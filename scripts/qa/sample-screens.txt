@@ -35,6 +35,7 @@ design-gallery-controls-80            -MonacoDesignGallery -MonacoDesignGalleryT
 design-gallery-controls-80-dark       -MonacoDesignGallery -MonacoDesignGalleryTab controls -MonacoDesignGalleryAppearance dark -MonacoSampleScroll 0.8
 design-gallery-controls-bottom        -MonacoDesignGallery -MonacoDesignGalleryTab controls -MonacoSampleScroll bottom
 design-gallery-controls-bottom-dark   -MonacoDesignGallery -MonacoDesignGalleryTab controls -MonacoDesignGalleryAppearance dark -MonacoSampleScroll bottom
+design-gallery-controls-fields        -MonacoDesignGallery -MonacoDesignGalleryTab controls -MonacoSampleScroll fields
 design-gallery-chrome                 -MonacoDesignGallery -MonacoDesignGalleryTab chrome
 design-gallery-chrome-dark            -MonacoDesignGallery -MonacoDesignGalleryTab chrome -MonacoDesignGalleryAppearance dark
 design-gallery-chrome-bottom          -MonacoDesignGallery -MonacoDesignGalleryTab chrome -MonacoSampleScroll bottom
