@@ -1,0 +1,19 @@
+journey: settings/notifications
+expect-fail: S2
+
+The sheet shows the old line "Get each result when a vote closes. No more vote reminders after you vote." S2.2 reads the new line, so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Notifications/PushPrePromptSheet.swift b/apps/mobile/Monaco/Features/Notifications/PushPrePromptSheet.swift
+index 15bbbfaf8..cdf6e4569 100644
+--- a/apps/mobile/Monaco/Features/Notifications/PushPrePromptSheet.swift
++++ b/apps/mobile/Monaco/Features/Notifications/PushPrePromptSheet.swift
+@@ -16,7 +16,7 @@ struct PushPrePromptSheet: View {
+                 .frame(maxWidth: .infinity, alignment: .leading)
+                 .accessibilityAddTraits(.isHeader)
+                 .accessibilityIdentifier("push-pre-prompt-title")
+-            Text("You get the result when a vote closes. That\u{2019}s it.")
++            Text("Get each result when a vote closes. No more vote reminders after you vote.")
+                 .font(MonacoTheme.Typo.body)
+                 .foregroundStyle(MonacoTheme.secondaryText)
+                 .multilineTextAlignment(.leading)

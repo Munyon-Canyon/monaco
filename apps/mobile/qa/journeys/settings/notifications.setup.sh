@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # journey.py runs this before each scenario. It completes actor B's onboarding, and before S2 it clears
 # B's open proposals, makes a dev host create a cabal with B as a voter and one open proposal B has never voted on
-# (P3), handing the test the cabal's name and the proposal's id. Before S4 it clears
+# (P3) that the host already voted Yes on, so B's Yes decides it, handing the test the cabal's name and the proposal's id. Before S4 it clears
 # B's saved notification choices, so both categories start on.
 set -euo pipefail
 
@@ -110,6 +110,8 @@ WITH asset AS (
 SELECT id FROM proposal
 SQL
 )" || fail "could not open a proposal in '$name'"
+sql -v p="$proposal" -v h="$host_id" >/dev/null <<<"INSERT INTO votes (proposal_id, voter_id, choice, cast_at, first_cast_at) VALUES (:'p', :'h', 'yes', now(), now()) ON CONFLICT DO NOTHING"
+hand_off hostName "QA push host"
 hand_off cabalName "$name"
 hand_off proposalID "$proposal"
 echo "$scenario: '$name' has B as a voter and open proposal $proposal"

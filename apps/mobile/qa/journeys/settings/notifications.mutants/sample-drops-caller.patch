@@ -1,0 +1,19 @@
+journey: settings/notifications
+expect-fail: S2
+
+The Home vote site passes no proposer name to the sample, so its body is the fill line, not "QA push host called it." S2.2 reads the sample, so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Home/HomeVoteCard.swift b/apps/mobile/Monaco/Features/Home/HomeVoteCard.swift
+index 411fbdbb1..d91ade94f 100644
+--- a/apps/mobile/Monaco/Features/Home/HomeVoteCard.swift
++++ b/apps/mobile/Monaco/Features/Home/HomeVoteCard.swift
+@@ -209,7 +209,7 @@ enum HomeVoteCommit {
+             symbol: symbol, status: outcome.status, tally: outcome.tally, isSell: row.isSell,
+             usdcMicros: row.usdcMicros, closesAt: row.expiresAt, swap: nil, pendingUnits: nil,
+             callerName: HomePendingVote.callerName(
+-                proposerID: row.proposerID, name: row.proposerName, viewerID: environment.viewer?.userID))
++                proposerID: row.proposerID, name: nil, viewerID: environment.viewer?.userID))
+         Task { await environment.pushPrePrompt.noteFirstVote(sample: sample, after: toasts) }
+     }
+ 
