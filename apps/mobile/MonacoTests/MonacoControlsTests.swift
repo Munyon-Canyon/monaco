@@ -66,6 +66,19 @@ struct MonacoControlsTests {
         #expect(Self.fitted(range, at: size).height >= MonacoButtonMetrics.hitTarget)
     }
 
+    @Test
+    func selectedRangeCapsuleFitsInsideHitTargetAndNeverMovesTheRow() {
+        #expect(MonacoPlainLabelMetrics.capsuleHeight < MonacoButtonMetrics.hitTarget)
+        let sizes = Self.ranges.map { selected in
+            Self.fitted(
+                MonacoRangeChips(
+                    ranges: Self.ranges, selection: selected, identifierPrefix: "r", label: { $0 },
+                    onSelect: { _ in }),
+                at: .large)
+        }
+        #expect(Set(sizes.map(\.width)).count == 1 && Set(sizes.map(\.height)).count == 1, "\(sizes)")
+    }
+
     private struct PeriodProbe: View {
         @State private var period = "Month"
 

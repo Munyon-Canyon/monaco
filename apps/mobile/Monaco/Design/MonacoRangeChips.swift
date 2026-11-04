@@ -57,6 +57,8 @@ extension View {
 enum MonacoPlainLabelMetrics {
     static let scrollSpacing: CGFloat = 16
     static let equalWidthFloor = DynamicTypeSize.xxLarge
+    static let capsuleHeight: CGFloat = 28
+    static let capsulePadding: CGFloat = 10
 
     static func scrollsAlways(_ size: DynamicTypeSize) -> Bool { size.isAccessibilitySize }
 }
@@ -124,6 +126,10 @@ struct MonacoPlainLabelRow<Item: Hashable>: View {
                 .foregroundStyle(isSelected ? MonacoTheme.primaryText : MonacoTheme.secondaryText)
                 .lineLimit(1)
                 .fixedSize(horizontal: true, vertical: false)
+                .padding(.horizontal, MonacoPlainLabelMetrics.capsulePadding)
+                .frame(minHeight: MonacoPlainLabelMetrics.capsuleHeight)
+                .background(Capsule().fill(isSelected ? MonacoTheme.surfaceSunken : Color.clear))
+                .padding(.horizontal, -MonacoPlainLabelMetrics.capsulePadding)
                 .frame(
                     minWidth: minLabelWidth,
                     maxWidth: fillsWidth ? .infinity : nil,
