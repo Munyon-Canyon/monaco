@@ -135,7 +135,7 @@ When a setup fails with `privy_user_limit`, the dev Privy app has hit its user c
 Git keeps the history. There are no `V2` copies of a doc or a test.
 
 - `version` goes up by one whenever a step, a target, an input or an expectation changes. Wording fixes do not change it.
-- The journey's steps file declares `static let id` and `static let version`, with the doc's id and version. `scripts/qa/journey.py check` fails when they are not the doc's, which is how a stale test is found. Swift files carry no comments in this repo, so the stamp is code.
+- The stamp lives in the generated steps file, `apps/mobile/MonacoUITests/Journeys/Generated/<X>JourneySteps.swift`, which `scripts/qa/journey.py gen <journey>` writes from the doc (`static let id`, `static let version` and one value per step row). A journey not yet migrated declares them in its own steps file. `scripts/qa/journey.py check` fails when they are not the doc's, and when a generated file differs from what `gen` would write, which is how a stale test is found. It also fails when a doc's step tables changed against `origin/staging` and `version` did not go up, so the bump rule above is enforced. Swift files carry no comments in this repo, so the stamp is code.
 - A journey that requires another does not pin its version. When a required journey's last screen changes (what it leaves on screen for the next journey), bump the journeys that require it too.
 
 ## Run and measure { #measure }

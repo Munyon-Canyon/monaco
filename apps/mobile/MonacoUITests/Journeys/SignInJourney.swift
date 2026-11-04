@@ -1,12 +1,9 @@
 import XCTest
 
-enum SignInJourney {
-    static let id = "auth/sign-in"
-    static let version = 10
+private typealias S = SignInJourneySteps
 
+enum SignInJourney {
     private static let launchTimeout: TimeInterval = 30
-    private static let codeSentTimeout: TimeInterval = 20
-    private static let signedInTimeout: TimeInterval = 30
 
     enum Screen {
         case login
@@ -17,7 +14,7 @@ enum SignInJourney {
     }
 
     static func recorder() -> JourneyRecorder {
-        JourneyRecorder(journey: id, version: version)
+        JourneyRecorder(journey: S.id, version: S.version)
     }
 
     private static func addressField(_ app: XCUIApplication, _ channel: JourneyAccount.Channel) -> XCUIElement {
@@ -92,34 +89,37 @@ enum SignInJourney {
     static func enterCode(_ app: XCUIApplication, as account: JourneyAccount, recorder: JourneyRecorder) {
         let prefix = account.channel.rawValue
 
-        recorder.step("S1.1", "choose the \(prefix) method") {
+        recorder.step(S.s1p1) {
             let field = addressField(app, account.channel)
             if !field.exists {
                 let segment = app.buttons[account.channel == .sms ? "Text message" : "Email"]
                 XCTAssertTrue(
-                    segment.waitForExistence(timeout: 5), "S1.1: no '\(segment.label)' sign-in method on the login form"
+                    segment.waitForExistence(timeout: S.s1p1.seconds),
+                    "\(S.s1p1.id): no '\(segment.label)' sign-in method on the login form"
                 )
                 segment.tap()
             }
-            XCTAssertTrue(field.waitForExistence(timeout: 5), "S1.1: the \(prefix) address field did not show")
+            XCTAssertTrue(
+                field.waitForExistence(timeout: S.s1p1.seconds),
+                "\(S.s1p1.id): the \(prefix) address field did not show")
         }
 
-        recorder.step("S1.2", "enter the address and send the code") {
+        recorder.step(S.s1p2) {
             let field = addressField(app, account.channel)
             field.tap()
             field.typeText(account.address)
             let send = app.buttons["\(prefix)SendCodeButton"]
-            XCTAssertTrue(send.waitForExistence(timeout: 5), "S1.2: no Send code button")
-            XCTAssertEqual(send.label, "Send code", "S1.2: Send code button has an unexpected label")
-            XCTAssertTrue(send.isEnabled, "S1.2: Send code stayed disabled for '\(account.address)'")
+            XCTAssertTrue(send.waitForExistence(timeout: 5), "\(S.s1p2.id): no Send code button")
+            XCTAssertEqual(send.label, S.s1p2.copy[0], "\(S.s1p2.id): Send code button has an unexpected label")
+            XCTAssertTrue(send.isEnabled, "\(S.s1p2.id): Send code stayed disabled for '\(account.address)'")
             send.tap()
         }
 
-        recorder.step("S1.3", "enter the code") {
+        recorder.step(S.s1p3) {
             let codeField = app.textFields["\(prefix)CodeField"]
             XCTAssertTrue(
-                codeField.waitForExistence(timeout: codeSentTimeout),
-                "S1.3: the code field did not show within \(Int(codeSentTimeout)) s of Send code"
+                codeField.waitForExistence(timeout: S.s1p3.seconds),
+                "\(S.s1p3.id): the code field did not show within \(Int(S.s1p3.seconds)) s of Send code"
             )
             codeField.tap()
             codeField.typeText(account.code)
@@ -131,34 +131,36 @@ enum SignInJourney {
         let prefix = account.channel.rawValue
 
         var landed: Screen?
-        recorder.step("S1.4", "open the backend session and land past the first-run gate") {
-            landed = currentScreen(app, timeout: signedInTimeout)
+        recorder.step(S.s1p4) {
+            landed = currentScreen(app, timeout: S.s1p4.seconds)
             XCTAssertNotEqual(
                 landed, .firstRunStep,
-                "S1.4: the first-run gate opened the handle or phone step. Actor A needs a handle and an auth_state past CREATED (P4)"
+                "\(S.s1p4.id): the first-run gate opened the handle or phone step. Actor A needs a handle and an auth_state past CREATED (P4)"
             )
             XCTAssertTrue(
                 landed == .tabs || landed == .findFriends,
-                "S1.4: the tab bar did not show within \(Int(signedInTimeout)) s of the code")
+                "\(S.s1p4.id): the tab bar did not show within \(Int(S.s1p4.seconds)) s of the code")
         }
 
-        recorder.step("S1.5", "skip Find friends") {
+        recorder.step(S.s1p5) {
             if landed == .findFriends {
                 app.buttons["friends-not-now"].tap()
             }
             XCTAssertTrue(
-                app.tab("Home").waitForExistence(timeout: signedInTimeout),
-                "S1.5: the tab bar did not show within \(Int(signedInTimeout)) s of skipping Find friends")
-            XCTAssertFalse(app.textFields["\(prefix)CodeField"].exists, "S1.5: the code field is still on screen")
+                app.tab("Home").waitForExistence(timeout: S.s1p5.seconds),
+                "\(S.s1p5.id): the tab bar did not show within \(Int(S.s1p5.seconds)) s of skipping Find friends")
+            XCTAssertFalse(
+                app.textFields["\(prefix)CodeField"].exists, "\(S.s1p5.id): the code field is still on screen")
         }
 
-        recorder.step("S1.6", "the tab bar has every tab") {
+        recorder.step(S.s1p6) {
             let titles = ["Home", "Cabals", "Markets", "Feed", "Profile"]
             for title in titles {
-                XCTAssertTrue(app.tab(title).exists, "S1.6: no \(title) tab")
+                XCTAssertTrue(app.tab(title).exists, "\(S.s1p6.id): no \(title) tab")
             }
             let leftToRight = titles.sorted { app.tab($0).frame.minX < app.tab($1).frame.minX }
-            XCTAssertEqual(leftToRight, titles, "S1.6: the tabs are not Home, Cabals, Markets, Feed, Profile in order")
+            XCTAssertEqual(
+                leftToRight, titles, "\(S.s1p6.id): the tabs are not Home, Cabals, Markets, Feed, Profile in order")
         }
     }
 
@@ -166,31 +168,32 @@ enum SignInJourney {
         let signOut = app.buttons["profileSignOutButton"]
         app.dismissPushPrePromptIfShown()
 
-        recorder.step("S3.1", "open Settings") {
-            openSettings(app, step: "S3.1")
+        recorder.step(S.s3p1) {
+            openSettings(app, step: S.s3p1.id)
             app.scrollIntoReach(signOut)
-            XCTAssertTrue(signOut.waitForExistence(timeout: 15), "S3.1: no Sign out row in Settings")
+            XCTAssertTrue(signOut.waitForExistence(timeout: 15), "\(S.s3p1.id): no Sign out row in Settings")
         }
 
         let confirm = app.buttons["profile-sign-out-confirm"].firstMatch
 
-        recorder.step("S3.2", "tap Sign out and see the confirm") {
+        recorder.step(S.s3p2) {
             app.scrollIntoReach(signOut)
             signOut.tap()
-            XCTAssertTrue(confirm.waitForExistence(timeout: 5), "S3.2: Sign out did not ask to confirm")
+            XCTAssertTrue(
+                confirm.waitForExistence(timeout: S.s3p2.seconds), "\(S.s3p2.id): Sign out did not ask to confirm")
         }
 
-        recorder.step("S3.3", "confirm and land on the login form") {
+        recorder.step(S.s3p3) {
             confirm.tap()
             XCTAssertTrue(
-                app.tab("Home").waitForNonExistence(timeout: signedInTimeout),
-                "S3.3: the tab bar remained on screen within \(Int(signedInTimeout)) s after sign-out"
+                app.tab("Home").waitForNonExistence(timeout: S.s3p3.seconds),
+                "\(S.s3p3.id): the tab bar remained on screen within \(Int(S.s3p3.seconds)) s after sign-out"
             )
             if currentScreen(app) == .invite {
                 app.buttons["invite-skip-button"].tap()
             }
-            XCTAssertEqual(currentScreen(app), .login, "S3.3: the login form did not come back after sign-out")
-            XCTAssertFalse(app.tab("Home").exists, "S3.3: the tab bar is still on screen after sign-out")
+            XCTAssertEqual(currentScreen(app), .login, "\(S.s3p3.id): the login form did not come back after sign-out")
+            XCTAssertFalse(app.tab("Home").exists, "\(S.s3p3.id): the tab bar is still on screen after sign-out")
         }
     }
 
@@ -198,26 +201,27 @@ enum SignInJourney {
         let row = app.buttons["settings-sign-out-everywhere"]
         let confirm = app.buttons["profile-sign-out-everywhere-confirm"].firstMatch
 
-        recorder.step("S3.5", "ask to sign out of all devices") {
+        recorder.step(S.s3p5) {
             app.dismissPushPrePromptIfShown()
-            openSettings(app, step: "S3.5")
+            openSettings(app, step: S.s3p5.id)
             app.scrollIntoReach(row)
-            XCTAssertTrue(row.waitForExistence(timeout: 15), "S3.5: no 'Sign out of all devices' row in Settings")
-            row.tap()
-            XCTAssertTrue(confirm.waitForExistence(timeout: 5), "S3.5: the row did not ask to confirm")
             XCTAssertTrue(
-                app.staticTexts["Sign out of all devices?"].exists,
-                "S3.5: the confirm does not read 'Sign out of all devices?'")
+                row.waitForExistence(timeout: 15), "\(S.s3p5.id): no 'Sign out of all devices' row in Settings")
+            row.tap()
+            XCTAssertTrue(confirm.waitForExistence(timeout: 5), "\(S.s3p5.id): the row did not ask to confirm")
+            XCTAssertTrue(
+                app.staticTexts[S.s3p5.copy[1]].exists,
+                "\(S.s3p5.id): the confirm does not read 'Sign out of all devices?'")
         }
 
-        recorder.step("S3.6", "confirm and land on the login form") {
+        recorder.step(S.s3p6) {
             confirm.tap()
             XCTAssertTrue(
-                app.tab("Home").waitForNonExistence(timeout: signedInTimeout),
-                "S3.6: the tab bar remained on screen within \(Int(signedInTimeout)) s after signing out of all devices"
+                app.tab("Home").waitForNonExistence(timeout: S.s3p6.seconds),
+                "\(S.s3p6.id): the tab bar remained on screen within \(Int(S.s3p6.seconds)) s after signing out of all devices"
             )
-            XCTAssertEqual(currentScreen(app), .login, "S3.6: the login form did not come back")
-            XCTAssertFalse(app.tab("Home").exists, "S3.6: the tab bar is still on screen")
+            XCTAssertEqual(currentScreen(app), .login, "\(S.s3p6.id): the login form did not come back")
+            XCTAssertFalse(app.tab("Home").exists, "\(S.s3p6.id): the tab bar is still on screen")
         }
     }
 
