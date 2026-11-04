@@ -42,7 +42,7 @@ struct CatchUpView: View {
             MonacoGlassButton(
                 systemImage: "chevron.left", accessibilityLabel: "Back", style: .quiet, placement: .toolbar
             ) { dismiss() }
-            .accessibilityIdentifier("catch-up-back")
+            .accessibilityIdentifier("BackButton")
         }
         if case .loaded(let screen) = model?.state, !screen.isCaughtUp {
             ToolbarItem(placement: .topBarTrailing) {
