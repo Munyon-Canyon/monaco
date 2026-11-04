@@ -114,11 +114,26 @@ struct GalleryColourRole: Identifiable {
             name: "tint", color: MonacoTheme.tint,
             dark: "7.6:1 · 6.2:1 on cell"),
         GalleryColourRole(
-            name: "brand", color: MonacoTheme.brandFill,
-            dark: "white text 7.9:1"),
+            name: "link", color: MonacoTheme.link,
+            dark: "21.0:1 on canvas · white navigates"),
         GalleryColourRole(
-            name: "gain", color: MonacoTheme.profit,
-            dark: "14.5:1 · 11.7:1 on cell"),
+            name: "action", color: MonacoTheme.action,
+            dark: "forest #1E5C3A · the one action"),
+        GalleryColourRole(
+            name: "onAction", color: MonacoTheme.onAction,
+            dark: "white on action 7.9:1"),
+        GalleryColourRole(
+            name: "gain", color: MonacoTheme.gain,
+            dark: "#30F57A · 14.5:1 on canvas"),
+        GalleryColourRole(
+            name: "switchOn", color: MonacoTheme.switchOn,
+            dark: "forest #1E5C3A · 7.9:1 with white"),
+        GalleryColourRole(
+            name: "chipOn", color: MonacoTheme.chipOn,
+            dark: "white · 21.0:1 on canvas"),
+        GalleryColourRole(
+            name: "onChipOn", color: MonacoTheme.onChipOn,
+            dark: "black on chipOn 21.0:1"),
         GalleryColourRole(
             name: "loss", color: MonacoTheme.lossVivid,
             dark: "6.2:1 · 5.0:1 on cell"),
@@ -253,11 +268,9 @@ struct GalleryMetricSamples: View {
     ]
 
     private let radii: [(name: String, value: CGFloat)] = [
-        ("card", MonacoTheme.Radius.card), ("cardTight", MonacoTheme.Radius.cardTight),
-        ("field", MonacoTheme.Radius.field), ("search", MonacoTheme.Radius.search),
-        ("notice", MonacoTheme.Radius.notice), ("toast", MonacoTheme.Radius.toast),
-        ("badge", MonacoTheme.Radius.badge), ("pill", MonacoTheme.Radius.pill),
-        ("identity", MonacoTheme.Radius.identity),
+        ("card", MonacoTheme.Radius.card), ("compact", MonacoTheme.Radius.compact),
+        ("inner", MonacoTheme.Radius.inner), ("art", MonacoTheme.Radius.art),
+        ("share card", MonacoTheme.Radius.shareCard),
     ]
 
     var body: some View {
@@ -274,17 +287,17 @@ struct GalleryMetricSamples: View {
         GalleryRuleTable(
             title: "Radii",
             rows: [
-                (
-                    "cell / card", "\(Int(MonacoTheme.Radius.card))",
-                    "vote card, cash row, settings groups, profile card"
-                ),
-                ("button 50", "\(Int(MonacoTheme.Radius.button))", "prominent and bordered, full width"),
+                ("card", "\(Int(MonacoTheme.Radius.card))", "card, grouped section, menu"),
+                ("compact", "\(Int(MonacoTheme.Radius.compact))", "one-line box: stat row, cash row"),
+                ("inner", "\(Int(MonacoTheme.Radius.inner))", "inside a card corner, concentric with 12 pt padding"),
+                ("art", "\(Int(MonacoTheme.Radius.art))", "scene and cover art"),
                 ("share card", "\(Int(MonacoTheme.Radius.shareCard))", "the position, vote and share cards"),
-                ("small", "\(Int(MonacoTheme.Radius.small))", "field, stat row, podium step, rank badge"),
-                ("ticker tile · logo", "\(Int(MonacoTheme.Radius.tile)) · 15 %", "Monaco"),
-                ("keypad key", "\(Int(MonacoTheme.Radius.keypadKey))", "press highlight only"),
-                ("capsule", "999", "chip, reaction, toast, tab bar, search field, composer"),
-                ("cabal squircle · sheet top", "22.5 % · 38", "app-icon shape · the display corner (system)"),
+                ("capsule", "999", "buttons, chips, fields, search, toast"),
+                (
+                    "squircle", String(format: "%.1f %%", MonacoTheme.Radius.squircleFraction * 100),
+                    "cabal crest and stock logo"
+                ),
+                ("half sheet", "floats 8 in, 47 corners", "system"),
             ])
         GalleryRuleTable(
             title: "Spacing",

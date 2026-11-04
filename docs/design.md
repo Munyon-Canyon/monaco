@@ -8,7 +8,7 @@ The current design for milestone UI/UX v5 (tracking #7848) is the [v5 package](d
 
 Kept: SF Pro only, tabular figures, every colour and font a token, the 13pt text floor, the slot architecture, toasts for confirmations, the product words, Monaco-character default faces and Monaco world scenes as default cabal pictures, the "monaco" wordmark as Home's title, the rounded profile card, native chart behaviour (candles, intervals, pinch and pan, crosshair).
 
-Gone: the v3 paper canvas and its ink-green text, cards drawn with a border everywhere, capsule P&L pills, cover-art cabal cards with text on a scrim (rows lead with the cabal's **crest**; the cabal page keeps its picture as a plain header with nothing drawn on it), the dark identity card's palette (the profile card is a `surface` card at radius 12), segment pickers for sections, range pills, the chart gradient, hand-tuned glass fills.
+Gone: the v3 paper canvas and its ink-green text, cards drawn with a border everywhere, capsule P&L pills, cover-art cabal cards with text on a scrim (rows lead with the cabal's **crest**; the cabal page keeps its picture as a plain header with nothing drawn on it), the dark identity card's palette (the profile card is a `surface` card at radius 26), segment pickers for sections, range pills, the chart gradient, hand-tuned glass fills.
 
 ## Principles
 
@@ -21,11 +21,13 @@ Each one is a check you run on a screenshot. Frames: [`01-tokens-controls`](desi
    - Everything that only navigates is white: `tint` (`link`) is links, "See all", carets and the selected tab. A selected chip is a white fill with a black label (`chipOn`, `onChipOn`).
    - `crown` is #1 only.
    - An identity hue is a person or cabal without a picture, and is never green.
+   - The old mid green `#4DAE78` is not used.
+   - The chart line is the gain green (founder, 11-04): a chart going up is a price going up.
    - Nothing is a gradient.
-3. **Flat lists, few cards.** Lists sit on the canvas with an inset hairline that starts at the label column. A card (`cell` fill, radius 12, no border, no shadow) holds one object only: the vote card, the cash row, the stat row, a settings group, the profile card. Never stack two separators.
-4. **One prominent button per screen**: 50pt, radius 10, `brand` fill. A button row holds at most two buttons.
+3. **Flat lists, few cards.** Lists sit on the canvas with an inset hairline that starts at the label column. A card (`cell` fill, radius 26, no border, no shadow) holds one object only: the vote card, the cash row, the stat row, a settings group, the profile card. Never stack two separators.
+4. **One prominent button per screen**: 50pt, capsule, `action` fill. A button row holds at most two buttons.
 5. **Two lines per row, one trailing fact.** A figure over its change counts as one fact. Previews show four or five rows plus "See all".
-6. **Images everywhere.** Ticker logos, people's photos (circles), and cabal crests (a square cut of the cabal's picture, radius 6). Without a photo, a person is one of Monaco's 22 characters and, without a picture, a cabal shows one of 26 Monaco world scenes, each picked by a stable hash of the id (founder, 11-02, #7765, which supersedes Q22). The initials on the identity hue show only while a picture loads. Cabals have no symbol field, so the kit's "one symbol" is not built.
+6. **Images everywhere.** Ticker logos, people's photos (circles), and cabal crests (a 22.5% squircle cut of the cabal's picture). Without a photo, a person is one of Monaco's 22 characters and, without a picture, a cabal shows one of 26 Monaco world scenes, each picked by a stable hash of the id (founder, 11-02, #7765, which supersedes Q22). The initials on the identity hue show only while a picture loads. Cabals have no symbol field, so the kit's "one symbol" is not built.
 7. **Native chrome.**
    - the system tab bar;
    - large titles that fold into the inline bar;
@@ -35,6 +37,7 @@ Each one is a check you run on a screenshot. Frames: [`01-tokens-controls`](desi
    - sheets at the half detent (the accessibility-size exception belongs to the sheet helper, #6470);
    - toasts in the nav row.
 8. **Votes are live and held.** Counts (✓ n / ✕ n) show in every state, before and after you vote. Yes is never pre-highlighted. You pick, then hold for 0.6s; lifting cancels. Proposals settle at quorum.
+   - The vote card has one line under its title and nothing else: `AC Capital · 5 of 8 voted · 6 replies · closes in 4h`. It reads "closes in 4h" when the whole line fits, else the bare "4h". On the cabal's own pages the name drops; in the Feed the replies leave the line for the post's chip. No proposer line, no "N more votes to go", no row of faces. See the [v5 README](design/v5/README.md).
 9. **A face for every act.** Anything a person did (proposed, voted, bought, joined) shows their avatar; anything a cabal did shows its crest.
 10. **Every Feed post takes replies.** Reactions and the reply control end every post's reaction row; reply reactions are per-emoji chips; every chip, quick emoji and text Reply is 44 × 44 to tap. Replies carry text, emoji, GIFs (GIPHY), polls, a quoted thesis or a shared stock; chats take no image uploads.
 
@@ -54,11 +57,11 @@ Tokens live in `apps/mobile/Monaco/Design/MonacoTheme.swift`; feature code uses 
 | Tint | `tint`, `link` | `#FFFFFF` | navigates or is selected: links, "See all", carets, the selected tab |
 | Brand | `brandFill`, `action`, `switchOn` | `#1E5C3A` | the one prominent button (white `onAction` text, 7.9:1); a switch that is on |
 | Chip on | `chipOn`, `onChipOn` | `#FFFFFF`, `#000000` | a selected filter chip: white fill, black label (21:1) |
-| Gain | `profit`, `gain` | `#30F57A` | gains, Yes |
+| Gain | `profit`, `gain` | `#30F57A` | gains, Yes, the chart line |
 | Loss | `loss` | `#FF6259` † | losses, No, danger |
 | Crown | `crown` | `#FFD60A` | #1 only |
 
-The app is dark only (founder, 11-03); a light appearance is not built or tested.
+The app is dark only (founder, 11-03); a light appearance is not built or tested. The chart line is the gain green (founder, 11-04). Colour rules and the radius set follow the [v5 README](design/v5/README.md).
 
 Identity hues: indigo `#5E5CE6`, orange `#FF9F0A`, teal `#40C8E0`, pink `#FF375F`, purple `#BF5AF2`, brown `#AC8E68`, blue `#0A84FF`, cyan `#64D2FF`. They colour a person or a cabal without a picture, picked by a stable hash of the id; never green. Default avatars and cabal crests are never Monaco green.
 
@@ -122,17 +125,14 @@ Rules:
 
   | Element | Radius |
   | --- | --- |
-  | cell, card | 12 |
-  | button | 10 |
-  | share card | 16 |
-  | small: field, stat row, podium step, rank badge | 8 |
-  | ticker tile | 6 |
-  | logo | 15% of its size (the Feed post's 36 logo is 5.4) |
-  | keypad key | 8 (press highlight only) |
-  | chip, reaction, toast, search field, composer, nav glass | capsule |
-  | crest | 6 |
-  | cabal squircle | 22.5% |
-  | sheets | the system radius |
+  | card, grouped section, menu | 26 |
+  | compact: one-line box (stat row, cash row) | 20 |
+  | inner: inside a card corner, concentric with 12 pt padding | 14 |
+  | art: scene and cover | 18 |
+  | share card | 32 |
+  | buttons, chips, fields, search, keypad press, toast, tab bar, nav glass | capsule |
+  | crest, stock logo, app tile | 22.5% squircle (`Radius.squircleFraction`) |
+  | half sheet | floats 8 in, 47 corners (system) |
 
 - Elevation: none. No shadows, no gradients, no borders around cards; the system tab bar's own shadow is the only one.
 
@@ -168,7 +168,7 @@ The founder made these decisions and they are final. Tickets apply them and do n
 3. **Dark only.** The app is dark only; a light appearance is not built.
 4. **Colour:** black canvas, one forest-green tint used sparingly, a separate neon gain green and bright loss red, a crown gold.
 5. **No gradients anywhere.** The chart fill is a flat 10% tint. Only the tab bar carries a shadow.
-6. **Squarer and denser** (10-23): cards 12, buttons 10, share card 16, small controls 8. Lists sit flat on the canvas. Two lines per row, one trailing fact.
+6. **Dense, round and flat** (v5 radii above): cards 26, buttons and fields capsule, share card 32. Lists sit flat on the canvas. Two lines per row, one trailing fact.
 7. **Type:** SF Pro only. Home's figure is 32 (founder's choice, 10-26). The keypad keeps the 44 money hero.
 8. **Underline tabs** only for sibling sections of one screen, at most one row per screen. Chart ranges and the leaderboard's periods are plain labels. Chips are capsules, at most four.
 9. **Half-height sheets.** Every sheet opens at about half the screen.

@@ -71,9 +71,6 @@ struct FTokenTests {
         #expect(MonacoTheme.Radius.art == 18)
         #expect(MonacoTheme.Radius.field == 14)
         #expect(MonacoTheme.Radius.tile == 6)
-        #expect(MonacoTheme.Radius.keypadKey == 8)
-        #expect(MonacoTheme.Radius.crest == 6)
-        #expect(MonacoTheme.Radius.logoFraction == 0.15)
         #expect(MonacoTheme.Radius.squircleFraction == 0.225)
     }
 
