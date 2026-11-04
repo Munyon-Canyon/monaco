@@ -76,6 +76,7 @@ The setup seeds the proposal, so this journey does not depend on the propose scr
 
 - S4.1 and S4.2 depend on #6433's `show_sides` rule and #6506's closed result card, which the setup seeds through `cabals.show_sides`.
 - S2.1 finds a member's cabal by the `cabals-tile-<id>` icon and its label, not the `cabals-grid-<id>` identifier the ticket names, which the app does not set; `openCabal(named:)` falls back to the cabal search when no tile matches.
+- S3.1 and S4 back out of any pushed screen before they tap the Home tab: S2 ends on the Proposal screen, which hides the tab bar, and the same actor keeps that screen open into S3.
 - S1.6 opens the proposal from B's cabal page, not Home, because Home hides "Your vote" unless the member's portfolio is invested and B's QA account nets to zero (#8281; the Home gate is #8286).
 
 ## Not covered
