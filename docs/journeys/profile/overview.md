@@ -1,7 +1,7 @@
 ---
 id: profile/overview
 title: Your profile
-version: 14
+version: 15
 rpc: fake
 milestone: M9
 requires: [auth/sign-in]
@@ -56,7 +56,7 @@ Starts signed in (auth/sign-in).
 
 | Step | Action | Target | Input | Expect | Old app |
 | --- | --- | --- | --- | --- | --- |
-| S3.1 | tap, tap, then tap | the Profile tab, `profile-tab-cabals`, then `profile-cabal-row-{cabalID}` | | The cabal screen shows within 15 s, with `cabal-header-name` and `cabalName` on screen | A `ProfileCabalsSection` row opens the cabal |
+| S3.1 | tap, tap, then tap | the Profile tab, `profile-tab-cabals`, then `profile-cabal-row-{cabalID}` | | The cabal opens on Chat: `cabal-inline-title` reads `cabalName` and `chat-view` shows within 15 s | A `ProfileCabalsSection` row opens the cabal |
 
 ### S4 Open a block explorer
 
