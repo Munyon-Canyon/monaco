@@ -104,6 +104,7 @@ enum CabalsPotJourney {
 
     static func holdings(_ app: XCUIApplication, run: String, recorder: JourneyRecorder) {
         recorder.step("S3.1", "open the cabal") {
+            app.popToRoot()
             app.openCabal(named: cabal(run: run))
             app.openCabalTab("Treasury")
         }

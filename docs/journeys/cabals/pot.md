@@ -53,7 +53,7 @@ On the F cabal page the pot is the "Treasury" line and the slice is the "Your sh
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S3.1 | A | call, then call | `openCabal(named:)`, then `openCabalTab("Treasury")` | `QA slice {QA.run}` | The Treasury tab shows |
+| S3.1 | A | back out, then call, then call | system Back until the tab bar shows, then `openCabal(named:)`, then `openCabalTab("Treasury")` | `QA slice {QA.run}` | The Treasury tab shows |
 | S3.2 | A | scroll to | `cabal-holdings-empty` | | Reads "Fund, then propose the first buy." within 10 s |
 
 ## Ground truth
