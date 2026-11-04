@@ -1,0 +1,18 @@
+journey: money/withdraw
+expect-fail: S1
+
+Tapping the resting row does not switch to the editable field. S1.5 waits for withdraw-address-field after the tap, so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Settings/WithdrawAddressField.swift b/apps/mobile/Monaco/Features/Settings/WithdrawAddressField.swift
+index 141739115..ea5a3d7a6 100644
+--- a/apps/mobile/Monaco/Features/Settings/WithdrawAddressField.swift
++++ b/apps/mobile/Monaco/Features/Settings/WithdrawAddressField.swift
+@@ -59,7 +59,6 @@ struct WithdrawAddressField: View {
+     private func restingRow(_ line: String) -> some View {
+         HStack(spacing: MonacoTheme.Space.s) {
+             Button {
+-                isEditing = true
+                 editRequests += 1
+             } label: {
+                 Text(line)

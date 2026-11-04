@@ -1,7 +1,7 @@
 ---
 id: money/withdraw
 title: Withdraw
-version: 7
+version: 8
 milestone: M12
 requires: [auth/sign-in]
 actors: [A, B]
@@ -22,6 +22,10 @@ Version 6 (F launch, #6576): Withdraw is one screen: the address field with past
 
 Old app (`c838bd24`): Home -> Withdraw -> `Settings/WithdrawView.swift`: the amount entry with "Max", "Send to" with the address field and its inline errors, "Continue" -> the confirm step -> the toast. Spec: **Withdraw** under Money in [screens.md](../../screens.md).
 
+Version 8 (UI/UX v5, #7982): the fee line reads "$… fee · arrives in about …" with no "USDC", no "≈" and no network name. A valid address shows as the short row `withdraw-address-ending` ("Address ending …"), and a tap on it opens the full address (S1.5). Only the Solana and Base chips are offered.
+
+Frames: `docs/design/v5/screens/09-withdraw.png`.
+
 The format of this doc is in [App journeys](../README.md).
 
 ## Preconditions
@@ -40,9 +44,10 @@ The format of this doc is in [App journeys](../README.md).
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S1.1 | A | tap | the Profile tab, `profile-settings-row`, then `settings-withdraw` | | `amount-keypad-source` reads "Cash $…" and not "$0.00" within 15 s; `withdraw-address-field` is empty with `withdraw-paste` and `withdraw-scan`; `withdraw-network-solana` is selected |
+| S1.1 | A | tap | the Profile tab, `profile-settings-row`, then `settings-withdraw` | | `amount-keypad-source` reads "Cash $…" and not "$0.00" within 15 s; `withdraw-address-field` is empty and editable with `withdraw-paste` and `withdraw-scan`; `withdraw-network-solana` is selected, and `withdraw-network-solana` and `withdraw-network-base` are the only `withdraw-network-*` chips |
 | S1.2 | A | type | `withdraw-address-field` | `not a solana address` | `withdraw-address-problem` shows within 5 s and no `amount-keypad-action` shows |
-| S1.3 | A | clear and type, then tap | `withdraw-address-field`, then `amount-keypad-preset-Max` | `{QA.refund_address}` | `withdraw-address-problem` is gone; `amount-keypad-amount` is above "$0" and `amount-keypad-line` reads "… USDC · fee $…", with no "≈", within 15 s |
+| S1.3 | A | clear and type, then tap | `withdraw-address-field`, then `amount-keypad-preset-Max` | `{QA.refund_address}` | `withdraw-address-problem` is gone. After the keyboard closes, `withdraw-address-ending` reads "Address ending " and the last four characters of `{QA.refund_address}`, and the full address is not on screen. After Max, `amount-keypad-line` reads "$… fee · arrives in about " or "No fee · arrives in about " within 15 s, with no "USDC", no "≈" and no "Solana"; `amount-keypad-amount` is above "$0" |
+| S1.5 | A | tap | `withdraw-address-ending` | | Runs only in the full journey, not in `MoneyWithdrawJourney.withdrawAll`. Within 5 s `withdraw-address-field` shows with the full `{QA.refund_address}` as its value and no `withdraw-address-problem`. The keyboard closes and the row reads "Address ending …" again |
 | S1.4 | A | tap | `amount-keypad-action` "Withdraw $…" | | The button reads "Withdrawal processing · Pending" until the backend confirms, then `amount-keypad-settled` reads "✓ $… to" and the short address within 120 s, and `amount-keypad-line` reads "Sent just now · arrives on Solana in about a minute". There is no review step |
 
 ### S2 Check a Base withdrawal, then withdraw on Solana
@@ -51,9 +56,9 @@ S2 never sends on Base: `{QA.base_address}` is `0x000000000000000000000000000000
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S2.1 | B | tap, tap, tap, then tap | the Profile tab, `profile-settings-row`, `settings-withdraw`, then `withdraw-network-base` | | `amount-keypad-source` reads "Cash $…" within 15 s. After "Base", `amount-keypad-line` names Base ("… USDC on Base") and the address placeholder reads "USDC address on Base" within 5 s |
+| S2.1 | B | tap, tap, tap, then tap | the Profile tab, `profile-settings-row`, `settings-withdraw`, then `withdraw-network-base` | | `amount-keypad-source` reads "Cash $…" within 15 s. After "Base", the address placeholder reads "USDC address on Base" within 5 s, `withdraw-network-base` is selected, and `amount-keypad-line` reads "… fee · arrives in about …". The line names no network, so the chip and the placeholder carry the switch |
 | S2.2 | B | type | `withdraw-address-field` | `not a base address` | `withdraw-address-problem` reads "Check the address. It doesn't look like a Base address." within 5 s, and no `amount-keypad-action` shows |
-| S2.3 | B | clear and type, then tap | `withdraw-address-field`, then `amount-keypad-preset-Max` | `{QA.base_address}` | `withdraw-address-problem` is gone and `amount-keypad-line` reads "≈ … USDC · fee $…" within 15 s, and `amount-keypad-action` shows. B does not tap it |
+| S2.3 | B | clear and type, then tap | `withdraw-address-field`, then `amount-keypad-preset-Max` | `{QA.base_address}` | `withdraw-address-problem` is gone, `withdraw-address-ending` reads "Address ending dEaD", `amount-keypad-line` reads "$… fee · arrives in about " with no "≈" and no "USDC" within 15 s, and `amount-keypad-action` shows. B does not tap it |
 | S2.4 | B | tap, then run | `amount-keypad-close`, then `MoneyWithdrawJourney.withdrawAll` | `{QA.refund_address}` | The steps S1.1, S1.3 and S1.4 pass for B on Solana, ending with the settled button |
 
 ## Ground truth
