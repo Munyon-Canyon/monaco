@@ -214,7 +214,8 @@ func F22PostChatMessageCrashBeforeCommit(s *scenario.Scenario) {
 func ChatPostSurvivesAblyDown(s *scenario.Scenario) {
 	s.Given(append(chatCabal("post-ably-down"),
 		scenario.FakeUpstream(fakes.Step{
-			Route: fakes.AblyMessagesRun, Action: fakes.ActionFail, Status: http.StatusInternalServerError, Times: 1,
+			Route: fakes.AblyMessagesRun, Contains: `"name":"` + app.EventMessageCreated + `"`,
+			Action: fakes.ActionFail, Status: http.StatusInternalServerError, Times: 1,
 		}),
 		scenario.SignIn(chatCreatorOf("post-ably-down")),
 	)...).

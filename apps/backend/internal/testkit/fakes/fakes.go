@@ -1,6 +1,7 @@
 package fakes
 
 import (
+	"bytes"
 	"cmp"
 	"embed"
 	"encoding/json"
@@ -29,17 +30,18 @@ const (
 )
 
 type Step struct {
-	Route   string            `json:"route"`
-	Method  string            `json:"method,omitempty"`
-	Headers map[string]string `json:"headers,omitempty"`
-	Query   map[string]string `json:"query,omitempty"`
-	Action  Action            `json:"action"`
-	Status  int               `json:"status,omitempty"`
-	Body    json.RawMessage   `json:"body,omitempty"`
-	Delay   string            `json:"delay,omitempty"`
-	Times   int               `json:"times,omitempty"`
-	Fixture string            `json:"fixture,omitempty"`
-	Reset   bool              `json:"reset,omitempty"`
+	Route    string            `json:"route"`
+	Method   string            `json:"method,omitempty"`
+	Headers  map[string]string `json:"headers,omitempty"`
+	Query    map[string]string `json:"query,omitempty"`
+	Contains string            `json:"contains,omitempty"`
+	Action   Action            `json:"action"`
+	Status   int               `json:"status,omitempty"`
+	Body     json.RawMessage   `json:"body,omitempty"`
+	Delay    string            `json:"delay,omitempty"`
+	Times    int               `json:"times,omitempty"`
+	Fixture  string            `json:"fixture,omitempty"`
+	Reset    bool              `json:"reset,omitempty"`
 }
 
 type fixture struct {
@@ -49,15 +51,16 @@ type fixture struct {
 }
 
 type scripted struct {
-	action  Action
-	status  int
-	body    []byte
-	delay   time.Duration
-	left    int
-	fixture string
-	method  string
-	headers map[string]string
-	query   map[string]string
+	action   Action
+	status   int
+	body     []byte
+	delay    time.Duration
+	left     int
+	fixture  string
+	method   string
+	headers  map[string]string
+	query    map[string]string
+	contains string
 }
 
 type fieldError string
@@ -190,7 +193,7 @@ func parse(step Step, upstreams []string) (*scripted, error) {
 	}
 	sc := &scripted{
 		action: step.Action, status: step.Status, body: step.Body, left: max(step.Times, 1), fixture: step.Fixture,
-		method: step.Method, headers: step.Headers, query: step.Query,
+		method: step.Method, headers: step.Headers, query: step.Query, contains: step.Contains,
 	}
 	switch step.Action {
 	case ActionSucceed, ActionHang:
@@ -223,8 +226,9 @@ func (s *Server) next(route string, r *http.Request) scripted {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	queue := s.scripts[route]
+	body := requestBody(r, queue)
 	for i, candidate := range queue {
-		if !candidate.matches(r) {
+		if !candidate.matches(r, body) {
 			continue
 		}
 		step := *candidate
@@ -237,7 +241,20 @@ func (s *Server) next(route string, r *http.Request) scripted {
 	return scripted{action: ActionSucceed}
 }
 
-func (s scripted) matches(r *http.Request) bool {
+func requestBody(r *http.Request, queue []*scripted) string {
+	if r.Body == nil || !slices.ContainsFunc(queue, func(c *scripted) bool { return c.contains != "" }) {
+		return ""
+	}
+	raw, _ := io.ReadAll(r.Body)
+	_ = r.Body.Close()
+	r.Body = io.NopCloser(bytes.NewReader(raw))
+	return string(raw)
+}
+
+func (s scripted) matches(r *http.Request, body string) bool {
+	if !strings.Contains(body, s.contains) {
+		return false
+	}
 	if s.method != "" && s.method != r.Method {
 		return false
 	}
