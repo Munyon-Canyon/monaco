@@ -12,7 +12,6 @@ struct MonacoInfoSheet: View {
     let rows: [MonacoInfoRow]
     let identifier: String
 
-    @Environment(\.dismiss) private var dismiss
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private var stacksRows: Bool { dynamicTypeSize >= .xxxLarge }
@@ -53,14 +52,14 @@ struct MonacoInfoSheet: View {
                 RoundedRectangle(cornerRadius: MonacoTheme.Radius.card, style: .continuous)
                     .fill(MonacoTheme.surfaceSunken)
             )
-            Button(MarketStatsCopy.ok) { dismiss() }
-                .buttonStyle(.monacoSecondary)
-                .accessibilityIdentifier("\(identifier)-ok")
         }
         .padding(.horizontal, MonacoTheme.Space.gutter)
         .padding(.bottom, MonacoTheme.Space.m)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .monacoFittedSheet(title: title, titleIdentifier: "\(identifier)-title", showsClose: true)
+        .monacoFittedSheet(
+            title: title, titleIdentifier: "\(identifier)-title", showsClose: true,
+            closeIdentifier: "\(identifier)-close"
+        )
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier(identifier)
     }
