@@ -9,7 +9,7 @@ extension ProposeReviewModel {
     }
 
     public var assetLine: String {
-        guard isPreIpoBuy else { return "\(operation) · market order" }
+        guard isPreIpoBuy else { return "\(operation) at the market price" }
         guard let shares = estimatedShares else { return "Buy at the estimate" }
         return "Buy \(shares.value) sh at the estimate"
     }
@@ -22,14 +22,10 @@ extension ProposeReviewModel {
 
     public var cabalLine: String {
         var parts: [String] = []
-        if let cash = preview.spendableCashMicros { parts.append("Cash \(PreIpoDates.wholeDollars(cash))") }
+        if !isSell, let cash = preview.spendableCashMicros { parts.append("\(PreIpoDates.wholeDollars(cash)) cash") }
         let window = cabal.votingWindowShort
-        if isPreIpoBuy {
-            if !window.isEmpty { parts.append(window) }
-            parts.append("\(toPass) to pass")
-        } else if !window.isEmpty {
-            parts.append("\(window) to vote")
-        }
+        if !window.isEmpty { parts.append("\(window) to vote") }
+        if isPreIpoBuy { parts.append("\(toPass) to pass") }
         return parts.joined(separator: " · ")
     }
 
@@ -37,29 +33,31 @@ extension ProposeReviewModel {
         cabal.voterCount > 0 ? "\(cabal.neededToPass) of \(cabal.voterCount)" : ProposalStats.missing
     }
 
-    public var stats: [ProposalStats.Cell] {
-        [
-            .init(label: "Shares", value: sharesValue),
-            .init(label: "Price", value: priceValue),
-            .init(label: "Of treasury", value: ProposalStats.percent(treasuryBps)),
-            .init(label: "To pass", value: toPass),
-        ]
+    public var treasuryLine: String? {
+        treasuryBps.map { "\(ProposalStats.percent($0)) of treasury" }
     }
+
+    public var factsLeading: String {
+        guard let shares = sharesValue else { return "" }
+        return "About \(shares) shares" + (priceValue.map { " at \($0)" } ?? "")
+    }
+
+    public var factsTrailing: String { cabal.voterCount > 0 ? "\(toPass) to pass" : "" }
+
+    public var factsLine: String { [factsLeading, factsTrailing].filter { !$0.isEmpty }.joined(separator: " · ") }
 
     public var preIpoLedger: [PreIpoCopy.LedgerLine] { preIpo?.ledger ?? [] }
 
-    private var sharesValue: String {
+    private var sharesValue: String? {
         if case .sell(let holding) = trade {
             return holding.quantity(of: draft.amount).split(separator: " ").first.map(String.init)
-                ?? ProposalStats.missing
         }
-        return quantity(preview).map { ProposalStats.sharesText($0, exact: false) } ?? ProposalStats.missing
+        return quantity(preview).map { ProposalStats.sharesText($0, exact: true) }
     }
 
-    private var priceValue: String {
+    private var priceValue: String? {
         if case .sell(let holding) = trade { return UsdAmountFormatter.format(micros: holding.priceMicros) }
         return price(quantity: quantity(preview)).map { UsdAmountFormatter.format(decimal: $0) }
-            ?? ProposalStats.missing
     }
 
     private var treasuryBps: Int64? {
