@@ -338,18 +338,22 @@ struct CabalTreasuryActions: View {
     }
 
     private func cashOutRow(_ amount: String) -> some View {
-        Button {
+        let stacked = dynamicTypeSize >= .xxxLarge
+        return Button {
             Haptics.selection()
             open(CashOutRoute(cabalID: cabalID))
         } label: {
             CabalCardRow(
-                symbol: MonacoIcon.cashOut.symbol, title: CabalTreasuryRows.cashOutLabel, detail: nil, isLast: false,
+                symbol: MonacoIcon.cashOut.symbol, title: CabalTreasuryRows.cashOutLabel,
+                detail: stacked ? amount : nil, isLast: false,
                 trailing: {
                     HStack(spacing: MonacoTheme.Space.sm) {
-                        Text(amount)
-                            .moneyFigure(.row, weight: .regular)
-                            .foregroundStyle(MonacoTheme.secondaryText)
-                            .lineLimit(1)
+                        if !stacked {
+                            Text(amount)
+                                .moneyFigure(.row, weight: .regular)
+                                .foregroundStyle(MonacoTheme.secondaryText)
+                                .lineLimit(1)
+                        }
                         MonacoRowChevron()
                     }
                 }
