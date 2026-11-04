@@ -42,4 +42,20 @@ nonisolated final class LeaderboardSampleUITests: XCTestCase {
         XCTAssertFalse(
             element(app, "leaderboard-large-title").isHittable, "scrolled, the large title has folded into the bar")
     }
+
+    @MainActor
+    func testSampleScrollPodiumBringsTheLeadLineOnScreenAtAccessibilityXXXLarge() {
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "-MonacoLeaderboardSample", "friendsMonth",
+            "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL",
+            "-MonacoSampleScroll", "podium",
+        ]
+        app.launch()
+        let lead = element(app, "leaderboard.podium.lead")
+        XCTAssertTrue(lead.waitForExistence(timeout: 10), "the right-calls-ahead line shows")
+        XCTAssertTrue(lead.isHittable, "the podium section scrolled into view")
+        XCTAssertTrue(
+            app.windows.firstMatch.frame.contains(lead.frame), "the lead line sits inside the window at AX XXXL")
+    }
 }
