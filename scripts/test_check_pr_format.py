@@ -154,6 +154,11 @@ class ClosingKeywordTest(unittest.TestCase):
         self.assertEqual(check.closing_errors(body), [])
         self.assertEqual(check.ticket_errors(body, [], []), [])
 
+    def test_does_not_say_no_ticket_for_a_mid_line_closes(self):
+        body = pr("The backend has no reactions. Closes #7898.", "Nothing.")
+        self.assertEqual(len(check.closing_errors(body)), 1)
+        self.assertEqual(check.ticket_errors(body, [], []), [])
+
     def test_rejects_closes_in_prose_next_to_part_of(self):
         body = pr("Part of #12, and closes #12 when it lands.")
         self.assertEqual(len(check.closing_errors(body)), 1)
