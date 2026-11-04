@@ -93,6 +93,7 @@ func seedFund(s *scenario.Scenario) fundSeed {
 		string(member.Address), member.ID.UUID()); err != nil {
 		s.Fatalf("flows: give the member the fake Privy wallet's address: %v", err)
 	}
+	fundWallet(s, member.Address)
 	return fundSeed{member: member, cabal: testkit.NewCabal(seedT{s}, s.DB(), testkit.WithCreator(member.ID))}
 }
 
