@@ -746,7 +746,9 @@ nonisolated extension SampleAPIProtocol {
         case "seen":
             return json(Components.Schemas.ChatSeenBy(count: 0, members: []))
         case "pins":
-            return json(Components.Schemas.ChatPins(messages: empty ? [] : [samplePinnedRules, sampleChatMessage]))
+            return json(
+                Components.Schemas.ChatPins(
+                    messages: empty ? [] : [samplePinnedRules, sampleChatMessage].map(pinnedByChristelle)))
         default:
             guard tail.first == "messages" else { return unhandled() }
             return json(Components.Schemas.ChatChannelPage(messages: empty ? [] : [sampleChatMessage]))
@@ -765,6 +767,13 @@ nonisolated extension SampleAPIProtocol {
         default:
             return nil
         }
+    }
+
+    private static func pinnedByChristelle(_ message: Components.Schemas.ChatMessage) -> Components.Schemas.ChatMessage
+    {
+        var pinned = message
+        pinned.pinnedBy = .init(id: "sample-christelle", handle: "christelle", displayName: "Christelle", photoUrl: nil)
+        return pinned
     }
 
     private static var samplePinnedRules: Components.Schemas.ChatMessage {

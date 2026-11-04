@@ -106,7 +106,12 @@ private actor SampleChatStore {
     }
 
     func pinned() -> [ChatMessage] {
-        scenario.pins ? ["s0p", "s6"].compactMap { id in messages.first { $0.id == id } } : []
+        guard scenario.pins else { return [] }
+        return ["s0p", "s6"].compactMap { id in
+            guard var message = messages.first(where: { $0.id == id }) else { return nil }
+            message.pinnedBy = .init(id: "u-christelle", handle: nil, displayName: "Christelle", photoUrl: nil)
+            return message
+        }
     }
 
     func thread() -> (parent: ChatMessage, replies: [ChatMessage])? {
