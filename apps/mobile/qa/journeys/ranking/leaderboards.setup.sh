@@ -77,11 +77,24 @@ if [[ "${rebuilt:-0}" -eq 0 ]]; then
   exit 1
 fi
 
-python3 - "$handoff" "$me" "$unranked" <<'PY'
+# The People board as the tab reads it (people over the month). Earlier runs leave identical seeded
+# voters in the month, so the first two places can tie and the lead line is then absent.
+board="$(qa_api A GET "/v1/leaderboards/calls?board=people&period=month")"
+lead="$(python3 -c '
+import json, sys
+top = json.load(sys.stdin)["top"]
+if len(top) >= 2 and top[0]["right"] > top[1]["right"]:
+    ahead = top[0]["right"] - top[1]["right"]
+    first = (top[0]["subject"]["name"].split() or [""])[0]
+    noun = "call" if ahead == 1 else "calls"
+    print(first + ", " + str(ahead) + " right " + noun + " ahead.")
+' <<<"$board")"
+
+python3 - "$handoff" "$me" "$unranked" "$lead" <<'PY'
 import json, pathlib, sys
 path = pathlib.Path(sys.argv[1])
 values = json.loads(path.read_text()) if path.exists() and path.read_text().strip() else {}
-values.update(meID=sys.argv[2], unrankedID=sys.argv[3])
+values.update(meID=sys.argv[2], unrankedID=sys.argv[3], peopleLead=sys.argv[4])
 path.write_text(json.dumps(values))
 PY
-echo "seeded: F19aResolveCallsOK, A holds the votes of its third voter, $unranked has two resolved votes"
+echo "seeded: F19aResolveCallsOK, A holds the votes of its third voter, $unranked has two resolved votes, peopleLead='$lead'"

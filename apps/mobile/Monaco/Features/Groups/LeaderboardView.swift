@@ -294,6 +294,7 @@ struct CallBoardSectionTitle: View {
 
     private func line(_ trailing: String) -> some View {
         Text(trailing).font(MonacoTheme.Typo.subhead).foregroundStyle(MonacoTheme.secondaryText)
+            .accessibilityIdentifier("leaderboard-lead-line")
     }
 
     @ViewBuilder private var content: some View {
@@ -325,6 +326,7 @@ struct CallBoardSectionTitle: View {
             .padding(.horizontal, MonacoTheme.Space.gutter)
             .padding(.top, afterCard ? MonacoTheme.Space.m : MonacoTheme.Space.l)
             .padding(.bottom, MonacoTheme.Space.s)
+            .accessibilityElement(children: .contain)
             .accessibilityIdentifier(identifier ?? "leaderboard-section")
     }
 }
