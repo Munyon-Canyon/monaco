@@ -27,7 +27,7 @@ final class CabalStartersModelTests: XCTestCase {
         let spaceX = try XCTUnwrap(model.rows.first { $0.asset.symbol == "tSpaceX" })
         XCTAssertEqual(spaceX.subline, "Secondary estimate \u{00B7} in 29 cabals")
         XCTAssertTrue(spaceX.isEligible)
-        XCTAssertEqual(CabalStartersModel.eligible, "Eligible")
+        XCTAssertEqual(CabalStartersModel.eligible, "Can buy")
     }
 
     func testARowWithNoCountFallsBackToTheTickerOrTheEstimate() {

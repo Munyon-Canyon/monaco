@@ -97,7 +97,7 @@ final class ProposalStatsTests: XCTestCase {
         let fill = try XCTUnwrap(preIpo.profile?.fillLine)
         XCTAssertEqual(
             PreIpoCopy.proposalEligibilityLine(preIpo.eligibility, fillLine: fill),
-            "Proposal eligible · fills at the next tender, Jan 2027")
+            "Can buy · fills at the next tender, Jan 2027")
     }
 
     func testAnyTimeWindowFillsWhenTheProposalPasses() async throws {
@@ -108,7 +108,7 @@ final class ProposalStatsTests: XCTestCase {
         let fill = try XCTUnwrap(preIpo.profile?.fillLine)
         XCTAssertEqual(
             PreIpoCopy.proposalEligibilityLine(preIpo.eligibility, fillLine: fill),
-            "Proposal eligible · fills when it passes")
+            "Can buy · fills when it passes")
     }
 
     func testATenderWindowWithoutADateFillsWhenTheProposalPasses() async throws {
@@ -123,7 +123,7 @@ final class ProposalStatsTests: XCTestCase {
         var asset = Components.Schemas.AssetDetail.spaceX
         asset.tradable = false
         let eligibility = try XCTUnwrap(ProposalAsset(asset).preIpo).eligibility
-        XCTAssertEqual(PreIpoCopy.proposalEligibilityLine(eligibility), "Research only")
+        XCTAssertEqual(PreIpoCopy.proposalEligibilityLine(eligibility), "Watch only")
     }
 
     func testAClosingTimeBeyondAWeekReadsAsADate() async throws {

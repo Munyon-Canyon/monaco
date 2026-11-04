@@ -29,7 +29,7 @@ public struct CabalStarter: Equatable, Sendable, Identifiable {
 @MainActor
 public final class CabalStartersModel {
     public static let title = "Cabals like yours start with"
-    public static let eligible = "Eligible"
+    public static let eligible = "Can buy"
 
     public private(set) var rows: [CabalStarter] = []
 
