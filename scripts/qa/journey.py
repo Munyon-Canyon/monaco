@@ -171,6 +171,7 @@ class Journey:
         self.preconditions = preconditions if isinstance(preconditions, dict) else {}
         self.simslim = meta.get("simslim", "")
         self.rpc = meta.get("rpc", "")
+        self.timeout = meta.get("timeout")
         self.scenarios = re.findall(r"^### (S\d+) ", body, re.M)
         self.steps = re.findall(r"^\| (S\d+\.\d+) \|", body, re.M)
         self.known = parse_known(body, self.steps)
@@ -363,6 +364,8 @@ def check_journeys(journeys, accounts, git_apply_check=None, base_text=None):
                 continue
             bad(journey.path, "preconditions %s: %r is not valid: use balance.<actor> and photos as whole numbers from 1, "
                 "or fresh_handle: true, with each balance actor in actors" % (key, value))
+        if journey.timeout is not None and not (isinstance(journey.timeout, int) and 0 < journey.timeout <= 1800):
+            bad(journey.path, "timeout must be a whole number of seconds from 1 to 1800, not %r" % (journey.timeout,))
         if journey.simslim and not (ROOT / "ci" / "profiles" / ("%s.json" % journey.simslim)).is_file():
             bad(journey.path, "simslim names profile %r, which has no ci/profiles/%s.json" % (journey.simslim, journey.simslim))
         if journey.rpc not in ("", "fake"):
@@ -465,6 +468,19 @@ class BudgetExpired(Exception):
         super().__init__("budget expired")
         self.output = output or ""
         self.where = where
+
+
+DEFAULT_RUN_TIMEOUT = 300
+
+
+def run_timeout(args, journey):
+    """--timeout when given, else the journey doc's `timeout`, else DEFAULT_RUN_TIMEOUT. It caps one run's wall
+    clock (setup, tests, truth check) so a hung run ends; it is not a step's wait, which the tests set themselves."""
+    if getattr(args, "timeout", None):
+        return args.timeout
+    if isinstance(journey.timeout, int) and journey.timeout > 0:
+        return journey.timeout
+    return DEFAULT_RUN_TIMEOUT
 
 
 class Budget:
@@ -1638,7 +1654,7 @@ def run_once(journey, journeys, args, sim, accounts, build_name, run_name, scena
     print("  {QA.run} is %s" % run_id)
     with run_lock(run_id):
         prune_qa_cabals(datetime.datetime.now(datetime.timezone.utc))
-        budget = Budget(args.timeout)
+        budget = Budget(run_timeout(args, journey))
         rows, wall, timed_out = run_session(journey, scenarios, sim, accounts, args.channel, run_dir,
                                             api_base_url, run_id, budget)
         truth = run_truth(journey, accounts, args.channel, run_id, run_dir / "handoff.json", budget, api_base_url)
@@ -3348,8 +3364,9 @@ def main(argv=None):
         sub.add_argument("--sim", default="", metavar="UDID",
                          help="the one simulator every actor uses; defaults to Monaco Journeys [<lane>]")
         sub.add_argument("--channel", choices=("sms", "email"), default="sms")
-        sub.add_argument("--timeout", type=int, default=300, metavar="SECONDS",
-                         help="budget for one journey run: setup, tests and truth check (default 300)")
+        sub.add_argument("--timeout", type=int, metavar="SECONDS",
+                         help="budget for one journey run: setup, tests and truth check (default: the doc's "
+                              "`timeout`, else %d)" % DEFAULT_RUN_TIMEOUT)
         sub.add_argument("--slot", type=int, metavar="N",
                          help="force backend slot N (0: :8080 and :8081, 1: :8180 and :8181); default: the first free one")
         sub.add_argument("--keep-sims", action="store_true",
@@ -3373,7 +3390,7 @@ def main(argv=None):
                      help="rerun when the doc, the journey's Swift files or the app sources change, not on Enter")
     dev.add_argument("--sim", default="", metavar="UDID")
     dev.add_argument("--channel", choices=("sms", "email"), default="sms")
-    dev.add_argument("--timeout", type=int, default=300, metavar="SECONDS")
+    dev.add_argument("--timeout", type=int, metavar="SECONDS")
     dev.add_argument("--slot", type=int, metavar="N")
     dev.add_argument("--keep-sims", action="store_true")
     args = parser.parse_args(argv)

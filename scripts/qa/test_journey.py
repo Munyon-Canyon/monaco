@@ -965,6 +965,23 @@ class JourneyTradeEngine(unittest.TestCase):
                 self.assertNotIn(key, env)
 
 
+class RunTimeout(unittest.TestCase):
+    def journey(self, timeout):
+        return types.SimpleNamespace(timeout=timeout)
+
+    def test_the_flag_beats_the_doc_and_the_doc_beats_the_default(self):
+        flag = types.SimpleNamespace(timeout=900)
+        none = types.SimpleNamespace(timeout=None)
+        self.assertEqual(journey.run_timeout(flag, self.journey(600)), 900)
+        self.assertEqual(journey.run_timeout(none, self.journey(600)), 600)
+        self.assertEqual(journey.run_timeout(none, self.journey(None)), journey.DEFAULT_RUN_TIMEOUT)
+        self.assertEqual(journey.run_timeout(none, self.journey("600")), journey.DEFAULT_RUN_TIMEOUT)
+
+    def test_cabals_join_declares_room_for_its_three_scenarios(self):
+        join = journey.pick(journey.load_journeys(), "cabals/join")
+        self.assertGreater(join.timeout, journey.DEFAULT_RUN_TIMEOUT)
+
+
 class Slots(unittest.TestCase):
     def setUp(self):
         folder = tempfile.TemporaryDirectory()
