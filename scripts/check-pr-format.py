@@ -85,6 +85,9 @@ def closing_errors(body: str) -> list[str]:
 def ticket_errors(body: str, stacked_on: list[StackedPR], stacked_under: list[StackedPR]) -> list[str]:
     mine = closes_by_ticket(body)
     if not mine:
+        # A closing keyword mid-line does link a ticket, and closing_errors already reports it.
+        if CLOSING_RE.search(section(body, "Why") or ""):
+            return []
         return ['"## Why" links no ticket; write "Part of #n", or "Closes #n" on the ticket\'s last PR']
     errors = []
     for ticket, closes in sorted(mine.items()):
