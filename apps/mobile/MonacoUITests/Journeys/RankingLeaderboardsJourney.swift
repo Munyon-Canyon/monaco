@@ -2,7 +2,7 @@ import XCTest
 
 enum RankingLeaderboardsJourney {
     static let id = "ranking/leaderboards"
-    static let version = 8
+    static let version = 9
 
     static func recorder() -> JourneyRecorder {
         JourneyRecorder(journey: id, version: version)
@@ -28,6 +28,7 @@ enum RankingLeaderboardsJourney {
     }
 
     static func home(_ app: XCUIApplication, seed: Seed, recorder: JourneyRecorder) {
+        let peopleLead = seed.peopleLead
         recorder.step("S1.1", "Home's row names the leader and opens the Leaderboard") {
             app.tab("Home").tap()
             let row = app.element("home-leaderboard-row")
@@ -65,12 +66,20 @@ enum RankingLeaderboardsJourney {
             let card = app.element("leaderboard-you-card")
             XCTAssertTrue(card.waitForExistence(timeout: 15), "S1.3: no leaderboard-you-card within 15 s")
             XCTAssertTrue(
-                card.label.contains("#") && card.label.contains(" people"),
-                "S1.3: the You card reads '\(card.label)', not \"#n of m people\"")
+                card.label.contains("#") && card.label.contains("of ") && card.label.contains(" people"),
+                "S1.3: the You card reads '\(card.label)', not \"#n\" and \"of m people\"")
             XCTAssertTrue(text(app, "Top three").exists, "S1.3: no \"Top three\"")
             let podium = app.descendants(matching: .any).matching(
                 NSPredicate(format: "identifier BEGINSWITH 'leaderboard-podium-'"))
             XCTAssertEqual(podium.count, 3, "S1.3: Top three shows \(podium.count) rows, not 3")
+            let lead = app.element("leaderboard-lead-line")
+            if peopleLead.isEmpty {
+                XCTAssertFalse(lead.exists, "S1.3: the lead line reads '\(lead.label)', yet the top two are tied")
+            } else {
+                XCTAssertTrue(
+                    lead.waitForExistence(timeout: 10), "S1.3: no leaderboard-lead-line, want '\(peopleLead)'")
+                XCTAssertEqual(lead.label, peopleLead, "S1.3: the lead line reads '\(lead.label)', not '\(peopleLead)'")
+            }
             XCTAssertTrue(text(app, "Around you").exists, "S1.3: no \"Around you\"")
             let me = app.element("leaderboard-row-\(seed.meID)")
             app.scrollIntoReach(me)
@@ -92,9 +101,12 @@ enum RankingLeaderboardsJourney {
     struct Seed {
         let meID: String
         let unrankedID: String
+        let peopleLead: String
 
         static func handedOff() throws -> Seed {
-            Seed(meID: try JourneyHandoff.read("meID"), unrankedID: try JourneyHandoff.read("unrankedID"))
+            Seed(
+                meID: try JourneyHandoff.read("meID"), unrankedID: try JourneyHandoff.read("unrankedID"),
+                peopleLead: try JourneyHandoff.read("peopleLead"))
         }
     }
 
@@ -138,6 +150,9 @@ enum RankingLeaderboardsJourney {
             XCTAssertFalse(
                 app.element("leaderboard-empty").exists,
                 "S3.1: Friends always includes the viewer, so it never shows the empty state")
+            XCTAssertFalse(
+                app.element("leaderboard-lead-line").exists,
+                "S3.1: Friends holds A alone, yet the board shows a lead line")
         }
     }
 }

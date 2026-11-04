@@ -1,0 +1,19 @@
+journey: home/activity
+expect-fail: S1
+
+Catch up passes hasVotes: false, so the sub line drops "Votes first.". S1.1 reads "3 to catch up. Votes first.", so S1 must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Notifications/CatchUpView.swift b/apps/mobile/Monaco/Features/Notifications/CatchUpView.swift
+index ecf4964a2..2eabb59e1 100644
+--- a/apps/mobile/Monaco/Features/Notifications/CatchUpView.swift
++++ b/apps/mobile/Monaco/Features/Notifications/CatchUpView.swift
+@@ -103,7 +103,7 @@ struct CatchUpView: View {
+         if screen.isCaughtUp {
+             CatchUpCaughtUp(screen: screen, openFeed: openFeed).catchUpListRow()
+         } else {
+-            Text(CatchUpCopy.subLine(count: screen.count, hasVotes: !screen.waiting.isEmpty))
++            Text(CatchUpCopy.subLine(count: screen.count, hasVotes: false))
+                 .font(MonacoTheme.Typo.subhead)
+                 .foregroundStyle(MonacoTheme.muted)
+                 .padding(.horizontal, MonacoTheme.Space.gutter)

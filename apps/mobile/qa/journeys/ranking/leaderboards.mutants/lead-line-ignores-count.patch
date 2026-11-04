@@ -1,0 +1,23 @@
+journey: ranking/leaderboards
+expect-fail: S3
+
+leadLine drops the two-place gate and leads by the first place alone, so Friends with A alone shows a line. S3.1 expects none, so S3 must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/packages/mobile-core/Sources/MonacoRanking/CallBoardScreen.swift b/packages/mobile-core/Sources/MonacoRanking/CallBoardScreen.swift
+index 5f7240a69..2cdf82359 100644
+--- a/packages/mobile-core/Sources/MonacoRanking/CallBoardScreen.swift
++++ b/packages/mobile-core/Sources/MonacoRanking/CallBoardScreen.swift
+@@ -180,10 +180,10 @@ public struct CallBoardScreen: Equatable, Sendable {
+     }
+ 
+     public var leadLine: String? {
+-        guard tab != .cabals, top.count >= 2 else { return nil }
++        guard tab != .cabals, !top.isEmpty else { return nil }
+         return CallBoardCopy.leadLine(
+             name: String(top[0].name.split(separator: " ").first ?? ""),
+-            ahead: top[0].rightCount - top[1].rightCount)
++            ahead: top[0].rightCount - (top.count > 1 ? top[1].rightCount : 0))
+     }
+ 
+     public var isEmpty: Bool {

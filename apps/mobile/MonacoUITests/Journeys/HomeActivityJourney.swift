@@ -2,7 +2,7 @@ import XCTest
 
 enum HomeActivityJourney {
     static let id = "home/activity"
-    static let version = 3
+    static let version = 4
 
     static func recorder() -> JourneyRecorder {
         JourneyRecorder(journey: id, version: version)
@@ -27,9 +27,9 @@ enum HomeActivityJourney {
             bell.tap()
             XCTAssertTrue(app.navigationBars["Catch up"].waitForExistence(timeout: 15), "S1.1: Catch up did not open")
             XCTAssertTrue(JourneyDiagnostics.wait(for: subline, in: app, timeout: 15), "S1.1: no catch-up-subline")
-            XCTAssertTrue(
-                subline.label.hasPrefix("3 to catch up"),
-                "S1.1: the line reads '\(subline.label)', not '3 to catch up'")
+            XCTAssertEqual(
+                subline.label, "3 to catch up. Votes first.",
+                "S1.1: the line reads '\(subline.label)', not '3 to catch up. Votes first.'")
         }
 
         recorder.step("S1.2", "the three sections list their items") {
@@ -50,6 +50,18 @@ enum HomeActivityJourney {
             XCTAssertTrue(app.element("catch-up-vote-proposal:\(waiting)").exists, "S1.2: the Vote button is missing")
             XCTAssertTrue(app.element("catch-up-row-comment:\(reply)").exists, "S1.2: the reply row is missing")
             XCTAssertTrue(resultRow.exists, "S1.2: the result row is missing")
+            let waitingLabel = app.element("catch-up-row-proposal:\(waiting)").label
+            XCTAssertTrue(
+                waitingLabel.contains(" \u{00B7} ") && waitingLabel.contains(" of ") && waitingLabel.contains(" voted"),
+                "S1.2: the waiting row reads '\(waitingLabel)', not the cabal, \"n of m voted\" and the time left")
+            XCTAssertFalse(
+                waitingLabel.contains("ends in"), "S1.2: the waiting row reads '\(waitingLabel)' with \"ends in\"")
+            XCTAssertTrue(
+                resultRow.label.contains("you said yes"),
+                "S1.2: the result row reads '\(resultRow.label)', not \"you said yes\"")
+            XCTAssertFalse(
+                resultRow.label.contains("filled"),
+                "S1.2: the result row reads '\(resultRow.label)' with \"filled\"")
         }
 
         clearsAndComesBack(app, waiting: waiting, resultRow: resultRow, recorder: recorder)
@@ -78,10 +90,10 @@ enum HomeActivityJourney {
                 "S1.3: the section reads '\(cleared.label)', not 'Cleared today'")
             XCTAssertTrue(resultRow.exists, "S1.3: the cleared row is not under Cleared today")
             let two = XCTNSPredicateExpectation(
-                predicate: NSPredicate(format: "label BEGINSWITH %@", "2 to catch up"), object: subline)
+                predicate: NSPredicate(format: "label == %@", "2 to catch up. Votes first."), object: subline)
             XCTAssertEqual(
                 XCTWaiter().wait(for: [two], timeout: 10), .completed,
-                "S1.3: the line reads '\(subline.label)', not '2 to catch up'")
+                "S1.3: the line reads '\(subline.label)', not '2 to catch up. Votes first.'")
         }
 
         recorder.step("S1.4", "Vote opens the hold sheet and closing it returns to Catch up") {
@@ -101,7 +113,9 @@ enum HomeActivityJourney {
         }
 
         recorder.step("S1.5", "the bell on Home reads the new count") {
-            app.tapBack()
+            let back = app.navigationBars.buttons["Back"].firstMatch
+            XCTAssertTrue(back.waitForExistence(timeout: 10), "S1.5: Catch up has no Back button")
+            back.tap()
             XCTAssertTrue(
                 JourneyDiagnostics.wait(for: bell, in: app, timeout: 10),
                 "S1.5: the bell did not come back on Home")

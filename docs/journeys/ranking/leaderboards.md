@@ -1,7 +1,7 @@
 ---
 id: ranking/leaderboards
 title: Leaderboard C
-version: 8
+version: 9
 milestone: F launch (phase 1)
 requires: [auth/sign-in]
 actors: [A]
@@ -21,7 +21,7 @@ The format of this doc is in [App journeys](../README.md).
 | --- | --- |
 | P1 | Actor A has signed in once (`auth/sign-in`), and its `privy_user_id` is in `apps/mobile/qa/journeys/accounts.tsv`. Only A drives the app |
 | P2 | The dev database is migrated (`just migrate db`). `scripts/qa/journey.py run` starts the backend with `just run backend` |
-| P3 | `apps/mobile/qa/journeys/ranking/leaderboards.setup.sh` ran right before S1. It marks A as done with onboarding, then runs `qa_flow_seed 19a ok` (`F19aResolveCallsOK`, which seeds eight voters with 5, 8, 7, 6, 5, 5, 5 and 2 resolved votes this month under fresh users). The seed does not use A, so the setup moves the votes of the third voter (7 resolved, 4 right, 57%, below the top three) to A and hands the test A's id and the id of the voter with two resolved votes. S2 and S3 run with no setup of their own. The S1 setup also ends every live follow by A (`DELETE /v1/users/{id}/follow`), so A follows nobody and the Friends tab holds A alone |
+| P3 | `apps/mobile/qa/journeys/ranking/leaderboards.setup.sh` ran right before S1. It marks A as done with onboarding, then runs `qa_flow_seed 19a ok` (`F19aResolveCallsOK`, which seeds eight voters with 5, 8, 7, 6, 5, 5, 5 and 2 resolved votes this month under fresh users). The seed does not use A, so the setup moves the votes of the third voter (7 resolved, 4 right, 57%, below the top three) to A and hands the test A's id and the id of the voter with two resolved votes. It then reads the People board over the month as A (`getCallLeaderboard`) and hands off `peopleLead`: the first word of the top place's name, ", n right call(s) ahead." when the top place has more right calls than the second, else empty. Earlier runs leave identical seeded voters in the month, so the line is often absent, and the hand-off makes S1.3 exact either way. S2 and S3 run with no setup of their own. The S1 setup also ends every live follow by A (`DELETE /v1/users/{id}/follow`), so A follows nobody and the Friends tab holds A alone |
 
 ## Scenarios
 
@@ -31,7 +31,7 @@ The format of this doc is in [App journeys](../README.md).
 | --- | --- | --- | --- | --- | --- |
 | S1.1 | A | tap, then tap | the Home tab, then `home-leaderboard-row` | | The row reads "… leads · …%" and "This month · you are #n of m" within 15 s, and tapping it opens `leaderboard-page` titled "Leaderboard" within 15 s |
 | S1.2 | A | read | `leaderboard-period-week`, `-month`, `-all`, `leaderboard-tab-people`, `-cabals`, `-friends` | | "Month" is the selected period and People is the selected tab (`13-leaderboard-C-people`) |
-| S1.3 | A | read | `leaderboard-you-card`, "Top three", "Around you" | | The You card reads "#n of m people". "Top three" shows three `leaderboard-podium-<rank>` places. "Around you" lists `leaderboard-row-<A id>` reading a rate with "percent" and "n of m right" |
+| S1.3 | A | read | `leaderboard-you-card`, "Top three", "Around you" | | The You card reads its rank and "of m people". "Top three" shows three `leaderboard-podium-<rank>` places. When `peopleLead` (handed off by the setup) is not empty, `leaderboard-lead-line` on the "Top three" title row reads exactly it, as "Christelle, 2 right calls ahead."; when it is empty, there is no `leaderboard-lead-line`. "Around you" lists `leaderboard-row-<A id>` reading a rate with "percent" and "n of m right" |
 | S1.4 | A | read | `leaderboard-section-unranked`, `leaderboard-row-<unranked id>` | | A is ranked, so People shows no `leaderboard-section-unranked` and no row for the voter with two resolved votes, who is under the five-vote floor. The list shows only to an unranked viewer (#6970) |
 
 ### S2 The Cabals tab
@@ -44,7 +44,7 @@ The format of this doc is in [App journeys](../README.md).
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S3.1 | A | tap, tap, then tap | the Home tab, `home-leaderboard-row`, then `leaderboard-tab-friends` | | Within 15 s the tab shows a ranked place (`leaderboard-podium-<rank>` or `leaderboard-row-<id>`), every place reads "you" in its spoken label (so the only one is A), and `leaderboard-empty` never shows. The Friends board always includes the viewer: `loadFriends` in `apps/backend/internal/modules/ranking/app/read_call_board.go` appends the viewer to the followed ids (`13-leaderboard-C`) |
+| S3.1 | A | tap, tap, then tap | the Home tab, `home-leaderboard-row`, then `leaderboard-tab-friends` | | Within 15 s the tab shows a ranked place (`leaderboard-podium-<rank>` or `leaderboard-row-<id>`), every place reads "you" in its spoken label (so the only one is A), and `leaderboard-empty` never shows. There is no `leaderboard-lead-line`, because the board holds A alone, fewer than two places. The Friends board always includes the viewer: `loadFriends` in `apps/backend/internal/modules/ranking/app/read_call_board.go` appends the viewer to the followed ids (`13-leaderboard-C`) |
 
 ## Ground truth
 
@@ -52,8 +52,7 @@ The format of this doc is in [App journeys](../README.md).
 
 ## Known failures on staging
 
-None known. Targets this journey does not read because the app has no identifier for them: the ⓘ round (`leaderboard-info` exists but no step opens it) and the climb bar and the crown on #1 (hidden from accessibility; S1.3 counts the three podium places instead).
-- S1.3: "#n of m people" is no longer app copy. Blocked by #7987.
+None known. Targets this journey does not read because the app has no identifier for them: the ⓘ round (`leaderboard-info` exists but no step opens it) and the climb bar and the crown on #1 (hidden from accessibility; S1.3 counts the three podium places instead). Your own row's inset box is drawn, not spoken; `RankedRowTests` covers it.
 
 ## Not covered
 

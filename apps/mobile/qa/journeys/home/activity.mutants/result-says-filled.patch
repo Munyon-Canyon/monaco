@@ -1,0 +1,19 @@
+journey: home/activity
+expect-fail: S1
+
+A result row says "you voted Yes", the pre-v5 wording, instead of "you said yes". S1.2 reads "you said yes", so S1 must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/packages/mobile-core/Sources/MonacoNotify/CatchUpCopy.swift b/packages/mobile-core/Sources/MonacoNotify/CatchUpCopy.swift
+index 4256112f2..4a5210684 100644
+--- a/packages/mobile-core/Sources/MonacoNotify/CatchUpCopy.swift
++++ b/packages/mobile-core/Sources/MonacoNotify/CatchUpCopy.swift
+@@ -199,7 +199,7 @@ public enum CatchUpCopy {
+         guard let proposal = item.proposal else { return item.cabal?.name ?? "" }
+         var parts: [String] = [item.cabal?.name].compactMap { $0 }
+         switch proposal.yourChoice {
+-        case .yes: parts.append("you said yes")
++        case .yes: parts.append("you voted Yes")
+         case .no: parts.append("you said no")
+         case nil: break
+         }
