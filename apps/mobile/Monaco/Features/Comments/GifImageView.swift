@@ -72,6 +72,12 @@ struct GifImageView: View {
         store.cachedImage(for: url)
     }
 
+    static func failed(after error: Error) -> Bool {
+        if error is CancellationError { return false }
+        if let urlError = error as? URLError, urlError.code == .cancelled { return false }
+        return true
+    }
+
     private var runs: Int { sharedRuns?.wrappedValue ?? ownRuns }
 
     private var reduceMotion: Bool { motion.isReduced }
@@ -120,7 +126,14 @@ struct GifImageView: View {
         .onChange(of: isShowingStill, initial: true) { _, shown in stillShown?.wrappedValue = shown }
         .task(id: "\(shouldLoad)#\(attempt)") {
             guard shouldLoad else { return }
-            fileURL = try? await cache.fileURL(for: animated)
+            do {
+                let url = try await cache.fileURL(for: animated)
+                guard !Task.isCancelled else { return }
+                fileURL = url
+            } catch {
+                guard !Task.isCancelled, Self.failed(after: error) else { return }
+                didFail = true
+            }
         }
     }
 
