@@ -3,7 +3,7 @@
 # Every scenario gets its own cabal from the pooled "QA host" user, with A and B as members and one open
 # buy proposal by the host. S3 adds an expired proposal. S4 seeds two cabals with a passed proposal each, one with
 # the show_sides rule on. The proposal rows are written the way
-# governance.ProposeTrade writes them, because the propose route needs a Jupiter route and pot funds.
+# governance.ProposeTrade writes them (snapshotting the cabal's show_sides onto sides_after_close), because the propose route needs a Jupiter route and pot funds.
 set -euo pipefail
 
 scenario="${1:?usage: vote.setup.sh <S1|S2|S3|S4>}"
@@ -135,11 +135,12 @@ WITH asset AS (
   FROM cabal_members WHERE cabal_id = :'cabal' AND can_vote
 ), proposal AS (
   INSERT INTO proposals (id, cabal_id, proposer_id, kind, symbol, mint, usdc_micros, token_amount, thesis,
-    quote_out_amount, pot_value_micros, status, threshold, expires_at, created_at, updated_at)
+    quote_out_amount, pot_value_micros, status, threshold, expires_at, created_at, updated_at, sides_after_close)
   SELECT $(uuid7), :'cabal', :'proposer', 'buy', symbol, mint, 5000000, NULL, :'thesis',
     quote_out, 20000000, :'status', (SELECT threshold FROM cabals WHERE id = :'cabal'), now() + (:'expires')::interval,
     now() + (:'created')::interval,
-    CASE WHEN :'status' = 'open' THEN now() + (:'created')::interval ELSE now() + (:'expires')::interval END
+    CASE WHEN :'status' = 'open' THEN now() + (:'created')::interval ELSE now() + (:'expires')::interval END,
+    (SELECT show_sides FROM cabals WHERE id = :'cabal')
   FROM asset
   RETURNING id, cabal_id, proposer_id, kind, symbol, mint, usdc_micros, quote_out_amount, status, expires_at, created_at
 ), voted AS (
