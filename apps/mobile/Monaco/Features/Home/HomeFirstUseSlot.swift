@@ -9,6 +9,12 @@ enum HomeFirstUseSlot: HomeSection {
     }
 }
 
+private enum FirstUseFaces {
+    static let size: CGFloat = 72
+    static let ring: CGFloat = 3
+    static let overlap: CGFloat = 10
+}
+
 private struct HomeFirstUse: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(PortfolioModel.self) private var portfolio: PortfolioModel?
@@ -44,17 +50,28 @@ private struct HomeFirstUse: View {
         .accessibilityIdentifier("home-cabals-empty")
     }
 
+    private func face(_ character: MonacoCharacter) -> some View {
+        Image(character.imageName)
+            .resizable()
+            .interpolation(.high)
+            .scaledToFill()
+            .frame(width: FirstUseFaces.size, height: FirstUseFaces.size)
+            .clipShape(Circle())
+            .overlay(Circle().strokeBorder(MonacoTheme.canvas, lineWidth: FirstUseFaces.ring))
+    }
+
     @ViewBuilder private var content: some View {
         Group {
-            Image(systemName: "person.2")
-                .font(MonacoTheme.Typo.title)
-                .foregroundStyle(MonacoTheme.secondaryText)
-                .accessibilityHidden(true)
-            Text("No cabals yet")
+            HStack(spacing: -FirstUseFaces.overlap) {
+                face(.marcus)
+                face(.harper)
+            }
+            .accessibilityHidden(true)
+            Text("There is no place like Monaco.")
                 .font(MonacoTheme.Typo.title2)
                 .foregroundStyle(MonacoTheme.ink)
                 .accessibilityAddTraits(.isHeader)
-            Text("A cabal is a few friends, one treasury and a vote on every trade.")
+            Text("Trade with your friends.")
                 .font(MonacoTheme.Typo.body)
                 .foregroundStyle(MonacoTheme.secondaryText)
                 .multilineTextAlignment(.center)

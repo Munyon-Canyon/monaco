@@ -98,12 +98,14 @@ enum HomeDashboardJourney {
     static func emptyOffersFirstUse(_ app: XCUIApplication, recorder: JourneyRecorder) {
         recorder.step("S2.1", "no cabal shows the empty state") {
             openHome(app)
-            let title = text(app, "No cabals yet")
+            let title = text(app, "There is no place like Monaco.")
             app.scrollIntoReach(title)
-            XCTAssertTrue(title.waitForExistence(timeout: 15), "S2.1: no \"No cabals yet\" within 15 s")
             XCTAssertTrue(
-                text(app, "A cabal is a few friends, one treasury and a vote on every trade.").exists,
-                "S2.1: no \"A cabal is a few friends, one treasury and a vote on every trade.\"")
+                title.waitForExistence(timeout: 15),
+                "S2.1: no \"There is no place like Monaco.\" within 15 s")
+            XCTAssertTrue(
+                text(app, "Trade with your friends.").exists,
+                "S2.1: no \"Trade with your friends.\"")
             XCTAssertTrue(app.buttons["Start a cabal"].firstMatch.exists, "S2.1: no \"Start a cabal\" button")
         }
 

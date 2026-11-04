@@ -15,7 +15,7 @@ enum HomeEveryonePreviewSlot: HomeSection {
     static let isLive = true
 
     static func body(for context: Void) -> some View {
-        HomeFeedPreview(source: .everyone, header: "From everyone", firstUseOnly: true)
+        HomeFeedPreview(source: .everyone, header: "Public cabals", firstUseOnly: true)
     }
 }
 
