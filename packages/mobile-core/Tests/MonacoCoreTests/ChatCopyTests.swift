@@ -27,6 +27,12 @@ final class ChatCopyTests: XCTestCase {
         XCTAssertEqual(GroupChatCopy.emptyTitle, "Start the conversation")
     }
 
+    func testComposerPlaceholder() {
+        XCTAssertEqual(GroupChatCopy.composerPlaceholder(cabalName: nil), "Message")
+        XCTAssertEqual(GroupChatCopy.composerPlaceholder(cabalName: "  "), "Message")
+        XCTAssertEqual(GroupChatCopy.composerPlaceholder(cabalName: "Big Ballers"), "Message Big Ballers")
+    }
+
     func testChatCopy_passesMainFlowAudit() {
         XCTAssertTrue(
             MainFlowCopyAudit.stringsAreClean([
@@ -34,7 +40,7 @@ final class ChatCopyTests: XCTestCase {
                 GroupChatCopy.title(groupName: "Weekend investors"),
                 GroupChatCopy.emptyTitle,
                 GroupChatCopy.emptyHint,
-                GroupChatCopy.composerPlaceholder,
+                GroupChatCopy.composerPlaceholder(cabalName: nil),
                 GroupChatCopy.loadEarlier,
                 GroupChatCopy.loadFailure,
                 GroupChatCopy.closed,

@@ -83,11 +83,10 @@ final class ChatQuietStateTests: XCTestCase {
         XCTAssertEqual(
             ChatQuietState.composerPlaceholder(kind: .quiet, cabalName: "Big Ballers"), "Message Big Ballers")
         XCTAssertEqual(
-            ChatQuietState.composerPlaceholder(kind: .none, cabalName: "Big Ballers"), GroupChatCopy.composerPlaceholder
-        )
+            ChatQuietState.composerPlaceholder(kind: .none, cabalName: "Big Ballers"), "Message")
         XCTAssertEqual(
-            ChatQuietState.composerPlaceholder(kind: .quiet, cabalName: "  "), GroupChatCopy.composerPlaceholder)
+            ChatQuietState.composerPlaceholder(kind: .quiet, cabalName: "  "), "Message")
         XCTAssertEqual(
-            ChatQuietState.composerPlaceholder(kind: .fresh, cabalName: nil), GroupChatCopy.composerPlaceholder)
+            ChatQuietState.composerPlaceholder(kind: .fresh, cabalName: nil), "Message")
     }
 }

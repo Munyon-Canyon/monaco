@@ -240,7 +240,7 @@ struct ChatList<Header: View, Content: View>: View {
 
 struct ChatComposerBar: View {
     var focus: FocusState<Bool>.Binding
-    var placeholder = GroupChatCopy.composerPlaceholder
+    var placeholder = GroupChatCopy.composerPlaceholder(cabalName: nil)
     var members: [Components.Schemas.CabalMember] = []
     var viewerID = ""
     let send: (String) -> Void
@@ -296,8 +296,7 @@ struct ChatComposerBar: View {
         }
         .padding(.horizontal, MonacoTheme.Space.m)
         .padding(.vertical, MonacoTheme.Space.s)
-        .background(MonacoTheme.background)
-        .overlay(alignment: .top) { MonacoRule() }
+        .modifier(ChatComposerDock())
     }
 
     private var field: some View {
@@ -318,7 +317,6 @@ struct ChatComposerBar: View {
         .padding(.vertical, MonacoTheme.Space.sm)
         .frame(minHeight: MonacoButtonMetrics.hitTarget)
         .background(shape.fill(MonacoTheme.surfaceSunken))
-        .overlay(shape.stroke(MonacoTheme.hairline, lineWidth: 1))
         .accessibilityIdentifier("chat-composer")
         .monacoPrivate()
     }
@@ -328,7 +326,7 @@ struct ChatComposerBar: View {
             Haptics.tap()
             submit()
         } label: {
-            ComposerSendDisc(isLive: canSend, isSending: false)
+            ChatSendDisc(isLive: canSend)
         }
         .buttonStyle(.plain)
         .disabled(!canSend)
@@ -348,6 +346,38 @@ struct ChatComposerBar: View {
         selection = nil
         draft = ""
         send(body)
+    }
+}
+
+private struct ChatComposerDock: ViewModifier {
+    @MonacoReduceTransparency private var reduceTransparency
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if reduceTransparency {
+            content
+                .background(MonacoTheme.canvas.ignoresSafeArea(edges: .bottom))
+                .overlay(alignment: .top) { MonacoRule() }
+        } else if #available(iOS 26, *) {
+            content
+        } else {
+            content
+                .background(.regularMaterial, ignoresSafeAreaEdges: .bottom)
+                .overlay(alignment: .top) { MonacoRule() }
+        }
+    }
+}
+
+struct ChatSendDisc: View {
+    let isLive: Bool
+
+    var body: some View {
+        Image(monaco: .up)
+            .font(MonacoTheme.Typo.subheadStrong)
+            .foregroundStyle(isLive ? MonacoTheme.onAction : MonacoTheme.disabledLabel)
+            .frame(width: MonacoButtonMetrics.hitTarget, height: MonacoButtonMetrics.hitTarget)
+            .background(Circle().fill(isLive ? MonacoTheme.action : MonacoTheme.surfaceSunken))
+            .animation(.easeOut(duration: 0.15), value: isLive)
     }
 }
 
