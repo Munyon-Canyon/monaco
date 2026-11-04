@@ -1,0 +1,18 @@
+journey: feed/react-and-reply
+expect-fail: S1
+
+The standing "+" reaction chip comes back on every reaction row. S1.1 asserts no reaction-add-<target>, so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Reactions/ReactionRow.swift b/apps/mobile/Monaco/Features/Reactions/ReactionRow.swift
+index 8ab232f09..a734ba084 100644
+--- a/apps/mobile/Monaco/Features/Reactions/ReactionRow.swift
++++ b/apps/mobile/Monaco/Features/Reactions/ReactionRow.swift
+@@ -106,6 +106,7 @@ struct ReactionRow<Trailing: View>: View {
+                     .accessibilityIdentifier("reaction-more-\(target.key)")
+             }
+         }
++        Text("+").accessibilityIdentifier("reaction-add-\(target.key)")
+         trailing()
+     }
+ 

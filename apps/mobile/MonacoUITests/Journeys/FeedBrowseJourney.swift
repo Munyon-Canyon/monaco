@@ -2,7 +2,7 @@ import XCTest
 
 enum FeedBrowseJourney {
     static let id = "feed/browse"
-    static let version = 8
+    static let version = 9
     static let filterOptions = [
         "feed-scope-Your cabals and friends", "feed-scope-Your cabals", "feed-scope-Friends", "feed-scope-Everyone",
         "feed-muted-link",
@@ -122,10 +122,10 @@ enum FeedBrowseJourney {
 
         recorder.step("S3.2", "a proposal cell opens the proposal") {
             app.navigationBars.buttons.element(boundBy: 0).tap()
-            let cell = app.descendants(matching: .any)
-                .matching(NSPredicate(format: "identifier BEGINSWITH 'feed-cell-'")).firstMatch
-            XCTAssertTrue(cell.waitForExistence(timeout: 15), "S3.2: no proposal cell within 15 s")
-            cell.tap()
+            let open = app.descendants(matching: .any)
+                .matching(NSPredicate(format: "identifier BEGINSWITH 'feed-vote-open-'")).firstMatch
+            XCTAssertTrue(open.waitForExistence(timeout: 15), "S3.2: no proposal card within 15 s")
+            open.tap()
             XCTAssertTrue(
                 app.element("proposal-vote-yes").waitForExistence(timeout: 15),
                 "S3.2: the proposal did not open within 15 s"
@@ -134,6 +134,7 @@ enum FeedBrowseJourney {
                 text(app, containing: thesis(run: run)).waitForExistence(timeout: 10),
                 "S3.2: the proposal does not read '\(thesis(run: run))'"
             )
+            XCTAssertFalse(app.element("monaco-toast-banner").exists, "S3.2: a toast showed: the tap voted")
         }
 
         recorder.step("S3.3", "hide a cell") {

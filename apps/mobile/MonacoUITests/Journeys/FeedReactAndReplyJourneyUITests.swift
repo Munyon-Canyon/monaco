@@ -27,7 +27,8 @@ nonisolated final class FeedReactAndReplyJourneyUITests: XCTestCase {
 
         try session.scenario("S3") {
             let item = try JourneyHandoff.read("public_item")
-            FeedReactAndReplyJourney.publicPost(app, item: item, run: run, recorder: recorder)
+            let proposal = try JourneyHandoff.read("public_proposal")
+            FeedReactAndReplyJourney.publicPost(app, item: item, proposal: proposal, run: run, recorder: recorder)
             attachScreenshot(of: app, named: "S3-A-public-post")
         }
 
@@ -35,6 +36,13 @@ nonisolated final class FeedReactAndReplyJourneyUITests: XCTestCase {
             let item = try JourneyHandoff.read("sale_item")
             FeedReactAndReplyJourney.reportPost(app, item: item, recorder: recorder)
             attachScreenshot(of: app, named: "S4-A-reported-post")
+        }
+
+        try session.scenario("S5") {
+            let item = try JourneyHandoff.read("vote_item")
+            let proposal = try JourneyHandoff.read("vote_proposal")
+            FeedReactAndReplyJourney.voteFromFeed(app, item: item, proposal: proposal, run: run, recorder: recorder)
+            attachScreenshot(of: app, named: "S5-A-voted-from-feed")
         }
     }
 }

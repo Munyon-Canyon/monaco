@@ -1,0 +1,19 @@
+journey: feed/react-and-reply
+expect-fail: S5
+
+The Feed never draws the shared vote card: an open proposal always takes the read-only row. S5.1 waits for feed-vote-yes-<id> and feed-vote-no-<id>, so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Feed/FeedView.swift b/apps/mobile/Monaco/Features/Feed/FeedView.swift
+index 6b5e4247f..951f5e099 100644
+--- a/apps/mobile/Monaco/Features/Feed/FeedView.swift
++++ b/apps/mobile/Monaco/Features/Feed/FeedView.swift
+@@ -225,7 +225,7 @@ private struct FeedScreen: View {
+         VStack(spacing: 0) {
+             FeedPost(
+                 item: item, now: now, style: style,
+-                voteCard: style == .standard ? model.voteCard(for: item) : nil
++                voteCard: nil
+             ) { PostReactionsSlot(item: item, model: model) }
+             .padding(.horizontal, MonacoTheme.Space.gutter)
+             MonacoRule(color: MonacoTheme.hairline)

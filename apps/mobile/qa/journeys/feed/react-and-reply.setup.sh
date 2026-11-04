@@ -101,7 +101,7 @@ UPDATE feed_objects SET comment_count = comment_count + 1 WHERE id = :'item'
 SQL
 }
 
-# Only S1 seeds: S2 to S4 continue from the Feed post, its replies and the public cabal it wrote.
+# S1 seeds the post and both cabals, S5 adds the proposal to vote on: S2 to S4 continue from the Feed post, its replies and the public cabal it wrote.
 case "$scenario" in
   S1)
     ready_actor A
@@ -138,7 +138,25 @@ SQL
     [[ -n "$public_item" ]] || { echo "the feed consumer did not write the public proposal's item" >&2; exit 1; }
     host_reply "$public_item" "$host" "QA public reply $run"
     handoff public_item "$public_item"
+    handoff public_proposal "$proposal"
+    handoff feed_cabal "$cabal"
     echo "seeded: '$cabal_name' ($item) with A as a member, '$public_name' ($public_item) without A"
+    ;;
+  S5)
+    cabal="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["feed_cabal"])' "$MONACO_QA_HANDOFF")"
+    host="$(host_call GET /v1/me | json_field id)"
+    proposal="$(open_proposal "$cabal" "$host" "QA vote $run")"
+    [[ -n "$proposal" ]] || { echo "no TSLAx row in assets, so no proposal was written" >&2; exit 1; }
+    vote_item=""
+    for _ in $(seq 1 30); do
+      vote_item="$(qa_sql -v p="$proposal" <<<"SELECT id FROM feed_objects WHERE ref_type = 'proposals' AND ref_id = :'p'")"
+      [[ -n "$vote_item" ]] && break
+      sleep 1
+    done
+    [[ -n "$vote_item" ]] || { echo "the feed consumer did not write the vote proposal's item" >&2; exit 1; }
+    handoff vote_item "$vote_item"
+    handoff vote_proposal "$proposal"
+    echo "seeded: an open proposal ($proposal) in the feed cabal, feed item $vote_item"
     ;;
   S2 | S3 | S4)
     echo "seeded in S1: nothing to add for $scenario"

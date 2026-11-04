@@ -1,0 +1,19 @@
+journey: feed/browse
+expect-fail: S3
+
+The Feed vote card's body opens nothing (its onOpen does nothing). S3.2 waits for the proposal page, so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Home/HomeVoteCard.swift b/apps/mobile/Monaco/Features/Home/HomeVoteCard.swift
+index 411fbdbb1..0dd6d0a59 100644
+--- a/apps/mobile/Monaco/Features/Home/HomeVoteCard.swift
++++ b/apps/mobile/Monaco/Features/Home/HomeVoteCard.swift
+@@ -52,7 +52,7 @@ struct HomeVoteCard: View {
+             yes: tally.yes, no: tally.no, eligible: tally.voters,
+             identifierPrefix: identifierPrefix, identifierSuffix: model.id, showsChevron: !compact,
+             ruleIcon: inCabal ? .eye : .thesis,
+-            onOpen: { environment.navigator.open(ProposalRoute(proposalID: model.id), in: tab) }
++            onOpen: { if identifierPrefix != "feed" { environment.navigator.open(ProposalRoute(proposalID: model.id), in: tab) } }
+         ) {
+             if let outcome = model.outcome, outcome.settled, collapsed {
+                 settledLine(outcome)

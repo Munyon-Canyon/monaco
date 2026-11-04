@@ -9,7 +9,8 @@ a="$(qa_user_id A)"
 row="$(qa_sql -F $'\t' -v a="$a" -v run="$run" <<<"
   WITH sale AS (SELECT id FROM feed_objects WHERE cabal_name = 'QA feed ' || :'run' AND kind = 'trade'),
   pub AS (SELECT o.id FROM feed_objects o JOIN cabals c ON c.id = o.cabal_id WHERE c.name = 'QA public ' || :'run' AND o.kind = 'proposal'),
-  root AS (SELECT id FROM feed_comments WHERE body = 'QA root ' || :'run')
+  root AS (SELECT id FROM feed_comments WHERE body = 'QA root ' || :'run'),
+  vote AS (SELECT p.id FROM proposals p JOIN cabals c ON c.id = p.cabal_id WHERE c.name = 'QA feed ' || :'run' AND p.thesis = 'QA vote ' || :'run')
   SELECT
     (SELECT count(*) FROM sale),
     (SELECT count(*) FROM feed_reactions r JOIN sale ON sale.id = r.feed_object_id WHERE r.user_id = :'a' AND r.emoji = U&'\\+01F525'),
@@ -21,9 +22,11 @@ row="$(qa_sql -F $'\t' -v a="$a" -v run="$run" <<<"
       WHERE r.user_id = :'a' AND r.emoji = U&'\\+01F44D'),
     (SELECT count(*) FROM feed_comments c JOIN pub ON pub.id = c.feed_object_id WHERE c.author_id = :'a'),
     (SELECT count(*) FROM reports r JOIN feed_objects f ON f.id = (SELECT id FROM sale) AND r.target_id = f.actor_id
-      WHERE r.reporter_id = :'a' AND r.kind = 'user' AND r.reason = 'spam')")" ||
+      WHERE r.reporter_id = :'a' AND r.kind = 'user' AND r.reason = 'spam'),
+    (SELECT count(*) FROM vote),
+    (SELECT count(*) FROM votes v JOIN vote ON vote.id = v.proposal_id WHERE v.voter_id = :'a' AND v.choice = 'yes')")" ||
   { echo "database cannot be reached" >&2; exit 2; }
-IFS=$'\t' read -r sale fire text gif party thumb publicreply reported <<<"$row"
+IFS=$'\t' read -r sale fire text gif party thumb publicreply reported proposals yes <<<"$row"
 
 if [[ "$sale" == 0 ]]; then
   echo "ok: the run seeded nothing"
@@ -37,5 +40,10 @@ fail=0
 [[ "$thumb" == 1 ]] || { echo "A's 👍 on the public reply: got $thumb, want 1"; fail=1; }
 [[ "$publicreply" == 0 ]] || { echo "A's replies on the public proposal: got $publicreply, want 0"; fail=1; }
 [[ "$reported" -ge 1 ]] || { echo "A's spam report of the sale's author: got $reported, want at least 1"; fail=1; }
-[[ "$fail" == 0 ]] && echo "ok: A's reaction, GIF reply, deleted reply, two emoji chips, no public reply and a spam report"
+if [[ "$proposals" == 0 ]]; then
+  echo "note: the run stopped before S5, so there is no vote to check"
+else
+  [[ "$yes" == 1 ]] || { echo "A's Yes on 'QA vote $run': got $yes, want 1"; fail=1; }
+fi
+[[ "$fail" == 0 ]] && echo "ok: A's reaction, GIF reply, deleted reply, two emoji chips, no public reply and a spam report and a Yes from the Feed card"
 exit "$fail"

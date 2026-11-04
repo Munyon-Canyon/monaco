@@ -2,7 +2,7 @@ import XCTest
 
 enum FeedReactAndReplyJourney {
     static let id = "feed/react-and-reply"
-    static let version = 3
+    static let version = 4
 
     static func recorder() -> JourneyRecorder {
         JourneyRecorder(journey: id, version: version)
@@ -57,16 +57,18 @@ enum FeedReactAndReplyJourney {
     }
 
     static func addReaction(_ app: XCUIApplication, to key: String, search: String, hex: String, step: String) {
-        let add = app.element("reaction-add-\(key)")
-        app.scrollIntoReach(add)
-        XCTAssertTrue(add.waitForExistence(timeout: 10), "\(step): no + on \(key)")
-        add.tap()
+        let row = app.element("reaction-row-\(key)")
+        app.scrollIntoReach(row)
+        XCTAssertTrue(row.waitForExistence(timeout: 10), "\(step): no reaction row on \(key)")
+        row.press(forDuration: 1.0)
+        XCTAssertTrue(
+            app.element("reaction-tray-1F44D").waitForExistence(timeout: 5),
+            "\(step): the long press did not open the quick tray within 5 s")
+        let more = app.element("reaction-tray-more-\(key)")
+        XCTAssertTrue(more.waitForExistence(timeout: 5), "\(step): no reaction-tray-more-\(key)")
+        more.tap()
+        XCTAssertTrue(app.element("emoji-picker").waitForExistence(timeout: 5), "\(step): no emoji-picker sheet")
         let field = app.element("emoji-search")
-        if !field.waitForExistence(timeout: 3) {
-            let more = app.element("reaction-tray-more-\(key)")
-            XCTAssertTrue(more.waitForExistence(timeout: 5), "\(step): the + opened neither the picker nor the tray")
-            more.tap()
-        }
         XCTAssertTrue(field.waitForExistence(timeout: 5), "\(step): no emoji-search in the picker")
         field.tap()
         field.typeText(search)
@@ -104,7 +106,10 @@ enum FeedReactAndReplyJourney {
             let cell = app.element("feed-cell-\(item)")
             app.scrollIntoReach(cell)
             XCTAssertTrue(cell.waitForExistence(timeout: 15), "S1.1: no sale card within 15 s")
-            XCTAssertTrue(app.element("reaction-add-\(key)").exists, "S1.1: no + on the card")
+            XCTAssertTrue(app.element("reaction-row-\(key)").exists, "S1.1: no reaction row on the card")
+            XCTAssertEqual(count(app, prefix: "reaction-add"), 0, "S1.1: a + chip is back on the card")
+            XCTAssertEqual(
+                count(app, prefix: "reaction-chip-\(key)-"), 0, "S1.1: a reaction chip shows before any reaction")
             let reply = app.element("feed-reply-\(item)")
             XCTAssertTrue(reply.exists, "S1.1: no reply control on the card")
             XCTAssertTrue(waitForLabel(reply, containing: "1", timeout: 10), "S1.1: the reply control does not read 1")
@@ -116,6 +121,7 @@ enum FeedReactAndReplyJourney {
             XCTAssertTrue(waitForLabel(chip, containing: "1", timeout: 10), "S1.2: the chip does not read 1")
             chip.tap()
             XCTAssertTrue(waitGone(chip, timeout: 10), "S1.2: the chip stayed after tapping it")
+            XCTAssertEqual(count(app, prefix: "reaction-chip-\(key)-"), 0, "S1.2: a chip shows after removing it")
             addReaction(app, to: key, search: "fire", hex: "1F525", step: "S1.2")
             XCTAssertTrue(chip.waitForExistence(timeout: 10), "S1.2: no 🔥 chip after adding it again")
         }
@@ -152,7 +158,10 @@ enum FeedReactAndReplyJourney {
             cell.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.1)).tap()
             XCTAssertTrue(app.element("feed-item-detail").waitForExistence(timeout: 15), "S2.1: no post page")
             XCTAssertTrue(app.navigationBars["Post"].waitForExistence(timeout: 5), "S2.1: the title is not 'Post'")
-            XCTAssertTrue(app.element("reaction-add-feed-\(item)").exists, "S2.1: no reaction row on the post")
+            XCTAssertTrue(app.element("reaction-row-feed-\(item)").exists, "S2.1: no reaction row on the post")
+            XCTAssertTrue(
+                app.element("reaction-chip-feed-\(item)-1F525").exists, "S2.1: no 🔥 chip on the post")
+            XCTAssertEqual(count(app, prefix: "reaction-add"), 0, "S2.1: a + chip on the post")
             XCTAssertTrue(waitForRepliesHeader(app, count: 2, timeout: 10), "S2.1: no 'Replies 2'")
             XCTAssertTrue(row(app, reading: root(run: run)).waitForExistence(timeout: 10), "S2.1: no root reply")
             XCTAssertTrue(row(app, reading: reply(run: run)).waitForExistence(timeout: 10), "S2.1: no reply by A")
@@ -269,7 +278,9 @@ extension FeedReactAndReplyJourney {
         }
     }
 
-    static func publicPost(_ app: XCUIApplication, item: String, run: String, recorder: JourneyRecorder) {
+    static func publicPost(
+        _ app: XCUIApplication, item: String, proposal: String, run: String, recorder: JourneyRecorder
+    ) {
         recorder.step("S3.1", "open the public proposal") {
             app.popToRoot()
             FeedBrowseJourney.openFeed(app, step: "S3.1")
@@ -278,6 +289,10 @@ extension FeedReactAndReplyJourney {
                 .matching(NSPredicate(format: "identifier == %@", "feed-cell-\(item)")).firstMatch
             app.scrollIntoReach(cell)
             XCTAssertTrue(cell.waitForExistence(timeout: 15), "S3.1: no public proposal card within 15 s")
+            for gone in ["feed-vote-yes-", "feed-vote-no-"] {
+                XCTAssertFalse(app.element(gone + proposal).exists, "S3.1: \(gone)\(proposal) shows for a non-member")
+                XCTAssertFalse(app.element(gone + item).exists, "S3.1: \(gone)\(item) shows for a non-member")
+            }
             cell.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.1)).tap()
             let card = app.element("proposal-vote-readonly")
             XCTAssertTrue(card.waitForExistence(timeout: 15), "S3.1: no read-only vote card")
@@ -308,5 +323,70 @@ extension FeedReactAndReplyJourney {
             XCTAssertFalse(app.element("comment-action-reply").exists, "S3.3: a Reply for a non-member")
             reactFromTray(app, id: id, hex: "1F44D", text: "1", step: "S3.3")
         }
+    }
+
+    static func voteFromFeed(
+        _ app: XCUIApplication, item: String, proposal: String, run: String, recorder: JourneyRecorder
+    ) {
+        let subhead = app.element("feed-vote-subhead-\(proposal)")
+
+        recorder.step("S5.1", "read the shared vote card on the Feed") {
+            app.popToRoot()
+            FeedBrowseJourney.openFeed(app, step: "S5.1")
+            let cell = app.element("feed-cell-\(item)")
+            app.scrollIntoReach(cell)
+            XCTAssertTrue(cell.waitForExistence(timeout: 15), "S5.1: no vote card within 15 s")
+            let headline = app.element("feed-vote-headline-\(proposal)")
+            XCTAssertTrue(headline.waitForExistence(timeout: 10), "S5.1: no vote headline")
+            XCTAssertTrue(
+                waitForLabel(headline, containing: "Buy", timeout: 5), "S5.1: the headline does not read Buy")
+            XCTAssertTrue(
+                waitForLabel(headline, containing: "TSLA", timeout: 5), "S5.1: the headline does not name TSLA")
+            XCTAssertTrue(
+                waitForLabel(headline, containing: "$5", timeout: 5), "S5.1: the headline does not read $5")
+            XCTAssertTrue(subhead.waitForExistence(timeout: 5), "S5.1: no vote subhead")
+            XCTAssertTrue(
+                waitForLabel(subhead, containing: "0 of 2 voted", timeout: 5),
+                "S5.1: the subhead does not read '0 of 2 voted'; it reads '\(subhead.label)'")
+            XCTAssertTrue(subhead.label.contains("QA feed \(run)"), "S5.1: the subhead does not name the cabal")
+            XCTAssertFalse(subhead.label.contains("replies"), "S5.1: the subhead counts replies")
+            XCTAssertFalse(subhead.label.contains("closes in"), "S5.1: the subhead reads 'closes in'")
+            XCTAssertTrue(app.element("feed-vote-yes-\(proposal)").exists, "S5.1: no Yes capsule")
+            XCTAssertTrue(app.element("feed-vote-no-\(proposal)").exists, "S5.1: no No capsule")
+        }
+
+        recorder.step("S5.2", "vote Yes from the Feed card") {
+            feedVoteCardPickAndHold(app, proposal: proposal, choice: "yes", step: "S5.2")
+            XCTAssertEqual(app.toastText(timeout: 10), "Voted Yes. 1st of 2.", "S5.2: no 'Voted Yes. 1st of 2.' toast")
+            XCTAssertTrue(app.element("monaco-toast-action").exists, "S5.2: no Undo on the toast")
+            XCTAssertTrue(
+                waitForLabel(subhead, containing: "1 of 2 voted", timeout: 10),
+                "S5.2: the subhead does not read '1 of 2 voted'")
+            app.dismissPushPrePromptIfShown()
+        }
+
+        recorder.step("S5.3", "the vote survives a refresh and the card body opens the proposal") {
+            app.waitForToastGone()
+            app.element("feed-root").swipeDown()
+            XCTAssertTrue(subhead.waitForExistence(timeout: 15), "S5.3: no vote subhead after the refresh")
+            XCTAssertTrue(
+                waitForLabel(subhead, containing: "1 of 2 voted", timeout: 15),
+                "S5.3: the subhead does not read '1 of 2 voted' after the refresh")
+            app.element("feed-vote-open-\(proposal)").tap()
+            XCTAssertTrue(
+                app.element("proposal-change-vote").waitForExistence(timeout: 15),
+                "S5.3: the proposal page does not show proposal-change-vote within 15 s")
+        }
+    }
+
+    static func feedVoteCardPickAndHold(
+        _ app: XCUIApplication, proposal: String, choice: String, timeout: TimeInterval = 10, step: String
+    ) {
+        let button = app.element("feed-vote-\(choice)-\(proposal)")
+        XCTAssertTrue(
+            JourneyDiagnostics.wait(for: button, in: app, timeout: timeout, step: step),
+            "feed-vote-\(choice)-\(proposal) did not show within \(Int(timeout)) s")
+        button.tap()
+        app.holdToCommit(button)
     }
 }
