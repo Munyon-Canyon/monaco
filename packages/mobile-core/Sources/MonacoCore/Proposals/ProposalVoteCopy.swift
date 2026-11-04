@@ -35,6 +35,16 @@ public struct VoteCommittedLine: Equatable, Sendable {
     public let accessibilityLabel: String
 }
 
+public struct VoteCardLine: Equatable, Sendable {
+    public let full: String
+    public let short: String
+
+    public init(full: String, short: String) {
+        self.full = full
+        self.short = short
+    }
+}
+
 public enum ProposalVoteHint: Equatable, Sendable {
     case picked, holding
 }
@@ -61,6 +71,31 @@ public enum ProposalVoteCopy {
         if days >= 2 { return "ends in \(days)d" }
         if hours > 0 { return "ends in \(hours)h" }
         return "ends in \(max(remaining / 60, 1))m"
+    }
+
+    public static func closesIn(_ expiresAt: Date, now: Date) -> (long: String, short: String) {
+        let remaining = Int(expiresAt.timeIntervalSince(now))
+        if remaining <= 0 { return ("voting closed", "voting closed") }
+        let days = remaining / 86_400
+        let hours = remaining / 3600
+        if days >= 2 { return ("closes in \(days)d", "\(days)d") }
+        if hours > 0 { return ("closes in \(hours)h", "\(hours)h") }
+        let minutes = max(remaining / 60, 1)
+        return ("closes in \(minutes)m", "\(minutes)m")
+    }
+
+    public static func cardLine(
+        cabalName: String?, tally: ProposalTally, replies: Int?, expiresAt: Date, now: Date
+    ) -> VoteCardLine {
+        var facts: [String] = []
+        if let cabalName, !cabalName.isEmpty { facts.append(cabalName) }
+        facts.append("\(tally.yes + tally.no) of \(tally.voters) voted")
+        if let replies, replies > 0 { facts.append(replies == 1 ? "1 reply" : "\(replies) replies") }
+        let close = closesIn(expiresAt, now: now)
+        let separator = " \u{00B7} "
+        return VoteCardLine(
+            full: (facts + [close.long]).joined(separator: separator),
+            short: (facts + [close.short]).joined(separator: separator))
     }
 
     public static func hint(_ hint: ProposalVoteHint) -> String {

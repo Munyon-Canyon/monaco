@@ -116,6 +116,10 @@ final class HomeVoteCardModelTests: XCTestCase {
         XCTAssertEqual(reads.count, 1)
         XCTAssertEqual(model.hint(holding: false), "Yours was the 5th yes \u{00B7} at 5 of 8 it passes")
         XCTAssertEqual(model.subhead(now: clock), "AC Capital \u{00B7} passed 5\u{2013}1 \u{00B7} buying ≈ 1.82 sh")
+        let settled = "AC Capital \u{00B7} passed 5\u{2013}1 \u{00B7} buying ≈ 1.82 sh"
+        XCTAssertEqual(model.subheadLine(now: clock, showsCabal: true), VoteCardLine(full: settled, short: settled))
+        let bare = "passed 5\u{2013}1 \u{00B7} buying ≈ 1.82 sh"
+        XCTAssertEqual(model.subheadLine(now: clock, showsCabal: false), VoteCardLine(full: bare, short: bare))
     }
 
     func testUndoCallsTheRetractAndReturnsToIdle() async throws {
@@ -210,5 +214,19 @@ final class HomeVoteCardModelTests: XCTestCase {
         XCTAssertEqual(model(transport).headline, "Buy NVDA \u{00B7} $400")
         XCTAssertEqual(
             model(transport).subhead(now: clock), "AC Capital \u{00B7} 5 of 8 voted \u{00B7} 6 replies \u{00B7} 4h")
+    }
+
+    func testTheOpenCardLineCarriesBothCloseLengthsAndCanDropTheCabal() {
+        let model = model(StubTransport(routes: [:]))
+        XCTAssertEqual(
+            model.subheadLine(now: clock, showsCabal: true),
+            VoteCardLine(
+                full: "AC Capital \u{00B7} 5 of 8 voted \u{00B7} 6 replies \u{00B7} closes in 4h",
+                short: "AC Capital \u{00B7} 5 of 8 voted \u{00B7} 6 replies \u{00B7} 4h"))
+        XCTAssertEqual(
+            model.subheadLine(now: clock, showsCabal: false),
+            VoteCardLine(
+                full: "5 of 8 voted \u{00B7} 6 replies \u{00B7} closes in 4h",
+                short: "5 of 8 voted \u{00B7} 6 replies \u{00B7} 4h"))
     }
 }

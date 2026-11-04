@@ -161,4 +161,43 @@ final class ProposalVoteCopyTests: XCTestCase {
         XCTAssertEqual(ProposalVoteCopy.spoken(facts: ["5 of 8 voted", "ends in 4h"]), "5 of 8 voted, ends in 4h")
         XCTAssertEqual(ProposalVoteCopy.spoken(facts: []), "")
     }
+
+    private func card(
+        _ cabal: String? = "AC Capital", replies: Int? = 6, in seconds: TimeInterval = 4 * 3600 + 120
+    ) -> VoteCardLine {
+        ProposalVoteCopy.cardLine(
+            cabalName: cabal, tally: tally, replies: replies, expiresAt: now.addingTimeInterval(seconds), now: now)
+    }
+
+    func testTheCardLineReadsCabalVotedRepliesAndTheClose() {
+        let line = card()
+        XCTAssertEqual(line.full, "AC Capital · 5 of 8 voted · 6 replies · closes in 4h")
+        XCTAssertEqual(line.short, "AC Capital · 5 of 8 voted · 6 replies · 4h")
+    }
+
+    func testTheCardLineDropsANilOrEmptyCabal() {
+        XCTAssertEqual(card(nil).full, "5 of 8 voted · 6 replies · closes in 4h")
+        XCTAssertEqual(card("").short, "5 of 8 voted · 6 replies · 4h")
+    }
+
+    func testTheCardLineLeavesOutNilAndZeroRepliesAndSingularises() {
+        XCTAssertEqual(card(replies: nil).full, "AC Capital · 5 of 8 voted · closes in 4h")
+        XCTAssertEqual(card(replies: 0).short, "AC Capital · 5 of 8 voted · 4h")
+        XCTAssertEqual(card(replies: 1).full, "AC Capital · 5 of 8 voted · 1 reply · closes in 4h")
+    }
+
+    func testTheCardLineClosesInDaysHoursAndMinutes() {
+        XCTAssertEqual(card(in: 49 * 3600).full, "AC Capital · 5 of 8 voted · 6 replies · closes in 2d")
+        XCTAssertEqual(card(in: 49 * 3600).short, "AC Capital · 5 of 8 voted · 6 replies · 2d")
+        XCTAssertEqual(card(in: 90 * 60).full, "AC Capital · 5 of 8 voted · 6 replies · closes in 1h")
+        XCTAssertEqual(card(in: 20).full, "AC Capital · 5 of 8 voted · 6 replies · closes in 1m")
+        XCTAssertEqual(card(in: 20).short, "AC Capital · 5 of 8 voted · 6 replies · 1m")
+        XCTAssertEqual(card(in: 40 * 60).full, "AC Capital · 5 of 8 voted · 6 replies · closes in 40m")
+    }
+
+    func testTheCardLineSaysVotingClosedInBothLengthsPastTheDeadline() {
+        let line = card(nil, replies: nil, in: -1)
+        XCTAssertEqual(line.full, "5 of 8 voted · voting closed")
+        XCTAssertEqual(line.short, "5 of 8 voted · voting closed")
+    }
 }
