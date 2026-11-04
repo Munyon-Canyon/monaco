@@ -60,8 +60,10 @@ enum AssetDetailBuyCTA {
     }
 
     static func open(
-        symbol: String, kind: ProposeKind, tab: MainTab, navigator: (ProposeFromAssetRoute, MainTab) -> Void
+        symbol: String, kind: ProposeKind, tab: MainTab, catalogName: String? = nil, assetKind: AssetKind = .stock,
+        navigator: (ProposeFromAssetRoute, MainTab) -> Void
     ) {
-        navigator(ProposeFromAssetRoute(symbol: symbol, kind: kind), tab)
+        navigator(
+            ProposeFromAssetRoute(symbol: symbol, kind: kind, catalogName: catalogName, assetKind: assetKind), tab)
     }
 }

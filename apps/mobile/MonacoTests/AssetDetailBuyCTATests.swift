@@ -44,6 +44,18 @@ struct AssetDetailBuyCTATests {
         #expect(opened?.tab == .cabals)
     }
 
+    @Test func aStockMissingFromTheStaticTableOpensTheBuyWithItsCatalogName() {
+        var opened: (route: ProposeFromAssetRoute, tab: MainTab)?
+
+        AssetDetailBuyCTA.open(symbol: "JRNYAx", kind: .buy, tab: .stocks, catalogName: "Journey Alpha") { route, tab in
+            opened = (route, tab)
+        }
+
+        #expect(opened?.route.catalogName == "Journey Alpha")
+        #expect(ProposeStock.displayName(symbol: "JRNYAx", catalogName: "Journey Alpha") == "Journey Alpha")
+        #expect(ProposeStock.displayName(symbol: "AAPLx", catalogName: "Apple Inc.") == "Apple")
+    }
+
     @Test func proposeSellOpensTheSellRouteInTheHostTab() {
         var opened: (route: ProposeFromAssetRoute, tab: MainTab)?
 
