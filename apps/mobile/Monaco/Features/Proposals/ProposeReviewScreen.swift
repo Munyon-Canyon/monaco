@@ -128,17 +128,7 @@ struct ProposeReviewScreen: View {
                         lines: model.preIpoLedger, eligibility: .eligible, showsEligibility: false,
                         identifier: "propose-review-preipo-ledger")
                 } else {
-                    StatGrid(
-                        items: model.stats.map { StatItem(label: $0.label, value: $0.value) }, inCard: false
-                    )
-                    .padding(.vertical, StatMetrics.cardPaddingVertical)
-                    .padding(.horizontal, StatMetrics.cardPaddingHorizontal)
-                    .background(
-                        RoundedRectangle(cornerRadius: MonacoTheme.Radius.small, style: .continuous)
-                            .fill(MonacoTheme.surfaceSunken)
-                    )
-                    .accessibilityElement(children: .contain)
-                    .accessibilityIdentifier("propose-review-stats")
+                    factsLine(model)
                 }
             }
             .padding(.horizontal, MonacoTheme.Space.gutter)
@@ -162,8 +152,14 @@ struct ProposeReviewScreen: View {
         return layout {
             assetTitle(model)
             if !dynamicTypeSize.isAccessibilitySize { Spacer(minLength: 0) }
-            Text(model.amountLabel).moneyFigure(.large).foregroundStyle(MonacoTheme.ink).minimumScaleFactor(0.6)
-                .lineLimit(1)
+            VStack(alignment: stacked ? .leading : .trailing, spacing: MonacoTheme.Space.xs) {
+                Text(model.amountLabel).moneyFigure(.large).foregroundStyle(MonacoTheme.ink).minimumScaleFactor(0.6)
+                    .lineLimit(1)
+                if let treasury = model.treasuryLine {
+                    Text(treasury).font(MonacoTheme.Typo.subhead).foregroundStyle(MonacoTheme.secondaryText)
+                        .accessibilityIdentifier("propose-review-treasury")
+                }
+            }
         }
         .padding(.vertical, MonacoTheme.Space.sm)
         .accessibilityElement(children: .combine)
@@ -194,7 +190,7 @@ struct ProposeReviewScreen: View {
     }
 
     private func thesisRow(_ model: MonacoCore.ProposeReviewModel) -> some View {
-        Text(model.reason ?? ProposeFlowCopy.whyThisTrade)
+        Text(model.reason ?? ProposeFlowCopy.shareYourThesis)
             .font(MonacoTheme.Typo.body)
             .foregroundStyle(model.reason == nil ? MonacoTheme.secondaryText : MonacoTheme.bodyText)
             .fixedSize(horizontal: false, vertical: true)
@@ -267,6 +263,30 @@ struct ProposeReviewScreen: View {
 }
 
 extension ProposeReviewScreen {
+    @ViewBuilder
+    func factsLine(_ model: MonacoCore.ProposeReviewModel) -> some View {
+        let leading = model.factsLeading
+        let trailing = model.factsTrailing
+        if !leading.isEmpty || !trailing.isEmpty {
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: MonacoTheme.Space.sm) {
+                    Text(leading)
+                    Spacer(minLength: 0)
+                    Text(trailing)
+                }
+                VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
+                    Text(leading)
+                    Text(trailing)
+                }
+            }
+            .font(MonacoTheme.Typo.subhead)
+            .foregroundStyle(MonacoTheme.secondaryText)
+            .padding(.horizontal, MonacoTheme.Space.gutter)
+            .accessibilityElement(children: .combine)
+            .accessibilityIdentifier("propose-review-stats")
+        }
+    }
+
     private func assetTitle(_ model: MonacoCore.ProposeReviewModel) -> some View {
         let layout =
             dynamicTypeSize.isAccessibilitySize

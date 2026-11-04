@@ -24,7 +24,8 @@ public struct ProposeCabalInfo: Equatable, Sendable {
 
     static func shortWindow(seconds: Int32) -> String {
         let hours = Int(seconds) / 3_600
-        return hours >= 48 ? "\(hours / 24) d" : "\(max(hours, 1)) h"
+        if hours >= 48 { return "\(hours / 24) days" }
+        return hours > 1 ? "\(hours) hours" : "1 hour"
     }
 
     public init(_ cabal: Components.Schemas.Cabal) {

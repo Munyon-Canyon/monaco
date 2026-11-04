@@ -7,7 +7,7 @@ import XCTest
 @MainActor
 final class ProposeReviewFrameTests: XCTestCase {
     private static let ruled = ProposeCabalInfo(
-        name: "AC Capital", voters: "All 8 members", votingWindowShort: "6 h", voterCount: 8, neededToPass: 5)
+        name: "AC Capital", voters: "All 8 members", votingWindowShort: "6 hours", voterCount: 8, neededToPass: 5)
 
     private func spaceXProfile() throws -> PreIpoDetail.Profile {
         try XCTUnwrap(PreIpoDetail(.spaceX, locale: Locale(identifier: "en_US"))?.profile)
@@ -27,13 +27,14 @@ final class ProposeReviewFrameTests: XCTestCase {
     func testListedBuyLinesAndStatsReadAsTheFrame() {
         let model = frameModel()
 
-        XCTAssertEqual(model.assetLine, "Buy · market order")
+        XCTAssertEqual(model.assetLine, "Buy at the market price")
+        XCTAssertEqual(model.treasuryLine, "2% of treasury")
         XCTAssertEqual(model.amountLabel, "$400")
-        XCTAssertEqual(model.cabalLine, "Cash $5,100 · 6 h to vote")
+        XCTAssertEqual(model.cabalLine, "$5,100 cash · 6 hours to vote")
         XCTAssertTrue(model.showsThesis)
-        XCTAssertEqual(
-            model.stats.map { "\($0.label) \($0.value)" },
-            ["Shares ≈ 1.82", "Price $219.78", "Of treasury 2%", "To pass 5 of 8"])
+        XCTAssertEqual(model.factsLine, "About 1.82 shares at $219.78 · 5 of 8 to pass")
+        XCTAssertEqual(model.factsLeading, "About 1.82 shares at $219.78")
+        XCTAssertEqual(model.factsTrailing, "5 of 8 to pass")
         XCTAssertEqual(model.preIpoLedger, [])
         XCTAssertEqual(model.sendTitle, "Send to vote")
     }
@@ -42,12 +43,12 @@ final class ProposeReviewFrameTests: XCTestCase {
         let apple = ProposeHoldingTests.holding(name: "Apple", units: "1.2034", tokenAmount: 120_345_678)
         let model = makeSellModel(apple, selling: 60_172_839)
 
-        XCTAssertEqual(model.assetLine, "Sell · market order")
+        XCTAssertEqual(model.assetLine, "Sell at the market price")
         XCTAssertEqual(model.amountLabel, "0.6017 shares")
-        XCTAssertEqual(model.stats[0].value, "0.6017")
-        XCTAssertEqual(model.stats[1].value, UsdAmountFormatter.format(micros: apple.priceMicros))
-        XCTAssertEqual(model.stats[2].value, "28%")
-        XCTAssertEqual(model.stats[3].value, ProposalStats.missing)
+        XCTAssertEqual(
+            model.factsLine, "About 0.6017 shares at \(UsdAmountFormatter.format(micros: apple.priceMicros))")
+        XCTAssertEqual(model.factsTrailing, "")
+        XCTAssertEqual(model.treasuryLine, "28% of treasury")
         XCTAssertEqual(model.cabalLine, "")
     }
 
@@ -66,7 +67,7 @@ final class ProposeReviewFrameTests: XCTestCase {
         model.setPreIpo(try spaceXProfile())
 
         XCTAssertEqual(model.assetLine, "Buy ≈ 2.70 sh at the estimate")
-        XCTAssertEqual(model.cabalLine, "Cash $5,100 · 6 h · 5 of 8 to pass")
+        XCTAssertEqual(model.cabalLine, "$5,100 cash · 6 hours to vote · 5 of 8 to pass")
         XCTAssertFalse(model.showsThesis)
         XCTAssertEqual(
             model.preIpoLedger,
@@ -84,7 +85,9 @@ final class ProposeReviewFrameTests: XCTestCase {
             draft: .buy(symbol: "NVDA", usdcMicros: 1, thesis: ""), preview: preview,
             trade: .buy(symbol: "NVDA", kind: .stock, tokenDecimals: 8))
 
-        XCTAssertEqual(model.stats.map(\.value), ["—", "—", "—", "—"])
+        XCTAssertEqual(model.factsLine, "")
+        XCTAssertEqual(model.factsLeading, "")
+        XCTAssertNil(model.treasuryLine)
         XCTAssertEqual(model.cabalLine, "")
     }
 
@@ -95,9 +98,43 @@ final class ProposeReviewFrameTests: XCTestCase {
         XCTAssertEqual(ProposeCabalInfo(cabal).neededToPass, 2)
         cabal.rules.threshold = "unanimous"
         XCTAssertEqual(ProposeCabalInfo(cabal).neededToPass, 3)
-        XCTAssertEqual(ProposeCabalInfo.shortWindow(seconds: 21_600), "6 h")
-        XCTAssertEqual(ProposeCabalInfo.shortWindow(seconds: 604_800), "7 d")
-        XCTAssertEqual(ProposeCabalInfo.shortWindow(seconds: 60), "1 h")
+        XCTAssertEqual(ProposeCabalInfo.shortWindow(seconds: 21_600), "6 hours")
+        XCTAssertEqual(ProposeCabalInfo.shortWindow(seconds: 604_800), "7 days")
+        XCTAssertEqual(ProposeCabalInfo.shortWindow(seconds: 60), "1 hour")
+    }
+
+    func testShortWindowPluralisesAndSwitchesToDays() async throws {
+        XCTAssertEqual(ProposeCabalInfo.shortWindow(seconds: 172_800), "2 days")
+        XCTAssertEqual(ProposeCabalInfo.shortWindow(seconds: 3_600), "1 hour")
+    }
+
+    func testTinyTreasuryShareReadsLessThanATenth() async throws {
+        let preview = ProposePreview(
+            .init(
+                quoteOutAmount: 1_000_000, advisoryCode: nil, advisoryMessage: nil,
+                potValueMicros: 1_000_000_000_000))
+        let model = ProposeReviewModel(
+            service: ReviewService(), cabalID: "c", cabal: Self.ruled,
+            draft: .buy(symbol: "NVDA", usdcMicros: 100_000_000, thesis: ""), preview: preview,
+            trade: .buy(symbol: "NVDA", kind: .stock, tokenDecimals: 8))
+        XCTAssertEqual(model.treasuryLine, "<0.1% of treasury")
+    }
+
+    func testFactsLineLeavesOutUnknownParts() async throws {
+        func buy(quote: Int64?, cabal: ProposeCabalInfo) -> ProposeReviewModel {
+            let preview = ProposePreview(
+                .init(
+                    quoteOutAmount: quote, advisoryCode: nil, advisoryMessage: nil,
+                    potValueMicros: 20_000_000_000))
+            return ProposeReviewModel(
+                service: ReviewService(), cabalID: "c", cabal: cabal,
+                draft: .buy(symbol: "NVDA", usdcMicros: 400_000_000, thesis: ""), preview: preview,
+                trade: .buy(symbol: "NVDA", kind: .stock, tokenDecimals: 8))
+        }
+        let unruled = ProposeCabalInfo(name: "A", voters: "B")
+        XCTAssertEqual(buy(quote: 182_000_000, cabal: unruled).factsLine, "About 1.82 shares at $219.78")
+        XCTAssertEqual(buy(quote: nil, cabal: Self.ruled).factsLine, "5 of 8 to pass")
+        XCTAssertEqual(buy(quote: nil, cabal: unruled).factsLine, "")
     }
 
     private func makeSellModel(_ holding: ProposeHolding, selling amount: Decimal) -> ProposeReviewModel {

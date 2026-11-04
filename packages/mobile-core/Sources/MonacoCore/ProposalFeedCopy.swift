@@ -266,7 +266,7 @@ public enum ProposeFlowCopy {
     public static let votesToPassRow = "Votes to pass"
     public static let sendProposal = "Send to vote"
     public static let changeCabal = "Change"
-    public static let whyThisTrade = "Why this trade? (optional)"
+    public static let shareYourThesis = "Share your thesis"
     public static let marketOrderTitle = "Market order"
     public static let marketOrderBody =
         "The cabal buys at the market price when the vote passes. Monaco fills at the best price it finds."
@@ -285,7 +285,7 @@ public enum ProposeFlowCopy {
         buySearchPlaceholder, sellSearchPlaceholder, sortVolume, sortName, sortChange, filterAll, filterPopular,
         filterPreIpo, noStocksTitle, noStocksMessage, noPositionsMessage, backToCabal, buyAmountEyebrow,
         sellAmountEyebrow, sellFromTitle, sellFromHint, overCash, overHolding,
-        upTo(5_100_000_000), thesisTitle, thesisPlaceholder,
+        upTo(5_100_000_000), thesisTitle, thesisPlaceholder, shareYourThesis,
         thesisRequired, reviewProposal,
         votingWindowRow, votesToPassRow, sendProposal, sending, sendFailedNotice, proposalSentTitle, viewProposal,
         chooseCabalTitle, chooseCabalQuestion(verb: "buy", ticker: "NVDA"),

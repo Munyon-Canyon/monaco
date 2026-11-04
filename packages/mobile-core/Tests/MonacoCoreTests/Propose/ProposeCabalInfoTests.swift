@@ -62,6 +62,6 @@ final class ProposeCabalInfoTests: XCTestCase {
             info,
             ProposeCabalInfo(
                 name: "QA pot", voters: "All 3 members", votingWindow: "1 day", votesToPass: "Everyone agrees",
-                votingWindowShort: "24 h", voterCount: 3, neededToPass: 3))
+                votingWindowShort: "24 hours", voterCount: 3, neededToPass: 3))
     }
 }
