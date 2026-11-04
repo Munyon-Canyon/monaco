@@ -74,7 +74,7 @@ private struct ParityToastSettledFrame: View {
                 let tally = ProposalTally(yes: 5, no: 1, voters: 6, needed: 4)
                 let outcome = CastOutcome(
                     choice: .yes, status: .passed, tally: tally, undoUntil: nil, myVote: nil)
-                toasts.show(success: ProposalVoteCopy.toast(outcome: outcome).message)
+                toasts.show(vote: ProposalVoteCopy.toast(outcome: outcome))
             }
     }
 }

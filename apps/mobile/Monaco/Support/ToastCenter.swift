@@ -1,4 +1,5 @@
 import MonacoAPI
+import MonacoCore
 import Observation
 import SwiftUI
 
@@ -36,6 +37,15 @@ final class ToastCenter {
 
     func show(success: String, link: MonacoToastLink? = nil, action: MonacoToastAction? = nil) {
         current = MonacoToast(message: success, isSuccess: true, link: link, action: action)
+    }
+
+    func show(vote: VoteToast, action: MonacoToastAction? = nil) {
+        let glyph: MonacoToastGlyph =
+            switch vote.glyph {
+            case .check: .check
+            case .seal: .seal
+            }
+        current = MonacoToast(message: vote.message, isSuccess: true, glyph: glyph, action: action)
     }
 }
 
