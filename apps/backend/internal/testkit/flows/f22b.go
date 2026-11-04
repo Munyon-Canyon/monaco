@@ -57,9 +57,9 @@ func chatAttachmentRows(n int) scenario.Step {
 }
 
 func F22bPostChatMessageOK(s *scenario.Scenario) {
-	s.Given(chatCabal("post-ok")...).
+	s.Given(chatCabal("gif-ok")...).
 		When(
-			scenario.SignIn(chatCreatorOf("post-ok")),
+			scenario.SignIn(chatCreatorOf("gif-ok")),
 			scenario.Post(chatPath, gifOnly),
 			scenario.ExpectStatus(http.StatusCreated),
 			scenario.ExpectJSON("body", "GIF"),
@@ -83,9 +83,9 @@ func F22bPostChatMessageOK(s *scenario.Scenario) {
 }
 
 func F22bPostChatMessageInvalidInput(s *scenario.Scenario) {
-	s.Given(chatCabal("post-blank")...).
+	s.Given(chatCabal("gif-invalid")...).
 		When(
-			scenario.SignIn(chatCreatorOf("post-blank")),
+			scenario.SignIn(chatCreatorOf("gif-invalid")),
 			scenario.Post(chatPath, `{"attachment":{"kind":"photo"}}`),
 		).
 		Then(
@@ -97,8 +97,8 @@ func F22bPostChatMessageInvalidInput(s *scenario.Scenario) {
 }
 
 func F22bPostChatMessageNotCabalMember(s *scenario.Scenario) {
-	s.Given(chatCabal("post-outsider")...).
-		When(scenario.SignIn(chatOutsiderOf("post-outsider")), scenario.Post(chatPath, gifOnly)).
+	s.Given(chatCabal("gif-outsider")...).
+		When(scenario.SignIn(chatOutsiderOf("gif-outsider")), scenario.Post(chatPath, gifOnly)).
 		Then(
 			scenario.ExpectProblem(errs.CodeNotCabalMember),
 			chatRows(0),
@@ -108,8 +108,8 @@ func F22bPostChatMessageNotCabalMember(s *scenario.Scenario) {
 }
 
 func F22bPostChatMessageChatBodyInvalid(s *scenario.Scenario) {
-	s.Given(chatCabal("post-blank")...).
-		When(scenario.SignIn(chatCreatorOf("post-blank")), scenario.Post(chatPath, `{}`)).
+	s.Given(chatCabal("gif-blank")...).
+		When(scenario.SignIn(chatCreatorOf("gif-blank")), scenario.Post(chatPath, `{}`)).
 		Then(
 			scenario.ExpectProblem(errs.CodeChatBodyInvalid),
 			chatRows(0),
@@ -125,9 +125,9 @@ func F22bPostChatMessageUnauthorized(s *scenario.Scenario) {
 }
 
 func F22bPostChatMessageCrashBeforeCommit(s *scenario.Scenario) {
-	s.Given(chatCabal("post-crash")...).
+	s.Given(chatCabal("gif-crash")...).
 		When(
-			scenario.SignIn(chatCreatorOf("post-crash")),
+			scenario.SignIn(chatCreatorOf("gif-crash")),
 			scenario.Post(chatPath, gifOnly),
 			scenario.Retry(),
 			scenario.ExpectStatus(http.StatusCreated),
