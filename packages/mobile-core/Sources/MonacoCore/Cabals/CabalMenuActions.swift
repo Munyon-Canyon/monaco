@@ -46,10 +46,17 @@ public enum CabalMenuActions {
         [CabalHeaderCopy.compactDollars(valueMicros), returnText].joined(separator: " \u{00B7} ")
     }
 
-    public static func membersLine(memberCount: Int32, role: String, canVote: Bool) -> String {
-        var parts = [CabalCopy.memberCount(memberCount)]
-        if let viewer = CabalHeaderCopy.viewer(role: role, canVote: canVote) { parts.append(viewer) }
-        return parts.joined(separator: " \u{00B7} ")
+    public static func peopleLine(names: [String], memberCount: Int32) -> String {
+        switch names.count {
+        case 0:
+            return CabalCopy.memberCount(memberCount)
+        case 1:
+            return names[0]
+        default:
+            let others = Int(memberCount) - 2
+            if others <= 1 { return "\(names[0]) and \(names[1])" }
+            return "\(names[0]), \(names[1]) and \(others) others"
+        }
     }
 
     private static func voteAction(_ waiting: [HomePendingVote]) -> CabalMenuAction? {
