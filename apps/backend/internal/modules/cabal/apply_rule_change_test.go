@@ -13,6 +13,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal/adapters"
+	"github.com/monaco/monaco/apps/backend/internal/modules/cabal/app"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
@@ -283,5 +284,39 @@ func TestApplyRuleChange_wrapsStoreFailuresAsInternal(t *testing.T) {
 			f.exec(t, tt.statement)
 			wantErr(t, f.deliver(t.Context(), rulePassed(c, c.Creator.ID, change)), errs.CodeInternal)
 		})
+	}
+}
+
+func TestApplyRuleChange_madeVoterReadsAsVoterThroughTheMembersPage(t *testing.T) {
+	t.Parallel()
+	f := newAccess(t)
+	c := testkit.NewCabal(t, f.pool, testkit.WithMembers(2), testkit.WithVoterMode("list"))
+	second := c.Members[1].ID.UUID()
+	reads := &countingReads{}
+	list := func() app.MemberPage {
+		page, err := app.ListMembersPage(t.Context(), f.pool, f.users,
+			app.MemberReads{Ownership: reads, Calls: reads, Now: f.clock.Now},
+			app.ListMembersQuery{CabalID: c.ID, Limit: 50})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return page
+	}
+	before := list()
+	if before.Totals.Voters != 0 || before.Totals.Members != 1 {
+		t.Fatalf("totals before = %+v, want one plain member", before.Totals)
+	}
+	if err := f.deliver(t.Context(), rulePassed(c, c.Creator.ID, boolChange("voter", true, &second))); err != nil {
+		t.Fatal(err)
+	}
+	after := list()
+	var got *app.Member
+	for i := range after.Items {
+		if after.Items[i].UserID == second {
+			got = &after.Items[i]
+		}
+	}
+	if got == nil || !got.CanVote || after.Totals.Voters != 1 || after.Totals.Members != 0 {
+		t.Fatalf("second = %+v, totals = %+v, want a voter", got, after.Totals)
 	}
 }

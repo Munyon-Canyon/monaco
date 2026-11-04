@@ -192,6 +192,44 @@ final class CabalMembersModelTests: XCTestCase {
         XCTAssertEqual(after, base + 2)
     }
 
+    func testAPassedRuleHintDuringTheFirstLoadStillMovesTheMemberToVoters() async throws {
+        let stale = try Self.pair(bCanVote: false)
+        let fresh = try Self.pair(bCanVote: true)
+        let transport = StubTransport(scripted: [.gate, .json(.ok, fresh)])
+        let hints = FakeHintStream()
+        let model = makeModel(transport, role: "member", hints: hints)
+        model.setVisible(true)
+        let running = Task { await model.run() }
+        defer { running.cancel() }
+        await transport.waitForRequest()
+        _ = await waitUntil { await hints.subscriberCount == 3 }
+        let subscribed = await hints.subscriberCount
+        XCTAssertEqual(subscribed, 3)
+
+        await hints.send(.changed(.cabal(Self.cabalID), what: "updated", id: "x"))
+        for _ in 0..<50 { await Task.yield() }
+        await transport.releaseGate(.json(.ok, stale))
+
+        let moved = await waitUntil { model.voting.map(\.id) == ["a", "b"] }
+        XCTAssertTrue(moved, "voting = \(model.voting.map(\.id))")
+    }
+
+    private static func pair(bCanVote: Bool) throws -> String {
+        let month = Components.Schemas.MemberMonth(right: 0, resolved: 0, voted: 0, eligible: 0)
+        let rows = [
+            Components.Schemas.CabalMemberRow(
+                userId: "a", handle: nil, displayName: "A", photoUrl: nil, role: .creator, canVote: true,
+                joinedAt: joined, ownershipBps: 5000, month: month, crown: false),
+            Components.Schemas.CabalMemberRow(
+                userId: "b", handle: nil, displayName: "B", photoUrl: nil, role: .member, canVote: bCanVote,
+                joinedAt: joined, ownershipBps: 5000, month: month, crown: false),
+        ]
+        return try encode(
+            Components.Schemas.CabalMemberPage(
+                items: rows, nextCursor: nil,
+                totals: .init(admins: 1, voters: bCanVote ? 1 : 0, members: bCanVote ? 0 : 1)))
+    }
+
     private func adminTransport() throws -> StubTransport {
         StubTransport(routes: try Self.adminRoutes(decision: nil))
     }

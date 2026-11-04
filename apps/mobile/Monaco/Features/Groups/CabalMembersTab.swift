@@ -55,10 +55,13 @@ private struct CabalMembersTabBody: View {
                 MonacoCard(style: .inset) {
                     MonacoGroupedList {
                         ForEach(model.preview) { entry in
+                            let subtitle = CabalMemberCopy.tabLine(entry.row)
                             CabalMemberLink(
-                                entry: entry, viewerID: viewerID, subtitle: CabalMemberCopy.tabLine(entry.row),
+                                entry: entry, viewerID: viewerID, subtitle: subtitle,
                                 chevron: true, isLast: entry.id == model.preview.last?.id,
-                                hint: CabalMemberCopy.rightCallHint)
+                                hint: CabalMemberCopy.rightCallHint
+                            )
+                            .id(CabalMemberCopy.tabRowKey(entry.row))
                         }
                     }
                 }

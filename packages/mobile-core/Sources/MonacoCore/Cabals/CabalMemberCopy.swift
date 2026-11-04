@@ -78,6 +78,14 @@ public enum CabalMemberCopy {
         }
     }
 
+    public static func voterRowKey(_ row: Components.Schemas.CabalMemberRow) -> String {
+        "\(row.userId)|\(voterLine(row))"
+    }
+
+    public static func tabRowKey(_ row: Components.Schemas.CabalMemberRow) -> String {
+        "\(row.userId)|\(tabLine(row))"
+    }
+
     public static func voterLine(_ row: Components.Schemas.CabalMemberRow) -> String {
         CabalMemberGroup(row).votes ? recordLine(row.month) : holdsAShare
     }
