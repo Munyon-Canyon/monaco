@@ -6,6 +6,8 @@ milestone: M9
 requires: [auth/sign-in]
 actors: [C, B]
 flows: [01a, 01b, 01c, 01d]
+preconditions:
+  fresh_handle: true
 xcuitest: [apps/mobile/MonacoUITests/Journeys/FirstRunJourney.swift, apps/mobile/MonacoUITests/Journeys/FirstRunJourneyUITests.swift]
 ---
 

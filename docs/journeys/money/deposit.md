@@ -8,6 +8,8 @@ actors: [A]
 flows: [05]
 funds:
   A: 1
+preconditions:
+  balance.A: 1
 xcuitest: [apps/mobile/MonacoUITests/Journeys/MoneyDepositJourney.swift, apps/mobile/MonacoUITests/Journeys/MoneyDepositJourneyUITests.swift]
 ---
 

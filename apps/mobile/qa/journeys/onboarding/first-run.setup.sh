@@ -3,6 +3,8 @@
 # Preconditions). S1 makes actor C a new member, frees {L.phone} and @qa_cayman from stale users
 # and hands the test a taken handle. S2 to S4 put C where S1 leaves it, so each also runs alone.
 # S5 makes a new dev user at AWAITING_SOCIALS and hands the test its token.
+# `--check-handle` (the fresh_handle precondition) changes nothing: it exits 1 naming the holder of
+# @qa_cayman when that user is neither actor C nor a QA or dev user.
 set -euo pipefail
 
 scenario="${1:?usage: first-run.setup.sh <scenario>}"
@@ -83,19 +85,24 @@ free_link_number() {
   echo "$scenario: freed {L.phone} from Privy user $holder_id"
 }
 
-free_member_handle() {
+# Prints the ids of the users holding @qa_cayman other than the member; fails on one that is not QA or dev.
+handle_holders() {
   local member_id="$1" holder_id email
-  local -a holders=()
   while IFS=$'\t' read -r holder_id email; do
     [[ -n "$holder_id" ]] || continue
     if [[ "$email" != "${MONACO_QA_C_EMAIL:?}" && ! "$email" =~ ^dev-[0-9a-f]{8}@example\.com$ &&
       "$holder_id" != did:privy:dev-* ]]; then
       fail "@qa_cayman belongs to Privy user $holder_id (email '$email'), which is neither actor C nor a QA or dev user"
     fi
-    holders+=("$holder_id")
+    echo "$holder_id"
   done < <(sql -F $'\t' -v id="$member_id" <<<"SELECT privy_user_id, coalesce(email, '') FROM users
     WHERE handle = 'qa_cayman' AND privy_user_id <> :'id'")
-  for holder_id in ${holders[@]+"${holders[@]}"}; do
+}
+
+free_member_handle() {
+  local member_id="$1" holder_id holders
+  holders="$(handle_holders "$member_id")"
+  for holder_id in $holders; do
     sql -v id="$holder_id" > /dev/null <<<"UPDATE users SET handle = NULL, handle_changed_at = NULL
       WHERE privy_user_id = :'id'"
     echo "$scenario: freed @qa_cayman from Privy user $holder_id"
@@ -156,6 +163,7 @@ set_up_dev_user() {
 }
 
 case "$scenario" in
+  --check-handle) handle_holders "$(member_privy_id)" > /dev/null ;;
   S1) set_up_first_run ;;
   S2 | S3 | S4) set_up_after_first_run ;;
   S5) set_up_dev_user ;;

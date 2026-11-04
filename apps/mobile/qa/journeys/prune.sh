@@ -1,8 +1,12 @@
 #!/usr/bin/env bash
 # Closes the QA cabals earlier journey runs left behind, so the Cabals tab stays short.
 # Only a local database is touched: DATABASE_URL on anything but localhost, 127.0.0.1 or ::1 is
-# refused (exit 0, nothing pruned). JOURNEY_RUN_STARTED (ISO time, default now) is when the run began;
-# only active cabals named `QA %` created more than an hour before it are considered.
+# refused (exit 0, nothing pruned). Only active cabals named `QA %` are considered:
+#   - a name whose last word is a run id (6 characters of journey.py's run-id alphabet, such as `QA chat K7M2QX`)
+#     is a candidate when that run is not live, at any age. A run is live while it holds
+#     $MONACO_QA_LOCK_DIR/monaco-qa-run-<id>.lock (default /tmp), which `/usr/bin/lockf -k -t 0 <lock> true` fails on.
+#   - any other `QA %` name keeps the age rule: created more than an hour before JOURNEY_RUN_STARTED
+#     (ISO time, default now).
 # A cabal that holds money is never pruned: any fund_transfers row, or any cabal_positions row
 # with units > 0 (a USDC pot or a stock). Otherwise, in one transaction:
 #   - a cabal an actor A, B or C created is closed (status banned, as the backend does),
@@ -40,7 +44,17 @@ for actor in A B C; do
 done
 started="${JOURNEY_RUN_STARTED:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}"
 
-report="$("$here/psql.sh" -v ON_ERROR_STOP=1 -tA -F '|' -v "dids={$dids}" -v "started=$started" << 'SQL'
+live=""
+lock_dir="${MONACO_QA_LOCK_DIR:-/tmp}"
+for lock in "$lock_dir"/monaco-qa-run-*.lock; do
+  [[ -e "$lock" ]] || continue
+  id="${lock##*monaco-qa-run-}"
+  id="${id%.lock}"
+  # lockf fails at once when a run holds the lock, so a failure means live. -k keeps the file.
+  /usr/bin/lockf -k -t 0 "$lock" true 2> /dev/null || live="${live:+$live,}$id"
+done
+
+report="$("$here/psql.sh" -v ON_ERROR_STOP=1 -tA -F '|' -v "dids={$dids}" -v "started=$started" -v "live={$live}" << 'SQL'
 BEGIN;
 CREATE TEMP TABLE prune_candidates ON COMMIT DROP AS
 SELECT c.id, c.name,
@@ -50,7 +64,9 @@ SELECT c.id, c.name,
 FROM cabals c, (SELECT ARRAY (SELECT id FROM users WHERE privy_user_id = ANY (:'dids'::text[])) AS ids) a
 WHERE c.status = 'active'
   AND c.name LIKE 'QA %'
-  AND c.created_at < :'started'::timestamptz - interval '1 hour'
+  AND CASE WHEN c.name ~ ' [ABCDEFGHJKMNPQRSTUVWXYZ23456789]{6}$'
+           THEN NOT (right(c.name, 6) = ANY (:'live'::text[]))
+           ELSE c.created_at < :'started'::timestamptz - interval '1 hour' END
   AND (c.creator_id = ANY (a.ids)
        OR EXISTS (SELECT 1 FROM cabal_members m
                   WHERE m.cabal_id = c.id AND m.role = 'member' AND m.user_id = ANY (a.ids)));
