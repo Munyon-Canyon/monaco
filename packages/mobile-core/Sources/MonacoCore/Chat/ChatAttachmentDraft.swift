@@ -5,6 +5,7 @@ public enum ChatAttachmentDraft: Equatable, Sendable {
     case gif(Components.Schemas.GifInput)
     case stock(assetID: String)
     case thesisQuote(proposalID: String, start: Int?, end: Int?)
+    case poll(Components.Schemas.PollAttachmentInput)
 
     public init?(_ input: Components.Schemas.CommentAttachmentInput, proposalID: String?) {
         switch input {
@@ -15,8 +16,8 @@ public enum ChatAttachmentDraft: Equatable, Sendable {
         case .thesisQuote(let quote):
             guard let proposalID else { return nil }
             self = .thesisQuote(proposalID: proposalID, start: quote.start, end: quote.end)
-        case .poll:
-            return nil
+        case .poll(let poll):
+            self = .poll(poll)
         }
     }
 
@@ -28,6 +29,8 @@ public enum ChatAttachmentDraft: Equatable, Sendable {
             .stock(.init(kind: .stock, assetId: assetID))
         case .thesisQuote(let proposalID, let start, let end):
             .thesisQuote(.init(kind: .thesisQuote, proposalId: proposalID, start: start, end: end))
+        case .poll(let poll):
+            .poll(poll)
         }
     }
 
@@ -36,6 +39,7 @@ public enum ChatAttachmentDraft: Equatable, Sendable {
         case .gif: GroupChatCopy.gifBody
         case .stock: GroupChatCopy.stockBody
         case .thesisQuote: GroupChatCopy.thesisBody
+        case .poll(let poll): poll.question
         }
     }
 
@@ -55,7 +59,7 @@ extension Components.Schemas.CommentAttachment {
         case .gif: GroupChatCopy.gifBody
         case .stock: GroupChatCopy.stockBody
         case .thesisQuote: GroupChatCopy.thesisBody
-        case .poll: nil
+        case .poll(let poll): poll.question
         }
     }
 }

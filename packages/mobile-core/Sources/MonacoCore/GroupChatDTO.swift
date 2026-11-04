@@ -77,6 +77,7 @@ public enum GroupChatCopy {
     public static let addToMessage = "Add to message"
     public static let gifChip = "GIF"
     public static let menuGif = "GIF"
+    public static let menuPoll = "Poll"
     public static let menuThesis = "Quote the thesis"
     public static let menuStock = "Share a stock"
 

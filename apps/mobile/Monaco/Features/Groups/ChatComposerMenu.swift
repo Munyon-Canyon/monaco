@@ -19,10 +19,12 @@ struct ChatComposerAttachments {
     let search: StockSearch?
     let thesis: ChatThesisSource?
     let send: (String?, ChatAttachmentDraft) -> Void
+    var presentPoll: () -> Void = {}
 }
 
 enum ChatComposerItem: String, CaseIterable, Identifiable {
     case gif
+    case poll
     case thesis
     case stock
 
@@ -31,6 +33,7 @@ enum ChatComposerItem: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .gif: GroupChatCopy.menuGif
+        case .poll: GroupChatCopy.menuPoll
         case .thesis: GroupChatCopy.menuThesis
         case .stock: GroupChatCopy.menuStock
         }
@@ -39,6 +42,7 @@ enum ChatComposerItem: String, CaseIterable, Identifiable {
     var icon: MonacoIcon {
         switch self {
         case .gif: .gif
+        case .poll: .pollCheck
         case .thesis: .thesis
         case .stock: .markets
         }
@@ -55,7 +59,7 @@ struct ChatComposerMenu: View {
     static func items(hasThesis: Bool, hasStock: Bool = true) -> [ChatComposerItem] {
         ChatComposerItem.allCases.filter {
             switch $0 {
-            case .gif: true
+            case .gif, .poll: true
             case .thesis: hasThesis
             case .stock: hasStock
             }
@@ -106,6 +110,8 @@ struct ChatComposerSheets: ViewModifier {
         switch item {
         case .gif:
             GifSheet(gifs: attachments.gifs) { deliver($0, nil) }
+        case .poll:
+            EmptyView()
         case .stock:
             if let search = attachments.search {
                 StockShareSheet(search: search) { deliver($0.input, nil) }
@@ -120,5 +126,19 @@ struct ChatComposerSheets: ViewModifier {
     private func deliver(_ input: Components.Schemas.CommentAttachmentInput, _ proposalID: String?) {
         guard let draft = ChatAttachmentDraft(input, proposalID: proposalID) else { return }
         send(draft)
+    }
+}
+
+struct ChatPollSheet: ViewModifier {
+    @Binding var isPresented: Bool
+    let send: (ChatAttachmentDraft) -> Void
+
+    func body(content: Content) -> some View {
+        content.sheet(isPresented: $isPresented) {
+            PollComposerSheet(isCabal: true) { input in
+                guard let draft = ChatAttachmentDraft(input, proposalID: nil) else { return }
+                send(draft)
+            }
+        }
     }
 }

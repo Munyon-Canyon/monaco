@@ -315,6 +315,7 @@ profile-edit-save-failure     -MonacoProfileSample editProfileSaveFailure
 profile-edit-error            -MonacoProfileSample editProfileError
 
 chat-thread                   -MonacoChatSampleQA -MonacoChatSampleProposal
+chat-poll                     -MonacoChatSampleQA -MonacoChatSamplePoll
 chat-empty                    -MonacoChatSampleQA -MonacoChatSampleEmpty
 chat-offline                  -MonacoChatSampleQA -MonacoChatSampleOffline
 

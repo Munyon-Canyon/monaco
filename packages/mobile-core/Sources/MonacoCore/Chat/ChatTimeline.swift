@@ -196,6 +196,13 @@ public struct ChatTimeline: Equatable, Sendable {
     }
 
     @discardableResult
+    mutating func updateMessage(id: String, _ change: (inout ChatMessage) -> Bool) -> Bool {
+        guard let index = messages.firstIndex(where: { $0.id == id }), change(&messages[index]) else { return false }
+        rebuildRows()
+        return true
+    }
+
+    @discardableResult
     public mutating func settleReactions(
         id: String, reactions: [Components.Schemas.Reaction], total: Int32
     ) -> Bool {

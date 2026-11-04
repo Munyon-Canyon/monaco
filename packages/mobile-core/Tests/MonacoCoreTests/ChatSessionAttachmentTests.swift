@@ -293,12 +293,12 @@ final class ChatSessionAttachmentTests: XCTestCase {
         XCTAssertEqual(rows["g"]?.displayText, "GIF")
     }
 
-    func testAPollHasNoStandInText() {
+    func testAPollStandsInWithItsQuestion() {
         let poll = Schemas.CommentAttachment.poll(
             .init(
                 kind: .poll, question: "Trim?", closesAt: Fixtures.epoch, closed: false,
                 options: [.init(position: 0, label: "Yes", count: 1)], total: 1))
-        XCTAssertNil(poll.fallbackBody)
+        XCTAssertEqual(poll.fallbackBody, "Trim?")
     }
 }
 
@@ -329,7 +329,9 @@ final class ChatAttachmentDraftTests: XCTestCase {
             ChatAttachmentDraft(quote, proposalID: Self.proposalID),
             .thesisQuote(proposalID: Self.proposalID, start: 1, end: 5))
         XCTAssertNil(ChatAttachmentDraft(quote, proposalID: nil))
-        XCTAssertNil(ChatAttachmentDraft(poll, proposalID: Self.proposalID))
+        XCTAssertEqual(
+            ChatAttachmentDraft(poll, proposalID: nil),
+            .poll(.init(kind: .poll, question: "Trim?", options: ["Yes", "No"], closesInHours: nil)))
     }
 
     func testTheDraftBuildsTheChatRequest() {
