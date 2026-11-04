@@ -88,6 +88,12 @@ TESTS_SWIFT = """nonisolated final class SignInJourneyUITests: XCTestCase {
 """
 
 
+class SharedBuildLock(unittest.TestCase):
+    def test_the_shared_build_lock_is_not_the_name_xcode_lock_uses_for_its_folder(self):
+        self.assertNotEqual(journey.shared_build_lock(), journey.OUT / (journey.SHARED_BUILD + ".lock"))
+        self.assertEqual(journey.shared_build_lock().parent, journey.OUT)
+
+
 class Tree(unittest.TestCase):
     """A throwaway repo with one journey, its test files and its accounts."""
 

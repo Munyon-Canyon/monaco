@@ -1114,6 +1114,12 @@ def build_is_current(current):
 SHARED_BUILD = "derived-build"
 
 
+def shared_build_lock():
+    """The file journey.py locks around the shared build. xcode-lock.sh makes a directory named after the
+    -derivedDataPath plus ".lock" for each xcodebuild, so a file of that name would block every build into it."""
+    return OUT / (SHARED_BUILD + ".journey-lock")
+
+
 @contextlib.contextmanager
 def derived_in(folder):
     """DERIVED points at `folder` inside the block."""
@@ -1150,7 +1156,7 @@ def ensure_build(sim, log, rebuild=False):
     shared = OUT / SHARED_BUILD
     OUT.mkdir(parents=True, exist_ok=True)
     built = False
-    with take_qa_lock(str(OUT / (SHARED_BUILD + ".lock"))):
+    with take_qa_lock(str(shared_build_lock())):
         with derived_in(shared):
             if not rebuild and build_is_current(current):
                 print("reusing build %s" % current[:8])
