@@ -202,12 +202,16 @@ func TestAgentGuard_killsReachOnlyThisWorktreesProcesses(t *testing.T) {
 	for _, cmd := range []string{
 		`pkill -f "agents check"`, `pkill -9 -f "go test"`, `killall go`, `/usr/bin/killall -9 swift`,
 		`timeout 5 pkill -f foo`, `cd x && pkill -f foo`, `pkill -u 501 -f foo`,
+		`kill -INT $(pgrep -f "journey.py run cabals/edit")`, `kill $(pgrep go)`, "kill `pidof go`",
+		`kill -9 $(/usr/bin/pgrep -f x)`, `pgrep -f x | xargs kill`, `cd x && kill $(pgrep -f y)`,
 	} {
 		assertBlocked(t, guard(t, cwd, cmd), cmd, "reaches every lane's processes")
 	}
 	for _, cmd := range []string{
 		`pkill -P 123`, `pkill -P123 foo`, `pkill --parent 123`, `pkill -g 5 foo`, `pkill -f foo -g5`,
 		`pkill -TERM -f "` + root + `/bin/api"`, `kill 123`, `pgrep -f x`,
+		`kill $(pgrep -P 123)`, `kill $(pgrep -f "` + root + `/bin/api")`, `kill $(cat x.pid)`, `pgrep -fl x`,
+		`kill -TERM 123 456`,
 	} {
 		assertAllowed(t, guard(t, cwd, cmd), cmd)
 	}

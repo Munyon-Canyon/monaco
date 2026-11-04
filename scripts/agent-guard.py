@@ -10,7 +10,7 @@ import shlex
 import subprocess
 import sys
 import urllib.parse
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from functools import lru_cache
 
@@ -46,6 +46,7 @@ class Invocation:
     under_timeout: bool = False
     stdin: str | None = None
     in_loop: bool = False
+    pid_subst: list[list[str]] = field(default_factory=list)
 
 
 def strip_heredocs(src: str) -> tuple[str, list[str]]:
@@ -170,17 +171,59 @@ def unwrap(argv: list[str]) -> tuple[list[str], bool]:
     return argv, under_timeout
 
 
+PID_LOOKUPS = {"pgrep", "pidof"}
+SUBST_RE = re.compile(r"\$\(([^()]*)\)|`([^`]*)`")
+PIPED_LOOKUP_RE = re.compile(r"(?<![\w./-])((?:\S*/)?(?:pgrep|pidof)\b[^|;&()`]*)\|\s*xargs\b")
+PGREP_MARK_RE = re.compile(r"@@PGREP(\d+)@@")
+
+
+def pid_lookup_argv(text: str) -> list[str] | None:
+    try:
+        cmds = tokenize(text)
+    except ValueError:
+        return None
+    if not cmds:
+        return None
+    argv, _ = unwrap(cmds[0])
+    return argv if argv and os.path.basename(argv[0]) in PID_LOOKUPS else None
+
+
+def hide_pid_lookups(flat: str) -> tuple[str, list[tuple[list[str], str]]]:
+    found: list[tuple[list[str], str]] = []
+
+    def mark(argv: list[str], original: str) -> str:
+        found.append((argv, original))
+        return f" @@PGREP{len(found) - 1}@@ "
+
+    def subst(m: re.Match) -> str:
+        inner = m.group(1) if m.group(1) is not None else m.group(2)
+        argv = pid_lookup_argv(inner)
+        return mark(argv, m.group(0)) if argv else m.group(0)
+
+    def piped(m: re.Match) -> str:
+        argv = pid_lookup_argv(m.group(1))
+        return " xargs " + mark(argv, m.group(0)) if argv else m.group(0)
+
+    return SUBST_RE.sub(subst, PIPED_LOOKUP_RE.sub(piped, flat)), found
+
+
 def parse(src: str, cwd: str) -> list[Invocation]:
     flat, bodies = strip_heredocs(src)
+    flat, lookups = hide_pid_lookups(flat)
     in_loop = bool(LOOP_RE.search(flat))
     parsed: list[Invocation] = []
     for raw in tokenize(flat):
         stdin = None
         argv = []
+        pid_subst = []
         for tok in raw:
             m = re.fullmatch(r"@@HEREDOC(\d+)@@", tok)
+            lm = PGREP_MARK_RE.fullmatch(tok)
             if m:
                 stdin = bodies[int(m.group(1))]
+            elif lm:
+                pid_subst.append(lookups[int(lm.group(1))][0])
+                argv.append(tok)
             else:
                 argv.append(tok)
         argv, under_timeout = unwrap(argv)
@@ -192,7 +235,7 @@ def parse(src: str, cwd: str) -> list[Invocation]:
                 cwd = os.path.normpath(os.path.join(cwd, os.path.expanduser(os.path.expandvars(argv[1]))))
             continue
         if head in SHELLS and "-c" in argv[1:-1]:
-            inner = parse(argv[argv.index("-c") + 1], cwd)
+            inner = parse(PGREP_MARK_RE.sub(lambda m: lookups[int(m.group(1))][1], argv[argv.index("-c") + 1]), cwd)
             for inv in inner:
                 inv.under_timeout = inv.under_timeout or under_timeout
                 inv.in_loop = inv.in_loop or in_loop
@@ -208,7 +251,7 @@ def parse(src: str, cwd: str) -> list[Invocation]:
         looped = in_loop
         if head == "watch" and "gh" in argv:
             argv, looped = argv[argv.index("gh") :], True
-        parsed.append(Invocation(argv, cwd, under_timeout, stdin, looped))
+        parsed.append(Invocation(argv, cwd, under_timeout, stdin, looped, pid_subst))
     return parsed
 
 
@@ -993,6 +1036,11 @@ def worktree_root(cwd: str) -> str:
     return cwd
 
 
+KILL_BY_PID = ("On 2026-10-07 dozens of pattern kills killed every queued agents check and the shared watch. "
+               "Kill by pid instead: find it with `pgrep -fl <pattern>`, confirm its cwd is your worktree with "
+               "`lsof -a -p <pid> -d cwd`, then `kill <pid>`.")
+
+
 def rule_scoped_kill(inv: Invocation) -> str | None:
     head = os.path.basename(inv.argv[0])
     if head not in {"pkill", "killall"}:
@@ -1005,10 +1053,23 @@ def rule_scoped_kill(inv: Invocation) -> str | None:
         pattern = pkill_pattern(args)
         if pattern and root in pattern:
             return None
-    return (f"{head} matches by name, so it reaches every lane's processes on this Mac. On 2026-10-07 dozens of "
-            "pattern kills killed every queued agents check and the shared watch. Kill by pid instead: find it with "
-            "`pgrep -fl <pattern>`, confirm its cwd is your worktree with `lsof -a -p <pid> -d cwd`, then `kill <pid>`. "
+    return (f"{head} matches by name, so it reaches every lane's processes on this Mac. {KILL_BY_PID} "
             f"Or scope the pkill pattern to {root}, for example `pkill -f {root}/bin/api`.")
+
+
+def rule_kill_from_lookup(inv: Invocation) -> str | None:
+    head = os.path.basename(inv.argv[0])
+    if not inv.pid_subst or not (head == "kill" or (head == "xargs" and "kill" in map(os.path.basename, inv.argv))):
+        return None
+    root = worktree_root(inv.cwd)
+    for argv in inv.pid_subst:
+        head, args = os.path.basename(argv[0]), argv[1:]
+        if head == "pgrep" and (pkill_scoped_by_tree(args) or root in (pkill_pattern(args) or "")):
+            continue
+        return (f"kill with pids from {head} matches by name, so it reaches every lane's processes on this Mac. "
+                f"{KILL_BY_PID} Or scope the pgrep pattern to {root}, for example `kill $(pgrep -f {root}/bin/api)`, "
+                "or use `pgrep -P <pid>` for a process tree.")
+    return None
 
 
 RULES = [
@@ -1018,6 +1079,7 @@ RULES = [
     rule_push_behind,
     rule_claude_timeout,
     rule_scoped_kill,
+    rule_kill_from_lookup,
     rule_merge_needs_verify,
     rule_edit_base,
     rule_queue_label,
