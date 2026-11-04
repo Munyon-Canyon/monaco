@@ -78,12 +78,14 @@ private struct CabalVotersTabBody: View {
         MonacoSectionHeader(title)
             .padding(.horizontal, MonacoTheme.Space.gutter)
         ForEach(rows) { entry in
+            let subtitle = CabalMemberCopy.voterLine(entry.row)
             CabalMemberLink(
-                entry: entry, viewerID: viewerID, subtitle: CabalMemberCopy.voterLine(entry.row),
+                entry: entry, viewerID: viewerID, subtitle: subtitle,
                 isLast: entry.id == rows.last?.id
             )
             .contextMenu { actions(entry) }
             .onAppear { Task { await model.loadMore(after: entry) } }
+            .id("\(entry.id)|\(subtitle)")
         }
     }
 
