@@ -259,16 +259,7 @@ struct GalleryBoardControlSamples: View {
         _ suffix: String, line: VoteCardLine, yes: VoteHoldPhase = .idle, no: VoteHoldPhase = .idle,
         counts: (yes: Int, no: Int) = (4, 1)
     ) -> some View {
-        VoteCard(
-            title: "Buy NVDA \u{00B7} $400", mark: .stock(symbol: "NVDA", name: "NVIDIA", logoURL: nil),
-            line: line, yes: counts.yes, no: counts.no, eligible: 8,
-            identifierPrefix: "gallery-usage", identifierSuffix: suffix, onOpen: {},
-            actions: {
-                VoteHoldRow(
-                    yes: VoteHoldButton(side: .yes, count: counts.yes, phase: yes),
-                    no: VoteHoldButton(side: .no, count: counts.no, phase: no))
-            }
-        )
+        GalleryVoteCard(suffix: "usage-\(suffix)", line: line, yes: yes, no: no, counts: counts)
     }
 
     private var votes: some View {
@@ -461,39 +452,72 @@ struct GalleryVoteSamples: View {
     }
 }
 
+private struct GalleryVoteCard: View {
+    let suffix: String
+    let line: VoteCardLine
+    var yes: VoteHoldPhase = .idle
+    var no: VoteHoldPhase = .idle
+    var counts: (yes: Int, no: Int) = (4, 1)
+
+    var body: some View {
+        VoteCard(
+            title: "Buy NVDA \u{00B7} $400", mark: .stock(symbol: "NVDA", name: "NVIDIA", logoURL: nil),
+            line: line, yes: counts.yes, no: counts.no, eligible: 8,
+            identifierPrefix: "gallery", identifierSuffix: suffix, onOpen: {},
+            actions: {
+                VoteHoldRow(
+                    yes: VoteHoldButton(side: .yes, count: counts.yes, phase: yes),
+                    no: VoteHoldButton(side: .no, count: counts.no, phase: no))
+            }
+        )
+    }
+}
+
 private struct GalleryVoteStates: View {
     private static let people: [MonacoAvatar.Source] = ["Mia", "Christelle", "Logan", "Sam", "You"].map {
         MonacoAvatar.Source(id: $0, displayName: $0, photoURL: nil)
     }
 
-    private func row(_ yes: VoteHoldPhase, _ no: VoteHoldPhase, counts: (Int, Int) = (4, 1)) -> some View {
-        VoteHoldRow(
-            yes: VoteHoldButton(side: .yes, count: counts.0, phase: yes),
-            no: VoteHoldButton(side: .no, count: counts.1, phase: no))
-    }
-
     var body: some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
-            GalleryCase(caption: "Two-ended tally, idle") {
+            GalleryCase(caption: "The shared vote card: Home and Cabals, the cabal's page, after a Yes, the Feed") {
                 VStack(alignment: .leading, spacing: MonacoTheme.Space.sm) {
-                    VoteTallyBar(yes: 4, no: 1, eligible: 8)
-                    row(.idle, .idle)
-                    VoteStatusLine(
-                        result: nil, facts: ["5 of 8 voted", "6 replies", "ends in 4h"], identifierPrefix: "gallery",
-                        identifierSuffix: "idle")
+                    GalleryVoteCard(
+                        suffix: "home",
+                        line: VoteCardLine(
+                            full: "AC Capital \u{00B7} 5 of 8 voted \u{00B7} 6 replies \u{00B7} 4h",
+                            short: "AC Capital \u{00B7} 5 of 8 voted \u{00B7} 6 replies \u{00B7} 4h"))
+                    GalleryVoteCard(
+                        suffix: "cabal",
+                        line: VoteCardLine(
+                            full: "5 of 8 voted \u{00B7} 6 replies \u{00B7} closes in 4h",
+                            short: "5 of 8 voted \u{00B7} 6 replies \u{00B7} 4h"))
+                    GalleryVoteCard(
+                        suffix: "voted",
+                        line: VoteCardLine(
+                            full: "6 of 8 voted \u{00B7} 6 replies \u{00B7} closes in 4h",
+                            short: "6 of 8 voted \u{00B7} 6 replies \u{00B7} 4h"),
+                        yes: .committed, no: .dimmed, counts: (5, 1))
+                    GalleryVoteCard(
+                        suffix: "feed",
+                        line: VoteCardLine(
+                            full: "AC Capital \u{00B7} 5 of 8 voted \u{00B7} 4h",
+                            short: "AC Capital \u{00B7} 5 of 8 voted \u{00B7} 4h"))
                 }
             }
-            GalleryCase(caption: "Picked, holding at 40 %, committed") {
+            GalleryCase(caption: "In the card: idle, holding at 40 %, committed") {
                 VStack(alignment: .leading, spacing: MonacoTheme.Space.sm) {
-                    row(.picked, .dimmed)
-                    row(.holding(progress: 0.4), .dimmed)
-                    Text("Keep holding · lift to cancel")
-                        .font(MonacoTheme.Typo.subhead)
-                        .foregroundStyle(MonacoTheme.secondaryText)
-                    row(.committed, .dimmed, counts: (5, 1))
-                    VoteStatusLine(
-                        result: .executing, facts: ["Passed 5–1", "6 of 8 voted", "buying 1.82 sh"],
-                        identifierPrefix: "gallery", identifierSuffix: "executing")
+                    GalleryVoteCard(
+                        suffix: "pair-idle",
+                        line: VoteCardLine(full: "5 of 8 voted \u{00B7} 4h", short: "5 of 8 voted \u{00B7} 4h"))
+                    GalleryVoteCard(
+                        suffix: "pair-holding",
+                        line: VoteCardLine(full: "5 of 8 voted \u{00B7} 4h", short: "5 of 8 voted \u{00B7} 4h"),
+                        yes: .holding(progress: 0.4), no: .dimmed)
+                    GalleryVoteCard(
+                        suffix: "pair-committed",
+                        line: VoteCardLine(full: "6 of 8 voted \u{00B7} 4h", short: "6 of 8 voted \u{00B7} 4h"),
+                        yes: .committed, no: .dimmed, counts: (5, 1))
                 }
             }
             GalleryCase(caption: "Closed, passed: ends, winner in label colour") {
@@ -521,7 +545,7 @@ private struct GalleryVoteStates: View {
                         yes: 3, no: 0, middle: "Pilates members vote", identifierPrefix: "gallery",
                         identifierSuffix: "public")
                     VoteStatusLine(
-                        result: nil, facts: ["3 of 7 voted", "2 replies", "ends in 23h"], identifierPrefix: "gallery",
+                        result: nil, facts: ["3 of 7 voted", "2 replies", "closes in 23h"], identifierPrefix: "gallery",
                         identifierSuffix: "public")
                 }
             }
