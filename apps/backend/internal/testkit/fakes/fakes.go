@@ -70,6 +70,7 @@ type fieldError string
 func (f fieldError) Error() string { return "invalid step field: " + string(f) }
 
 type Server struct {
+	fundUnseeded bool
 	log          *slog.Logger
 	mux          *http.ServeMux
 	live         *http.ServeMux
@@ -95,6 +96,12 @@ type Server struct {
 }
 
 func New() *Server { return newFrom(fixtures, "testdata/fakes") }
+
+func NewFunded() *Server {
+	s := New()
+	s.fundUnseeded = true
+	return s
+}
 
 func newFrom(fsys fs.FS, root string) *Server {
 	s := &Server{

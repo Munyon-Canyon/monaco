@@ -20,7 +20,7 @@ import (
 func TestModule_wiresTheCabalsTreasuryEVMWalletOnePerCabal(t *testing.T) {
 	t.Parallel()
 	pool := testkit.DB(t)
-	srv := httptest.NewServer(fakes.New())
+	srv := httptest.NewServer(fakes.NewFunded())
 	t.Cleanup(srv.Close)
 	cfg := testkit.Config()
 	cfg.Privy = config.Privy{
