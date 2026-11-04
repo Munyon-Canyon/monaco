@@ -1,7 +1,7 @@
 ---
 id: cabals/leave
 title: Leave a cabal
-version: 7
+version: 8
 milestone: M10
 requires: [auth/sign-in]
 actors: [A, B]
@@ -33,7 +33,7 @@ The format of this doc is in [App journeys](../README.md).
 | --- | --- | --- | --- | --- | --- |
 | S1.1 | B | `openCabal(named:)` | the Cabals tab and the tile | `QA leave {QA.run}` | `cabal-header-name` reads `QA leave {QA.run}` and `cabal-member-count` reads the other member's first name within 15 s |
 | S1.2 | B | tap, then tap | `cabal-more-button`, then `cabal-more-leave` | | The Leave cabal sheet shows `cabalLeaveButton` reading "Leave cabal" within 10 s |
-| S1.3 | B | tap | `cabalLeaveButton` | | The dialog "Leave QA leave {QA.run}?" shows `cabalLeaveConfirmButton` "Leave cabal" within 5 s |
+| S1.3 | B | tap | `cabalLeaveButton` | | The dialog "Leave {cabal name}?" (here `QA leave {QA.run}`) shows `cabalLeaveConfirmButton` "Leave cabal" within 5 s |
 | S1.4 | B | tap | `cabalLeaveConfirmButton` | | The toast "You left QA leave {QA.run}." shows within 10 s and `cabal-header-name` is gone within 10 s |
 | S1.5 | B | tap | the Cabals tab | | No `cabals-tile-<id>` for `QA leave {QA.run}` shows within 10 s: B is no longer a member |
 
@@ -47,10 +47,6 @@ The format of this doc is in [App journeys](../README.md).
 ## Ground truth
 
 `apps/mobile/qa/journeys/cabals/leave.truth.sh` reads `cabal_members`. After S1, B is not a member of `QA leave {QA.run}`. After S2, A and B are both still members of `QA stay {QA.run}`.
-
-## Known failures on staging
-
-- S1.3: "Leave QA leave {QA.run}?" is no longer app copy. Blocked by #7976.
 
 ## Not covered
 
