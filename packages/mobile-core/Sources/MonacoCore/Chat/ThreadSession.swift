@@ -81,16 +81,19 @@ public actor ThreadSession {
     }
 
     @discardableResult
-    public func send(body: String, alsoInChannel: Bool = false) async -> GroupChatDraft.Problem? {
-        let trimmed: String
-        switch GroupChatDraft.validate(body) {
+    public func send(
+        body: String?, attachment: ChatAttachmentDraft? = nil, alsoInChannel: Bool = false
+    ) async -> GroupChatDraft.Problem? {
+        let trimmed: String?
+        switch GroupChatDraft.prepare(body, hasAttachment: attachment != nil) {
         case .success(let text): trimmed = text
         case .failure(let problem): return problem
         }
         let key = await chat.newKey()
         submissions[key] = IdempotentSubmission(makeKey: { key })
         state.timeline.addUnsent(
-            key: key, body: trimmed, at: now(), parentID: parentID, alsoInChannel: alsoInChannel)
+            key: key, body: trimmed, attachment: attachment, at: now(), parentID: parentID,
+            alsoInChannel: alsoInChannel)
         publish()
         await deliver(key: key)
         return nil
@@ -188,8 +191,7 @@ public actor ThreadSession {
     private func deliver(key: String) async {
         guard let send = state.timeline.unsent(key: key), let submission = submissions[key] else { return }
         let cabalID = cabalID
-        let request = Components.Schemas.PostChatMessageRequest(
-            body: send.body, parentId: parentID, alsoInChannel: send.alsoInChannel)
+        let request = send.request(parentID: parentID)
         do {
             let stored = try await api.submit(
                 submission, payload: request, operation: "postChatMessage:\(cabalID):\(parentID)"
@@ -205,7 +207,7 @@ public actor ThreadSession {
             publish()
             if send.alsoInChannel { await chat.receiveReply(stored) }
         } catch {
-            let failure = APIError(error)
+            let failure = send.attachment?.rewriting(APIError(error)) ?? APIError(error)
             state.timeline.setFailed(key: key, true)
             if ChatSession.isClosed(failure) {
                 state.isClosed = true

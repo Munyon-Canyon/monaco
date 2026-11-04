@@ -114,19 +114,20 @@ public actor ChatSession {
 
     @discardableResult
     public func send(
-        body: String, parentId: String? = nil, alsoInChannel: Bool = false
+        body: String?, attachment: ChatAttachmentDraft? = nil, parentId: String? = nil, alsoInChannel: Bool = false
     ) async -> GroupChatDraft.Problem? {
         if let parentId {
-            return await thread(parentId: parentId).send(body: body, alsoInChannel: alsoInChannel)
+            return await thread(parentId: parentId).send(
+                body: body, attachment: attachment, alsoInChannel: alsoInChannel)
         }
-        let trimmed: String
-        switch GroupChatDraft.validate(body) {
+        let trimmed: String?
+        switch GroupChatDraft.prepare(body, hasAttachment: attachment != nil) {
         case .success(let text): trimmed = text
         case .failure(let problem): return problem
         }
         let key = makeKey()
         submissions[key] = IdempotentSubmission(makeKey: { key })
-        state.timeline.addUnsent(key: key, body: trimmed, at: now())
+        state.timeline.addUnsent(key: key, body: trimmed, attachment: attachment, at: now())
         publish()
         await deliver(key: key)
         return nil
@@ -228,20 +229,20 @@ public actor ChatSession {
     private func deliver(key: String) async {
         guard let send = state.timeline.unsent(key: key), let submission = submissions[key] else { return }
         let cabalID = cabalID
-        let body = send.body
+        let request = send.request(parentID: nil)
         do {
-            let stored = try await api.submit(submission, payload: body, operation: "postChatMessage:\(cabalID)") {
+            let stored = try await api.submit(submission, payload: request, operation: "postChatMessage:\(cabalID)") {
                 client, idempotencyKey in
                 try await client.postChatMessage(
                     path: .init(id: cabalID),
                     headers: .init(idempotencyKey: idempotencyKey),
-                    body: .json(.init(body: body))
+                    body: .json(request)
                 ).created.body.json
             }
             submissions[key] = nil
             state.timeline.settle(stored, key: key)
         } catch {
-            let failure = APIError(error)
+            let failure = send.attachment?.rewriting(APIError(error)) ?? APIError(error)
             state.timeline.setFailed(key: key, true)
             if Self.isClosed(failure) {
                 state.isClosed = true

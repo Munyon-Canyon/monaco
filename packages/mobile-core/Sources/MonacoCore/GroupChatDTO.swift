@@ -31,6 +31,13 @@ public enum GroupChatDraft {
         if count > maxCharacters { return .failure(.tooLong(count: count)) }
         return .success(trimmed)
     }
+
+    public static func prepare(_ text: String?, hasAttachment: Bool) -> Result<String?, Problem> {
+        if hasAttachment, (text ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return .success(nil)
+        }
+        return validate(text ?? "").map { $0 }
+    }
 }
 
 public enum GroupChatCopy {
@@ -43,6 +50,11 @@ public enum GroupChatCopy {
     public static let loadFailure = "Couldn't load messages."
     public static let closed = "You're not in this cabal anymore."
     public static let notSent = "Not sent"
+    public static let attachmentNotSent = notSent
+    public static let noThesis = "That proposal has no thesis to quote."
+    public static let gifBody = "GIF"
+    public static let stockBody = "Shared a stock"
+    public static let thesisBody = "Quoted the thesis"
     public static let retry = "Retry"
     public static let discuss = "Discuss"
     public static let sent = "Sent"
