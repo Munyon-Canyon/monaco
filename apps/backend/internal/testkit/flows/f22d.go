@@ -4,16 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
-	"sync"
 	"time"
 
 	"github.com/google/uuid"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
-	"github.com/monaco/monaco/apps/backend/internal/modules/social/app"
-	"github.com/monaco/monaco/apps/backend/internal/modules/social/domain"
-	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
@@ -25,99 +21,26 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/testkit/scenario"
 )
 
-type momentRealtime struct {
-	mu    sync.Mutex
-	names []string
-}
-
-func (r *momentRealtime) Publish(_ context.Context, _, name string, _ any) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.names = append(r.names, name)
-	return nil
-}
-
-func (*momentRealtime) TokenRequest(context.Context, ids.UserID, []string, time.Duration) (app.TokenRequest, error) {
-	return app.TokenRequest{}, nil
-}
-
-func (*momentRealtime) RevokeTokens(context.Context, ids.UserID) error { return nil }
-
-func (r *momentRealtime) published() int {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	return len(r.names)
-}
-
-type momentWriter struct {
-	handler *app.WriteChatMomentHandler
-	rt      *momentRealtime
-}
-
-func newMomentWriter(s *scenario.Scenario) momentWriter {
-	rt := &momentRealtime{}
-	wire := func(_ context.Context, m app.ChatMessage) (any, error) { return map[string]any{"id": m.ID}, nil }
-	return momentWriter{
-		rt: rt,
-		handler: app.NewWriteChatMomentHandler(app.ChatDeps{
-			UoW: db.New(s.DB(), ids.Real{}, clock.Real{}), IDs: ids.Real{}, Clock: clock.Real{},
-			Publish: app.NewChatPublisher(rt, wire),
-		}),
-	}
-}
-
-func momentCtx(s *scenario.Scenario) context.Context {
-	return auth.WithActor(s.Context(), auth.Actor{Kind: auth.ActorSystem, ID: "consumer:cabal.created"})
-}
-
-func momentCommand(s *scenario.Scenario, user ids.UserID, key string) app.WriteChatMoment {
-	moment, err := domain.NewMemberJoinedMoment(user)
-	if err != nil {
-		s.Fatalf("flows: build the member_joined moment: %v", err)
-	}
-	return app.WriteChatMoment{
-		CabalID: ids.CabalIDFrom(uuid.MustParse(s.Recall("cabal"))), Moment: moment,
-		At: time.Now().UTC(), DedupeKey: key,
-	}
-}
-
-func systemRowsHold(want int) scenario.Step {
-	return func(s *scenario.Scenario) {
-		s.Helper()
-		var got int
-		err := s.DB().QueryRow(s.Context(),
-			`SELECT count(*) FROM cabal_messages WHERE cabal_id = $1::uuid AND kind = 'system'
-			 AND author_id IS NULL AND body IS NULL AND dedupe_key LIKE 'member_joined:%'`, s.Recall("cabal")).Scan(&got)
-		if err != nil {
-			s.Fatalf("flows: count the system rows: %v", err)
-		}
-		if got != want {
-			s.Fatalf("flows: the cabal holds %d system rows, want %d", got, want)
-		}
-	}
-}
-
-func momentsPublished(w *momentWriter, want int) scenario.Step {
-	return func(s *scenario.Scenario) {
-		s.Helper()
-		if got := w.rt.published(); got != want {
-			s.Fatalf("flows: %d moment.created published, want %d", got, want)
-		}
-	}
+func joinedKey(s *scenario.Scenario, request uuid.UUID) string {
+	return "joined:" + s.ActorID().String() + ":" + request.String()
 }
 
 func F22dWriteMemberJoinedMomentOK(s *scenario.Scenario) {
-	var w momentWriter
-	s.Given(append(chatCabal("moment-ok"), func(s *scenario.Scenario) { w = newMomentWriter(s) })...).
+	request := uuid.MustParse("01920000-0000-7000-8000-0000000000c2")
+	s.Given(chatCabal("moment-ok")...).
 		When(
+			scenario.Eventually("the cabal_created row", func(s *scenario.Scenario) bool { return keyedRows(s, "created") == 1 }),
 			func(s *scenario.Scenario) {
-				cmd := momentCommand(s, s.ActorID(), "member_joined:ok")
 				for range 2 {
-					if _, err := w.handler.Handle(momentCtx(s), cmd); err != nil {
-						s.Fatalf("flows: write the chat moment: %v", err)
-					}
+					publishEvent(s, events.CabalMemberJoined{
+						V: 1, CabalID: uuid.MustParse(s.Recall("cabal")), UserID: s.ActorID().UUID(),
+						Role: "member", Via: "open", RequestID: request,
+					})
 				}
 			},
+			scenario.Eventually("the member_joined row", func(s *scenario.Scenario) bool {
+				return keyedRows(s, joinedKey(s, request)) == 1
+			}),
 			scenario.Get(chatPath),
 			scenario.ExpectStatus(http.StatusOK),
 			scenario.ExpectField("messages", func(s *scenario.Scenario, raw json.RawMessage) {
@@ -134,8 +57,11 @@ func F22dWriteMemberJoinedMomentOK(s *scenario.Scenario) {
 			}),
 		).
 		Then(
-			systemRowsHold(1),
-			func(s *scenario.Scenario) { momentsPublished(&w, 1)(s) },
+			func(s *scenario.Scenario) {
+				if got := keyedRows(s, joinedKey(s, request)); got != 1 {
+					s.Fatalf("flows: the cabal holds %d rows for the joined key, want 1", got)
+				}
+			},
 			scenario.ExpectEvents(events.TypeChatMessagePosted, 0),
 		)
 }
