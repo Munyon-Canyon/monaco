@@ -21,4 +21,15 @@ struct MarketsLayoutTests {
         let count = MonacoCore.StocksTabModel.availableBrowses.count
         #expect(MonacoChipBar<MonacoCore.StocksTabModel.Browse>.fits(count, maxVisible: 4))
     }
+
+    @Test func cancelClearsTheQueryAndLeavesSearch() {
+        var query = "micro"
+        var searching = true
+        var focused = true
+        MarketsSearchCancel.apply(query: &query, searching: &searching, focused: &focused)
+        #expect(MarketsSearchCancel.identifier == "markets-search-cancel")
+        #expect(query == "")
+        #expect(!searching)
+        #expect(!focused)
+    }
 }

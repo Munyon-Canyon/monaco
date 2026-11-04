@@ -193,18 +193,18 @@ private struct StocksTabScreen: View {
             .focused($fieldFocused)
             if searching {
                 Button {
-                    query = ""
-                    fieldFocused = false
-                    searching = false
+                    var focused = fieldFocused
+                    MarketsSearchCancel.apply(query: &query, searching: &searching, focused: &focused)
+                    fieldFocused = focused
                 } label: {
                     Text("Cancel")
                         .font(MonacoTheme.Typo.body)
-                        .foregroundStyle(MonacoTheme.accent)
+                        .foregroundStyle(MonacoTheme.link)
                         .frame(minHeight: MonacoSearchFieldMetrics.minHeight)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .accessibilityIdentifier("markets-search-cancel")
+                .accessibilityIdentifier(MarketsSearchCancel.identifier)
             }
         }
         .padding(.horizontal, MonacoTheme.Space.gutter)
@@ -311,5 +311,15 @@ private struct StocksTabScreen: View {
                     Task { await model.loadMore() }
                 })
         }
+    }
+}
+
+enum MarketsSearchCancel {
+    static let identifier = "markets-search-cancel"
+
+    static func apply(query: inout String, searching: inout Bool, focused: inout Bool) {
+        query = ""
+        focused = false
+        searching = false
     }
 }
