@@ -26,6 +26,8 @@ struct GroupChatScreen: View {
     @State private var messageToDelete: String?
     @State private var thesis: ChatThesisSource?
     @State private var showsPoll = false
+    @State private var quietFacts = ChatQuietFacts()
+    @State private var now = Date()
     @Environment(AppEnvironment.self) private var appEnvironment: AppEnvironment?
     @Environment(\.stockSearch) private var stockSearch
     @FocusState private var composerFocused: Bool
@@ -57,6 +59,8 @@ struct GroupChatScreen: View {
         .task(id: sessionID) { await observe() }
         .task(id: sessionID) { await session?.open() }
         .task(id: cabalID) { await loadThesis() }
+        .task(id: quietKind == .fresh) { await loadQuietFacts() }
+        .onChange(of: chat?.timeline.rows) { now = Date() }
         .task(id: reporterID) { await reporter?.setScreenVisible(true) }
         .onAppear { Task { await reporter?.setScreenVisible(true) } }
         .sheet(item: $seenTarget) { target in
@@ -87,13 +91,7 @@ struct GroupChatScreen: View {
 
     @ViewBuilder private var messagesArea: some View {
         if let chat, chat.timeline.hasLoadedNewest {
-            if chat.timeline.rows.isEmpty {
-                GroupChatEmptyView()
-                    .contentShape(Rectangle())
-                    .onTapGesture { composerFocused = true }
-            } else {
-                thread(chat)
-            }
+            thread(chat)
         } else if closedWithoutMessages {
             EmptyState(title: GroupChatCopy.closed, isOnlyContent: true)
                 .accessibilityIdentifier("chat-closed")
@@ -122,8 +120,36 @@ struct GroupChatScreen: View {
             discard: { key in Task { await session?.discard(key: key) } },
             loadOlder: { Task { await session?.loadOlder() } },
             refresh: { await session?.reload() },
-            reactions: reactionsOverride ?? ownReactions, cabalID: cabalID
+            reactions: reactionsOverride ?? ownReactions, cabalID: cabalID,
+            quiet: quietContent
         )
+    }
+
+    private var resolvedStockSearch: StockSearch? {
+        stockSearch ?? appEnvironment.map { LiveStockSearch.make($0.api) }
+    }
+
+    private var quietKind: ChatQuietState.Kind {
+        guard let chat, chat.timeline.hasLoadedNewest, chat.footer == .composer, let cabal else { return .none }
+        return ChatQuietState.kind(rows: chat.timeline.rows, openProposals: Int(cabal.openProposalCount), now: now)
+    }
+
+    private var quietContent: ChatQuietContent? {
+        guard let cabal else { return nil }
+        return ChatQuietContent(
+            kind: quietKind, cabalID: cabalID, cabalName: cabal.name,
+            pictureURL: CabalMark.resolvedURL(cabal.pictureUrl),
+            line: quietFacts.line(memberCount: Int(cabal.memberCount)),
+            actions: ChatQuietState.actions(
+                canPropose: cabal.me?.canPropose == true, voterCount: Int(cabal.voterCount)),
+            search: resolvedStockSearch,
+            focusComposer: { composerFocused = true }, openPoll: { presentPoll() },
+            sendStock: { draft in Task { await session?.send(body: nil, attachment: draft) } })
+    }
+
+    private func loadQuietFacts() async {
+        guard quietKind == .fresh, let appEnvironment else { return }
+        if let facts = await ChatQuietFacts.load(api: appEnvironment.api, cabalID: cabalID) { quietFacts = facts }
     }
 
     @ViewBuilder private var bottomBar: some View {
@@ -134,7 +160,9 @@ struct GroupChatScreen: View {
             GroupChatClosedNotice()
         case .composer:
             ChatComposerBar(
-                focus: $composerFocused, members: cabal?.members ?? [], viewerID: viewerID,
+                focus: $composerFocused,
+                placeholder: ChatQuietState.composerPlaceholder(kind: quietKind, cabalName: cabal?.name),
+                members: cabal?.members ?? [], viewerID: viewerID,
                 attachments: attachments
             ) { body in
                 Task { await session?.send(body: body) }
@@ -146,7 +174,7 @@ struct GroupChatScreen: View {
         guard let provider = gifs ?? appEnvironment?.gifs else { return nil }
         return ChatComposerAttachments(
             gifs: provider,
-            search: stockSearch ?? appEnvironment.map { LiveStockSearch.make($0.api) },
+            search: resolvedStockSearch,
             thesis: thesis
         ) { body, attachment in
             Task { await session?.send(body: body, attachment: attachment) }

@@ -21,6 +21,7 @@ struct GroupChatThreadView: View {
     let refresh: () async -> Void
     var reactions: ReactionsModel?
     var cabalID = ""
+    var quiet: ChatQuietContent?
 
     @Environment(ToastCenter.self) private var toasts
     @Environment(AppEnvironment.self) private var environment: AppEnvironment?
@@ -32,9 +33,12 @@ struct GroupChatThreadView: View {
         ChatList(
             rows: rows, hasOlder: hasOlder, isLoadingOlder: isLoadingOlder,
             loadEarlierID: "chat-load-earlier", listID: "chat-thread",
-            loadOlder: loadOlder, refresh: refresh
+            loadOlder: loadOlder, refresh: refresh,
+            pinsToBottom: quiet?.showsActions == true
         ) {
-            EmptyView()
+            ChatQuietGroup(visible: quiet?.showsScene == true) {
+                if let quiet { ChatQuietHeader(content: quiet) }
+            }
         } content: {
             ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
                 GroupChatRowView(
@@ -50,6 +54,9 @@ struct GroupChatThreadView: View {
                     openMoment: { openMoment($0) }
                 )
                 .id(row.id)
+            }
+            ChatQuietGroup(visible: quiet?.showsActions == true) {
+                if let quiet { ChatQuietActions(content: quiet) }
             }
         }
         .task(id: ChatMomentPrices.symbols(in: rows)) { await refreshPrices() }
