@@ -2946,6 +2946,15 @@ class Dev(unittest.TestCase):
         self.assertEqual(journey.failure_attachments(manifest), ("shot.jpeg", "tree.txt"))
         self.assertEqual(journey.failure_attachments([]), ("", ""))
 
+    def test_the_capture_taken_at_the_failure_beats_a_later_failure_flagged_stale_one(self):
+        manifest = [{"testIdentifier": "T/testJourney", "attachments": [
+            {"exportedFileName": "now.png", "suggestedHumanReadableName": "failure-screenshot_1_ABC.png"},
+            {"exportedFileName": "now.txt", "suggestedHumanReadableName": "failure-hierarchy_2_ABC.txt"},
+            {"exportedFileName": "stale.png", "suggestedHumanReadableName": "Screenshot_3.png", "isAssociatedWithFailure": True},
+            {"exportedFileName": "stale.txt", "suggestedHumanReadableName": "App UI hierarchy_4.txt", "isAssociatedWithFailure": True},
+            {"exportedFileName": "manual.png", "suggestedHumanReadableName": "S1-A-search_5.png"}]}]
+        self.assertEqual(journey.failure_attachments(manifest), ("now.png", "now.txt"))
+
     def test_the_assertion_message_is_the_first_error_line(self):
         log = "x.swift:12: error: -[UITests.A testJourney] : XCTAssertTrue failed - S2.3 missing\nother: error: -[B c] : later"
         self.assertEqual(journey.failure_message(log), "XCTAssertTrue failed - S2.3 missing")

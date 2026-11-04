@@ -1400,19 +1400,23 @@ def failure_message(output):
 
 def failure_attachments(manifest):
     """(screenshot, hierarchy) file names a failure left, from the manifest.json of `xcresulttool export
-    attachments`: the last one of each kind, those marked as belonging to a failure first. '' when absent."""
+    attachments`: the last one of each kind, taken first from those the journey tests captured at the moment of
+    the failure (named failure-screenshot and failure-hierarchy), then those marked as belonging to a failure.
+    '' when absent."""
     screenshots, hierarchies = [], []
     for test in manifest:
         for item in test.get("attachments", []):
             name = item.get("exportedFileName", "")
             label = item.get("suggestedHumanReadableName", "").lower()
+            rank = 2 if label.startswith("failure-") else int(bool(item.get("isAssociatedWithFailure")))
             if "hierarchy" in label or "debug description" in label:
-                hierarchies.append((bool(item.get("isAssociatedWithFailure")), name))
+                hierarchies.append((rank, name))
             elif name.lower().endswith((".png", ".jpg", ".jpeg", ".heic")):
-                screenshots.append((bool(item.get("isAssociatedWithFailure")), name))
+                screenshots.append((rank, name))
 
     def last(items):
-        names = [name for failed, name in items if failed] or [name for _, name in items]
+        best = max((rank for rank, _ in items), default=0)
+        names = [name for rank, name in items if rank == best]
         return names[-1] if names else ""
     return last(screenshots), last(hierarchies)
 
