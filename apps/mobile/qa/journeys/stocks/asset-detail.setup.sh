@@ -36,7 +36,7 @@ qa_api_ready
 did="$(apps/mobile/qa/journeys/privy-user-id.sh A)"
 qa_sql -v did="$did" >/dev/null \
   <<<"UPDATE users SET auth_state = 'ONBOARDING_COMPLETED', auth_state_changed_at = now() WHERE privy_user_id = :'did' AND auth_state <> 'ONBOARDING_COMPLETED'"
-have="$(qa_sql -v did="$did" <<<"SELECT count(*) FROM cabal_members m JOIN users u ON u.id = m.user_id WHERE u.privy_user_id = :'did' AND m.can_vote")"
+have="$(qa_sql -v did="$did" <<<"SELECT count(*) FROM cabal_members m JOIN users u ON u.id = m.user_id JOIN cabals c ON c.id = m.cabal_id WHERE u.privy_user_id = :'did' AND m.can_vote AND c.status = 'active'")"
 for ((n = have + 1; n <= 2; n++)); do
   qa_api A POST /v1/cabals \
     "{\"name\":\"QA stocks $run $n\",\"join_mode\":\"request\",\"voter_mode\":\"all\",\"threshold\":\"majority\",\"proposal_expiry_seconds\":86400}" >/dev/null
