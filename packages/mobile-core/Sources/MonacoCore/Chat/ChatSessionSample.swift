@@ -19,6 +19,7 @@ public struct ChatSampleScenario: Sendable, Equatable {
     public var proposalCard = false
     public var moments = false
     public var poll = false
+    public var pins = false
 
     public init(
         startEmpty: Bool = false,
@@ -32,7 +33,8 @@ public struct ChatSampleScenario: Sendable, Equatable {
         neverPosts: Bool = false,
         proposalCard: Bool = false,
         moments: Bool = false,
-        poll: Bool = false
+        poll: Bool = false,
+        pins: Bool = false
     ) {
         self.startEmpty = startEmpty
         self.failSends = failSends
@@ -46,6 +48,7 @@ public struct ChatSampleScenario: Sendable, Equatable {
         self.proposalCard = proposalCard
         self.moments = moments
         self.poll = poll
+        self.pins = pins
     }
 }
 
@@ -98,7 +101,16 @@ private actor SampleChatStore {
                 ? []
                 : Self.thread(
                     busy: scenario.busy, proposalCard: scenario.proposalCard, moments: scenario.moments,
-                    poll: scenario.poll)
+                    poll: scenario.poll, pins: scenario.pins)
+        }
+    }
+
+    func pinned() -> [ChatMessage] {
+        guard scenario.pins else { return [] }
+        return ["s0p", "s6"].compactMap { id in
+            guard var message = messages.first(where: { $0.id == id }) else { return nil }
+            message.pinnedBy = .init(id: "u-christelle", handle: nil, displayName: "Christelle", photoUrl: nil)
+            return message
         }
     }
 
@@ -192,7 +204,9 @@ private actor SampleChatStore {
         return message
     }
 
-    private static func thread(busy: Bool, proposalCard: Bool, moments: Bool, poll: Bool) -> [ChatMessage] {
+    private static func thread(
+        busy: Bool, proposalCard: Bool, moments: Bool, poll: Bool, pins: Bool
+    ) -> [ChatMessage] {
         let me = ChatSession.sampleViewerID
         var thread = [
             message("s1", "u-ana", "Ana", "Apple reports Thursday. Anyone want in before?", minutesAgo: 1_210),
@@ -222,6 +236,12 @@ private actor SampleChatStore {
                     preview: .init(url: "\(base)/preview.gif", width: 200, height: 150),
                     original: .init(url: "\(base)/original.gif", width: 200, height: 150)))
             thread.insert(gif, at: 6)
+        }
+        if pins {
+            let rules = message(
+                "s0p", "u-christelle", "Christelle", "5 of 8 to pass, 6 hour votes, max 2 open proposals at once",
+                minutesAgo: 1_300)
+            thread.insert(rules, at: 0)
         }
         if moments { thread = Self.moments() + thread }
         if poll {
@@ -354,6 +374,8 @@ private struct SampleChatTransport: ClientTransport {
             case "getChatThread":
                 guard let thread = await store.thread() else { return Self.notFound() }
                 return try Self.reply(.ok, Thread(parent: thread.parent, replies: thread.replies))
+            case "getChatPins":
+                return try Self.reply(.ok, Page(messages: await store.pinned()))
             case "getChatMessages":
                 break
             default:

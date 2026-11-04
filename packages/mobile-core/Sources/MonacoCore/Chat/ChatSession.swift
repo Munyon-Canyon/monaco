@@ -151,6 +151,7 @@ public actor ChatSession {
 
     func apply(_ event: ChatRealtimeEvent) async {
         if case .messageCreated(let message) = event, await isBlocked(message) { return }
+        if case .messageDeleted(let id) = event { await state.pins.drop(messageID: id) }
         for thread in attached.values { await thread.apply(event) }
         switch event {
         case .messageCreated(let message):
@@ -164,13 +165,12 @@ public actor ChatSession {
         case .attached(let resumed):
             channelAttached = true
             await applyAttach(resumed: resumed)
-            let pins = state.pins
-            Task { await pins.load() }
+            Task { await self.loadPins() }
         case .seenUpdated(let messageId, let count):
             guard messageId == state.timeline.newestID else { return }
             state.seen = Seen(messageID: messageId, count: count)
         case .pinUpdated:
-            await state.pins.load()
+            await loadPins()
             return
         case .detached:
             channelAttached = false

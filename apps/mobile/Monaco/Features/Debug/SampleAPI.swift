@@ -745,6 +745,10 @@ nonisolated extension SampleAPIProtocol {
             return json(Components.Schemas.ChatSeenMark(lastSeenAt: Date(timeIntervalSinceNow: 0)))
         case "seen":
             return json(Components.Schemas.ChatSeenBy(count: 0, members: []))
+        case "pins":
+            return json(
+                Components.Schemas.ChatPins(
+                    messages: empty ? [] : [samplePinnedRules, sampleChatMessage].map(pinnedByChristelle)))
         default:
             guard tail.first == "messages" else { return unhandled() }
             return json(Components.Schemas.ChatChannelPage(messages: empty ? [] : [sampleChatMessage]))
@@ -763,6 +767,22 @@ nonisolated extension SampleAPIProtocol {
         default:
             return nil
         }
+    }
+
+    private static func pinnedByChristelle(_ message: Components.Schemas.ChatMessage) -> Components.Schemas.ChatMessage
+    {
+        var pinned = message
+        pinned.pinnedBy = .init(id: "sample-christelle", handle: "christelle", displayName: "Christelle", photoUrl: nil)
+        return pinned
+    }
+
+    private static var samplePinnedRules: Components.Schemas.ChatMessage {
+        Components.Schemas.ChatMessage(
+            id: "sample-pinned-rules", kind: .user,
+            author: .init(id: "sample-christelle", handle: "christelle", displayName: "Christelle", photoUrl: nil),
+            body: "5 of 8 to pass, 6 hour votes, max 2 open proposals at once",
+            createdAt: Date(timeIntervalSinceNow: -86_400), alsoInChannel: false, replyCount: 0, deleted: false,
+            reactions: [], reactionCount: 0)
     }
 
     private static var sampleChatMessage: Components.Schemas.ChatMessage {

@@ -13,6 +13,7 @@ extension ChatSession {
     public func delete(messageId: String) async -> APIError? {
         let channelBefore = state.timeline.message(id: messageId)
         state.timeline.markDeleted(id: messageId)
+        await state.pins.drop(messageID: messageId)
         var threadsBefore: [(ThreadSession, ChatMessage)] = []
         for thread in attached.values {
             if let previous = await thread.hide(id: messageId) { threadsBefore.append((thread, previous)) }
