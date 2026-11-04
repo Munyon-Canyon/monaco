@@ -27,8 +27,9 @@ func Env() map[string][]string {
 }
 
 type Letter struct {
-	Subject events.Type
-	Code    errs.Code
+	Consumer string
+	Subject  events.Type
+	Code     errs.Code
 }
 
 func Alone(s Script) bool {

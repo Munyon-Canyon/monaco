@@ -112,8 +112,8 @@ func TestAlone_marksOnlyTheDeclaredScripts(t *testing.T) {
 
 func TestLettersOf_returnsTheLettersADeclaredScriptExpectsAndNothingForAnyOther(t *testing.T) {
 	t.Parallel()
-	refused := flows.Letter{Subject: events.TypeFollowCreated, Code: errs.CodePostHogRejected}
-	resolved := flows.Letter{Subject: events.TypeFollowCreated, Code: "ok"}
+	refused := flows.Letter{Consumer: "analytics", Subject: events.TypeFollowCreated, Code: errs.CodePostHogRejected}
+	resolved := flows.Letter{Consumer: "analytics", Subject: events.TypeFollowCreated, Code: "ok"}
 	for _, tc := range []struct {
 		name   string
 		script flows.Script

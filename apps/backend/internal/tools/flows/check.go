@@ -22,6 +22,8 @@ type Env struct {
 	Consumers   Lookup
 	Faultpoints Lookup
 	Scripts     Lookup
+
+	UnstatedLetters func(script string) int
 }
 
 func CheckColumns(flows []Flow, env Env, ids []string) []Problem {

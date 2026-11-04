@@ -2,6 +2,7 @@ package verify
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"errors"
 	"net"
@@ -722,18 +723,35 @@ func globalFailures(t *testing.T, units []Unit, letters uint64, lines ...string)
 	t.Helper()
 	env := servedEnv(t)
 	env.Subject = func(subject string) string { return "verify." + subject }
+	d, err := newDriver(env, testBudget())
+	if err != nil {
+		t.Fatal(err)
+	}
+	actual := make([]letterKey, 0, letters)
+	for i, k := range d.expectedLetterKeys(units) {
+		if uint64(i) < letters {
+			actual = append(actual, letterKey{cmp.Or(k.consumer, "notify"), k.subject, k.code})
+		}
+	}
+	for uint64(len(actual)) < letters {
+		actual = append(actual, letterKey{"notify", "", ""})
+	}
+	return globalFailuresOf(t, env, d, units, actual, lines...)
+}
+
+func globalFailuresOf(
+	t *testing.T, env Env, d *driver, units []Unit, actual []letterKey, lines ...string,
+) (uint64, string) {
+	t.Helper()
 	ns := strings.TrimSuffix(env.DeadLetter, "_"+bus.StreamDeadLetter)
-	for range letters {
-		if _, err := env.JS.Publish(t.Context(), ns+".deadletter.notify", []byte("{}")); err != nil {
+	for _, k := range actual {
+		body := `{"consumer":"` + k.consumer + `","subject":"` + k.subject + `","code":"` + k.code + `"}`
+		if _, err := env.JS.Publish(t.Context(), ns+".deadletter."+k.consumer, []byte(body)); err != nil {
 			t.Fatal(err)
 		}
 	}
 	for _, line := range lines {
 		env.Logs.add("worker", line)
-	}
-	d, err := newDriver(env, testBudget())
-	if err != nil {
-		t.Fatal(err)
 	}
 	rep := &report{units: units}
 	failures := make([]string, 0, 3)
@@ -741,6 +759,79 @@ func globalFailures(t *testing.T, units []Unit, letters uint64, lines ...string)
 		failures = append(failures, err.Error())
 	}
 	return rep.deadLetters, strings.Join(failures, "\n")
+}
+
+func TestGlobal_namesTheConsumerAndCodeOfEachDeadLetterThatDiffersFromTheOnesADeclared(t *testing.T) {
+	t.Parallel()
+	const followed = "verify.events.follow.created"
+	unit := Unit{
+		Flow:    tools.Flow{ID: "27", Trigger: "poller:admin.deadletters", Commands: []string{"RedriveDeadLetter"}},
+		Command: "RedriveDeadLetter", Outcome: "ok", Script: flows.F27RedriveDeadLetterOK,
+	}
+	refused := letterKey{"analytics", followed, "post_hog_rejected"}
+	resolved := letterKey{"analytics", followed, "ok"}
+	for _, tc := range []struct {
+		name   string
+		actual []letterKey
+		want   string
+	}{
+		{
+			"the consumer and code of the real letters",
+			[]letterKey{refused, {"social_feed", followed, "invalid_address"}},
+			"dead letters differ: want [analytics/ok@" + followed + " analytics/post_hog_rejected@" + followed +
+				"], got [analytics/post_hog_rejected@" + followed + " social_feed/invalid_address@" + followed + "]",
+		},
+		{"the same letters in the other order", []letterKey{resolved, refused}, ""},
+		{
+			"the right code from another consumer",
+			[]letterKey{refused, {"notify", followed, "ok"}},
+			"dead letters differ",
+		},
+		{
+			"a letter on another subject",
+			[]letterKey{refused, {"analytics", "verify.events.other", "ok"}},
+			"dead letters differ",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			env := servedEnv(t)
+			env.Subject = func(subject string) string { return "verify." + subject }
+			d, err := newDriver(env, testBudget())
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, failures := globalFailuresOf(t, env, d, []Unit{unit}, tc.actual)
+			if (tc.want == "") != (failures == "") || !strings.Contains(failures, tc.want) {
+				t.Fatalf("failures = %q, want one containing %q", failures, tc.want)
+			}
+		})
+	}
+}
+
+func TestLettersMismatch_comparesConsumerSubjectAndCodeAsAMultiset(t *testing.T) {
+	t.Parallel()
+	a, b := letterKey{"notify", "s", "c"}, letterKey{"social_feed", "s", "c"}
+	for _, tc := range []struct {
+		name      string
+		want, got []letterKey
+		differ    bool
+	}{
+		{"the same letters in another order", []letterKey{a, b}, []letterKey{b, a}, false},
+		{"a different consumer", []letterKey{a, a}, []letterKey{a, b}, true},
+		{"a missing letter", []letterKey{a, b}, []letterKey{a}, true},
+		{"an extra letter", []letterKey{a}, []letterKey{a, b}, true},
+		{"a letter with no consumer stated", []letterKey{{"", "s", "c"}, a}, []letterKey{b, a}, false},
+		{"a letter with no consumer stated and another code", []letterKey{{"", "s", "x"}}, []letterKey{a}, true},
+		{"no letters", nil, nil, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := lettersMismatch(tc.want, tc.got) != nil; got != tc.differ {
+				t.Fatalf("lettersMismatch(%v, %v) differs = %v, want %v", tc.want, tc.got, got, tc.differ)
+			}
+		})
+	}
 }
 
 func TestGlobal_expectsOneDeadLetterAndOneTermLinePerAlertingConsumerOutcome(t *testing.T) {

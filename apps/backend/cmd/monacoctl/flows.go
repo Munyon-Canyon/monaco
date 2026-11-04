@@ -221,6 +221,7 @@ func flowsCheck(
 		problems = append(problems, flows.CheckTests(parsed, results, ids)...)
 	}
 	problems = append(problems, flows.CheckScripts(parsed, env, ids)...)
+	problems = append(problems, flows.CheckLetterConsumers(parsed, env, ids)...)
 	app, appProblems := flows.ReadApp(env.Repo)
 	problems = append(problems, appProblems...)
 	problems = append(problems, flows.CheckApp(app, parsed, env)...)
@@ -321,7 +322,13 @@ func liveEnv(repo fs.FS, backend string, mods module.Set) flows.Env {
 			_, ok := testflows.Scripts()[name]
 			return ok
 		},
+		UnstatedLetters: unstatedLetters,
 	}
+}
+
+func unstatedLetters(name string) int {
+	letters := testflows.LettersOf(testflows.Scripts()[name])
+	return len(slices.DeleteFunc(letters, func(l testflows.Letter) bool { return l.Consumer != "" }))
 }
 
 func toolFlows(env toolEnv) tool {

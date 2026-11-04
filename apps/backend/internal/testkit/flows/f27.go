@@ -28,8 +28,8 @@ func (defined) AloneF27() []Script {
 }
 
 func (defined) LettersF27() map[string][]Letter {
-	refused := Letter{Subject: events.TypeFollowCreated, Code: errs.CodePostHogRejected}
-	resolved := Letter{Subject: events.TypeFollowCreated, Code: errs.Code(bus.ResolvedCode)}
+	refused := Letter{Consumer: "analytics", Subject: events.TypeFollowCreated, Code: errs.CodePostHogRejected}
+	resolved := Letter{Consumer: "analytics", Subject: events.TypeFollowCreated, Code: errs.Code(bus.ResolvedCode)}
 	return map[string][]Letter{
 		"F27RecordDeadLetterOK":  {refused},
 		"F27DiscardDeadLetterOK": {refused},
