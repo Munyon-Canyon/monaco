@@ -169,14 +169,11 @@ public final class WithdrawModel {
         switch state {
         case .empty:
             if quoteFailed { return WithdrawCopy.feeFailed }
-            return WithdrawCopy.emptyLine(feeMicros: quote?.feeMicros, network: network)
+            return WithdrawCopy.feeLine(feeMicros: quote?.feeMicros, arrivalSeconds: quote?.arrivalSeconds)
         case .typed, .needsAddress, .failed, .invalid:
             if quoteFailed { return WithdrawCopy.feeFailed }
             guard let fresh = freshQuote else { return nil }
-            guard let receive = (fresh.overMicros ?? 0) > 0 ? amountMicros : fresh.receiveMicros else {
-                return WithdrawCopy.emptyLine(feeMicros: fresh.feeMicros, network: network)
-            }
-            return WithdrawCopy.typedLine(receiveMicros: receive, feeMicros: fresh.feeMicros, isEstimate: network.isEVM)
+            return WithdrawCopy.feeLine(feeMicros: fresh.feeMicros, arrivalSeconds: fresh.arrivalSeconds)
         case .belowMinimum(let min): return WithdrawCopy.belowMinimum(minMicros: min)
         case .settled(_, _, let network, let arrival, _):
             return WithdrawCopy.settledLine(network: network, arrivalSeconds: arrival)
@@ -184,6 +181,15 @@ public final class WithdrawModel {
             return WithdrawCopy.arrivalNote(network: network, arrivalSeconds: arrival)
         case .submitting: return nil
         }
+    }
+
+    public var addressEndingLine: String? {
+        validAddress.map(WithdrawCopy.addressEnding)
+    }
+
+    public var receiveNote: String? {
+        guard let receive = freshQuote?.receiveMicros else { return nil }
+        return network.receiveLine(receiveMicros: receive)
     }
 
     public var limitSlot: String? {

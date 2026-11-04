@@ -21,7 +21,7 @@ final class WithdrawModelTests: XCTestCase {
         await flush(rig)
 
         XCTAssertEqual(rig.model.state, .empty)
-        XCTAssertEqual(rig.model.line, "Fee $0.50 · USDC on Solana")
+        XCTAssertEqual(rig.model.line, "$0.50 fee · arrives in about a minute")
         XCTAssertEqual(rig.model.maxMicros, 499_500_000)
         XCTAssertEqual(rig.model.quote?.availableMicros, 500_000_000)
         XCTAssertNil(rig.model.buttonTitle)
@@ -36,7 +36,7 @@ final class WithdrawModelTests: XCTestCase {
         await flush(rig)
 
         XCTAssertEqual(rig.model.state, .typed)
-        XCTAssertEqual(rig.model.line, "120.00 USDC · fee $0.50")
+        XCTAssertEqual(rig.model.line, "$0.50 fee · arrives in about a minute")
         XCTAssertEqual(rig.model.buttonTitle, "Withdraw $120")
         XCTAssertTrue(rig.model.canSubmit)
         let bodies = await previewBodies(rig.transport)
@@ -50,7 +50,7 @@ final class WithdrawModelTests: XCTestCase {
         await flush(rig)
 
         XCTAssertEqual(rig.model.state, .invalid(maxMicros: 499_500_000, overMicros: 150_500_000))
-        XCTAssertEqual(rig.model.line, "650.00 USDC · fee $0.50")
+        XCTAssertEqual(rig.model.line, "$0.50 fee · arrives in about a minute")
         XCTAssertEqual(rig.model.limitSlot, "Up to $499.50")
         XCTAssertNil(rig.model.buttonTitle)
         XCTAssertFalse(rig.model.canSubmit)
@@ -63,7 +63,7 @@ final class WithdrawModelTests: XCTestCase {
         await flush(rig)
 
         XCTAssertEqual(rig.model.state, .typed)
-        XCTAssertEqual(rig.model.line, "119.50 USDC · fee $0.50")
+        XCTAssertEqual(rig.model.line, "$0.50 fee · arrives in about a minute")
     }
 
     func testAnAmountUnderTheMinimumIsBelowMinimum() async {
@@ -88,12 +88,38 @@ final class WithdrawModelTests: XCTestCase {
         XCTAssertNil(rig.model.addressProblem)
     }
 
+    func testTheLineIsEmptyUntilAQuoteArrives() {
+        let rig = rig([previewPath: [empty]])
+        XCTAssertEqual(rig.model.line, "Fee shown once you type")
+        XCTAssertNil(rig.model.receiveNote)
+        XCTAssertNil(rig.model.addressEndingLine)
+    }
+
+    func testTheAddressEndingLineAppearsOnceTheAddressValidates() async {
+        let rig = rig([previewPath: [typed]])
+        rig.model.setAddress("9xQe")
+        XCTAssertNil(rig.model.addressEndingLine)
+        rig.model.setAddress(solana)
+        XCTAssertEqual(rig.model.addressEndingLine, "Address ending 4H6P")
+    }
+
+    func testTheReceiveNoteSaysWhatArrivesAndWaitsForAFreshQuote() async {
+        let rig = rig([previewPath: [quote(mode: "included", receive: "119500000", over: "0")]])
+        rig.model.setAddress(solana)
+        rig.model.setAmountText("120")
+        await flush(rig)
+
+        XCTAssertEqual(rig.model.receiveNote, "You'll receive $119.50")
+        rig.model.setAmountText("130")
+        XCTAssertNil(rig.model.receiveNote)
+    }
+
     func testAnUnknownFeeSaysItWillShowOnceYouType() async {
         let rig = rig([previewPath: [quote(fee: nil, mode: "included", max: "500000000", arrival: 120)]])
         rig.model.setNetwork(.base)
         await flush(rig)
 
-        XCTAssertEqual(rig.model.line, "Fee shown once you type · USDC on Base")
+        XCTAssertEqual(rig.model.line, "Fee shown once you type")
         XCTAssertEqual(rig.model.maxMicros, 500_000_000)
     }
 
@@ -102,7 +128,7 @@ final class WithdrawModelTests: XCTestCase {
         rig.model.load()
         await flush(rig)
 
-        XCTAssertEqual(rig.model.line, "No fee · USDC on Solana")
+        XCTAssertEqual(rig.model.line, "No fee · arrives in about a minute")
     }
 
     func testANetworkChangeRequotesOnThatNetworkAndFlagsASolanaAddressOnBase() async {
@@ -175,7 +201,7 @@ final class WithdrawModelTests: XCTestCase {
         await waitUntil { !rig.model.isQuoting }
 
         XCTAssertFalse(rig.model.quoteFailed)
-        XCTAssertEqual(rig.model.line, "Fee $0.50 · USDC on Solana")
+        XCTAssertEqual(rig.model.line, "$0.50 fee · arrives in about a minute")
     }
 
     func testTwoFailuresShowTheFeeErrorAndATapQuotesAgain() async {
@@ -191,7 +217,7 @@ final class WithdrawModelTests: XCTestCase {
         rig.model.retryQuote()
         await flush(rig)
         XCTAssertFalse(rig.model.quoteFailed)
-        XCTAssertEqual(rig.model.line, "Fee $0.50 · USDC on Solana")
+        XCTAssertEqual(rig.model.line, "$0.50 fee · arrives in about a minute")
     }
 
     func testMaxFillsTheServersMaxAmount() async {
@@ -389,8 +415,7 @@ extension WithdrawModelTests {
 
         XCTAssertEqual(rig.model.state, .needsAddress)
         XCTAssertNil(rig.model.quote?.receiveMicros)
-        XCTAssertEqual(rig.model.line, "Fee $0.01 · USDC on Base")
-        XCTAssertFalse(rig.model.line?.contains("0.00 USDC") ?? false)
+        XCTAssertEqual(rig.model.line, "$0.01 fee · arrives in about a minute")
     }
 
     func testABaseAmountWithAnAddressShowsTheEstimateWithATilde() async {
@@ -401,7 +426,7 @@ extension WithdrawModelTests {
         rig.model.setAmountText("120")
         await flush(rig)
 
-        XCTAssertEqual(rig.model.line, "≈ 119.99 USDC · fee $0.01")
+        XCTAssertEqual(rig.model.line, "$0.01 fee · arrives in about a minute")
     }
 
     func testASolanaAmountReadsExactlyInOneUnit() async {
@@ -410,7 +435,7 @@ extension WithdrawModelTests {
         rig.model.setAmountText("120")
         await flush(rig)
 
-        XCTAssertEqual(rig.model.line, "120.00 USDC · fee $0.50")
+        XCTAssertEqual(rig.model.line, "$0.50 fee · arrives in about a minute")
     }
 
     func testARefusedAddressKeepsWithdrawDisabledUntilTheAddressChanges() async throws {
