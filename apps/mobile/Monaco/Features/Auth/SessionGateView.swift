@@ -206,21 +206,35 @@ struct SessionFailureView: View {
 }
 
 /// Home's shape while the session opens: the figure on the paper, the curve's slot, the balance
-/// line and a ruled table of cabals, under the same inline bar Home has with a place for the
-/// avatar. When the tabs arrive, the figure is already where Home puts it.
+/// line and a ruled table of cabals, under Home's bar: the wordmark, and places for the bell and
+/// the avatar. When the tabs arrive, the figure is already where Home puts it.
 ///
 /// It used to be three rounded cards, the shape of a screen the app no longer has.
 struct SessionGateSkeleton: View {
     var body: some View {
         NavigationStack {
-            HomeShapedSkeleton()
+            ScrollView { HomeShapedSkeleton() }
+                .scrollDisabled(true)
+                .monacoCanvas()
                 .navigationTitle("")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
+                    ToolbarItem(placement: .topBarLeading) {
+                        MonacoWordmark(.toolbar, isTitle: true)
+                            .fixedSize()
+                            .accessibilityHidden(true)
+                    }
+                    .withoutGlass()
+                    ToolbarItem(placement: .topBarTrailing) {
+                        SkeletonBlock(width: 44, height: 44, radius: 22)
+                            .frame(width: 44, height: 44)
+                    }
+                    .withoutGlass()
                     ToolbarItem(placement: .topBarTrailing) {
                         SkeletonBlock(width: 32, height: 32, radius: 16)
                             .frame(width: 44, height: 44)
                     }
+                    .withoutGlass()
                 }
         }
     }
@@ -242,7 +256,6 @@ struct HomeShapedSkeleton: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Loading")
-        .monacoCanvas()
     }
 
     /// The account balance: one ruled line with its coin, and the two text actions under it.
@@ -303,6 +316,17 @@ struct HomeShapedSkeleton: View {
                     }
                 }
             }
+        }
+    }
+}
+
+extension ToolbarContent {
+    @ToolbarContentBuilder
+    fileprivate func withoutGlass() -> some ToolbarContent {
+        if #available(iOS 26.0, *) {
+            sharedBackgroundVisibility(.hidden)
+        } else {
+            self
         }
     }
 }
