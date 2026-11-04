@@ -1,7 +1,7 @@
 journey: governance/vote
 expect-fail: S1
 
-The vote that settles the proposal gets the plain check, not the seal. S1.8 expects the toast banner value "seal", so it must fail.
+The vote that settles the proposal gets the plain check, not the seal. S1.8 expects the toast to say "Your vote decided it.", so it must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/packages/mobile-core/Sources/MonacoCore/Proposals/ProposalVoteCopy.swift b/packages/mobile-core/Sources/MonacoCore/Proposals/ProposalVoteCopy.swift
