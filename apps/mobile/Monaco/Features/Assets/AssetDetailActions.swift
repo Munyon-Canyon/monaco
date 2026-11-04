@@ -11,7 +11,7 @@ struct AssetDetailActions: View {
 
     var body: some View {
         let layout =
-            dynamicTypeSize >= .xxxLarge
+            AssetDetailBuyCTA.layout(canSell: canSell, dynamicTypeSize: dynamicTypeSize) == .stacked
             ? AnyLayout(VStackLayout(spacing: MonacoTheme.Space.sm))
             : AnyLayout(HStackLayout(spacing: MonacoTheme.Space.sm))
         layout {
@@ -47,6 +47,17 @@ enum AssetDetailBuyCTA {
     }
 
     static func canBuy(tradable: Bool, quotable: Bool) -> Bool { tradable && quotable }
+
+    enum Layout: Equatable {
+        case pair
+        case stacked
+        case buyOnly
+    }
+
+    static func layout(canSell: Bool, dynamicTypeSize: DynamicTypeSize) -> Layout {
+        guard canSell else { return .buyOnly }
+        return dynamicTypeSize >= .xxxLarge ? .stacked : .pair
+    }
 
     static func open(
         symbol: String, kind: ProposeKind, tab: MainTab, navigator: (ProposeFromAssetRoute, MainTab) -> Void
