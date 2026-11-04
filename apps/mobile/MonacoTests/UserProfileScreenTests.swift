@@ -1,6 +1,6 @@
+import Foundation
 import MonacoAPI
 import MonacoCore
-import MonacoTestSupport
 import Testing
 
 @testable import Monaco
@@ -92,9 +92,10 @@ struct UserProfileScreenTests {
         let api = APIClient(serverURL: testServerURL, tokens: StubTokenProvider(token: "t"), transport: transport)
         let model = UserCabalsModel(userID: "user-2", viewerID: "viewer", api: api)
         await model.load()
-        let paths = await transport.sent.map(\.path)
+        let paths = await transport.sent.map { URLComponents(string: $0.path ?? "")?.path }
         #expect(paths == ["/v1/users/user-2/cabals"])
-        let line = try #require(model.sharedLine.map(UserProfileSharedData.init))
+        let shared = try #require(model.sharedLine)
+        let line = UserProfileSharedData(shared)
         #expect(line.text == "Both in AC Capital and Degens")
         #expect(line == UserProfileSharedData.sampleBoth)
     }
