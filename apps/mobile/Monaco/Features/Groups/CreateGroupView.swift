@@ -396,11 +396,11 @@ private struct CreateRuleChoice<Option: Hashable>: View {
                         .accessibilityHidden(true)
                 }
             }
-            .foregroundStyle(isSelected ? MonacoTheme.onBrand : MonacoTheme.primaryText)
+            .foregroundStyle(isSelected ? MonacoTheme.onChipOn : MonacoTheme.primaryText)
             .padding(.horizontal, MonacoTheme.Space.sm)
             .padding(.vertical, MonacoTheme.Space.s)
             .frame(minHeight: 44)
-            .background(Capsule().fill(isSelected ? MonacoTheme.brandFill : MonacoTheme.surfaceSunken))
+            .background(Capsule().fill(isSelected ? MonacoTheme.chipOn : MonacoTheme.surfaceSunken))
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)

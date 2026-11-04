@@ -137,11 +137,11 @@ private struct CabalRuleChoice<Option: Hashable>: View {
                         .accessibilityHidden(true)
                 }
             }
-            .foregroundStyle(isSelected ? MonacoTheme.onBrand : MonacoTheme.ink)
+            .foregroundStyle(isSelected ? MonacoTheme.onChipOn : MonacoTheme.ink)
             .padding(.horizontal, MonacoTheme.Space.m)
             .padding(.vertical, MonacoTheme.Space.s)
             .frame(minHeight: 44)
-            .background(Capsule().fill(isSelected ? MonacoTheme.brandFill : MonacoTheme.surfaceSunken))
+            .background(Capsule().fill(isSelected ? MonacoTheme.chipOn : MonacoTheme.surfaceSunken))
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)
