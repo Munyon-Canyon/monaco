@@ -132,14 +132,15 @@ private struct PostContent: View {
             }
             .contentMargins(.bottom, PostMetrics.endGap, for: .scrollContent)
             .scrollDismissesKeyboard(.interactively)
-            .modifier(PostSoftBottomEdge())
             .environment(\.sectionScrollProxy, proxy)
             .refreshable { await model.refresh() }
-            .safeAreaInset(edge: .bottom, spacing: 0) {
-                if phase != .unavailable, phase != .failed {
-                    CommentComposerBar(model: model.comments, offersPoll: true)
+            .modifier(
+                PostComposerBar {
+                    if phase != .unavailable, phase != .failed {
+                        CommentComposerBar(model: model.comments, offersPoll: true)
+                    }
                 }
-            }
+            )
             .onChange(of: model.comments.lastPostedID) { _, id in
                 guard let id else { return }
                 withAnimation { proxy.scrollTo(id, anchor: .center) }
@@ -216,13 +217,17 @@ private struct PostSkeleton: View {
     }
 }
 
-private struct PostSoftBottomEdge: ViewModifier {
+private struct PostComposerBar<Bar: View>: ViewModifier {
+    @ViewBuilder let bar: () -> Bar
+
     @ViewBuilder
     func body(content: Content) -> some View {
         if #available(iOS 26, *) {
-            content.scrollEdgeEffectStyle(.soft, for: .bottom)
-        } else {
             content
+                .safeAreaBar(edge: .bottom, spacing: 0) { bar() }
+                .scrollEdgeEffectStyle(.soft, for: .bottom)
+        } else {
+            content.safeAreaInset(edge: .bottom, spacing: 0) { bar() }
         }
     }
 }
