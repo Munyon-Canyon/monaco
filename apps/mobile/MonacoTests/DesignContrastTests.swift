@@ -152,6 +152,7 @@ struct MonacoContrastTests {
             pairs.append(Pair("primaryText", MonacoTheme.primaryText, on: [surface]))
             pairs.append(Pair("secondaryText", MonacoTheme.secondaryText, on: [surface]))
             pairs.append(Pair("tint", MonacoTheme.tint, on: [surface]))
+            pairs.append(Pair("white", Color.white, on: [surface]))
             pairs.append(Pair("flat", PnLTone.flat.color, on: [surface]))
             pairs.append(Pair("warning", MonacoTheme.warning, on: [surface]))
             pairs.append(Pair("destructive", MonacoTheme.destructive, on: [surface]))
@@ -176,7 +177,7 @@ struct MonacoContrastTests {
             pairs.append(Pair(label, color, on: [Color.white, MonacoTheme.coverOverlay]))
         }
 
-        pairs.append(Pair("onBrand", MonacoTheme.onBrand, on: [MonacoTheme.brandFill]))
+        pairs.append(Pair("onBrand", MonacoTheme.onBrand, on: [MonacoTheme.brandFill], minimum: 7))
         pairs.append(
             Pair(
                 "primaryButtonLabel",
@@ -205,7 +206,14 @@ struct MonacoContrastTests {
             ("tertiaryText", MonacoTheme.tertiaryText, 0x6E6E73, 1),
             ("disabledLabel", MonacoTheme.disabledLabel, 0x6E6E73, 1),
             ("border", MonacoTheme.border, 0x38383A, 1),
-            ("tint", MonacoTheme.tint, 0x4DAE78, 1),
+            ("tint", MonacoTheme.tint, 0xFFFFFF, 1),
+            ("link", MonacoTheme.link, 0xFFFFFF, 1),
+            ("action", MonacoTheme.action, 0x1E5C3A, 1),
+            ("onAction", MonacoTheme.onAction, 0xFFFFFF, 1),
+            ("gain", MonacoTheme.gain, 0x30F57A, 1),
+            ("switchOn", MonacoTheme.switchOn, 0x1E5C3A, 1),
+            ("chipOn", MonacoTheme.chipOn, 0xFFFFFF, 1),
+            ("onChipOn", MonacoTheme.onChipOn, 0x000000, 1),
             ("brandFill", MonacoTheme.brandFill, 0x1E5C3A, 1),
             ("onBrand", MonacoTheme.onBrand, 0xFFFFFF, 1),
             ("warningWash", MonacoTheme.warningWash, 0x2C2819, 1),
@@ -302,9 +310,14 @@ struct MonacoContrastTests {
         }
     }
 
-    @Test func tintAndProfitStayApart() {
-        let delta = OKLCh.distance(MonacoTheme.tint, MonacoTheme.profit, .dark)
-        #expect(delta >= 0.08, "tint vs profit: ΔE OKLab is \(delta)")
+    @Test func theActionFillAndTheGainGreenDifferInLightness() {
+        let fill = OKLCh.value(MonacoTheme.brandFill, .dark).lightness
+        let gain = OKLCh.value(MonacoTheme.profit, .dark).lightness
+        #expect(gain - fill >= 0.4, "brandFill vs profit: OKLab lightness gap is \(gain - fill)")
+    }
+
+    @Test func theChartLineIsTheGainGreen() {
+        #expect(Self.hex(MonacoTheme.profitVivid, .dark) == Self.hex(MonacoTheme.profit, .dark))
     }
 
     @Test func theBadgeIsWhiteOnTheBoardsRed() {

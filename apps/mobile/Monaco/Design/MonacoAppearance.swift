@@ -57,6 +57,7 @@ enum MonacoAppearance {
         navigationBar.prefersLargeTitles = false
 
         UITabBar.appearance().tintColor = tint
+        UISwitch.appearance().onTintColor = UIColor(MonacoTheme.switchOn)
         if #unavailable(iOS 26) {
             let tabBar = UITabBarAppearance()
             tabBar.configureWithDefaultBackground()

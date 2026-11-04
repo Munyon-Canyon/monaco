@@ -17,8 +17,8 @@ Each one is a check you run on a screenshot. Frames: [`01-tokens-controls`](desi
 1. **The number is the hero.** Home's net worth is 32 semibold (`moneyFont(.home)`). The keypad's amount is 44 (`moneyFont(.hero)`). Elsewhere, a screen's one hero figure is the 28 display figure (`moneyFont(.display)`). The cents are secondary colour.
 2. **Colour means one thing.**
    - `gain` and `loss` are money moving and Yes / No.
-   - `tint` (forest) is "you can tap this" or "selected".
-   - `brand` fills the one prominent button.
+   - Three greens, three roles: bright green text or a line (`gain`, `profit`) means money went up; the forest fill (`action`, `brandFill`) is the one thing to do on this screen; a switch that is on is forest (`switchOn`).
+   - Everything that only navigates is white: `tint` (`link`) is links, "See all", carets and the selected tab. A selected chip is a white fill with a black label (`chipOn`, `onChipOn`).
    - `crown` is #1 only.
    - An identity hue is a person or cabal without a picture, and is never green.
    - Nothing is a gradient.
@@ -51,9 +51,10 @@ Tokens live in `apps/mobile/Monaco/Design/MonacoTheme.swift`; feature code uses 
 | Label | `primaryText` | `#FFFFFF` | `#000000` | titles, figures, row titles |
 | Secondary | `secondaryText` | `#A1A1A6` | `#636366` † | sub-lines, captions, cents, resting range labels |
 | Tertiary | `tertiaryText` | `#6E6E73` | `#AEAEB2` | glyphs only, never text |
-| Tint | `tint` | `#4DAE78` | `#1E5C3A` | tappable and selected: links, selected chip, underline tab |
-| Brand | `brandFill` | `#1E5C3A` | `#1E5C3A` | the one prominent button (white text, 7.9:1) |
-| Gain | `profit` | `#30F57A` | `#00773A` † | gains, Yes |
+| Tint | `tint`, `link` | `#FFFFFF` | `#1E5C3A` | navigates or is selected: links, "See all", carets, the selected tab |
+| Brand | `brandFill`, `action`, `switchOn` | `#1E5C3A` | `#1E5C3A` | the one prominent button (white `onAction` text, 7.9:1); a switch that is on |
+| Chip on | `chipOn`, `onChipOn` | `#FFFFFF`, `#000000` | | a selected filter chip: white fill, black label (21:1) |
+| Gain | `profit`, `gain` | `#30F57A` | `#00773A` † | gains, Yes |
 | Loss | `loss` | `#FF6259` † | `#C80014` † | losses, No, danger |
 | Crown | `crown` | `#FFD60A` | `#FFCC00` | #1 only |
 
@@ -72,7 +73,7 @@ The contrast contract, shared by #6432 and #6585 and asserted by `DesignContrast
 | Decorative, exempt | none | `tertiaryText`: glyphs only, a glyph that carries meaning uses `secondaryText`. `crown`: the rank and its accessibility label say it. The identity hue as a fill against the canvas, and its stroke: the cabal's name sits beside every crest |
 | Inactive, held quiet | [2.5, 4.5) on the three surfaces and at least 1 below `secondaryText` | `disabledLabel` |
 | System-drawn, not a token | measured by #6585's `.contrast` UI audit | the system tab bar and its badge, system materials |
-| Hue separation | asserted | no identity hue in the green band (OKLab 120° to 170°); every hue at least 30° from `profit`; `profit` and `loss` at least 90° and ΔE 0.2 apart; `tint` and `profit` ΔE ≥ 0.08 (light 0.087, dark 0.20) |
+| Hue separation | asserted | no identity hue in the green band (OKLab 120° to 170°); every hue at least 30° from `profit`; `profit` and `loss` at least 90° and ΔE 0.2 apart; `brandFill` and `profit` at least 0.4 apart in OKLab lightness; `profitVivid` equals `profit` in dark (the chart line is the gain green) |
 
 The v3 checks that every pair of identity hues is 60° apart and that no hue sits within 30° of `loss` are removed: F's eight hues are the board's, pink `#FF375F` sits 11° from `loss`, a crest never carries a figure and a loss always carries "−".
 
