@@ -926,6 +926,7 @@ gif-sheet-trending-dark       -gifHarness trending -AppleInterfaceStyle Dark
 gif-sheet-search              -gifHarness search
 gif-sheet-empty               -gifHarness empty
 gif-sheet-failed              -gifHarness failed
+gif-sheet-failed-tile         -gifHarness failedTile
 ledger-week42                 -MonacoLedgerSample week42
 ledger-week42-dark            -MonacoLedgerSample week42 -AppleInterfaceStyle Dark
 ledger-no-best-call           -MonacoLedgerSample noBestCall
