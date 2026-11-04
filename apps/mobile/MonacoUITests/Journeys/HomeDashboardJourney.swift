@@ -2,7 +2,7 @@ import XCTest
 
 enum HomeDashboardJourney {
     static let id = "home/dashboard"
-    static let version = 9
+    static let version = 10
 
     static func recorder() -> JourneyRecorder {
         JourneyRecorder(journey: id, version: version)
@@ -16,6 +16,15 @@ enum HomeDashboardJourney {
         app.tab("Home").tap()
     }
 
+    static func assertWelcomeAbove(_ total: XCUIElement, _ app: XCUIApplication) {
+        let welcome = app.element("home-welcome")
+        XCTAssertTrue(welcome.waitForExistence(timeout: 15), "S1.1: no home-welcome line within 15 s")
+        XCTAssertTrue(
+            welcome.label.hasPrefix("Welcome, ") && welcome.label.count > "Welcome, ".count,
+            "S1.1: the welcome line reads '\(welcome.label)', not \"Welcome, <first name>\"")
+        XCTAssertLessThan(welcome.frame.minY, total.frame.minY, "S1.1: the welcome line is not above the total")
+    }
+
     static func readsHome(_ app: XCUIApplication, cabalID: String, cabalName: String, recorder: JourneyRecorder) {
         let row = app.element("cabal-row-\(cabalID)")
         let total = app.element("home-portfolio-total")
@@ -24,6 +33,7 @@ enum HomeDashboardJourney {
             openHome(app)
             XCTAssertTrue(total.waitForExistence(timeout: 15), "S1.1: no total in the hero within 15 s")
             XCTAssertTrue(total.label.contains("$"), "S1.1: the hero total reads '\(total.label)', not dollars")
+            assertWelcomeAbove(total, app)
             XCTAssertTrue(app.element("home-wordmark").exists, "S1.1: no wordmark")
             XCTAssertTrue(app.element("home-notifications-button").exists, "S1.1: no bell")
             XCTAssertTrue(
@@ -106,7 +116,15 @@ enum HomeDashboardJourney {
             XCTAssertTrue(
                 text(app, "Trade with your friends.").exists,
                 "S2.1: no \"Trade with your friends.\"")
-            XCTAssertTrue(app.buttons["Start a cabal"].firstMatch.exists, "S2.1: no \"Start a cabal\" button")
+            let start = app.element("home-first-use-start")
+            let join = app.element("home-first-use-join")
+            XCTAssertTrue(start.exists && start.label == "Start a cabal", "S2.1: no \"Start a cabal\" button")
+            XCTAssertTrue(join.exists && join.label == "Join with a link", "S2.1: no \"Join with a link\" button")
+            XCTAssertEqual(start.frame.midY, join.frame.midY, accuracy: 4, "S2.1: the two buttons are not side by side")
+            XCTAssertLessThan(start.frame.minX, join.frame.minX, "S2.1: Start a cabal is not left of Join with a link")
+            XCTAssertTrue(
+                text(app, "Public cabals").waitForExistence(timeout: 15),
+                "S2.1: no \"Public cabals\" feed preview header within 15 s")
         }
 
         recorder.step("S2.2", "Start a cabal opens the create screen") {
