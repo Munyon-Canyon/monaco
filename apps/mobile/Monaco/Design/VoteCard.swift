@@ -19,7 +19,7 @@ struct VoteCard<Actions: View>: View {
     @ViewBuilder let actions: () -> Actions
 
     static func lineWidth(screenWidth: CGFloat) -> CGFloat {
-        screenWidth - 2 * MonacoTheme.Space.m - 2 * MonacoTheme.Space.cardPadding - markSize
+        screenWidth - 2 * MonacoTheme.Space.m - 2 * MonacoCard<EmptyView>.Style.standard.horizontalPadding - markSize
             - 2 * MonacoTheme.Space.sm - chevronWidth
     }
 
