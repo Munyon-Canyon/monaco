@@ -2,7 +2,7 @@ import XCTest
 
 enum InviteJourney {
     static let id = "cabals/invite"
-    static let version = 10
+    static let version = 11
 
     static let cabalName = "QA pot"
 
@@ -65,6 +65,16 @@ enum InviteJourney {
         button.tap()
     }
 
+    static func tomorrowWeekday() -> String {
+        let format = DateFormatter()
+        format.calendar = Calendar.current
+        format.timeZone = Calendar.current.timeZone
+        format.locale = Locale(identifier: "en_US_POSIX")
+        format.dateFormat = "EEEE"
+        let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: Date()) ?? Date()
+        return format.string(from: tomorrow)
+    }
+
     static func openInviteSheet(_ app: XCUIApplication, step: String) {
         app.waitForToastGone()
         app.dismissPushPrePromptIfShown()
@@ -97,7 +107,8 @@ enum InviteJourney {
         byHandle.tap()
     }
 
-    static func acceptAndInvite(_ app: XCUIApplication, recorder: JourneyRecorder) {
+    static func acceptAndInvite(_ app: XCUIApplication, run: String, member: String, recorder: JourneyRecorder) {
+        let first = JoinJourney.firstName(member)
         recorder.step("S1.1", "open the Cabals tab and find the invited tile") {
             app.tab("Cabals").tap()
             XCTAssertTrue(
@@ -125,22 +136,7 @@ enum InviteJourney {
             openInviteSheet(app, step: "S1.3")
         }
 
-        recorder.step("S1.4", "the sheet offers Share and Copy link, and a member has no gear") {
-            XCTAssertTrue(
-                app.buttons["share-card-share"].waitForExistence(timeout: 10),
-                "S1.4: Share did not show within 10 s"
-            )
-            XCTAssertTrue(app.buttons["share-card-copy"].exists, "S1.4: no Copy link in the invite sheet")
-            XCTAssertFalse(
-                app.element("cabal-invite-settings").exists, "S1.4: a member is offered the invite gear")
-            XCTAssertFalse(
-                app.element("cabal-invite-handle-row").exists, "S1.4: a member is offered Invite by handle")
-            let copy = app.buttons["share-card-copy"]
-            XCTAssertTrue(copy.isEnabled, "S1.4: Copy link stayed disabled")
-            copy.tap()
-            waitForToast(app, "Link copied.", step: "S1.4")
-            app.buttons["Close"].firstMatch.tap()
-        }
+        readInviteSheet(app, run: run, first: first, recorder: recorder)
     }
 
     static func creatorInvites(_ app: XCUIApplication, run: String, recorder: JourneyRecorder) {
@@ -150,6 +146,9 @@ enum InviteJourney {
 
         recorder.step("S2.2", "open the invite sheet from the Members tab") {
             openInviteSheet(app, step: "S2.2")
+            XCTAssertFalse(app.element("cabal-invite-note").exists, "S2.2: a cabal with no open vote shows a note")
+            XCTAssertFalse(
+                app.element("cabal-invite-proposal").exists, "S2.2: a cabal with no open vote shows a vote row")
         }
 
         recorder.step("S2.3", "open Invite by handle from the gear") {
@@ -225,6 +224,70 @@ enum InviteJourney {
                 waitForCount(inviteTiles(app), 0, timeout: 10),
                 "S2.9: the declined invite is still a tile on the Cabals tab"
             )
+        }
+    }
+}
+
+extension InviteJourney {
+    static func readInviteSheet(
+        _ app: XCUIApplication, run: String, first: String, recorder: JourneyRecorder
+    ) {
+        recorder.step("S1.4", "the card reads the vote row, and a member has no gear") {
+            XCTAssertTrue(
+                app.buttons["share-card-share"].waitForExistence(timeout: 10),
+                "S1.4: Share did not show within 10 s"
+            )
+            XCTAssertFalse(app.element("cabal-invite-cover").exists, "S1.4: the card still draws a cover")
+            let inviter = app.element("cabal-invite-inviter")
+            XCTAssertTrue(inviter.waitForExistence(timeout: 10), "S1.4: no inviter line on the card")
+            XCTAssertEqual(inviter.label, "\(first) invited you", "S1.4: the inviter line is wrong")
+            let proposal = app.element("cabal-invite-proposal")
+            XCTAssertTrue(proposal.waitForExistence(timeout: 10), "S1.4: no vote row on the card")
+            let label = proposal.label
+            XCTAssertTrue(
+                label.contains("Buy TSLA \u{00B7} $5"),
+                "S1.4: the vote row does not read Buy TSLA \u{00B7} $5: \(label)")
+            XCTAssertTrue(label.contains("voted \u{00B7}"), "S1.4: the vote row does not read voted: \(label)")
+            XCTAssertTrue(label.contains("0 yes, 0 no"), "S1.4: the vote row counts are not 0 yes, 0 no: \(label)")
+            XCTAssertFalse(
+                label.contains("ends in") || label.contains("closes in"), "S1.4: the vote row has a deadline: \(label)")
+            XCTAssertTrue(app.buttons["share-card-copy"].exists, "S1.4: no Copy link in the invite sheet")
+            XCTAssertFalse(
+                app.element("cabal-invite-settings").exists, "S1.4: a member is offered the invite gear")
+            XCTAssertFalse(
+                app.element("cabal-invite-handle-row").exists, "S1.4: a member is offered Invite by handle")
+            let copy = app.buttons["share-card-copy"]
+            XCTAssertTrue(copy.isEnabled, "S1.4: Copy link stayed disabled")
+            copy.tap()
+            waitForToast(app, "Link copied.", step: "S1.4")
+        }
+
+        recorder.step("S1.5", "the note names the ticker and tomorrow's weekday") {
+            let note = app.textFields["cabal-invite-note"]
+            XCTAssertTrue(note.waitForExistence(timeout: 10), "S1.5: no note field within 10 s")
+            let want = "\(first): we vote on TSLA \(tomorrowWeekday()). You in?"
+            let deadline = Date().addingTimeInterval(10)
+            while (note.value as? String) != want && Date() < deadline {
+                RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+            }
+            XCTAssertEqual(note.value as? String, want, "S1.5: the note is not the prefilled line within 10 s")
+        }
+
+        recorder.step("S1.6", "clear the note, type another, and copy the link") {
+            let note = app.textFields["cabal-invite-note"]
+            note.tap()
+            let typed = (note.value as? String) ?? ""
+            note.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: typed.count))
+            XCTAssertEqual(note.value as? String, "Add a note", "S1.6: the cleared note does not show the placeholder")
+            let text = "QA note \(run)"
+            note.typeText(text)
+            XCTAssertEqual(note.value as? String, text, "S1.6: the typed note was not kept")
+            let copy = app.buttons["share-card-copy"]
+            XCTAssertTrue(app.buttons["share-card-share"].isHittable, "S1.6: Share is hidden by the keyboard")
+            XCTAssertTrue(copy.isHittable, "S1.6: Copy link is hidden by the keyboard")
+            copy.tap()
+            waitForToast(app, "Link copied.", step: "S1.6")
+            app.buttons["Close"].firstMatch.tap()
         }
     }
 }

@@ -1,0 +1,19 @@
+journey: cabals/invite
+expect-fail: S1
+
+The note uses the raw symbol "TSLAx". S1.5 expects "TSLA", so S1 must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/packages/mobile-core/Sources/MonacoCore/Referrals/CabalInviteCopy.swift b/packages/mobile-core/Sources/MonacoCore/Referrals/CabalInviteCopy.swift
+index 569039e4a..7fbd52c6a 100644
+--- a/packages/mobile-core/Sources/MonacoCore/Referrals/CabalInviteCopy.swift
++++ b/packages/mobile-core/Sources/MonacoCore/Referrals/CabalInviteCopy.swift
+@@ -77,7 +77,7 @@ public enum CabalInviteCopy {
+     public static func note(
+         senderFirstName: String, symbol: String, expiresAt: Date, now: Date, calendar: Calendar
+     ) -> String {
+-        "\(senderFirstName): we vote on \(AssetSymbolFormatter.display(symbol)) "
++        "\(senderFirstName): we vote on \(symbol) "
+             + "\(when(expiresAt, now: now, calendar: calendar)). You in?"
+     }
+ 

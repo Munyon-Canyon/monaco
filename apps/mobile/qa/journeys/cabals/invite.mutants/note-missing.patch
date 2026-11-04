@@ -1,0 +1,19 @@
+journey: cabals/invite
+expect-fail: S1
+
+The sheet never shows the note field. S1.5 reads it, so S1 must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Groups/CabalInviteSheet.swift b/apps/mobile/Monaco/Features/Groups/CabalInviteSheet.swift
+index 14c8868f9..c1dc1c282 100644
+--- a/apps/mobile/Monaco/Features/Groups/CabalInviteSheet.swift
++++ b/apps/mobile/Monaco/Features/Groups/CabalInviteSheet.swift
+@@ -99,7 +99,7 @@ struct CabalInviteSheet: View {
+                     .padding(.bottom, MonacoTheme.Space.m)
+             }
+             .scrollBounceBehavior(.basedOnSize)
+-            if invite?.preview?.proposal != nil { CabalInviteNoteField(text: $note, focused: $noteFocused) }
++            if false { CabalInviteNoteField(text: $note, focused: $noteFocused) }
+             buttons
+         }
+         .onChange(of: invite?.preview, initial: true) { _, preview in seedNote(preview) }
