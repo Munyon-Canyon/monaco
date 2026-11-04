@@ -69,6 +69,8 @@ struct CabalMoreMenu: View {
             Image(systemName: "ellipsis")
                 .monacoToolbarIcon()
                 .frame(width: 44, height: 44)
+                .monacoToolbarCircle()
+                .contentShape(Circle())
         }
         .accessibilityLabel("More")
         .accessibilityIdentifier("cabal-more-button")
