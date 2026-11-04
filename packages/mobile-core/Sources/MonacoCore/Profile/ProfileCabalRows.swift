@@ -20,7 +20,8 @@ public enum ProfileCabalRow: Equatable, Sendable, Identifiable {
         public var note: StakeValueNote?
 
         public var subtitle: String {
-            ownership.map { "\($0) · \(role)" } ?? role
+            guard let ownership else { return role }
+            return role == "voter" ? ownership : "\(ownership) · \(role)"
         }
     }
 

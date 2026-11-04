@@ -22,7 +22,9 @@ public struct ProfileLine: Equatable, Sendable {
 
 public enum ProfileCopy {
     public static let positionsLabel = "Positions"
-    public static let pnlLabel = "P&L · 1M"
+    public static let monthLabel = "This month"
+    public static let rightMonthLabel = "Right this month"
+    public static let pnlLabel = monthLabel
     public static let positionsInfoTitle = "Positions"
     public static let positionsInfo = "Only you see your positions and cash. Others see your P&L as a percent."
     public static let cashLabel = MoneyCopy.cashLabel
@@ -62,15 +64,28 @@ public enum ProfileCopy {
         ])
     }
 
+    public static func ordinal(_ n: Int) -> String {
+        let suffix =
+            if (11...13).contains(n % 100) {
+                "th"
+            } else {
+                switch n % 10 {
+                case 1: "st"
+                case 2: "nd"
+                case 3: "rd"
+                default: "th"
+                }
+            }
+        return "\(n)\(suffix)"
+    }
+
     public static func standing(_ standing: OwnStanding) -> ProfileLine {
         switch standing {
-        case .ranked(let ratePercent, let right, let resolved, let rank, let rankedCount):
+        case .ranked(_, let right, let resolved, let rank, let rankedCount):
             ProfileLine([
-                .init("\(ratePercent)%", isStrong: true),
-                .init(" right calls this month\(separator)"),
                 .init("\(right) of \(resolved)", isStrong: true),
-                .init(separator),
-                .init("#\(rank)", isStrong: true),
+                .init(" right this month\(separator)"),
+                .init(ordinal(rank), isStrong: true),
                 .init(" of \(rankedCount)"),
             ])
         case .unranked(let resolved, let moreToRank):

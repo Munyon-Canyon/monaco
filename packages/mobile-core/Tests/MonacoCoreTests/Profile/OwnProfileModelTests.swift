@@ -18,8 +18,16 @@ final class OwnProfileModelTests: XCTestCase {
         XCTAssertEqual(
             model.standing, .ranked(ratePercent: 78, right: 7, resolved: 9, rank: 8, rankedCount: 24))
         let line = try XCTUnwrap(model.standing).line
-        XCTAssertEqual(line.plain, "78% right calls this month · 7 of 9 · #8 of 24")
-        XCTAssertEqual(line.runs.filter(\.isStrong).map(\.text), ["78%", "7 of 9", "#8"])
+        XCTAssertEqual(line.plain, "7 of 9 right this month \u{00B7} 8th of 24")
+        XCTAssertEqual(line.runs.filter(\.isStrong).map(\.text), ["7 of 9", "8th"])
+    }
+
+    func testOrdinalsUseTheEnglishSuffixes() async throws {
+        let expected = [
+            1: "1st", 2: "2nd", 3: "3rd", 4: "4th", 11: "11th", 12: "12th", 13: "13th", 21: "21st",
+            22: "22nd", 23: "23rd", 101: "101st", 111: "111th",
+        ]
+        for (n, text) in expected { XCTAssertEqual(ProfileCopy.ordinal(n), text) }
     }
 
     func testAnUnrankedStandingReadsTheResolvedCallsAndHowManyMoreToRank() async throws {
