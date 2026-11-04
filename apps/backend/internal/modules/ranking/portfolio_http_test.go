@@ -205,3 +205,28 @@ func assertUnfundedMembership(t *testing.T, when string, got api.MyPortfolio, ca
 		t.Fatalf("%s row = %+v, want a zero row with 3 members", when, row)
 	}
 }
+
+func TestPortfolio_PreviewsUpToThreeOtherMembersCreatorFirst(t *testing.T) {
+	t.Parallel()
+	s := newServer(t)
+	big := testkit.NewCabal(t, s.pool, testkit.WithName("Big"), testkit.WithMembers(5))
+	solo := testkit.NewCabal(t, s.pool, testkit.WithName("Solo"), testkit.WithCreator(big.Members[4].ID))
+	caller := big.Members[4].ID
+	got := portfolioOf(t, s, caller)
+	byCabal := map[string]api.PortfolioCabal{}
+	for _, c := range got.Cabals {
+		byCabal[c.Cabal.Id.String()] = c
+	}
+	preview := byCabal[big.ID.String()].MemberPreview
+	if preview == nil || len(*preview) != 3 || (*preview)[0].UserId != big.Creator.ID.UUID() {
+		t.Fatalf("member_preview = %+v, want three entries with the creator first", preview)
+	}
+	for _, m := range *preview {
+		if m.UserId == caller.UUID() {
+			t.Fatalf("member_preview holds the caller: %+v", *preview)
+		}
+	}
+	if byCabal[solo.ID.String()].MemberPreview != nil {
+		t.Fatalf("solo member_preview = %+v, want absent", byCabal[solo.ID.String()].MemberPreview)
+	}
+}

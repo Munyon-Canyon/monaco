@@ -2,7 +2,9 @@ package app_test
 
 import (
 	"context"
+	"errors"
 	"math"
+	"slices"
 	"testing"
 	"time"
 
@@ -105,6 +107,7 @@ type portfolioFixture struct {
 	cards     *fakeCards
 	ownership fakeOwnership
 	roles     fakeRoles
+	users     *fakeCardUsers
 }
 
 func newPortfolioFixture() portfolioFixture {
@@ -128,6 +131,7 @@ func newPortfolioFixture() portfolioFixture {
 		cards:     &fakeCards{cards: map[ids.CabalID]cabal.View{cabalID: {ID: cabalID, Name: "Alpha"}}},
 		ownership: fakeOwnership{bps: map[ids.CabalID]int32{cabalID: 5000}},
 		roles:     fakeRoles{members: []cabal.MemberView{{UserID: user, Role: cabal.RoleMember, CanVote: true}}},
+		users:     &fakeCardUsers{},
 	}
 }
 
@@ -143,6 +147,7 @@ func (f portfolioFixture) read(t *testing.T, boards fakeBoards) (app.PortfolioVi
 		Cards:     f.cards,
 		Ownership: f.ownership,
 		Roles:     f.roles,
+		Users:     f.users,
 	})
 }
 
@@ -548,5 +553,47 @@ func TestReadPortfolio_ACashOutLargerThanEverythingElseShowsZeroNotADebt(t *test
 			got.Arriving.Int64(),
 			err,
 		)
+	}
+}
+
+type fakeCardUsers struct {
+	cards map[ids.UserID]app.UserCard
+	err   error
+	calls int
+	asked []ids.UserID
+}
+
+func (f *fakeCardUsers) UsersByID(_ context.Context, in []ids.UserID) (map[ids.UserID]app.UserCard, error) {
+	f.calls++
+	f.asked = append(f.asked, in...)
+	return f.cards, f.err
+}
+
+func TestReadPortfolio_FailsWhenThePreviewCardsFail(t *testing.T) {
+	t.Parallel()
+	f := newPortfolioFixture()
+	f.roles.members = append(f.roles.members, cabal.MemberView{
+		UserID: ids.UserIDFrom(ids.Real{}.NewV7()), Role: cabal.RoleMember, CanVote: true,
+	})
+	f.users.err = errs.New(errs.CodeInternal, "users")
+	if _, err := f.read(t, fakeBoards{run: f.run, hasRun: true}); !errors.Is(err, f.users.err) {
+		t.Fatalf("Run error = %v, want %v", err, f.users.err)
+	}
+}
+
+func TestReadPortfolio_PreviewsTheOtherMembersWithTheirCards(t *testing.T) {
+	t.Parallel()
+	f := newPortfolioFixture()
+	other := ids.UserIDFrom(ids.Real{}.NewV7())
+	gone := ids.UserIDFrom(ids.Real{}.NewV7())
+	f.roles.members = append(f.roles.members,
+		cabal.MemberView{UserID: other, Role: cabal.RoleCreator, CanVote: true},
+		cabal.MemberView{UserID: gone, Role: cabal.RoleMember},
+	)
+	f.users.cards = map[ids.UserID]app.UserCard{other: {DisplayName: "Ada", PhotoURL: "https://x/a.jpg"}}
+	got, err := f.read(t, fakeBoards{run: f.run, hasRun: true})
+	want := []app.MemberPreview{{UserID: other, DisplayName: "Ada", PhotoURL: "https://x/a.jpg"}}
+	if err != nil || !slices.Equal(got.Preview[f.cabal], want) {
+		t.Fatalf("Preview = %+v, %v, want %+v", got.Preview, err, want)
 	}
 }

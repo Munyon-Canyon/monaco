@@ -1,6 +1,7 @@
 package app
 
 import (
+	"cmp"
 	"context"
 	"math"
 	"slices"
@@ -41,6 +42,14 @@ type OpenVoteCounts interface {
 	OpenVoteCounts(context.Context, []ids.CabalID) (map[ids.CabalID]int, error)
 }
 
+type MemberPreview struct {
+	UserID      ids.UserID
+	DisplayName string
+	PhotoURL    string
+}
+
+const previewLimit = 3
+
 type PortfolioView struct {
 	domain.Portfolio
 	Cash       money.Micros
@@ -49,6 +58,7 @@ type PortfolioView struct {
 	Cabals     map[ids.CabalID]CabalView
 	Members    map[ids.CabalID]Membership
 	OpenVotes  map[ids.CabalID]int
+	Preview    map[ids.CabalID][]MemberPreview
 	ComputedAt *time.Time
 	PricesAsOf *time.Time
 }
@@ -63,6 +73,7 @@ type PortfolioPorts struct {
 	Cards     CabalCards
 	Ownership Ownership
 	Roles     MemberRoles
+	Users     Users
 }
 
 type ReadPortfolio struct {
@@ -189,7 +200,72 @@ func (r ReadPortfolio) describe(ctx context.Context, ports PortfolioPorts, view 
 			return PortfolioView{}, errs.New(errs.CodeInternal, "ranking.ReadPortfolio")
 		}
 	}
+	if view.Preview, err = previewsOf(ctx, ports.Users, held, members, r.User); err != nil {
+		return PortfolioView{}, err
+	}
 	return view, nil
+}
+
+func previewsOf(
+	ctx context.Context, users Users, held []ids.CabalID, members map[ids.CabalID][]MemberView, viewer ids.UserID,
+) (map[ids.CabalID][]MemberPreview, error) {
+	chosen := make(map[ids.CabalID][]ids.UserID, len(held))
+	var all []ids.UserID
+	for _, id := range held {
+		chosen[id] = previewMembers(members[id], viewer, previewLimit)
+		all = append(all, chosen[id]...)
+	}
+	out := make(map[ids.CabalID][]MemberPreview, len(held))
+	if len(all) == 0 {
+		return out, nil
+	}
+	cards, err := users.UsersByID(ctx, all)
+	if err != nil {
+		return nil, err
+	}
+	for id, picked := range chosen {
+		for _, user := range picked {
+			if card, ok := cards[user]; ok {
+				out[id] = append(out[id], MemberPreview{
+					UserID: user, DisplayName: card.DisplayName, PhotoURL: card.PhotoURL,
+				})
+			}
+		}
+	}
+	return out, nil
+}
+
+func previewMembers(members []MemberView, viewer ids.UserID, limit int) []ids.UserID {
+	others := make([]MemberView, 0, len(members))
+	for _, m := range members {
+		if m.UserID != viewer {
+			others = append(others, m)
+		}
+	}
+	slices.SortFunc(others, func(a, b MemberView) int {
+		if c := cmp.Compare(previewRank(a), previewRank(b)); c != 0 {
+			return c
+		}
+		if c := a.JoinedAt.Compare(b.JoinedAt); c != 0 {
+			return c
+		}
+		return cmp.Compare(a.UserID.String(), b.UserID.String())
+	})
+	out := make([]ids.UserID, 0, limit)
+	for _, m := range others[:min(limit, len(others))] {
+		out = append(out, m.UserID)
+	}
+	return out
+}
+
+func previewRank(m MemberView) int {
+	switch {
+	case m.Role.IsAdmin():
+		return 0
+	case m.CanVote:
+		return 1
+	}
+	return 2
 }
 
 func membershipOf(members []MemberView, user ids.UserID) Membership {
