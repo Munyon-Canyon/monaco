@@ -1,7 +1,7 @@
 ---
 id: governance/vote
 title: Vote on a proposal
-version: 9
+version: 10
 milestone: M13
 requires: [auth/sign-in]
 actors: [A, B]
@@ -43,7 +43,7 @@ The setup seeds the proposal, so this journey does not depend on the propose scr
 | S1.5 | A | tap, then pick and hold | `proposal-change-vote` "Change", then `proposal-vote-no`, then Change and `proposal-vote-yes` | | The card reads "You voted Yes" with `proposal-change-vote`. After the first change the tally reads "Yes, 0 votes" / "Voted No, 1 vote" within 10 s, the toast reads "Changed to No." with no `monaco-toast-action`, and "Change" shows again. After the second it reads "Voted Yes, 1 vote" / "No, 0 votes" and "Changed to Yes." with no Undo. The permission sheet does not show again |
 | S1.6 | B | open the cabal, then tap | the Cabals tab, then the cabal named `{cabalName}`, then `cabal-open-proposal-open-<proposalID>` | | The tally reads "1 vote" / "0 votes" and the status line "1 of 3 voted" and "closes in" within 15 s. There is no votes list with names: `proposal-votes-see-all` does not exist |
 | S1.7 | B | pick and hold, then tap | `proposal-vote-no`, then the toast's "Undo" while it shows | | Within 10 s `proposal-vote-no` reads "Voted No, 1 vote" and the toast reads "Voted No. 2nd of 3." with "Undo". After Undo, within 10 s the tally reads "1 vote" / "0 votes", the toast reads "Vote undone.", both buttons can be picked and `proposal-change-vote` does not exist. No permission sheet shows |
-| S1.8 | B | pick and hold | `proposal-vote-yes` | | Within 10 s the toast reads "Voted Yes. Passed 2–0." with no `monaco-toast-action`, `proposal-vote-yes` reads "Voted Yes, 2 votes", the status line starts "Passed 2–0", `proposal-change-vote` does not exist, and `monaco-toast-banner` reads "Your vote decided it." (the spoken words for the seal glyph) |
+| S1.8 | B | pick and hold | `proposal-vote-yes` | | Within 10 s the toast reads "Voted Yes. Passed 2–0." with no `monaco-toast-action`, and the closed result card (`proposal-result`) shows "Passed 2–0" with `proposal-result-tally` reading "2 of 3 voted". The vote buttons are gone: `proposal-vote-yes` and `proposal-change-vote` do not exist. `monaco-toast-banner` reads "Your vote decided it." (the spoken words for the seal glyph) |
 | S1.9 | A | relaunch, then tap | the Home tab | | Within 15 s "Your vote" no longer offers the proposal for a vote (`home-vote-yes-<proposalID>` does not exist). If Home still shows it, opening it shows no `proposal-change-vote` |
 
 ### S2 Vote from the cabal page
