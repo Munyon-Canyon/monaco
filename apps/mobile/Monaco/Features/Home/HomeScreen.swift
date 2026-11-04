@@ -147,14 +147,3 @@ private struct HomeSectionStack: View {
         }
     }
 }
-
-extension ToolbarContent {
-    @ToolbarContentBuilder
-    fileprivate func withoutGlass() -> some ToolbarContent {
-        if #available(iOS 26.0, *) {
-            sharedBackgroundVisibility(.hidden)
-        } else {
-            self
-        }
-    }
-}
