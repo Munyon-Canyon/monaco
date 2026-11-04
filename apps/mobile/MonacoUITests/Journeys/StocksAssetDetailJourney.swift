@@ -2,7 +2,7 @@ import XCTest
 
 enum StocksAssetDetailJourney {
     static let id = "stocks/asset-detail"
-    static let version = 15
+    static let version = 16
 
     static let alpha = StocksBrowseJourney.alpha
     static let preIpo = StocksBrowseJourney.preIpo
@@ -163,6 +163,14 @@ enum StocksAssetDetailJourney {
         XCTAssertEqual(
             header.label, "Buy \(alpha.name)",
             "S1.9: the Amount header reads '\(header.label)', not 'Buy \(alpha.name)'")
+        app.element("amount-keypad-close").tap()
+        XCTAssertTrue(
+            app.element("asset-detail-root").waitForExistence(timeout: 10),
+            "S1.9: closing Amount did not return to the stock page")
+        app.navigationBars.buttons["BackButton"].tap()
+        XCTAssertTrue(
+            app.element("tab-assets").waitForExistence(timeout: 10),
+            "S1.9: backing out of the stock page did not show the tab bar")
     }
 
     static func stats(_ app: XCUIApplication, recorder: JourneyRecorder) {
