@@ -65,6 +65,18 @@ final class CabalMemberCopyTests: XCTestCase {
         XCTAssertEqual(CabalMemberCopy.voterLine(row(.member, canVote: false)), "Holds a share")
     }
 
+    func testAMemberMadeAVoterGetsANewRowKeyAndDropsHoldsAShare() {
+        let member = row(.member, canVote: false)
+        let voter = row(.member, canVote: true)
+        XCTAssertEqual(member.userId, voter.userId)
+        XCTAssertEqual(CabalMemberGroup(member), .member)
+        XCTAssertEqual(CabalMemberGroup(voter), .voter)
+        XCTAssertEqual(CabalMemberCopy.voterLine(member), "Holds a share")
+        XCTAssertEqual(CabalMemberCopy.voterLine(voter), "7 of 9 right \u{00B7} voted 11 of 11")
+        XCTAssertNotEqual(CabalMemberCopy.voterRowKey(member), CabalMemberCopy.voterRowKey(voter))
+        XCTAssertNotEqual(CabalMemberCopy.tabRowKey(member), CabalMemberCopy.tabRowKey(voter))
+    }
+
     func testTheViewerIsMarkedYou() {
         XCTAssertEqual(CabalMemberCopy.name(row(.admin, name: "Andres"), viewerID: "u1"), "Andres \u{00B7} you")
         XCTAssertEqual(CabalMemberCopy.name(row(.admin, name: "Andres"), viewerID: "u2"), "Andres")

@@ -85,7 +85,7 @@ private struct CabalVotersTabBody: View {
             )
             .contextMenu { actions(entry) }
             .onAppear { Task { await model.loadMore(after: entry) } }
-            .id("\(entry.id)|\(subtitle)")
+            .id(CabalMemberCopy.voterRowKey(entry.row))
         }
     }
 

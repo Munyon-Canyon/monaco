@@ -61,7 +61,7 @@ private struct CabalMembersTabBody: View {
                                 chevron: true, isLast: entry.id == model.preview.last?.id,
                                 hint: CabalMemberCopy.rightCallHint
                             )
-                            .id("\(entry.id)|\(subtitle)")
+                            .id(CabalMemberCopy.tabRowKey(entry.row))
                         }
                     }
                 }
