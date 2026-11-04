@@ -112,8 +112,8 @@ struct GifImageView: View {
             stillLayer
             GifFrameView(fileURL: isPlaying ? fileURL : nil, runs: runs, once: reduceMotion, fills: fills)
                 .accessibilityHidden(true)
-            if didFail { failureRow }
-            if reduceMotion && runs == 0 && showsPlay && sharedRuns == nil {
+            if didFail && !isPlaying { failureRow }
+            if reduceMotion && runs == 0 && showsPlay && sharedRuns == nil && !didFail {
                 GifPlayButton(id: id) { ownRuns += 1 }
             }
         }

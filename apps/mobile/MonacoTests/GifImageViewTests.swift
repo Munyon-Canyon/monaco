@@ -26,7 +26,7 @@ nonisolated private final class GifStillStubProtocol: URLProtocol {
     nonisolated override func stopLoading() {}
 }
 
-final class GifImageViewTests: XCTestCase {
+nonisolated final class GifImageViewTests: XCTestCase {
     @MainActor
     func testInitialStill_returnsACachedStill() async throws {
         let configuration = URLSessionConfiguration.ephemeral
