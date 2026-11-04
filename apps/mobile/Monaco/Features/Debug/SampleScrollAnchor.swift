@@ -22,4 +22,41 @@ enum SampleScrollAnchor {
         return value
     }
 }
+
+private struct SampleScrollSections: ViewModifier {
+    func body(content: Content) -> some View {
+        ScrollViewReader { proxy in
+            content.task {
+                guard let section = SampleScrollAnchor.section() else { return }
+                await Task.yield()
+                proxy.scrollTo(section, anchor: .top)
+            }
+        }
+    }
+}
+
+enum SampleSectionID {
+    static func make(_ typeName: String) -> String {
+        var name = typeName
+        if name.hasSuffix("Slot") { name.removeLast(4) }
+        var out = ""
+        for character in name {
+            if character.isUppercase, !out.isEmpty { out.append("-") }
+            out.append(contentsOf: character.lowercased())
+        }
+        return out
+    }
+}
+
+extension View {
+    func sampleScrollSections() -> some View { modifier(SampleScrollSections()) }
+    func sampleSectionID(_ section: Any.Type) -> some View { id(SampleSectionID.make(String(describing: section))) }
+}
+#else
+import SwiftUI
+
+extension View {
+    func sampleScrollSections() -> some View { self }
+    func sampleSectionID(_ section: Any.Type) -> some View { self }
+}
 #endif

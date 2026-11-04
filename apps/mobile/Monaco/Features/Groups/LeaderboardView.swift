@@ -108,6 +108,7 @@ struct LeaderboardView: View {
                 }
             }
         }
+        .sampleScrollSections()
         .onScrollGeometryChange(for: Bool.self) { geometry in
             geometry.contentOffset.y + geometry.contentInsets.top > CallBoardMetrics.titleFoldOffset
         } action: { _, folded in
@@ -234,17 +235,23 @@ struct CallBoardBody: View {
                 CallBoardUnrankedCardView(card: unranked)
             }
             if !screen.top.isEmpty {
-                CallBoardSectionTitle(text: screen.podiumTitle, afterCard: followsCard, trailing: screen.leadLine)
-                CallBoardPodium(rows: screen.top)
+                VStack(alignment: .leading, spacing: 0) {
+                    CallBoardSectionTitle(text: screen.podiumTitle, afterCard: followsCard, trailing: screen.leadLine)
+                    CallBoardPodium(rows: screen.top)
+                }
+                .id("podium")
             }
             if !screen.around.isEmpty {
                 CallBoardSectionTitle(text: screen.aroundTitle, identifier: "leaderboard-section-ranked")
+                    .id("ranked")
                 around
             }
             if !screen.unrankedRows.isEmpty {
                 CallBoardSectionTitle(
                     text: CallBoardCopy.unrankedTitle, count: screen.unrankedRows.count,
-                    identifier: "leaderboard-section-unranked")
+                    identifier: "leaderboard-section-unranked"
+                )
+                .id("unranked")
                 CallBoardUnrankedRows(rows: screen.unrankedRows)
             }
         }
@@ -287,6 +294,7 @@ struct CallBoardSectionTitle: View {
 
     private func line(_ trailing: String) -> some View {
         Text(trailing).font(MonacoTheme.Typo.subhead).foregroundStyle(MonacoTheme.secondaryText)
+            .accessibilityIdentifier("leaderboard.podium.lead")
     }
 
     @ViewBuilder private var content: some View {

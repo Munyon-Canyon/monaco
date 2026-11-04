@@ -103,20 +103,28 @@ struct AssetDetailClientView: View {
             VStack(alignment: .leading, spacing: MonacoTheme.Space.section) {
                 AssetDetailHeader(
                     detail: detail, model: model,
-                    scrub: AssetScrubHeader(chart: model.chart, barIndex: scrubbedIndex), priceTick: priceTick)
+                    scrub: AssetScrubHeader(chart: model.chart, barIndex: scrubbedIndex), priceTick: priceTick
+                )
+                .id("header")
                 AssetDetailChartSection(detail: detail, model: model, scrubbedIndex: $scrubbedIndex)
+                    .id("chart")
                 AssetDetailActions(detail: detail, canSell: !model.heldRows.isEmpty, propose: propose)
-                if AssetAbout.isShown(kind: detail.kind) { AssetAbout(detail: detail) }
+                    .id("actions")
+                if AssetAbout.isShown(kind: detail.kind) { AssetAbout(detail: detail).id("about") }
                 AssetInYourCabals(
                     held: model.heldRows, proposals: model.openProposals,
                     openCabal: { environment.navigator.open(CabalRoute(id: $0), in: tab) },
-                    openProposal: { environment.navigator.open(ProposalRoute(proposalID: $0), in: tab) })
+                    openProposal: { environment.navigator.open(ProposalRoute(proposalID: $0), in: tab) }
+                )
+                .id("cabals")
                 if let stats = model.stats {
                     AssetMarketStats(stats: stats) { showsStatsInfo = true }
+                        .id("stats")
                 }
             }
             .padding(.bottom, MonacoTheme.Space.l)
         }
+        .sampleScrollSections()
         .monacoCanvas()
         .foregroundStyle(MonacoTheme.primaryText)
         .monacoFrameStats("AssetDetail")

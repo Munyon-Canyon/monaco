@@ -7,20 +7,15 @@ struct GalleryPage<Content: View>: View {
     @ViewBuilder let content: Content
 
     var body: some View {
-        ScrollViewReader { proxy in
-            ScrollView {
-                VStack(alignment: .leading, spacing: MonacoTheme.Space.section) {
-                    content
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, MonacoTheme.Space.gutter)
-                .padding(.bottom, MonacoTheme.Space.xl)
+        ScrollView {
+            VStack(alignment: .leading, spacing: MonacoTheme.Space.section) {
+                content
             }
-            .task {
-                guard let section = SampleScrollAnchor.section() else { return }
-                proxy.scrollTo(section, anchor: .top)
-            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, MonacoTheme.Space.gutter)
+            .padding(.bottom, MonacoTheme.Space.xl)
         }
+        .sampleScrollSections()
         .monacoCanvas()
         .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
