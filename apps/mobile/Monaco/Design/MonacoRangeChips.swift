@@ -81,7 +81,13 @@ struct MonacoPlainLabelRow<Item: Hashable>: View {
     private var hitOutset: CGFloat { equalWidth ? 0 : spacing / 2 }
 
     var body: some View {
-        if MonacoPlainLabelMetrics.scrollsAlways(dynamicTypeSize) {
+        if equalWidth && dynamicTypeSize.isAccessibilitySize {
+            ViewThatFits(in: .horizontal) {
+                wrapped(rows: 1)
+                wrapped(rows: 2)
+                wrapped(rows: 3)
+            }
+        } else if MonacoPlainLabelMetrics.scrollsAlways(dynamicTypeSize) {
             scroller
         } else if alwaysFits || dynamicTypeSize >= MonacoPlainLabelMetrics.equalWidthFloor {
             ViewThatFits(in: .horizontal) {
@@ -96,6 +102,21 @@ struct MonacoPlainLabelRow<Item: Hashable>: View {
     private var stack: some View {
         HStack(spacing: equalWidth ? 0 : spacing) {
             ForEach(items, id: \.self) { item in plainLabel(item, fillsWidth: equalWidth) }
+        }
+    }
+
+    private func wrapped(rows: Int) -> some View {
+        let perRow = (items.count + rows - 1) / rows
+        return VStack(spacing: 0) {
+            ForEach(Array(stride(from: 0, to: items.count, by: perRow)), id: \.self) { start in
+                let slice = Array(items[start..<min(start + perRow, items.count)])
+                HStack(spacing: 0) {
+                    ForEach(slice, id: \.self) { item in plainLabel(item, fillsWidth: true) }
+                    ForEach(0..<(perRow - slice.count), id: \.self) { _ in
+                        Color.clear.frame(maxWidth: .infinity)
+                    }
+                }
+            }
         }
     }
 
