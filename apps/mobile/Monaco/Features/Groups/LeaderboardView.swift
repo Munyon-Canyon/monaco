@@ -294,7 +294,6 @@ struct CallBoardSectionTitle: View {
 
     private func line(_ trailing: String) -> some View {
         Text(trailing).font(MonacoTheme.Typo.subhead).foregroundStyle(MonacoTheme.secondaryText)
-            .accessibilityIdentifier("leaderboard.podium.lead")
     }
 
     @ViewBuilder private var content: some View {

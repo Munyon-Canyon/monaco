@@ -52,7 +52,7 @@ nonisolated final class LeaderboardSampleUITests: XCTestCase {
             "-MonacoSampleScroll", "podium",
         ]
         app.launch()
-        let lead = element(app, "leaderboard.podium.lead")
+        let lead = app.staticTexts.matching(NSPredicate(format: "label ENDSWITH %@", "right calls ahead.")).firstMatch
         XCTAssertTrue(lead.waitForExistence(timeout: 10), "the right-calls-ahead line shows")
         XCTAssertTrue(lead.isHittable, "the podium section scrolled into view")
         XCTAssertTrue(
