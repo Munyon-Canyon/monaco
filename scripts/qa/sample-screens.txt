@@ -252,6 +252,7 @@ cabal-info-bottom                 -MonacoGroupDetailSample info -MonacoSampleScr
 cabal-members                     -MonacoGroupDetailSample members
 cabal-members-dark                -MonacoGroupDetailSample members -AppleInterfaceStyle Dark
 cabal-voters                      -MonacoGroupDetailSample voters
+cabal-chat                        -MonacoGroupDetailSample chat
 cabal-members-requests            -MonacoGroupDetailSample requests
 cabal-members-requests-empty      -MonacoGroupDetailSample requestsEmpty
 cabal-invite                      -MonacoGroupDetailSample invite

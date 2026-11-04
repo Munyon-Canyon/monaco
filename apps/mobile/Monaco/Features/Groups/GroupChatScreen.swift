@@ -4,6 +4,7 @@ import SwiftUI
 
 struct GroupChatScreen: View {
     let cabalID: String
+    var embedded = false
     let session: ChatSession?
     let cabal: Components.Schemas.Cabal?
     var reporter: ChatSeenReporter?
@@ -37,18 +38,7 @@ struct GroupChatScreen: View {
             bottomBar
         }
         .monacoCanvas()
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar(.hidden, for: .tabBar)
-        .toolbar {
-            ToolbarItem(placement: .principal) { titleView }
-            ToolbarItem(placement: .topBarTrailing) {
-                MonacoGlassButton(
-                    systemImage: MonacoIcon.info.symbol, accessibilityLabel: GroupChatCopy.infoLabel,
-                    style: .quiet, placement: .toolbar
-                ) { showsDetails = true }
-                .accessibilityIdentifier("chat-info")
-            }
-        }
+        .modifier(ChatStandaloneChrome(embedded: embedded, title: titleView, showsDetails: $showsDetails))
         .sheet(isPresented: $showsDetails) { ChatCabalDetailsSheet(cabalID: cabalID) }
         .task { network?.start() }
         .task(id: sessionID) { await observe() }
@@ -163,6 +153,32 @@ struct GroupChatScreen: View {
     private func show(_ notice: ChatSession.Notice?) {
         guard let notice else { return }
         toasts.current = MonacoToast(message: ToastCopy.message(for: notice.error))
+    }
+}
+
+private struct ChatStandaloneChrome<Title: View>: ViewModifier {
+    let embedded: Bool
+    let title: Title
+    @Binding var showsDetails: Bool
+
+    @ViewBuilder func body(content: Content) -> some View {
+        if embedded {
+            content
+        } else {
+            content
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar(.hidden, for: .tabBar)
+                .toolbar {
+                    ToolbarItem(placement: .principal) { title }
+                    ToolbarItem(placement: .topBarTrailing) {
+                        MonacoGlassButton(
+                            systemImage: MonacoIcon.info.symbol, accessibilityLabel: GroupChatCopy.infoLabel,
+                            style: .quiet, placement: .toolbar
+                        ) { showsDetails = true }
+                        .accessibilityIdentifier("chat-info")
+                    }
+                }
+        }
     }
 }
 

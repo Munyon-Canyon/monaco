@@ -82,10 +82,17 @@ struct CabalScreenOrderTests {
     }
 
     @Test func theTabsPinOnceTheirTopReachesTheBar() {
-        #expect(!CabalTabsPin.isPinned(tabsTop: nil, barBottom: 103))
-        #expect(!CabalTabsPin.isPinned(tabsTop: 480, barBottom: 103))
-        #expect(CabalTabsPin.isPinned(tabsTop: 103, barBottom: 103))
-        #expect(CabalTabsPin.isPinned(tabsTop: -60, barBottom: 103))
+        #expect(!CabalTabsPin.isPinned(tab: .treasury, tabsTop: nil, barBottom: 103))
+        #expect(!CabalTabsPin.isPinned(tab: .treasury, tabsTop: 480, barBottom: 103))
+        #expect(CabalTabsPin.isPinned(tab: .treasury, tabsTop: 103, barBottom: 103))
+        #expect(CabalTabsPin.isPinned(tab: .treasury, tabsTop: -60, barBottom: 103))
+    }
+
+    @Test func chatLeadsTheTabsAndIsAlwaysPinned() {
+        #expect(CabalTab.shown.first == .chat)
+        #expect(!CabalTab.shown(isReadOnly: true).contains(.chat))
+        #expect(CabalTabsPin.isPinned(tab: .chat, tabsTop: nil, barBottom: 0))
+        #expect(CabalRoute(id: "cabal-1", tab: .chat).tab == .chat)
     }
 
     @Test(.timeLimit(.minutes(1)), arguments: [CabalTab.treasury, .rules, .members])

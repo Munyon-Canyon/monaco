@@ -30,6 +30,7 @@ enum GroupDetailSampleScenario: String, CaseIterable {
     case infoAdmin
     case members
     case voters
+    case chat
     case requests
     case requestsEmpty
     case invite
@@ -103,7 +104,7 @@ extension GroupDetailSampleScenario {
             SampleAPIScript(role: nil, cabalCount: 0, pot: .sampleOutsider, accessRequest: ("request", "pending"))
         case .publicMember, .publicPrivate:
             SampleAPIScript(role: "member")
-        case .info, .members, .voters: SampleAPIScript(role: "member")
+        case .info, .members, .voters, .chat: SampleAPIScript(role: "member")
         case .infoAdmin:
             SampleAPIScript(role: "creator", accessRequests: Components.Schemas.CabalAccessRequest.samples)
         case .requests:
@@ -133,6 +134,7 @@ extension GroupDetailSampleScenario {
         case .fVoters: return [CabalRoute(id: id, tab: .voters)]
         case .members, .fMembersAll, .fMembersLarge, .requests, .requestsEmpty: return [MembersRoute(cabalID: id)]
         case .voters: return [CabalRoute(id: id, tab: .voters)]
+        case .chat: return [CabalRoute(id: id, tab: .chat)]
         case .publicMember: return [CabalSampleRoute(kind: .publicMember)]
         case .publicPrivate: return [CabalSampleRoute(kind: .publicPrivate)]
         case .invite, .inviteNoProposal, .inviteLoading, .inviteFailed:
