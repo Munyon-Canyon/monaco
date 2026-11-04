@@ -132,6 +132,7 @@ struct WithdrawKeypadView: View {
         }
         .sheet(isPresented: $showsNote) {
             WithdrawNoteSheet(
+                receive: model.addressEndingLine != nil ? model.receiveNote : nil,
                 caveat: model.network.caveat,
                 arrival: model.quote.map {
                     WithdrawCopy.arrivalNote(network: model.network, arrivalSeconds: $0.arrivalSeconds)
@@ -202,7 +203,7 @@ struct WithdrawKeypadView: View {
             WithdrawAddressField(
                 text: Binding(get: { model.address }, set: { model.setAddress($0) }),
                 placeholder: model.network.placeholder, isInvalid: model.addressProblem != nil,
-                focusRequests: focusRequests, onScan: { scan() }
+                focusRequests: focusRequests, restingLine: model.addressEndingLine, onScan: { scan() }
             )
             .disabled(isLocked)
             if let problem = model.addressProblem {
@@ -244,8 +245,19 @@ private struct WithdrawNetworkChips: View {
                         Haptics.selection()
                         select(network)
                     } label: {
-                        Text(network.name).monacoChipLabel(
-                            isSelected: isSelected, leadingSymbol: .check, horizontalPadding: MonacoTheme.Space.sm)
+                        HStack(spacing: MonacoTheme.Space.xs) {
+                            if isSelected {
+                                Image(systemName: MonacoIcon.check.symbol).accessibilityHidden(true)
+                            }
+                            Text(network.name)
+                        }
+                        .font(MonacoTheme.Typo.subheadStrong)
+                        .foregroundStyle(isSelected ? MonacoTheme.onChipOn : MonacoTheme.primaryText)
+                        .lineLimit(1)
+                        .padding(.horizontal, MonacoTheme.Space.sm)
+                        .frame(minHeight: MonacoButtonMetrics.hitTarget)
+                        .background(Capsule().fill(isSelected ? MonacoTheme.chipOn : MonacoTheme.surfaceSunken))
+                        .contentShape(Capsule())
                     }
                     .buttonStyle(.plain)
                     .accessibilityAddTraits(isSelected ? [.isSelected] : [])
@@ -257,11 +269,13 @@ private struct WithdrawNetworkChips: View {
 }
 
 struct WithdrawNoteSheet: View {
+    let receive: String?
     let caveat: String
     let arrival: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.sm) {
+            if let receive { Text(receive) }
             Text(caveat)
             if let arrival { Text(arrival) }
         }

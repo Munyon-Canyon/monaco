@@ -7,6 +7,7 @@ import Synchronization
 enum WithdrawSampleState: String, CaseIterable {
     case empty
     case typed
+    case resting
     case invalid
     case settled
     case needsAddress
@@ -30,7 +31,7 @@ enum WithdrawSampleState: String, CaseIterable {
     var amountText: String {
         switch self {
         case .empty, .feeUnknown, .feeFailed: ""
-        case .typed, .settled, .needsAddress, .invalidAddress, .submitting: "120"
+        case .typed, .resting, .settled, .needsAddress, .invalidAddress, .submitting: "120"
         case .invalid: "650"
         case .evmFee: "10"
         }

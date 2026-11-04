@@ -4,6 +4,7 @@ import UIKit
 
 enum WithdrawAddressFieldMetrics {
     static let lines = 2
+    static let restingHeight: CGFloat = 56
 }
 
 enum WithdrawScan {
@@ -23,13 +24,16 @@ struct WithdrawAddressField: View {
     let placeholder: String
     var isInvalid = false
     var focusRequests = 0
+    var restingLine: String?
     var onScan: (() -> Void)?
 
     @State private var isFocused = false
+    @State private var isEditing = false
+    @State private var editRequests = 0
     @Environment(\.isEnabled) private var isEnabled
 
     private var shape: RoundedRectangle {
-        RoundedRectangle(cornerRadius: MonacoTheme.Radius.field, style: .continuous)
+        RoundedRectangle(cornerRadius: MonacoTheme.Radius.compact, style: .continuous)
     }
 
     private var stroke: Color {
@@ -37,7 +41,49 @@ struct WithdrawAddressField: View {
         return isFocused ? MonacoTheme.brand : Color.clear
     }
 
+    private var resting: String? {
+        guard !isEditing, !isFocused, text == text.trimmingCharacters(in: .whitespacesAndNewlines) else {
+            return nil
+        }
+        return restingLine
+    }
+
     var body: some View {
+        if let resting {
+            restingRow(resting)
+        } else {
+            editingRow
+        }
+    }
+
+    private func restingRow(_ line: String) -> some View {
+        HStack(spacing: MonacoTheme.Space.s) {
+            Button {
+                isEditing = true
+                editRequests += 1
+            } label: {
+                Text(line)
+                    .font(MonacoTheme.Typo.body)
+                    .foregroundStyle(MonacoTheme.primaryText)
+                    .multilineTextAlignment(.leading)
+                    .frame(maxWidth: .infinity, minHeight: MonacoButtonMetrics.hitTarget, alignment: .leading)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .disabled(!isEnabled)
+            .accessibilityLabel("\(line), edit")
+            .accessibilityIdentifier("withdraw-address-resting")
+            actions
+        }
+        .padding(.leading, MonacoTheme.Space.m)
+        .padding(.trailing, MonacoTheme.Space.s)
+        .frame(minHeight: WithdrawAddressFieldMetrics.restingHeight)
+        .background(shape.fill(MonacoTheme.surface))
+        .opacity(isEnabled ? 1 : 0.5)
+        .monacoPrivate()
+    }
+
+    private var editingRow: some View {
         HStack(alignment: .top, spacing: MonacoTheme.Space.s) {
             ZStack(alignment: .topLeading) {
                 if text.isEmpty {
@@ -47,43 +93,12 @@ struct WithdrawAddressField: View {
                         .accessibilityHidden(true)
                 }
                 AddressTextView(
-                    text: $text, isFocused: $isFocused, focusRequests: focusRequests, placeholder: placeholder,
+                    text: $text, isFocused: $isFocused, focusRequests: focusRequests + editRequests,
+                    placeholder: placeholder,
                     isEnabled: isEnabled)
             }
             .frame(maxWidth: .infinity, alignment: .topLeading)
-            HStack(spacing: MonacoTheme.Space.xs) {
-                Image(systemName: "clipboard")
-                    .font(.system(.body))
-                    .foregroundStyle(MonacoTheme.tint)
-                    .frame(width: MonacoButtonMetrics.hitTarget, height: MonacoButtonMetrics.hitTarget)
-                    .accessibilityHidden(true)
-                    .overlay {
-                        PasteButton(payloadType: String.self) { strings in
-                            guard let first = strings.first else { return }
-                            text = first.trimmingCharacters(in: .whitespacesAndNewlines)
-                        }
-                        .labelStyle(.iconOnly)
-                        .buttonBorderShape(.circle)
-                        .frame(minWidth: MonacoButtonMetrics.hitTarget, minHeight: MonacoButtonMetrics.hitTarget)
-                        .opacity(0.015)
-                        .contentShape(Rectangle())
-                        .disabled(!isEnabled)
-                        .accessibilityLabel("Paste")
-                        .accessibilityIdentifier("withdraw-paste")
-                    }
-                if let onScan {
-                    Button(action: onScan) {
-                        Image(systemName: "qrcode.viewfinder")
-                            .font(.system(.body))
-                            .foregroundStyle(MonacoTheme.tint)
-                            .frame(width: MonacoButtonMetrics.hitTarget, height: MonacoButtonMetrics.hitTarget)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Scan a QR code")
-                    .accessibilityIdentifier("withdraw-scan")
-                }
-            }
+            actions
         }
         .padding(.leading, MonacoTheme.Space.m)
         .padding(.trailing, MonacoTheme.Space.s)
@@ -93,7 +108,46 @@ struct WithdrawAddressField: View {
         .animation(.easeOut(duration: 0.15), value: isFocused)
         .animation(.easeOut(duration: 0.15), value: isInvalid)
         .opacity(isEnabled ? 1 : 0.5)
+        .onChange(of: isFocused) { _, focused in
+            if !focused { isEditing = false }
+        }
         .monacoPrivate()
+    }
+
+    private var actions: some View {
+        HStack(spacing: MonacoTheme.Space.xs) {
+            Image(systemName: "clipboard")
+                .font(.system(.body))
+                .foregroundStyle(MonacoTheme.tint)
+                .frame(width: MonacoButtonMetrics.hitTarget, height: MonacoButtonMetrics.hitTarget)
+                .accessibilityHidden(true)
+                .overlay {
+                    PasteButton(payloadType: String.self) { strings in
+                        guard let first = strings.first else { return }
+                        text = first.trimmingCharacters(in: .whitespacesAndNewlines)
+                    }
+                    .labelStyle(.iconOnly)
+                    .buttonBorderShape(.circle)
+                    .frame(minWidth: MonacoButtonMetrics.hitTarget, minHeight: MonacoButtonMetrics.hitTarget)
+                    .opacity(0.015)
+                    .contentShape(Rectangle())
+                    .disabled(!isEnabled)
+                    .accessibilityLabel("Paste")
+                    .accessibilityIdentifier("withdraw-paste")
+                }
+            if let onScan {
+                Button(action: onScan) {
+                    Image(systemName: "qrcode.viewfinder")
+                        .font(.system(.body))
+                        .foregroundStyle(MonacoTheme.tint)
+                        .frame(width: MonacoButtonMetrics.hitTarget, height: MonacoButtonMetrics.hitTarget)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Scan a QR code")
+                .accessibilityIdentifier("withdraw-scan")
+            }
+        }
     }
 }
 
@@ -147,7 +201,7 @@ private struct AddressTextView: UIViewRepresentable {
         }
         if focusRequests != context.coordinator.focusRequests {
             context.coordinator.focusRequests = focusRequests
-            view.becomeFirstResponder()
+            DispatchQueue.main.async { view.becomeFirstResponder() }
         }
     }
 

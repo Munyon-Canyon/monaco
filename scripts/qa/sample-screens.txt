@@ -448,6 +448,7 @@ money-withdraw-processing     -MonacoMoneyFlowSample withdrawProcessing
 money-withdraw-completed      -MonacoMoneyFlowSample withdrawCompleted
 withdraw-empty                -MonacoWithdrawSample empty
 withdraw-typed                -MonacoWithdrawSample typed
+withdraw-resting              -MonacoWithdrawSample resting
 withdraw-invalid              -MonacoWithdrawSample invalid
 withdraw-settled              -MonacoWithdrawSample settled
 withdraw-needs-address        -MonacoWithdrawSample needsAddress

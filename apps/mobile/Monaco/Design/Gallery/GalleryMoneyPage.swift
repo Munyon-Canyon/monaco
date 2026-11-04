@@ -102,8 +102,8 @@ private struct GalleryKeypadSample: Identifiable {
             line: nil, sourceName: "AC Capital", balance: "Cash $500.00", hasHeader: false),
         GalleryKeypadSample(
             id: "Invalid with a header", text: "650",
-            state: .invalid(limitLine: "You can send $499.50 · $150.50 over", slot: "Up to $499.50"),
-            line: AmountKeypadLine(text: "≈ 650.00 USDC · fee $0.50", info: {}),
+            state: .invalid(limitLine: "You can send $499.50 after the fee.", slot: "Up to $499.50"),
+            line: AmountKeypadLine(text: "$0.50 fee · arrives in about a minute", info: {}),
             sourceName: "Cash", balance: "$500.00", hasHeader: true),
     ]
 }
