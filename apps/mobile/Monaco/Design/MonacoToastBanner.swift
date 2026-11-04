@@ -33,12 +33,12 @@ struct MonacoToastAction: Equatable {
     }
 }
 
-/// F's toast: a capsule of system material, with a glyph, one or two short sentences and an
-/// optional action.
+/// F's toast: a glass capsule on iOS 26, material with a hairline on iOS 18 and solid under Reduce
+/// Transparency, with a glyph, one or two short sentences and an optional action.
 ///
 /// The toast has its own `toast*` tokens. It used to borrow `primaryButton*`, so when the brand
-/// accent became electric blue the toast turned into a blue capsule: the green success glyph fell
-/// to 1.3:1 on it, and an error toast read as a second primary button above the real one.
+/// accent became electric blue the toast turned into a blue capsule and an error toast read as a
+/// second primary button above the real one.
 struct MonacoToastBanner: View {
     let message: String
     var isSuccess = false
@@ -95,31 +95,42 @@ struct MonacoToastBanner: View {
         .padding(.horizontal, MonacoTheme.Space.m)
         .padding(.vertical, MonacoTheme.Space.sm)
         .frame(minHeight: MonacoToastLayout.minimumHeight)
-        .background { capsule }
-        .shadow(MonacoTheme.Shadow.floating)
+        .modifier(
+            MonacoToastSurface(
+                solid: reduceTransparency || opaque, displayScale: displayScale)
+        )
         .padding(.horizontal, insetsGutter ? MonacoTheme.Space.gutter : 0)
         .frame(maxWidth: insetsGutter ? .infinity : nil, alignment: .leading)
         .accessibilityElement(children: link == nil && action == nil ? .combine : .contain)
         .accessibilityIdentifier("monaco-toast-banner")
     }
+}
+
+private struct MonacoToastSurface: ViewModifier {
+    let solid: Bool
+    let displayScale: CGFloat
 
     @ViewBuilder
-    private var capsule: some View {
-        if reduceTransparency || opaque {
-            Capsule()
-                .fill(MonacoTheme.toastFill)
-                .overlay { Capsule().strokeBorder(MonacoTheme.toastStroke, lineWidth: 1 / displayScale) }
+    func body(content: Content) -> some View {
+        if solid {
+            content
+                .background(Capsule().fill(MonacoTheme.toastFill))
+                .overlay { hairline }
+        } else if #available(iOS 26, *) {
+            content.glassEffect(.regular, in: .capsule)
         } else {
-            Capsule().fill(.regularMaterial)
+            content
+                .background(Capsule().fill(.regularMaterial))
+                .overlay { hairline }
         }
+    }
+
+    private var hairline: some View {
+        Capsule().strokeBorder(MonacoTheme.toastStroke, lineWidth: 1 / displayScale)
     }
 }
 
 extension View {
-    fileprivate func shadow(_ layer: MonacoTheme.ShadowLayer) -> some View {
-        shadow(color: layer.color, radius: layer.radius, x: 0, y: layer.y)
-    }
-
     fileprivate func toastFocus(_ binding: AccessibilityFocusState<Bool>.Binding?) -> some View {
         modifier(MonacoToastFocus(binding: binding))
     }

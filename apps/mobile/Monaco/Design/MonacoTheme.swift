@@ -125,7 +125,7 @@ enum MonacoTheme {
 
     static let toastLabel = primaryText
 
-    static let toastSuccessGlyph = profit
+    static let toastSuccessGlyph = primaryText
 
     static let toastErrorGlyph = loss
 
