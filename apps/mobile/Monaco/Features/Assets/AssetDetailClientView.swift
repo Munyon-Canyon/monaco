@@ -126,7 +126,7 @@ struct AssetDetailClientView: View {
 
     @ToolbarContentBuilder private var toolbar: some ToolbarContent {
         if model?.detail != nil {
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItemGroup(placement: .topBarTrailing) {
                 let isWatched = environment.watchlist.isWatched(symbol)
                 MonacoGlassButton(
                     systemImage: isWatched ? "star.fill" : "star",
@@ -135,9 +135,6 @@ struct AssetDetailClientView: View {
                 )
                 .accessibilityAddTraits(isWatched ? .isSelected : [])
                 .accessibilityIdentifier("asset-watch-star")
-            }
-            CabalToolbarSplit.spacer
-            ToolbarItem(placement: .topBarTrailing) {
                 MonacoGlassButton(
                     icon: .share, accessibilityLabel: "Share \(model?.detail?.name ?? symbol)", style: .quiet,
                     placement: .toolbar, action: share
