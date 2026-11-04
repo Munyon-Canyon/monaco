@@ -36,7 +36,8 @@ struct HomePendingVotes: View {
     private var isHidden: Bool {
         guard portfolio != nil else { return false }
         let gate = HomeGate(portfolio: portfolio, reads: reads, balance: environment.balance.state)
-        return !gate.shows { $0.showsProposals }
+        let openVotes = model?.cards.count ?? 0
+        return !gate.shows { $0.showsProposals(openVotes: openVotes) }
     }
 
     private var loadsVotes: Bool {
