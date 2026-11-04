@@ -63,6 +63,7 @@ struct GifImageView: View {
     var sharedRuns: Binding<Int>?
     var cache: GifDataCache = .shared
     var budget: GifPlaybackBudget?
+    var stillShown: Binding<Bool>?
 
     private let motion = GifMotion()
     @State private var stillImage: UIImage?
@@ -70,6 +71,29 @@ struct GifImageView: View {
     @State private var isOnScreen = false
     @State private var hasSlot = false
     @State private var ownRuns = 0
+    @State private var didFail = false
+    @State private var attempt = 0
+
+    init(
+        id: String, still: URL, animated: URL, fills: Bool = true, showsPlay: Bool = true,
+        sharedRuns: Binding<Int>? = nil, cache: GifDataCache = .shared, budget: GifPlaybackBudget? = nil,
+        stillShown: Binding<Bool>? = nil
+    ) {
+        self.id = id
+        self.still = still
+        self.animated = animated
+        self.fills = fills
+        self.showsPlay = showsPlay
+        self.sharedRuns = sharedRuns
+        self.cache = cache
+        self.budget = budget
+        self.stillShown = stillShown
+        _stillImage = State(initialValue: Self.initialStill(for: still))
+    }
+
+    static func initialStill(for url: URL, store: MonacoRemoteImageStore = GifSheetMetrics.stills) -> UIImage? {
+        store.cachedImage(for: url)
+    }
 
     private var runs: Int { sharedRuns?.wrappedValue ?? ownRuns }
 
@@ -88,6 +112,7 @@ struct GifImageView: View {
             stillLayer
             GifFrameView(fileURL: isPlaying ? fileURL : nil, runs: runs, once: reduceMotion, fills: fills)
                 .accessibilityHidden(true)
+            if didFail { failureRow }
             if reduceMotion && runs == 0 && showsPlay && sharedRuns == nil {
                 GifPlayButton(id: id) { ownRuns += 1 }
             }
@@ -102,11 +127,38 @@ struct GifImageView: View {
             hasSlot = false
             budget?.release(id)
         }
-        .task(id: still) { await loadStill() }
-        .task(id: shouldLoad) {
+        .task(id: "\(still.absoluteString)#\(attempt)") { await loadStill() }
+        .onChange(of: isShowingStill, initial: true) { _, shown in stillShown?.wrappedValue = shown }
+        .task(id: "\(shouldLoad)#\(attempt)") {
             guard shouldLoad else { return }
             fileURL = try? await cache.fileURL(for: animated)
         }
+    }
+
+    private var isShowingStill: Bool {
+        if stillImage != nil { return true }
+        #if DEBUG
+        return still.host == SampleGifProvider.host
+        #else
+        return false
+        #endif
+    }
+
+    private var failureRow: some View {
+        Text("GIF didn’t load. Tap to retry.")
+            .font(MonacoTheme.Typo.subhead)
+            .foregroundStyle(MonacoTheme.secondaryText)
+            .multilineTextAlignment(.center)
+            .padding(MonacoTheme.Space.s)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .contentShape(Rectangle())
+            .highPriorityGesture(TapGesture().onEnded { retry() })
+            .accessibilityIdentifier("gif-still-retry-\(id)")
+    }
+
+    private func retry() {
+        didFail = false
+        attempt += 1
     }
 
     @ViewBuilder private var stillLayer: some View {
@@ -136,8 +188,9 @@ struct GifImageView: View {
         #if DEBUG
         guard still.host != SampleGifProvider.host else { return }
         #endif
-        stillImage = GifSheetMetrics.stills.cachedImage(for: still)
+        if stillImage == nil { stillImage = GifSheetMetrics.stills.cachedImage(for: still) }
         if stillImage == nil { stillImage = await GifSheetMetrics.stills.image(for: still) }
+        if stillImage == nil { didFail = true }
     }
 }
 

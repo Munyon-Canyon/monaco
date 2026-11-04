@@ -4,7 +4,7 @@ import SwiftUI
 
 enum GifSheetMetrics {
     static let gap = MonacoTheme.Space.s
-    static let radius = MonacoTheme.Radius.card
+    static let radius = MonacoTheme.Radius.art
     static let placeholderAspects: [CGFloat] = [1, 0.56, 1.5, 0.75, 1.33, 0.5]
     static let stills = MonacoRemoteImageStore(maxPixelSize: 480, countLimit: 120)
 
@@ -51,8 +51,8 @@ struct GifSheet: View {
             content
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .background(MonacoTheme.canvas.ignoresSafeArea())
-        .presentationDetents([.medium])
+        .monacoSheetBackground()
+        .monacoPresentationDetents(MonacoSheetDetents.half)
         .presentationDragIndicator(.visible)
         .presentationContentInteraction(.scrolls)
         .accessibilityElement(children: .contain)

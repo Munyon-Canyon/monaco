@@ -24,6 +24,7 @@ enum GifScenario: String {
     case search
     case empty
     case failed
+    case failedTile
     case live
     case bubble
     case reduceMotion
@@ -33,7 +34,7 @@ enum GifScenario: String {
         switch self {
         case .search: "dance"
         case .empty: "zzzz"
-        case .trending, .failed, .live, .bubble, .reduceMotion, .viewer: ""
+        case .trending, .failed, .failedTile, .live, .bubble, .reduceMotion, .viewer: ""
         }
     }
 
@@ -47,10 +48,35 @@ enum GifScenario: String {
     var provider: any GifProvider {
         switch self {
         case .trending, .search, .bubble, .reduceMotion, .viewer: SampleGifProvider()
+        case .failedTile: GifFailedTileProvider()
         case .empty: SampleGifProvider(mode: .noMatches)
         case .failed: SampleGifProvider(mode: .failing)
         case .live: AppEnvironment.makeGifProvider(key: Config.giphySDKKey, isRunningTests: false)
         }
+    }
+}
+
+struct GifFailedTileProvider: GifProvider {
+    static let brokenStill = URL(string: "https://gif-failure.invalid/still.png")
+
+    private let base = SampleGifProvider()
+
+    func trending(offset: Int) async throws -> GifPage {
+        breaking(try await base.trending(offset: offset))
+    }
+
+    func search(_ query: String, offset: Int) async throws -> GifPage {
+        breaking(try await base.search(query, offset: offset))
+    }
+
+    private func breaking(_ page: GifPage) -> GifPage {
+        guard let broken = Self.brokenStill, let first = page.items.first else { return page }
+        let gif = Gif(
+            id: first.id, title: first.title,
+            still: GifMedia(url: broken, width: first.still.width, height: first.still.height),
+            preview: first.preview, original: first.original)
+        return GifPage(
+            items: [gif] + page.items.dropFirst(), nextOffset: page.nextOffset, attribution: page.attribution)
     }
 }
 

@@ -4,7 +4,7 @@ import SwiftUI
 nonisolated enum GifBubbleMetrics {
     static let width: CGFloat = 200
     static let maxHeight: CGFloat = 260
-    static let radius: CGFloat = 16
+    @MainActor static let radius = MonacoTheme.Radius.art
 
     static func size(mediaWidth: CGFloat, mediaHeight: CGFloat, available: CGFloat) -> CGSize {
         let width = min(Self.width, max(available, 0))
@@ -36,6 +36,7 @@ struct GifBubble: View {
     private let motion = GifMotion()
     @State private var isViewing = false
     @State private var runs = 0
+    @State private var hasStill = false
 
     var body: some View {
         if let still = URL(string: attachment.still.url), let preview = URL(string: attachment.preview.url),
@@ -54,8 +55,9 @@ struct GifBubble: View {
             ZStack(alignment: .bottomLeading) {
                 MonacoTheme.surfaceSunken
                 GifImageView(
-                    id: commentID, still: still, animated: preview, showsPlay: false, sharedRuns: $runs)
-                badge
+                    id: commentID, still: still, animated: preview, showsPlay: false, sharedRuns: $runs,
+                    stillShown: $hasStill)
+                if hasStill { badge }
             }
         }
         .clipShape(shape)
