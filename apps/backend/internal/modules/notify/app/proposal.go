@@ -42,14 +42,13 @@ func (k ProposalCreated) Recipients(ctx context.Context, e events.ProposalCreate
 	if e.Kind == ruleKind {
 		return nil, nil
 	}
-	if _, err := k.Heads.ProposalHead(
-		ctx,
-		ids.ProposalIDFrom(e.ProposalID),
-	); errs.CodeOf(
-		err,
-	) == errs.CodeProposalNotFound {
+	_, err := k.Heads.ProposalHead(ctx, ids.ProposalIDFrom(e.ProposalID))
+	switch {
+	case errs.CodeOf(err) == errs.CodeProposalNotFound:
 		observability.Debug(ctx, observability.NotifyProposalSkipped, slog.String("reason", "proposal_not_found"))
 		return nil, nil
+	case err != nil:
+		return nil, err
 	}
 	return memberIDs(ctx, k.Cabals, &e.CabalID)
 }
