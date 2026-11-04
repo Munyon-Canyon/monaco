@@ -50,6 +50,14 @@ enum GovernanceProposeSellJourney {
             XCTAssertNotEqual(
                 amount.value as? String, "$0",
                 "S1.5: the 25% chip left the amount at \(String(describing: amount.value))")
+            let review = app.buttons["amount-keypad-action"].firstMatch
+            let enabled = XCTNSPredicateExpectation(
+                predicate: NSPredicate(format: "isEnabled == true"), object: review)
+            guard XCTWaiter().wait(for: [enabled], timeout: 15) == .completed else {
+                let line = app.element("amount-keypad-line").label
+                XCTFail("S1.5: Review proposal never enabled; the line reads \(line)")
+                return
+            }
             tapID(app, "amount-keypad-action", step: "S1.5")
             buy.expectTitle(sheet: app, step: "S1.5")
             let header = app.element("propose-review-header")

@@ -72,10 +72,13 @@ struct ProposeAmountScreen: View {
         AmountKeypadScreen(
             amountText: $amountText,
             state: AmountKeypadState(model.keypadState),
-            line: (model.keypadLine ?? model.message(assetName: stock.name)).map { AmountKeypadLine(text: $0) },
+            line: (model.message(assetName: stock.name) ?? model.keypadLine).map { AmountKeypadLine(text: $0) },
             presets: presets,
             max: max,
-            action: AmountKeypadAction(title: model.reviewTitle, isWorking: model.isLoading) {
+            action: AmountKeypadAction(
+                title: model.reviewTitle, isWorking: model.isLoading,
+                isEnabled: model.previewFailed || model.reviewEnabled(assetName: stock.name)
+            ) {
                 if model.previewFailed { model.retryPreview() } else { review() }
             },
             onClose: { environment.navigator.closeProposeFlow(in: environment.navigator.selectedTab) },

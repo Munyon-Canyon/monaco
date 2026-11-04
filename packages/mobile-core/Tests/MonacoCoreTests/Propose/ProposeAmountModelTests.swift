@@ -47,6 +47,22 @@ final class ProposeAmountModelTests: XCTestCase {
         XCTAssertEqual(model.message(assetName: "Alphabet"), "More than the pot has")
     }
 
+    func testSellNoRouteAdvisoryBlocksReviewAndKeepsTheShareNote() async {
+        let clock = TestClock()
+        let apple = ProposeHoldingTests.holding(
+            name: "Apple", units: "1.2034", tokenAmount: 120_345_678, valueMicros: 278_470_000)
+        let model = ProposeAmountModel(
+            service: PreviewService(code: "no_route"), cabalID: "cabal", trade: .sell(apple), clock: clock)
+        model.setAmount(micros: 69_617_500)
+        await settle()
+        clock.advance(by: .milliseconds(400))
+        await settle()
+
+        XCTAssertNotNil(model.sellQuantityNote)
+        XCTAssertEqual(model.message(assetName: "Apple"), "Can't sell Apple right now. Try a smaller amount.")
+        XCTAssertFalse(model.reviewEnabled(assetName: "Apple"))
+    }
+
     func testSellSendsTokensAndStopsAboveTheHolding() async {
         let clock = TestClock()
         let service = PreviewService()
