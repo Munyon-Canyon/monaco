@@ -9,7 +9,6 @@ struct CabalScreen: View {
         CabalPauseSlot.self,
         CabalJoinSlot.self,
         CabalPotSlot.self,
-        CabalSliceSlot.self,
         CabalEmptySlot.self,
         CabalActionsSlot.self,
         CabalProposalsSlot.self,

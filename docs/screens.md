@@ -260,13 +260,12 @@ The page is the header (#6481: cover, name and facts line, stat block, Fund and 
 | 2 | `CabalClosedSlot` | yes | | Error notice when `status` is `banned`: "Monaco closed this cabal. Everyone's slice is being cashed out to their account balance." A banned cabal also hides the actions and the Chat item |
 | 3 | `CabalPauseSlot` | yes | | Warning notice while the cabal is paused |
 | 4 | `CabalJoinSlot` | creator only | fallback | Creator: one row "Join requests" / "2 requests to review" that opens Members & voters on Requests (`cabal-join-requests-heading`). Non-member fallback: the join, pending, declined and invite buttons used by the Public cabal screen |
-| 5 | `CabalPotSlot` | yes | | The pot value in `moneyFont(.hero)`. The "Prices delayed" notice stays hidden until the API sends a valuation time |
-| 6 | `CabalSliceSlot` | yes | | The stat block: "Your share", "Of treasury" and "Open votes" ("Bot" returns when `LaunchFeatures.bots` flips) |
-| 7 | `CabalEmptySlot` | yes | | Only on an empty cabal (member, no open or closed proposal, pot above zero): a card "Quiet in here." with "{name} has $X and no plan yet. The first proposal starts it.", a "Propose buy" button for a member who can propose and "Invite" (`cabal-empty-card`). Hidden otherwise |
-| 8 | `CabalActionsSlot` | yes | | "Fund this cabal" (`FundRoute`), "Propose" and "Cash out". Cash out is disabled with no share and an info notice says so; Propose is disabled for a non-voter with "Only voters can propose" |
-| 9 | `CabalProposalsSlot` | yes | read-only | The open votes. Empty: "No proposals need your attention." with "Closed decisions remain in proposal history." and, for a voter, "Propose the first buy." A failed read shows a partial-error card. Settlement toasts are unchanged |
-| 10 | `CabalStartersSlot` | yes | | Only on an empty cabal: "Cabals like yours start with", rows of assets that open the asset page (`cabal-starters`), each with price and "Eligible" or the day change. Hidden when the list is empty |
-| 11 | `CabalTabs` | yes | | Underline tabs (`MonacoUnderlineTabs`, `cabal-tabs`): **Treasury**, **Rules**, **Members 8** (the count is `member_count`) and **Voters**, with a hairline under them. They pin under the bar once scrolled to it (`cabal-tabs-pinned`). Each tab is its own slot list, below |
+| 5 | `CabalPotSlot` | yes | | One band of two facts (`CabalPotBand` and `CabalSliceBand`). Left, "Treasury" with the pot in `moneyFont(.row)`, the 1M move (`CabalHeaderCopy.move`, gain, loss or secondary) and a chevron that opens Treasury history unless the cabal is empty (`cabal-pot-value`). Right, "Your share" with whole dollars and the slice as plain "35%" (`cabal-share-value`; "$0" and "0%" with no share, "–" when the pot read fails, hidden for a non-member). The two facts stack from xxxLarge. The "Prices delayed" notice stays hidden until the API sends a valuation time |
+| 6 | `CabalEmptySlot` | yes | | Only on an empty cabal (member, no open or closed proposal, pot above zero): a card "Quiet in here." with "{name} has $X and no plan yet. The first proposal starts it.", a "Propose buy" button for a member who can propose and "Invite" (`cabal-empty-card`). Hidden otherwise |
+| 7 | `CabalActionsSlot` | yes | | "Fund this cabal" (`FundRoute`), "Propose" and "Cash out". Cash out is disabled with no share and an info notice says so; Propose is disabled for a non-voter with "Only voters can propose" |
+| 8 | `CabalProposalsSlot` | yes | read-only | The open votes. Empty: "No proposals need your attention." with "Closed decisions remain in proposal history." and, for a voter, "Propose the first buy." A failed read shows a partial-error card. Settlement toasts are unchanged |
+| 9 | `CabalStartersSlot` | yes | | Only on an empty cabal: "Cabals like yours start with", rows of assets that open the asset page (`cabal-starters`), each with price and "Eligible" or the day change. Hidden when the list is empty |
+| 10 | `CabalTabs` | yes | | Underline tabs (`MonacoUnderlineTabs`, `cabal-tabs`): **Treasury**, **Rules**, **Members 8** (the count is `member_count`) and **Voters**, with a hairline under them. They pin under the bar once scrolled to it (`cabal-tabs-pinned`). Each tab is its own slot list, below |
 
 | Tab | Slots (until the tab tickets land) |
 | --- | --- |
@@ -616,7 +615,7 @@ The slot tables above name each owner. Screens and controls added by this map:
 | #2134 | The slots and routes this map named before they existed, the live `CabalActionsSlot`, the Home avatar button |
 | #2135 | `CabalRulesSlot` and the voter picker in the cabal editor (inline on Cabal settings since #3463) |
 | #2136 | `GET /v1/cabals/{id}/pot` |
-| #2137 | `CabalPotSlot`, `CabalSliceSlot`, `CabalHoldingsSlot` |
+| #2137 | `CabalPotSlot`, `CabalHoldingsSlot` |
 | #2138 | Account activity |
 | #2139 | Settings and the "Settings" row of `ProfileLinksSlot` |
 | #2140 | `ProfileCabalsSlot` |

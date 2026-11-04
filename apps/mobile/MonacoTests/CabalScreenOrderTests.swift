@@ -45,7 +45,7 @@ struct CabalScreenOrderTests {
         #expect(
             Self.names(CabalScreen.sections) == [
                 "CabalHeaderSlot", "CabalClosedSlot", "CabalPauseSlot", "CabalJoinSlot", "CabalPotSlot",
-                "CabalSliceSlot", "CabalEmptySlot", "CabalActionsSlot", "CabalProposalsSlot", "CabalStartersSlot",
+                "CabalEmptySlot", "CabalActionsSlot", "CabalProposalsSlot", "CabalStartersSlot",
                 "CabalTabs",
             ])
     }

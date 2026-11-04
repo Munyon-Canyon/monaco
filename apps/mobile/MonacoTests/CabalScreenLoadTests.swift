@@ -124,7 +124,6 @@ struct CabalScreenLoadTests {
     private static let cabalReadingSections: [any CabalSection.Type] = [
         CabalHeaderSlot.self,
         CabalPotSlot.self,
-        CabalSliceSlot.self,
         CabalJoinSlot.self,
         CabalActionsSlot.self,
         CabalTreasuryTabSlot.self,
@@ -133,7 +132,6 @@ struct CabalScreenLoadTests {
     private static let headerSections: [any CabalSection.Type] = [
         CabalHeaderSlot.self,
         CabalPotSlot.self,
-        CabalSliceSlot.self,
         CabalActionsSlot.self,
         CabalProposalsSlot.self,
     ]
