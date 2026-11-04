@@ -785,6 +785,11 @@ type AssetSummary struct {
 	// Examples: equity
 	Kind AssetKind `json:"kind"`
 
+	// LastRoundOn The day of the newest funding round of a `pre_ipo` company. Absent when the company has no round on record, for equities, and for a Pre-IPO asset without a profile.
+	//
+	// Examples: 2026-06-01
+	LastRoundOn *openapi_types.Date `json:"last_round_on,omitempty"`
+
 	// LogoUrl The logo URL. Null when the catalog has none.
 	//
 	// Examples: https://cdn.example.com/AAPLx.png
@@ -829,6 +834,11 @@ type AssetSummary struct {
 	//
 	// Examples: true
 	Tradable *bool `json:"tradable,omitempty"`
+
+	// ValuationMicros The valuation of a `pre_ipo` company in USD micros, as a decimal string. Absent for equities and for a Pre-IPO asset without a profile.
+	//
+	// Examples: 350000000000000000
+	ValuationMicros *string `json:"valuation_micros,omitempty"`
 
 	// Volume24hAsOf When that reading was taken. Null when `volume_24h_micros` is null.
 	//

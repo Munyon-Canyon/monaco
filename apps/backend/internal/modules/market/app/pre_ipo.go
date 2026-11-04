@@ -37,18 +37,6 @@ func loadProfiles(ctx context.Context, read preIPOReader, assets []domain.Asset)
 	return out, nil
 }
 
-func loadRounds(ctx context.Context, read preIPOReader, key string) ([]domain.Round, error) {
-	rows, err := read.PreIpoRounds(ctx, []string{key})
-	if err != nil {
-		return nil, errs.Wrap(err, errs.CodeOf(err), "market.PreIpoRounds")
-	}
-	rounds, err := roundsByKey(rows)
-	if err != nil {
-		return nil, err
-	}
-	return rounds[key], nil
-}
-
 func preIPOKeys(assets []domain.Asset) []string {
 	seen := map[string]bool{}
 	var keys []string

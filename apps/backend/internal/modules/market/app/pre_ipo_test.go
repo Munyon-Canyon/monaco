@@ -71,23 +71,6 @@ func TestLoadProfiles_skipsEquitiesAndAnAbsentReader(t *testing.T) {
 	}
 }
 
-func TestLoadRounds_failsOnAReadErrorOrANonPositivePrice(t *testing.T) {
-	t.Parallel()
-	cases := map[string]preIPORead{
-		"read error":     {roundsErr: errs.New(errs.CodeUpstreamUnavailable, "test")},
-		"zero round":     {rounds: []sqlc.PreIpoRound{{CompanyKey: "acme", PriceMicros: 0}}},
-		"negative round": {rounds: []sqlc.PreIpoRound{{CompanyKey: "acme", PriceMicros: -1}}},
-	}
-	for name, read := range cases {
-		t.Run(name, func(t *testing.T) {
-			t.Parallel()
-			if got, err := loadRounds(t.Context(), read, "acme"); err == nil {
-				t.Fatalf("rounds = %v, want an error", got)
-			}
-		})
-	}
-}
-
 func TestDetail_reportsAProfileOrRoundsReadFailureOfAPreIPOCompany(t *testing.T) {
 	t.Parallel()
 	asset := appleRow(t, "pre_ipo")
@@ -107,5 +90,31 @@ func TestDetail_reportsAProfileOrRoundsReadFailureOfAPreIPOCompany(t *testing.T)
 				t.Fatalf("detail err = %v, want upstream_unavailable", err)
 			}
 		})
+	}
+}
+
+func TestPageRounds_failsOnAReadErrorOrANonPositivePriceAndSkipsWithoutAPreIPOAsset(t *testing.T) {
+	t.Parallel()
+	assets := []domain.Asset{{Kind: domain.KindPreIPO, CompanyKey: "acme"}}
+	cases := map[string]preIPORead{
+		"read error": {roundsErr: errs.New(errs.CodeUpstreamUnavailable, "test")},
+		"zero round": {rounds: []sqlc.PreIpoRound{{CompanyKey: "acme", PriceMicros: 0}}},
+	}
+	for name, read := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			l := &ListAssets{profiles: read}
+			if got, err := l.pageRounds(t.Context(), assets); err == nil {
+				t.Fatalf("rounds = %v, want an error", got)
+			}
+		})
+	}
+	failing := &ListAssets{profiles: preIPORead{roundsErr: errs.New(errs.CodeInternal, "test")}}
+	equity := []domain.Asset{{Kind: domain.KindEquity, CompanyKey: "acme"}}
+	if got, err := failing.pageRounds(t.Context(), equity); err != nil || len(got) != 0 {
+		t.Fatalf("equity rounds = %v, %v, want none and no query", got, err)
+	}
+	if got, err := (&ListAssets{}).pageRounds(t.Context(), assets); err != nil || len(got) != 0 {
+		t.Fatalf("rounds without a reader = %v, %v, want none", got, err)
 	}
 }
