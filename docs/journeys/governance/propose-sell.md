@@ -1,7 +1,7 @@
 ---
 id: governance/propose-sell
 title: Propose a sell
-version: 8
+version: 9
 milestone: M13
 requires: [auth/sign-in]
 actors: [A]
@@ -35,7 +35,7 @@ The format of this doc is in [App journeys](../README.md).
 | S1.2 | A | tap | `cabal-action-propose` | | Propose offers Buy and Sell (`propose-chooser-sheet` while PV keeps the sheet) and shows `propose-kind-sell` within 10 s, and it is enabled, not "No holdings to sell" |
 | S1.3 | A | tap | `propose-kind-sell` | | The screen titled "Sell" shows the header "What the cabal owns" and the AAPL row within 10 s (old app: `ProposeSellView`) |
 | S1.4 | A | tap | `propose-sell-<symbol>` for AAPL | | The Propose amount screen (`propose-amount-screen`, #7357) shows within 10 s, `amount-keypad-source` reads the shares held, and the chips `amount-keypad-preset-<label>` read "25%", "50%", "All" |
-| S1.5 | A | tap, then tap | `amount-keypad-preset-25%`, then `amount-keypad-action` | | `amount-keypad-amount` reads a figure, not $0, and the sheet titled "Propose sell" (`propose-review-sheet`, #6567) shows the stat row `propose-review-stats` "Shares · Price · Of treasury · To pass" within 10 s |
+| S1.5 | A | tap, then tap | `amount-keypad-preset-25%`, then `amount-keypad-action` | | `amount-keypad-amount` reads a figure, not $0, and the sheet titled "Propose sell" (`propose-review-sheet`, #6567) shows within 10 s the asset row `propose-review-header` reading "Sell at the market price", the cabal row reading " to vote" with no " cash · " part (a sell has none), and the facts line `propose-review-facts` reading "About {n} shares" then "at {price}" and "N of M to pass". The old grid is gone |
 | S1.6 | A | tap | `propose-review-send` "Send to vote" | | The toast "Proposal sent" shows and the flow closes back to the cabal screen within 10 s |
 
 ## Ground truth

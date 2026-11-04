@@ -1,0 +1,18 @@
+journey: governance/propose-buy
+expect-fail: S2
+
+The thesis row on an empty thesis reads "Why this trade? (optional)" again. S2.5 expects "Share your thesis", so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/packages/mobile-core/Sources/MonacoCore/ProposalFeedCopy.swift b/packages/mobile-core/Sources/MonacoCore/ProposalFeedCopy.swift
+--- a/packages/mobile-core/Sources/MonacoCore/ProposalFeedCopy.swift
++++ b/packages/mobile-core/Sources/MonacoCore/ProposalFeedCopy.swift
+@@ -266,7 +266,7 @@ public enum ProposeFlowCopy {
+     public static let votesToPassRow = "Votes to pass"
+     public static let sendProposal = "Send to vote"
+     public static let changeCabal = "Change"
+-    public static let shareYourThesis = "Share your thesis"
++    public static let shareYourThesis = "Why this trade? (optional)"
+     public static let marketOrderTitle = "Market order"
+     public static let marketOrderBody =
+         "The cabal buys at the market price when the vote passes. Monaco fills at the best price it finds."

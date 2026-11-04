@@ -1,0 +1,18 @@
+journey: governance/propose-sell
+expect-fail: S1
+
+A sell review reads "Buy at the market price" on the asset row. S1.5 expects "Sell at the market price", so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/packages/mobile-core/Sources/MonacoCore/Propose/ProposeReviewModel+Frame.swift b/packages/mobile-core/Sources/MonacoCore/Propose/ProposeReviewModel+Frame.swift
+--- a/packages/mobile-core/Sources/MonacoCore/Propose/ProposeReviewModel+Frame.swift
++++ b/packages/mobile-core/Sources/MonacoCore/Propose/ProposeReviewModel+Frame.swift
+@@ -9,7 +9,7 @@ extension ProposeReviewModel {
+     }
+ 
+     public var assetLine: String {
+-        guard isPreIpoBuy else { return "\(operation) at the market price" }
++        guard isPreIpoBuy else { return "Buy at the market price" }
+         guard let shares = estimatedShares else { return "Buy at the estimate" }
+         return "Buy \(shares.value) sh at the estimate"
+     }

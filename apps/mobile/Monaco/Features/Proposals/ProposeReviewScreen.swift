@@ -283,7 +283,7 @@ extension ProposeReviewScreen {
             .foregroundStyle(MonacoTheme.secondaryText)
             .padding(.horizontal, MonacoTheme.Space.gutter)
             .accessibilityElement(children: .combine)
-            .accessibilityIdentifier("propose-review-stats")
+            .accessibilityIdentifier("propose-review-facts")
         }
     }
 
