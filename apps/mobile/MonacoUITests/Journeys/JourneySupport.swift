@@ -513,12 +513,7 @@ extension XCUIApplication {
         } else {
             JoinJourney.openBySearch(self, name, step: "openCabal")
         }
-        let titled = ["cabal-header-name", "cabal-inline-title"].map { id in
-            descendants(matching: .any).matching(
-                NSPredicate(format: "identifier == %@ AND label CONTAINS %@", id, name)
-            ).firstMatch
-        }
-        guard waitForFirst(of: titled, timeout: timeout) != nil else {
+        guard waitForCabalTitle(name, timeout: timeout) else {
             XCTFail("\(step): cabal-header-name did not read \(name) on the \(tab) tab within \(Int(timeout)) s")
             return
         }
@@ -537,6 +532,23 @@ extension XCUIApplication {
         XCTAssertEqual(
             XCTWaiter().wait(for: [ready], timeout: timeout), .completed,
             "\(step): cabal-header-name did not read \(name) on the \(tab) tab within \(Int(timeout)) s")
+    }
+
+    func waitForCabalTitle(_ name: String, timeout: TimeInterval) -> Bool {
+        let titled = ["cabal-header-name", "cabal-inline-title"].map { id in
+            descendants(matching: .any).matching(
+                NSPredicate(format: "identifier == %@ AND label CONTAINS %@", id, name)
+            ).firstMatch
+        }
+        return waitForFirst(of: titled, timeout: timeout) != nil
+    }
+
+    func expectCabalOpenedOnChat(_ name: String, step: String) {
+        XCTAssertTrue(
+            waitForCabalTitle(name, timeout: 15), "\(step): the cabal screen for \(name) did not show within 15 s")
+        XCTAssertTrue(
+            element("chat-view").waitForExistence(timeout: 15),
+            "\(step): the cabal did not open on its Chat tab within 15 s")
     }
 
     func isAboveTabBar(_ element: XCUIElement) -> Bool {

@@ -2,7 +2,7 @@ import XCTest
 
 enum HomeDashboardJourney {
     static let id = "home/dashboard"
-    static let version = 10
+    static let version = 11
 
     static func recorder() -> JourneyRecorder {
         JourneyRecorder(journey: id, version: version)
@@ -80,9 +80,7 @@ enum HomeDashboardJourney {
         recorder.step("S1.5", "the card opens the cabal") {
             ProfileOverviewJourney.reachCabal(app, row)
             row.tap()
-            XCTAssertTrue(
-                JoinJourney.waitForLabel(app.element("cabal-header-name"), containing: cabalName, timeout: 15),
-                "S1.5: the cabal screen for \(cabalName) did not show within 15 s")
+            app.expectCabalOpenedOnChat(cabalName, step: "S1.5")
         }
 
         recorder.step("S1.6", "the avatar opens Profile") {

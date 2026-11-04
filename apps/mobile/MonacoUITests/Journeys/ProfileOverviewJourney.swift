@@ -2,7 +2,7 @@ import XCTest
 
 enum ProfileOverviewJourney {
     static let id = "profile/overview"
-    static let version = 14
+    static let version = 15
 
     static let signOutTitle = "Sign out of Monaco?"
     static let signOutMessage =
@@ -26,6 +26,7 @@ enum ProfileOverviewJourney {
     }
 
     static func openProfile(_ app: XCUIApplication, step: String) {
+        app.revealTabBar()
         app.tab("Profile").tap()
         app.popToRoot()
         XCTAssertTrue(
@@ -127,11 +128,7 @@ enum ProfileOverviewJourney {
             reachCabal(app, cabalRow)
             XCTAssertTrue(cabalRow.waitForExistence(timeout: 15), "S3.1: no row for '\(cabal.name)'")
             cabalRow.tap()
-            XCTAssertTrue(
-                app.element("cabal-header-name").waitForExistence(timeout: 15), "S3.1: the cabal screen did not show"
-            )
-            XCTAssertTrue(
-                app.staticTexts[cabal.name].firstMatch.exists, "S3.1: the cabal screen does not show '\(cabal.name)'")
+            app.expectCabalOpenedOnChat(cabal.name, step: "S3.1")
         }
     }
 
