@@ -7,6 +7,8 @@ struct HomeVoteCard: View {
     var identifierPrefix = "home"
     var tab: MainTab = .home
     var compact = false
+    var inCabal = false
+    var canVote = true
     @Environment(AppEnvironment.self) private var environment
     @Environment(ToastCenter.self) private var toasts
     @State private var holding = false
@@ -14,11 +16,16 @@ struct HomeVoteCard: View {
 
     static let collapseDelay: TimeInterval = 1
 
-    init(model: HomeVoteCardModel, identifierPrefix: String = "home", tab: MainTab = .home, compact: Bool = false) {
+    init(
+        model: HomeVoteCardModel, identifierPrefix: String = "home", tab: MainTab = .home, compact: Bool = false,
+        inCabal: Bool = false, canVote: Bool = true
+    ) {
         self.model = model
         self.identifierPrefix = identifierPrefix
         self.tab = tab
         self.compact = compact
+        self.inCabal = inCabal
+        self.canVote = canVote
         _collapsed = State(initialValue: Self.hasCollapsed(model, now: .now))
     }
 
@@ -30,7 +37,7 @@ struct HomeVoteCard: View {
     private var collapseTrigger: Bool { model.isSettled && toasts.current != nil }
 
     private var line: VoteCardLine {
-        let line = model.subheadLine(now: .now, showsCabal: true)
+        let line = model.subheadLine(now: .now, showsCabal: !inCabal)
         return compact ? VoteCardLine(full: line.short, short: line.short) : line
     }
 
@@ -39,16 +46,17 @@ struct HomeVoteCard: View {
 
     var body: some View {
         VoteCard(
-            title: model.headline,
+            title: inCabal && row.isRule ? "Rule change" : model.headline,
             mark: row.isRule ? .rule : .stock(symbol: row.symbol ?? "", name: row.assetName, logoURL: row.logoURL),
             line: line,
             yes: tally.yes, no: tally.no, eligible: tally.voters,
             identifierPrefix: identifierPrefix, identifierSuffix: model.id, showsChevron: !compact,
+            ruleIcon: inCabal ? .eye : .thesis,
             onOpen: { environment.navigator.open(ProposalRoute(proposalID: model.id), in: tab) }
         ) {
             if let outcome = model.outcome, outcome.settled, collapsed {
                 settledLine(outcome)
-            } else {
+            } else if canVote || model.isCommitted {
                 buttons
                 hint
             }
