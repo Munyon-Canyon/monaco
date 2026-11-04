@@ -4,7 +4,8 @@
 # refused (exit 0, nothing pruned). Only active cabals named `QA %` are considered:
 #   - a name whose last word is a run id (6 characters of journey.py's run-id alphabet, such as `QA chat K7M2QX`)
 #     is a candidate when that run is not live, at any age. A run is live while it holds
-#     $MONACO_QA_LOCK_DIR/monaco-qa-run-<id>.lock (default /tmp), which `/usr/bin/lockf -k -t 0 <lock> true` fails on.
+#     $MONACO_QA_LOCK_DIR/monaco-qa-run-<id>.lock (default /tmp), which `/usr/bin/lockf -k -t 0 <lock> true` fails on
+#     (`flock -n <lock> true` where there is no lockf, as on Linux; both test the same flock).
 #   - any other `QA %` name keeps the age rule: created more than an hour before JOURNEY_RUN_STARTED
 #     (ISO time, default now).
 # A cabal that holds money is never pruned: any fund_transfers row, or any cabal_positions row
@@ -51,7 +52,11 @@ for lock in "$lock_dir"/monaco-qa-run-*.lock; do
   id="${lock##*monaco-qa-run-}"
   id="${id%.lock}"
   # lockf fails at once when a run holds the lock, so a failure means live. -k keeps the file.
-  /usr/bin/lockf -k -t 0 "$lock" true 2> /dev/null || live="${live:+$live,}$id"
+  if [[ -x /usr/bin/lockf ]]; then
+    /usr/bin/lockf -k -t 0 "$lock" true 2> /dev/null || live="${live:+$live,}$id"
+  else
+    flock -n "$lock" true 2> /dev/null || live="${live:+$live,}$id"
+  fi
 done
 
 report="$("$here/psql.sh" -v ON_ERROR_STOP=1 -tA -F '|' -v "dids={$dids}" -v "started=$started" -v "live={$live}" << 'SQL'
