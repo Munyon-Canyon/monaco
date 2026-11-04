@@ -55,13 +55,12 @@ struct CabalContextMenuPreview: View {
                     .font(MonacoTheme.Typo.dataCaption)
                     .lineLimit(dynamicTypeSize.isAccessibilitySize ? 3 : 1)
                     .fixedSize(horizontal: false, vertical: dynamicTypeSize.isAccessibilitySize)
-                Text(
-                    CabalMenuActions.membersLine(memberCount: tile.memberCount, role: tile.role, canVote: tile.canVote)
-                )
-                .font(MonacoTheme.Typo.caption)
-                .foregroundStyle(MonacoTheme.secondaryText)
-                .lineLimit(dynamicTypeSize.isAccessibilitySize ? 3 : 1)
-                .fixedSize(horizontal: false, vertical: dynamicTypeSize.isAccessibilitySize)
+                Text(CabalMenuActions.peopleLine(names: tile.memberNames, memberCount: tile.memberCount))
+                    .font(MonacoTheme.Typo.caption)
+                    .foregroundStyle(MonacoTheme.secondaryText)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? 3 : 1)
+                    .truncationMode(.tail)
+                    .fixedSize(horizontal: false, vertical: dynamicTypeSize.isAccessibilitySize)
             }
         }
         .padding(MonacoTheme.Space.m)
@@ -166,6 +165,9 @@ struct CabalContextMenuSampleSheet: View {
         }
         .background(MonacoTheme.surface)
         .clipShape(RoundedRectangle(cornerRadius: MonacoTheme.Radius.card))
+        .overlay {
+            RoundedRectangle(cornerRadius: MonacoTheme.Radius.card).strokeBorder(MonacoTheme.hairline)
+        }
     }
 }
 #endif

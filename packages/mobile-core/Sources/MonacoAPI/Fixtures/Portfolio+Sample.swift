@@ -64,7 +64,15 @@ extension Components.Schemas.MyPortfolio {
                 cabal: .sampleACCapital, valueMicros: 7_000_000_000, shareUnits: 7_000_000_000,
                 netContributedMicros: 6_687_600_000, pnlMicros: 312_400_000, returnBps: 467, sliceBps: 6045,
                 ownershipBps: 3500, role: .admin, canVote: true, potValueMicros: 20_000_000_000, memberCount: 8,
-                openVoteCount: 1),
+                openVoteCount: 1,
+                memberPreview: [
+                    Components.Schemas.PortfolioMemberPreview(
+                        userId: "01890a5d-ac96-774b-bcce-b302099a8101", displayName: "Christelle", photoUrl: nil),
+                    Components.Schemas.PortfolioMemberPreview(
+                        userId: "01890a5d-ac96-774b-bcce-b302099a8102", displayName: "Logan", photoUrl: nil),
+                    Components.Schemas.PortfolioMemberPreview(
+                        userId: "01890a5d-ac96-774b-bcce-b302099a8103", displayName: "Mia", photoUrl: nil),
+                ]),
             Components.Schemas.PortfolioCabal(
                 cabal: .sampleTechTitans, valueMicros: 2_710_000_000, shareUnits: 2_710_000_000,
                 netContributedMicros: 2_756_870_000, pnlMicros: -46_870_000, returnBps: -170, sliceBps: 2339,

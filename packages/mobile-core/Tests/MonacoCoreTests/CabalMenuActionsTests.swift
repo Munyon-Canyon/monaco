@@ -1,3 +1,4 @@
+import MonacoAPI
 import XCTest
 
 @testable import MonacoCore
@@ -76,14 +77,46 @@ final class CabalMenuActionsTests: XCTestCase {
             CabalMenuActions.figuresLine(valueMicros: 7_000_000_000, returnText: "+4.7%"), "$7,000 \u{00B7} +4.7%")
     }
 
-    func testTheMembersLineUsesTheHeaderRoleWording() {
-        XCTAssertEqual(
-            CabalMenuActions.membersLine(memberCount: 8, role: "admin", canVote: true),
-            "8 members \u{00B7} you are admin")
-        XCTAssertEqual(
-            CabalMenuActions.membersLine(memberCount: 6, role: "member", canVote: true), "6 members \u{00B7} you vote")
-        XCTAssertEqual(
-            CabalMenuActions.membersLine(memberCount: 1, role: "member", canVote: false),
-            "1 member \u{00B7} you hold a share")
+    func testThePeopleLineNamesUpToTwoAndCountsTheRest() {
+        let rows: [(names: [String], count: Int32, line: String)] = [
+            (["Christelle", "Logan"], 8, "Christelle, Logan and 6 others"),
+            (["Christelle", "Logan"], 3, "Christelle and Logan"),
+            (["Christelle"], 2, "Christelle"),
+            ([], 8, "8 members"),
+            ([], 1, "1 member"),
+        ]
+        for row in rows {
+            XCTAssertEqual(CabalMenuActions.peopleLine(names: row.names, memberCount: row.count), row.line)
+        }
+    }
+
+    private func portfolioCabal(
+        preview: [Components.Schemas.PortfolioMemberPreview]?
+    ) -> Components.Schemas.PortfolioCabal {
+        Components.Schemas.PortfolioCabal(
+            cabal: .sampleACCapital, valueMicros: 7_000_000_000, shareUnits: 7_000_000_000,
+            netContributedMicros: 6_687_600_000, pnlMicros: 312_400_000, returnBps: 467, sliceBps: 6045,
+            ownershipBps: 3500, role: .admin, canVote: true, potValueMicros: 20_000_000_000, memberCount: 8,
+            openVoteCount: 1, memberPreview: preview)
+    }
+
+    private func member(_ id: String, _ name: String) -> Components.Schemas.PortfolioMemberPreview {
+        Components.Schemas.PortfolioMemberPreview(userId: id, displayName: name, photoUrl: nil)
+    }
+
+    func testATileWithoutAMemberPreviewHasNoMemberNames() {
+        XCTAssertEqual(CabalTile(portfolioCabal(preview: nil), unreadCount: 0).memberNames, [])
+    }
+
+    func testATileKeepsTheFirstNamesOfTheFirstTwoPreviewMembers() {
+        let preview = [
+            member("01890a5d-ac96-774b-bcce-b302099a8101", "Christelle Dupont"),
+            member("01890a5d-ac96-774b-bcce-b302099a8102", "Logan"),
+            member("01890a5d-ac96-774b-bcce-b302099a8103", "Mia Chen"),
+        ]
+
+        let tile = CabalTile(portfolioCabal(preview: preview), unreadCount: 0)
+
+        XCTAssertEqual(tile.memberNames, ["Christelle", "Logan"])
     }
 }

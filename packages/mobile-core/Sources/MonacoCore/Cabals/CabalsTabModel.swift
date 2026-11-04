@@ -19,6 +19,7 @@ public struct CabalTile: Identifiable, Equatable, Sendable {
     public let valueText: String
     public let valueMicros: Int64
     public let memberCount: Int32
+    public let memberNames: [String]
     public let role: String
     public let canVote: Bool
     public let openVoteCount: Int
@@ -39,10 +40,15 @@ public struct CabalTile: Identifiable, Equatable, Sendable {
         valueText = UsdAmountFormatter.format(micros: cabal.valueMicros)
         valueMicros = cabal.valueMicros
         memberCount = cabal.memberCount
+        memberNames = (cabal.memberPreview ?? []).prefix(2).map { Self.firstName($0.displayName) }
         role = cabal.role.rawValue
         canVote = cabal.canVote
         openVoteCount = Int(cabal.openVoteCount)
         self.unreadCount = unreadCount
+    }
+
+    private static func firstName(_ displayName: String) -> String {
+        displayName.split(separator: " ").first.map(String.init) ?? displayName
     }
 
     public var nextStep: CabalNextStep? {
