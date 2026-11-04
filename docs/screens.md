@@ -526,7 +526,7 @@ States. Loading is a skeleton under the live title and search. Empty: "No update
 | Part | Shows |
 | --- | --- |
 | Bar | Inline title "Post" with the back round and a share round (`FeedShareButton`). No large title and no F header |
-| The post | The same view the Feed card draws (avatar, "Logan sold", age, the 36 pt logo with the ticker line and the return, the B/S chart, the cabal's accent rule), without a link back to itself, then the reaction row (24 pt chips, "+", and the reply control with the count). The reply control focuses the docked composer and opens no sheet |
+| The post | The same view the Feed card draws (avatar, "Logan sold", age, the 36 pt logo with the ticker line and the return, the B/S chart, the cabal's accent rule), without a link back to itself, then the reaction row (24 pt chips and the reply control with the count; a long press on the row, `reaction-row-<key>`, opens the reaction tray, and there is no "+" chip). The reply control focuses the docked composer and opens no sheet |
 | Replies | "Replies" with the count in `secondaryText`, then the rooted thread of `CommentThreadView` on the post's `thread_item_id`: folded answers ("View 1 reply"), quotes that jump, reactions and Reply on each row. A row's own Reply opens the "Reply to <name>" half sheet quoting it |
 | Composer | Docked bar: ⊕, a "Say something" field with GIF inside it, and a send disc. "Sending…" while the comment posts, and "Your reply wasn’t sent. Your text is still here." after a failure |
 | End of the page | The last reply rests 40 above the composer |

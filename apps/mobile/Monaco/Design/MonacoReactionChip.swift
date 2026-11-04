@@ -4,7 +4,6 @@ import SwiftUI
 struct MonacoReactionChip: View {
     enum Kind: Equatable {
         case emoji(String, count: Int, mine: Bool)
-        case add
         case more(Int)
         case reply(Int)
     }
@@ -32,10 +31,6 @@ struct MonacoReactionChip: View {
         self.action = action
     }
 
-    static func add(action: @escaping () -> Void) -> MonacoReactionChip {
-        MonacoReactionChip(kind: .add, action: action)
-    }
-
     static func more(_ count: Int, size: Size = .regular, action: @escaping () -> Void) -> MonacoReactionChip {
         MonacoReactionChip(kind: .more(count), size: size, action: action)
     }
@@ -54,7 +49,6 @@ struct MonacoReactionChip: View {
         case .emoji(let emoji, let count, let mine):
             let noun = count == 1 ? "reaction" : "reactions"
             return "\(emoji.reactionName), \(count) \(noun)" + (mine ? ", yours" : "")
-        case .add: return "Add a reaction"
         case .more(let count): return "\(count) more \(count == 1 ? "reaction" : "reactions")"
         case .reply(let count):
             return count == 0 ? "Reply" : count == 1 ? "1 reply" : "\(count) replies"
@@ -98,8 +92,6 @@ struct MonacoReactionChip: View {
                 Text(emoji)
                 Text("\(count)").monospacedDigit()
             }
-        case .add:
-            Image(monaco: .plus).font(.system(size: glyphSize, weight: .semibold))
         case .more(let count):
             Text("+\(count)").monospacedDigit()
         case .reply(let count):

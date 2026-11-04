@@ -51,23 +51,29 @@ struct ReactionRowTests {
         #expect(MonacoReactionChip(emoji: "👀", count: 1, mine: false) {}.spokenLabel == "eyes, 1 reaction")
     }
 
-    @Test func theAddAndReplyChipsSayWhatTheyDo() {
-        #expect(MonacoReactionChip.add {}.spokenLabel == "Add a reaction")
+    @Test func theReplyChipSaysWhatItDoes() {
         #expect(MonacoReactionChip.reply(count: 0) {}.spokenLabel == "Reply")
         #expect(MonacoReactionChip.reply(count: 6) {}.spokenLabel == "6 replies")
     }
 
-    @Test func showsAddFalseHidesThePlus() throws {
-        let with = Row(
+    @Test func theRowHasNoPlusChip() throws {
+        let row = Row(
             target: .feedItem("a"), reactions: [reaction("🎉", 1)], onToggle: { _ in }, trailing: { EmptyView() })
-        let without = Row(
-            target: .feedItem("a"), reactions: [reaction("🎉", 1)], showsAdd: false, onToggle: { _ in },
+
+        let shown = try identifiers(in: row)
+        #expect(shown.contains("reaction-chip-feed-a-1F389"))
+        #expect(!shown.contains { $0.hasPrefix("reaction-add-") })
+    }
+
+    @Test func theFootRowOpensTheTrayOnALongPressUnlessTurnedOff() throws {
+        let long = Row(
+            target: .feedItem("a"), reactions: [reaction("🎉", 1)], onToggle: { _ in }, trailing: { EmptyView() })
+        let plain = Row(
+            target: .feedItem("a"), reactions: [reaction("🎉", 1)], opensTrayOnLongPress: false, onToggle: { _ in },
             trailing: { EmptyView() })
 
-        let shown = try identifiers(in: with)
-        #expect(shown.contains("reaction-add-feed-a"))
-        #expect(shown.contains("reaction-chip-feed-a-1F389"))
-        #expect(try !identifiers(in: without).contains("reaction-add-feed-a"))
+        #expect(try identifiers(in: long).contains("reaction-row-feed-a"))
+        #expect(try !identifiers(in: plain).contains("reaction-row-feed-a"))
     }
 
     @Test func atTheLargestTextSizeChipsStayWholeAndTheRowWrapsByLine() {
@@ -83,7 +89,6 @@ struct ReactionRowTests {
             measured(MonacoReactionChip(emoji: "🎉", count: 5, mine: true) {}),
             measured(MonacoReactionChip(emoji: "💪", count: 3, mine: false) {}),
             measured(MonacoReactionChip.more(3) {}),
-            measured(MonacoReactionChip.add {}),
             measured(MonacoReactionChip.reply(count: 12) {}),
         ]
         for chip in chips {

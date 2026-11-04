@@ -7,7 +7,7 @@ struct ReactionRow<Trailing: View>: View {
 
     let target: ReactionTarget
     let reactions: [Components.Schemas.Reaction]
-    let showsAdd: Bool
+    let opensTrayOnLongPress: Bool
     let size: MonacoReactionChip.Size
     let onToggle: (String) -> Void
     let onOpenTray: () -> Void
@@ -20,7 +20,7 @@ struct ReactionRow<Trailing: View>: View {
     init(
         target: ReactionTarget,
         reactions: [Components.Schemas.Reaction],
-        showsAdd: Bool = true,
+        opensTrayOnLongPress: Bool = true,
         size: MonacoReactionChip.Size = .regular,
         startsOpen: Bool = false,
         onToggle: @escaping (String) -> Void, onOpenTray: @escaping () -> Void = {},
@@ -28,7 +28,7 @@ struct ReactionRow<Trailing: View>: View {
     ) {
         self.target = target
         self.reactions = reactions
-        self.showsAdd = showsAdd
+        self.opensTrayOnLongPress = opensTrayOnLongPress
         self.size = size
         self.onToggle = onToggle
         self.onOpenTray = onOpenTray
@@ -38,18 +38,7 @@ struct ReactionRow<Trailing: View>: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            if dynamicTypeSize.isAccessibilitySize {
-                ReactionFlowLayout(spacing: MonacoTheme.ReactionChipMetrics.gap) {
-                    lineContent(limit: Self.maxChips)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-            } else {
-                ViewThatFits(in: .horizontal) {
-                    ForEach(Self.limits(for: reactions.count), id: \.self) { limit in
-                        line(limit: limit)
-                    }
-                }
-            }
+            footRow
             if isTrayOpen {
                 QuickReactionTray(target: target, onOpenPicker: { isPickerOpen = true }, onPick: onToggle) {
                     isTrayOpen = false
@@ -61,6 +50,35 @@ struct ReactionRow<Trailing: View>: View {
         .animation(.easeOut(duration: 0.15), value: isTrayOpen)
         .sheet(isPresented: $isPickerOpen) {
             EmojiPickerSheet(onPick: onToggle)
+        }
+    }
+
+    @ViewBuilder private var footRow: some View {
+        if opensTrayOnLongPress {
+            chipLine
+                .frame(minHeight: MonacoTheme.ReactionChipMetrics.tapSize)
+                .contentShape(Rectangle())
+                .highPriorityGesture(LongPressGesture(minimumDuration: 0.4).onEnded { _ in openTray() })
+                .accessibilityElement(children: .contain)
+                .accessibilityIdentifier("reaction-row-\(target.key)")
+                .accessibilityAction(named: CommentsCopy.react) { openTray() }
+        } else {
+            chipLine
+        }
+    }
+
+    @ViewBuilder private var chipLine: some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            ReactionFlowLayout(spacing: MonacoTheme.ReactionChipMetrics.gap) {
+                lineContent(limit: Self.maxChips)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        } else {
+            ViewThatFits(in: .horizontal) {
+                ForEach(Self.limits(for: reactions.count), id: \.self) { limit in
+                    line(limit: limit)
+                }
+            }
         }
     }
 
@@ -87,10 +105,6 @@ struct ReactionRow<Trailing: View>: View {
                 MonacoReactionChip.more(count, size: size, action: openTray)
                     .accessibilityIdentifier("reaction-more-\(target.key)")
             }
-        }
-        if showsAdd && !isTrayOpen {
-            MonacoReactionChip.add(action: openTray)
-                .accessibilityIdentifier("reaction-add-\(target.key)")
         }
         trailing()
     }

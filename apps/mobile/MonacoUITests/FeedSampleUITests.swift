@@ -135,6 +135,59 @@ nonisolated final class FeedSampleUITests: XCTestCase {
     }
 
     @MainActor
+    func testALongPressOnAPostsReactionRowOpensTheTrayNotThePostMenu() {
+        let app = launch("-feedHarness", "items")
+        XCTAssertTrue(app.buttons["feed-filter"].waitForExistence(timeout: 15), "the feed did not load")
+        let row = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier BEGINSWITH %@", "reaction-row-feed-")).firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 10), "no reaction row on a feed post")
+        row.press(forDuration: 0.6)
+        let tray = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier BEGINSWITH %@", "reaction-tray-")).firstMatch
+        XCTAssertTrue(
+            tray.waitForExistence(timeout: 5),
+            "the long press did not open the reaction tray: \(app.debugDescription)")
+        XCTAssertFalse(app.buttons["feed-report"].exists, "the post menu opened over the tray")
+        XCTAssertFalse(app.buttons["feed-block"].exists, "the post menu opened over the tray")
+        screenshot(app, "feed-reaction-row-long-press")
+    }
+
+    @MainActor
+    func testAShortTapOnAReactionChipStillTogglesIt() {
+        let app = launch("-feedHarness", "items")
+        XCTAssertTrue(app.buttons["feed-filter"].waitForExistence(timeout: 15), "the feed did not load")
+        let chip = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier BEGINSWITH %@", "reaction-chip-feed-")).firstMatch
+        XCTAssertTrue(chip.waitForExistence(timeout: 10), "no reaction chip on a feed post")
+        let before = chip.label
+        let changed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label != %@", before), object: chip)
+        chip.tap()
+        XCTAssertEqual(
+            XCTWaiter().wait(for: [changed], timeout: 5), .completed,
+            "tapping the chip did not toggle it, label stayed \(before)")
+        let tray = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier BEGINSWITH %@", "reaction-tray-")).firstMatch
+        XCTAssertFalse(tray.exists, "a tap opened the reaction tray")
+        screenshot(app, "feed-reaction-chip-tap")
+    }
+
+    @MainActor
+    func testALongPressOnThePostBodyStillOpensThePostMenu() {
+        let app = launch("-feedHarness", "items")
+        XCTAssertTrue(app.buttons["feed-filter"].waitForExistence(timeout: 15), "the feed did not load")
+        let body = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier BEGINSWITH %@", "feed-cell-")).firstMatch
+        XCTAssertTrue(body.waitForExistence(timeout: 10), "no post body on the feed")
+        body.press(forDuration: 1.0)
+        let menuItem = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier IN %@", ["feed-report", "feed-block"])).firstMatch
+        XCTAssertTrue(
+            menuItem.waitForExistence(timeout: 5),
+            "the long press did not open the post menu: \(app.debugDescription)")
+        screenshot(app, "feed-post-body-long-press")
+    }
+
+    @MainActor
     private func launch(_ arguments: String...) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = arguments

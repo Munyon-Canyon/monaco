@@ -352,7 +352,6 @@ struct GalleryBoardControlSamples: View {
                 HStack(spacing: MonacoTheme.Space.s) {
                     MonacoReactionChip(emoji: "💪", count: 3, mine: false) {}
                     MonacoReactionChip(emoji: "🙌", count: 1, mine: true) {}
-                    MonacoReactionChip.add {}
                     MonacoReactionChip.reply(count: 6) {}
                 }
                 HStack(spacing: MonacoTheme.Space.sm) {
