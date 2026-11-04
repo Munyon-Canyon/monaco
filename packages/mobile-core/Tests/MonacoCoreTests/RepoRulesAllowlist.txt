@@ -1,6 +1,5 @@
 feature-construct	apps/mobile/Monaco/Features/Deposit/FundCabalSampleHarness.swift	1
 feature-observable	apps/mobile/Monaco/Features/Assets/CabalHoldingsModel.swift	1
-feature-observable	apps/mobile/Monaco/Features/Comments/GifImageView.swift	1
 feature-observable	apps/mobile/Monaco/Features/Groups/CabalsTabModel.swift	1
 feature-observable	apps/mobile/Monaco/Features/Home/HomeLeaderboardModel.swift	1
 feature-observable	apps/mobile/Monaco/Features/Proposals/ProposalVoteLedger.swift	1
