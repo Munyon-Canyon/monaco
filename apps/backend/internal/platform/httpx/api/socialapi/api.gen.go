@@ -83,6 +83,21 @@ func (e AdminReportStatus) Valid() bool {
 	}
 }
 
+// Defines values for ChatThesisQuoteAttachmentInputKind.
+const (
+	ChatThesisQuoteAttachmentInputKindThesisQuote ChatThesisQuoteAttachmentInputKind = "thesis_quote"
+)
+
+// Valid indicates whether the value is a known member of the ChatThesisQuoteAttachmentInputKind enum.
+func (e ChatThesisQuoteAttachmentInputKind) Valid() bool {
+	switch e {
+	case ChatThesisQuoteAttachmentInputKindThesisQuote:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for CommentAuthorKind.
 const (
 	CommentAuthorKindSystem CommentAuthorKind = "system"
@@ -702,6 +717,13 @@ type BlockedUsers struct {
 	Users []BlockedUser `json:"users"`
 }
 
+// ChatAttachmentInput The attachment of a chat message, keyed by `kind`. At most one per message.
+//
+// Examples: {"asset_id":"01890a5d-ac96-774b-bcce-b302099a8070","kind":"stock"}
+type ChatAttachmentInput struct {
+	union json.RawMessage
+}
+
 // ChatAuthor The author of a chat message. A deleted account has a null handle and an empty name.
 type ChatAuthor struct {
 	// DisplayName Empty when the user has none.
@@ -740,10 +762,15 @@ type ChatMessage struct {
 	// Examples: false
 	AlsoInChannel bool `json:"also_in_channel"`
 
+	// Attachment The message's GIF, stock or thesis quote. Absent when there is none and on a deleted message.
+	//
+	// Examples: {"kind":"thesis_quote","proposal_id":"0b6c5a3e-6d2f-4f7e-9a51-2c8d1e4f7a90","proposer_name":"Ada","text":"Small add to the position."}
+	Attachment *CommentAttachment `json:"attachment,omitempty"`
+
 	// Author The author of a chat message. A deleted account has a null handle and an empty name.
 	Author ChatAuthor `json:"author"`
 
-	// Body Null on a deleted message.
+	// Body Null on a deleted message. `GIF`, `Shared a stock` or `Quoted the thesis` on a message that is only an attachment.
 	//
 	// Examples: gm
 	Body *string `json:"body"`
@@ -842,6 +869,34 @@ type ChatSeenMember struct {
 	// Examples: 01890a5d-ac96-774b-bcce-b302099a8058
 	UserId openapi_types.UUID `json:"user_id"`
 }
+
+// ChatThesisQuoteAttachmentInput Quote the thesis of a proposal of this cabal. The server cuts the text; the client never sends it.
+type ChatThesisQuoteAttachmentInput struct {
+	// End The rune offset where the quote ends, exclusive. Defaults to the end of the thesis.
+	//
+	// Examples: 40
+	End *int `json:"end,omitempty"`
+
+	// Kind The attachment kind.
+	//
+	// Examples: thesis_quote
+	Kind ChatThesisQuoteAttachmentInputKind `json:"kind"`
+
+	// ProposalId The buy or sell proposal of this cabal whose thesis is quoted.
+	//
+	// Examples: 01890a5d-ac96-774b-bcce-b302099a8057
+	ProposalId openapi_types.UUID `json:"proposal_id"`
+
+	// Start The first rune of the thesis to quote. Defaults to 0.
+	//
+	// Examples: 0
+	Start *int `json:"start,omitempty"`
+}
+
+// ChatThesisQuoteAttachmentInputKind The attachment kind.
+//
+// Examples: thesis_quote
+type ChatThesisQuoteAttachmentInputKind string
 
 // ChatThread A top-level message and one page of its replies.
 type ChatThread struct {
@@ -1812,10 +1867,15 @@ type PostChatMessageRequest struct {
 	// Examples: false
 	AlsoInChannel *bool `json:"also_in_channel,omitempty"`
 
-	// Body The text, trimmed by the server to 1 to 2000 Unicode scalars.
+	// Attachment The attachment of a chat message, keyed by `kind`. At most one per message.
+	//
+	// Examples: {"asset_id":"01890a5d-ac96-774b-bcce-b302099a8070","kind":"stock"}
+	Attachment *ChatAttachmentInput `json:"attachment,omitempty"`
+
+	// Body The text, trimmed by the server to 1 to 2000 Unicode scalars. Optional when `attachment` is present, otherwise required.
 	//
 	// Examples: gm
-	Body string `json:"body"`
+	Body *string `json:"body,omitempty"`
 
 	// ParentId The top-level message this replies to. Absent for a top-level message.
 	//
@@ -2614,6 +2674,143 @@ type PostReportJSONRequestBody = ReportRequest
 
 // PostUserFollowJSONRequestBody defines body for PostUserFollow for application/json ContentType.
 type PostUserFollowJSONRequestBody = FollowRequest
+
+// AsGifAttachmentInput returns the union data inside the ChatAttachmentInput as a GifAttachmentInput
+func (t ChatAttachmentInput) AsGifAttachmentInput() (GifAttachmentInput, error) {
+	var body GifAttachmentInput
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromGifAttachmentInput overwrites any union data inside the ChatAttachmentInput as the provided GifAttachmentInput
+func (t *ChatAttachmentInput) FromGifAttachmentInput(v GifAttachmentInput) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"kind":"gif"}`))
+	t.union = b
+	return err
+}
+
+// MergeGifAttachmentInput performs a merge with any union data inside the ChatAttachmentInput, using the provided GifAttachmentInput
+func (t *ChatAttachmentInput) MergeGifAttachmentInput(v GifAttachmentInput) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"kind":"gif"}`))
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsStockAttachmentInput returns the union data inside the ChatAttachmentInput as a StockAttachmentInput
+func (t ChatAttachmentInput) AsStockAttachmentInput() (StockAttachmentInput, error) {
+	var body StockAttachmentInput
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromStockAttachmentInput overwrites any union data inside the ChatAttachmentInput as the provided StockAttachmentInput
+func (t *ChatAttachmentInput) FromStockAttachmentInput(v StockAttachmentInput) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"kind":"stock"}`))
+	t.union = b
+	return err
+}
+
+// MergeStockAttachmentInput performs a merge with any union data inside the ChatAttachmentInput, using the provided StockAttachmentInput
+func (t *ChatAttachmentInput) MergeStockAttachmentInput(v StockAttachmentInput) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"kind":"stock"}`))
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsChatThesisQuoteAttachmentInput returns the union data inside the ChatAttachmentInput as a ChatThesisQuoteAttachmentInput
+func (t ChatAttachmentInput) AsChatThesisQuoteAttachmentInput() (ChatThesisQuoteAttachmentInput, error) {
+	var body ChatThesisQuoteAttachmentInput
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromChatThesisQuoteAttachmentInput overwrites any union data inside the ChatAttachmentInput as the provided ChatThesisQuoteAttachmentInput
+func (t *ChatAttachmentInput) FromChatThesisQuoteAttachmentInput(v ChatThesisQuoteAttachmentInput) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"kind":"thesis_quote"}`))
+	t.union = b
+	return err
+}
+
+// MergeChatThesisQuoteAttachmentInput performs a merge with any union data inside the ChatAttachmentInput, using the provided ChatThesisQuoteAttachmentInput
+func (t *ChatAttachmentInput) MergeChatThesisQuoteAttachmentInput(v ChatThesisQuoteAttachmentInput) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"kind":"thesis_quote"}`))
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t ChatAttachmentInput) Discriminator() (string, error) {
+	var discriminator struct {
+		Discriminator string `json:"kind"`
+	}
+	err := json.Unmarshal(t.union, &discriminator)
+	return discriminator.Discriminator, err
+}
+
+func (t ChatAttachmentInput) ValueByDiscriminator() (interface{}, error) {
+	discriminator, err := t.Discriminator()
+	if err != nil {
+		return nil, err
+	}
+	switch discriminator {
+	case "gif":
+		return t.AsGifAttachmentInput()
+	case "stock":
+		return t.AsStockAttachmentInput()
+	case "thesis_quote":
+		return t.AsChatThesisQuoteAttachmentInput()
+	default:
+		return nil, errors.New("unknown discriminator value: " + discriminator)
+	}
+}
+
+func (t ChatAttachmentInput) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *ChatAttachmentInput) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
 
 // AsGifAttachment returns the union data inside the CommentAttachment as a GifAttachment
 func (t CommentAttachment) AsGifAttachment() (GifAttachment, error) {

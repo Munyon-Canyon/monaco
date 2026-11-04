@@ -61,7 +61,7 @@ func TestModule_publishesToAblyOnceItHasAKey(t *testing.T) {
 	users := fakes.NewIdentity([]identity.UserCard{{ID: f.member(0), Handle: "kai", DisplayName: "Kai"}}, nil)
 	routes := social.HTTPOf(social.New(deps, social.WithUsers(users)))
 	res, err := routes.PostChatMessage(asUser(t.Context(), f.member(0)), api.PostChatMessageRequestObject{
-		Id: f.cabal.ID.UUID(), Body: &api.PostChatMessageRequest{Body: "gm"},
+		Id: f.cabal.ID.UUID(), Body: &api.PostChatMessageRequest{Body: ptr("gm")},
 	})
 	if err != nil {
 		t.Fatal(err)

@@ -34,7 +34,7 @@ func newBlockedChat(t *testing.T) blockedChat {
 	t.Helper()
 	f := blockedChat{chatRoutes: newChatRoutes(t)}
 	post := func(author ids.UserID, body string, parent *api.ChatMessage, inChannel bool) api.ChatMessage {
-		req := api.PostChatMessageRequest{Body: body}
+		req := api.PostChatMessageRequest{Body: ptr(body)}
 		if parent != nil {
 			req.ParentId, req.AlsoInChannel = &parent.Id, &inChannel
 		}

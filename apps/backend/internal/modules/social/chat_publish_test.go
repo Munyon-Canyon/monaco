@@ -106,7 +106,7 @@ func TestPostChatMessage_publishesOnlyAfterTheRowIsCommitted(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := app.NewPostChatMessageHandler(deps).Handle(f.as(t, f.member(0)), app.PostChatMessage{
-		CabalID: f.cabal.ID, Author: f.member(0), Body: body,
+		CabalID: f.cabal.ID, Author: f.member(0), Input: chatText(body),
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -136,7 +136,7 @@ func TestPostChatMessage_aFailedPublishStillStoresAndReturnsTheMessageAndLogsIt(
 	if err != nil {
 		t.Fatal(err)
 	}
-	got, err := f.post.Handle(ctx, app.PostChatMessage{CabalID: f.cabal.ID, Author: f.member(0), Body: body})
+	got, err := f.post.Handle(ctx, app.PostChatMessage{CabalID: f.cabal.ID, Author: f.member(0), Input: chatText(body)})
 	if err != nil || got.Body != "gm" {
 		t.Fatalf("Handle = %+v, %v, want the stored message and no error", got, err)
 	}
@@ -176,7 +176,7 @@ func TestPostChatMessage_aMessageThatCannotBeWiredIsStoredLoggedAndNotPublished(
 		t.Fatal(err)
 	}
 	if _, err := app.NewPostChatMessageHandler(deps).Handle(ctx, app.PostChatMessage{
-		CabalID: f.cabal.ID, Author: f.member(0), Body: body,
+		CabalID: f.cabal.ID, Author: f.member(0), Input: chatText(body),
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -310,7 +310,7 @@ func TestPostChatMessage_aReplyStillPublishesTheThreadUpdateWhenTheMessageCannot
 	}
 	before := len(f.rt.Published())
 	reply, err := app.NewPostChatMessageHandler(deps).Handle(f.as(t, f.member(1)), app.PostChatMessage{
-		CabalID: f.cabal.ID, Author: f.member(1), Body: body, Reply: &domain.Reply{Parent: top.ID},
+		CabalID: f.cabal.ID, Author: f.member(1), Input: chatText(body), Reply: &domain.Reply{Parent: top.ID},
 	})
 	if err != nil {
 		t.Fatal(err)

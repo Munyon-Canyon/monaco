@@ -142,7 +142,7 @@ func TestChatSeenCleanup_aDatabaseFailureIsInternal(t *testing.T) {
 func TestSeenCount_ExcludesAuthorAndLeftMembers(t *testing.T) {
 	t.Parallel()
 	f := newChatRoutes(t)
-	msg := f.mustPost(t, f.member(0), api.PostChatMessageRequest{Body: "gm"})
+	msg := f.mustPost(t, f.member(0), api.PostChatMessageRequest{Body: ptr("gm")})
 	f.markAs(t, f.member(0))
 	f.markAs(t, f.member(1))
 	f.markAs(t, f.member(2))

@@ -38,6 +38,8 @@ type ChatMessage struct {
 	ProposalID    uuid.UUID
 	Deleted       bool
 	SeenCount     *int
+	Attachment    *domain.Attachment
+	Stock         *StockCard
 }
 
 func requireMember(ctx context.Context, members Members, cabal ids.CabalID, user ids.UserID) error {

@@ -216,9 +216,16 @@ func storedMessages(rows []sqlc.CabalMessage) []ChatMessage {
 
 func storedMessage(row sqlc.CabalMessage) ChatMessage {
 	m := ChatMessage{
-		ID: row.ID, CabalID: ids.CabalIDFrom(row.CabalID), AuthorID: ids.UserIDFrom(row.AuthorID), Body: row.Body,
-		CreatedAt: row.CreatedAt.UTC(), ParentID: row.ParentID.Bytes, AlsoInChannel: row.AlsoInChannel,
-		ReplyCount: row.ReplyCount, ProposalID: row.ProposalID.Bytes, Deleted: row.DeletedAt.Valid,
+		ID:            row.ID,
+		CabalID:       ids.CabalIDFrom(row.CabalID),
+		AuthorID:      ids.UserIDFrom(row.AuthorID),
+		Body:          row.Body.String,
+		CreatedAt:     row.CreatedAt.UTC(),
+		ParentID:      row.ParentID.Bytes,
+		AlsoInChannel: row.AlsoInChannel,
+		ReplyCount:    row.ReplyCount,
+		ProposalID:    row.ProposalID.Bytes,
+		Deleted:       row.DeletedAt.Valid,
 	}
 	if row.LastReplyAt.Valid {
 		at := row.LastReplyAt.Time.UTC()

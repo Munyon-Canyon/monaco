@@ -236,30 +236,49 @@ func (h *CreateCommentHandler) resolveAttachment(
 		return StockCard{}, nil
 	case att.Kind == domain.AttachmentThesisQuote:
 		proposal, _ := feed.ParsePayload(thread.Payload)
-		text, ok := att.Range.Cut(thread.Body.String)
-		reason := "invalid_range"
-		if feed.Kind(thread.Kind) != feed.KindProposal || thread.Body.String == "" {
-			ok, reason = false, "no_thesis"
+		src := thesisSource{proposalID: thread.RefID, proposer: proposal.ActorName}
+		if feed.Kind(thread.Kind) == feed.KindProposal {
+			src.thesis = thread.Body.String
 		}
-		if !ok {
-			return StockCard{}, errs.New(errs.CodeInvalidInput, op, slog.String("reason", reason))
-		}
-		att.Thesis = &domain.ThesisQuote{ProposalID: thread.RefID, Text: text, ProposerName: proposal.ActorName}
+		return StockCard{}, quoteThesis(att, src, op)
 	case att.Kind == domain.AttachmentStock:
-		cards, err := h.d.Stocks.StockCards(ctx, []uuid.UUID{att.Stock.AssetID})
-		if err != nil {
-			return StockCard{}, errs.Wrap(err, errs.CodeOf(err), op)
-		}
-		card, found := cards[att.Stock.AssetID]
-		if !found {
-			return StockCard{}, errs.New(errs.CodeInvalidInput, op, slog.String("reason", "asset_not_found"))
-		}
-		att.Stock = &domain.StockSnapshot{
-			AssetID: card.ID, Symbol: card.Symbol, Name: card.Name, LogoURL: card.LogoURL, IsPreIPO: card.IsPreIPO,
-		}
-		return card, nil
+		return resolveStock(ctx, h.d.Stocks, att, op)
 	}
 	return StockCard{}, nil
+}
+
+type thesisSource struct {
+	proposalID uuid.UUID
+	proposer   string
+	thesis     string
+}
+
+func quoteThesis(att *domain.Attachment, src thesisSource, op string) error {
+	text, ok := att.Range.Cut(src.thesis)
+	reason := "invalid_range"
+	if src.thesis == "" {
+		ok, reason = false, "no_thesis"
+	}
+	if !ok {
+		return errs.New(errs.CodeInvalidInput, op, slog.String("reason", reason))
+	}
+	att.Thesis = &domain.ThesisQuote{ProposalID: src.proposalID, Text: text, ProposerName: src.proposer}
+	return nil
+}
+
+func resolveStock(ctx context.Context, stocks StockCards, att *domain.Attachment, op string) (StockCard, error) {
+	cards, err := stocks.StockCards(ctx, []uuid.UUID{att.Stock.AssetID})
+	if err != nil {
+		return StockCard{}, errs.Wrap(err, errs.CodeOf(err), op)
+	}
+	card, found := cards[att.Stock.AssetID]
+	if !found {
+		return StockCard{}, errs.New(errs.CodeInvalidInput, op, slog.String("reason", "asset_not_found"))
+	}
+	att.Stock = &domain.StockSnapshot{
+		AssetID: card.ID, Symbol: card.Symbol, Name: card.Name, LogoURL: card.LogoURL, IsPreIPO: card.IsPreIPO,
+	}
+	return card, nil
 }
 
 func (h *CreateCommentHandler) replyDraft(

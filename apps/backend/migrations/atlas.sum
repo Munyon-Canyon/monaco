@@ -1,4 +1,4 @@
-h1:V7jfbdzCMC+3+9U4YPbXlHhWwJNd/cF08NX6E2hCrjg=
+h1:99jYmCEj6DX5y0datyH6iNrfLOhptM5+pclNHTfGy0s=
 20260927140427_platform.sql h1:dpKT9ALI2RTf1SBI4IzLY9kt47VTa8+JAziYaHsX5Jw=
 20260927185159_idempotency.sql h1:iYIp5Y5kBuPj5UJGcOifMeosr8qf0tj17c+5bmF37zE=
 20260929120000_system.sql h1:m6n0Y3tCc4MlfYNzi6Fh01YnogvlBbpQb1/X4WCtW40=
@@ -161,3 +161,4 @@ h1:V7jfbdzCMC+3+9U4YPbXlHhWwJNd/cF08NX6E2hCrjg=
 20261101220000_trading_choose_arrival_action.sql h1:F6KbmfUTcCDhgIym8HwUNLY02t1k2hh4D6EgESNFrs0=
 20261101223000_widen_token_amounts.sql h1:wtutxp5n35pmkw9DD5EvuIot3t+uM7lXVYFWlhbdeac=
 20261104055416_social_chat_message_reactions.sql h1:v7o4ruoMFGBEdBLggOw9rRMcRY+bD8BCZUWhPo6LoQo=
+20261104063746_social_chat_message_attachments.sql h1:IAGeEEtJuuCZA2VNod/NWOO57tUD/XwQq7CcXKr/nno=

@@ -195,7 +195,7 @@ func (q *Queries) GetChatMessageByID(ctx context.Context, id uuid.UUID) (GetChat
 const insertChatMessage = `-- name: InsertChatMessage :one
 INSERT INTO cabal_messages (id, cabal_id, author_id, body, created_at, parent_id, also_in_channel)
 VALUES (
-  $1, $2, $3, $4, $5, NULLIF($6::uuid, '00000000-0000-0000-0000-000000000000'),
+  $1, $2, $3, NULLIF($4::text, ''), $5, NULLIF($6::uuid, '00000000-0000-0000-0000-000000000000'),
   $7
 )
 RETURNING id, cabal_id, author_id, body, created_at, parent_id, also_in_channel
@@ -215,7 +215,7 @@ type InsertChatMessageRow struct {
 	ID            uuid.UUID
 	CabalID       uuid.UUID
 	AuthorID      uuid.UUID
-	Body          string
+	Body          pgtype.Text
 	CreatedAt     time.Time
 	ParentID      pgtype.UUID
 	AlsoInChannel bool
@@ -282,7 +282,7 @@ type ListChatChannelRow struct {
 	ID            uuid.UUID
 	CabalID       uuid.UUID
 	AuthorID      uuid.UUID
-	Body          string
+	Body          pgtype.Text
 	CreatedAt     time.Time
 	ParentID      pgtype.UUID
 	AlsoInChannel bool
@@ -367,7 +367,7 @@ type ListChatChannelAfterRow struct {
 	ID            uuid.UUID
 	CabalID       uuid.UUID
 	AuthorID      uuid.UUID
-	Body          string
+	Body          pgtype.Text
 	CreatedAt     time.Time
 	ParentID      pgtype.UUID
 	AlsoInChannel bool
