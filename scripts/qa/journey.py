@@ -23,6 +23,7 @@ import json
 import os
 import random
 import re
+import shutil
 import signal
 import statistics
 import subprocess
@@ -2506,7 +2507,91 @@ def cmd_mutants(args):
         return run_mutants(args, api_base_url)
 
 
+MUTANTS_MIN_FREE = 20 * 10 ** 9
+
+
+def mutants_folder():
+    """The shared derived data every seeded-bug build goes into, beside the clean one."""
+    return DERIVED.parent / (DERIVED.name + "-mutants")
+
+
+def mutants_runs(mutants):
+    """Where each patch's products are copied, outside the shared Build folder the next build rewrites."""
+    return mutants.parent / (mutants.name + "-runs")
+
+
+def scenarios_through(scenarios, expected_fail):
+    """The scenarios in order up to the last one the patch names: later ones cannot change the verdict."""
+    spots = [scenarios.index(name) for name in expected_fail if name in scenarios]
+    return scenarios[:max(spots) + 1] if spots else scenarios
+
+
+def folder_bytes(path):
+    total = 0
+    for folder, _, names in os.walk(str(path)):
+        for name in names:
+            with contextlib.suppress(OSError):
+                total += os.lstat(os.path.join(folder, name)).st_size
+    return total
+
+
+def build_mutants(sim, patches, mutants):
+    """Builds every patch in one Xcode slot hold. Returns per-patch build seconds and the folder's peak bytes."""
+    sh(["scripts/ensure-ios-privy-config.sh", "generate"], check=True, stdout=subprocess.DEVNULL)
+    descriptor, waited = tempfile.mkstemp(prefix="journey-lock-waited-")
+    os.close(descriptor)
+    report = Path(waited + ".json")
+    try:
+        code = sh(["scripts/qa/xcode-lock.sh", "xcode", sys.executable, str(Path(__file__).resolve()), "_build-mutants",
+                   sim, str(mutants), str(mutants_runs(mutants)), str(report), str(OUT)] + [str(p) for p in patches],
+                  env=dict(os.environ, MONACO_LOCK_WAITED=waited,
+                           MONACO_LOCK_HOLD=os.environ.get("MONACO_LOCK_HOLD", str(1200 + 600 * len(patches))))).returncode
+        add_phase("build_queue_s", float(read_lock_waited(waited)))
+        data = json.loads(report.read_text()) if report.exists() else {"build_s": {}, "peak": 0}
+    finally:
+        for path in (waited, str(report)):
+            with contextlib.suppress(OSError):
+                os.unlink(path)
+    if code != 0:
+        raise JourneyError("the build of %s failed, see %s" % (data.get("failed", "a seeded bug"), OUT))
+    return data
+
+
+def cmd_build_mutants(argv):
+    """Hidden: runs inside the Xcode slot that build_mutants holds. Applies each patch, builds into the shared
+    mutants derived data, copies the products out and reverts the patch."""
+    global DERIVED
+    sim, mutants, runs, report, out, *patches = argv
+    DERIVED = Path(mutants)
+    data = {"build_s": {}, "peak": 0}
+    code = 0
+    for name in patches:
+        patch = Path(name)
+        applied = False
+        try:
+            sh(["git", "apply", str(patch)], check=True)
+            applied = True
+            started = time.time()
+            with open(os.path.join(out, "build-%s.log" % patch.stem), "w") as log:
+                code = sh(xcodebuild(sim, "build-for-testing"), stdout=log, stderr=subprocess.STDOUT).returncode
+            data["build_s"][patch.stem] = time.time() - started
+            if code != 0:
+                data["failed"] = patch.stem
+                break
+            target = Path(runs) / patch.stem / "Build"
+            shutil.rmtree(str(target.parent), ignore_errors=True)
+            target.mkdir(parents=True)
+            shutil.copytree(str(DERIVED / "Build" / "Products"), str(target / "Products"), symlinks=True)
+            data["peak"] = max(data["peak"], folder_bytes(runs))
+        finally:
+            if applied:
+                sh(["git", "apply", "-R", str(patch)], check=True)
+    Path(report).write_text(json.dumps(data))
+    return code
+
+
 def run_mutants(args, api_base_url):
+    global DERIVED
     journeys = load_journeys()
     journey = pick(journeys, args.journey)
     all_patches = journey.mutants()
@@ -2533,26 +2618,35 @@ def run_mutants(args, api_base_url):
         sim = resolve_simulator(args.sim, logins, journey.simslim)
         check_simulator_api_environment(sim, api_base_url)
         caught = 0
+        plan = []
         for patch in patches:
             expected_fail = mutant_expectation(patch)
             if not expected_fail:
                 print("skipped %s: no expect-fail line" % patch.stem)
                 continue
+            plan.append((patch, expected_fail))
+        mutants = mutants_folder()
+        free = shutil.disk_usage(str(OUT)).free
+        if free < MUTANTS_MIN_FREE:
+            raise JourneyError("only %.1f GB is free at %s: the seeded-bug builds need %d GB" % (
+                free / 1e9, OUT, MUTANTS_MIN_FREE // 10 ** 9))
+        built = build_mutants(sim, [patch for patch, _ in plan], mutants) if plan else {"build_s": {}, "peak": 0}
+        peak = built["peak"]
+        for patch, expected_fail in plan:
             print("seeded bug %s: %s must fail" % (patch.stem, ", ".join(expected_fail)))
-            applied = False
+            kept = mutants_runs(mutants) / patch.stem
+            clean_derived = DERIVED
             try:
                 reset_journey_simulator(sim, bool(args.sim), False)
-                sh(["git", "apply", str(patch)], check=True)
-                applied = True
-                build(sim, OUT / ("build-%s.log" % patch.stem))
+                DERIVED = kept
+                add_phase("build_s", built["build_s"].get(patch.stem, 0.0))
                 run_name = "%s-%s-%s" % (stamp(), journey.id.replace("/", "-"), patch.stem)
                 rows, _ = run_once(journey, journeys, args, sim, accounts, build_label(patch.stem), run_name,
-                                   journey.scenarios, api_base_url, expected=dict({s: "FAIL" for s in expected_fail}, **{"*": "FAIL"}))
+                                   scenarios_through(journey.scenarios, expected_fail), api_base_url,
+                                   expected=dict({s: "FAIL" for s in expected_fail}, **{"*": "FAIL"}))
             finally:
-                if applied:
-                    sh(["git", "apply", "-R", str(patch)], check=True)
-                    with contextlib.suppress(FileNotFoundError):
-                        stamp_file().unlink()
+                DERIVED = clean_derived
+                shutil.rmtree(str(kept), ignore_errors=True)
             if mutant_caught(rows):
                 caught += 1
                 print("  caught")
@@ -2561,13 +2655,13 @@ def run_mutants(args, api_base_url):
             else:
                 print("  MISSED: the test did not fail on a build with this bug in")
     finally:
-        try:
-            if "sim" in locals():
-                build(sim, OUT / ("build-%s.log" % DERIVED.name.partition("-")[2]))
-        finally:
-            locks.close()
-            for signum, handler in old_handlers.items():
-                signal.signal(signum, handler)
+        for patch in patches:
+            if sh(["git", "apply", "-R", "--check", str(patch)]).returncode == 0:
+                sh(["git", "apply", "-R", str(patch)], check=True)
+        locks.close()
+        for signum, handler in old_handlers.items():
+            signal.signal(signum, handler)
+    print("mutants folder peak %.1f GB (%s)" % (peak / 1e9, os.path.relpath(str(mutants_runs(mutants)), str(ROOT))))
     print_phase_summary()
     print("caught %d of %d seeded bugs" % (caught, len(patches)))
     return 0 if caught == len(patches) else 1
@@ -2693,6 +2787,9 @@ def cmd_report(args):
 
 
 def main(argv=None):
+    argv = sys.argv[1:] if argv is None else argv
+    if argv[:1] == ["_build-mutants"]:
+        return cmd_build_mutants(argv[1:])
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     commands = parser.add_subparsers(dest="command")
     commands.required = True

@@ -2331,13 +2331,16 @@ class MutantRunSetup(unittest.TestCase):
         return unittest.mock.MagicMock(id="money/withdraw", funds=funds, scenarios=["S1"], mutants=lambda: [patch],
                                        spec=None), patch
 
-    def mutant_env(self, funds):
+    def mutant_env(self, funds, scenarios=("S1",), expect=("S1",), rows=None, free=50 * 10 ** 9, calls=None):
         fake, patch = self.fake_journey(funds)
+        fake.scenarios = list(scenarios)
         seen = []
 
         def run_once(*args, **kwargs):
             seen.append(journey.actor_environment({}, "sms", "R"))
-            return [{"scenario": "S1", "result": "FAIL", "expected": "FAIL", "failed_step": "S1.1"}], "FAIL"
+            if calls is not None:
+                calls.append(args[7])
+            return rows or [{"scenario": "S1", "result": "FAIL", "expected": "FAIL", "failed_step": "S1.1"}], "FAIL"
 
         sh = lambda args, **kw: unittest.mock.Mock(returncode=1 if "--check" in args else 0)
         stack = contextlib.ExitStack()
@@ -2347,21 +2350,78 @@ class MutantRunSetup(unittest.TestCase):
                                 ("load_accounts", lambda: {}), ("held_logins", lambda j, a: []),
                                 ("use_derived_data", lambda l: None), ("resolve_simulator", lambda s, l, p: "sim"),
                                 ("check_simulator_api_environment", lambda s, u: None),
-                                ("reset_journey_simulator", lambda *a: None), ("build", lambda *a: None),
-                                ("mutant_expectation", lambda p: ["S1"]), ("run_once", run_once),
+                                ("reset_journey_simulator", lambda *a: None),
+                                ("build_mutants", lambda *a: {"build_s": {}, "peak": 0}),
+                                ("mutant_expectation", lambda p: list(expect)), ("run_once", run_once),
                                 ("check_preconditions", lambda *a, **k: []),
                                 ("stamp_file", lambda: unittest.mock.Mock()), ("build_label", lambda *a: "b"),
                                 ("stamp", lambda: "T")):
                 stack.enter_context(unittest.mock.patch.object(journey, name, value))
             stack.enter_context(unittest.mock.patch.dict(os.environ, {"MONACO_QA_REFUND_ADDRESS": ""}))
             stack.enter_context(unittest.mock.patch.object(journey, "with_dotenv", lambda args: "Pot1"))
+            stack.enter_context(unittest.mock.patch.object(
+                journey.shutil, "disk_usage", lambda p: unittest.mock.Mock(free=free)))
             args = unittest.mock.Mock(journey="money/withdraw", only=["bug"], sim="", runs=1)
-            journey.run_mutants(args, "http://x")
+            self.code = journey.run_mutants(args, "http://x")
         return seen[0]
 
     def test_mutants_pass_the_refund_address_the_run_path_passes(self):
         env = self.mutant_env({"A": 5})
         self.assertEqual(env["MONACO_QA_REFUND_ADDRESS"], "Pot1")
+
+    def test_a_run_stops_after_the_last_scenario_the_patch_names(self):
+        calls = []
+        self.mutant_env({"A": 5}, ("S1", "S2", "S3", "S4"), ("S1", "S3"), calls=calls)
+        self.assertEqual(calls, [["S1", "S2", "S3"]])
+        calls.clear()
+        self.mutant_env({"A": 5}, ("S1", "S2", "S3", "S4"), ("S2",), calls=calls)
+        self.assertEqual(calls, [["S1", "S2"]])
+
+    def test_a_setup_failure_is_not_a_catch_and_a_missed_patch_fails_the_run(self):
+        setup = [{"scenario": "S1", "result": "FAIL", "expected": "FAIL", "failed_step": "before S1 began"}]
+        with redirect_stdout(StringIO()) as printed:
+            self.mutant_env({"A": 5}, rows=setup)
+        self.assertIn("setup_failed", printed.getvalue())
+        self.assertEqual(self.code, 1)
+        missed = [{"scenario": "S1", "result": "PASS", "expected": "FAIL", "failed_step": ""}]
+        with redirect_stdout(StringIO()) as printed:
+            self.mutant_env({"A": 5}, rows=missed)
+        self.assertIn("MISSED", printed.getvalue())
+        self.assertEqual(self.code, 1)
+
+    def test_no_clean_rebuild_follows_the_batch_and_the_clean_stamp_stays(self):
+        stamp_calls = []
+        with unittest.mock.patch.object(journey, "build", lambda *a: stamp_calls.append("build")), \
+                unittest.mock.patch.object(journey, "stamp_file", lambda: stamp_calls.append("stamp")), \
+                redirect_stdout(StringIO()) as printed:
+            self.mutant_env({"A": 5})
+        self.assertEqual(stamp_calls, [])
+        self.assertEqual(self.code, 0)
+        self.assertIn("mutants folder peak", printed.getvalue())
+
+    def test_the_batch_is_refused_below_20_gb_free(self):
+        with self.assertRaisesRegex(journey.JourneyError, "only 5.0 GB is free"):
+            self.mutant_env({"A": 5}, free=5 * 10 ** 9)
+
+    def test_one_slot_hold_builds_every_patch(self):
+        runs, envs = [], []
+        done = unittest.mock.Mock(returncode=0)
+
+        def sh(args, **kw):
+            runs.append(args)
+            envs.append(kw.get("env", {}))
+            for index, word in enumerate(args):
+                if word == "_build-mutants":
+                    Path(args[index + 4]).write_text('{"build_s": {"a": 1.0}, "peak": 5}')
+            return done
+
+        with unittest.mock.patch.object(journey, "sh", sh):
+            data = journey.build_mutants("sim", [Path("a.patch"), Path("b.patch")], Path("m"))
+        locked = [r for r in runs if r[:2] == ["scripts/qa/xcode-lock.sh", "xcode"]]
+        self.assertEqual(len(locked), 1)
+        self.assertEqual([r for r in locked[0] if r.endswith(".patch")], ["a.patch", "b.patch"])
+        self.assertEqual(data["peak"], 5)
+        self.assertEqual(envs[-1].get("MONACO_LOCK_HOLD"), "2400")
 
     def test_a_run_that_ends_before_s1_is_setup_failed_not_caught(self):
         rows = [{"scenario": "S1", "result": "FAIL", "expected": "FAIL", "failed_step": "before S1 began"},
