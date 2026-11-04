@@ -175,7 +175,7 @@ enum HomeVoteCommit {
         }
     }
 
-    private static func accepted(
+    static func accepted(
         _ card: HomeVoteCardModel, _ outcome: CastOutcome, environment: AppEnvironment, toasts: ToastCenter,
         analytics: Analytics
     ) {

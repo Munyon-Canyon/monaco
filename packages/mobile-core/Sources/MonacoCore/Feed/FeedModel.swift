@@ -26,6 +26,7 @@ public final class FeedModel {
     private var fromEveryoneLoaded = false
     private var viewerFollowsNobody = false
     private var checkingFollows = false
+    @ObservationIgnored private var voteCards: [String: HomeVoteCardModel] = [:]
 
     private let api: APIClient
     private let mutes: FeedMuteService
@@ -53,6 +54,24 @@ public final class FeedModel {
     }
 
     public var items: [Components.Schemas.FeedItem] { pager.items }
+
+    public func voteCard(for item: Components.Schemas.FeedItem) -> HomeVoteCardModel? {
+        guard FeedVoteCard.isVotable(item), let proposalID = item.proposalId else { return nil }
+        return voteCards[proposalID]
+    }
+
+    private func syncVoteCards() {
+        for item in pager.items where FeedVoteCard.isVotable(item) {
+            guard let row = FeedVoteCard.row(for: item) else { continue }
+            if let card = voteCards[row.id] {
+                if card.row != row { card.update(row) }
+            } else {
+                voteCards[row.id] = HomeVoteCardModel(
+                    api: api, hints: hints, row: row, now: now, myBallot: FeedVoteCard.ballot(of: item),
+                    showsReplies: false)
+            }
+        }
+    }
 
     public var isLoadingMore: Bool { pager.phase == .loadingMore }
 
@@ -94,6 +113,7 @@ public final class FeedModel {
         await pager.loadFirst()
         loadMoreFailed = false
         noteFailure(of: pager)
+        syncVoteCards()
         await checkFollows(after: pager)
         await syncFromEveryone(refreshing: false)
     }
@@ -103,6 +123,7 @@ public final class FeedModel {
         await pager.refreshFirstPage()
         if !pager.phase.isFailed { loadMoreFailed = false }
         noteFailure(of: pager)
+        syncVoteCards()
         await checkFollows(after: pager)
         await syncFromEveryone(refreshing: true)
     }
@@ -113,6 +134,7 @@ public final class FeedModel {
         await pager.loadMore()
         noteFailure(of: pager, raisesToast: false)
         guard pager === self.pager else { return }
+        syncVoteCards()
         switch pager.phase {
         case .idle, .exhausted: loadMoreFailed = false
         case .failed: if !before.isFailed { loadMoreFailed = true }
@@ -198,6 +220,7 @@ public final class FeedModel {
         guard query == next else { return }
         pager = candidate
         noteFailure(of: candidate)
+        syncVoteCards()
         await checkFollows(after: candidate)
         await syncFromEveryone(refreshing: false)
     }

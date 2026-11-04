@@ -1,4 +1,5 @@
 import MonacoAPI
+import MonacoAnalytics
 import MonacoCore
 import SwiftUI
 
@@ -12,6 +13,7 @@ struct FeedPost<Foot: View>: View {
     let now: Date
     var style: FeedPostStyle = .standard
     var opensPost = true
+    var voteCard: HomeVoteCardModel?
     @ViewBuilder let foot: Foot
 
     @Environment(AppEnvironment.self) private var environment
@@ -19,11 +21,15 @@ struct FeedPost<Foot: View>: View {
     var body: some View {
         let facts = FeedPostFacts(item, now: now)
         VStack(alignment: .leading, spacing: 0) {
-            post(facts)
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel(facts.spoken)
-                .accessibilityIdentifier("feed-cell-\(item.id)")
-                .accessibilityActions { openActions(facts) }
+            if let voteCard {
+                votePost(facts, card: voteCard)
+            } else {
+                post(facts)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(facts.spoken)
+                    .accessibilityIdentifier("feed-cell-\(item.id)")
+                    .accessibilityActions { openActions(facts) }
+            }
             foot
                 .padding(.leading, FeedPostMetrics.lead + FeedPostMetrics.gap)
         }
@@ -32,10 +38,40 @@ struct FeedPost<Foot: View>: View {
         .accessibilityElement(children: .contain)
     }
 
+    private func votePost(_ facts: FeedPostFacts, card: HomeVoteCardModel) -> some View {
+        HStack(alignment: .top, spacing: FeedPostMetrics.gap) {
+            FeedPostLead(lead: facts.lead)
+            VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
+                postLink {
+                    FeedPostHeader(name: facts.name, verb: facts.verb, age: facts.age)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(Rectangle())
+                }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("\(facts.name) \(facts.verb), \(facts.age)")
+                .accessibilityIdentifier("feed-cell-\(item.id)")
+                .accessibilityActions { openActions(facts) }
+                FeedVoteCardSlot(card: card)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    @ViewBuilder private func postLink<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+        if opensPost {
+            NavigationLink(value: FeedDestination.destination(for: item).route) { content() }
+                .buttonStyle(.plain)
+        } else {
+            content()
+        }
+    }
+
     @ViewBuilder private func post(_ facts: FeedPostFacts) -> some View {
         let content = HStack(alignment: .top, spacing: FeedPostMetrics.gap) {
             FeedPostLead(lead: facts.lead)
-            FeedPostBody(facts: facts, itemID: item.id, style: style)
+            FeedPostBody(
+                facts: facts, itemID: item.id, style: style,
+                readOnlyLine: FeedVoteCard.readOnlyLine(for: item, now: now))
         }
         .contentShape(Rectangle())
         if opensPost {
@@ -89,6 +125,7 @@ private struct FeedPostBody: View {
     let facts: FeedPostFacts
     let itemID: String
     let style: FeedPostStyle
+    let readOnlyLine: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
@@ -106,9 +143,9 @@ private struct FeedPostBody: View {
         case .tally(let tally):
             switch style {
             case .standard:
-                FeedProposalAttachment(tally: tally, identifier: itemID)
+                FeedProposalAttachment(tally: tally, identifier: itemID, line: readOnlyLine)
             case .outside:
-                FeedOutsideTally(tally: tally, identifier: itemID)
+                FeedOutsideTally(tally: tally, identifier: itemID, line: readOnlyLine)
             }
         case .result(let sealName, let sparkline, let isLoss):
             FeedResultAttachment(sealName: sealName, sparkline: sparkline, isLoss: isLoss)
@@ -119,5 +156,23 @@ private struct FeedPostBody: View {
         case .none:
             EmptyView()
         }
+    }
+}
+
+private struct FeedVoteCardSlot: View {
+    let card: HomeVoteCardModel
+    @Environment(AppEnvironment.self) private var environment
+    @Environment(ToastCenter.self) private var toasts
+    @Environment(\.analytics) private var analytics
+
+    var body: some View {
+        HomeVoteCard(model: card, identifierPrefix: "feed", tab: .feed)
+            .onAppear {
+                card.onCommitted = { [environment, toasts, analytics, weak card] outcome in
+                    guard let card else { return }
+                    HomeVoteCommit.accepted(
+                        card, outcome, environment: environment, toasts: toasts, analytics: analytics)
+                }
+            }
     }
 }

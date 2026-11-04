@@ -67,6 +67,7 @@ struct FeedQuietWeek: View {
 struct FeedOutsideTally: View {
     let tally: FeedPostFacts.Tally
     let identifier: String
+    var line: String?
 
     private var split: Text {
         Text(Image(systemName: "checkmark")).foregroundColor(MonacoTheme.profit)
@@ -84,7 +85,7 @@ struct FeedOutsideTally: View {
                 .accessibilityLabel("\(tally.yes) yes, \(tally.no) no")
                 .accessibilityIdentifier("feed-vote-ends-\(identifier)")
             VoteStatusLine(
-                result: nil, facts: [tally.statusLine], identifierPrefix: "feed", identifierSuffix: identifier,
+                result: nil, facts: [line ?? tally.statusLine], identifierPrefix: "feed", identifierSuffix: identifier,
                 minHeight: 0)
         }
         .padding(.vertical, MonacoTheme.Space.xs)
