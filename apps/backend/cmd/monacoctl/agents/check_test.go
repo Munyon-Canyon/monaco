@@ -1471,6 +1471,35 @@ func TestCheck_aFlowsPackageChangeRunsTheSwiftAndReadyRows(t *testing.T) {
 	}
 }
 
+func TestCheck_aJourneyDocChangeChecksTheDocsAndOnlyAToolingChangeRunsTheToolingTests(t *testing.T) {
+	t.Parallel()
+	tooling := func(calls []string) bool {
+		return slices.ContainsFunc(calls, func(c string) bool {
+			return strings.Contains(c, "test_journey.py") || strings.Contains(c, "test_skill_eval.py")
+		})
+	}
+	docs := newCheckHarness(t)
+	docs.commit(t, map[string]string{"docs/journeys/auth/note.md": "notes\n"})
+	code, stdout, stderr := docs.check(t)
+	if code != 0 ||
+		!slices.ContainsFunc(docs.calls, func(c string) bool { return strings.Contains(c, "journey.py check") }) ||
+		tooling(docs.calls) {
+		t.Fatalf(
+			"a doc change runs journey.py check and not the tooling tests: %d %q %q %v",
+			code,
+			stdout,
+			stderr,
+			docs.calls,
+		)
+	}
+	script := newCheckHarness(t)
+	script.commit(t, map[string]string{"scripts/qa/journey.py": "# changed\n"})
+	code, stdout, stderr = script.check(t)
+	if code != 0 || !tooling(script.calls) {
+		t.Fatalf("a scripts/qa change runs the tooling tests: %d %q %q %v", code, stdout, stderr, script.calls)
+	}
+}
+
 func TestTestParallelPerPackage_scalesWithBusySlotsAndPackages(t *testing.T) {
 	t.Parallel()
 	for _, c := range []struct{ cpus, busy, p, want int }{
@@ -1956,7 +1985,7 @@ func TestCheck_theScaledBudgetIsCappedAtFourTimesTheBase(t *testing.T) {
 func TestCheck_aNonPackageRowGetsTheLoadScaledBudgetUpToFourTimesTheBase(t *testing.T) {
 	t.Parallel()
 	h := newCheckHarness(t)
-	h.commit(t, map[string]string{"apps/mobile/qa/journeys/a.tsv": "a\n"})
+	h.commit(t, map[string]string{"scripts/qa/journeys-a.txt": "a\n"})
 	h.load, h.cores = 32, 8
 	h.replies = []reply{{prefix: "python3 scripts/qa/journey.py check", took: 100 * time.Second}}
 	code, stdout, stderr := h.check(t)
@@ -1965,7 +1994,7 @@ func TestCheck_aNonPackageRowGetsTheLoadScaledBudgetUpToFourTimesTheBase(t *test
 		t.Fatalf("a journeys row within its scaled budget passes: %d %q %q", code, stdout, stderr)
 	}
 
-	h.commit(t, map[string]string{"apps/mobile/qa/journeys/a.tsv": "b\n"})
+	h.commit(t, map[string]string{"scripts/qa/journeys-a.txt": "b\n"})
 	h.load = 64
 	h.replies = []reply{{prefix: "python3 scripts/qa/journey.py check", took: 130 * time.Second}}
 	code, stdout, stderr = h.check(t)
@@ -2047,7 +2076,7 @@ func TestCheck_aPackageSlowAloneAndPassingUnderLoadPastTheCapIsAdvisory(t *testi
 func TestCheck_aRowIsJudgedByTheHighestLoadSeenDuringIt(t *testing.T) {
 	t.Parallel()
 	h := newCheckHarness(t)
-	h.commit(t, map[string]string{"apps/mobile/qa/journeys/a.tsv": "a\n"})
+	h.commit(t, map[string]string{"scripts/qa/journeys-a.txt": "a\n"})
 	h.cores = 8
 	h.loads = []float64{8, 24}
 	h.replies = []reply{{prefix: "python3 scripts/qa/journey.py check", took: 80 * time.Second}}
@@ -2057,7 +2086,7 @@ func TestCheck_aRowIsJudgedByTheHighestLoadSeenDuringIt(t *testing.T) {
 		t.Fatalf("a row that starts at 1x and ends at 3x passes within 3x: %d %q %q", code, stdout, stderr)
 	}
 
-	h.commit(t, map[string]string{"apps/mobile/qa/journeys/a.tsv": "b\n"})
+	h.commit(t, map[string]string{"scripts/qa/journeys-a.txt": "b\n"})
 	h.loads = []float64{8, 64}
 	h.replies = []reply{{prefix: "python3 scripts/qa/journey.py check", took: 130 * time.Second}}
 	code, stdout, stderr = h.check(t)
@@ -2587,7 +2616,7 @@ func TestCheck_aLocalBudgetReplacesTheRepoBudgetAndScalesWithLoad(t *testing.T) 
 	t.Parallel()
 	h := newCheckHarness(t)
 	writeFile(t, filepath.Join(h.dir, ".git", localConfigPath), "[check.budget]\njourneys = \"45s\"\n")
-	h.commit(t, map[string]string{"apps/mobile/qa/journeys/a.tsv": "a\n"})
+	h.commit(t, map[string]string{"scripts/qa/journeys-a.txt": "a\n"})
 	h.load, h.cores = 8, 8
 	h.replies = []reply{{prefix: "python3 scripts/qa/journey.py check", took: 40 * time.Second}}
 	code, stdout, stderr := h.check(t)
@@ -2596,7 +2625,7 @@ func TestCheck_aLocalBudgetReplacesTheRepoBudgetAndScalesWithLoad(t *testing.T) 
 		t.Fatalf("40 s passes a local 45 s budget: %d %q %q", code, stdout, stderr)
 	}
 
-	h.commit(t, map[string]string{"apps/mobile/qa/journeys/a.tsv": "b\n"})
+	h.commit(t, map[string]string{"scripts/qa/journeys-a.txt": "b\n"})
 	h.replies = []reply{{prefix: "python3 scripts/qa/journey.py check", took: 50 * time.Second}}
 	code, stdout, stderr = h.check(t)
 	want = "journeys row over the 45s (local) journeys budget after 50s"
@@ -2604,7 +2633,7 @@ func TestCheck_aLocalBudgetReplacesTheRepoBudgetAndScalesWithLoad(t *testing.T) 
 		t.Fatalf("50 s fails a local 45 s budget: %d %q %q", code, stdout, stderr)
 	}
 
-	h.commit(t, map[string]string{"apps/mobile/qa/journeys/a.tsv": "c\n"})
+	h.commit(t, map[string]string{"scripts/qa/journeys-a.txt": "c\n"})
 	h.load = 16
 	h.replies = []reply{{prefix: "python3 scripts/qa/journey.py check", took: 80 * time.Second}}
 	code, stdout, stderr = h.check(t)

@@ -409,15 +409,17 @@ func (env *Env) stage0(ctx context.Context, lane, base, parent, head string) ([]
 	}
 	rows = append(rows, env.coverRows(rows, changed)...)
 	if journeyChanged(changed) {
-		rows = append(rows, checkRow{
-			label: "journeys", kind: "journeys", dir: env.Work,
-			cmds: [][]string{
-				{"scripts/qa/screens.sh", "--check"},
-				{"python3", "scripts/qa/journey.py", "check"},
-				{"python3", "scripts/qa/test_journey.py"},
-				{"python3", "scripts/qa/test_skill_eval.py"},
-			},
-		})
+		cmds := [][]string{
+			{"scripts/qa/screens.sh", "--check"},
+			{"python3", "scripts/qa/journey.py", "check"},
+		}
+		if journeyToolingChanged(changed) {
+			cmds = append(cmds,
+				[]string{"python3", "scripts/qa/test_journey.py"},
+				[]string{"python3", "scripts/qa/test_skill_eval.py"},
+			)
+		}
+		rows = append(rows, checkRow{label: "journeys", kind: "journeys", dir: env.Work, cmds: cmds})
 	}
 	return env.pathRows(ctx, rows, changed, parent, head)
 }
@@ -475,6 +477,10 @@ func journeyChanged(changed []string) bool {
 	return slices.ContainsFunc(changed, func(file string) bool {
 		return underAny(file, []string{"apps/mobile/", "docs/journeys/", "apps/mobile/qa/", "scripts/qa/"})
 	})
+}
+
+func journeyToolingChanged(changed []string) bool {
+	return slices.ContainsFunc(changed, func(file string) bool { return strings.HasPrefix(file, "scripts/qa/") })
 }
 
 func swiftFile(f string) bool {
