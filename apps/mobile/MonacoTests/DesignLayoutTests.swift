@@ -206,16 +206,22 @@ struct V3LargeTextLayoutTests {
         return host.sizeThatFits(in: CGSize(width: 1000, height: 100)).width
     }
 
-    @Test(arguments: [DynamicTypeSize.xxxLarge, .accessibility1, .accessibility5])
-    func aSevenLabelRangeRowScrollsInsteadOfStackingOrCuttingALabel(size: DynamicTypeSize) {
-        let row = RangeProbe().frame(width: 393)
-        let fitted = Self.fitted(row, at: size).height
-        #expect(fitted < 2 * MonacoButtonMetrics.hitTarget, "\(fitted)pt at \(size)")
-        let ideal = UIHostingController(rootView: RangeProbe().environment(\.dynamicTypeSize, size))
-            .sizeThatFits(in: CGSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude))
-            .width
-        let labels = RangeProbe.labels.map { Self.idealWidth(of: $0, at: size) }.reduce(0, +)
-        #expect(ideal >= labels, "ideal \(ideal)pt, labels \(labels)pt at \(size)")
+    @Test func aSevenLabelRangeRowStaysOneRowAtXXXLarge() {
+        let fitted = Self.fitted(RangeProbe().frame(width: 393), at: .xxxLarge)
+        #expect(fitted.height < 2 * MonacoButtonMetrics.hitTarget, "\(fitted.height)pt")
+    }
+
+    @Test(arguments: [DynamicTypeSize.accessibility1, .accessibility5])
+    func aSevenLabelRangeRowWrapsAtAccessibilitySizesInsteadOfCuttingALabel(size: DynamicTypeSize) {
+        let fitted = Self.fitted(RangeProbe().frame(width: 393), at: size)
+        #expect(fitted.width <= 393, "\(fitted.width)pt at \(size)")
+        if size == .accessibility5 {
+            #expect(fitted.height >= 2 * MonacoButtonMetrics.hitTarget, "\(fitted.height)pt at \(size)")
+        }
+        let rows = max(1, Int((fitted.height / MonacoButtonMetrics.hitTarget).rounded(.down)))
+        let perRow = (RangeProbe.labels.count + rows - 1) / rows
+        let widest = RangeProbe.labels.map { Self.idealWidth(of: $0, at: size) }.max() ?? 0
+        #expect(widest <= 393 / CGFloat(perRow), "widest label \(widest)pt, \(perRow) per row at \(size)")
     }
 
     @Test func theSevenLabelRangeRowFitsThePhoneAtLargeSize() {
