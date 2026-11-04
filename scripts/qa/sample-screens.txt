@@ -253,6 +253,7 @@ cabal-members                     -MonacoGroupDetailSample members
 cabal-members-dark                -MonacoGroupDetailSample members -AppleInterfaceStyle Dark
 cabal-voters                      -MonacoGroupDetailSample voters
 cabal-chat                        -MonacoGroupDetailSample chat
+cabal-chat-draft                  -MonacoGroupDetailSample chat -MonacoChatSampleDraft nvda
 cabal-members-requests            -MonacoGroupDetailSample requests
 cabal-members-requests-empty      -MonacoGroupDetailSample requestsEmpty
 cabal-invite                      -MonacoGroupDetailSample invite
