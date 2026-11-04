@@ -1,0 +1,19 @@
+journey: chat/cabal-chat
+expect-fail: S1
+
+The Chat tab is left out of the tabs a cabal shows. S1.1 opens the cabal on its Chat tab, so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/packages/mobile-core/Sources/MonacoCore/Cabals/CabalTab.swift b/packages/mobile-core/Sources/MonacoCore/Cabals/CabalTab.swift
+index 43ba43efa..f2e0ab304 100644
+--- a/packages/mobile-core/Sources/MonacoCore/Cabals/CabalTab.swift
++++ b/packages/mobile-core/Sources/MonacoCore/Cabals/CabalTab.swift
+@@ -14,7 +14,7 @@ public enum CabalTab: String, CaseIterable, Hashable, Sendable {
+     public static var shown: [CabalTab] { shown(isReadOnly: false) }
+ 
+     public static func shown(isReadOnly: Bool) -> [CabalTab] {
+-        hostsChat && !isReadOnly ? allCases : allCases.filter { $0 != .chat }
++        allCases.filter { $0 != .chat }
+     }
+ 
+     public func resolved(isReadOnly: Bool) -> CabalTab {

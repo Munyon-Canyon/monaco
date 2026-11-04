@@ -1,0 +1,18 @@
+journey: chat/cabal-chat
+expect-fail: S1
+
+The pin capsule is hidden over the thread. S1.6 expects chat-pin-capsule after A pins a message, so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Groups/ChatPinCapsule.swift b/apps/mobile/Monaco/Features/Groups/ChatPinCapsule.swift
+index 987561468..edb5fc9a9 100644
+--- a/apps/mobile/Monaco/Features/Groups/ChatPinCapsule.swift
++++ b/apps/mobile/Monaco/Features/Groups/ChatPinCapsule.swift
+@@ -105,6 +105,7 @@ struct ChatPinCapsule: View {
+             .padding(.top, ChatPinMetrics.topGap)
+             .accessibilityElement(children: .contain)
+             .accessibilityIdentifier("chat-pin-capsule")
++            .hidden()
+         }
+     }
+ 

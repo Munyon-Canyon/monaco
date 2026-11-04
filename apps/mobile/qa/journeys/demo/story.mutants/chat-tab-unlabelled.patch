@@ -1,0 +1,19 @@
+journey: demo/story
+expect-fail: S5
+
+The Chat tab loses its "Chat" label. S5.1 expects the tab to read "Chat", so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/packages/mobile-core/Sources/MonacoCore/Cabals/CabalTab.swift b/packages/mobile-core/Sources/MonacoCore/Cabals/CabalTab.swift
+index 43ba43efa..5052ff899 100644
+--- a/packages/mobile-core/Sources/MonacoCore/Cabals/CabalTab.swift
++++ b/packages/mobile-core/Sources/MonacoCore/Cabals/CabalTab.swift
+@@ -23,7 +23,7 @@ public enum CabalTab: String, CaseIterable, Hashable, Sendable {
+ 
+     public var title: String {
+         switch self {
+-        case .chat: "Chat"
++        case .chat: ""
+         case .treasury: "Treasury"
+         case .rules: "Rules"
+         case .members: "Members"

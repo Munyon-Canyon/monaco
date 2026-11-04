@@ -1,7 +1,7 @@
 journey: chat/cabal-chat
 expect-fail: S1
 
-The chat composer reads "Say something". S1.3 checks the spec's "Message your cabal", so it must fail once S1.2 passes.
+The chat composer reads "Say something". S1.3 expects the placeholder to begin "Message" and name the cabal, so it must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/apps/mobile/Monaco/Features/Groups/GroupChatParts.swift b/apps/mobile/Monaco/Features/Groups/GroupChatParts.swift

@@ -320,7 +320,7 @@ final class JourneySession {
         finished = environment["MONACO_QA_LAST_SCENARIO"] == id
     }
 
-    private func waitForSetup(_ id: String) throws {
+    func waitForSetup(_ id: String) throws {
         guard let path = environment["MONACO_QA_SETUP_DIR"], !path.isEmpty else { return }
         let folder = URL(fileURLWithPath: path)
         let done = folder.appendingPathComponent("\(id).done")

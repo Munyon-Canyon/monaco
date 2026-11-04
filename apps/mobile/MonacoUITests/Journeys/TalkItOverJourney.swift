@@ -2,7 +2,7 @@ import XCTest
 
 enum TalkItOverJourney {
     static let id = "chat/talk-it-over"
-    static let version = 7
+    static let version = 8
     static let quietTitle = "No vote open."
 
     static func recorder() -> JourneyRecorder {
@@ -13,23 +13,11 @@ enum TalkItOverJourney {
     static func gm(run: String) -> String { "gm \(run)" }
     static func typo(run: String) -> String { "typo \(run)" }
 
-    enum Entry {
-        case search
-        case card
-        case here
-    }
-
-    static func openChat(_ app: XCUIApplication, run: String, step: String, from entry: Entry = .card) {
-        if entry != .here { app.openCabal(named: cabal(run: run)) }
-        let more = app.element("cabal-more-button")
-        XCTAssertTrue(more.waitForExistence(timeout: 10), "\(step): no '…' button on the cabal page")
-        more.tap()
-        let chat = app.element("cabal-more-chat")
-        XCTAssertTrue(chat.waitForExistence(timeout: 5), "\(step): no Chat item in the '…' menu")
-        chat.tap()
+    static func openChat(_ app: XCUIApplication, run: String, step: String) {
+        app.openCabal(named: cabal(run: run), tab: "chat", step: step)
         XCTAssertTrue(
-            JoinJourney.waitForLabel(app.element("chat-title"), containing: cabal(run: run), timeout: 15),
-            "\(step): the chat for \(cabal(run: run)) did not show within 15 s"
+            JoinJourney.waitForLabel(app.element("cabal-inline-title"), containing: cabal(run: run), timeout: 15),
+            "\(step): the title for \(cabal(run: run)) did not show within 15 s"
         )
     }
 
@@ -66,6 +54,8 @@ enum TalkItOverJourney {
         XCTAssertTrue(composer.waitForExistence(timeout: 5), "\(step): no chat composer")
         composer.tap()
         composer.typeText(text)
+        let tip = app.buttons.matching(NSPredicate(format: "label == %@", "Continue")).firstMatch
+        if tip.waitForExistence(timeout: 1) { tip.tap() }
         let send = app.element("chat-send")
         XCTAssertTrue(send.isEnabled, "\(step): the send disc is disabled with \(text) typed")
         send.tap()
@@ -74,8 +64,14 @@ enum TalkItOverJourney {
     static func openMenu(_ app: XCUIApplication, on text: String, step: String) {
         let bubble = message(app, containing: text)
         XCTAssertTrue(bubble.waitForExistence(timeout: 10), "\(step): no message reading \(text)")
-        bubble.press(forDuration: 1.0)
-        XCTAssertTrue(app.buttons["Reply"].firstMatch.waitForExistence(timeout: 5), "\(step): no Reply in the menu")
+        let reply = app.buttons["Reply"].firstMatch
+        var attempts = 0
+        while !reply.exists && attempts < 3 {
+            bubble.coordinate(withNormalizedOffset: CGVector(dx: 0.85, dy: 0.5)).press(forDuration: 1.0)
+            _ = reply.waitForExistence(timeout: 3)
+            attempts += 1
+        }
+        XCTAssertTrue(reply.exists, "\(step): no Reply in the menu")
     }
 
     static func card(_ app: XCUIApplication, run: String) -> XCUIElement {
@@ -88,25 +84,11 @@ enum TalkItOverJourney {
         "\(card.label) \(card.value as? String ?? "")"
     }
 
-    static func clearSearch(_ app: XCUIApplication) {
-        let field = app.textFields["cabals-filter-field"]
-        guard field.waitForExistence(timeout: 5), let text = field.value as? String, !text.isEmpty,
-            text != field.placeholderValue
-        else { return }
-        field.coordinate(withNormalizedOffset: CGVector(dx: 0.97, dy: 0.5)).tap()
-        let left = field.value as? String ?? ""
-        if !left.isEmpty, left != field.placeholderValue {
-            field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: left.count))
-        }
-        leaveScreens(app)
-    }
-
     static func reachCard(_ app: XCUIApplication, run: String, step: String) -> XCUIElement {
         app.tab("Cabals").tap()
         app.popToRoot()
-        clearSearch(app)
         let found = card(app, run: run)
-        let list = app.element("cabals-list")
+        let list = app.element("cabals-grid")
         _ = list.waitForExistence(timeout: 10)
         var swipes = 0
         while !found.waitForExistence(timeout: 3) && swipes < 6 {
@@ -119,7 +101,7 @@ enum TalkItOverJourney {
 
     static func anEmptyChat(_ app: XCUIApplication, run: String, recorder: JourneyRecorder) {
         recorder.step("S1.1", "open the empty chat") {
-            openChat(app, run: run, step: "S1.1", from: .search)
+            openChat(app, run: run, step: "S1.1")
             XCTAssertTrue(
                 JoinJourney.waitForLabel(app.element("chat-quiet-title"), containing: quietTitle, timeout: 10),
                 "S1.1: no quiet chat title within 10 s"
@@ -189,9 +171,12 @@ enum TalkItOverJourney {
         recorder.step("S3.3", "A sees the reply count and Seen by 1") {
             openChat(app, run: run, step: "S3.3")
             let replies = app.descendants(matching: .any).matching(
-                NSPredicate(format: "identifier BEGINSWITH 'chat-replies-' AND label CONTAINS '1 reply · last reply'")
+                NSPredicate(
+                    format:
+                        "identifier BEGINSWITH 'chat-replies-' AND label CONTAINS '1 reply' "
+                        + "AND label CONTAINS 'last reply'")
             ).firstMatch
-            wait(for: replies, timeout: 15, "S3.3: no '1 reply · last reply' under \(gm(run: run)) within 15 s")
+            wait(for: replies, timeout: 15, "S3.3: no '1 reply' and 'last reply' under \(gm(run: run)) within 15 s")
             XCTAssertTrue(
                 JoinJourney.waitForLabel(app.element("chat-seen-label"), containing: "Seen by 1", timeout: 15),
                 "S3.3: no 'Seen by 1' under \(gm(run: run)) within 15 s"
@@ -254,8 +239,7 @@ extension TalkItOverJourney {
 
     static func bOpensUnreadChat(_ app: XCUIApplication, run: String, recorder: JourneyRecorder) {
         recorder.step("S5.3", "B opens the unread chat") {
-            app.openCabal(named: cabal(run: run))
-            openChat(app, run: run, step: "S5.3", from: .here)
+            openChat(app, run: run, step: "S5.3")
             wait(
                 for: message(app, containing: "two \(run)"), timeout: 10,
                 "S5.3: no message reading two \(run) within 10 s")
@@ -269,8 +253,7 @@ extension TalkItOverJourney {
         recorder.step("S5.4", "the unread dot and badge clear") {
             app.tapBack()
             XCTAssertTrue(
-                app.element("cabal-more-button").waitForExistence(timeout: 10), "S5.4: no cabal page after backing out")
-            app.tapBack()
+                app.element("cabals-grid").waitForExistence(timeout: 10), "S5.4: no Cabals grid after backing out")
             let found = reachCard(app, run: run, step: "S5.4")
             XCTAssertFalse(
                 spoken(app, found).contains("unread"), "S5.4: the card still shows unread: \(spoken(app, found))")
