@@ -5,6 +5,7 @@ enum CabalsLeaveJourney {
     static let version = 8
 
     static let screenTimeout: TimeInterval = 15
+    static let host = "QA host"
 
     static func recorder() -> JourneyRecorder {
         JourneyRecorder(journey: id, version: version)
@@ -32,16 +33,16 @@ enum CabalsLeaveJourney {
         ).firstMatch
     }
 
-    static func memberLeaves(_ app: XCUIApplication, run: String, creator: String, recorder: JourneyRecorder) {
+    static func memberLeaves(_ app: XCUIApplication, run: String, recorder: JourneyRecorder) {
         let name = leaveCabal(run: run)
 
         recorder.step("S1.1", "open the cabal as a member") {
             app.openCabal(named: name)
             XCTAssertTrue(
                 JoinJourney.waitForLabel(
-                    app.element("cabal-member-count"), containing: JoinJourney.firstName(creator),
+                    app.element("cabal-member-count"), containing: JoinJourney.firstName(host),
                     timeout: screenTimeout),
-                "S1.1: the hero does not name \(creator): \(app.element("cabal-member-count").label)"
+                "S1.1: the hero does not name \(host): \(app.element("cabal-member-count").label)"
             )
         }
 

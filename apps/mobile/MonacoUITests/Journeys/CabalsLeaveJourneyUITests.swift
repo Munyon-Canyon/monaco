@@ -14,8 +14,7 @@ nonisolated final class CabalsLeaveJourneyUITests: XCTestCase {
 
         try session.scenario("S1") {
             try session.act(as: "B")
-            let creator = try session.account("A").name
-            CabalsLeaveJourney.memberLeaves(app, run: run, creator: creator, recorder: recorder)
+            CabalsLeaveJourney.memberLeaves(app, run: run, recorder: recorder)
             attachScreenshot(of: app, named: "S1-B-left")
         }
 
