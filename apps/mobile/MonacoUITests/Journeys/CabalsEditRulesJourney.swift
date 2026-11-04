@@ -2,7 +2,7 @@ import XCTest
 
 enum CabalsEditRulesJourney {
     static let id = "cabals/edit-rules"
-    static let version = 8
+    static let version = 9
 
     static let memberKey = "member-id"
     static let screenTimeout: TimeInterval = 15
@@ -37,10 +37,13 @@ enum CabalsEditRulesJourney {
         return element.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", text)).firstMatch.exists
     }
 
-    static func openProposal(_ app: XCUIApplication, step: String) {
-        let row = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'cabal-open-proposal-'")).firstMatch
-        XCTAssertTrue(row.waitForExistence(timeout: 15), "\(step): no open proposal row on the cabal page")
-        row.tap()
+    static func holdYesOnCard(_ app: XCUIApplication, step: String, toast: String) {
+        let yes = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier BEGINSWITH 'cabal-open-proposal-yes-'")).firstMatch
+        XCTAssertTrue(yes.waitForExistence(timeout: 15), "\(step): no Yes on the open proposal card")
+        yes.tap()
+        app.holdToCommit(yes)
+        JoinJourney.waitForToast(app, toast, step: step)
     }
 
     static func creatorReadsRules(_ app: XCUIApplication, run: String, recorder: JourneyRecorder) {
@@ -52,17 +55,21 @@ enum CabalsEditRulesJourney {
             app.openCabalTab("Rules")
             XCTAssertTrue(app.element("cabal-rules").waitForExistence(timeout: 10), "S1.2: no Rules within 10 s")
             assertRule(app, "votesToPass", reads: "2 of 2", step: "S1.2")
-            assertRule(app, "voteWindow", reads: "24 h", step: "S1.2")
+            assertRule(app, "voteWindow", reads: "24 hours", step: "S1.2")
             assertRule(app, "maxPerTrade", reads: "No limit", step: "S1.2")
             assertRule(app, "whoCanPropose", reads: "Voters", step: "S1.2")
-            assertRule(app, "cashOut", reads: "Anytime, your share", step: "S1.2")
-            assertRule(app, "showSides", reads: "After a vote closes \u{00B7} off", step: "S1.2")
+            assertRule(app, "cashOut", reads: "Any time", step: "S1.2")
+            let sides = app.switches["cabal-rules-show-sides-toggle"]
+            app.scrollIntoReach(sides)
+            XCTAssertTrue(sides.waitForExistence(timeout: 10), "S1.2: no Show who voted what switch")
+            XCTAssertEqual(sides.value as? String, "0", "S1.2: Show who voted what is not off")
             let footer = app.element("cabal-rules-footer")
             app.scrollIntoReach(footer)
             XCTAssertTrue(
-                footer.label.hasPrefix("Counts are live for every member."), "S1.2: the footer reads '\(footer.label)'")
+                footer.label.hasPrefix("Everyone sees the count as it happens."),
+                "S1.2: the footer reads '\(footer.label)'")
             XCTAssertTrue(
-                footer.label.contains("Rules change by proposal;"), "S1.2: the footer reads '\(footer.label)'")
+                footer.label.hasSuffix("Rules change by proposal."), "S1.2: the footer reads '\(footer.label)'")
             JoinJourney.snap(app, "S1-A-rules-before")
         }
     }
@@ -114,25 +121,28 @@ enum CabalsEditRulesJourney {
         }
 
         recorder.step("S2.3", "A holds Yes") {
-            openProposal(app, step: "S2.3")
-            app.pickAndHold("yes")
+            holdYesOnCard(app, step: "S2.3", toast: "Voted Yes.")
         }
     }
 
     static func memberVotes(_ app: XCUIApplication, run: String, recorder: JourneyRecorder) {
         recorder.step("S2.4", "B holds Yes") {
             app.openCabal(named: newName(run: run))
-            openProposal(app, step: "S2.4")
-            app.pickAndHold("yes")
+            holdYesOnCard(app, step: "S2.4", toast: "Voted Yes.")
         }
     }
 
     static func creatorSeesSides(_ app: XCUIApplication, run: String, recorder: JourneyRecorder) {
-        recorder.step("S2.5", "the Rules tab reads on since") {
+        recorder.step("S2.5", "the Show who voted what switch is on") {
             app.openCabal(named: newName(run: run))
             app.openCabalTab("Rules")
             XCTAssertTrue(app.element("cabal-rules").waitForExistence(timeout: 10), "S2.5: no Rules within 10 s")
-            assertRule(app, "showSides", reads: "on since", step: "S2.5", timeout: 20)
+            let sides = app.switches["cabal-rules-show-sides-toggle"]
+            app.scrollIntoReach(sides)
+            XCTAssertTrue(sides.waitForExistence(timeout: 10), "S2.5: no Show who voted what switch")
+            XCTAssertTrue(
+                FollowAndBoardsJourney.waitUntil(20) { sides.value as? String == "1" },
+                "S2.5: Show who voted what is not on within 20 s")
             JoinJourney.snap(app, "S2-A-rules-sides-on")
         }
     }

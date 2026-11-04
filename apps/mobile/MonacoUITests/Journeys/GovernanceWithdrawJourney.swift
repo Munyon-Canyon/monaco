@@ -2,7 +2,7 @@ import XCTest
 
 enum GovernanceWithdrawJourney {
     static let id = "governance/withdraw"
-    static let version = 3
+    static let version = 4
 
     static let screenTimeout: TimeInterval = 15
     static let checkTimeout: TimeInterval = 10
@@ -25,7 +25,11 @@ enum GovernanceWithdrawJourney {
             XCTAssertTrue(
                 card.waitForExistence(timeout: screenTimeout),
                 "S1.2: no cabal-open-proposal-\(proposalID) in the cabal within \(Int(screenTimeout)) s")
-            card.tap()
+            let open = app.element("cabal-open-proposal-open-\(proposalID)")
+            XCTAssertTrue(
+                open.waitForExistence(timeout: screenTimeout),
+                "S1.2: no cabal-open-proposal-open-\(proposalID) on the vote card within \(Int(screenTimeout)) s")
+            open.tap()
             GovernanceVoteJourney.waitForProposalScreen(app, step: "S1.2")
         }
 

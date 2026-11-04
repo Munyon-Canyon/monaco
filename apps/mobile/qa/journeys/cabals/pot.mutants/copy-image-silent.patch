@@ -1,0 +1,18 @@
+journey: cabals/pot
+expect-fail: S2
+
+Copy image puts the image on the pasteboard but shows no toast. S2.4 waits for the toast "Image copied.", so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/ShareCard/ShareScreen.swift b/apps/mobile/Monaco/Features/ShareCard/ShareScreen.swift
+index bab8d41a6..0505d8ca9 100644
+--- a/apps/mobile/Monaco/Features/ShareCard/ShareScreen.swift
++++ b/apps/mobile/Monaco/Features/ShareCard/ShareScreen.swift
+@@ -110,7 +110,6 @@ struct ShareScreen: View {
+             },
+             copyImage: { image in
+                 guard ShareActions.copy(image) else { return }
+-                toasts.current = MonacoToast(message: ShareActions.copiedMessage, isSuccess: true)
+             },
+             retry: { Task { await model.load() } })
+     }

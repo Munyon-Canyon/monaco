@@ -1,7 +1,7 @@
 ---
 id: cabals/info-and-members
 title: Members and voters on the cabal page
-version: 4
+version: 5
 milestone: UI v3
 requires: [auth/sign-in]
 actors: [A]
@@ -11,7 +11,9 @@ xcuitest: [apps/mobile/MonacoUITests/Journeys/CabalsInfoAndMembersJourney.swift,
 
 # Members and voters on the cabal page
 
-A cabal's creator opens the cabal through `openCabal(named:)`, reads the Members tab (admins, the record line, "See all"), then makes the second member a voter by proposal. Per founder decision Q4 the voters change by proposal, so S2 sends a "Make B a voter" proposal from the Voters tab, A holds Yes, and B shows under Voters. [cabals/edit-rules](edit-rules.md) covers the rules. The spec is [the cabal page](../../screens.md#cabal-screen-cabalroute). The rules are [Cabals](../../architecture/cabals.md#rules).
+A cabal's creator opens the cabal through `openCabal(named:)`, reads the Members tab (admins, the record line, "See all"), then makes the second member a voter by proposal. Per founder decision Q4 the voters change by proposal, so S2 sends a "Make" "a voter" proposal for B from the Voters tab, A holds Yes on the vote card above the tabs, and B shows under Voters. [cabals/edit-rules](edit-rules.md) covers the rules. The spec is [the cabal page](../../screens.md#cabal-screen-cabalroute). The rules are [Cabals](../../architecture/cabals.md#rules).
+
+Frames: `docs/design/v5/screens/03-cabal-members.png`.
 
 The format of this doc is in [App journeys](../README.md).
 
@@ -32,7 +34,7 @@ Starts signed in (auth/sign-in).
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
 | S1.1 | A | `openCabal(named:)` | the Cabals tab and the tile for the cabal | `QA info {QA.run}` | `cabal-header-name` reads `QA info {QA.run}` within 15 s |
-| S1.2 | A | `openCabalTab("Members")` | `cabal-tab-members`, then `cabal-members` | | Within 10 s, the tab label reads "Members 2"; `cabal-member-<A id>` reads "admin" and "you"; `cabal-member-<B id>` names B and reads "Holds a share"; `cabal-members-footer` ends "Anyone can become a voter by proposal." |
+| S1.2 | A | `openCabalTab("Members")` | `cabal-tab-members`, then `cabal-members` | | Within 10 s, the tab label reads "Members 2"; `cabal-member-<A id>` names A with "you" and its second line reads "admin"; `cabal-member-<B id>` names B and reads "Holds a share"; `cabal-members-footer` ends "Anyone can become a voter by proposal." |
 | S1.3 | A | tap, then back | `cabal-members-see-all` | | The screen titled "Members" (Members all) shows `members-list` within 15 s, and back returns to the cabal page |
 
 ### S2 Make B a voter by proposal
@@ -42,9 +44,9 @@ Starts where S1 left off: on the cabal page, Members tab.
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
 | S2.1 | A | `openCabalTab("Voters")` | `cabal-tab-voters`, then `cabal-voters` | | `cabal-member-<A id>` shows, and `cabal-member-<B id>` shows with "Holds a share" in its label (under Don't vote, not Vote) within 10 s |
-| S2.2 | A | long press, then tap | `cabal-member-<B id>`, then `cabal-voters-propose-voter` ("Propose making a voter") | | The sheet "Propose a rule change" opens and `cabal-rule-proposal-words` reads "Make B a voter" within 10 s |
+| S2.2 | A | long press, then tap | `cabal-member-<B id>`, then `cabal-voters-propose-voter` ("Propose making a voter") | | The sheet "Propose a rule change" opens and `cabal-rule-proposal-words` reads "Make", B's name and "a voter" within 10 s |
 | S2.3 | A | tap | `cabal-rule-proposal-propose` | | The toast "Proposed. Your cabal votes on it." shows within 10 s |
-| S2.4 | A | tap, then `pickAndHold("yes")` | the `cabal-open-proposal-<id>` row above the tabs | | A holds Yes; A is the only voter, so it passes |
+| S2.4 | A | tap, then hold | `cabal-open-proposal-yes-<id>` on the card above the tabs | | A holds Yes (`holdToCommit`) without leaving the page: the toast "Voted Yes." shows within 10 s, `cabal-header-name` still shows, `proposal-stat-row` does not exist, and the card leaves its pick state within 10 s (`cabal-open-proposal-vote-settled-<id>` or `cabal-open-proposal-vote-deciding-<id>` shows, or the card is gone). A is the only voter, so it passes |
 | S2.5 | A | `openCabalTab("Voters")` | `cabal-member-<B id>` | | `cabal-member-<B id>`'s label no longer holds "Holds a share" (B moved under Vote) within 20 s |
 
 ## Ground truth
@@ -53,7 +55,8 @@ Starts where S1 left off: on the cabal page, Members tab.
 
 ## Known failures on staging
 
-- S2.2: "Make B a voter" is no longer app copy. Blocked by #7976.
+None known.
+
 ## Not covered
 
 - The Requests tab and approving a request. [cabals/approve-request](approve-request.md) and [cabals/join](join.md) cover them.

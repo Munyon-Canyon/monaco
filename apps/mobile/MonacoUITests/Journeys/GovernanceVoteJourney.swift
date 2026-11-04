@@ -247,7 +247,11 @@ extension GovernanceVoteJourney {
         }
 
         recorder.step(S.s2p2) {
-            app.element("cabal-open-proposal-\(proposalID)").tap()
+            let open = app.element("cabal-open-proposal-open-\(proposalID)")
+            XCTAssertTrue(
+                JourneyDiagnostics.wait(for: open, in: app, timeout: S.s2p2.seconds),
+                "\(S.s2p2.id): cabal-open-proposal-open-\(proposalID) did not show within \(Int(S.s2p2.seconds)) s")
+            open.tap()
             waitForProposalScreen(app, step: S.s2p2.id)
         }
 

@@ -1,7 +1,7 @@
 ---
 id: governance/vote
 title: Vote on a proposal
-version: 6
+version: 7
 milestone: M13
 requires: [auth/sign-in]
 actors: [A, B]
@@ -48,8 +48,8 @@ The setup seeds the proposal, so this journey does not depend on the propose scr
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S2.1 | A | open the cabal | the Cabals tab, then the cabal named `{cabalName}` | | `cabal-header-name` reads `{cabalName}` and `cabal-open-proposal-<proposalID>` shows above the tabs within 15 s |
-| S2.2 | A | tap | `cabal-open-proposal-<proposalID>` | | The Proposal screen shows `proposal-stat-row` within 15 s |
+| S2.1 | A | open the cabal | the Cabals tab, then the cabal named `{cabalName}` | | `cabal-header-name` reads `{cabalName}` and the vote card `cabal-open-proposal-<proposalID>` shows above the tabs within 15 s |
+| S2.2 | A | tap | `cabal-open-proposal-open-<proposalID>`, the card's header | | The Proposal screen shows `proposal-stat-row` within 15 s |
 | S2.3 | A | pick and hold | `proposal-vote-yes` | | The toast reads "Voted Yes." with "Undo" within 10 s, and `proposal-change-vote` shows |
 
 ### S3 All proposals

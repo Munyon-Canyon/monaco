@@ -1,7 +1,7 @@
 ---
 id: governance/withdraw
 title: Withdraw a proposal
-version: 3
+version: 4
 milestone: M13
 requires: [auth/sign-in]
 actors: [A, B]
@@ -32,7 +32,7 @@ The format of this doc is in [App journeys](../README.md).
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
 | S1.1 | A | tap, type, then tap | the Cabals tab, `cabals-search-field`, then the `cabals-search-result-<id>` | `{cabalName}` | `cabal-header-name` reads `{cabalName}` within 15 s |
-| S1.2 | A | tap | `cabal-open-proposal-<proposalID>` in the cabal's open proposals | | The Proposal screen shows "Votes" and "Why buy" within 15 s |
+| S1.2 | A | tap | `cabal-open-proposal-open-<proposalID>`, the header of the vote card `cabal-open-proposal-<proposalID>` in the cabal's open proposals | | The Proposal screen shows "Votes" and "Why buy" within 15 s |
 | S1.3 | A | tap | "Withdraw proposal" | | The confirm "Withdraw this proposal?" with "Votes so far are dropped." shows within 5 s |
 | S1.4 | A | tap | "Withdraw" in the confirm | | The toast "Proposal withdrawn." shows within 10 s, and the Proposal screen reads "Withdrawn" within 10 s |
 | S1.5 | B | tap | the Home tab | | `home-vote-card-<proposalID>` is not under "Your vote" within 15 s |
