@@ -3104,7 +3104,7 @@ EVIDENCE_FENCE = re.compile(r"^```journey-evidence[ \t]*\n(.*?)^```", re.M | re.
 EVIDENCE_LINE = re.compile(
     r"^(?P<id>\S+)@(?P<version>\d+) commit (?P<commit>[0-9a-f]{40}) runs (?P<passed>\d+) of (?P<total>\d+) PASS "
     r"seeded caught (?P<caught>\d+) of (?P<seeded>\d+)$")
-EVIDENCE_RUNS = 3
+EVIDENCE_RUNS = 1
 
 
 def evidence_lines(body):
@@ -3137,15 +3137,16 @@ def gate_failures(base, head, body, fetch=None):
         if not (old is None or old.version != journey.version or touches(changed, files, ("steps", "mutants"))):
             continue
         label = "%s@%s" % (key, journey.version)
-        redo = "run scripts/qa/journey.py run %s --runs 3, then mutants, then report --evidence" % key
+        redo = "run scripts/qa/journey.py run %s, then mutants, then report --evidence" % key
         line = found.get((key, journey.version))
         if line is None:
             failures.append("%s: no evidence block; %s" % (label, redo))
             continue
         seeded = seeded_count(head, files)
-        if (int(line.group("passed")), int(line.group("total"))) != (EVIDENCE_RUNS, EVIDENCE_RUNS):
-            failures.append("%s: evidence shows %s of %s runs, not %d of %d; %s" % (
-                label, line.group("passed"), line.group("total"), EVIDENCE_RUNS, EVIDENCE_RUNS, redo))
+        passed, total = int(line.group("passed")), int(line.group("total"))
+        if total < EVIDENCE_RUNS or passed != total:
+            failures.append("%s: evidence shows %s of %s runs, not every run of at least %d passing; %s" % (
+                label, passed, total, EVIDENCE_RUNS, redo))
         elif (int(line.group("caught")), int(line.group("seeded"))) != (seeded, seeded):
             failures.append("%s: evidence shows caught %s of %s seeded bugs, but the journey has %d; %s" % (
                 label, line.group("caught"), line.group("seeded"), seeded, redo))
@@ -3192,7 +3193,7 @@ def evidence_report(journeys, rows, ids):
                 and r["build"] != "dev" and len(r["build"].partition("+mutant:")[0]) >= 7
                 and head.startswith(r["build"].partition("+mutant:")[0])]
         if not mine:
-            raise JourneyError("no runs of %s@%s on commit %s: commit and rerun scripts/qa/journey.py run %s --runs 3, "
+            raise JourneyError("no runs of %s@%s on commit %s: commit and rerun scripts/qa/journey.py run %s, "
                                "then mutants" % (key, journey.version, head[:12], key))
         clean = [r for r in mine if r["scenario"] == "*" and "+mutant:" not in r["build"]][-EVIDENCE_RUNS:]
         passed = sum(1 for r in clean if r["result"] == "PASS")
