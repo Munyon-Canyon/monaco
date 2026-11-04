@@ -131,15 +131,10 @@ struct CabalScreen: View {
         .toolbar {
             if let loaded = cabal.cabal {
                 ToolbarItem(placement: .principal) {
-                    let shown = CabalHeaderTitle.isShown(nameBottom: nameBottom, barBottom: barBottom)
-                    Text(CabalHeaderCopy.shortName(loaded.name))
-                        .font(MonacoTheme.Typo.section)
-                        .foregroundStyle(MonacoTheme.primaryText)
-                        .lineLimit(1)
-                        .opacity(shown ? 1 : 0)
-                        .animation(.easeOut(duration: 0.15), value: shown)
-                        .accessibilityHidden(!shown)
-                        .accessibilityIdentifier("cabal-inline-title")
+                    CabalFoldedTitle(
+                        groupId: loaded.id, name: loaded.name, pictureUrl: loaded.pictureUrl,
+                        memberCount: loaded.memberCount, alwaysShown: false,
+                        scrolledShown: CabalHeaderTitle.isShown(nameBottom: nameBottom, barBottom: barBottom))
                 }
             }
             if let loaded = cabal.cabal, loaded.me == nil {
