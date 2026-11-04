@@ -60,7 +60,8 @@ struct PostScreen: View {
                         Image(monaco: .share)
                             .font(MonacoTheme.Typo.headline)
                             .foregroundStyle(MonacoTheme.primaryText)
-                            .frame(minWidth: PostMetrics.round, minHeight: PostMetrics.round)
+                            .frame(width: PostMetrics.round, height: PostMetrics.round)
+                            .monacoToolbarCircle()
                     }
                     .frame(minWidth: PostMetrics.round, minHeight: PostMetrics.round)
                     .contentShape(Rectangle())
@@ -131,6 +132,7 @@ private struct PostContent: View {
             }
             .contentMargins(.bottom, PostMetrics.endGap, for: .scrollContent)
             .scrollDismissesKeyboard(.interactively)
+            .modifier(PostSoftBottomEdge())
             .environment(\.sectionScrollProxy, proxy)
             .refreshable { await model.refresh() }
             .safeAreaInset(edge: .bottom, spacing: 0) {
@@ -211,5 +213,16 @@ private struct PostSkeleton: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Loading the post")
         .accessibilityIdentifier("feed-item-detail-loading")
+    }
+}
+
+private struct PostSoftBottomEdge: ViewModifier {
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if #available(iOS 26, *) {
+            content.scrollEdgeEffectStyle(.soft, for: .bottom)
+        } else {
+            content
+        }
     }
 }
