@@ -5,6 +5,7 @@ version: 14
 milestone: M10
 requires: [auth/sign-in]
 actors: [A, B]
+timeout: 600
 flows: [03]
 xcuitest: [apps/mobile/MonacoUITests/Journeys/JoinJourney.swift, apps/mobile/MonacoUITests/Journeys/JoinJourneyUITests.swift]
 ---

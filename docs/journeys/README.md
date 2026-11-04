@@ -50,6 +50,7 @@ flows: [01]                 # backend flows this journey exercises
 # funds: only for a journey that moves money, see below
 # simslim: only for a journey that needs a category base-slim turns off, see below
 # rpc: fake, only for a journey that must not read the public Solana endpoint, see below
+# timeout: 600, only for a journey whose one run needs more than 300 s, see below
 # preconditions: only for state the run checks before it builds, see Preconditions in the run
 xcuitest: [apps/mobile/MonacoUITests/Journeys/SignInJourney.swift, apps/mobile/MonacoUITests/Journeys/SignInJourneyUITests.swift]
 ---
@@ -71,6 +72,8 @@ A step that has no accessibility identifier to target is a gap in the app. Add t
 `scripts/qa/journey.py` passes the run values to the test, the setup script and the truth check as `MONACO_QA_RUN` and `MONACO_QA_REFUND_ADDRESS`. It makes `MONACO_QA_RUN` for each run, so a value one run writes never matches one an earlier run left on the same database. It reads `MONACO_QA_REFUND_ADDRESS` from the environment. When it is unset, it uses the QA pot's address from `monacoctl qa pot --address`, and refuses to start a journey with `funds` only when neither is available.
 
 `simslim` names a profile in `ci/profiles/`. `scripts/qa/journey.py` passes it as `SIMSLIM_PROFILE` to `scripts/simslim-ensure.sh` before that journey. Every other journey uses `ci/profiles/base-slim.json`, and the shared simulator is re-slimmed when the profile changes.
+
+`timeout` caps one run of the journey in seconds (setup scripts, tests and the truth check together), from 1 to 1800. The default is 300, and `--timeout` on the command line wins over both. It ends a hung run; each step's own wait is set in the test.
 
 `rpc: fake` makes `scripts/qa/journey.py` build and start `cmd/fakes` on the slot's port (8099, or 8199 for slot 1) and start the backend with `SOLANA_RPC_URL` pointing at it, when every journey of the run declares it and none has `funds`. The public Solana endpoint answers 429 under load, and a screen that reads a portfolio value then shows a dash. A caller who exports `QA_FAKE_RPC=1` runs `bin/fakes` itself and keeps control.
 
