@@ -2955,6 +2955,22 @@ class Dev(unittest.TestCase):
             {"exportedFileName": "manual.png", "suggestedHumanReadableName": "S1-A-search_5.png"}]}]
         self.assertEqual(journey.failure_attachments(manifest), ("now.png", "now.txt"))
 
+    def test_attachments_listed_newest_first_are_picked_by_timestamp(self):
+        manifest = [{"testIdentifier": "T/testJourney", "attachments": [
+            {"exportedFileName": "now.txt", "suggestedHumanReadableName": "App UI hierarchy_3.txt", "timestamp": 30},
+            {"exportedFileName": "now.png", "suggestedHumanReadableName": "Screenshot_2.png", "timestamp": 20},
+            {"exportedFileName": "old.png", "suggestedHumanReadableName": "Screenshot_1.png", "timestamp": 10},
+            {"exportedFileName": "old.txt", "suggestedHumanReadableName": "App UI hierarchy_0.txt", "timestamp": 5}]}]
+        self.assertEqual(journey.failure_attachments(manifest), ("now.png", "now.txt"))
+
+    def test_the_first_failures_own_capture_wins_over_a_later_ones(self):
+        manifest = [{"testIdentifier": "T/testJourney", "attachments": [
+            {"exportedFileName": "second.png", "suggestedHumanReadableName": "failure-screenshot_2_B.png", "timestamp": 40},
+            {"exportedFileName": "second.txt", "suggestedHumanReadableName": "failure-hierarchy_3_B.txt", "timestamp": 41},
+            {"exportedFileName": "first.png", "suggestedHumanReadableName": "failure-screenshot_0_A.png", "timestamp": 20},
+            {"exportedFileName": "first.txt", "suggestedHumanReadableName": "failure-hierarchy_1_A.txt", "timestamp": 21}]}]
+        self.assertEqual(journey.failure_attachments(manifest), ("first.png", "first.txt"))
+
     def test_the_assertion_message_is_the_first_error_line(self):
         log = "x.swift:12: error: -[UITests.A testJourney] : XCTAssertTrue failed - S2.3 missing\nother: error: -[B c] : later"
         self.assertEqual(journey.failure_message(log), "XCTAssertTrue failed - S2.3 missing")
