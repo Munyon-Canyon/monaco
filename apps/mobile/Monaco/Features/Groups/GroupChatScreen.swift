@@ -103,6 +103,18 @@ struct GroupChatScreen: View {
     }
 
     private func thread(_ chat: ChatSession.State) -> some View {
+        ScrollViewReader { proxy in
+            threadView(chat)
+                .modifier(
+                    ChatPinHost(
+                        pins: chat.pins, cabalName: cabal?.name ?? "", viewerID: viewerID,
+                        controls: ChatPinControls(pins: chat.pins, role: cabal?.me?.role, viewerID: viewerID),
+                        isShown: network?.isOnline != false,
+                        scrollTo: { id in withAnimation { proxy.scrollTo(id, anchor: .center) } }))
+        }
+    }
+
+    private func threadView(_ chat: ChatSession.State) -> some View {
         GroupChatThreadView(
             rows: chat.timeline.rows,
             members: cabal?.members ?? [],
