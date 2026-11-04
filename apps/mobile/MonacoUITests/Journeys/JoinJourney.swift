@@ -3,7 +3,7 @@ import XCTest
 
 enum JoinJourney {
     static let id = "cabals/join"
-    static let version = 13
+    static let version = 14
 
     static let screenTimeout: TimeInterval = 15
 
@@ -185,7 +185,7 @@ enum JoinJourney {
 
         recorder.step("S1.8", "approve it") {
             decide(app, approve: true, step: "S1.8")
-            waitForToast(app, "Approved.", step: "S1.8")
+            waitForToast(app, "\(member) joined \(name).", step: "S1.8")
             XCTAssertTrue(
                 waitForRequestsGone(app, timeout: 10),
                 "S1.8: the request is still on the Members screen"
