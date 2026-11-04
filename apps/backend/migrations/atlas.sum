@@ -1,4 +1,4 @@
-h1:dwEP8QdRTzpG2bL8uX3HaFmPO5AD5PWmzAtTtCjnTrM=
+h1:nfWM9evD7UKxDhkPiHeX43qOxU+vfvi6f8qcpGFfMYM=
 20260927140427_platform.sql h1:dpKT9ALI2RTf1SBI4IzLY9kt47VTa8+JAziYaHsX5Jw=
 20260927185159_idempotency.sql h1:iYIp5Y5kBuPj5UJGcOifMeosr8qf0tj17c+5bmF37zE=
 20260929120000_system.sql h1:m6n0Y3tCc4MlfYNzi6Fh01YnogvlBbpQb1/X4WCtW40=
@@ -165,3 +165,4 @@ h1:dwEP8QdRTzpG2bL8uX3HaFmPO5AD5PWmzAtTtCjnTrM=
 20261104083953_social_chat_polls.sql h1:pADJCzKYVCfiIOY8QQsoaUUhqlzOGDpYEk3Ap7tNga0=
 20261104100236_social_chat_system_rows.sql h1:eu1QscYlrOCz/fW8UoYm0dBlyWyT7EBmVKRjv8G4jM0=
 20261104122137_social_chat_moments_backfill.sql h1:USHslMW6Yh04RF+9cJk4EXI5jLVLSU5nxEfgogriB6M=
+20261104134040_social_chat_pins.sql h1:P3JVjB3ZjhL6X1eDapyRcNxETg/v8GhqL3Gtai0JRzs=

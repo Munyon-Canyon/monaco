@@ -208,6 +208,18 @@ A poll asks the cabal something that is not a trade (flow 22c). It mirrors the r
 - **Realtime.** After the commit a vote or a retraction that changed a row publishes `poll.updated` on `cabal:<id>` with `{message_id, options: [{position, votes}], total_votes}`. It has no `mine` because the channel is shared. A failed publish is logged as degraded and does not fail the request.
 - **Leaving.** The `social_chat_seen_cleanup` durable also deletes the leaver's poll votes in that cabal on `cabal.member_left`, so a left member's votes stop counting.
 
+### Pins
+
+A cabal pins up to 3 messages so a member opening the chat sees the house rules first (flow 22f). `cabal_messages` gains `pinned_at` and `pinned_by`, a check that both are null or both set, and a partial index on `(cabal_id, pinned_at DESC)` over the pinned rows.
+
+- **Who may pin.** A cabal admin (role creator or admin, read from the cabal port's `MemberView`) can pin any message, and an author can pin their own. A system row has no author, so only an admin pins it. Anyone else gets `chat_pin_forbidden`. Only a member can pin (`not_cabal_member`).
+- **What can be pinned.** A live top-level message. A message that is unknown, deleted or in another cabal is `chat_message_not_found`, and a reply is `invalid_input` with `reason=reply`. A fourth pin is `chat_pin_limit`; the count is taken under a per-cabal advisory lock, so two pins at once cannot pass the limit.
+- **Who may unpin.** An admin, or the member who pinned it, otherwise `chat_pin_forbidden`. Pinning a pinned message and unpinning an unpinned one change nothing: no write, no event, no publish.
+- **Routes.** `PUT /v1/cabals/{id}/messages/{message_id}/pin` and `DELETE` on the same path return the updated `ChatMessage`. `GET /v1/cabals/{id}/chat/pins` returns `{messages}`, newest pin first, at most 3, for members only.
+- **Wire.** Every `ChatMessage` carries `pinned_at` and `pinned_by` (a `ChatAuthor`), both null when the message is not pinned.
+- **Deleting.** `SoftDeleteChatMessage` clears the pin in the same statement, so a deleted message leaves the list.
+- **Events and realtime.** A change appends `chat.message_pinned` or `chat.message_unpinned` (`{v, message_id, cabal_id, actor_id}`) in the same transaction. After the commit it publishes `pin.updated` on `cabal:<id>` with `{message_id, pinned}`, and the client re-reads the pins route. A failed publish is logged as degraded and does not fail the request. A pin sends no push and writes no system line.
+
 ### Moments
 
 A moment is the cabal speaking in its own chat: "Big Ballers was created", "Kai joined", "Bought NVDA at $196.75". It is a `cabal_messages` row with `kind = 'system'`, no author, no body and a `moment` payload (flow 22d). `kind` is `user` (the default, so every earlier row reads as `user`), `proposal` (a new proposal's card row, see [Proposal messages](#proposal-messages)) or `system`. A check constraint fixes the shape of each kind: a `system` row has a null `author_id`, a null `body`, a `moment` and no `parent_id`, and the other kinds have an author and no `moment`. A `user` row with neither a body nor an attachment stays refused by the command, not the database.

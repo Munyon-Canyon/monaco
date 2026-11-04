@@ -52,6 +52,8 @@ const (
 	ChatMessageNotOwned ErrorCode = "chat_message_not_owned"
 	ChatParentIsReply ErrorCode = "chat_parent_is_reply"
 	ChatParentNotFound ErrorCode = "chat_parent_not_found"
+	ChatPinForbidden ErrorCode = "chat_pin_forbidden"
+	ChatPinLimit ErrorCode = "chat_pin_limit"
 	ClientClosed ErrorCode = "client_closed"
 	CoinGeckoRateLimited ErrorCode = "coin_gecko_rate_limited"
 	CommentMembersOnly ErrorCode = "comment_members_only"
@@ -283,6 +285,10 @@ func (e ErrorCode) Valid() bool {
 	case ChatParentIsReply:
 		return true
 	case ChatParentNotFound:
+		return true
+	case ChatPinForbidden:
+		return true
+	case ChatPinLimit:
 		return true
 	case ClientClosed:
 		return true

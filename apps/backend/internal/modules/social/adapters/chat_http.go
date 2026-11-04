@@ -227,6 +227,64 @@ func (h HTTP) UnvoteChatPoll(
 	return api.UnvoteChatPoll200JSONResponse(wirePollState(state)), nil
 }
 
+func (h HTTP) PinChatMessage(
+	ctx context.Context, req api.PinChatMessageRequestObject,
+) (api.PinChatMessageResponseObject, error) {
+	me, err := caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	pinned, err := h.PinChat.Handle(ctx, app.PinChatMessage{
+		CabalID: ids.CabalIDFrom(req.Id), MessageID: req.MessageId, Caller: me,
+	})
+	if err != nil {
+		return nil, err
+	}
+	wire, err := h.wireChat(ctx, me, []app.ChatMessage{pinned})
+	if err != nil {
+		return nil, err
+	}
+	return api.PinChatMessage200JSONResponse(wire[0]), nil
+}
+
+func (h HTTP) UnpinChatMessage(
+	ctx context.Context, req api.UnpinChatMessageRequestObject,
+) (api.UnpinChatMessageResponseObject, error) {
+	me, err := caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	unpinned, err := h.UnpinChat.Handle(ctx, app.UnpinChatMessage{
+		CabalID: ids.CabalIDFrom(req.Id), MessageID: req.MessageId, Caller: me,
+	})
+	if err != nil {
+		return nil, err
+	}
+	wire, err := h.wireChat(ctx, me, []app.ChatMessage{unpinned})
+	if err != nil {
+		return nil, err
+	}
+	return api.UnpinChatMessage200JSONResponse(wire[0]), nil
+}
+
+func (h HTTP) GetChatPins(
+	ctx context.Context, req api.GetChatPinsRequestObject,
+) (api.GetChatPinsResponseObject, error) {
+	me, err := caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	pins, err := app.ListChatPins(ctx, h.Reads, h.Members, ids.CabalIDFrom(req.Id), me)
+	if err != nil {
+		return nil, err
+	}
+	wire, err := h.wireChat(ctx, me, pins)
+	if err != nil {
+		return nil, err
+	}
+	return api.GetChatPins200JSONResponse(api.ChatPins{Messages: wire}), nil
+}
+
 func (h HTTP) ReactToChatMessage(
 	ctx context.Context, req api.ReactToChatMessageRequestObject,
 ) (api.ReactToChatMessageResponseObject, error) {
@@ -305,6 +363,11 @@ func wireChatWith(
 			Deleted:       m.Deleted,
 			SeenCount:     m.SeenCount,
 			Reactions:     []baseapi.Reaction{},
+			PinnedAt:      m.PinnedAt,
+		}
+		if m.PinnedAt != nil {
+			pinner := wireChatAuthor(cards, m.PinnedBy)
+			out[i].PinnedBy = &pinner
 		}
 		switch {
 		case m.Kind == domain.ChatKindSystem:
@@ -336,6 +399,9 @@ func wireChatBody(m app.ChatMessage) (*string, *api.CommentAttachment) {
 
 func cardsNeeded(m app.ChatMessage) []ids.UserID {
 	need := []ids.UserID{m.AuthorID}
+	if m.PinnedAt != nil {
+		need = append(need, m.PinnedBy)
+	}
 	if m.Moment != nil && m.Moment.Kind() == domain.MomentMemberJoined {
 		need = append(need, m.Moment.Member())
 	}

@@ -19,6 +19,7 @@ const (
 	EventReactionUpdated = "reaction.updated"
 	EventPollUpdated     = "poll.updated"
 	EventMomentCreated   = "moment.created"
+	EventPinUpdated      = "pin.updated"
 )
 
 type ChatWire func(ctx context.Context, m ChatMessage) (any, error)
@@ -58,6 +59,11 @@ type PollUpdated struct {
 	MessageID  uuid.UUID         `json:"message_id"`
 	Options    []PollOptionCount `json:"options"`
 	TotalVotes int               `json:"total_votes"`
+}
+
+type PinUpdated struct {
+	MessageID uuid.UUID `json:"message_id"`
+	Pinned    bool      `json:"pinned"`
 }
 
 type ChatPublisher struct {
@@ -117,6 +123,11 @@ func (p ChatPublisher) pollUpdated(ctx context.Context, cabal ids.CabalID, id uu
 		counts[i] = PollOptionCount{Position: o.Position, Votes: o.Count}
 	}
 	p.send(ctx, cabal, id, EventPollUpdated, PollUpdated{MessageID: id, Options: counts, TotalVotes: v.Total})
+}
+
+func (p ChatPublisher) pinUpdated(ctx context.Context, cabal ids.CabalID, id uuid.UUID, pinned bool) {
+	ctx = context.WithoutCancel(ctx)
+	p.send(ctx, cabal, id, EventPinUpdated, PinUpdated{MessageID: id, Pinned: pinned})
 }
 
 func (p ChatPublisher) send(ctx context.Context, cabal ids.CabalID, id uuid.UUID, event string, data any) {

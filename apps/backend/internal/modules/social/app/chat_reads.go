@@ -87,7 +87,7 @@ func listAfter(ctx context.Context, reads *sqlc.Queries, q ChatChannelQuery, lim
 			ID: r.ID, CabalID: r.CabalID, AuthorID: r.AuthorID, Body: r.Body, CreatedAt: r.CreatedAt,
 			ParentID: r.ParentID, AlsoInChannel: r.AlsoInChannel, ReplyCount: r.ReplyCount,
 			LastReplyAt: r.LastReplyAt, ProposalID: r.ProposalID, DeletedAt: r.DeletedAt, Kind: r.Kind,
-			Moment: r.Moment,
+			Moment: r.Moment, PinnedAt: r.PinnedAt, PinnedBy: r.PinnedBy,
 		}, r.Blocked}
 	}), nil
 }
@@ -114,7 +114,7 @@ func listBefore(ctx context.Context, reads *sqlc.Queries, q ChatChannelQuery, li
 			ID: r.ID, CabalID: r.CabalID, AuthorID: r.AuthorID, Body: r.Body, CreatedAt: r.CreatedAt,
 			ParentID: r.ParentID, AlsoInChannel: r.AlsoInChannel, ReplyCount: r.ReplyCount,
 			LastReplyAt: r.LastReplyAt, ProposalID: r.ProposalID, DeletedAt: r.DeletedAt, Kind: r.Kind,
-			Moment: r.Moment,
+			Moment: r.Moment, PinnedAt: r.PinnedAt, PinnedBy: r.PinnedBy,
 		}, r.Blocked}
 	}), nil
 }
@@ -278,6 +278,10 @@ func storedMessage(row sqlc.CabalMessage) ChatMessage {
 	if row.LastReplyAt.Valid {
 		at := row.LastReplyAt.Time.UTC()
 		m.LastReplyAt = &at
+	}
+	if row.PinnedAt.Valid {
+		at := row.PinnedAt.Time.UTC()
+		m.PinnedAt, m.PinnedBy = &at, ids.UserIDFrom(row.PinnedBy.Bytes)
 	}
 	if m.Deleted {
 		m.Body = ""
