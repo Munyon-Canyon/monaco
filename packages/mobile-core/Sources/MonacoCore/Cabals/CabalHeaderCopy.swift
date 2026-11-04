@@ -1,13 +1,7 @@
 import Foundation
 
 public enum CabalHeaderCopy {
-    public static let botValue = "Off"
     public static let moveRange = "1M"
-
-    public struct Stat: Equatable, Sendable {
-        public let label: String
-        public let value: String
-    }
 
     public struct Move: Equatable, Sendable {
         public let percent: String
@@ -54,16 +48,6 @@ public enum CabalHeaderCopy {
         let month = SharedFormatters.string(
             from: createdAt, pattern: .fixed("MMMM"), locale: posix, calendar: calendar)
         return "since \(month)"
-    }
-
-    public static func stats(shareMicros: Int64, sliceBps: Int, openVotes: Int) -> [Stat] {
-        var stats: [Stat] = [
-            Stat(label: "Your share", value: wholeDollars(shareMicros)),
-            Stat(label: "Of treasury", value: percent(basisPoints: sliceBps)),
-            Stat(label: "Open votes", value: "\(openVotes)"),
-        ]
-        if LaunchFeatures.bots { stats.append(Stat(label: "Bot", value: botValue)) }
-        return stats
     }
 
     public static func move(_ curve: ValueCurve?, createdAt: Date, now: Date, calendar: Calendar = .current) -> Move? {

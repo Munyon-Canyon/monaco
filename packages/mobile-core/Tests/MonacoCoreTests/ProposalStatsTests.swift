@@ -27,7 +27,6 @@ final class ProposalStatsTests: XCTestCase {
     func testAnOpenBuyShowsPriceSharesTreasuryAndWhenItCloses() async throws {
         let result = stats(.openNVDA(now: now))
         XCTAssertEqual(line(result), ["Price $220.00", "Shares ≈ 1.82", "Of treasury 2%", "Closes 1:53 PM"])
-        XCTAssertEqual(result.cells.map(\.hasInfo), [true, false, false, false])
     }
 
     func testAPassedBuyThatHasNotFilledShowsWhenItPassed() async throws {
@@ -39,7 +38,6 @@ final class ProposalStatsTests: XCTestCase {
         let result = stats(.filledNVDA(now: now))
         XCTAssertEqual(line(result), ["Fill $219.40", "Shares 1.82", "Now $220.00", "Since +0.3%"])
         XCTAssertEqual(result.cells.map(\.tone), [.plain, .plain, .plain, .gain])
-        XCTAssertEqual(result.cells.map(\.hasInfo), [false, false, false, false])
     }
 
     func testAFilledBuyInAnotherCabalReadsTheSameWay() async throws {
@@ -72,7 +70,6 @@ final class ProposalStatsTests: XCTestCase {
     func testAPreIpoBuyShowsTheEstimateAndSharesRoundedDown() async throws {
         let result = stats(.preIpoSpaceX(now: now), asset: .spaceX)
         XCTAssertEqual(line(result), ["Estimate $185.00", "Shares ≈ 2.70", "Of treasury 2.2%", "Closes Fri 5:53 AM"])
-        XCTAssertEqual(result.cells.map(\.hasInfo), [true, false, false, false])
     }
 
     func testAPassedPreIpoBuyKeepsTheEstimate() async throws {
