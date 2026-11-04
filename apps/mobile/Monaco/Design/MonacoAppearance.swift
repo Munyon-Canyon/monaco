@@ -181,11 +181,13 @@ extension View {
         detents: MonacoSheetDetents = .fitted,
         showsClose: Bool = false,
         closeIdentifier: String? = nil,
-        showsHeading: Bool = true
+        showsHeading: Bool = true,
+        contentScrolls: Bool = false
     ) -> some View {
         MonacoSheetFrame(
             title: title, titleIdentifier: titleIdentifier, kind: detents, showsClose: showsClose,
-            closeIdentifier: closeIdentifier, scrolls: true, showsHeading: showsHeading, content: self)
+            closeIdentifier: closeIdentifier, scrolls: true, showsHeading: showsHeading,
+            contentScrolls: contentScrolls, content: self)
     }
 
     @ViewBuilder
