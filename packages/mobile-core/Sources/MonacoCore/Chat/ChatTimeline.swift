@@ -11,6 +11,7 @@ public struct ChatRow: Identifiable, Equatable, Sendable {
     }
 
     public let message: ChatMessage
+    public let pendingAttachment: ChatAttachmentDraft?
     public let parentBody: String?
     public let delivery: Delivery
     public let isMine: Bool
@@ -19,6 +20,13 @@ public struct ChatRow: Identifiable, Equatable, Sendable {
     public let endsRun: Bool
 
     public var id: String { message.id }
+    public var attachment: Components.Schemas.CommentAttachment? { message.attachment }
+
+    public var displayText: String {
+        guard let body = message.body else { return "" }
+        let standIn = message.attachment?.fallbackBody ?? pendingAttachment?.fallbackBody
+        return body == standIn ? "" : body
+    }
     public var date: Date { message.createdAt }
     public var isPlaceholder: Bool { message.deleted }
 
@@ -59,11 +67,20 @@ extension ChatMessage {
 public struct ChatTimeline: Equatable, Sendable {
     struct Unsent: Equatable, Sendable {
         let key: String
-        let body: String
+        let body: String?
+        let attachment: ChatAttachmentDraft?
         let createdAt: Date
         let parentID: String?
         let alsoInChannel: Bool
         var failed: Bool
+
+        var postedBody: String? { body ?? attachment?.fallbackBody }
+
+        func request(parentID: String?) -> Components.Schemas.PostChatMessageRequest {
+            .init(
+                body: body, attachment: attachment?.request(), parentId: parentID,
+                alsoInChannel: parentID == nil ? nil : alsoInChannel)
+        }
     }
 
     public enum Scope: Equatable, Sendable {
@@ -199,12 +216,13 @@ public struct ChatTimeline: Equatable, Sendable {
     }
 
     mutating func addUnsent(
-        key: String, body: String, at createdAt: Date, parentID: String? = nil, alsoInChannel: Bool = false
+        key: String, body: String?, attachment: ChatAttachmentDraft? = nil, at createdAt: Date,
+        parentID: String? = nil, alsoInChannel: Bool = false
     ) {
         unsent.append(
             Unsent(
-                key: key, body: body, createdAt: createdAt, parentID: parentID, alsoInChannel: alsoInChannel,
-                failed: false))
+                key: key, body: body, attachment: attachment, createdAt: createdAt, parentID: parentID,
+                alsoInChannel: alsoInChannel, failed: false))
         rebuildRows()
     }
 
@@ -225,7 +243,7 @@ public struct ChatTimeline: Equatable, Sendable {
 
     private mutating func dropEchoed(by message: ChatMessage) {
         guard message.author.id == viewerID,
-            let index = unsent.firstIndex(where: { $0.body == message.body })
+            let index = unsent.firstIndex(where: { $0.postedBody == message.body })
         else { return }
         unsent.remove(at: index)
     }
@@ -278,6 +296,7 @@ public struct ChatTimeline: Equatable, Sendable {
             let nextStartsDay = next.map { !calendar.isDate(message.createdAt, inSameDayAs: $0.createdAt) } ?? false
             return ChatRow(
                 message: message,
+                pendingAttachment: unsent.first { $0.key == message.id }?.attachment,
                 parentBody: message.parentId.flatMap { id in messages.first { $0.id == id }?.body },
                 delivery: delivery(of: message),
                 isMine: message.author.id == viewerID,
@@ -297,7 +316,7 @@ public struct ChatTimeline: Equatable, Sendable {
         ChatMessage(
             id: send.key,
             author: .init(id: viewerID, handle: nil, displayName: "", photoUrl: nil),
-            body: send.body,
+            body: send.postedBody,
             createdAt: send.createdAt,
             parentId: send.parentID,
             alsoInChannel: send.alsoInChannel,
