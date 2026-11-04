@@ -1,0 +1,19 @@
+journey: cabals/invite
+expect-fail: S1
+
+The vote row ends with the old "ends in 23h" deadline. S1.4 expects no deadline on the row, so S1 must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/packages/mobile-core/Sources/MonacoCore/Referrals/CabalInviteCopy.swift b/packages/mobile-core/Sources/MonacoCore/Referrals/CabalInviteCopy.swift
+index 569039e4a..2717e4ac2 100644
+--- a/packages/mobile-core/Sources/MonacoCore/Referrals/CabalInviteCopy.swift
++++ b/packages/mobile-core/Sources/MonacoCore/Referrals/CabalInviteCopy.swift
+@@ -100,7 +100,7 @@ public enum CabalInviteCopy {
+         ProposalVoteCopy.cardLine(
+             cabalName: nil, tally: ProposalTally(yes: voted, no: 0, voters: eligible, needed: 0),
+             replies: replies, expiresAt: expiresAt, now: now
+-        ).short
++        ).short + " \u{00B7} ends in 23h"
+     }
+ 
+     private static func proposal(

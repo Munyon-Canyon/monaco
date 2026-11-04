@@ -1,10 +1,11 @@
 journey: cabals/invite
 expect-fail: S1
 
-Copy link no longer toasts. S1.4 waits for "Link copied.", so S1 must fail.
+Copy link no longer toasts. S1.4 and S1.6 wait for "Link copied.", so S1 must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/apps/mobile/Monaco/Features/Groups/CabalInviteSheet.swift b/apps/mobile/Monaco/Features/Groups/CabalInviteSheet.swift
+index 14c8868f9..bea24c5c5 100644
 --- a/apps/mobile/Monaco/Features/Groups/CabalInviteSheet.swift
 +++ b/apps/mobile/Monaco/Features/Groups/CabalInviteSheet.swift
 @@ -271,7 +271,6 @@ struct CabalInviteSheet: View {
