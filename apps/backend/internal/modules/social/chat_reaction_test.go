@@ -341,6 +341,8 @@ func TestChatReactions_aDatabaseFailureIsInternal(t *testing.T) {
 	}{
 		{"LiveChatMessageAuthor", false},
 		{"AddChatReaction", false},
+		{"LockUserPair", false},
+		{"IsBlockedEitherWay", false},
 		{"CountUserChatReactions", false},
 		{"ChatReactionSummaries", false},
 		{"LiveChatMessageAuthor", true},
