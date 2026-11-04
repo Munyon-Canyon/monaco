@@ -1,6 +1,6 @@
 enum GovernanceVoteJourneySteps {
     static let id = "governance/vote"
-    static let version = 7
+    static let version = 8
 
     static let s1p1 = JourneyStep(
         id: "S1.1",
@@ -15,11 +15,10 @@ enum GovernanceVoteJourneySteps {
         actor: "A",
         seconds: 15,
         copy: [
-            "Price",
-            "Shares",
-            "Of treasury",
-            "Closes",
+            "of treasury",
             "QA vote {QA.run}",
+            "0 of 3 voted",
+            "closes in",
             "Yes, 0 votes",
             "No, 0 votes",
             "Remind me at close",
@@ -37,7 +36,15 @@ enum GovernanceVoteJourneySteps {
         name: "tap proposal-vote-yes",
         actor: "A",
         seconds: 10,
-        copy: ["Voted Yes, 1 vote", "1 of 3 voted", "Voted Yes. 1st of 3.", "Undo", "Hear how votes end?", "Not now"]
+        copy: [
+            "Voted Yes, 1 vote",
+            "1 of 3 voted",
+            "closes in",
+            "Voted Yes. 1st of 3.",
+            "Undo",
+            "Hear how votes end?",
+            "Not now",
+        ]
     )
     static let s1p5 = JourneyStep(
         id: "S1.5",
@@ -47,10 +54,10 @@ enum GovernanceVoteJourneySteps {
         copy: [
             "You voted Yes",
             "Yes, 0 votes",
-            "No, 1 vote",
+            "Voted No, 1 vote",
             "Changed to No.",
             "Change",
-            "Yes, 1 vote",
+            "Voted Yes, 1 vote",
             "No, 0 votes",
             "Changed to Yes.",
         ]
@@ -60,21 +67,21 @@ enum GovernanceVoteJourneySteps {
         name: "tap the Home tab, then home-vote-open-<proposalID>",
         actor: "B",
         seconds: 15,
-        copy: ["Yes, 1 vote", "No, 0 votes", "1 of 3 voted"]
+        copy: ["1 vote", "0 votes", "1 of 3 voted", "closes in"]
     )
     static let s1p7 = JourneyStep(
         id: "S1.7",
         name: "pick and hold proposal-vote-no, then the toast's Undo while",
         actor: "B",
         seconds: 10,
-        copy: ["Voted No, 1 vote", "Voted No. 2nd of 3.", "Undo", "Yes, 1 vote", "No, 0 votes", "Vote undone."]
+        copy: ["Voted No, 1 vote", "Voted No. 2nd of 3.", "Undo", "1 vote", "0 votes", "Vote undone."]
     )
     static let s1p8 = JourneyStep(
         id: "S1.8",
         name: "pick and hold proposal-vote-yes",
         actor: "B",
         seconds: 10,
-        copy: ["Voted Yes. Passed 2–0.", "Voted Yes, 2 votes", "Passed 2–0", "Passed"]
+        copy: ["Voted Yes. Passed 2–0.", "Voted Yes, 2 votes", "Passed 2–0", "seal"]
     )
     static let s1p9 = JourneyStep(
         id: "S1.9",

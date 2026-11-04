@@ -5,10 +5,10 @@ Undo does not take the ballot back, so B's No stays counted. S1.7 expects the ta
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/apps/mobile/Monaco/Features/Proposals/ProposalVoteSection.swift b/apps/mobile/Monaco/Features/Proposals/ProposalVoteSection.swift
-index ebe5cb715..8d63e9bd7 100644
+index 843d1933c..7d6984760 100644
 --- a/apps/mobile/Monaco/Features/Proposals/ProposalVoteSection.swift
 +++ b/apps/mobile/Monaco/Features/Proposals/ProposalVoteSection.swift
-@@ -250,7 +250,7 @@ struct ProposalVoteSection: View {
+@@ -259,7 +259,7 @@ struct ProposalVoteSection: View {
  
      private func undo() {
          Task {

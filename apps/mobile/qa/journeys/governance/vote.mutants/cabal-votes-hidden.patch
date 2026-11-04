@@ -1,19 +1,19 @@
 journey: governance/vote
 expect-fail: S2
 
-The cabal page does not show its open proposal row. S2.1 waits for cabal-open-proposal-<proposalID> above the tabs, so it must fail.
+The cabal page does not draw its open proposal vote card. S2.1 waits for cabal-open-proposal-<proposalID> above the tabs, so it must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalProposalsSlot.swift b/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalProposalsSlot.swift
-index 81e0ad933..5e380beb9 100644
+index f7cf5351d..9fa642362 100644
 --- a/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalProposalsSlot.swift
 +++ b/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalProposalsSlot.swift
-@@ -3,7 +3,7 @@ import MonacoCore
- import SwiftUI
+@@ -49,7 +49,7 @@ struct CabalProposals: View {
  
- enum CabalProposalsSlot: CabalSection {
--    static let isLive = true
-+    static let isLive = false
- 
-     static func body(for context: CabalContext) -> some View {
-         CabalProposals(cabalID: context.cabalID)
+     @ViewBuilder private var content: some View {
+         if let model, !isReadOnly {
+-            let open = Self.open(model.pager.items)
++            let open: [ProposalSummary] = []
+             if open.isEmpty {
+                 switch model.pager.phase {
+                 case .loadingFirst:

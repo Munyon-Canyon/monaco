@@ -1,0 +1,19 @@
+journey: governance/vote
+expect-fail: S1
+
+The vote that settles the proposal gets the plain check, not the seal. S1.8 expects the toast banner value "seal", so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/packages/mobile-core/Sources/MonacoCore/Proposals/ProposalVoteCopy.swift b/packages/mobile-core/Sources/MonacoCore/Proposals/ProposalVoteCopy.swift
+index 501019b05..d4f54c6c6 100644
+--- a/packages/mobile-core/Sources/MonacoCore/Proposals/ProposalVoteCopy.swift
++++ b/packages/mobile-core/Sources/MonacoCore/Proposals/ProposalVoteCopy.swift
+@@ -181,7 +181,7 @@ public enum ProposalVoteCopy {
+         if outcome.settled {
+             let score = "\(outcome.tally.yes)–\(outcome.tally.no)"
+             let result = outcome.status == .passed ? "Passed" : "Failed"
+-            return VoteToast(message: "\(voted) \(result) \(score).", offersUndo: false, glyph: .seal)
++            return VoteToast(message: "\(voted) \(result) \(score).", offersUndo: false, glyph: .check)
+         }
+         if outcome.changed {
+             return VoteToast(message: "Changed to \(outcome.choice.label).", offersUndo: false)
