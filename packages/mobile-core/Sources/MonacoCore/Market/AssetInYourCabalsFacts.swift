@@ -24,7 +24,9 @@ public struct AssetHeldRowFacts: Equatable, Sendable, Identifiable {
             while shares.last == "0" { shares = shares.dropLast() }
             if shares.last == "." { shares = shares.dropLast() }
         }
-        subtitle = "\(shares) sh · \(CabalHeaderCopy.percent(basisPoints: Int(holding.weightBps))) of treasury"
+        let noun = shares == "1" ? "share" : "shares"
+        subtitle =
+            "\(shares) \(noun) · \(CabalHeaderCopy.percent(basisPoints: Int(holding.weightBps))) of the treasury"
         valueMicros = holding.valueMicros
         let (scaled, overflow) = holding.pnlMicros.multipliedReportingOverflow(by: 10_000)
         let isPreIpo = holding.kind == .preIpo
@@ -62,9 +64,12 @@ public struct AssetOpenProposalRowFacts: Equatable, Sendable, Identifiable {
         pictureURL = item.cabalPictureUrl
         let action = item.action == "sell" ? "Sell" : "Buy"
         title = "\(cabalName) · \(action)" + (item.usdcMicros.map { " \(Self.dollars($0))" } ?? "")
-        subtitle = ProposalVoteCopy.statusLine(
-            tally: ProposalTally(yes: tally.yes, no: tally.no, voters: tally.voters, needed: tally.needed),
-            replies: Int(item.commentCount), expiresAt: expiresAt, now: now)
+        subtitle =
+            ProposalVoteCopy.cardLine(
+                cabalName: nil,
+                tally: ProposalTally(yes: tally.yes, no: tally.no, voters: tally.voters, needed: tally.needed),
+                replies: Int(item.commentCount), expiresAt: expiresAt, now: now
+            ).full
         trailing = "✓ \(tally.yes) · ✕ \(tally.no)"
         yes = Int(tally.yes)
         no = Int(tally.no)

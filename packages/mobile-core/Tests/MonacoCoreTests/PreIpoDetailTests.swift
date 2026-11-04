@@ -152,7 +152,7 @@ final class PreIpoDetailTests: XCTestCase {
         let spaceX = try XCTUnwrap(rows.first { $0.title == "AC Capital" && $0.valueText == "$2,220.00" })
         XCTAssertEqual(spaceX.valueNote, "at estimate")
         XCTAssertNil(spaceX.returnText)
-        XCTAssertEqual(spaceX.subtitle, "12 sh · 11% of treasury")
+        XCTAssertEqual(spaceX.subtitle, "12 shares · 11% of the treasury")
 
         let nvidia = try XCTUnwrap(rows.first { $0.valueText == "$8,360.00" })
         XCTAssertNil(nvidia.valueNote)

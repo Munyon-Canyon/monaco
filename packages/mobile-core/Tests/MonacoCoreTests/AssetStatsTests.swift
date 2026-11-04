@@ -10,7 +10,7 @@ final class AssetStatsTests: XCTestCase {
     func testSixCellsInTwoRowsOfThreeAsTheFrameDrawsThem() {
         XCTAssertEqual(
             nvidia.topRow.map { "\($0.label) \($0.value)" },
-            ["Market cap $5.38T", "Volume · 24h $9.4M", "Open $211.17"])
+            ["Market cap $5.38T", "Volume today $9.4M", "Open $211.17"])
         XCTAssertEqual(
             nvidia.bottomRow.map { "\($0.label) \($0.value)" },
             ["52-week low $86.62", "52-week high $224.90", "Held by 1 cabal"])
