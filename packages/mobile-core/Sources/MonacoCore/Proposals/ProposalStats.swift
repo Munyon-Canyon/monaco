@@ -89,12 +89,18 @@ public struct ProposalStats: Equatable, Sendable {
     }
 
     static func estimatedShares(usdcMicros: Int64?, estimateMicros: Int64) -> Cell? {
+        estimatedSharesFigure(usdcMicros: usdcMicros, estimateMicros: estimateMicros).map {
+            Cell(label: "Shares", value: "≈ \($0)")
+        }
+    }
+
+    static func estimatedSharesFigure(usdcMicros: Int64?, estimateMicros: Int64) -> String? {
         guard let usdcMicros, usdcMicros > 0, estimateMicros > 0 else { return nil }
         let hundredths = (usdcMicros.multipliedReportingOverflow(by: 100))
         guard !hundredths.overflow else { return nil }
         let value = hundredths.partialValue / estimateMicros
         let fraction = value % 100
-        return Cell(label: "Shares", value: "≈ \(value / 100).\(fraction < 10 ? "0" : "")\(fraction)")
+        return "\(value / 100).\(fraction < 10 ? "0" : "")\(fraction)"
     }
 
     private static func since(_ bps: Int64?) -> Cell {
@@ -104,7 +110,7 @@ public struct ProposalStats: Equatable, Sendable {
         return Cell(label: "Since", value: "\(sign)\(figure(bps: bps.magnitude))%", tone: tone)
     }
 
-    private static func money(_ micros: Int64?) -> String {
+    static func money(_ micros: Int64?) -> String {
         micros.map { UsdAmountFormatter.format(micros: $0) } ?? missing
     }
 
@@ -120,7 +126,7 @@ public struct ProposalStats: Equatable, Sendable {
         return tenths % 10 == 0 ? "\(tenths / 10)" : "\(tenths / 10).\(tenths % 10)"
     }
 
-    private static func sharesText(_ stats: ProposalStatsData, exact: Bool) -> String {
+    static func sharesText(_ stats: ProposalStatsData, exact: Bool) -> String {
         guard let atomics = stats.sharesAtomics,
             let quantity = TokenQuantityFormatter.quantity(
                 fromAtomics: TokenAmount.text(atomics), decimals: stats.tokenDecimals)
