@@ -122,13 +122,29 @@ final class ProposalVoteCopyTests: XCTestCase {
             ProposalVoteCopy.toast(outcome: outcome(myVote: false)), VoteToast(message: "Voted Yes.", offersUndo: true))
     }
 
+    func testTheToastRulePinsMessageUndoAndGlyph() {
+        let cases: [(CastOutcome, String, Bool, VoteToastGlyph)] = [
+            (outcome(status: .passed, undo: false), "Voted Yes. Passed 5–1.", false, .seal),
+            (outcome(.no, status: .failed, yes: 2, no: 3, undo: false), "Voted No. Failed 2–3.", false, .seal),
+            (outcome(), "Voted Yes. 6th of 8.", true, .check),
+            (outcome(myVote: false), "Voted Yes.", true, .check),
+            (outcome(.no, undo: false, changed: true), "Changed to No.", false, .check),
+        ]
+        for (cast, message, offersUndo, glyph) in cases {
+            let toast = ProposalVoteCopy.toast(outcome: cast)
+            XCTAssertEqual(toast.message, message)
+            XCTAssertEqual(toast.offersUndo, offersUndo, message)
+            XCTAssertEqual(toast.glyph, glyph, message)
+        }
+    }
+
     func testTheSettlingToastHasNoUndo() {
         XCTAssertEqual(
             ProposalVoteCopy.toast(outcome: outcome(status: .passed, undo: false)),
-            VoteToast(message: "Voted Yes. Passed 5–1.", offersUndo: false))
+            VoteToast(message: "Voted Yes. Passed 5–1.", offersUndo: false, glyph: .seal))
         XCTAssertEqual(
             ProposalVoteCopy.toast(outcome: outcome(.no, status: .failed, yes: 2, no: 3, undo: false)),
-            VoteToast(message: "Voted No. Failed 2–3.", offersUndo: false))
+            VoteToast(message: "Voted No. Failed 2–3.", offersUndo: false, glyph: .seal))
     }
 
     func testAChangeToastHasNoUndoAndTheUndoneToastIsFixed() {

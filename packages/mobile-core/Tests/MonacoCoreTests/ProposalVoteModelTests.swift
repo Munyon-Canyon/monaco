@@ -261,7 +261,8 @@ final class ProposalDetailVoteTests: XCTestCase {
         XCTAssertFalse(model.canUndo(now: Date()))
         XCTAssertEqual(model.voteSelection, .committed(.yes))
         XCTAssertEqual(
-            ProposalVoteCopy.toast(outcome: outcome), VoteToast(message: "Voted Yes. Passed 5–1.", offersUndo: false))
+            ProposalVoteCopy.toast(outcome: outcome),
+            VoteToast(message: "Voted Yes. Passed 5–1.", offersUndo: false, glyph: .seal))
         XCTAssertEqual(model.settledLine, "Passed 5–1 · 6 of 8 voted")
         XCTAssertEqual(model.decidingLine, "Yours was the 5th yes · at 5 of 8 it passes")
     }

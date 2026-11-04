@@ -1,9 +1,14 @@
 import SwiftUI
 
+enum MonacoToastGlyph: Equatable {
+    case check, seal
+}
+
 struct MonacoToast: Equatable, Identifiable {
     let id = UUID()
     let message: String
     var isSuccess = false
+    var glyph: MonacoToastGlyph = .check
     var link: MonacoToastLink?
     var action: MonacoToastAction?
 }
@@ -42,6 +47,7 @@ struct MonacoToastAction: Equatable {
 struct MonacoToastBanner: View {
     let message: String
     var isSuccess = false
+    var glyph: MonacoToastGlyph = .check
     var link: MonacoToastLink?
     var action: MonacoToastAction?
     var insetsGutter = true
@@ -56,10 +62,18 @@ struct MonacoToastBanner: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var gate = MonacoToastActionGate()
 
+    private var symbol: String {
+        guard isSuccess else { return "exclamationmark.circle.fill" }
+        return switch glyph {
+        case .check: "checkmark.circle.fill"
+        case .seal: "checkmark.seal.fill"
+        }
+    }
+
     var body: some View {
         HStack(alignment: .center, spacing: MonacoTheme.Space.sm) {
             // Filled circle, not a bare tick: the state still reads without relying on hue.
-            Image(systemName: isSuccess ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
+            Image(systemName: symbol)
                 .font(.system(size: glyphSize, weight: .semibold))
                 .foregroundStyle(isSuccess ? MonacoTheme.toastSuccessGlyph : MonacoTheme.toastErrorGlyph)
                 .accessibilityHidden(true)
@@ -333,7 +347,7 @@ private struct MonacoToastModifier: ViewModifier {
     private func banner(_ toast: MonacoToast) -> some View {
         HStack(spacing: 0) {
             MonacoToastBanner(
-                message: toast.message, isSuccess: toast.isSuccess, link: toast.link,
+                message: toast.message, isSuccess: toast.isSuccess, glyph: toast.glyph, link: toast.link,
                 action: actionExpired ? nil : toast.action, insetsGutter: false,
                 focus: $bannerFocused, onDismiss: { self.toast = nil }
             )

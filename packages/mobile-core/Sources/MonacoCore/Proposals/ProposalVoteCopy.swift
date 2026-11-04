@@ -23,9 +23,20 @@ public struct CastOutcome: Equatable, Sendable {
     }
 }
 
+public enum VoteToastGlyph: Equatable, Sendable {
+    case check, seal
+}
+
 public struct VoteToast: Equatable, Sendable {
     public let message: String
     public let offersUndo: Bool
+    public let glyph: VoteToastGlyph
+
+    public init(message: String, offersUndo: Bool, glyph: VoteToastGlyph = .check) {
+        self.message = message
+        self.offersUndo = offersUndo
+        self.glyph = glyph
+    }
 }
 
 public struct VoteCommittedLine: Equatable, Sendable {
@@ -170,7 +181,7 @@ public enum ProposalVoteCopy {
         if outcome.settled {
             let score = "\(outcome.tally.yes)–\(outcome.tally.no)"
             let result = outcome.status == .passed ? "Passed" : "Failed"
-            return VoteToast(message: "\(voted) \(result) \(score).", offersUndo: false)
+            return VoteToast(message: "\(voted) \(result) \(score).", offersUndo: false, glyph: .seal)
         }
         if outcome.changed {
             return VoteToast(message: "Changed to \(outcome.choice.label).", offersUndo: false)
