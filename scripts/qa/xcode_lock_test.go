@@ -602,8 +602,9 @@ func TestXcodeLockTermWaitsForCommandBeforeRelease(t *testing.T) {
 		pidFile := filepath.Join(e.dir, "cmd.pid")
 		marker := filepath.Join(e.dir, "lock-state-at-exit")
 		// On TERM the command winds down for 0.4 s and records whether the lock dir is
-		// still there when it finishes.
-		script := `echo $$ > "$1"; trap 'sleep 0.4; if [ -d "$2" ]; then echo held > "$3"; else echo released > "$3"; fi; exit 0' TERM; while :; do sleep 0.05; done`
+		// still there when it finishes. It sets the trap before it writes its pid, so the
+		// test cannot signal it while sh would still die on TERM.
+		script := `trap 'sleep 0.4; if [ -d "$2" ]; then echo held > "$3"; else echo released > "$3"; fi; exit 0' TERM; echo $$ > "$1"; while :; do sleep 0.05; done`
 		holder := e.start(e.dir, []string{"MONACO_LOCK_HOLD=2"}, "xcode", "sh", "-c", script, "sh", pidFile, e.xcodeLock(), marker)
 		cmdPid := readPid(t, pidFile)
 		eventually(t, "the lock to be held", func() bool { return exists(filepath.Join(e.xcodeLock(), "pid")) })
