@@ -2,7 +2,7 @@ import XCTest
 
 enum CabalsApproveRequestJourney {
     static let id = "cabals/approve-request"
-    static let version = 6
+    static let version = 7
 
     static let screenTimeout: TimeInterval = 15
 
