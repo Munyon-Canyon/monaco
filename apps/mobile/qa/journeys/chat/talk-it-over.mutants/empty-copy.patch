@@ -7,8 +7,8 @@ scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 diff --git a/packages/mobile-core/Sources/MonacoCore/GroupChatDTO.swift b/packages/mobile-core/Sources/MonacoCore/GroupChatDTO.swift
 --- a/packages/mobile-core/Sources/MonacoCore/GroupChatDTO.swift
 +++ b/packages/mobile-core/Sources/MonacoCore/GroupChatDTO.swift
-@@ -68,7 +68,7 @@ public enum GroupChatCopy {
-     public static let approved = "Proposal approved"
+@@ -62,7 +62,7 @@ public enum GroupChatCopy {
+     public static let sendLabel = "Send message"
      public static let deleted = "Message deleted"
      public static let copy = "Copy"
 -    public static let quietTitle = "No vote open."
