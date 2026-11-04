@@ -175,10 +175,17 @@ enum GovernanceVoteJourney {
         }
     }
 
-    static func secondVoterPasses(_ app: XCUIApplication, proposalID: String, recorder: JourneyRecorder) {
+    static func secondVoterPasses(
+        _ app: XCUIApplication, cabalName: String, proposalID: String, recorder: JourneyRecorder
+    ) {
         recorder.step(S.s1p6) {
-            openHomeVote(app, proposalID, step: S.s1p6.id)
-            openProposalFromHome(app, proposalID, step: S.s1p6.id)
+            app.openCabal(named: cabalName)
+            let open = app.element("cabal-open-proposal-open-\(proposalID)")
+            XCTAssertTrue(
+                JourneyDiagnostics.wait(for: open, in: app, timeout: screenTimeout),
+                "\(S.s1p6.id): cabal-open-proposal-open-\(proposalID) did not show within \(Int(screenTimeout)) s")
+            open.tap()
+            waitForProposalScreen(app, step: S.s1p6.id)
             expectTally(app, yes: S.s1p6.copy[0], no: S.s1p6.copy[1], step: S.s1p6.id)
             XCTAssertTrue(
                 waitForText(app, S.s1p6.copy[2], timeout: S.s1p6.seconds),
