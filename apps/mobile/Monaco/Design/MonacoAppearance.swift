@@ -396,12 +396,31 @@ extension View {
     fileprivate func monacoSheetChrome() -> some View {
         modifier(MonacoSheetChrome())
     }
+
+    func monacoSheetBackground() -> some View {
+        modifier(MonacoSheetBackground())
+    }
+}
+
+private struct MonacoSheetBackground: ViewModifier {
+    @MonacoReduceTransparency private var reduceTransparency
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if reduceTransparency {
+            content.presentationBackground(MonacoTheme.sheetSurface)
+        } else if #available(iOS 26, *) {
+            content
+        } else {
+            content.presentationBackground(MonacoTheme.sheetSurface)
+        }
+    }
 }
 
 private struct MonacoSheetChrome: ViewModifier {
     func body(content: Content) -> some View {
         content
-            .presentationBackground(MonacoTheme.sheetSurface)
+            .monacoSheetBackground()
             .presentationDragIndicator(.visible)
             .presentationContentInteraction(.scrolls)
             .presentationBackgroundInteraction(.disabled)

@@ -103,7 +103,7 @@ struct EmojiPickerSheet: View {
         .padding(.top, MonacoTheme.Space.l)
         .presentationDetents(isLarge ? [.large] : [.height(PickerMetrics.sheetHeight)])
         .presentationDragIndicator(.visible)
-        .presentationBackground(MonacoTheme.sheetSurface)
+        .monacoSheetBackground()
         .presentationContentInteraction(.scrolls)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("emoji-picker")
