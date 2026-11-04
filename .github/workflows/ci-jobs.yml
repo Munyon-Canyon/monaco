@@ -426,17 +426,17 @@ jobs:
     timeout-minutes: 1
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
 
+      # The checkout is the PR's merge commit: its first parent is the base tip, so HEAD^1..HEAD is exactly what the PR changes.
       - name: Journey evidence in the PR body
         if: github.event.pull_request
         env:
           PR_BODY: ${{ github.event.pull_request.body }}
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          git fetch --depth=1 origin "$BASE_SHA" "$HEAD_SHA"
           printf '%s' "$PR_BODY" > "$RUNNER_TEMP/body.md"
-          python3 scripts/qa/journey.py gate --base "$BASE_SHA" --head "$HEAD_SHA" --body-file "$RUNNER_TEMP/body.md"
+          python3 scripts/qa/journey.py gate --base "$(git rev-parse HEAD^1)" --head "$(git rev-parse HEAD)" --body-file "$RUNNER_TEMP/body.md"
 
       - run: |
           python3 scripts/qa/journey.py check
