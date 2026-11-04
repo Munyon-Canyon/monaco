@@ -98,14 +98,15 @@ struct MonacoControlsTests {
         #expect(!MonacoChipBar<String>.fits(5, maxVisible: 4))
     }
 
-    @Test func theOnChipIsBrandFillWithAnOnBrandLabel() {
+    @Test func theOnChipIsWhiteWithABlackLabel() {
         let on = MonacoChipLabel.colors(isSelected: true, isEnabled: true)
-        #expect(on.fill == MonacoTheme.brandFill)
-        #expect(on.label == MonacoTheme.onBrand)
+        #expect(on.fill == MonacoTheme.chipOn)
+        #expect(on.label == MonacoTheme.onChipOn)
         let off = MonacoChipLabel.colors(isSelected: false, isEnabled: true)
         #expect(off.fill == MonacoTheme.surfaceSunken)
         #expect(off.label == MonacoTheme.primaryText)
         let disabled = MonacoChipLabel.colors(isSelected: true, isEnabled: false)
+        #expect(disabled.fill == MonacoTheme.surfaceSunken)
         #expect(disabled.label == MonacoTheme.disabledLabel)
     }
 
