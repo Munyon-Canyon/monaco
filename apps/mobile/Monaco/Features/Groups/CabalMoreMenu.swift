@@ -3,7 +3,6 @@ import MonacoCore
 import SwiftUI
 
 enum CabalMoreItem: CaseIterable {
-    case chat
     case edit
     case treasury
     case report
@@ -11,7 +10,6 @@ enum CabalMoreItem: CaseIterable {
 
     var title: String {
         switch self {
-        case .chat: "Chat"
         case .edit: "Edit name and picture"
         case .treasury: "Treasury address"
         case .report: "Report cabal"
@@ -21,7 +19,6 @@ enum CabalMoreItem: CaseIterable {
 
     var systemImage: String {
         switch self {
-        case .chat: MonacoIcon.chat.symbol
         case .edit: MonacoIcon.edit.symbol
         case .treasury: MonacoIcon.wallet.symbol
         case .report: MonacoIcon.report.symbol
@@ -31,7 +28,6 @@ enum CabalMoreItem: CaseIterable {
 
     var identifier: String {
         switch self {
-        case .chat: "cabal-more-chat"
         case .edit: "cabal-more-edit"
         case .treasury: "cabal-more-treasury"
         case .report: "cabal-more-report"
@@ -42,7 +38,6 @@ enum CabalMoreItem: CaseIterable {
     static func items(role: String?, status: String) -> [CabalMoreItem] {
         guard role != nil else { return [.report] }
         var items: [CabalMoreItem] = []
-        if !CabalClosedModel.isReadOnly(status) { items.append(.chat) }
         if role == "creator" { items.append(.edit) }
         items.append(.treasury)
         if role != "creator" { items.append(.report) }
@@ -92,7 +87,6 @@ struct CabalMoreActions: ViewModifier {
 
     @Environment(AppEnvironment.self) private var environment
     @Environment(ToastCenter.self) private var toasts
-    @Environment(\.hostMainTab) private var hostMainTab
     @State private var sheet: CabalMoreSheet?
     @State private var editing = false
     @State private var reporting: ReportTarget?
@@ -121,9 +115,6 @@ struct CabalMoreActions: ViewModifier {
 
     private func run(_ item: CabalMoreItem) {
         switch item {
-        case .chat:
-            environment.navigator.open(
-                ChatRoute(cabalID: cabalID), in: hostMainTab ?? environment.navigator.selectedTab)
         case .edit:
             Task {
                 await edit.load()

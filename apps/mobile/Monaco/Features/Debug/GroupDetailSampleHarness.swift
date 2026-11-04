@@ -143,7 +143,7 @@ extension GroupDetailSampleScenario {
         case .invitePreview: return [CabalSampleRoute(kind: .invite(.invited, role: "member"))]
         case .inviteInvalid: return [CabalSampleRoute(kind: .invite(.unavailable, role: "member"))]
         case .invitePending: return [CabalSampleRoute(kind: .invite(.requested, role: "member"))]
-        default: return [CabalRoute(id: id)]
+        default: return [CabalRoute(id: id, tab: .treasury)]
         }
     }
 }
@@ -401,7 +401,7 @@ private struct CabalSampleHost: View {
         case .publicPrivate:
             PublicCabalView(cabal: cabal, isPrivate: true, retry: {})
         case .invite(let mode, let role):
-            CabalScreen(cabalID: cabalID)
+            CabalScreen(cabalID: cabalID, tab: .treasury)
                 .sheet(isPresented: .constant(true)) {
                     CabalInviteSheet(cabal: .sample(role: role), mode: mode)
                 }

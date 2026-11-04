@@ -64,10 +64,9 @@ struct CabalScreenOrderTests {
         #expect(moved.allSatisfy { !top.contains($0) })
     }
 
-    @Test func theMoreMenuOffersChatEditTreasuryAddressReportAndLeave() {
-        #expect(
-            CabalMoreItem.items(role: "creator", status: "active") == [.chat, .edit, .treasury, .leave])
-        #expect(CabalMoreItem.items(role: "member", status: "active") == [.chat, .treasury, .report, .leave])
+    @Test func theMoreMenuOffersEditTreasuryAddressReportAndLeaveWithNoChat() {
+        #expect(CabalMoreItem.items(role: "creator", status: "active") == [.edit, .treasury, .leave])
+        #expect(CabalMoreItem.items(role: "member", status: "active") == [.treasury, .report, .leave])
         #expect(
             CabalMoreItem.items(role: "member", status: CabalClosedModel.closedStatus) == [.treasury, .report, .leave])
         #expect(CabalMoreItem.items(role: "member", status: "winding_down") == [.treasury, .report, .leave])
@@ -75,8 +74,9 @@ struct CabalScreenOrderTests {
         #expect(CabalMoreItem.items(role: "creator", status: "active").last == .leave)
     }
 
-    @Test func aRouteOpensTreasuryUnlessItNamesATab() {
-        #expect(CabalRoute(id: "cabal-1").tab == .treasury)
+    @Test func aRouteOpensChatUnlessItNamesATab() {
+        #expect(CabalRoute(id: "cabal-1").tab == .chat)
+        #expect(CabalRoute(id: "cabal-1") == CabalRoute(id: "cabal-1", tab: .chat))
         #expect(CabalRoute(id: "cabal-1", tab: .members).tab == .members)
         #expect(CabalRoute(id: "cabal-1") != CabalRoute(id: "cabal-1", tab: .rules))
     }
@@ -86,6 +86,34 @@ struct CabalScreenOrderTests {
         #expect(!CabalTabsPin.isPinned(tab: .treasury, tabsTop: 480, barBottom: 103))
         #expect(CabalTabsPin.isPinned(tab: .treasury, tabsTop: 103, barBottom: 103))
         #expect(CabalTabsPin.isPinned(tab: .treasury, tabsTop: -60, barBottom: 103))
+    }
+
+    @Test func aClosedOrPublicCabalLandsOnTreasuryAndAMemberCabalKeepsChat() {
+        let member = Components.Schemas.Cabal.sample(role: "member")
+        var closed = member
+        closed.status = CabalClosedModel.closedStatus
+        var winding = member
+        winding.status = "winding_down"
+        var outsider = member
+        outsider.me = nil
+        #expect(CabalScreen.landingTab(tab: .chat, cabal: nil) == .chat)
+        #expect(CabalScreen.landingTab(tab: .chat, cabal: member) == .chat)
+        #expect(CabalScreen.landingTab(tab: .chat, cabal: closed) == .treasury)
+        #expect(CabalScreen.landingTab(tab: .chat, cabal: winding) == .treasury)
+        #expect(CabalScreen.landingTab(tab: .chat, cabal: outsider) == .treasury)
+        #expect(CabalScreen.landingTab(tab: .rules, cabal: closed) == .rules)
+    }
+
+    @Test func theNavigatorHearsOfChatOnlyWhileItIsSelectedAndOnScreen() {
+        let member = Components.Schemas.Cabal.sample(role: "member")
+        #expect(CabalScreen.isChatVisible(tab: .chat, cabal: member, onScreen: true))
+        #expect(!CabalScreen.isChatVisible(tab: .chat, cabal: member, onScreen: false))
+        #expect(!CabalScreen.isChatVisible(tab: .treasury, cabal: member, onScreen: true))
+        #expect(!CabalScreen.isChatVisible(tab: .chat, cabal: nil, onScreen: true))
+        var closed = member
+        closed.status = CabalClosedModel.closedStatus
+        #expect(!CabalScreen.isChatVisible(tab: .chat, cabal: closed, onScreen: true))
+        #expect(AppNavigator().visibleChatCabalID == nil)
     }
 
     @Test func chatLeadsTheTabsAndIsAlwaysPinned() {
@@ -141,7 +169,7 @@ struct CabalScreenOrderTests {
         try AccessibilityTree.setAutomation(enabled: true)
         defer { try? AccessibilityTree.setAutomation(enabled: false) }
         let window = try Self.window(
-            hosting: CabalScreen(cabalID: "cabal-1", sections: sections), over: transport)
+            hosting: CabalScreen(cabalID: "cabal-1", tab: .treasury, sections: sections), over: transport)
         defer { TestWindow.close(window) }
 
         let ready = (variant == .closed) ? "cabal-closed-row" : "cabal-action-propose"

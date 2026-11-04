@@ -8,13 +8,17 @@ public enum CabalTab: String, CaseIterable, Hashable, Sendable {
     case members
     case voters
 
-    public static let `default`: CabalTab = .treasury
+    public static let `default`: CabalTab = .chat
     public static let hostsChat = true
 
     public static var shown: [CabalTab] { shown(isReadOnly: false) }
 
     public static func shown(isReadOnly: Bool) -> [CabalTab] {
         hostsChat && !isReadOnly ? allCases : allCases.filter { $0 != .chat }
+    }
+
+    public func resolved(isReadOnly: Bool) -> CabalTab {
+        Self.shown(isReadOnly: isReadOnly).contains(self) ? self : .treasury
     }
 
     public var title: String {
