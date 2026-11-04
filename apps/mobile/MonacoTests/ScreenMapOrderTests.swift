@@ -26,7 +26,7 @@ struct ScreenMapOrderTests {
         #expect(
             names(CabalScreen.sections) == [
                 "CabalHeaderSlot", "CabalClosedSlot", "CabalPauseSlot", "CabalJoinSlot", "CabalPotSlot",
-                "CabalSliceSlot", "CabalEmptySlot",
+                "CabalEmptySlot",
                 "CabalActionsSlot", "CabalProposalsSlot", "CabalStartersSlot", "CabalTabs",
             ])
     }

@@ -103,12 +103,12 @@ public enum CabalHeaderCopy {
         "management", "partners", "group", "holdings", "llc", "inc", "co",
     ]
 
-    static func wholeDollars(_ micros: Int64) -> String {
+    public static func wholeDollars(_ micros: Int64) -> String {
         let text = UsdAmountFormatter.format(micros: max(micros, 0) / 1_000_000 * 1_000_000)
         return text.hasSuffix(".00") ? String(text.dropLast(3)) : text
     }
 
-    static func percent(basisPoints: Int) -> String {
+    public static func percent(basisPoints: Int) -> String {
         if basisPoints > 0, basisPoints < 100 { return "<1%" }
         return "\((max(basisPoints, 0) + 50) / 100)%"
     }

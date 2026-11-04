@@ -6,7 +6,7 @@ import Testing
 struct CabalComingSlotsTests {
     @Test func theComingSlotsAreLive() {
         let slots: [any CabalSection.Type] = [
-            CabalPotSlot.self, CabalSliceSlot.self, CabalTreasuryTabSlot.self,
+            CabalPotSlot.self, CabalTreasuryTabSlot.self,
             CabalPauseSlot.self,
         ]
         #expect(slots.allSatisfy { $0.isLive })
@@ -16,7 +16,7 @@ struct CabalComingSlotsTests {
         #expect(
             CabalScreen.sections.map { String(describing: $0) } == [
                 "CabalHeaderSlot", "CabalClosedSlot", "CabalPauseSlot", "CabalJoinSlot", "CabalPotSlot",
-                "CabalSliceSlot", "CabalEmptySlot", "CabalActionsSlot", "CabalProposalsSlot", "CabalStartersSlot",
+                "CabalEmptySlot", "CabalActionsSlot", "CabalProposalsSlot", "CabalStartersSlot",
                 "CabalTabs",
             ])
     }

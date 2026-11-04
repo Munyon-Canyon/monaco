@@ -107,22 +107,40 @@ struct CabalPotBand: View {
     var openHistory: (() -> Void)?
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.cabalModel) private var cabalModel
 
     var body: some View {
-        content
+        facts
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, MonacoTheme.Space.gutter)
             .padding(.top, CabalPageMetrics.treasuryLead)
     }
 
-    @ViewBuilder private var content: some View {
+    private var facts: some View {
+        let cabal = cabalModel?.cabal
+        let share = CabalSliceBand(model: model, cabalKnown: cabal != nil, isMember: cabal?.me != nil)
+        return ViewThatFits(in: .horizontal) {
+            if dynamicTypeSize < .xxxLarge {
+                HStack(alignment: .top, spacing: MonacoTheme.Space.l) {
+                    treasury
+                    if share.isShown { share }
+                }
+            }
+            VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
+                treasury
+                if share.isShown { share }
+            }
+        }
+    }
+
+    @ViewBuilder private var treasury: some View {
         switch model?.state ?? .loading {
         case .idle, .loading:
-            HStack(alignment: .firstTextBaseline, spacing: MonacoTheme.Space.s) {
+            VStack(alignment: .leading, spacing: 0) {
                 label
                 Text("$0.00").moneyFont(.row).skeletonBar(width: 120)
             }
-            .frame(minHeight: MonacoButtonMetrics.hitTarget)
+            .frame(minHeight: MonacoButtonMetrics.hitTarget, alignment: .topLeading)
             .accessibilityIdentifier("cabal-pot-loading")
         case .failed:
             MonacoErrorRow(thing: "the pot", identifier: "cabal-pot-failed", inset: false) {
@@ -134,11 +152,10 @@ struct CabalPotBand: View {
     }
 
     @ViewBuilder private func loaded(_ summary: CabalPotSummary) -> some View {
-        let figure = line(figure: Text(Self.dimmedCents(summary.potValue)), move: move, chevron: openHistory != nil)
+        let fact = fact(figure: Text(Self.dimmedCents(summary.potValue)), chevron: openHistory != nil)
         if let openHistory {
             Button(action: openHistory) {
-                figure
-                    .frame(minHeight: MonacoButtonMetrics.hitTarget)
+                fact
                     .contentShape(Rectangle())
                     .accessibilityElement(children: .ignore)
                     .accessibilityLabel(Self.spoken(summary.potValue, move: move))
@@ -147,8 +164,7 @@ struct CabalPotBand: View {
             .accessibilityHint(CabalTreasuryCopy.historyHint)
             .accessibilityIdentifier("cabal-pot-value")
         } else {
-            figure
-                .frame(minHeight: MonacoButtonMetrics.hitTarget)
+            fact
                 .contentShape(.accessibility, Rectangle())
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel(Self.spoken(summary.potValue, move: move))
@@ -162,19 +178,22 @@ struct CabalPotBand: View {
             .foregroundStyle(MonacoTheme.secondaryText)
     }
 
-    private func line(figure: Text, move: CabalHeaderCopy.Move?, chevron: Bool) -> some View {
+    private func fact(figure: Text, chevron: Bool) -> some View {
         let layout =
             dynamicTypeSize >= .xxxLarge
             ? AnyLayout(VStackLayout(alignment: .leading, spacing: MonacoTheme.Space.xs))
             : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: MonacoTheme.Space.s))
-        return HStack(spacing: MonacoTheme.Space.s) {
-            layout { parts(figure, move: move) }
-            if chevron { MonacoRowChevron() }
+        return VStack(alignment: .leading, spacing: 0) {
+            label
+            HStack(spacing: MonacoTheme.Space.s) {
+                layout { parts(figure) }
+                if chevron { MonacoRowChevron() }
+            }
         }
+        .frame(minHeight: MonacoButtonMetrics.hitTarget, alignment: .topLeading)
     }
 
-    @ViewBuilder private func parts(_ figure: Text, move: CabalHeaderCopy.Move?) -> some View {
-        label
+    @ViewBuilder private func parts(_ figure: Text) -> some View {
         figure
             .moneyFigure(.row)
             .foregroundStyle(MonacoTheme.primaryText)
@@ -241,7 +260,6 @@ private struct CabalPotHarnessScreen: View {
             ScrollView {
                 SectionStackLayout(spacing: CabalPageMetrics.spacing) {
                     CabalPotBand(model: model)
-                    CabalSliceBand(model: model)
                     CabalTreasuryBody(model: model, cabalID: pot.cabalId, move: nil) { path.append(AnyAppRoute($0)) }
                 }
                 .padding(.top, MonacoTheme.Space.gutter + CabalPageMetrics.spacing)

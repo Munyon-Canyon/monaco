@@ -199,7 +199,6 @@ struct CabalScreen: View {
 | | `CabalPotSlot` | #2137 |
 | | `CabalActionsSlot` | #2134 |
 | | `CabalProposalsSlot` | #612 |
-| | `CabalSliceSlot` | #2137 |
 | | `CabalPauseSlot` | #657 |
 | | `CabalJoinSlot` | #646 |
 | | `CabalHoldingsSlot` | #2137 |
