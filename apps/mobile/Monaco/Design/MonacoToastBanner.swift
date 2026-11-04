@@ -117,6 +117,7 @@ struct MonacoToastBanner: View {
         .frame(maxWidth: insetsGutter ? .infinity : nil, alignment: .leading)
         .accessibilityElement(children: link == nil && action == nil ? .combine : .contain)
         .accessibilityIdentifier("monaco-toast-banner")
+        .accessibilityValue(glyph == .seal ? "seal" : "")
     }
 }
 

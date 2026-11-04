@@ -1,0 +1,19 @@
+journey: governance/vote
+expect-fail: S1
+
+The Proposal screen never draws the facts line. S1.2 waits for proposal-facts, so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Proposals/ProposalHero.swift b/apps/mobile/Monaco/Features/Proposals/ProposalHero.swift
+index 7e9a314ec..3c7d7ef45 100644
+--- a/apps/mobile/Monaco/Features/Proposals/ProposalHero.swift
++++ b/apps/mobile/Monaco/Features/Proposals/ProposalHero.swift
+@@ -155,7 +155,7 @@ struct ProposalHero: View {
+                 }
+                 .accessibilityElement(children: .combine)
+             }
+-            if let facts {
++            if let facts, false {
+                 factsRow(facts)
+                     .padding(.leading, dynamicTypeSize.isAccessibilitySize ? 0 : Self.factsInset)
+             }
