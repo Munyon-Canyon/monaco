@@ -20,7 +20,7 @@ struct ThesisQuoteBubble: View {
             Button(action: open) {
                 HStack(alignment: .top, spacing: MonacoTheme.Space.s) {
                     Rectangle()
-                        .fill(MonacoTheme.brand)
+                        .fill(MonacoTheme.thesisBar)
                         .frame(width: MonacoTheme.Space.xs / 2)
                     VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
                         Text(header)

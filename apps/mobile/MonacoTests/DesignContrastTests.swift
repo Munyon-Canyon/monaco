@@ -231,6 +231,7 @@ struct MonacoContrastTests {
             ("coverOverlayReduced", MonacoTheme.coverOverlayReduced, 0x00130B, 0.91),
             ("voteNeededFill", MonacoTheme.voteNeededFill, 0xD70015, 1),
             ("voteNeededLabel", MonacoTheme.voteNeededLabel, 0xFFFFFF, 1),
+            ("allocationTints[0]", MonacoTheme.allocationTints[0], 0x30F57A, 1),
             ("allocationTints[1]", MonacoTheme.allocationTints[1], 0x0A84FF, 1),
             ("allocationTints[2]", MonacoTheme.allocationTints[2], 0xBF5AF2, 1),
             ("onDestructive", MonacoTheme.onDestructive, 0x000000, 1),
@@ -286,6 +287,21 @@ struct MonacoContrastTests {
         let rgba = WCAGContrast.resolve(color, scheme)
         func byte(_ value: Double) -> UInt32 { UInt32((value * 255).rounded()) }
         return byte(rgba.red) << 16 | byte(rgba.green) << 8 | byte(rgba.blue)
+    }
+
+    @Test func roleColoursDoNotAliasTint() {
+        let roles: [(name: String, color: Color, expected: Color)] = [
+            ("allocationTints[0]", MonacoTheme.allocationTints[0], MonacoTheme.gain),
+            ("pollVoteWash", MonacoTheme.pollVoteWash, MonacoTheme.brandFill),
+            ("unreadDot", MonacoTheme.unreadDot, MonacoTheme.voteNeededFill),
+            ("thesisBar", MonacoTheme.thesisBar, MonacoTheme.gain),
+        ]
+        for scheme in [UIUserInterfaceStyle.dark, .light] {
+            for role in roles {
+                #expect(Self.hex(role.color, scheme) != Self.hex(MonacoTheme.tint, scheme), "\(role.name) \(scheme)")
+                #expect(Self.hex(role.color, scheme) == Self.hex(role.expected, scheme), "\(role.name) \(scheme)")
+            }
+        }
     }
 
     @Test func identityHuesAreTheBoards() {

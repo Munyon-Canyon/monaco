@@ -49,7 +49,7 @@ struct CatchUpCardUpNextRow: View {
                     .font(MonacoTheme.Typo.caption)
                     .foregroundStyle(MonacoTheme.muted)
                 Circle()
-                    .fill(item.unread ? MonacoTheme.tint : Color.clear)
+                    .fill(item.unread ? MonacoTheme.unreadDot : Color.clear)
                     .frame(width: MonacoTheme.Space.s, height: MonacoTheme.Space.s)
             }
         }

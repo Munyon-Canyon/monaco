@@ -79,6 +79,9 @@ enum GalleryTokenCatalog {
             title: "Discussion",
             tokens: [
                 GalleryToken(name: "discussionTint", color: Theme.discussionTint),
+                GalleryToken(name: "pollVoteWash", color: Theme.pollVoteWash),
+                GalleryToken(name: "unreadDot", color: Theme.unreadDot),
+                GalleryToken(name: "thesisBar", color: Theme.thesisBar),
                 GalleryToken(name: "discussionWash", color: Theme.discussionWash),
             ]),
         GalleryTokenGroup(
