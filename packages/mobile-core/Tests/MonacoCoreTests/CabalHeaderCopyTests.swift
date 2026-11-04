@@ -13,32 +13,70 @@ final class CabalHeaderCopyTests: XCTestCase {
         calendar.date(from: DateComponents(year: year, month: month, day: day, hour: hour)) ?? .distantPast
     }
 
-    private func subline(createdAt: Date, role: String? = "creator", canVote: Bool = true, members: Int32 = 8)
-        -> String
-    {
-        CabalHeaderCopy.subline(
-            memberCount: members, createdAt: createdAt, role: role, canVote: canVote, now: date(2026, 10, 28),
-            calendar: calendar)
+    private func line(_ names: [String], members: Int32, createdAt: Date) -> String {
+        CabalHeaderCopy.peopleLine(
+            names: names, memberCount: members, createdAt: createdAt, now: date(2026, 10, 28), calendar: calendar)
     }
 
-    func testTheSublineNamesTheMonthAndYearTheCabalStarted() {
+    func testTheLineNamesTwoPeopleAndCountsTheOthers() {
         XCTAssertEqual(
-            subline(createdAt: date(2026, 8, 14)), "8 members \u{00B7} since Aug 2026 \u{00B7} you are admin")
-    }
-
-    func testTheSublineSaysStartedTodayOnTheCreationDay() {
+            line(["Christelle", "Logan"], members: 8, createdAt: date(2026, 8, 14)),
+            "Christelle, Logan and 6 others \u{00B7} since August")
         XCTAssertEqual(
-            subline(createdAt: date(2026, 10, 28, hour: 1), members: 1),
-            "1 member \u{00B7} started today \u{00B7} you are admin")
+            line(["Christelle", "Logan"], members: 3, createdAt: date(2026, 8, 14)),
+            "Christelle, Logan and 1 other \u{00B7} since August")
+        XCTAssertEqual(
+            line(["Christelle", "Logan"], members: 4, createdAt: date(2026, 8, 14)),
+            "Christelle, Logan and 2 others \u{00B7} since August")
     }
 
-    func testEachRoleReadsItsOwnSuffix() {
-        let created = date(2026, 8, 14)
-        XCTAssertTrue(subline(createdAt: created, role: "creator").hasSuffix("you are admin"))
-        XCTAssertTrue(subline(createdAt: created, role: "admin").hasSuffix("you are admin"))
-        XCTAssertTrue(subline(createdAt: created, role: "member", canVote: true).hasSuffix("you vote"))
-        XCTAssertTrue(subline(createdAt: created, role: "member", canVote: false).hasSuffix("you hold a share"))
-        XCTAssertEqual(subline(createdAt: created, role: nil), "8 members \u{00B7} since Aug 2026")
+    func testTheLineReadsShorterWithFewerPeople() {
+        XCTAssertEqual(
+            line(["Christelle"], members: 2, createdAt: date(2026, 8, 14)), "Christelle \u{00B7} since August")
+        XCTAssertEqual(
+            line(["Christelle", "Logan"], members: 3, createdAt: date(2026, 8, 14)).prefix(10), "Christelle")
+        XCTAssertEqual(
+            CabalHeaderCopy.peopleNames(names: ["Christelle", "Logan"], memberCount: 2), "Christelle and Logan")
+    }
+
+    func testTheLineFallsBackToTheCountWithoutOthers() {
+        XCTAssertEqual(line([], members: 1, createdAt: date(2026, 8, 14)), "1 member \u{00B7} since August")
+        XCTAssertEqual(line([], members: 0, createdAt: date(2026, 8, 14)), "1 member \u{00B7} since August")
+    }
+
+    func testTheLineSaysStartedTodayOnTheCreationDay() {
+        XCTAssertEqual(
+            line([], members: 1, createdAt: date(2026, 10, 28, hour: 1)), "1 member \u{00B7} started today")
+        XCTAssertEqual(
+            line(["Christelle"], members: 2, createdAt: date(2026, 10, 28, hour: 1)),
+            "Christelle \u{00B7} started today")
+    }
+
+    private func row(_ id: String, role: String) -> CabalMemberRow {
+        CabalMemberRow(
+            .init(
+                userId: id, handle: nil, displayName: id, photoUrl: nil, role: role, canVote: true,
+                joinedAt: date(2026, 8, 1)))
+    }
+
+    func testTheHeaderMembersDropTheViewerAndPutLeadsFirst() {
+        let rows = [
+            row("v", role: "creator"), row("m1", role: "member"), row("a1", role: "admin"), row("m2", role: "member"),
+        ]
+        XCTAssertEqual(CabalHeaderCopy.headerMembers(rows: rows, viewerID: "v").map(\.id), ["a1", "m1", "m2"])
+        XCTAssertEqual(
+            CabalHeaderCopy.headerMembers(rows: rows, viewerID: "m1").map(\.id), ["v", "a1", "m2"])
+        XCTAssertEqual(
+            CabalHeaderCopy.headerMembers(rows: rows, viewerID: nil).map(\.id), ["v", "a1", "m1", "m2"])
+        XCTAssertEqual(CabalHeaderCopy.headerMembers(rows: [rows[0]], viewerID: "v").count, 0)
+    }
+
+    func testEachRoleReadsItsOwnViewerClause() {
+        XCTAssertEqual(CabalHeaderCopy.viewer(role: "creator", canVote: true), "you are admin")
+        XCTAssertEqual(CabalHeaderCopy.viewer(role: "admin", canVote: true), "you are admin")
+        XCTAssertEqual(CabalHeaderCopy.viewer(role: "member", canVote: true), "you vote")
+        XCTAssertEqual(CabalHeaderCopy.viewer(role: "member", canVote: false), "you hold a share")
+        XCTAssertNil(CabalHeaderCopy.viewer(role: nil, canVote: true))
     }
 
     func testTheStatBlockReadsShareSliceAndVotes() {

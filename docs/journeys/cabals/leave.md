@@ -1,7 +1,7 @@
 ---
 id: cabals/leave
 title: Leave a cabal
-version: 6
+version: 7
 milestone: M10
 requires: [auth/sign-in]
 actors: [A, B]
@@ -31,7 +31,7 @@ The format of this doc is in [App journeys](../README.md).
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S1.1 | B | `openCabal(named:)` | the Cabals tab and the tile | `QA leave {QA.run}` | `cabal-header-name` reads `QA leave {QA.run}` and `cabal-member-count` reads "2 members" within 15 s |
+| S1.1 | B | `openCabal(named:)` | the Cabals tab and the tile | `QA leave {QA.run}` | `cabal-header-name` reads `QA leave {QA.run}` and `cabal-member-count` reads the other member's first name within 15 s |
 | S1.2 | B | tap, then tap | `cabal-more-button`, then `cabal-more-leave` | | The Leave cabal sheet shows `cabalLeaveButton` reading "Leave cabal" within 10 s |
 | S1.3 | B | tap | `cabalLeaveButton` | | The dialog "Leave QA leave {QA.run}?" shows `cabalLeaveConfirmButton` "Leave cabal" within 5 s |
 | S1.4 | B | tap | `cabalLeaveConfirmButton` | | The toast "You left QA leave {QA.run}." shows within 10 s and `cabal-header-name` is gone within 10 s |
@@ -41,7 +41,7 @@ The format of this doc is in [App journeys](../README.md).
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S2.1 | A | `openCabal(named:)` | the Cabals tab and the tile | `QA stay {QA.run}` | `cabal-member-count` reads "2 members" within 15 s |
+| S2.1 | A | `openCabal(named:)` | the Cabals tab and the tile | `QA stay {QA.run}` | `cabal-member-count` reads the other member's first name within 15 s |
 | S2.2 | A | tap, then tap | `cabal-more-button`, then `cabal-more-leave` | | The sheet shows `cabalLeaveCreatorNote` reading "You can leave once everyone else has left." within 10 s, and there is no `cabalLeaveButton` |
 
 ## Ground truth

@@ -1,7 +1,7 @@
 ---
 id: cabals/approve-request
 title: Ask to join, cancel, and the creator's answer
-version: 5
+version: 6
 milestone: M10
 requires: [auth/sign-in]
 actors: [A, B]
@@ -43,7 +43,7 @@ The format of this doc is in [App journeys](../README.md).
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
 | S2.1 | A | open, then tap | the cabal through `openCabal(named:)`, the Members tab, then `cabal-members-see-all` | `QA ok {QA.run}` | One `cabal-join-request-row` names B and reads "Asked to join" within 15 s |
-| S2.2 | A | tap | `cabal-join-approve` in the row | | The toast "Approved." shows within 10 s. The request row is gone, and after the back button `cabal-member-count` reads "2 members" within 10 s |
+| S2.2 | A | tap | `cabal-join-approve` in the row | | The toast "Approved." shows within 10 s. The request row is gone, and after the back button `cabal-member-count` reads the other member's first name within 10 s |
 
 ## Ground truth
 

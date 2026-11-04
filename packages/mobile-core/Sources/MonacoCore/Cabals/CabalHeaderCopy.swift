@@ -18,18 +18,41 @@ public enum CabalHeaderCopy {
 
     private static let posix = Locale(identifier: "en_US_POSIX")
 
-    public static func subline(
-        memberCount: Int32, createdAt: Date, role: String?, canVote: Bool, now: Date, calendar: Calendar = .current
-    ) -> String {
-        var parts = [CabalCopy.memberCount(memberCount), since(createdAt, now: now, calendar: calendar)]
-        if let viewer = viewer(role: role, canVote: canVote) { parts.append(viewer) }
-        return parts.joined(separator: " \u{00B7} ")
+    public static let separator = " \u{00B7} "
+    public static let headerFaces = 3
+
+    public static func headerMembers(rows: [CabalMemberRow], viewerID: String?) -> [CabalMemberRow] {
+        let others = rows.filter { $0.member.userId != viewerID }
+        let leads = others.filter { isLead($0.member.role) }
+        return leads + others.filter { !isLead($0.member.role) }
     }
+
+    public static func peopleNames(names: [String], memberCount: Int32) -> String {
+        switch names.count {
+        case 0:
+            return CabalCopy.memberCount(max(memberCount, 1))
+        case 1:
+            return names[0]
+        default:
+            let others = Int(memberCount) - 2
+            if others <= 0 { return "\(names[0]) and \(names[1])" }
+            return "\(names[0]), \(names[1]) and \(others) \(others == 1 ? "other" : "others")"
+        }
+    }
+
+    public static func peopleLine(
+        names: [String], memberCount: Int32, createdAt: Date, now: Date, calendar: Calendar = .current
+    ) -> String {
+        peopleNames(names: names, memberCount: memberCount) + separator
+            + since(createdAt, now: now, calendar: calendar)
+    }
+
+    private static func isLead(_ role: String) -> Bool { role == "creator" || role == "admin" }
 
     public static func since(_ createdAt: Date, now: Date, calendar: Calendar = .current) -> String {
         if calendar.isDate(createdAt, inSameDayAs: now) { return "started today" }
         let month = SharedFormatters.string(
-            from: createdAt, pattern: .fixed("MMM yyyy"), locale: posix, calendar: calendar)
+            from: createdAt, pattern: .fixed("MMMM"), locale: posix, calendar: calendar)
         return "since \(month)"
     }
 

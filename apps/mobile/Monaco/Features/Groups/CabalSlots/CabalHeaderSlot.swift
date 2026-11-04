@@ -97,10 +97,49 @@ private struct CabalIdentityRow: View {
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
-    private var subline: String {
-        CabalHeaderCopy.subline(
-            memberCount: cabal.memberCount, createdAt: cabal.createdAt, role: cabal.me?.role,
-            canVote: cabal.me?.canVote ?? false, now: .now)
+    @Environment(AppEnvironment.self) private var environment
+    @State private var pager: CabalMembersPager?
+
+    private var people: [CabalMemberRow] {
+        CabalHeaderCopy.headerMembers(rows: pager?.rows ?? [], viewerID: environment.viewer?.userID)
+    }
+
+    private var names: [String] {
+        people.prefix(2).map { CabalInviteCopy.firstName($0.member.displayName) }
+    }
+
+    private var peopleText: String { CabalHeaderCopy.peopleNames(names: names, memberCount: cabal.memberCount) }
+
+    private var sinceText: String { CabalHeaderCopy.since(cabal.createdAt, now: .now) }
+
+    private var faces: [MonacoFaceStack.Member] {
+        people.prefix(CabalHeaderCopy.headerFaces).map {
+            .init(id: $0.id, displayName: $0.member.displayName, photoURL: $0.member.photoUrl)
+        }
+    }
+
+    private var peopleRow: some View {
+        HStack(spacing: MonacoTheme.Space.xs) {
+            if !faces.isEmpty {
+                MonacoFaceStack(members: faces, total: faces.count)
+            }
+            Text(peopleText)
+                .lineLimit(1)
+                .truncationMode(.tail)
+            Text(CabalHeaderCopy.separator + sinceText)
+                .lineLimit(1)
+                .layoutPriority(1)
+        }
+        .font(MonacoTheme.Typo.subhead)
+        .foregroundStyle(MonacoTheme.secondaryText)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(peopleText), \(sinceText)")
+        .accessibilityIdentifier("cabal-member-count")
+        .task(id: "\(cabal.id)-\(cabal.memberCount)") {
+            let loaded = CabalMembersPager(cabalID: cabal.id, api: environment.api, pageSize: 4)
+            await loaded.loadFirst()
+            pager = loaded
+        }
     }
 
     var body: some View {
@@ -123,11 +162,7 @@ private struct CabalIdentityRow: View {
                                 key: CabalHeaderNameBottom.self, value: proxy.frame(in: .global).maxY)
                         }
                     }
-                Text(subline)
-                    .font(MonacoTheme.Typo.caption)
-                    .foregroundStyle(MonacoTheme.secondaryText)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .accessibilityIdentifier("cabal-member-count")
+                peopleRow
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
