@@ -30,8 +30,8 @@ public enum FundCabalCopy {
     public static let fromCash = "From your cash"
 
     public static func shareLine(now: Int32, after: Int32? = nil) -> String {
-        guard let after else { return "From your cash · your share \(percent(bps: now))" }
-        return "From your cash · your share \(percent(bps: now)) → \(percent(bps: after))"
+        guard let after else { return "From your cash. Your share is \(percent(bps: now))." }
+        return "From your cash. Your share goes from \(percent(bps: now)) to \(percent(bps: after))."
     }
 
     public static func limitLine(availableMicros: Int64, overMicros: Int64) -> String {

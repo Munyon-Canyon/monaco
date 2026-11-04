@@ -117,7 +117,7 @@ final class FundCabalModelTests: XCTestCase {
 
         XCTAssertEqual(rig.model.state, .empty)
         XCTAssertEqual(rig.model.maxMicros, 500_000_000)
-        XCTAssertEqual(rig.model.line, "From your cash · your share 35%")
+        XCTAssertEqual(rig.model.line, "From your cash. Your share is 35%.")
         XCTAssertEqual(rig.model.slotHint, "Enter an amount")
         XCTAssertNil(rig.model.buttonTitle)
         let sent = await rig.transport.sent
@@ -127,7 +127,7 @@ final class FundCabalModelTests: XCTestCase {
     func testATypedAmountShowsTheShareBeforeAndAfterAndTheButton() async {
         let rig = await typedRig([])
 
-        XCTAssertEqual(rig.model.line, "From your cash · your share 35% → 36%")
+        XCTAssertEqual(rig.model.line, "From your cash. Your share goes from 35% to 36%.")
         XCTAssertEqual(rig.model.buttonTitle, "Fund $250")
         XCTAssertNil(rig.model.limitLine)
         let sent = await rig.transport.sent
@@ -167,7 +167,7 @@ final class FundCabalModelTests: XCTestCase {
         await rig.model.load()
 
         XCTAssertFalse(rig.model.shareUnavailable)
-        XCTAssertEqual(rig.model.line, "From your cash · your share 35%")
+        XCTAssertEqual(rig.model.line, "From your cash. Your share is 35%.")
     }
 
     func testAnOtherFailureOnTheFirstLoadStillShowsItsMessage() async throws {
@@ -187,7 +187,7 @@ final class FundCabalModelTests: XCTestCase {
         await type("650", into: rig)
 
         await settle(rig, .invalid(availableMicros: 500_000_000, overMicros: 150_000_000))
-        XCTAssertEqual(rig.model.line, "From your cash · your share 35%")
+        XCTAssertEqual(rig.model.line, "From your cash. Your share is 35%.")
         XCTAssertEqual(rig.model.limitLine, "$500.00 available · $150.00 over")
         XCTAssertEqual(rig.model.slotHint, "Up to $500.00")
         XCTAssertNil(rig.model.buttonTitle)

@@ -22,9 +22,16 @@ final class FundCabalCopyTests: XCTestCase {
 
     func testTheShareLineShowsTheArrowOnlyWithAnAfter() {
         XCTAssertEqual(FundCabalCopy.fromCash, "From your cash")
-        XCTAssertEqual(FundCabalCopy.shareLine(now: 3500), "From your cash · your share 35%")
-        XCTAssertEqual(FundCabalCopy.shareLine(now: 3500, after: 3600), "From your cash · your share 35% → 36%")
-        XCTAssertEqual(FundCabalCopy.shareLine(now: 850, after: 1210), "From your cash · your share 8.5% → 12%")
+        XCTAssertEqual(FundCabalCopy.shareLine(now: 3500), "From your cash. Your share is 35%.")
+        XCTAssertEqual(
+            FundCabalCopy.shareLine(now: 3500, after: 3600),
+            "From your cash. Your share goes from 35% to 36%.")
+        let typed = FundCabalCopy.shareLine(now: 3500, after: 3600)
+        XCTAssertFalse(typed.contains("·"))
+        XCTAssertFalse(typed.contains("→"))
+        XCTAssertEqual(
+            FundCabalCopy.shareLine(now: 850, after: 1210),
+            "From your cash. Your share goes from 8.5% to 12%.")
     }
 
     func testTheLimitSlotAndMinimumLines() {
