@@ -1,0 +1,18 @@
+journey: profile/user-profile
+expect-fail: S1
+
+The header never draws the line naming the shared cabals. S1.5 needs it when the setup found a shared cabal, so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+diff --git a/apps/mobile/Monaco/Features/Profile/UserProfileHeaderSlot.swift b/apps/mobile/Monaco/Features/Profile/UserProfileHeaderSlot.swift
+index eb7ec9ac2..faad90a69 100644
+--- a/apps/mobile/Monaco/Features/Profile/UserProfileHeaderSlot.swift
++++ b/apps/mobile/Monaco/Features/Profile/UserProfileHeaderSlot.swift
+@@ -201,7 +201,7 @@ struct UserProfileContent: View {
+                 .padding(.horizontal, MonacoTheme.Space.gutter)
+             VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
+                 UserProfileCounts(data: data)
+-                if let shared = data.shared {
++                if let shared = data.shared, shared.marks.count < 0 {
+                     UserProfileSharedLine(shared: shared)
+                 }
+             }

@@ -37,10 +37,13 @@ shared="$(qa_api A GET "/v1/users/$member/shared-cabals" | python3 -c 'import js
 body = json.load(sys.stdin)
 cabals = body["cabals"] if isinstance(body, dict) else body
 if cabals:
-    print(cabals[0]["cabal"]["id"] + "|" + cabals[0]["cabal"]["name"])')"
+    print(cabals[0]["cabal"]["id"] + "|" + cabals[0]["cabal"]["name"] + "|" + str(len(cabals)))')"
+shared_count=0
 if [[ -n "$shared" ]]; then
   cabal="${shared%%|*}"
-  name="${shared#*|}"
+  rest="${shared#*|}"
+  name="${rest%|*}"
+  shared_count="${rest##*|}"
 else
   cabal="$(qa_sql -v name="$name" <<<"SELECT id FROM cabals WHERE name = :'name' LIMIT 1")"
   if [[ -z "$cabal" ]]; then
@@ -56,6 +59,7 @@ hand_off cabalID "$cabal"
 hand_off cabalName "$name"
 hand_off meID "$me"
 hand_off memberID "$member"
+hand_off sharedCount "$shared_count"
 
 case "$scenario" in
   S2)
