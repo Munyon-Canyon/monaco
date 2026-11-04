@@ -17,7 +17,7 @@ WHERE o.message_id = ANY(sqlc.arg(message_ids)::uuid[])
 ORDER BY o.message_id, o.position;
 
 -- name: GetChatPoll :one
-SELECT a.payload
+SELECT a.payload, m.author_id
 FROM chat_message_attachments a
 JOIN cabal_messages m ON m.id = a.message_id AND m.deleted_at IS NULL
 WHERE a.message_id = sqlc.arg(message_id) AND a.cabal_id = sqlc.arg(cabal_id) AND a.kind = 'poll';

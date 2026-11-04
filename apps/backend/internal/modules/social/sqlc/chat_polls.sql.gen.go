@@ -46,7 +46,7 @@ func (q *Queries) DeleteUserChatPollVotes(ctx context.Context, arg DeleteUserCha
 }
 
 const getChatPoll = `-- name: GetChatPoll :one
-SELECT a.payload
+SELECT a.payload, m.author_id
 FROM chat_message_attachments a
 JOIN cabal_messages m ON m.id = a.message_id AND m.deleted_at IS NULL
 WHERE a.message_id = $1 AND a.cabal_id = $2 AND a.kind = 'poll'
@@ -57,11 +57,16 @@ type GetChatPollParams struct {
 	CabalID   uuid.UUID
 }
 
-func (q *Queries) GetChatPoll(ctx context.Context, arg GetChatPollParams) ([]byte, error) {
+type GetChatPollRow struct {
+	Payload  []byte
+	AuthorID uuid.UUID
+}
+
+func (q *Queries) GetChatPoll(ctx context.Context, arg GetChatPollParams) (GetChatPollRow, error) {
 	row := q.db.QueryRow(ctx, getChatPoll, arg.MessageID, arg.CabalID)
-	var payload []byte
-	err := row.Scan(&payload)
-	return payload, err
+	var i GetChatPollRow
+	err := row.Scan(&i.Payload, &i.AuthorID)
+	return i, err
 }
 
 const insertChatPollOptions = `-- name: InsertChatPollOptions :exec
