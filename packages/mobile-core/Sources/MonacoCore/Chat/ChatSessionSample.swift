@@ -17,6 +17,7 @@ public struct ChatSampleScenario: Sendable, Equatable {
     public var threaded = false
     public var neverPosts = false
     public var proposalCard = false
+    public var moments = false
 
     public init(
         startEmpty: Bool = false,
@@ -28,7 +29,8 @@ public struct ChatSampleScenario: Sendable, Equatable {
         closedOnSend: Bool = false,
         threaded: Bool = false,
         neverPosts: Bool = false,
-        proposalCard: Bool = false
+        proposalCard: Bool = false,
+        moments: Bool = false
     ) {
         self.startEmpty = startEmpty
         self.failSends = failSends
@@ -40,6 +42,7 @@ public struct ChatSampleScenario: Sendable, Equatable {
         self.threaded = threaded
         self.neverPosts = neverPosts
         self.proposalCard = proposalCard
+        self.moments = moments
     }
 }
 
@@ -85,7 +88,9 @@ private actor SampleChatStore {
         if scenario.threaded {
             messages = [Self.message(Self.threadRootID, "u-ana", "Ana", "Apple reports Thursday.", minutesAgo: 10)]
         } else {
-            messages = scenario.startEmpty ? [] : Self.thread(busy: scenario.busy, proposalCard: scenario.proposalCard)
+            messages =
+                scenario.startEmpty
+                ? [] : Self.thread(busy: scenario.busy, proposalCard: scenario.proposalCard, moments: scenario.moments)
         }
     }
 
@@ -150,7 +155,7 @@ private actor SampleChatStore {
         return message
     }
 
-    private static func thread(busy: Bool, proposalCard: Bool) -> [ChatMessage] {
+    private static func thread(busy: Bool, proposalCard: Bool, moments: Bool) -> [ChatMessage] {
         let me = ChatSession.sampleViewerID
         var thread = [
             message("s1", "u-ana", "Ana", "Apple reports Thursday. Anyone want in before?", minutesAgo: 1_210),
@@ -181,6 +186,7 @@ private actor SampleChatStore {
                     original: .init(url: "\(base)/original.gif", width: 200, height: 150)))
             thread.insert(gif, at: 6)
         }
+        if moments { thread = Self.moments() + thread }
         if busy {
             thread += (1...60).map { index in
                 let body = "Backlog line \(index) about the Apple buy."
@@ -188,6 +194,39 @@ private actor SampleChatStore {
             }
         }
         return thread
+    }
+
+    private static func moments() -> [ChatMessage] {
+        let created = system("mo1", .cabalCreated(.init(kind: .cabalCreated)), minutesAgo: 60 * 24 * 33 + 20)
+        let joined = system(
+            "mo2",
+            .memberJoined(
+                .init(
+                    kind: .memberJoined,
+                    member: .init(id: ChatSession.sampleViewerID, handle: nil, displayName: "You", photoUrl: nil))),
+            minutesAgo: 60 * 24 * 33 + 10)
+        var fill = system(
+            "mo3",
+            .tradeFilled(
+                .init(
+                    kind: .tradeFilled, side: .buy, symbol: "NVDAx", assetId: "sample-nvda", priceMicros: 196_750_000,
+                    usdcMicros: 300_000_000, filledAt: Date(timeIntervalSinceNow: -33 * 86_400), swapId: "sample-swap",
+                    proposalId: nil)),
+            minutesAgo: 60 * 24 * 33)
+        fill.reactions = [.init(emoji: "🔥", count: 2, mine: false)]
+        fill.reactionCount = 2
+        return [created, joined, fill]
+    }
+
+    private static func system(
+        _ id: String, _ moment: Components.Schemas.ChatMoment, minutesAgo: Int
+    ) -> ChatMessage {
+        ChatMessage(
+            id: id, kind: .system,
+            author: .init(id: "00000000-0000-0000-0000-000000000000", handle: nil, displayName: "", photoUrl: nil),
+            moment: moment, body: nil,
+            createdAt: Date(timeIntervalSinceNow: -TimeInterval(minutesAgo * 60)),
+            alsoInChannel: false, replyCount: 0, deleted: false, reactions: [], reactionCount: 0)
     }
 
     private static func message(
