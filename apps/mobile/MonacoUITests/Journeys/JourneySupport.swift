@@ -209,6 +209,36 @@ enum JourneyDiagnostics {
     }
 }
 
+final class JourneyFailureCapture: NSObject, XCTestObservation {
+    private static let shared: JourneyFailureCapture = {
+        let capture = JourneyFailureCapture()
+        XCTestObservationCenter.shared.addTestObserver(capture)
+        return capture
+    }()
+
+    static func install() {
+        _ = shared
+    }
+
+    func testCase(_ testCase: XCTestCase, didRecord issue: XCTIssue) {
+        guard Thread.isMainThread else { return }
+        MainActor.assumeIsolated {
+            let app = XCUIApplication()
+            XCTContext.runActivity(named: "failure capture") { activity in
+                let shot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+                shot.name = "failure-screenshot"
+                shot.lifetime = .keepAlways
+                activity.add(shot)
+                guard app.state == .runningForeground else { return }
+                let tree = XCTAttachment(string: app.debugDescription)
+                tree.name = "failure-hierarchy"
+                tree.lifetime = .keepAlways
+                activity.add(tree)
+            }
+        }
+    }
+}
+
 final class JourneyRecorder {
     let journey: String
     let version: Int
@@ -255,6 +285,7 @@ final class JourneySession {
         }
         _ = try JourneyAccount.load(actor: first, channel: channel, environment: environment)
         self.environment = environment
+        JourneyFailureCapture.install()
     }
 
     func account(_ actor: String) throws -> JourneyAccount {

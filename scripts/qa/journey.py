@@ -1400,21 +1400,28 @@ def failure_message(output):
 
 def failure_attachments(manifest):
     """(screenshot, hierarchy) file names a failure left, from the manifest.json of `xcresulttool export
-    attachments`: the last one of each kind, those marked as belonging to a failure first. '' when absent."""
+    attachments`, which lists attachments newest first. The journey tests' own capture at the moment of the
+    failure (named failure-screenshot and failure-hierarchy) wins, the earliest one, from the first failure;
+    then the newest one marked as belonging to a failure; then the newest one. '' when absent."""
     screenshots, hierarchies = [], []
     for test in manifest:
-        for item in test.get("attachments", []):
+        for position, item in enumerate(test.get("attachments", [])):
             name = item.get("exportedFileName", "")
             label = item.get("suggestedHumanReadableName", "").lower()
+            rank = 2 if label.startswith("failure-") else int(bool(item.get("isAssociatedWithFailure")))
+            when = (item.get("timestamp", 0), -position)
             if "hierarchy" in label or "debug description" in label:
-                hierarchies.append((bool(item.get("isAssociatedWithFailure")), name))
+                hierarchies.append((rank, when, name))
             elif name.lower().endswith((".png", ".jpg", ".jpeg", ".heic")):
-                screenshots.append((bool(item.get("isAssociatedWithFailure")), name))
+                screenshots.append((rank, when, name))
 
-    def last(items):
-        names = [name for failed, name in items if failed] or [name for _, name in items]
-        return names[-1] if names else ""
-    return last(screenshots), last(hierarchies)
+    def pick(items):
+        if not items:
+            return ""
+        best = max(rank for rank, _, _ in items)
+        ranked = [(when, name) for rank, when, name in items if rank == best]
+        return (min(ranked) if best == 2 else max(ranked))[1]
+    return pick(screenshots), pick(hierarchies)
 
 
 def export_evidence(run_dir, rows, output):
