@@ -21,4 +21,11 @@ struct CabalHeaderTapsTests {
         #expect(CabalCover<EmptyView>.overlay(for: .heroInset, reduceTransparency: false) == nil)
         #expect(CabalCover<EmptyView>.overlay(for: .heroInset, reduceTransparency: true) == nil)
     }
+
+    @Test func foldedTitleLabelReadsShortNameAndMemberCount() {
+        let eight = CabalFoldedTitle.accessibilityLabel(name: "AC Capital Group", memberCount: 8)
+        let one = CabalFoldedTitle.accessibilityLabel(name: "AC Capital", memberCount: 1)
+        #expect(eight == "AC Capital, 8 members")
+        #expect(one == "AC Capital, 1 member")
+    }
 }
