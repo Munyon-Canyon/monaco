@@ -30,6 +30,7 @@ public final class CabalMembersModel {
     private let totalsBox: TotalsBox
     private var decisions: [String: IdempotentSubmission] = [:]
     private var toastSerial = 0
+    private var hintedWhileLoading = false
 
     public init(
         cabal: Components.Schemas.Cabal, api: APIClient, hints: any HintSource,
@@ -90,6 +91,16 @@ public final class CabalMembersModel {
         await pending
     }
 
+    public func run() async {
+        async let watching: Void = observe()
+        await loadFirst()
+        if hintedWhileLoading {
+            hintedWhileLoading = false
+            await reload()
+        }
+        await watching
+    }
+
     public func loadMore(after entry: CabalMemberEntry) async {
         guard entry.id == rows.last?.id else { return }
         await pager.loadMore()
@@ -125,6 +136,10 @@ public final class CabalMembersModel {
     }
 
     private func reload() async {
+        if pager.phase == .loadingFirst {
+            hintedWhileLoading = true
+            return
+        }
         async let members: Void = pager.refreshFirstPage()
         async let pending: Void = loadRequests()
         await members

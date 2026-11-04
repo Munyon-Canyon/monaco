@@ -139,8 +139,7 @@ struct CabalMembersHost<Content: View>: View {
         .task(id: Key(id: cabal.id, role: cabal.me?.role)) {
             let model = CabalMembersModel(cabal: cabal, api: environment.api, hints: environment.hints)
             self.model = model
-            await model.loadFirst()
-            await model.observe()
+            await model.run()
         }
         .onChange(of: model?.toast) { _, toast in
             guard let toast else { return }
