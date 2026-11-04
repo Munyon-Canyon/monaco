@@ -4,6 +4,8 @@ The look in one sentence: **Apple native, dark first: a black (or white) canvas,
 
 This is design option F, "Native", which the founder chose on 10-26. The [F package](design/f/README.md) holds the frames, the gallery, the [notes](design/f/notes.md) with the build map and fixture table, and the [kit](design/f/kit.md). This page is the rule set; the package is the picture.
 
+The current design for milestone UI/UX v5 (tracking #7848) is the [v5 package](design/v5/README.md): 34 dark-only frames in `docs/design/v5/screens/`.
+
 Kept: SF Pro only, tabular figures, every colour and font a token, the 13pt text floor, the slot architecture, toasts for confirmations, the product words, Monaco-character default faces and Monaco world scenes as default cabal pictures, the "monaco" wordmark as Home's title, the rounded profile card, native chart behaviour (candles, intervals, pinch and pan, crosshair).
 
 Gone: the v3 paper canvas and its ink-green text, cards drawn with a border everywhere, capsule P&L pills, cover-art cabal cards with text on a scrim (rows lead with the cabal's **crest**; the cabal page keeps its picture as a plain header with nothing drawn on it), the dark identity card's palette (the profile card is a `surface` card at radius 12), segment pickers for sections, range pills, the chart gradient, hand-tuned glass fills.
