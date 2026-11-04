@@ -284,7 +284,7 @@ nonisolated extension SampleAPIProtocol {
             ? Components.Schemas.ReferralCabal.sampleNoOpenProposal : .sample
         preview.cabal?.id = cabalID
         preview.cabal?.name = Components.Schemas.Cabal.sample(role: nil).name
-        preview.openProposal?.expiresAt = WallClock.now().addingTimeInterval(3 * 3600)
+        preview.openProposal?.expiresAt = WallClock.now().addingTimeInterval(4 * 3_600 + 600)
         var reply = json(preview)
         reply.headers["Cache-Control"] = "no-cache"
         return reply
