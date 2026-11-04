@@ -4,9 +4,9 @@ import UIKit
 /// Shared visual tokens: a neutral canvas, one forest accent, and the money colours.
 ///
 /// The values are the redesign's (`docs/design.md`); feature code uses the role names. The rule
-/// that shapes the palette: **green means "this went up"**. The forest `brand` / `brandFill` is
-/// the interactive colour and never a gain; `profit` is a lighter, far more saturated green.
-/// `MonacoContrastTests` pins both, and every text pair's AA contrast.
+/// that shapes the palette: **bright green text or line means money went up; the forest fill is
+/// the one action on the screen; everything that only navigates is white.**
+/// `MonacoContrastTests` pins all three, and every text pair's AA contrast.
 enum MonacoTheme {
     // MARK: Surfaces
 
@@ -42,7 +42,21 @@ enum MonacoTheme {
 
     // MARK: Brand
 
-    static let tint = Color(hex: 0x4DAE78)
+    static let tint = Color(hex: 0xFFFFFF)
+
+    static let link = tint
+
+    static let action = brandFill
+
+    static let onAction = onBrand
+
+    static let gain = profit
+
+    static let switchOn = brandFill
+
+    static let chipOn = Color(hex: 0xFFFFFF)
+
+    static let onChipOn = Color(hex: 0x000000)
 
     static let brand = tint
 
