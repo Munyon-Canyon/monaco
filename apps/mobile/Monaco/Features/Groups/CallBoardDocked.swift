@@ -12,7 +12,6 @@ enum CallBoardSharePayload {
 
 enum CallBoardDockedMetrics {
     static let avatar: CGFloat = 40
-    static let barHeight: CGFloat = 6
     static let tap: CGFloat = 44
 }
 
@@ -80,12 +79,7 @@ struct CallBoardDocked: View {
                 Spacer(minLength: 0)
                 figures()
             }
-            Capsule().fill(MonacoTheme.border).frame(height: CallBoardDockedMetrics.barHeight)
-                .overlay(alignment: .leading) {
-                    GeometryReader { proxy in
-                        Capsule().fill(MonacoTheme.profit).frame(width: proxy.size.width * card.climb)
-                    }
-                }
+            CallBoardClimbBar(fraction: card.climb)
             if let gap = card.gapLine {
                 Text(gap).font(MonacoTheme.Typo.subhead).foregroundStyle(MonacoTheme.secondaryText)
                     .accessibilityIdentifier("leaderboard-docked-gap")
