@@ -1,0 +1,19 @@
+journey: money/withdraw
+expect-fail: S1
+
+The fee line returns the old "120.00 USDC · fee $0.50" form. S1.3 waits for " fee · arrives in about " and refuses "USDC", so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/packages/mobile-core/Sources/MonacoCore/Funding/WithdrawCopy.swift b/packages/mobile-core/Sources/MonacoCore/Funding/WithdrawCopy.swift
+index cc22a9126..3bd076073 100644
+--- a/packages/mobile-core/Sources/MonacoCore/Funding/WithdrawCopy.swift
++++ b/packages/mobile-core/Sources/MonacoCore/Funding/WithdrawCopy.swift
+@@ -47,7 +47,7 @@ public enum WithdrawCopy {
+     public static func feeLine(feeMicros: Int64?, arrivalSeconds: Int?) -> String {
+         guard let feeMicros, let arrivalSeconds else { return "Fee shown once you type" }
+         let lead = feeMicros == 0 ? "No fee" : "\(fee(feeMicros)) fee"
+-        return "\(lead) · arrives in \(wait(arrivalSeconds))"
++        return "120.00 USDC · fee \(fee(feeMicros))"
+     }
+ 
+     public static func addressEnding(_ address: String) -> String {

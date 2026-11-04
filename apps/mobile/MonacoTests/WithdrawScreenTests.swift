@@ -46,13 +46,13 @@ struct WithdrawScreenTests {
     }
 
     @Test(.timeLimit(.minutes(1))) func aValidUnfocusedAddressDrawsTheRestingRow() async throws {
-        let ids = try await Self.identifiers(of: .resting, until: "withdraw-address-resting")
-        #expect(ids.contains("withdraw-address-resting") && !ids.contains("withdraw-address-field"), "\(ids)")
+        let ids = try await Self.identifiers(of: .resting, until: "withdraw-address-ending")
+        #expect(ids.contains("withdraw-address-ending") && !ids.contains("withdraw-address-field"), "\(ids)")
         #expect(ids.contains("withdraw-paste") && ids.contains("withdraw-scan"))
         let empty = try await Self.identifiers(of: .needsAddress, until: "withdraw-address-field")
-        #expect(empty.contains("withdraw-address-field") && !empty.contains("withdraw-address-resting"))
+        #expect(empty.contains("withdraw-address-field") && !empty.contains("withdraw-address-ending"))
         let invalid = try await Self.identifiers(of: .invalidAddress, until: "withdraw-address-field")
-        #expect(!invalid.contains("withdraw-address-resting"))
+        #expect(!invalid.contains("withdraw-address-ending"))
     }
 
     @Test func theRestingLineNamesTheLastFourCharacters() {

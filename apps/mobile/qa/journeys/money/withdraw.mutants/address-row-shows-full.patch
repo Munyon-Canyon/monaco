@@ -1,0 +1,19 @@
+journey: money/withdraw
+expect-fail: S1
+
+The resting row draws the full address instead of the short "Address ending …" line. S1.3 waits for withdraw-address-ending to read "Address ending " and checks the full address is off screen, so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Settings/WithdrawScreen.swift b/apps/mobile/Monaco/Features/Settings/WithdrawScreen.swift
+index ac643a32b..3e67e96b7 100644
+--- a/apps/mobile/Monaco/Features/Settings/WithdrawScreen.swift
++++ b/apps/mobile/Monaco/Features/Settings/WithdrawScreen.swift
+@@ -203,7 +203,7 @@ struct WithdrawKeypadView: View {
+             WithdrawAddressField(
+                 text: Binding(get: { model.address }, set: { model.setAddress($0) }),
+                 placeholder: model.network.placeholder, isInvalid: model.addressProblem != nil,
+-                focusRequests: focusRequests, restingLine: model.addressEndingLine, onScan: { scan() }
++                focusRequests: focusRequests, restingLine: model.addressEndingLine.map { _ in model.address }, onScan: { scan() }
+             )
+             .disabled(isLocked)
+             if let problem = model.addressProblem {
