@@ -281,7 +281,7 @@ done
 if (( journeys )); then
   runs="$rounds"; [[ -n "$until_time" ]] && runs=1
   run_step 1 journeys-run 14400 python3 scripts/qa/journey.py run --all --runs "$runs" || true
-  since="$(git rev-list -1 --before=24.hours origin/staging 2>/dev/null || true)"
+  since="$(git log -1 --format=%H --before=24.hours origin/staging 2>/dev/null)" || since=""
   changed_journeys=""
   [[ -n "$since" ]] && changed_journeys="$(python3 scripts/qa/journey.py affected --base "$since" --head origin/staging 2>/dev/null || true)"
   for id in $changed_journeys; do
