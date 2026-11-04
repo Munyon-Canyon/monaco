@@ -42,16 +42,6 @@ struct PushRouterTests {
         #expect(untouched(navigator, except: .cabals))
     }
 
-    @Test func aChatPushOpensItsCabalThenTheChatOnTheCabalsTab() async {
-        let (router, navigator) = open(sessionOpen: true)
-
-        await tap(.chat(cabalID: cabal), on: router)
-
-        #expect(navigator.selectedTab == .cabals)
-        #expect(navigator.cabalsPath == [AnyAppRoute(CabalRoute(id: cabal)), AnyAppRoute(ChatRoute(cabalID: cabal))])
-        #expect(untouched(navigator, except: .cabals))
-    }
-
     @Test func aCabalPushOpensTheCabalOnTheCabalsTab() async {
         let (router, navigator) = open(sessionOpen: true)
 
@@ -288,6 +278,105 @@ struct PushRouterTests {
 
     private func untouched(_ navigator: AppNavigator, except tab: MainTab?) -> Bool {
         MainTab.allCases.filter { $0 != tab }.allSatisfy { navigator.path(for: $0).isEmpty }
+    }
+}
+
+extension PushRouterTests {
+    @Test func aChatPushOpensTheCabalOnItsChatTabAlone() async {
+        let (router, navigator) = open(sessionOpen: true)
+
+        await tap(.chat(cabalID: cabal), on: router)
+
+        #expect(navigator.selectedTab == .cabals)
+        let expected: [AnyAppRoute] = [AnyAppRoute(CabalRoute(id: cabal, tab: .chat))]
+        #expect(navigator.cabalsPath == expected)
+        #expect(untouched(navigator, except: .cabals))
+    }
+
+    @Test func aChatThreadPushOpensTheThreadAboveTheCabalsChatTab() async {
+        let (router, navigator) = open(sessionOpen: true)
+
+        await tap(.chatThread(cabalID: cabal, parentID: txn), on: router)
+
+        #expect(navigator.selectedTab == .cabals)
+        let expected: [AnyAppRoute] = [
+            AnyAppRoute(CabalRoute(id: cabal, tab: .chat)),
+            AnyAppRoute(ChatThreadRoute(cabalID: cabal, parentID: txn)),
+        ]
+        #expect(navigator.cabalsPath == expected)
+        #expect(untouched(navigator, except: .cabals))
+    }
+
+    @Test func aChatPushForTheCabalAlreadyOpenAddsNoScreen() async {
+        let (router, navigator) = open(sessionOpen: true)
+        navigator.open(CabalRoute(id: cabal), in: .cabals)
+
+        await tap(.chat(cabalID: cabal), on: router)
+
+        let expected: [AnyAppRoute] = [AnyAppRoute(CabalRoute(id: cabal, tab: .chat))]
+        #expect(navigator.cabalsPath == expected)
+    }
+
+    @Test func aChatThreadPushFromAThreadOfTheSameCabalReplacesTheThread() async {
+        let (router, navigator) = open(sessionOpen: true)
+        await tap(.chatThread(cabalID: cabal, parentID: txn), on: router)
+
+        await tap(.chatThread(cabalID: cabal, parentID: proposal), on: router)
+
+        let expected: [AnyAppRoute] = [
+            AnyAppRoute(CabalRoute(id: cabal, tab: .chat)),
+            AnyAppRoute(ChatThreadRoute(cabalID: cabal, parentID: proposal)),
+        ]
+        #expect(navigator.cabalsPath == expected)
+    }
+
+    @Test func aChatPushNeverPushesTheOldChatScreen() async {
+        let (router, navigator) = open(sessionOpen: true)
+
+        await tap(.chat(cabalID: cabal), on: router)
+        await tap(.chatThread(cabalID: cabal, parentID: txn), on: router)
+
+        #expect(!navigator.cabalsPath.contains(AnyAppRoute(ChatRoute(cabalID: cabal))))
+    }
+
+    @Test func aCatchUpReplyOrMentionOpensTheCabalOnItsChatTab() {
+        let navigator = AppNavigator()
+        navigator.selectedTab = .home
+
+        navigator.openChat(cabalID: cabal)
+
+        #expect(navigator.selectedTab == .cabals)
+        let expected: [AnyAppRoute] = [AnyAppRoute(CabalRoute(id: cabal, tab: .chat))]
+        #expect(navigator.cabalsPath == expected)
+        #expect(navigator.homePath.isEmpty)
+    }
+
+    @Test func aChatPushForTheChatBeingReadIsShownAndOneForAnotherCabalIsNot() {
+        let (router, navigator) = open(sessionOpen: true)
+
+        #expect(!router.isShowing(chatCabalID: cabal))
+        navigator.visibleChatCabalID = cabal
+
+        #expect(router.isShowing(chatCabalID: cabal))
+        #expect(!router.isShowing(chatCabalID: proposal))
+    }
+
+    @Test(.timeLimit(.minutes(1)))
+    func aChatTapBeforeTheSessionOpensHoldsUntilItDoesThenOpensTheChatTab() async {
+        let (router, navigator, environment) = openWithEnvironment(sessionOpen: false)
+
+        router.handle(.chatThread(cabalID: cabal, parentID: txn))
+
+        #expect(navigator.cabalsPath.isEmpty)
+        environment.viewer = Viewer(userID: user, handle: nil)
+        while navigator.cabalsPath.isEmpty { await Task.yield() }
+        for _ in 0..<10 { await Task.yield() }
+
+        let expected: [AnyAppRoute] = [
+            AnyAppRoute(CabalRoute(id: cabal, tab: .chat)),
+            AnyAppRoute(ChatThreadRoute(cabalID: cabal, parentID: txn)),
+        ]
+        #expect(navigator.cabalsPath == expected)
     }
 }
 

@@ -17,8 +17,7 @@ final class PushRouter {
     }
 
     func isShowing(chatCabalID: String) -> Bool {
-        let navigator = environment.navigator
-        return navigator.path(for: navigator.selectedTab).last == AnyAppRoute(ChatRoute(cabalID: chatCabalID))
+        environment.navigator.visibleChatCabalID == chatCabalID
     }
 
     func isShowing(proposalID: String) -> Bool {
@@ -68,12 +67,11 @@ final class PushRouter {
         case .userProfile(let userID):
             navigator.open(UserProfileRoute(userID: userID), in: .home)
         case .chat(let cabalID):
-            navigator.open(cabalID: cabalID, then: ChatRoute(cabalID: cabalID), in: .cabals)
+            navigator.openChat(cabalID: cabalID)
         case .chatThread(let cabalID, let parentID):
             navigator.open(
                 chain: [
-                    CabalRoute(id: cabalID),
-                    ChatRoute(cabalID: cabalID),
+                    CabalRoute(id: cabalID, tab: .chat),
                     ChatThreadRoute(cabalID: cabalID, parentID: parentID),
                 ],
                 in: .cabals
@@ -102,6 +100,10 @@ final class PushRouter {
 }
 
 extension AppNavigator {
+    func openChat(cabalID: String) {
+        open(chain: [CabalRoute(id: cabalID, tab: .chat)], in: .cabals)
+    }
+
     func open(reply destination: ReplyDestination) {
         guard let proposalID = destination.proposalID else {
             open(FeedItemRoute(itemID: destination.feedItemID, anchorCommentID: destination.commentID), in: .feed)
