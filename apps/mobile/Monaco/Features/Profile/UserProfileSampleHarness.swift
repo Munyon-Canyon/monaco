@@ -85,15 +85,10 @@ struct UserProfileSampleScreen: View {
         ToolbarItem(placement: .topBarLeading) {
             MonacoGlassButton(systemImage: "chevron.left", accessibilityLabel: "Back", placement: .toolbar) {}
         }
-        ToolbarItem(placement: .topBarTrailing) {
+        ToolbarItemGroup(placement: .topBarTrailing) {
             MonacoGlassButton(
                 systemImage: MonacoIcon.share.symbol, accessibilityLabel: "Share", placement: .toolbar
             ) {}
-        }
-        if #available(iOS 26.0, *) {
-            ToolbarSpacer(.fixed, placement: .topBarTrailing)
-        }
-        ToolbarItem(placement: .topBarTrailing) {
             Menu {
                 Button {
                 } label: {
@@ -112,7 +107,7 @@ struct UserProfileSampleScreen: View {
                     .font(.title3.weight(.medium))
                     .foregroundStyle(MonacoTheme.primaryText)
                     .frame(width: MonacoButtonMetrics.hitTarget, height: MonacoButtonMetrics.hitTarget)
-                    .background(Circle().fill(MonacoTheme.surfaceSunken))
+                    .monacoToolbarCircle()
                     .contentShape(Circle())
             }
             .accessibilityLabel("More")

@@ -84,7 +84,7 @@ struct UserProfileMoreMenu: View {
                 .font(.title3.weight(.medium))
                 .foregroundStyle(MonacoTheme.primaryText)
                 .frame(width: 44, height: 44)
-                .background(Circle().fill(MonacoTheme.surfaceSunken))
+                .monacoToolbarCircle()
                 .contentShape(Circle())
         }
         .accessibilityLabel("More")
