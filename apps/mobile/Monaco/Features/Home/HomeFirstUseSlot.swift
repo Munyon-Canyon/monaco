@@ -70,6 +70,8 @@ private struct HomeFirstUse: View {
             Text("There is no place like Monaco.")
                 .font(MonacoTheme.Typo.title2)
                 .foregroundStyle(MonacoTheme.ink)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
                 .accessibilityAddTraits(.isHeader)
             Text("Trade with your friends.")
                 .font(MonacoTheme.Typo.body)

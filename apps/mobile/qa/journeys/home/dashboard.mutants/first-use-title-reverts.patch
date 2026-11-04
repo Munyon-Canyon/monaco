@@ -5,7 +5,7 @@ Home's first-use card titles itself "Start your first cabal". S2.1 reads "There 
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/apps/mobile/Monaco/Features/Home/HomeFirstUseSlot.swift b/apps/mobile/Monaco/Features/Home/HomeFirstUseSlot.swift
-index 8bc5d73c7..c5c68a95f 100644
+index e887c3122..7494aae1f 100644
 --- a/apps/mobile/Monaco/Features/Home/HomeFirstUseSlot.swift
 +++ b/apps/mobile/Monaco/Features/Home/HomeFirstUseSlot.swift
 @@ -67,7 +67,7 @@ private struct HomeFirstUse: View {
@@ -16,4 +16,4 @@ index 8bc5d73c7..c5c68a95f 100644
 +            Text("Start your first cabal")
                  .font(MonacoTheme.Typo.title2)
                  .foregroundStyle(MonacoTheme.ink)
-                 .accessibilityAddTraits(.isHeader)
+                 .multilineTextAlignment(.center)
