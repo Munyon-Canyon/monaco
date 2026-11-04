@@ -4,6 +4,7 @@
 Run: python3 scripts/qa/test_journey.py (all classes, in parallel shards), or name tests as unittest.main takes them.
 """
 
+import inspect
 import contextlib
 import fcntl
 import json
@@ -86,6 +87,12 @@ TESTS_SWIFT = """nonisolated final class SignInJourneyUITests: XCTestCase {
     }
 }
 """
+
+
+class SharedBuildLock(unittest.TestCase):
+    def test_the_shared_build_lock_is_not_the_name_xcode_lock_uses_for_its_folder(self):
+        self.assertNotEqual(journey.shared_build_lock(), journey.OUT / (journey.SHARED_BUILD + ".lock"))
+        self.assertEqual(journey.shared_build_lock().parent, journey.OUT)
 
 
 class Tree(unittest.TestCase):
@@ -2524,17 +2531,51 @@ class Stamp(Output):
         self.write("apps/mobile/New.swift", "let b = 2\n")
         self.assertNotEqual(journey.build_stamp(), added)
 
+    def fake_build(self, built):
+        def build(sim, log, current=None):
+            built.append((journey.DERIVED.name, current))
+            self.write("out/%s/Build/Products/Monaco.xctestrun" % journey.DERIVED.name, "")
+            self.write("out/%s/build.stamp" % journey.DERIVED.name, current + "\n")
+        return unittest.mock.patch.object(journey, "build", build)
+
     def test_a_matching_stamp_and_test_bundle_skip_the_build(self):
         built = []
-        with unittest.mock.patch.object(journey, "build", lambda sim, log, current=None: built.append(current)), \
-                redirect_stdout(StringIO()) as printed:
+        with self.fake_build(built), redirect_stdout(StringIO()) as printed:
             journey.ensure_build("sim", journey.OUT / "build.log")
-            self.write("out/derived/build.stamp", journey.build_stamp() + "\n")
-            self.write("out/derived/Build/Products/Monaco.xctestrun", "")
             journey.ensure_build("sim", journey.OUT / "build.log")
             journey.ensure_build("sim", journey.OUT / "build.log", rebuild=True)
-        self.assertEqual(len(built), 2)
+        self.assertEqual([name for name, _ in built], ["derived-build", "derived-build"])
         self.assertIn("reusing build %s" % journey.build_stamp()[:8], printed.getvalue())
+
+    def test_two_login_sets_on_one_stamp_build_once_and_each_gets_its_own_clone(self):
+        built = []
+        with self.fake_build(built), redirect_stdout(StringIO()):
+            for logins in ({"A": "A"}, {"A": "A", "B": "B"}, {"A": "A"}):
+                journey.use_derived_data(logins)
+                journey.ensure_build("sim", journey.OUT / "build.log")
+        self.assertEqual(len(built), 1)
+        for name in ("derived-A", "derived-A-B"):
+            self.assertTrue((journey.OUT / name / "Build/Products/Monaco.xctestrun").exists())
+            self.assertEqual((journey.OUT / name / "build.stamp").read_text().strip(), journey.build_stamp())
+
+    def test_a_changed_source_rebuilds_and_refreshes_every_clone(self):
+        built = []
+        with self.fake_build(built), redirect_stdout(StringIO()):
+            journey.use_derived_data({"A": "A"})
+            journey.ensure_build("sim", journey.OUT / "build.log")
+            self.write("apps/mobile/App.swift", "let a = 3\n")
+            journey.ensure_build("sim", journey.OUT / "build.log")
+        self.assertEqual(len(built), 2)
+        self.assertEqual((journey.OUT / "derived-A" / "build.stamp").read_text().strip(), journey.build_stamp())
+
+    def test_a_patched_tree_has_another_stamp_so_a_mutant_never_reuses_the_clean_build(self):
+        clean = journey.build_stamp()
+        self.write("apps/mobile/App.swift", "let a = 99\n")
+        self.assertNotEqual(journey.build_stamp(), clean)
+
+    def test_the_mutants_path_never_calls_ensure_build(self):
+        self.assertNotIn("ensure_build", inspect.getsource(journey.run_mutants))
+        self.assertNotIn("ensure_build", inspect.getsource(journey.cmd_build_mutants))
 
 
 class All(Output):

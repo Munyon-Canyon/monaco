@@ -1150,16 +1150,63 @@ def build_is_current(current):
             and any((DERIVED / "Build" / "Products").glob("*.xctestrun")))
 
 
+SHARED_BUILD = "derived-build"
+
+
+def shared_build_lock():
+    """The file journey.py locks around the shared build. xcode-lock.sh makes a directory named after the
+    -derivedDataPath plus ".lock" for each xcodebuild, so a file of that name would block every build into it."""
+    return OUT / (SHARED_BUILD + ".journey-lock")
+
+
+@contextlib.contextmanager
+def derived_in(folder):
+    """DERIVED points at `folder` inside the block."""
+    global DERIVED
+    saved = DERIVED
+    DERIVED = folder
+    try:
+        yield
+    finally:
+        DERIVED = saved
+
+
+def clone_products(shared, current):
+    """Gives this run's derived data a copy-on-write APFS clone of the shared build's products, so a run's
+    logs and results never land in the shared folder and the clone costs no disk until a file changes."""
+    products = DERIVED / "Build" / "Products"
+    with contextlib.suppress(FileNotFoundError):
+        stamp_file().unlink()
+    shutil.rmtree(str(DERIVED / "Build"), ignore_errors=True)
+    products.parent.mkdir(parents=True, exist_ok=True)
+    clone = sh(["cp", "-c", "-R", str(shared / "Build" / "Products"), str(products)])
+    if clone.returncode != 0:
+        shutil.rmtree(str(products), ignore_errors=True)
+        sh(["cp", "-R", str(shared / "Build" / "Products"), str(products)], check=True)
+    stamp_file().write_text(current + "\n")
+
+
 def ensure_build(sim, log, rebuild=False):
-    """Build unless the stamp says the last build is of these sources. Returns True when it built."""
+    """Build unless the stamp says the shared build of this worktree is of these sources, then give this run's
+    derived data a clone of it. One lock covers the build and the clone, so two processes never build into the
+    shared folder together. Returns True when it built."""
     current = build_stamp()
-    if not rebuild and build_is_current(current):
-        print("reusing build %s" % current[:8])
-        add_phase("build_s", 0.0)
-        add_phase("build_queue_s", 0.0)
-        return False
-    build(sim, log, current)
-    return True
+    run_folder = DERIVED
+    shared = OUT / SHARED_BUILD
+    OUT.mkdir(parents=True, exist_ok=True)
+    built = False
+    with take_qa_lock(str(shared_build_lock())):
+        with derived_in(shared):
+            if not rebuild and build_is_current(current):
+                print("reusing build %s" % current[:8])
+                add_phase("build_s", 0.0)
+                add_phase("build_queue_s", 0.0)
+            else:
+                build(sim, log, current)
+                built = True
+        if built or not build_is_current(current):
+            clone_products(shared, current)
+    return built
 
 
 def build(sim, log, current=None):
@@ -2619,12 +2666,14 @@ def xcode_version_warning(read_installed=installed_xcode_version):
 
 
 def once_builder(args):
-    """Builds once per derived folder in this invocation, and not at all when the stamp matches or --no-build."""
+    """Gives each derived folder its build once in this invocation, which builds only for the first (or --rebuild) and not at all when the stamp matches or --no-build."""
     done = set()
+    rebuilt = []
 
     def builder(sim):
         if not args.no_build and DERIVED not in done:
-            ensure_build(sim, OUT / ("build-%s.log" % DERIVED.name.partition("-")[2]), args.rebuild)
+            ensure_build(sim, OUT / "build.log", args.rebuild and not rebuilt)
+            rebuilt.append(1)
         done.add(DERIVED)
     return builder
 
