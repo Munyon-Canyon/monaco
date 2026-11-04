@@ -23,10 +23,11 @@ struct SectionStack<Context>: View {
             ScrollView {
                 SectionStackLayout(spacing: spacing) {
                     ForEach(Array(Self.live(sections).enumerated()), id: \.offset) { _, section in
-                        AnyView(section.body(for: context))
+                        AnyView(section.body(for: context)).sampleSectionID(section)
                     }
                 }
             }
+            .sampleScrollSections()
             .contentMargins(.bottom, MonacoTheme.Space.l, for: .scrollContent)
             .scrollDismissesKeyboard(.interactively)
             .environment(\.sectionScrollProxy, proxy)
