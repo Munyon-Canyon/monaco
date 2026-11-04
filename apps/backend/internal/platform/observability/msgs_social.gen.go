@@ -6,6 +6,7 @@ func init() {
 	register(
 		SocialChatPublishFailed,
 		SocialChatMomentSkipped,
+		SocialFeedResultSkipped,
 		SocialChatAuthorUnreadable,
 		ContactsMatched,
 		SocialReportReceived,

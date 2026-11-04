@@ -357,8 +357,11 @@ func TestFeedResult_aCloseReturnsEachFailure(t *testing.T) {
 		r := newProposalRig(t)
 		r.mustCreate(t, func(*events.ProposalCreated) {})
 		delete(r.tallies.votes, ids.ProposalIDFrom(r.proposal))
-		if got := errs.CodeOf(r.passed(t)); got != errs.CodeProposalNotFound {
-			t.Fatalf("pass without a tally = %s, want %s", got, errs.CodeProposalNotFound)
+		if err := r.passed(t); err != nil {
+			t.Fatalf("pass without a tally must be acknowledged, got %v", err)
+		}
+		if n := r.count(t, "result"); n != 0 {
+			t.Fatalf("%d result rows, want none", n)
 		}
 	})
 	t.Run("tallies down", func(t *testing.T) {
