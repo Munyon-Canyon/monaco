@@ -54,6 +54,11 @@ enum CabalsBrowseJourney {
 
     static func browses(_ app: XCUIApplication, run: String, recorder: JourneyRecorder) {
         recorder.step("S1.1", "open the Cabals tab and see your tiles") {
+            app.terminate()
+            app.launchArguments.append("-MonacoResetHoldTip")
+            app.launch()
+            XCTAssertTrue(app.tab("Cabals").waitForExistence(timeout: 30), "S1.1: no tab bar after the launch")
+            app.launchArguments.removeAll { $0 == "-MonacoResetHoldTip" }
             app.tab("Cabals").tap()
             let mineTile = tile(app, named: mine(run: run))
             XCTAssertTrue(
@@ -63,21 +68,17 @@ enum CabalsBrowseJourney {
             XCTAssertTrue(app.staticTexts["Your cabals"].exists, "S1.1: no Your cabals header")
             XCTAssertTrue(app.element("cabals-new-tile").exists, "S1.1: no New cabal tile")
             assertUpNext(app, tile: mineTile)
-            if hint(app).exists {
-                XCTAssertTrue(
-                    app.staticTexts["Hold a cabal for quick actions."].exists,
-                    "S1.1: the hint does not read Hold a cabal for quick actions.")
-                XCTAssertTrue(
-                    app.element("cabals-reorder-hint-dismiss").exists, "S1.1: the hint has no dismiss button")
-            }
+            XCTAssertTrue(hint(app).waitForExistence(timeout: 10), "S1.1: no hold hint")
+            XCTAssertTrue(
+                hint(app).staticTexts["Hold a cabal for quick actions."].exists,
+                "S1.1: the hint does not read Hold a cabal for quick actions.")
+            XCTAssertTrue(
+                app.element("cabals-reorder-hint-dismiss").exists, "S1.1: the hint has no dismiss button")
             JoinJourney.snap(app, "S1-A-cabals-tab")
         }
 
         recorder.step("S1.2", "dismiss the hold hint and keep it dismissed across a relaunch") {
-            let dismiss = app.element("cabals-reorder-hint-dismiss")
-            if hint(app).exists, dismiss.exists {
-                dismiss.tap()
-            }
+            app.element("cabals-reorder-hint-dismiss").tap()
             XCTAssertTrue(waitForHintGone(app), "S1.2: the hint is still there 5 s after dismissing it")
             app.terminate()
             app.launch()
