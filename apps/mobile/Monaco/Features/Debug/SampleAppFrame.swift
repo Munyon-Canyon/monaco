@@ -7,6 +7,7 @@ import UIKit
 struct SampleAppFrame: View {
     @ObservedObject var auth: PrivyAuthService
     let sheet: (() -> AnyView)?
+    private let root: (() -> AnyView)?
     private let tab: MainTab
     private let presentsDeposit: Bool
     private let opensWithViewer: Bool
@@ -26,8 +27,10 @@ struct SampleAppFrame: View {
         store: AppSessionStore = AppSessionStore(),
         session: @escaping @MainActor (AppSessionStore) -> Void = SampleAppFrame.signedIn,
         sheet: (() -> AnyView)? = nil,
-        hints: any HintConnecting = SampleSilentHints()
+        hints: any HintConnecting = SampleSilentHints(),
+        root: (() -> AnyView)? = nil
     ) {
+        self.root = root
         self.hints = hints
         self.auth = auth
         self.tab = tab
@@ -43,7 +46,7 @@ struct SampleAppFrame: View {
     var body: some View {
         Group {
             if let environment {
-                MainTabView()
+                content
                     .modifier(SampleScrollModifier(anchor: SampleScrollAnchor.requested(by: SampleScrollAnchor.flag)))
                     .sheet(isPresented: $showsSheet) { sheet?() }
                     .environment(environment)
@@ -58,6 +61,14 @@ struct SampleAppFrame: View {
         .onAppear {
             guard environment == nil else { return }
             environment = makeEnvironment()
+        }
+    }
+
+    @ViewBuilder private var content: some View {
+        if let root {
+            NavigationStack { root().monacoCanvas().tabRouteDestinations() }
+        } else {
+            MainTabView()
         }
     }
 
@@ -145,7 +156,6 @@ enum SampleImage {
 }
 nonisolated struct SampleScreenRoute: AppRoute {
     enum Screen: Hashable, Sendable {
-        case chat
         case chatThread
         case proposeBuy
         case proposeReview(ProposeKind)
@@ -156,7 +166,6 @@ nonisolated struct SampleScreenRoute: AppRoute {
 
     @MainActor @ViewBuilder func destination() -> some View {
         switch screen {
-        case .chat: ChatSampleQA.screen(arguments: arguments)
         case .chatThread: ChatThreadSampleQA.screen()
         case .proposeBuy: ProposeBuyStockView(cabalID: GroupDetailSampleData.cabalID)
         case .proposeReview(let kind): ProposeReviewSample(kind: kind)

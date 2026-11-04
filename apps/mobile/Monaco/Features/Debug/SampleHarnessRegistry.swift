@@ -21,17 +21,20 @@ enum SampleHarnessRegistry {
     }
 
     static func requestedRoot(arguments: [String], auth: PrivyAuthService) -> AnyView? {
-        let matches = directSubclasses().compactMap { $0.root(arguments: arguments, auth: auth) }
-        guard let first = matches.first else { return nil }
+        let matches = directSubclasses().compactMap { entry in
+            entry.root(arguments: arguments, auth: auth).map { (entry, $0) }
+        }
+        guard let (entry, first) = matches.first else { return nil }
         if matches.count > 1 {
             reportConflict()
         }
+        if entry.marksOwnDraw { return first }
         return AnyView(first.onAppear { markDrawn(arguments) })
     }
 
     static let actArgument = "-MonacoSampleAct"
 
-    private static func markDrawn(_ arguments: [String]) {
+    static func markDrawn(_ arguments: [String]) {
         let marker = FileManager.default.temporaryDirectory.appending(path: "monaco-sample-drawn")
         try? Data(arguments.joined(separator: " ").utf8).write(to: marker, options: .atomic)
     }
@@ -70,6 +73,8 @@ class SampleHarnessEntry: NSObject {
                 .font(.body)
                 .accessibilityIdentifier("sample-unknown-scenario"))
     }
+
+    @MainActor class var marksOwnDraw: Bool { false }
 
     @MainActor
     class func root(arguments _: [String], auth _: PrivyAuthService) -> AnyView? {

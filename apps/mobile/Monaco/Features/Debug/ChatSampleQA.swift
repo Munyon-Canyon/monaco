@@ -25,7 +25,7 @@ enum ChatSampleQA {
         let acts = arguments.contains(SampleHarnessRegistry.actArgument)
         let offline = arguments.contains("-MonacoChatSampleOffline")
         return OpensOnceActive {
-            ChatSampleHost(scenario: scenario, acts: acts, offline: offline)
+            ChatSampleHost(scenario: scenario, acts: acts, offline: offline, arguments: arguments)
         }
     }
 }
@@ -48,9 +48,11 @@ private struct ChatSampleHost: View {
     @State private var network: NetworkPathModel
     @State private var reactions = ReactionsModel.sample(reactions: [:], fails: false, clock: ContinuousClock())
     private let sendsOnLaunch: Bool
+    private let arguments: [String]
     private let cabal: Components.Schemas.Cabal
 
-    init(scenario: ChatSampleScenario, acts: Bool, offline: Bool) {
+    init(scenario: ChatSampleScenario, acts: Bool, offline: Bool, arguments: [String]) {
+        self.arguments = arguments
         sendsOnLaunch =
             acts
             && (scenario.failSends || scenario.failFirstSend || scenario.closedOnSend || scenario.neverPosts)
@@ -90,6 +92,7 @@ private struct ChatSampleHost: View {
             reactionsOverride: reactions
         )
         .environment(\.stockSearch, Self.stockSearch)
+        .onAppear { SampleHarnessRegistry.markDrawn(arguments) }
         .task {
             guard sendsOnLaunch, !sent else { return }
             sent = true
@@ -126,11 +129,13 @@ private struct OpensOnceActive<Content: View>: View {
 }
 
 final class ChatSampleQAEntry: SampleHarnessEntry {
+    @MainActor override class var marksOwnDraw: Bool { true }
+
     @MainActor
     override class func root(arguments: [String], auth: PrivyAuthService) -> AnyView? {
         guard ChatSampleQA.matches(arguments) else { return nil }
         return AnyView(
-            SampleAppFrame(auth: auth, tab: .cabals, routes: [SampleScreenRoute(screen: .chat, arguments: arguments)]))
+            SampleAppFrame(auth: auth, tab: .cabals, root: { AnyView(ChatSampleQA.screen(arguments: arguments)) }))
     }
 }
 #endif
