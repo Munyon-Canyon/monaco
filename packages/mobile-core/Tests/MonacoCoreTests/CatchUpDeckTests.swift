@@ -259,14 +259,36 @@ final class CatchUpDeckCopyTests: XCTestCase {
         XCTAssertEqual(
             proposal.map { CatchUpDeckCopy.proposedLine($0, now: Self.now, calendar: calendar()) }, "Mia proposed · 2h")
         XCTAssertEqual(
-            proposal.map { CatchUpDeckCopy.statusLine($0, now: Self.now) }, "5 of 8 voted · 6 replies · ends in 4h")
+            proposal.map { CatchUpDeckCopy.statusLine($0, now: Self.now) }, "5 of 8 voted · 6 replies · closes in 4h")
     }
 
-    func testAClosedProposalHasNoEndsInAndTheResultLineNamesYourVote() {
+    func testAClosedProposalHasNoClosesInAndTheResultLineNamesYourVote() {
         let result: Components.Schemas.CatchUpItem = CatchUpScreen(.deck).results[0]
         XCTAssertEqual(
             result.proposal.map { CatchUpDeckCopy.statusLine($0, now: Self.now) }, "5 of 5 voted · 6 replies")
-        XCTAssertEqual(CatchUpDeckCopy.closedLine(result), "you voted Yes · filled")
+        XCTAssertEqual(CatchUpDeckCopy.closedLine(result), "you said yes")
+    }
+
+    func testTheResultLineNamesNoOrNothing() {
+        var result: Components.Schemas.CatchUpItem = CatchUpScreen(.deck).results[0]
+        result.proposal?.yourChoice = .no
+        XCTAssertEqual(CatchUpDeckCopy.closedLine(result), "you said no")
+        result.proposal?.yourChoice = nil
+        XCTAssertEqual(CatchUpDeckCopy.closedLine(result), "")
+        result.proposal = nil
+        XCTAssertEqual(CatchUpDeckCopy.closedLine(result), "")
+    }
+
+    func testTheCloseLineUsesDaysMinutesAndDropsOnceExpired() async throws {
+        var proposal: Components.Schemas.CatchUpProposal = try XCTUnwrap(CatchUpScreen(.deck).replies[0].proposal)
+        proposal.expiresAt = Self.now.addingTimeInterval(2 * 86400 + 60)
+        XCTAssertEqual(CatchUpDeckCopy.statusLine(proposal, now: Self.now), "5 of 8 voted · 6 replies · closes in 2d")
+        proposal.expiresAt = Self.now.addingTimeInterval(5 * 60 + 10)
+        XCTAssertEqual(CatchUpDeckCopy.statusLine(proposal, now: Self.now), "5 of 8 voted · 6 replies · closes in 5m")
+        proposal.expiresAt = Self.now.addingTimeInterval(10)
+        XCTAssertEqual(CatchUpDeckCopy.statusLine(proposal, now: Self.now), "5 of 8 voted · 6 replies · closes in 1m")
+        proposal.expiresAt = Self.now.addingTimeInterval(-60)
+        XCTAssertEqual(CatchUpDeckCopy.statusLine(proposal, now: Self.now), "5 of 8 voted · 6 replies")
     }
 
     func testThePostHeadAndTheOpenLabelByKind() {
