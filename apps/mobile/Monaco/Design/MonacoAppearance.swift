@@ -4,7 +4,6 @@ import UIKit
 /// Root appearance wiring and reusable styles for sibling screen agents.
 enum MonacoAppearance {
     static func configureUIKit() {
-        let canvas = UIColor(MonacoTheme.canvas)
         let primaryText = UIColor(MonacoTheme.primaryText)
         let secondaryText = UIColor(MonacoTheme.secondaryText)
         let tint = UIColor(MonacoTheme.tint)
@@ -20,41 +19,7 @@ enum MonacoAppearance {
             .font: UIFontMetrics(forTextStyle: .largeTitle).scaledFont(for: largeTitleFont, maximumPointSize: 34),
         ]
 
-        // Chevron-only back button: the title is drawn clear and at a near-zero size so it takes no width.
-        let backButton = UIBarButtonItemAppearance(style: .plain)
-        backButton.normal.titleTextAttributes = [
-            .foregroundColor: UIColor.clear, .font: UIFont.systemFont(ofSize: 0.1),
-        ]
-        backButton.highlighted.titleTextAttributes = [
-            .foregroundColor: UIColor.clear, .font: UIFont.systemFont(ofSize: 0.1),
-        ]
-        let backImage = UIImage(
-            systemName: "chevron.left", withConfiguration: UIImage.SymbolConfiguration(weight: .semibold))
-
-        let standard = UINavigationBarAppearance()
-        standard.configureWithOpaqueBackground()
-        standard.backgroundColor = canvas
-        standard.shadowColor = border
-        standard.titleTextAttributes = titleAttributes
-        standard.largeTitleTextAttributes = largeTitleAttributes
-        standard.backButtonAppearance = backButton
-        standard.setBackIndicatorImage(backImage, transitionMaskImage: backImage)
-
-        // At rest (scroll edge): transparent, no hairline.
-        let scrollEdge = UINavigationBarAppearance()
-        scrollEdge.configureWithTransparentBackground()
-        scrollEdge.titleTextAttributes = titleAttributes
-        scrollEdge.largeTitleTextAttributes = largeTitleAttributes
-        scrollEdge.backButtonAppearance = backButton
-        scrollEdge.setBackIndicatorImage(backImage, transitionMaskImage: backImage)
-
-        let navigationBar = UINavigationBar.appearance()
-        navigationBar.standardAppearance = standard
-        navigationBar.compactAppearance = standard
-        navigationBar.scrollEdgeAppearance = scrollEdge
-        navigationBar.compactScrollEdgeAppearance = scrollEdge
-        navigationBar.tintColor = primaryText
-        navigationBar.prefersLargeTitles = false
+        configureNavigationBar(titleAttributes: titleAttributes, largeTitleAttributes: largeTitleAttributes)
 
         UITabBar.appearance().tintColor = tint
         UISwitch.appearance().onTintColor = UIColor(MonacoTheme.switchOn)
@@ -80,6 +45,63 @@ enum MonacoAppearance {
 
         // No global UITextField / UISegmentedControl appearance: it leaked into Privy's sheets.
         // Use MonacoTextField and MonacoSegmented instead.
+    }
+
+    private static func configureNavigationBar(
+        titleAttributes: [NSAttributedString.Key: Any], largeTitleAttributes: [NSAttributedString.Key: Any]
+    ) {
+        let canvas = UIColor(MonacoTheme.canvas)
+        let border = UIColor(MonacoTheme.border)
+        let primaryText = UIColor(MonacoTheme.primaryText)
+        // Chevron-only back button: the title is drawn clear and at a near-zero size so it takes no width.
+        let backButton = UIBarButtonItemAppearance(style: .plain)
+        backButton.normal.titleTextAttributes = [
+            .foregroundColor: UIColor.clear, .font: UIFont.systemFont(ofSize: 0.1),
+        ]
+        backButton.highlighted.titleTextAttributes = [
+            .foregroundColor: UIColor.clear, .font: UIFont.systemFont(ofSize: 0.1),
+        ]
+        let backImage = UIImage(
+            systemName: "chevron.left", withConfiguration: UIImage.SymbolConfiguration(weight: .semibold))
+
+        let navigationBar = UINavigationBar.appearance()
+        if #unavailable(iOS 26) {
+            let standard = UINavigationBarAppearance()
+            standard.configureWithOpaqueBackground()
+            standard.backgroundColor = canvas
+            standard.shadowColor = border
+            standard.titleTextAttributes = titleAttributes
+            standard.largeTitleTextAttributes = largeTitleAttributes
+            standard.backButtonAppearance = backButton
+            standard.setBackIndicatorImage(backImage, transitionMaskImage: backImage)
+
+            // At rest (scroll edge): transparent, no hairline.
+            let scrollEdge = UINavigationBarAppearance()
+            scrollEdge.configureWithTransparentBackground()
+            scrollEdge.titleTextAttributes = titleAttributes
+            scrollEdge.largeTitleTextAttributes = largeTitleAttributes
+            scrollEdge.backButtonAppearance = backButton
+            scrollEdge.setBackIndicatorImage(backImage, transitionMaskImage: backImage)
+
+            navigationBar.standardAppearance = standard
+            navigationBar.compactAppearance = standard
+            navigationBar.scrollEdgeAppearance = scrollEdge
+            navigationBar.compactScrollEdgeAppearance = scrollEdge
+        } else {
+            let glass = UINavigationBarAppearance()
+            glass.configureWithDefaultBackground()
+            glass.shadowColor = .clear
+            glass.titleTextAttributes = titleAttributes
+            glass.largeTitleTextAttributes = largeTitleAttributes
+            glass.backButtonAppearance = backButton
+            glass.setBackIndicatorImage(backImage, transitionMaskImage: backImage)
+            navigationBar.standardAppearance = glass
+            navigationBar.compactAppearance = glass
+            navigationBar.scrollEdgeAppearance = glass
+            navigationBar.compactScrollEdgeAppearance = glass
+        }
+        navigationBar.tintColor = primaryText
+        navigationBar.prefersLargeTitles = false
     }
 }
 
