@@ -285,7 +285,7 @@ class VersionBump(Tree):
     def test_a_step_change_without_a_bump_is_named(self):
         problems = self.problems_against(DOC.replace("| y |", "| z |"))
         self.assertEqual(len(problems), 1)
-        self.assertIn("docs/journeys/auth/sign-in.md: the step tables changed against origin/staging", problems[0])
+        self.assertIn("docs/journeys/auth/sign-in.md: the step tables changed against the merge base with origin/staging", problems[0])
 
     def test_a_step_change_with_a_bump_passes(self):
         self.assertEqual(self.problems_against(DOC.replace("| y |", "| z |").replace("version: 2", "version: 1")), [])
@@ -295,6 +295,34 @@ class VersionBump(Tree):
 
     def test_a_missing_base_is_skipped(self):
         self.assertEqual(self.problems_against(None), [])
+
+
+class MergeBaseText(unittest.TestCase):
+    def git(self, *args):
+        subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t", *args], cwd=self.root, check=True, capture_output=True)
+
+    def commit(self, text, message):
+        (self.root / "doc.md").write_text(text)
+        self.git("add", "doc.md")
+        self.git("commit", "-q", "-m", message)
+
+    def setUp(self):
+        self.root = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.root)
+        self.git("init", "-q", "-b", "staging")
+        self.commit("version: 2\n", "base")
+        self.git("checkout", "-q", "-b", "lane")
+        self.git("checkout", "-q", "staging")
+        self.commit("version: 3\n", "a bump lands on staging")
+        self.git("update-ref", "refs/remotes/origin/staging", "staging")
+        self.git("checkout", "-q", "lane")
+
+    def test_a_branch_made_before_a_bump_reads_its_merge_base(self):
+        self.assertEqual(journey.git_base_text("doc.md", self.root), "version: 2\n")
+
+    def test_a_missing_ref_is_none(self):
+        self.git("update-ref", "-d", "refs/remotes/origin/staging")
+        self.assertIsNone(journey.git_base_text("doc.md", self.root))
 
 
 class Targets(Tree):

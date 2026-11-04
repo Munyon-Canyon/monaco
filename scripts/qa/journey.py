@@ -2259,9 +2259,14 @@ def stale_generated(journeys):
     return problems
 
 
-def git_base_text(relative):
-    """The file as origin/staging has it, or None when the ref or the file is missing."""
-    result = subprocess.run(["git", "show", "origin/staging:" + relative], cwd=str(ROOT), capture_output=True, text=True)
+def git_base_text(relative, root=ROOT):
+    """The file at the merge base of HEAD and origin/staging, or None when the ref or the file is missing.
+
+    The merge base, not the staging tip, so a bump that lands on staging mid-check does not fail older branches."""
+    base = subprocess.run(["git", "merge-base", "HEAD", "origin/staging"], cwd=str(root), capture_output=True, text=True)
+    if base.returncode != 0:
+        return None
+    result = subprocess.run(["git", "show", base.stdout.strip() + ":" + relative], cwd=str(root), capture_output=True, text=True)
     return result.stdout if result.returncode == 0 else None
 
 
@@ -2281,7 +2286,7 @@ def unbumped_versions(journeys, base_text=git_base_text):
         if not isinstance(base_version, int) or not isinstance(journey.version, int):
             continue
         if step_table_text(base) != step_table_text(journey.path.read_text()) and journey.version <= base_version:
-            problems.append("%s: the step tables changed against origin/staging but version is still %s: bump it above %s"
+            problems.append("%s: the step tables changed against the merge base with origin/staging but version is still %s: bump it above %s"
                             % (relative, journey.version, base_version))
     return problems
 
