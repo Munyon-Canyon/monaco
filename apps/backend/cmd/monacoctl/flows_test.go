@@ -773,3 +773,14 @@ func TestFlowsSteps_printsFlow30StepsWithTheirStatusAndOwner(t *testing.T) {
 		t.Fatalf("flows steps = %q, want flow 30's steps with their status and owner", stdout.String())
 	}
 }
+
+func TestUnstatedLetters_countsOnlyTheDeclaredLettersWithoutAConsumer(t *testing.T) {
+	t.Parallel()
+	if got := unstatedLetters("F00RecordPingOK") + unstatedLetters("NoSuchScript"); got != 0 {
+		t.Fatalf("unstatedLetters = %d, want 0 for a script that declares no letters and one that does not exist", got)
+	}
+	declared := len(testflows.LettersOf(testflows.Scripts()["F27RedriveDeadLetterOK"]))
+	if got := unstatedLetters("F27RedriveDeadLetterOK"); declared == 0 || got > declared {
+		t.Fatalf("unstatedLetters = %d of %d declared letters, want at most all of them", got, declared)
+	}
+}

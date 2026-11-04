@@ -175,6 +175,6 @@ func (defined) AloneF22d() []Script {
 }
 
 func (defined) LettersF22d() map[string][]Letter {
-	unbooked := Letter{Subject: events.TypeTradeConfirmed, Code: errs.CodeInvalidInput}
+	unbooked := Letter{Consumer: "treasury_activity", Subject: events.TypeTradeConfirmed, Code: errs.CodeInvalidInput}
 	return map[string][]Letter{"F22dWriteTradeFilledMomentOK": {unbooked}}
 }

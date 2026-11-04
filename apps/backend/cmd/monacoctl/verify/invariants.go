@@ -517,6 +517,8 @@ func (d *driver) global(ctx context.Context, ledger []LedgerCheck, rep *report) 
 	} else if rep.deadLetters = stream.CachedInfo().State.Msgs; rep.deadLetters != want {
 		failures = append(failures, &InvariantError{Msg: fmt.Sprintf("%d dead letters in %s, want %d", rep.deadLetters,
 			d.env.DeadLetter, want)})
+	} else if err := d.letterFailure(ctx, stream, rep.units); err != nil {
+		failures = append(failures, err)
 	}
 	failures = append(failures, d.internalErrorLines(terms, declared)...)
 	for _, l := range ledger {
