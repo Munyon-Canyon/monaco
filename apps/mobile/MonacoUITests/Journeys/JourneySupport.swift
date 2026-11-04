@@ -559,11 +559,20 @@ extension XCUIApplication {
 
     func revealInGrid(_ tile: XCUIElement, maxSwipes: Int = 8) -> Bool {
         var swipes = 0
+        var seen = visibleGridTileIDs()
         while !(tile.exists && tile.isHittable && isAboveTabBar(tile)) && swipes < maxSwipes {
             swipeUp()
             swipes += 1
+            let now = visibleGridTileIDs()
+            if now == seen { break }
+            seen = now
         }
         return tile.exists && tile.isHittable && isAboveTabBar(tile)
+    }
+
+    func visibleGridTileIDs() -> [String] {
+        buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'cabals-tile-'"))
+            .allElementsBoundByIndex.map(\.identifier)
     }
 
     func openCabalTab(_ name: String, timeout: TimeInterval = 10, step: String = "journey") {
