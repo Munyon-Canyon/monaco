@@ -1,0 +1,19 @@
+journey: feed/react-and-reply
+expect-fail: S1
+
+The foot row no longer opens the tray on a long press (opensTrayOnLongPress defaults to false). S1.2 waits for reaction-tray-1F44D, so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Reactions/ReactionRow.swift b/apps/mobile/Monaco/Features/Reactions/ReactionRow.swift
+index 8ab232f09..494cf10fe 100644
+--- a/apps/mobile/Monaco/Features/Reactions/ReactionRow.swift
++++ b/apps/mobile/Monaco/Features/Reactions/ReactionRow.swift
+@@ -20,7 +20,7 @@ struct ReactionRow<Trailing: View>: View {
+     init(
+         target: ReactionTarget,
+         reactions: [Components.Schemas.Reaction],
+-        opensTrayOnLongPress: Bool = true,
++        opensTrayOnLongPress: Bool = false,
+         size: MonacoReactionChip.Size = .regular,
+         startsOpen: Bool = false,
+         onToggle: @escaping (String) -> Void, onOpenTray: @escaping () -> Void = {},

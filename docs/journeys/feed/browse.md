@@ -1,7 +1,7 @@
 ---
 id: feed/browse
 title: Browse the feed
-version: 8
+version: 9
 milestone: M18
 requires: [auth/sign-in]
 actors: [A]
@@ -41,14 +41,14 @@ The format of this doc is in [App journeys](../README.md).
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
 | S2.1 | A | tap, tap, tap, then tap outside the menu | the Feed tab, `feed-filter`, `feed-scope-Friends`, then the left margin beside the menu | | No card reads "started QA feed {QA.run}" after 5 s (screens.md: the filter menu's “From” picks; old app: Feed tab “Following”) |
-| S2.2 | A | wait | the text "Follow people to see what they do.", then `feed-find-friends` | | The message shows within 10 s with `feed-find-friends` reading "Find friends" under it (screens.md: “Following with no follows: ”Follow people to see what they do.“ with ”Find friends“”) |
+| S2.2 | A | wait | the text "Follow people to see what they do.", then `feed-find-friends` | | The message shows within 10 s with `feed-find-friends` reading "Find friends" under it (screens.md: Following with no follows reads "Follow people to see what they do." with "Find friends") |
 
 ### S3 A cell opens what it is about
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
 | S3.1 | A | tap, pick `feed-scope-Your cabals and friends` from `feed-filter` (closing the menu), then tap | the Feed tab, then the card reading "started QA feed {QA.run}" | | `feed-item-detail` shows within 15 s, the post page, not the cabal page (screens.md Post screen: the Feed card opens its post; the cabal opens from the card's context menu, “Open <cabal>”) |
-| S3.2 | A | tap back, then tap | the first `feed-cell-<id>` | | `proposal-vote-yes` shows within 15 s, and the screen reads `QA proposal {QA.run}` within 10 s (screens.md Proposal screen) |
+| S3.2 | A | tap back, then tap | the card body `feed-vote-open-<id>` of the first proposal card | | `proposal-vote-yes` shows within 15 s, and the screen reads `QA proposal {QA.run}` within 10 s, and no `monaco-toast-banner` showed (a tap on the card body opens the proposal and never votes; screens.md Proposal screen) |
 | S3.3 | A | tap back, then press and hold, then tap | the card reading "started QA feed {QA.run}", then "Hide this post" | | The card is gone within 5 s (Q40: a long-press hides) |
 
 ## Ground truth
@@ -57,7 +57,7 @@ The format of this doc is in [App journeys](../README.md).
 
 ## Known failures on staging
 
-- S2.2: the test checks "Follow people to see what they do.", which the doc step does not quote. Blocked by #7979.
+None known.
 
 ## Not covered
 
