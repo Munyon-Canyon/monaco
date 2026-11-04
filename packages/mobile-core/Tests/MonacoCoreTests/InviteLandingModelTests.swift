@@ -51,7 +51,7 @@ final class InviteLandingModelTests: XCTestCase {
         XCTAssertEqual(proposal.yesText, "\u{2713} 4")
         XCTAssertEqual(proposal.noText, "1 \u{2715}")
         XCTAssertEqual(proposal.voteNote, "Join to vote")
-        XCTAssertEqual(proposal.detail, "5 of 8 voted \u{00B7} 6 replies \u{00B7} ends in 4h")
+        XCTAssertEqual(proposal.detail, "5 of 8 voted \u{00B7} 6 replies \u{00B7} 4h")
         XCTAssertEqual(model.buttonTitle, "Ask to join AC Capital")
         XCTAssertTrue(model.buttonEnabled)
         XCTAssertFalse(model.showsAcceptDecline)

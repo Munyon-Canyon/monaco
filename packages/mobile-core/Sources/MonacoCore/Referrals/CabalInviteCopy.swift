@@ -76,19 +76,10 @@ public enum CabalInviteCopy {
     public static func proposalDetail(
         voted: Int, eligible: Int, replies: Int?, expiresAt: Date, now: Date
     ) -> String {
-        var parts = ["\(voted) of \(eligible) voted"]
-        if let replies { parts.append("\(replies) \(replies == 1 ? "reply" : "replies")") }
-        parts.append(endsIn(expiresAt, now: now))
-        return parts.joined(separator: " \u{00B7} ")
-    }
-
-    public static func endsIn(_ date: Date, now: Date) -> String {
-        let seconds = date.timeIntervalSince(now)
-        guard seconds >= 60 else { return seconds > 0 ? "ends in 1m" : "ends now" }
-        let minutes = Int(seconds / 60)
-        if minutes < 60 { return "ends in \(minutes)m" }
-        let hours = minutes / 60
-        return hours < 24 ? "ends in \(hours)h" : "ends in \(hours / 24)d"
+        ProposalVoteCopy.cardLine(
+            cabalName: nil, tally: ProposalTally(yes: voted, no: 0, voters: eligible, needed: 0),
+            replies: replies, expiresAt: expiresAt, now: now
+        ).short
     }
 
     private static func proposal(

@@ -23,7 +23,7 @@ struct CabalInviteSheetTests {
         let identifiers = try await identifiers(role: "creator", preview: .frame, ready: "cabal-invite-proposal")
 
         for id in [
-            "cabal-invite-title", "cabal-invite-link", "cabal-invite-cover", "cabal-invite-facts",
+            "cabal-invite-title", "cabal-invite-link", "cabal-invite-facts",
             "cabal-invite-inviter", "cabal-invite-proposal", "cabal-invite-settings", "cabal-invite-qr-toggle",
             "share-card-share", "share-card-copy",
         ] {
@@ -118,7 +118,8 @@ struct CabalInviteSheetTests {
 
         #expect(image.scale == CabalInviteMetrics.shareScale)
         #expect(image.size.width == CabalInviteMetrics.shareWidth)
-        #expect(image.size.height > CabalInviteMetrics.coverHeight)
+        #expect(image.size.height > CabalInviteMetrics.crestSize)
+        #expect(image.size.height > CabalInviteMetrics.crestSize + CabalInviteMetrics.inviterPhoto)
     }
 
     private func identifiers(role: String, preview: Preview, ready: String) async throws -> [String] {
