@@ -45,3 +45,43 @@ func (q *Queries) ListBallots(ctx context.Context, proposalID uuid.UUID) ([]List
 	}
 	return items, nil
 }
+
+const myBallots = `-- name: MyBallots :many
+SELECT pv.proposal_id, coalesce(v.choice, '')::text AS choice,
+  (p.status = 'open' AND p.expires_at > now())::boolean AS can_vote
+FROM proposal_voters AS pv
+JOIN proposals AS p ON p.id = pv.proposal_id
+LEFT JOIN votes AS v ON v.proposal_id = pv.proposal_id AND v.voter_id = pv.voter_id
+WHERE pv.voter_id = $1 AND pv.proposal_id = ANY($2::uuid[])
+`
+
+type MyBallotsParams struct {
+	Viewer      uuid.UUID
+	ProposalIds []uuid.UUID
+}
+
+type MyBallotsRow struct {
+	ProposalID uuid.UUID
+	Choice     string
+	CanVote    bool
+}
+
+func (q *Queries) MyBallots(ctx context.Context, arg MyBallotsParams) ([]MyBallotsRow, error) {
+	rows, err := q.db.Query(ctx, myBallots, arg.Viewer, arg.ProposalIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []MyBallotsRow
+	for rows.Next() {
+		var i MyBallotsRow
+		if err := rows.Scan(&i.ProposalID, &i.Choice, &i.CanVote); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}

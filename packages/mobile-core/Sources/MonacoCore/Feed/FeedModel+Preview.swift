@@ -69,7 +69,7 @@ enum FeedPreviewFixtures {
             title: "Mia proposed buying $400.00 of NVIDIA in Big Ballers", detail: "Voting open",
             body: "A small position alongside our existing holdings. "
                 + "I want us to discuss concentration before adding more.",
-            comments: 8, minutes: 12, likes: 12, returnBps: 820,
+            comments: 8, minutes: 12, likes: 12, returnBps: 820, canVote: true,
             figures: .init(
                 action: "buy", usdcMicros: 400_000_000, assetName: "NVIDIA", shareOfPotBps: 200,
                 vote: (yes: 4, no: 1, voters: 8, needed: 5, endsInHours: 4))),
@@ -256,7 +256,7 @@ enum FeedPreviewFixtures {
     private static func item(
         _ number: Int, kind: String, cabal: String?, cabalID: String = cabalID, actor: Int?, symbol: String?,
         title: String, detail: String?, body: String? = nil, tone: String = "neutral", comments: Int32 = 0,
-        minutes: Double, likes: Int32, returnBps: Int64? = nil, figures: Figures
+        minutes: Double, likes: Int32, returnBps: Int64? = nil, canVote: Bool = false, figures: Figures
     ) -> Components.Schemas.FeedItem {
         let created = Date(timeIntervalSinceNow: -minutes * 60)
         let proposal = ["proposal", "threshold", "reply"].contains(kind)
@@ -275,7 +275,8 @@ enum FeedPreviewFixtures {
             proposalId: proposal ? String(format: "00000000-0000-7000-8000-0000000fa%03d", 100 + number) : nil,
             commentCount: comments,
             threadItemId: String(format: "00000000-0000-7000-8000-0000000fe%03d", number),
-            replyCount: comments, canReply: true, canReact: true, replyRule: .anyone, replyRuleCabalName: nil,
+            replyCount: comments, canReply: true, canReact: true, replyRule: .anyone, myBallot: nil, canVote: canVote,
+            replyRuleCabalName: nil,
             likeCount: likes, likedByMe: false, reactions: [], reactionCount: 0,
             tally: figures.vote.map { .init(yes: $0.yes, no: $0.no, voters: $0.voters, needed: $0.needed) },
             expiresAt: figures.vote.map { Date(timeIntervalSinceNow: $0.endsInHours * 3600) },

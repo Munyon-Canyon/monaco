@@ -53,3 +53,41 @@ func wireTally(item app.FeedItem, tallies map[ids.ProposalID]app.Tally, out *api
 		out.ExpiresAt = &expires
 	}
 }
+
+func (h HTTP) loadBallots(
+	ctx context.Context,
+	me ids.UserID,
+	items []app.FeedItem,
+) (map[ids.ProposalID]app.ViewerBallot, error) {
+	const op = "social.wireFeedItems"
+	var proposals []ids.ProposalID
+	for _, item := range items {
+		if item.Kind != feed.KindProposal {
+			continue
+		}
+		id := ids.ProposalIDFrom(item.ProposalID)
+		if !slices.Contains(proposals, id) {
+			proposals = append(proposals, id)
+		}
+	}
+	if len(proposals) == 0 || h.Ballots == nil {
+		return map[ids.ProposalID]app.ViewerBallot{}, nil
+	}
+	ballots, err := h.Ballots.MyBallots(ctx, me, proposals)
+	if err != nil {
+		return nil, errs.Wrap(err, errs.CodeOf(err), op)
+	}
+	return ballots, nil
+}
+
+func wireBallot(item app.FeedItem, ballots map[ids.ProposalID]app.ViewerBallot, out *api.FeedItem) {
+	if item.Kind != feed.KindProposal {
+		return
+	}
+	b, ok := ballots[ids.ProposalIDFrom(item.ProposalID)]
+	if !ok {
+		return
+	}
+	out.CanVote = b.CanVote
+	out.MyBallot = optionalWireEnum[api.FeedItemMyBallot](b.Choice)
+}

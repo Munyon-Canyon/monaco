@@ -280,7 +280,7 @@ func TestGetUserActivity_theMemberSeesTheirOwnChoiceAndNobodyElseDoes(t *testing
 		want   *api.UserActivityVotedChoice
 	}{
 		"another viewer": {f.viewer, nil},
-		"the member":     {f.member, ptr(api.Yes)},
+		"the member":     {f.member, ptr(api.UserActivityVotedChoiceYes)},
 	} {
 		items := f.walk(t, routes, tt.viewer, 10)
 		voted, err := items[2].AsUserActivityVoted()

@@ -38,6 +38,19 @@ type Tallies interface {
 	Tallies(ctx context.Context, ids []ids.ProposalID) (map[ids.ProposalID]Tally, error)
 }
 
+type ViewerBallot struct {
+	Choice  string
+	CanVote bool
+}
+
+type ViewerBallots interface {
+	MyBallots(
+		ctx context.Context,
+		viewer ids.UserID,
+		proposals []ids.ProposalID,
+	) (map[ids.ProposalID]ViewerBallot, error)
+}
+
 type Voters interface {
 	Voters(ctx context.Context, id ids.ProposalID) ([]ids.UserID, error)
 }

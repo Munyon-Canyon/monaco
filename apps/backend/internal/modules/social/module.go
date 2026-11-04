@@ -39,6 +39,7 @@ type Module struct {
 	users    app.Users
 	returns  app.Returns
 	tallies  app.Tallies
+	ballots  app.ViewerBallots
 	members  app.ChatMembers
 	cabals   app.Cabals
 	realtime app.Realtime
@@ -67,6 +68,10 @@ func WithReturns(returns app.Returns) Option {
 
 func WithTallies(tallies app.Tallies) Option {
 	return func(m *Module) { m.tallies = tallies }
+}
+
+func WithBallots(ballots app.ViewerBallots) Option {
+	return func(m *Module) { m.ballots = ballots }
 }
 
 func WithCabals(cabals app.Cabals) Option {
@@ -231,6 +236,11 @@ func (m *Module) Wire(set module.Set) {
 			m.tallies = provider.Tallies()
 		}
 		if provider, ok := mod.(interface {
+			ViewerBallots() governanceport.ViewerBallots
+		}); ok {
+			m.ballots = provider.ViewerBallots()
+		}
+		if provider, ok := mod.(interface {
 			MemberActivity() governanceport.MemberActivity
 		}); ok {
 			m.activity = provider.MemberActivity()
@@ -372,6 +382,7 @@ func (m *Module) http() adapters.HTTP {
 		Users:   m.users,
 		Returns: m.returns,
 		Tallies: m.tallies,
+		Ballots: m.ballots,
 		Logos:   m.logos, Pictures: m.pictures,
 		History: chartPrices{market.New(m.deps).History()},
 		Marks:   chartTrades{treasury.New(m.deps).TradeMarks()},

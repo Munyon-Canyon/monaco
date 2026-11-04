@@ -120,3 +120,24 @@ func (s Queries) Tallies(ctx context.Context, proposals []ids.ProposalID) (map[i
 	}
 	return out, nil
 }
+
+func (s Queries) MyBallots(
+	ctx context.Context,
+	viewer ids.UserID,
+	proposals []ids.ProposalID,
+) (map[ids.ProposalID]port.ViewerBallot, error) {
+	const op = "governance.MyBallots"
+	raw := make([]uuid.UUID, len(proposals))
+	for i, id := range proposals {
+		raw[i] = id.UUID()
+	}
+	rows, err := s.q.MyBallots(ctx, sqlc.MyBallotsParams{Viewer: viewer.UUID(), ProposalIds: raw})
+	if err != nil {
+		return nil, errs.Wrap(err, errs.CodeDBUnavailable, op)
+	}
+	out := make(map[ids.ProposalID]port.ViewerBallot, len(rows))
+	for _, row := range rows {
+		out[ids.ProposalIDFrom(row.ProposalID)] = port.ViewerBallot{Choice: row.Choice, CanVote: row.CanVote}
+	}
+	return out, nil
+}

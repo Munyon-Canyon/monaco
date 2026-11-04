@@ -51,7 +51,7 @@ func (h HTTP) GetFeed(ctx context.Context, req api.GetFeedRequestObject) (api.Ge
 	if err != nil {
 		return nil, err
 	}
-	items, err := h.wireFeedItems(ctx, page.Items)
+	items, err := h.wireFeedItems(ctx, me, page.Items)
 	if err != nil {
 		return nil, err
 	}
@@ -106,7 +106,7 @@ func (h HTTP) GetFeedItem(
 	if err != nil {
 		return nil, err
 	}
-	items, err := h.wireFeedItems(ctx, []app.FeedItem{view.Item})
+	items, err := h.wireFeedItems(ctx, me, []app.FeedItem{view.Item})
 	if err != nil {
 		return nil, err
 	}
@@ -181,7 +181,7 @@ func (h HTTP) loadFeedImages(ctx context.Context, r *feedRefs) error {
 	return nil
 }
 
-func (h HTTP) wireFeedItems(ctx context.Context, items []app.FeedItem) ([]api.FeedItem, error) {
+func (h HTTP) wireFeedItems(ctx context.Context, me ids.UserID, items []app.FeedItem) ([]api.FeedItem, error) {
 	refs := collectFeedRefs(items)
 	who, err := loadPeople(ctx, h.Users, h.Returns, refs.actors, "social.wireFeedItems")
 	if err != nil {
@@ -194,6 +194,10 @@ func (h HTTP) wireFeedItems(ctx context.Context, items []app.FeedItem) ([]api.Fe
 	if err != nil {
 		return nil, err
 	}
+	ballots, err := h.loadBallots(ctx, me, items)
+	if err != nil {
+		return nil, err
+	}
 	charts, err := h.loadCharts(ctx, items, h.Clock.Now())
 	if err != nil {
 		return nil, err
@@ -203,6 +207,7 @@ func (h HTTP) wireFeedItems(ctx context.Context, items []app.FeedItem) ([]api.Fe
 		out[i] = wireFeedItem(item)
 		out[i].ReturnBps, out[i].Chart = charts[item.ID].ReturnBps, charts[item.ID].Chart
 		wireTally(item, tallies, &out[i])
+		wireBallot(item, ballots, &out[i])
 		if card, ok := who.cards[item.ActorID]; ok && !card.Deleted {
 			out[i].ActorPhotoUrl = optionalWireText(card.PhotoURL)
 		}

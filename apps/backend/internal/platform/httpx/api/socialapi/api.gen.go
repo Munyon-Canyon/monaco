@@ -182,6 +182,27 @@ func (e FeedItemFillState) Valid() bool {
 	}
 }
 
+// Defines values for FeedItemMyBallot.
+const (
+	FeedItemMyBallotLessThannil FeedItemMyBallot = "<nil>"
+	FeedItemMyBallotNo          FeedItemMyBallot = "no"
+	FeedItemMyBallotYes         FeedItemMyBallot = "yes"
+)
+
+// Valid indicates whether the value is a known member of the FeedItemMyBallot enum.
+func (e FeedItemMyBallot) Valid() bool {
+	switch e {
+	case FeedItemMyBallotLessThannil:
+		return true
+	case FeedItemMyBallotNo:
+		return true
+	case FeedItemMyBallotYes:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for FeedItemOutcome.
 const (
 	FeedItemOutcomeFailed      FeedItemOutcome = "failed"
@@ -481,16 +502,16 @@ func (e UserActivityToppedBoardKind) Valid() bool {
 
 // Defines values for UserActivityVotedChoice.
 const (
-	No  UserActivityVotedChoice = "no"
-	Yes UserActivityVotedChoice = "yes"
+	UserActivityVotedChoiceNo  UserActivityVotedChoice = "no"
+	UserActivityVotedChoiceYes UserActivityVotedChoice = "yes"
 )
 
 // Valid indicates whether the value is a known member of the UserActivityVotedChoice enum.
 func (e UserActivityVotedChoice) Valid() bool {
 	switch e {
-	case No:
+	case UserActivityVotedChoiceNo:
 		return true
-	case Yes:
+	case UserActivityVotedChoiceYes:
 		return true
 	default:
 		return false
@@ -1222,6 +1243,11 @@ type FeedItem struct {
 	// Examples: true
 	CanReply bool `json:"can_reply"`
 
+	// CanVote Only on a `proposal`: true while it is open, its voting window has not closed and the caller is one of its voters. False on every other item.
+	//
+	// Examples: false
+	CanVote bool `json:"can_vote"`
+
 	// ChangeBps A price move's change since the previous close, in signed basis points; 0 for a flat move. Null on every other kind.
 	//
 	// Examples: 1000
@@ -1301,6 +1327,11 @@ type FeedItem struct {
 	//
 	// Examples: 212400000
 	MarkMicros *int64 `json:"mark_micros"`
+
+	// MyBallot Only on a `proposal`: how the caller voted. Null when the caller has not voted or is not a voter, and on every other kind.
+	//
+	// Examples: null
+	MyBallot *FeedItemMyBallot `json:"my_ballot"`
 
 	// Outcome How a `result` closed: `passed`, or `failed` when the vote failed or expired. Null on every other kind.
 	//
@@ -1517,6 +1548,11 @@ type FeedChart struct {
 //
 // Examples: filled
 type FeedItemFillState string
+
+// FeedItemMyBallot Only on a `proposal`: how the caller voted. Null when the caller has not voted or is not a voter, and on every other kind.
+//
+// Examples: null
+type FeedItemMyBallot string
 
 // FeedItemOutcome How a `result` closed: `passed`, or `failed` when the vote failed or expired. Null on every other kind.
 //

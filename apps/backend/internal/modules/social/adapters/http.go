@@ -51,6 +51,7 @@ type HTTP struct {
 	Users                   app.Users
 	Returns                 app.Returns
 	Tallies                 app.Tallies
+	Ballots                 app.ViewerBallots
 	Logos                   app.AssetLogos
 	Pictures                app.CabalPictures
 	History                 app.ChartPrices
