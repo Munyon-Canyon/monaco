@@ -43,6 +43,7 @@ enum GroupDetailSampleScenario: String, CaseIterable {
     case fTreasury
     case fTreasuryLight
     case fTreasuryScrolled
+    case fTreasuryScrolledLongName
     case fTreasuryHistory
     case fRules
     case fRulesScrolled
@@ -69,6 +70,7 @@ extension GroupDetailSampleScenario {
         case .fTreasury, .fTreasuryLight, .fTreasuryScrolled, .fTreasuryHistory, .fRules, .fRulesScrolled,
             .fRuleProposal:
             GroupDetailSampleData.fTreasury
+        case .fTreasuryScrolledLongName: GroupDetailSampleData.fTreasuryLongName
         case .fMembers, .fMembersScrolled, .fVoters: GroupDetailSampleData.fMembers
         case .fMembersAll: GroupDetailSampleData.fMembersAll
         case .fMembersLarge: GroupDetailSampleData.fMembersLarge
@@ -258,6 +260,17 @@ enum GroupDetailSampleData {
         }
         script.memberPage = .init(
             items: admins + rest, nextCursor: nil, totals: .init(admins: 2, voters: 80, members: 38))
+        return script
+    }
+
+    @MainActor
+    static var fTreasuryLongName: SampleAPIScript {
+        var script = fTreasury
+        let edit = script.cabalEdit
+        script.cabalEdit = { cabal in
+            edit?(&cabal)
+            cabal.name = "The Extremely Long Cabal Name Investment Club"
+        }
         return script
     }
 
