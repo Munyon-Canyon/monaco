@@ -29,11 +29,20 @@ struct GroupChatRowView: View {
     var requestDelete: ((String) -> Void)?
     var seenLabel: String?
     var openSeen: (() -> Void)?
+    var reactions: ReactionsModel?
+    var cabalID = ""
 
     @Environment(ToastCenter.self) private var toasts
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var reporting: ReportTarget?
     @State private var blocking: BlockTarget?
+    @State private var actionsFrame: CGRect = .zero
+    @State private var actionsOpen = false
+    @State private var pickingEmoji = false
+    @State private var listingReactions = false
+    @State private var afterDismiss: (() -> Void)?
+    @State private var badgeHeight: CGFloat = 0
 
     private var message: ChatMessage { row.message }
 
@@ -72,20 +81,7 @@ struct GroupChatRowView: View {
             }
             HStack(alignment: .bottom, spacing: MonacoTheme.Space.s) {
                 if !row.isMine { avatarColumn }
-                bubble
-                    .modifier(
-                        ChatMessageMenu(
-                            enabled: canOpenMenu,
-                            reply: replyHere ?? { openThread?(rootID) },
-                            copy: {
-                                UIPasteboard.general.string = message.body
-                                toasts.show(success: "Copied")
-                            },
-                            delete: row.isMine ? requestDelete.map { request in { request(row.id) } } : nil,
-                            report: row.isMine
-                                ? nil : { reporting = ReportTarget(kind: .message, targetID: row.id) },
-                            block: blockAction)
-                    )
+                reactable(bubble)
                     .reportSheet($reporting)
                     .blockConfirmation($blocking)
                     .modifier(
@@ -325,6 +321,146 @@ extension GroupChatRowView {
     }
 }
 
+extension GroupChatRowView {
+    private var target: ReactionTarget { .chatMessage(cabalID: cabalID, id: message.id) }
+
+    private var liveReactions: [Components.Schemas.Reaction] {
+        reactions?.reactions(for: target, fallback: message.reactions) ?? message.reactions
+    }
+
+    private var canReact: Bool { reactions != nil && !message.deleted && row.delivery == .sent }
+
+    private var hasBadge: Bool { !message.deleted && !liveReactions.isEmpty }
+
+    private var opensActions: Bool { canReact || canOpenMenu }
+
+    private func reactable(_ content: some View) -> some View {
+        content
+            .onGeometryChange(
+                for: CGRect.self,
+                of: { $0.frame(in: .global) },
+                action: { actionsFrame = $0 }
+            )
+            .overlay(alignment: row.isMine ? .topLeading : .topTrailing) {
+                if hasBadge { badge }
+            }
+            .padding(.top, hasBadge ? max(badgeHeight - ChatTapbackMetrics.overlap, ChatTapbackMetrics.topSpace) : 0)
+            .onLongPressGesture(minimumDuration: 0.4) {
+                if opensActions { presentActions() }
+            }
+            .accessibilityAction(named: "React") {
+                if canReact { presentActions() }
+            }
+            .fullScreenCover(isPresented: $actionsOpen, onDismiss: runAfterDismiss) {
+                actionsOverlay.presentationBackground(.clear)
+            }
+            .sheet(isPresented: $pickingEmoji) {
+                EmojiPickerSheet(onPick: { emoji in react(emoji) })
+            }
+            .sheet(isPresented: $listingReactions) { reactionList }
+    }
+
+    private var badge: some View {
+        ChatTapbackBadge(
+            messageID: message.id, reactions: liveReactions,
+            onTap: {
+                guard canReact else { return }
+                switch ChatTapbackBadge.tapAction(liveReactions) {
+                case .remove(let emoji): react(emoji)
+                case .openTray: presentActions()
+                }
+            },
+            onLongPress: { listingReactions = true }
+        )
+        .onGeometryChange(for: CGFloat.self, of: { $0.size.height }, action: { badgeHeight = $0 })
+        .offset(
+            x: row.isMine ? -ChatTapbackMetrics.out : ChatTapbackMetrics.out,
+            y: ChatTapbackMetrics.overlap - badgeHeight)
+    }
+
+    private var reactionList: some View {
+        VStack {
+            ReactionRow(
+                target: target, reactions: liveReactions, opensTrayOnLongPress: false,
+                onToggle: { emoji in react(emoji) }
+            ) { EmptyView() }
+            .padding(MonacoTheme.Space.gutter)
+            Spacer(minLength: 0)
+        }
+        .presentationDetents([.height(160)])
+        .accessibilityIdentifier("chat-tapback-list-\(message.id)")
+    }
+
+    private func react(_ emoji: String) {
+        guard canReact, let reactions else { return }
+        let current = liveReactions
+        Task { await reactions.toggle(emoji, on: target, current: current) }
+    }
+
+    private func presentActions() {
+        var transaction = Transaction()
+        transaction.disablesAnimations = reduceMotion
+        withTransaction(transaction) { actionsOpen = true }
+    }
+
+    private func dismissActions() {
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) { actionsOpen = false }
+    }
+
+    private func runAfterDismiss() {
+        let work = afterDismiss
+        afterDismiss = nil
+        work?()
+    }
+
+    private var actionItems: [ChatMessageAction] {
+        guard canOpenMenu else { return [] }
+        var items = [
+            ChatMessageAction(id: "reply", title: ChatThreadCopy.reply, icon: .replyArrow) {
+                afterDismiss = replyHere ?? { openThread?(rootID) }
+            },
+            ChatMessageAction(id: "copy", title: GroupChatCopy.copy, icon: .copy) {
+                afterDismiss = {
+                    UIPasteboard.general.string = message.body
+                    toasts.show(success: "Copied")
+                }
+            },
+        ]
+        if !row.isMine {
+            items.append(
+                ChatMessageAction(id: "report", title: "Report", icon: .report) {
+                    afterDismiss = { reporting = ReportTarget(kind: .message, targetID: row.id) }
+                })
+        }
+        if let block = blockAction {
+            items.append(
+                ChatMessageAction(id: "block", title: "Block", icon: .hand, destructive: true) {
+                    afterDismiss = block
+                })
+        }
+        if row.isMine, let requestDelete {
+            items.append(
+                ChatMessageAction(id: "delete", title: ChatThreadCopy.delete, icon: .trash, destructive: true) {
+                    afterDismiss = { requestDelete(row.id) }
+                })
+        }
+        return items
+    }
+
+    private var actionsOverlay: some View {
+        ChatMessageActionsOverlay(
+            messageID: message.id, target: target, frame: actionsFrame, isMine: row.isMine,
+            actions: actionItems,
+            onPick: { emoji in afterDismiss = { react(emoji) } },
+            onOpenPicker: { afterDismiss = { pickingEmoji = true } },
+            onDismiss: { dismissActions() },
+            bubble: { bubble }
+        )
+    }
+}
+
 struct ChatDayLabel: View {
     let label: String
 
@@ -355,50 +491,6 @@ struct ChatFailedMenu: ViewModifier {
                 }
                 Button(role: .destructive, action: discard) {
                     Label(ChatThreadCopy.delete, systemImage: "trash")
-                }
-            }
-        } else {
-            content
-        }
-    }
-}
-
-struct ChatMessageMenu: ViewModifier {
-    let enabled: Bool
-    let reply: () -> Void
-    let copy: () -> Void
-    let delete: (() -> Void)?
-    var report: (() -> Void)?
-    var block: (() -> Void)?
-
-    @ViewBuilder func body(content: Content) -> some View {
-        if enabled {
-            content.contextMenu {
-                Button {
-                    reply()
-                } label: {
-                    Label(ChatThreadCopy.reply, systemImage: "arrowshape.turn.up.left")
-                }
-                Button {
-                    copy()
-                } label: {
-                    Label(GroupChatCopy.copy, systemImage: "doc.on.doc")
-                }
-                if let report {
-                    Button(action: report) {
-                        Label("Report", systemImage: "exclamationmark.bubble")
-                    }
-                }
-                if let block {
-                    Button(role: .destructive, action: block) {
-                        Label("Block", systemImage: "nosign")
-                    }
-                    .accessibilityIdentifier("chat-block")
-                }
-                if let delete {
-                    Button(role: .destructive, action: delete) {
-                        Label(ChatThreadCopy.delete, systemImage: "trash")
-                    }
                 }
             }
         } else {

@@ -155,7 +155,9 @@ private actor SampleChatStore {
         var thread = [
             message("s1", "u-ana", "Ana", "Apple reports Thursday. Anyone want in before?", minutesAgo: 1_210),
             message("s2", "u-ana", "Ana", "Thinking $50 from the pot.", minutesAgo: 1_209),
-            message("s3", "u-leo", "Leo", "Tesla instead? Or split it.", minutesAgo: 1_195),
+            message(
+                "s3", "u-leo", "Leo", "Tesla instead? Or split it.", minutesAgo: 1_195,
+                reactions: [.init(emoji: "😂", count: 3, mine: false), .init(emoji: "👍", count: 2, mine: false)]),
             message("s4", me, "You", "I'd rather do Apple first. Smaller swings for our first buy.", minutesAgo: 1_190),
             message("s5", "u-mia", "Mia", "Agree. Nvidia can be next.", minutesAgo: 95),
             message("s6", "u-ana", "Ana", "Proposing Apple now. $50.", minutesAgo: 12),
@@ -177,9 +179,10 @@ private actor SampleChatStore {
         return thread
     }
 
-    private static func message(_ id: String, _ author: String, _ name: String, _ body: String, minutesAgo: Int)
-        -> ChatMessage
-    {
+    private static func message(
+        _ id: String, _ author: String, _ name: String, _ body: String, minutesAgo: Int,
+        reactions: [Components.Schemas.Reaction] = []
+    ) -> ChatMessage {
         ChatMessage(
             id: id, kind: .user,
             author: .init(id: author, handle: nil, displayName: name, photoUrl: nil),
@@ -188,8 +191,8 @@ private actor SampleChatStore {
             alsoInChannel: false,
             replyCount: 0,
             deleted: false,
-            reactions: [],
-            reactionCount: 0
+            reactions: reactions,
+            reactionCount: reactions.reduce(0) { $0 + $1.count }
         )
     }
 }

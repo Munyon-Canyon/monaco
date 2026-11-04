@@ -14,7 +14,10 @@ struct GroupChatScreen: View {
     let openProfile: (String) -> Void
     let openThread: (String) -> Void
     var openProposal: (String) -> Void = { _ in }
+    var reactionsOverride: ReactionsModel?
 
+    @Environment(AppEnvironment.self) private var environment
+    @State private var ownReactions: ReactionsModel?
     @State private var seenTarget: SeenTarget?
     @State private var showsDetails = false
     @State private var chat: ChatSession.State?
@@ -38,6 +41,9 @@ struct GroupChatScreen: View {
             bottomBar
         }
         .monacoCanvas()
+        .task {
+            if ownReactions == nil { ownReactions = ReactionsModel(api: environment.api, clock: ContinuousClock()) }
+        }
         .modifier(ChatStandaloneChrome(embedded: embedded, title: titleView, showsDetails: $showsDetails))
         .sheet(isPresented: $showsDetails) { ChatCabalDetailsSheet(cabalID: cabalID) }
         .task { network?.start() }
@@ -107,7 +113,8 @@ struct GroupChatScreen: View {
             retry: { key in Task { await session?.retry(key: key) } },
             discard: { key in Task { await session?.discard(key: key) } },
             loadOlder: { Task { await session?.loadOlder() } },
-            refresh: { await session?.reload() }
+            refresh: { await session?.reload() },
+            reactions: reactionsOverride ?? ownReactions, cabalID: cabalID
         )
     }
 

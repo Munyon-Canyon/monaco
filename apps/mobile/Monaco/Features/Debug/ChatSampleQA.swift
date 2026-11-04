@@ -38,6 +38,7 @@ private struct ChatSampleHost: View {
             createdAt: Date(), phase: .open)
     }
     @State private var network: NetworkPathModel
+    @State private var reactions = ReactionsModel.sample(reactions: [:], fails: false, clock: ContinuousClock())
     private let sendsOnLaunch: Bool
 
     init(scenario: ChatSampleScenario, acts: Bool, offline: Bool) {
@@ -56,7 +57,8 @@ private struct ChatSampleHost: View {
             proposals: proposals,
             network: network,
             openProfile: { openedProfile = $0 },
-            openThread: { _ in }
+            openThread: { _ in },
+            reactionsOverride: reactions
         )
         .task {
             guard sendsOnLaunch, !sent else { return }

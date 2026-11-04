@@ -19,6 +19,10 @@ struct GroupChatThreadView: View {
     let discard: (String) -> Void
     let loadOlder: () -> Void
     let refresh: () async -> Void
+    var reactions: ReactionsModel?
+    var cabalID = ""
+
+    @Environment(ToastCenter.self) private var toasts
 
     @State private var now = Date()
 
@@ -37,11 +41,14 @@ struct GroupChatThreadView: View {
                     openProposal: openProposal, requestDelete: requestDelete,
                     seenLabel: row.id == seen?.messageID
                         ? seen.flatMap { ChatSeenCopy.label(count: $0.count) } : nil,
-                    openSeen: { openSeen(row.id) }
+                    openSeen: { openSeen(row.id) }, reactions: reactions, cabalID: cabalID
                 )
                 .id(row.id)
             }
         }
         .onChange(of: rows) { now = Date() }
+        .onChange(of: reactions?.noticeTick) { _, _ in
+            if let message = reactions?.notice { toasts.current = MonacoToast(message: message) }
+        }
     }
 }
