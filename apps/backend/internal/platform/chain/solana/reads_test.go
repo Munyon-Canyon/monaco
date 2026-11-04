@@ -29,7 +29,17 @@ func TestSOLBalance_readsLamportsAsNineDecimalBaseUnits(t *testing.T) {
 
 func TestTokenBalance_sumsEveryAccountForTheMint(t *testing.T) {
 	t.Parallel()
-	c, u, _ := overFakes(t)
+	c, u, srv := overFakes(t)
+	script(
+		t,
+		srv,
+		fakes.Step{
+			Route:   "/rpc/getTokenAccountsByOwner",
+			Action:  fakes.ActionSucceed,
+			Fixture: "/rpc/getTokenAccountsByOwner",
+			Times:   1,
+		},
+	)
 	got, err := c.TokenBalance(t.Context(), member, usdc())
 	if err != nil || got != money.NewBaseUnits(25_500_000, 6) {
 		t.Fatalf("TokenBalance = %v, %v", got, err)
@@ -43,7 +53,17 @@ func TestTokenBalanceAt_readsAtTheCommitmentItWasGivenAndReturnsTheReadingsSlot(
 	t.Parallel()
 	options := func(level string) string { return `{"commitment":"` + level + `","encoding":"jsonParsed"}` }
 	for _, level := range []string{"confirmed", "finalized"} {
-		c, u, _ := overFakes(t)
+		c, u, srv := overFakes(t)
+		script(
+			t,
+			srv,
+			fakes.Step{
+				Route:   "/rpc/getTokenAccountsByOwner",
+				Action:  fakes.ActionSucceed,
+				Fixture: "/rpc/getTokenAccountsByOwner",
+				Times:   1,
+			},
+		)
 		slot, got, err := c.TokenBalanceAt(t.Context(), member, usdc(), level)
 		if err != nil || got != money.NewBaseUnits(25_500_000, 6) || slot != 451_000_000 {
 			t.Fatalf("TokenBalanceAt(%s) = %d, %v, %v, want slot 451000000", level, slot, got, err)

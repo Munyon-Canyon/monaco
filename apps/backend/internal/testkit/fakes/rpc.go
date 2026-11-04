@@ -134,7 +134,11 @@ func (s *Server) tokenAccounts(w http.ResponseWriter, r *http.Request, keys []st
 	balance, ok := held[filter.Mint]
 	s.mu.Unlock()
 	if !set {
-		return s.fixtureTokenAccounts(w, call.ID, keys, owner, filter.Mint)
+		if s.fixtureTokenAccounts(w, call.ID, ownerKeys(keys), owner, filter.Mint) {
+			return true
+		}
+		rpcReply(w, call.ID, map[string]any{"context": map[string]any{"slot": 451000000}, "value": []any{}}, nil)
+		return true
 	}
 	accounts := []any{}
 	if ok {
@@ -158,6 +162,16 @@ func (s *Server) tokenAccounts(w http.ResponseWriter, r *http.Request, keys []st
 	}
 	rpcReply(w, call.ID, map[string]any{"context": map[string]any{"slot": 451000000}, "value": accounts}, nil)
 	return true
+}
+
+func ownerKeys(keys []string) []string {
+	var out []string
+	for _, key := range keys {
+		if key != "/rpc/getTokenAccountsByOwner" {
+			out = append(out, key)
+		}
+	}
+	return out
 }
 
 func (s *Server) fixtureTokenAccounts(

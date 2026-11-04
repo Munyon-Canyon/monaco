@@ -45,8 +45,11 @@ func TestSetBalance_ReadsBackThroughTokenBalance(t *testing.T) {
 		return got
 	}
 
-	if got := balance(unset, usdc); got != money.NewBaseUnits(25_500_000, 6) {
-		t.Fatalf("unset owner balance = %v, want the recorded fixture's 25.5 USDC", got)
+	if got := balance(unset, usdc); got != money.NewBaseUnits(0, 6) {
+		t.Fatalf("unset owner balance = %v, want 0: nobody seeded it", got)
+	}
+	if got := balance(unset, stock); got != money.NewBaseUnits(0, 8) {
+		t.Fatalf("unset owner stock balance = %v, want 0", got)
 	}
 	set := `{"owner":"` + string(funded) + `","mint":"` + string(usdcMint) + `","amount":"25000000","decimals":6}`
 	if got := mustCall(t.Context(), t, control, http.MethodPost, "/_balance", set); got.status != http.StatusNoContent {
@@ -235,5 +238,15 @@ func TestRPC_AnUnknownMethodFailsLoudly(t *testing.T) {
 	}
 	if !strings.Contains(logged.String(), "/rpc/getProgramAccounts") {
 		t.Fatalf("log = %q, want the fakes log to name the unanswered route", logged.String())
+	}
+}
+
+func TestRPC_AnUnseededOwnerHasNoTokenAccounts(t *testing.T) {
+	t.Parallel()
+	got := mustCall(t.Context(), t, inProc(), http.MethodPost, "/rpc",
+		`{"jsonrpc":"2.0","id":1,"method":"getTokenAccountsByOwner","params":["`+string(unset)+
+			`",{"mint":"`+string(usdcMint)+`"},{"encoding":"jsonParsed"}]}`)
+	if got.status != http.StatusOK || !strings.Contains(got.body, `"value":[]`) {
+		t.Fatalf("getTokenAccountsByOwner for an unseeded owner = %d %q, want an empty value", got.status, got.body)
 	}
 }
