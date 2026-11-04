@@ -39,7 +39,7 @@ One simulator runs every actor, and each switch signs one member out and the nex
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S2.1 | A | tap, tap, type, then tap | `openCabal(named:)`, `cabal-more-button`, `cabal-more-chat`, `chat-composer`, then `chat-send` | `gm {QA.run}` | A `chat-message-<id>` reading `gm {QA.run}` shows within 5 s, on the right (screens.md Chat: "mine on the right in ink") |
+| S2.1 | A | tap, tap, type, then tap | `openCabal(named:)`, `cabal-more-button`, `cabal-more-chat`, `chat-composer`, then `chat-send` | `gm {QA.run}` | A `chat-message-<id>` reading `gm {QA.run}` shows within 5 s, on the right (screens.md Chat: mine on the right in ink) |
 | S2.2 | B | tap, tap, then wait | `openCabal(named:)`, `cabal-more-button`, `cabal-more-chat`, then `chat-message-<id>` | | A `chat-message-<id>` reads `gm {QA.run}` within 15 s, on the left, with no pull to refresh. Its label starts with A's name, which is also drawn over the first bubble of a run (`chat-author-<id>` is hidden from VoiceOver, so the label carries it) |
 
 ### S3 Reply in a thread
@@ -74,6 +74,7 @@ B has not opened the chat since S3, so the two messages A sends here are all B h
 ## Known failures on staging
 
 - S1.1: the test's search helper looks for `cabals-filter-field` and `cabals-list`, which the app no longer sets (it sets `cabals-search-field`, `cabals-list-empty`). The helper does not fail the step, so S1.1 still passes. Blocked by #7977.
+- S3.3: "1 reply · last reply" is no longer app copy. Blocked by #7977.
 
 ## Not covered
 

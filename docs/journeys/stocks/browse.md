@@ -65,6 +65,7 @@ Browsing writes nothing. After a run, `apps/mobile/qa/journeys/stocks/browse.tru
 ## Known failures on staging
 
 None known. The ticket words S2.2 as "No matching stocks", but Markets search says "No results for “<query>”" (`assets-empty`), and the step follows the app.
+- S2.2: "No results for" is no longer app copy. Blocked by #6198.
 
 ## Not covered
 

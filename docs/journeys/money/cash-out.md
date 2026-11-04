@@ -57,6 +57,7 @@ The format of this doc is in [App journeys](../README.md).
 ## Known failures on staging
 
 - S1.3, S1.4 and S1.5: the screen shows "Your slice shows up here soon." and "Cash outs open soon.", the chips are disabled, and "Cash out" never submits. Cashing out a slice and the balance growing are blocked by #657 and #653.
+- S2.1: "✓ $… to" is no longer app copy. Blocked by #6198.
 
 ## Not covered
 

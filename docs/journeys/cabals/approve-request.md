@@ -51,7 +51,8 @@ The format of this doc is in [App journeys](../README.md).
 
 ## Known failures on staging
 
-None known.
+- S1.5: "Asked to join" is no longer app copy; "Approve B" is no longer app copy. Blocked by #7976.
+- S2.1: "Asked to join" is no longer app copy. Blocked by #7976.
 
 The ticket names the request row `members-request-<id>` and its button `members-request-approve-<id>`. The app builds them as `cabal-join-request-row`, `cabal-join-approve` and `cabal-join-deny` (Decline sits in the row's long-press menu and swipe), and the journey follows the app.
 

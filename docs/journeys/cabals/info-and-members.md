@@ -53,8 +53,7 @@ Starts where S1 left off: on the cabal page, Members tab.
 
 ## Known failures on staging
 
-None known.
-
+- S2.2: "Make B a voter" is no longer app copy. Blocked by #7976.
 ## Not covered
 
 - The Requests tab and approving a request. [cabals/approve-request](approve-request.md) and [cabals/join](join.md) cover them.

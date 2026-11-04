@@ -83,8 +83,7 @@ S2 follows B and then unfollows B through `POST` and `DELETE /v1/users/{id}/foll
 
 ## Known failures on staging
 
-None known.
-
+- S1.3: "in common" is no longer app copy. Blocked by #6198.
 ## Not covered
 
 - The "@handle" line. `UserProfileHeaderSlot.swift` shows `user-profile-handle` only when it differs from the name, and B's handle is not fixed across databases.

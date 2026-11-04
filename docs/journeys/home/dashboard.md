@@ -36,9 +36,9 @@ The format of this doc is in [App journeys](../README.md).
 | S1.1 | A | tap | the Home tab | | `home-wordmark` and `home-notifications-button` (the bell) show, `home-welcome` reads "Welcome, Alfred" (A's first name from `accounts.tsv`, which the setup writes as A's display name) above `home-portfolio-total`, which shows a dollar total, and the line under it reads "· past month" within 15 s (F `02-home-dark`, #6496, #7871) |
 | S1.2 | A | read | the money strip | | `home-cash-row` reads "Cash" and "USDC" with no APY text and no `home-apy-info` button, and a dollar amount (`platform-balance-value`), and `home-add-money-link` reads "Deposit", within 10 s (F `02-home-dark`, founder decision Q19) |
 | S1.3 | A | scroll to | "Your cabals" | | The header "Your cabals" and `cabal-row-<id>` for `cabalName` show within 15 s, whether or not A has funded it, each row reading the share in dollars or "Not funded", with no sideways rail (F `02-home-dark`) |
-| S1.4 | A | pull down | the Home screen | | After the refresh, "Your cabals" and the card for `cabalName` are still there within 15 s (screens.md Home: "Pull to refresh."; old app: `HomeView` `.refreshable`) |
-| S1.5 | A | tap | `cabal-row-<id>` | | `cabal-header-name` reads `cabalName` within 15 s (screens.md `HomeCabalsSlot`: "A card opens `CabalRoute`"; old app: `HomeView` cabal row opens `GroupDetailView`) |
-| S1.6 | A | tap | the Home tab, then `home-profile-button` | | The Profile tab is selected and `profile-card` shows within 15 s (screens.md Home: "the viewer's avatar, which opens the Profile tab"; old app: `HomeView` avatar opens Profile) |
+| S1.4 | A | pull down | the Home screen | | After the refresh, "Your cabals" and the card for `cabalName` are still there within 15 s (screens.md Home: “Pull to refresh.”; old app: `HomeView` `.refreshable`) |
+| S1.5 | A | tap | `cabal-row-<id>` | | `cabal-header-name` reads `cabalName` within 15 s (screens.md `HomeCabalsSlot`: A card opens `CabalRoute`; old app: `HomeView` cabal row opens `GroupDetailView`) |
+| S1.6 | A | tap | the Home tab, then `home-profile-button` | | The Profile tab is selected and `profile-card` shows within 15 s (screens.md Home: the viewer's avatar, which opens the Profile tab; old app: `HomeView` avatar opens Profile) |
 | S1.7 | A | tap, then read | the Home tab, then the chart | | The plain range labels `home-portfolio-range-<range>` (1H 1D 1W 1M 3M 6M All) show under the chart with 1M selected within 10 s (F `02-home-dark`) |
 
 ### S2 A member with no cabal is offered a new one
@@ -46,7 +46,7 @@ The format of this doc is in [App journeys](../README.md).
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
 | S2.1 | C | tap | the Home tab | | `home-cabals-empty` shows "There is no place like Monaco." and "Trade with your friends.", with `home-first-use-start` "Start a cabal" and `home-first-use-join` "Join with a link" side by side, and the feed preview headed "Public cabals", within 15 s (F `02-home-empty`, #7872; screens.md `HomeFirstUseSlot`; old app: `HomeView` empty state) |
-| S2.2 | C | tap | "Start a cabal" | | The create cabal screen shows `create-group-name` within 10 s (screens.md `HomeFirstUseSlot`; old app: `HomeView` "Browse cabals") |
+| S2.2 | C | tap | "Start a cabal" | | The create cabal screen shows `create-group-name` within 10 s (screens.md `HomeFirstUseSlot`; old app: `HomeView` “Browse cabals”) |
 
 ## Ground truth
 
@@ -54,7 +54,7 @@ The format of this doc is in [App journeys](../README.md).
 
 ## Known failures on staging
 
-None.
+- S1.1: "· past month" is no longer app copy. Blocked by #6198.
 
 ## Not covered
 

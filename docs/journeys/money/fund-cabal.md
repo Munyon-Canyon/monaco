@@ -59,8 +59,7 @@ The format of this doc is in [App journeys](../README.md).
 
 ## Known failures on staging
 
-None known.
-
+- S2.4: "of the treasury" is no longer app copy; "You put in" is no longer app copy. Blocked by #6198.
 ## Not covered
 
 - "Add money first" for a member with nothing in their balance (`fund-cabal-needs-money`). The journey's actor is funded; `FundCabalStageTests` covers the empty stage.

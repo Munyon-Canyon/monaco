@@ -68,3 +68,7 @@ Starts signed in (auth/sign-in).
 - The nudge vanishing while the app is open. It needs `auth_state` changed mid-scenario, so S3 covers the state after the change instead.
 - Linking X from the sheet in S2.3. [onboarding/first-run](../onboarding/first-run.md) covers it.
 - Saving a new handle. A handle is unique and can change only once per period, so a run would use up actor A's next change.
+
+## Known failures on staging
+
+- S1.1: "Too many requests. Try again in a moment." is no longer app copy. Blocked by #6198.

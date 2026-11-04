@@ -50,7 +50,7 @@ The format of this doc is in [App journeys](../README.md).
 
 ## Known failures on staging
 
-None.
+- S1.3: "Leave QA leave {QA.run}?" is no longer app copy. Blocked by #7976.
 
 ## Not covered
 

@@ -15,14 +15,14 @@ When the journey doc and the app disagree, stop and report the **step id** and b
 
 1. Read the mobile ticket, its Done when, its linked design doc, and the screens on staging. Done when the journey's user outcome is clear.
 2. List the backend flow ids it exercises from `packages/flows`. Done when every id has a backend TSV file.
-3. Write `docs/journeys/<area>/<journey>.md` in the README format. Done when every target exists in `apps/mobile/Monaco` or is a ticket gap to add.
+3. Write `docs/journeys/<area>/<journey>.md` in the README format. Done when every target exists in `apps/mobile/Monaco` or is a ticket gap to add, and `scripts/qa/journey.py check` finds every Expect quote in the app's strings or in `apps/mobile/qa/journeys/copy-runtime.tsv` (text only the backend or a setup makes).
 4. Run `scripts/qa/journey.py check`. Done when it exits 0.
 5. Open the doc for a person to review before building a test. Done when the reviewer has the doc.
 
 ## Build or update a journey's test
 
 1. Read the journey doc and every journey doc it `requires`. Done when you can list each scenario's step ids and each actor.
-2. Resolve every target to an accessibility identifier in `apps/mobile/Monaco`. A target without one gets an identifier in the app, in this change. Add an id built from a parameter to `apps/mobile/qa/journeys/ids-composed.tsv`. Done when `scripts/qa/journey.py check` reports no missing target (it reads every doc target and every id in the `*Journey.swift` files against the app's identifiers).
+2. Resolve every target to an accessibility identifier in `apps/mobile/Monaco`. A target without one gets an identifier in the app, in this change. Add an id built from a parameter to `apps/mobile/qa/journeys/ids-composed.tsv`. Done when `scripts/qa/journey.py check` reports no missing target (it reads every doc target and every id in the `*Journey.swift` files against the app's identifiers); it also reports a test literal that its doc step does not quote.
 3. Write the XCUITest from [xcuitest.md](xcuitest.md).
 4. Write one **seeded bug** per scenario under `apps/mobile/qa/journeys/<area>/<journey>.mutants/`: a patch that breaks one promise the journey doc makes, with an `expect-fail: S…` line.
 5. Stamp the steps enum with the doc's id and version: `static let id` and `static let version`. Done when `scripts/qa/journey.py check` exits 0.

@@ -53,6 +53,7 @@ The format of this doc is in [App journeys](../README.md).
 ## Known failures on staging
 
 None known. Targets this journey does not read because the app has no identifier for them: the ⓘ round (`leaderboard-info` exists but no step opens it) and the climb bar and the crown on #1 (hidden from accessibility; S1.3 counts the three podium places instead).
+- S1.3: "#n of m people" is no longer app copy. Blocked by #7987.
 
 ## Not covered
 

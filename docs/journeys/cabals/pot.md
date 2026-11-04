@@ -58,7 +58,7 @@ On the F cabal page the pot is the "Treasury" line and the slice is the stat blo
 
 ## Known failures on staging
 
-None.
+- S1.3: the test checks "Bot,", which the doc step does not quote. Blocked by #7976.
 
 ## Not covered
 
