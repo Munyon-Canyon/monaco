@@ -76,8 +76,16 @@ struct GifImageView: View {
 
     private var reduceMotion: Bool { motion.isReduced }
 
+    static func wantsSlot(isOnScreen: Bool, reduceMotion: Bool, runs: Int) -> Bool {
+        isOnScreen && (!reduceMotion || runs > 0)
+    }
+
+    private var wantsSlot: Bool {
+        Self.wantsSlot(isOnScreen: isOnScreen, reduceMotion: reduceMotion, runs: runs)
+    }
+
     private var shouldLoad: Bool {
-        isOnScreen && hasSlot && (!reduceMotion || runs > 0)
+        wantsSlot && hasSlot
     }
 
     private var isPlaying: Bool {
@@ -95,17 +103,18 @@ struct GifImageView: View {
             }
         }
         .clipped()
-        .onAppear {
-            isOnScreen = true
-            hasSlot = budget?.claim(id) ?? true
-        }
-        .onDisappear {
-            isOnScreen = false
-            hasSlot = false
-            budget?.release(id)
+        .onAppear { isOnScreen = true }
+        .onDisappear { isOnScreen = false }
+        .onChange(of: wantsSlot, initial: true) { _, wants in
+            if wants {
+                hasSlot = budget?.claim(id) ?? true
+            } else {
+                hasSlot = false
+                budget?.release(id)
+            }
         }
         .onChange(of: budget?.revision) { _, _ in
-            if isOnScreen && !hasSlot { hasSlot = budget?.claim(id) ?? true }
+            if wantsSlot && !hasSlot { hasSlot = budget?.claim(id) ?? true }
         }
         .task(id: "\(still.absoluteString)#\(attempt)") { await loadStill() }
         .onChange(of: isShowingStill, initial: true) { _, shown in stillShown?.wrappedValue = shown }
