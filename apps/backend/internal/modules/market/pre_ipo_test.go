@@ -187,7 +187,7 @@ func (s marketAPI) counted(t *testing.T) (*pgxpool.Pool, *queryCounter) {
 	return pool, counter
 }
 
-func TestPreIPO_aPageOfTheListMakesOneProfileQueryAndNoRoundQuery(t *testing.T) {
+func TestPreIPO_aPageOfTheListMakesOneProfileQueryAndOneRoundQuery(t *testing.T) {
 	t.Parallel()
 	s := newMarketAPI(t, marketWhen())
 	for i, asset := range generatedCatalog(t, 12) {
@@ -203,8 +203,8 @@ func TestPreIPO_aPageOfTheListMakesOneProfileQueryAndNoRoundQuery(t *testing.T) 
 	if err != nil || len(page.Items) != 12 {
 		t.Fatalf("page = %d items, %v, want the 12 Pre-IPO assets", len(page.Items), err)
 	}
-	if counter.profiles.Load() != 1 || counter.rounds.Load() != 0 {
-		t.Fatalf("profile queries = %d, round queries = %d, want 1 and 0",
+	if counter.profiles.Load() != 1 || counter.rounds.Load() != 1 {
+		t.Fatalf("profile queries = %d, round queries = %d, want 1 and 1",
 			counter.profiles.Load(), counter.rounds.Load())
 	}
 	withProfile := 0
@@ -215,6 +215,70 @@ func TestPreIPO_aPageOfTheListMakesOneProfileQueryAndNoRoundQuery(t *testing.T) 
 	}
 	if withProfile != 6 {
 		t.Fatalf("%d items carry a profile, want 6", withProfile)
+	}
+}
+
+func TestPreIPO_aPageWithoutAPreIPOAssetMakesNoRoundQuery(t *testing.T) {
+	t.Parallel()
+	s := newMarketAPI(t, marketWhen())
+	s.seedFixtures(t)
+	pool, counter := s.counted(t)
+	page, err := app.NewListAssets(pool, s.clock).Handle(t.Context(), app.ListRequest{})
+	if err != nil || len(page.Items) == 0 {
+		t.Fatalf("page = %d items, %v, want the equities", len(page.Items), err)
+	}
+	if counter.profiles.Load() != 0 || counter.rounds.Load() != 0 {
+		t.Fatalf("profile queries = %d, round queries = %d, want 0 and 0",
+			counter.profiles.Load(), counter.rounds.Load())
+	}
+}
+
+func TestPreIPO_listCarriesTheValuationAndTheNewestRoundDay(t *testing.T) {
+	t.Parallel()
+	s := newMarketAPI(t, marketWhen())
+	s.seedFixtures(t)
+	s.preIPO(t, 5, "ACME", mintOne, "Acme Rockets")
+	s.preIPO(t, 6, "BARE", mintTwo, "Bare Co")
+	s.preIPO(t, 7, "NOPE", "ComputeBudget111111111111111111111111111111", "No Profile Co")
+	s.preIPO(t, 8, "OLD", "SysvarC1ock11111111111111111111111111111111", "Old Co")
+	s.profile(t, "acme rockets")
+	s.profile(t, "bare co")
+	s.profile(t, "old co")
+	s.round(t, "acme rockets", "2026-06-01", 165_000_000)
+	s.round(t, "acme rockets", "2025-02-01", 120_000_000)
+	s.round(t, "old co", "2025-02-01", 120_000_000)
+
+	got := map[string]api.AssetSummary{}
+	for _, a := range pageOf(t, s.get(t, "/v1/assets?filter=pre_ipo")).Assets {
+		got[a.Symbol] = a
+	}
+	assertValuation(t, got["ACME"], "2026-06-01")
+	assertValuation(t, got["BARE"], "")
+	assertValuation(t, got["OLD"], "2025-02-01")
+	assertValuation(t, got["NOPE"], "-")
+	for _, a := range pageOf(t, s.get(t, "/v1/assets")).Assets {
+		if a.Kind != api.AssetKindPreIpo {
+			assertValuation(t, a, "-")
+		}
+	}
+}
+
+func assertValuation(t *testing.T, a api.AssetSummary, lastRound string) {
+	t.Helper()
+	if lastRound == "-" {
+		if a.ValuationMicros != nil || a.LastRoundOn != nil {
+			t.Fatalf("%s = %v %v, want neither", a.Symbol, a.ValuationMicros, a.LastRoundOn)
+		}
+		return
+	}
+	if a.ValuationMicros == nil || *a.ValuationMicros != "350000000000000000" {
+		t.Fatalf("%s valuation = %v, want 350e15", a.Symbol, a.ValuationMicros)
+	}
+	if lastRound == "" && a.LastRoundOn != nil {
+		t.Fatalf("%s last round = %v, want none", a.Symbol, a.LastRoundOn)
+	}
+	if lastRound != "" && (a.LastRoundOn == nil || a.LastRoundOn.Format(time.DateOnly) != lastRound) {
+		t.Fatalf("%s last round = %v, want %s", a.Symbol, a.LastRoundOn, lastRound)
 	}
 }
 

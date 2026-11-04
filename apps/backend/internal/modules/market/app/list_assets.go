@@ -365,14 +365,31 @@ func (l *ListAssets) summaries(ctx context.Context, assets []domain.Asset, now t
 	if err != nil {
 		return nil, err
 	}
+	rounds, err := l.pageRounds(ctx, assets)
+	if err != nil {
+		return nil, err
+	}
 	out := make([]Summary, len(assets))
 	for i, asset := range assets {
 		out[i] = summary(asset, sessions[asset.Kind], loaded, now)
 		if profile, ok := profiles[asset.CompanyKey]; ok && asset.Kind == domain.KindPreIPO {
+			profile.Rounds = rounds[asset.CompanyKey]
 			out[i].Profile = &profile
 		}
 	}
 	return out, nil
+}
+
+func (l *ListAssets) pageRounds(ctx context.Context, assets []domain.Asset) (map[string][]domain.Round, error) {
+	keys := preIPOKeys(assets)
+	if l.profiles == nil || len(keys) == 0 {
+		return map[string][]domain.Round{}, nil
+	}
+	rows, err := l.profiles.PreIpoRounds(ctx, keys)
+	if err != nil {
+		return nil, errs.Wrap(err, errs.CodeOf(err), "market.PreIpoRounds")
+	}
+	return roundsByKey(rows)
 }
 
 func sessionsFor(assets []domain.Asset, now time.Time) (map[domain.Kind]domain.SessionInfo, error) {

@@ -9820,6 +9820,20 @@ components:
           properties:
             price_micros: {type: integer, format: int64, description: The estimate per share in USD micros., examples: [185000000]}
             as_of: {type: string, format: date, description: The day the estimate was set., examples: ["2026-10-20"]}
+        valuation_micros:
+          type: string
+          pattern: "^[0-9]+$"
+          description: >-
+            The valuation of a `pre_ipo` company in USD micros, as a decimal string. Absent for equities and for
+            a Pre-IPO asset without a profile.
+          examples: ["350000000000000000"]
+        last_round_on:
+          type: string
+          format: date
+          description: >-
+            The day of the newest funding round of a `pre_ipo` company. Absent when the company has no round on
+            record, for equities, and for a Pre-IPO asset without a profile.
+          examples: ["2026-06-01"]
     ChartPoint:
       type: object
       description: One bucket of open, high, low and close, in USD micros.

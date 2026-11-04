@@ -186,6 +186,12 @@ func wireSummary(item app.Summary, now time.Time) (api.AssetSummary, error) {
 			return api.AssetSummary{}, err
 		}
 		out.Estimate = &estimate
+		valuation := item.Profile.Valuation
+		out.ValuationMicros = &valuation
+		if rounds := item.Profile.Rounds; len(rounds) > 0 {
+			on := wireDate(rounds[len(rounds)-1].On)
+			out.LastRoundOn = &on
+		}
 	}
 	if item.Volume != nil {
 		volume, err := int64Micros(item.Volume.USD)
