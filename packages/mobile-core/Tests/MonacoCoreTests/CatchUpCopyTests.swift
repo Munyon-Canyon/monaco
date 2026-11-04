@@ -16,8 +16,9 @@ final class CatchUpCopyTests: XCTestCase {
     }
 
     func testSubLine() {
-        XCTAssertEqual(Copy.subLine(count: 6), "6 to catch up · what you can still change comes first")
-        XCTAssertEqual(Copy.subLine(count: 1), "1 to catch up · what you can still change comes first")
+        XCTAssertEqual(Copy.subLine(count: 6, hasVotes: true), "6 to catch up. Votes first.")
+        XCTAssertEqual(Copy.subLine(count: 6, hasVotes: false), "6 to catch up.")
+        XCTAssertEqual(Copy.subLine(count: 1), "1 to catch up. Votes first.")
         XCTAssertEqual(Copy.joinedToast("Quant Kids"), "You're in Quant Kids.")
     }
 
@@ -25,7 +26,7 @@ final class CatchUpCopyTests: XCTestCase {
         let item = try XCTUnwrap(six.waiting.first)
         let proposal = try XCTUnwrap(item.proposal)
         XCTAssertEqual(Copy.rowTitle(item), "Buy NVDA · $400")
-        XCTAssertEqual(Copy.subtitle(item, now: now), "AC Capital · 5 of 8 voted · ends in 4h")
+        XCTAssertEqual(Copy.subtitle(item, now: now), "AC Capital · 5 of 8 voted · 6 replies · 4h")
         XCTAssertEqual(Copy.tally(proposal).yes, "4")
         XCTAssertEqual(Copy.tally(proposal).no, "1")
     }
@@ -34,6 +35,68 @@ final class CatchUpCopyTests: XCTestCase {
         XCTAssertEqual(Copy.endsIn(now.addingTimeInterval(30), now: now), "ends now")
         XCTAssertEqual(Copy.endsIn(now.addingTimeInterval(25 * 60), now: now), "ends in 25m")
         XCTAssertEqual(Copy.endsIn(now.addingTimeInterval(2 * 86_400), now: now), "ends in 2d")
+    }
+
+    func testWaitingSubtitleReplyAndTimeForms() throws {
+        var item = try XCTUnwrap(six.waiting.first)
+        func line() -> String { Copy.waitingSubtitle(item, now: now) }
+        let expires = try XCTUnwrap(item.proposal).expiresAt
+        item.proposal?.replyCount = 0
+        XCTAssertEqual(line(), "AC Capital · 5 of 8 voted · 4h")
+        item.proposal?.replyCount = 1
+        XCTAssertEqual(line(), "AC Capital · 5 of 8 voted · 1 reply · 4h")
+        item.proposal?.replyCount = 6
+        item.proposal?.expiresAt = now.addingTimeInterval(25 * 60)
+        XCTAssertEqual(line(), "AC Capital · 5 of 8 voted · 6 replies · 25m")
+        item.proposal?.expiresAt = now.addingTimeInterval(20)
+        XCTAssertEqual(line(), "AC Capital · 5 of 8 voted · 6 replies · 1m")
+        item.proposal?.expiresAt = now.addingTimeInterval(3 * 86_400)
+        XCTAssertEqual(line(), "AC Capital · 5 of 8 voted · 6 replies · 3d")
+        item.proposal?.expiresAt = now.addingTimeInterval(-5)
+        XCTAssertEqual(line(), "AC Capital · 5 of 8 voted · 6 replies · voting closed")
+        item.proposal?.expiresAt = expires
+        item.cabal = nil
+        XCTAssertEqual(line(), "5 of 8 voted · 6 replies · 4h")
+        item.cabal = .init(id: "c", name: "", pictureUrl: nil)
+        XCTAssertEqual(line(), "5 of 8 voted · 6 replies · 4h")
+    }
+
+    func testLeadingAndBadge() throws {
+        let mention = six.replies[0]
+        XCTAssertEqual(
+            Copy.leading(mention),
+            .person(id: try XCTUnwrap(mention.actor).id, name: "Christelle", photoURL: mention.actor?.photoUrl))
+        let invite = try XCTUnwrap(six.invites.first)
+        XCTAssertEqual(
+            Copy.leading(invite),
+            .person(id: try XCTUnwrap(invite.actor).id, name: "Sam", photoURL: invite.actor?.photoUrl))
+        let reply = Components.Schemas.CatchUpItem(key: "chat:9", kind: .reply, unread: true, at: now)
+        XCTAssertEqual(Copy.leading(reply), .person(id: "", name: "Someone", photoURL: nil))
+        var nameless = mention
+        nameless.actor?.name = ""
+        XCTAssertEqual(
+            Copy.leading(nameless),
+            .person(id: try XCTUnwrap(mention.actor).id, name: "Someone", photoURL: mention.actor?.photoUrl))
+        for item in [six.waiting[0], try XCTUnwrap(six.results.first)] {
+            let proposal = try XCTUnwrap(item.proposal)
+            XCTAssertEqual(
+                Copy.leading(item),
+                .asset(symbol: Copy.symbol(proposal), logoURL: proposal.assetLogoUrl, seed: proposal.id))
+        }
+        let bare = Components.Schemas.CatchUpItem(key: "proposal:r", kind: .result, unread: false, at: now)
+        XCTAssertEqual(Copy.leading(bare), .asset(symbol: "", logoURL: nil, seed: ""))
+        XCTAssertEqual(Copy.badge(mention)?.name, "AC Capital")
+        XCTAssertNil(Copy.badge(reply))
+    }
+
+    func testFilledResultNeverSaysFilled() throws {
+        var item = try XCTUnwrap(six.results.first)
+        item.proposal?.outcome = .filled
+        item.proposal?.filled = true
+        item.proposal?.yourChoice = nil
+        XCTAssertEqual(Copy.subtitle(item, now: now), "Degens")
+        item.proposal?.yourChoice = .yes
+        XCTAssertEqual(Copy.subtitle(item, now: now), "Degens · you said yes")
     }
 
     func testDollars() {
@@ -85,10 +148,10 @@ final class CatchUpCopyTests: XCTestCase {
     func testResultRows() throws {
         let passed = try XCTUnwrap(six.results.first)
         XCTAssertEqual(Copy.rowTitle(passed), "Buy META passed 4–1")
-        XCTAssertEqual(Copy.subtitle(passed, now: now), "Degens · you voted Yes · filled")
+        XCTAssertEqual(Copy.subtitle(passed, now: now), "Degens · you said yes")
         let failed = try XCTUnwrap(six.results.last)
         XCTAssertEqual(Copy.rowTitle(failed), "Sell TSLA failed 2–2")
-        XCTAssertEqual(Copy.subtitle(failed, now: now), "Tech Titans · you voted No")
+        XCTAssertEqual(Copy.subtitle(failed, now: now), "Tech Titans · you said no")
         let expired = Components.Schemas.CatchUpProposal(
             id: "p", kind: "buy", symbol: "SpaceXx", assetName: "SpaceX", assetLogoUrl: nil, usdcMicros: nil,
             tokenAmount: nil, proposer: .init(id: "u", name: "A", photoUrl: nil), createdAt: now, expiresAt: now,
@@ -143,7 +206,7 @@ final class CatchUpCopyTests: XCTestCase {
 
     func testClearedReasons() throws {
         let cleared = Components.Schemas.CatchUp.caughtUp.cleared
-        XCTAssertEqual(Copy.clearedSubtitle(cleared[0], now: now), "AC Capital · you voted Yes · filled")
+        XCTAssertEqual(Copy.clearedSubtitle(cleared[0], now: now), "AC Capital · you said yes")
         XCTAssertEqual(Copy.clearedSubtitle(cleared[1], now: now), "AC Capital · you replied")
         XCTAssertEqual(Copy.clearedSubtitle(cleared[2], now: now), "Tech Titans · Sell TSLA")
         XCTAssertEqual(Copy.clearedSubtitle(cleared[3], now: now), "5 members · later")
@@ -174,7 +237,7 @@ final class CatchUpCopyTests: XCTestCase {
         let waiting = six.waiting[0]
         XCTAssertEqual(
             Copy.accessibilityLabel(waiting, now: now, calendar: calendar),
-            "Buy NVDA · $400, AC Capital · 5 of 8 voted · ends in 4h. 1 hour ago, unread.")
+            "Buy NVDA · $400, AC Capital · 5 of 8 voted · 6 replies · 4h. 1 hour ago, unread.")
     }
 
     func testSpokenTime() {
