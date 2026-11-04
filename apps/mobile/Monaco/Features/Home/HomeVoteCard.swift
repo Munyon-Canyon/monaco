@@ -31,20 +31,21 @@ struct HomeVoteCard: View {
     private var tally: ProposalTally { model.tally }
 
     var body: some View {
-        MonacoCard {
-            VStack(alignment: .leading, spacing: MonacoTheme.Space.sm) {
-                header
-                VoteTallyBar(yes: tally.yes, no: tally.no, eligible: tally.voters)
-                if let outcome = model.outcome, outcome.settled, collapsed {
-                    settledLine(outcome)
-                } else {
-                    buttons
-                    hint
-                }
+        VoteCard(
+            title: model.headline,
+            mark: row.isRule ? .rule : .stock(symbol: row.symbol ?? "", name: row.assetName, logoURL: row.logoURL),
+            line: model.subheadLine(now: .now, showsCabal: true),
+            yes: tally.yes, no: tally.no, eligible: tally.voters,
+            identifierPrefix: identifierPrefix, identifierSuffix: model.id,
+            onOpen: { environment.navigator.open(ProposalRoute(proposalID: model.id), in: tab) }
+        ) {
+            if let outcome = model.outcome, outcome.settled, collapsed {
+                settledLine(outcome)
+            } else {
+                buttons
+                hint
             }
         }
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("\(identifierPrefix)-vote-card-\(model.id)")
         .task { await model.observe() }
         .task(id: collapseTrigger) { await collapseWhenDue() }
         .onChange(of: model.isSettled) { _, settled in if !settled { collapsed = false } }
@@ -57,37 +58,6 @@ struct HomeVoteCard: View {
         if wait > 0 { try? await Task.sleep(for: .seconds(wait)) }
         guard !Task.isCancelled else { return }
         collapsed = true
-    }
-
-    private var header: some View {
-        Button {
-            environment.navigator.open(ProposalRoute(proposalID: model.id), in: tab)
-        } label: {
-            HStack(spacing: MonacoTheme.Space.sm) {
-                if !row.isRule {
-                    StockMark(symbol: row.symbol ?? "", displayName: row.assetName, logoURL: row.logoURL)
-                }
-                VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
-                    Text(model.headline)
-                        .font(MonacoTheme.Typo.headline)
-                        .foregroundStyle(MonacoTheme.primaryText)
-                        .accessibilityIdentifier("\(identifierPrefix)-vote-headline-\(model.id)")
-                    Text(model.subhead(now: .now))
-                        .font(MonacoTheme.Typo.subhead)
-                        .foregroundStyle(MonacoTheme.secondaryText)
-                        .accessibilityIdentifier("\(identifierPrefix)-vote-subhead-\(model.id)")
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                Image(monaco: .chevron)
-                    .foregroundStyle(MonacoTheme.secondaryText)
-                    .accessibilityHidden(true)
-            }
-            .frame(minHeight: MonacoButtonMetrics.hitTarget)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityHint("Opens the proposal")
-        .accessibilityIdentifier("\(identifierPrefix)-vote-open-\(model.id)")
     }
 
     private func settledLine(_ outcome: CastOutcome) -> some View {
