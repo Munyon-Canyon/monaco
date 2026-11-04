@@ -190,6 +190,10 @@ func flow(handler string) string {
 		return "12"
 	case "notify.notify_test_requested":
 		return "24"
+	case "social.chat_moment.member_joined":
+		return "22d"
+	case "social.chat.proposal_created":
+		return "22e"
 	default:
 		return ""
 	}
