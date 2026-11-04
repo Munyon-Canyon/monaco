@@ -22,11 +22,25 @@ struct ProposalHero: View {
             : AssetSymbolFormatter.display(summary.symbol, kind: asset?.kind ?? .stock)
     }
 
-    static func crestLine(
-        cabalName: String, proposer: String, createdAt: Date, now: Date, calendar: Calendar
-    ) -> String {
-        let age = ProposalStats.crestAge(since: createdAt, now: now, calendar: calendar)
-        return "\(cabalName) · \(proposer) proposed · \(age)"
+    static let avatarSize: CGFloat = 32
+    static let chipHeight: CGFloat = 28
+    static let chipMark: CGFloat = 16
+
+    static func firstName(of name: String?) -> String? {
+        name?.split(whereSeparator: \.isWhitespace).first.map(String.init)
+    }
+
+    static func proposedLabel(firstName: String, createdAt: Date, now: Date, calendar: Calendar) -> String {
+        let elapsed = now.timeIntervalSince(createdAt)
+        guard elapsed < 86_400 else {
+            let day = ProposalStats.crestAge(since: createdAt, now: now, calendar: calendar)
+            return "\(firstName) proposed this on \(day)"
+        }
+        let minutes = max(0, Int(elapsed / 60))
+        if minutes < 1 { return "\(firstName) proposed this just now" }
+        if minutes < 60 { return "\(firstName) proposed this \(minutes) \(minutes == 1 ? "minute" : "minutes") ago" }
+        let hours = minutes / 60
+        return "\(firstName) proposed this \(hours) \(hours == 1 ? "hour" : "hours") ago"
     }
 
     static func amountLabel(micros: Int64) -> String {
@@ -49,26 +63,66 @@ struct ProposalHero: View {
         }
     }
 
-    private var crest: some View {
+    @ViewBuilder private var crest: some View {
+        if proposer == nil || Self.firstName(of: proposer?.name) == nil {
+            cabalChip.frame(maxWidth: .infinity, alignment: .leading)
+        } else if dynamicTypeSize.isAccessibilitySize {
+            VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
+                proposerGroup
+                cabalChip
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        } else {
+            HStack(spacing: MonacoTheme.Space.s) {
+                proposerGroup
+                Spacer(minLength: MonacoTheme.Space.s)
+                cabalChip.containerRelativeFrame(.horizontal, alignment: .trailing) { width, _ in width / 2 }
+            }
+        }
+    }
+
+    @ViewBuilder private var proposerGroup: some View {
+        if let proposer, let firstName = Self.firstName(of: proposer.name) {
+            HStack(spacing: MonacoTheme.Space.s) {
+                MonacoAvatar(
+                    photoURL: proposer.photoURL?.absoluteString, displayName: proposer.name, size: Self.avatarSize,
+                    seed: proposer.id)
+                Text(firstName)
+                    .font(MonacoTheme.Typo.headline)
+                    .foregroundStyle(MonacoTheme.primaryText)
+                    .lineLimit(1)
+                Text(ProposalStats.crestAge(since: summary.createdAt, now: .now, calendar: .current))
+                    .font(MonacoTheme.Typo.subhead)
+                    .foregroundStyle(MonacoTheme.secondaryText)
+                    .lineLimit(1)
+            }
+            .fixedSize(horizontal: true, vertical: false)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(
+                Self.proposedLabel(firstName: firstName, createdAt: summary.createdAt, now: .now, calendar: .current))
+        }
+    }
+
+    private var cabalChip: some View {
         NavigationLink(value: AnyAppRoute(CabalRoute(id: summary.cabalID))) {
             HStack(spacing: MonacoTheme.Space.s) {
-                CabalMark(groupId: summary.cabalID, name: cabalLabel, size: 20)
-                Text(
-                    Self.crestLine(
-                        cabalName: cabalLabel, proposer: proposer?.name ?? "Member", createdAt: summary.createdAt,
-                        now: .now, calendar: .current)
-                )
-                .font(MonacoTheme.Typo.subhead)
-                .foregroundStyle(MonacoTheme.secondaryText)
-                .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
-                .fixedSize(horizontal: false, vertical: true)
-                Spacer(minLength: 0)
+                CabalMark(groupId: summary.cabalID, name: cabalLabel, size: Self.chipMark)
+                Text(cabalLabel)
+                    .font(MonacoTheme.Typo.subhead)
+                    .foregroundStyle(MonacoTheme.primaryText)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
             }
-            .frame(minHeight: MonacoButtonMetrics.hitTarget, alignment: .leading)
+            .padding(.horizontal, MonacoTheme.Space.sm)
+            .padding(.vertical, MonacoTheme.Space.xs)
+            .frame(minHeight: Self.chipHeight)
+            .background(MonacoTheme.surface, in: Capsule())
+            .frame(minHeight: MonacoButtonMetrics.hitTarget)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .padding(.vertical, -(MonacoButtonMetrics.hitTarget - MonacoTheme.Space.l) / 2)
+        .accessibilityLabel("\(cabalLabel), opens the cabal")
+        .accessibilityAddTraits(.isButton)
         .accessibilityIdentifier("proposal-crest-line")
     }
 

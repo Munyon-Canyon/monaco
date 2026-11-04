@@ -151,7 +151,7 @@ struct ComposerField: View {
             TextField(
                 "",
                 text: text,
-                prompt: Text(CommentsCopy.placeholder).foregroundStyle(MonacoTheme.secondaryText),
+                prompt: Text(model.placeholder).foregroundStyle(MonacoTheme.secondaryText),
                 axis: .vertical
             )
             .font(MonacoTheme.Typo.body)

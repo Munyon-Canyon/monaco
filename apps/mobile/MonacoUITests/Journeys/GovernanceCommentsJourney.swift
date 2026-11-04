@@ -2,7 +2,7 @@ import XCTest
 
 enum GovernanceCommentsJourney {
     static let id = "governance/comments"
-    static let version = 10
+    static let version = 11
 
     static func recorder() -> JourneyRecorder {
         JourneyRecorder(journey: id, version: version)
@@ -66,7 +66,10 @@ enum GovernanceCommentsJourney {
         recorder.step("S1.3", "post a comment") {
             let field = app.element("comment-composer-field")
             XCTAssertTrue(field.waitForExistence(timeout: 10), "S1.3: no comment composer")
-            XCTAssertEqual(field.placeholderValue, "Say something", "S1.3: the composer placeholder is not the spec's")
+            let placeholder = field.placeholderValue ?? ""
+            XCTAssertTrue(
+                placeholder == "Say something" || placeholder.hasPrefix("Reply to "),
+                "S1.3: the composer placeholder is not the spec's")
             XCTAssertTrue(app.element("comment-composer-gif").exists, "S1.3: no GIF button in the composer")
             post(app, comment(run: run), step: "S1.3")
         }

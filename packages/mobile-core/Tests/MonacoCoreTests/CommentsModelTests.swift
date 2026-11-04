@@ -318,3 +318,13 @@ final class CommentsModelTests: XCTestCase {
         return (model, transport, hints)
     }
 }
+
+extension CommentsModelTests {
+    func testThePlaceholderDefaultsToSaySomethingAndTakesAnOverride() throws {
+        let (model, _, _) = try make([])
+
+        XCTAssertEqual(model.placeholder, "Say something")
+        model.placeholder = "Reply to Mia"
+        XCTAssertEqual(model.placeholder, "Reply to Mia")
+    }
+}
