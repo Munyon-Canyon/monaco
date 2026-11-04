@@ -1,8 +1,6 @@
 package flows
 
 import (
-	"context"
-	"encoding/json"
 	"net/http"
 	"time"
 
@@ -10,172 +8,96 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
-	governanceport "github.com/monaco/monaco/apps/backend/internal/modules/governance/port"
-	"github.com/monaco/monaco/apps/backend/internal/modules/social/app"
-	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
-	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
-	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/faultpoint"
-	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/scenario"
 )
 
-const proposalThesis = "put it up, small add before the print"
-
-type fixedHeads map[ids.ProposalID]governanceport.ProposalHead
-
-func (h fixedHeads) ProposalHead(_ context.Context, id ids.ProposalID) (governanceport.ProposalHead, error) {
-	head, ok := h[id]
-	if !ok {
-		return governanceport.ProposalHead{}, errs.New(errs.CodeProposalNotFound, "flows.fixedHeads")
-	}
-	return head, nil
-}
-
-type proposalWriter struct {
-	handler  *app.WriteChatProposalMessage
-	rt       *momentRealtime
-	proposal uuid.UUID
-}
-
-func newProposalWriter(s *scenario.Scenario, known bool) proposalWriter {
-	rt := &momentRealtime{}
-	wire := func(_ context.Context, m app.ChatMessage) (any, error) { return map[string]any{"id": m.ID}, nil }
-	proposal := uuid.New()
-	heads := fixedHeads{}
-	if known {
-		heads[ids.ProposalIDFrom(proposal)] = governanceport.ProposalHead{
-			Kind:   "buy",
-			Symbol: "NVDA",
-			Thesis: proposalThesis,
-		}
-	}
-	return proposalWriter{
-		rt: rt, proposal: proposal,
-		handler: app.NewWriteChatProposalMessage(app.ChatDeps{
-			UoW: db.New(s.DB(), ids.Real{}, clock.Real{}), IDs: ids.Real{}, Clock: clock.Real{},
-			Publish: app.NewChatPublisher(rt, wire),
-		}, heads),
+func proposeBuy(c f09Cabal) []scenario.Step {
+	return []scenario.Step{
+		f09Member(c),
+		func(s *scenario.Scenario) { f09Route(s, "25000000", fakes.ActionSucceed, "/jupiter/swap/v2/order") },
 	}
 }
 
-func proposalCtx(s *scenario.Scenario) context.Context {
-	return auth.WithActor(s.Context(), auth.Actor{Kind: auth.ActorSystem, ID: "consumer:proposal.created"})
-}
-
-func (w proposalWriter) event(s *scenario.Scenario) events.ProposalCreated {
-	return events.ProposalCreated{
-		V: 1, ProposalID: w.proposal, CabalID: uuid.MustParse(s.Recall("cabal")), ProposerID: s.ActorID().UUID(),
-		Kind: "buy", Symbol: "NVDA", ExpiresAt: time.Now().UTC().Add(24 * time.Hour),
+func proposalRowsIn(s *scenario.Scenario, cabal string) int {
+	s.Helper()
+	var got int
+	err := s.DB().QueryRow(s.Context(),
+		`SELECT count(*) FROM cabal_messages WHERE cabal_id = $1::uuid AND kind = 'proposal'`, cabal).Scan(&got)
+	if err != nil {
+		s.Fatalf("flows: count the proposal rows: %v", err)
 	}
-}
-
-func proposalRowsHold(want int) scenario.Step {
-	return func(s *scenario.Scenario) {
-		s.Helper()
-		var got int
-		err := s.DB().QueryRow(s.Context(),
-			`SELECT count(*) FROM cabal_messages WHERE cabal_id = $1::uuid AND kind = 'proposal'
-			 AND proposal_id IS NOT NULL AND author_id IS NOT NULL`, s.Recall("cabal")).Scan(&got)
-		if err != nil {
-			s.Fatalf("flows: count the proposal rows: %v", err)
-		}
-		if got != want {
-			s.Fatalf("flows: the cabal holds %d proposal rows, want %d", got, want)
-		}
-	}
-}
-
-func proposalsPublished(w *proposalWriter, want int) scenario.Step {
-	return func(s *scenario.Scenario) {
-		s.Helper()
-		if got := w.rt.published(); got != want {
-			s.Fatalf("flows: %d message.created published, want %d", got, want)
-		}
-	}
+	return got
 }
 
 func F22eWriteChatProposalMessageOK(s *scenario.Scenario) {
-	var w proposalWriter
-	s.Given(append(chatCabal("proposal-ok"), func(s *scenario.Scenario) { w = newProposalWriter(s, true) })...).
-		When(
-			func(s *scenario.Scenario) {
-				for range 2 {
-					if err := w.handler.Handle(proposalCtx(s), w.event(s)); err != nil {
-						s.Fatalf("flows: write the chat proposal message: %v", err)
-					}
-				}
-			},
-			scenario.Get(chatPath),
-			scenario.ExpectStatus(http.StatusOK),
-			scenario.ExpectField("messages", func(s *scenario.Scenario, raw json.RawMessage) {
-				var got []struct {
-					Kind       string  `json:"kind"`
-					ProposalID string  `json:"proposal_id"`
-					Body       *string `json:"body"`
-					Author     struct {
-						ID string `json:"id"`
-					} `json:"author"`
-				}
-				if err := json.Unmarshal(raw, &got); err != nil {
-					s.Fatalf("flows: decode the messages %s: %v", raw, err)
-				}
-				if len(got) != 1 || got[0].Kind != "proposal" || got[0].ProposalID != w.proposal.String() ||
-					got[0].Body == nil || *got[0].Body != proposalThesis || got[0].Author.ID != s.ActorID().String() {
-					s.Fatalf("flows: the channel read %s, want one proposal row by the proposer", raw)
-				}
-			}),
-		).
-		Then(
-			proposalRowsHold(1),
-			func(s *scenario.Scenario) { proposalsPublished(&w, 1)(s) },
-			scenario.ExpectEvents(events.TypeChatMessagePosted, 0),
-		)
-}
-
-func F22eWriteChatProposalMessageProposalNotFound(s *scenario.Scenario) {
-	var w proposalWriter
-	s.Given(append(chatCabal("proposal-missing"), func(s *scenario.Scenario) { w = newProposalWriter(s, false) })...).
-		When(func(s *scenario.Scenario) {
-			if err := w.handler.Handle(proposalCtx(s), w.event(s)); err != nil {
-				s.Fatalf("flows: a proposal that is gone must be acknowledged, got %v", err)
-			}
-		}).
-		Then(
-			proposalRowsHold(0),
-			func(s *scenario.Scenario) { proposalsPublished(&w, 0)(s) },
-			scenario.ExpectEvents(events.TypeChatMessagePosted, 0),
-		)
-}
-
-func F22eWriteChatProposalMessageCrashBeforeCommit(s *scenario.Scenario) {
 	c := seedF09(s, "100000000")
-	s.Given(f09Member(c), func(s *scenario.Scenario) {
-		f09Route(s, "25000000", fakes.ActionSucceed, "/jupiter/swap/v2/order")
-	}).
+	s.Given(proposeBuy(c)...).
 		When(
 			scenario.Post(f09Path(c), f09Buy),
 			scenario.ExpectStatus(http.StatusCreated),
-			scenario.PublishCrashingAt(faultpoint.BeforeCommit),
 		).
 		Then(
-			scenario.Eventually("the proposal row", func(s *scenario.Scenario) bool { return proposalRowsIn(s, c) == 1 }),
+			scenario.Eventually("the proposal row", func(s *scenario.Scenario) bool {
+				return proposalRowsIn(s, c.id.String()) == 1
+			}),
 			func(s *scenario.Scenario) {
-				if got := proposalRowsIn(s, c); got != 1 {
+				if got := proposalRowsIn(s, c.id.String()); got != 1 {
 					s.Fatalf("flows: the cabal holds %d proposal rows, want 1", got)
 				}
 			},
 		)
 }
 
-func proposalRowsIn(s *scenario.Scenario, c f09Cabal) int {
-	s.Helper()
-	var got int
-	err := s.DB().QueryRow(s.Context(),
-		`SELECT count(*) FROM cabal_messages WHERE cabal_id = $1::uuid AND kind = 'proposal'`, c.id.String()).Scan(&got)
-	if err != nil {
-		s.Fatalf("flows: count the proposal rows: %v", err)
-	}
-	return got
+func F22eWriteChatProposalMessageProposalNotFound(s *scenario.Scenario) {
+	s.Given(chatCabal("proposal-missing")...).
+		When(
+			func(s *scenario.Scenario) {
+				publishEvent(s, events.ProposalCreated{
+					V: 1, ProposalID: uuid.MustParse("01920000-0000-7000-8000-0000000000d1"),
+					CabalID: uuid.MustParse(s.Recall("cabal")), ProposerID: s.ActorID().UUID(),
+					Kind: "buy", Symbol: "NVDA", ExpiresAt: time.Date(2026, 9, 30, 14, 0, 0, 0, time.UTC),
+				})
+			},
+			scenario.EventuallyLog(observability.BusDispatched, map[string]string{
+				"subject": s.Bus().Subject(events.TypeProposalCreated.Subject()),
+				"code":    string(errs.CodeProposalNotFound),
+			}),
+		).
+		Then(func(s *scenario.Scenario) {
+			if got := proposalRowsIn(s, s.Recall("cabal")); got != 0 {
+				s.Fatalf("flows: the cabal holds %d proposal rows, want 0", got)
+			}
+		})
+}
+
+func F22eWriteChatProposalMessageCrashBeforeCommit(s *scenario.Scenario) {
+	c := seedF09(s, "100000000")
+	s.Given(proposeBuy(c)...).
+		When(
+			scenario.Post(f09Path(c), f09Buy),
+			scenario.ExpectStatus(http.StatusCreated),
+			scenario.PublishCrashingAt(faultpoint.BeforeCommit),
+		).
+		Then(
+			scenario.Eventually("the proposal row", func(s *scenario.Scenario) bool {
+				return proposalRowsIn(s, c.id.String()) == 1
+			}),
+			func(s *scenario.Scenario) {
+				if got := proposalRowsIn(s, c.id.String()); got != 1 {
+					s.Fatalf("flows: the cabal holds %d proposal rows, want 1", got)
+				}
+			},
+		)
+}
+
+func (defined) AloneF22e() []Script {
+	return []Script{F22eWriteChatProposalMessageProposalNotFound}
+}
+
+func (defined) LettersF22e() map[string][]Letter {
+	missing := Letter{Subject: events.TypeProposalCreated, Code: errs.CodeProposalNotFound}
+	return map[string][]Letter{"F22eWriteChatProposalMessageProposalNotFound": {missing, missing}}
 }
