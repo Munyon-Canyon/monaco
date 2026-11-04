@@ -460,16 +460,21 @@ enum TestIsolationRules {
         name: "mainactor-sync-throws",
         roots: RepoRules.testCode,
         pattern: "",
-        message: "A sync throws test on a @MainActor XCTestCase aborts test discovery on Linux. Write it async throws.",
+        message: "A @MainActor XCTestCase whose tests are all sync, or a sync throws test on one, "
+            + "aborts XCTest discovery on Linux. Make the tests async (async throws).",
         failing: [
             "@MainActor\nfinal class FooTests: XCTestCase {\n    func testFoo() throws {\n    }\n}",
             "@MainActor final class FooTests: XCTestCase {\n    func testFoo() throws {\n    }\n}",
             "final class FooTests: XCTestCase {}\n\n@MainActor\nextension FooTests {\n"
                 + "    func testBar() throws {\n        let x = { 1 }\n    }\n}",
+            "@MainActor\nfinal class FooTests: XCTestCase {\n    func testFoo() {\n    }\n}",
+            "@MainActor\nfinal class FooTests: XCTestCase {\n    func testFoo() async {\n    }\n\n"
+                + "    func testBar() throws {\n    }\n}",
         ],
         passing: [
             "@MainActor\nfinal class FooTests: XCTestCase {\n    func testFoo() async throws {\n    }\n}",
-            "@MainActor\nfinal class FooTests: XCTestCase {\n    func testFoo() {\n    }\n}",
+            "@MainActor\nfinal class FooTests: XCTestCase {\n    func testFoo() {\n    }\n\n"
+                + "    func testBar() async {\n    }\n}",
             "final class FooTests: XCTestCase {\n    func testFoo() throws {\n    }\n}",
             "@MainActor\nfinal class FooTests: XCTestCase {\n    func helper() throws {\n    }\n}\n\n"
                 + "final class BarTests: XCTestCase {\n    func testBar() throws {\n    }\n}",
@@ -525,6 +530,7 @@ enum TestIsolationRules {
     )
 
     private static let typeKeyword = #"\b(?:class|extension|struct|actor)\b"#
+    private static let xcTestCaseTypeKeyword = #"\b(?:class|extension)\b"#
     private static let testSignature = #"\bfunc\s+test\w*\s*\(\s*\)([^{]*)"#
     private static let stringLiteral = #""(?:[^"\\]|\\.)*""#
     private static let lineComment = #"//.*$"#
@@ -533,11 +539,19 @@ enum TestIsolationRules {
     private static let stringLiteralRegex = RuleRegex()
     private static let lineCommentRegex = RuleRegex()
 
+    private struct Scope {
+        var isolated: Bool
+        var talliesTests = false
+        var firstTestLine: Int?
+        var hasAsyncTest = false
+    }
+
     static func syncThrowsLines(in text: NSString) throws -> [Int] {
         var found: [Int] = []
-        var braces: [Bool] = []
+        var scopes: [Scope] = []
         var pendingAttribute = false
         var pendingType: Bool?
+        var pendingTalliesTests = false
         var source = text as String
         source.makeContiguousUTF8()
         for (offset, raw) in source.split(separator: "\n", omittingEmptySubsequences: false).enumerated() {
@@ -545,24 +559,39 @@ enum TestIsolationRules {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
             let isolated = pendingAttribute || trimmed.hasPrefix("@MainActor")
             if try declaresType(line), !trimmed.hasPrefix("func ") {
-                pendingType = isolated || (braces.last ?? false)
+                pendingType = isolated || (scopes.last?.isolated ?? false)
+                pendingTalliesTests = line.range(of: xcTestCaseTypeKeyword, options: .regularExpression) != nil
             }
             if trimmed.hasPrefix("@"), !trimmed.contains("{") {
                 pendingAttribute = pendingAttribute || trimmed.hasPrefix("@MainActor")
             } else if !trimmed.isEmpty {
                 pendingAttribute = false
             }
-            if braces.last == true, try isSyncThrowsTest(line) { found.append(offset + 1) }
+            if let effects = try testEffects(line), let index = scopes.indices.last, scopes[index].isolated {
+                let isAsync = effects.range(of: #"\basync\b"#, options: .regularExpression) != nil
+                let isThrows = effects.range(of: #"\bthrows\b"#, options: .regularExpression) != nil
+                if isThrows, !isAsync { found.append(offset + 1) }
+                if scopes[index].talliesTests {
+                    scopes[index].hasAsyncTest = scopes[index].hasAsyncTest || isAsync
+                    scopes[index].firstTestLine = scopes[index].firstTestLine ?? offset + 1
+                }
+            }
             for character in line {
                 if character == "{" {
-                    braces.append(pendingType ?? (braces.last ?? false))
+                    scopes.append(
+                        Scope(
+                            isolated: pendingType ?? (scopes.last?.isolated ?? false),
+                            talliesTests: pendingType != nil && pendingTalliesTests))
                     pendingType = nil
-                } else if character == "}", !braces.isEmpty {
-                    braces.removeLast()
+                    pendingTalliesTests = false
+                } else if character == "}", let closed = scopes.popLast() {
+                    if closed.talliesTests, closed.isolated, !closed.hasAsyncTest, let first = closed.firstTestLine {
+                        found.append(first)
+                    }
                 }
             }
         }
-        return found
+        return Array(Set(found)).sorted()
     }
 
     private static func declaresType(_ line: String) throws -> Bool {
@@ -570,15 +599,12 @@ enum TestIsolationRules {
         return regex.firstMatch(in: line, range: NSRange(line.startIndex..., in: line)) != nil
     }
 
-    private static func isSyncThrowsTest(_ line: String) throws -> Bool {
-        guard line.contains("throws") else { return false }
+    private static func testEffects(_ line: String) throws -> Substring? {
         let regex = try testSignatureRegex.for(pattern: testSignature)
         guard let match = regex.firstMatch(in: line, range: NSRange(line.startIndex..., in: line)),
             let tail = Range(match.range(at: 1), in: line)
-        else { return false }
-        let effects = line[tail]
-        return effects.range(of: #"\bthrows\b"#, options: .regularExpression) != nil
-            && effects.range(of: #"\basync\b"#, options: .regularExpression) == nil
+        else { return nil }
+        return line[tail]
     }
 
     private static func code(_ line: String) throws -> String {
@@ -811,6 +837,48 @@ final class RepoRulesTests: XCTestCase {
         XCTAssertTrue(rule.applies(path, withoutImport))
         XCTAssertGreaterThan(try rule.matches(in: withoutImport), 0)
         XCTAssertFalse(rule.applies(path, withImport))
+    }
+
+    func testAllSyncMainActorTestsThatCrashedLinuxDiscoveryAreFlaggedUntilTheyAreAsync() throws {
+        let allSync = """
+            import MonacoCore
+            import XCTest
+
+            @MainActor
+            final class GifPlaybackBudgetTests: XCTestCase {
+                func testReleasingASlotLetsAWaitingTileClaimIt() {
+                    let budget = GifPlaybackBudget(limit: 1)
+                    XCTAssertTrue(budget.claim("a"))
+                    XCTAssertFalse(budget.claim("b"))
+                    let before = budget.revision
+
+                    budget.release("a")
+
+                    XCTAssertGreaterThan(budget.revision, before)
+                    XCTAssertTrue(budget.claim("b"))
+                }
+
+                func testClaimingAHeldIdTakesNoSecondSlot() {
+                    let budget = GifPlaybackBudget(limit: 1)
+                    XCTAssertTrue(budget.claim("a"))
+                    XCTAssertTrue(budget.claim("a"))
+                    XCTAssertFalse(budget.claim("b"))
+                }
+
+                func testReleasingAnIdWithoutASlotLeavesRevisionUnchanged() {
+                    let budget = GifPlaybackBudget(limit: 1)
+                    let before = budget.revision
+
+                    budget.release("a")
+
+                    XCTAssertEqual(budget.revision, before)
+                }
+            }
+
+            """
+        let asyncTests = allSync.replacingOccurrences(of: "() {", with: "() async {")
+        XCTAssertEqual(try TestIsolationRules.syncThrowsLines(in: allSync as NSString), [6])
+        XCTAssertEqual(try TestIsolationRules.syncThrowsLines(in: asyncTests as NSString), [])
     }
 
     func testTheCopyRuleBansOffVoiceWords() throws {
