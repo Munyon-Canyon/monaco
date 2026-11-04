@@ -2,7 +2,7 @@ import XCTest
 
 enum StocksAssetDetailJourney {
     static let id = "stocks/asset-detail"
-    static let version = 17
+    static let version = 18
 
     static let alpha = StocksBrowseJourney.alpha
     static let preIpo = StocksBrowseJourney.preIpo
@@ -168,6 +168,7 @@ enum StocksAssetDetailJourney {
             app.element("asset-detail-root").waitForExistence(timeout: 10),
             "S1.9: closing Amount did not return to the stock page")
         app.navigationBars.buttons["BackButton"].tap()
+        StocksBrowseJourney.cancelSearch(app, step: "S1.9")
         XCTAssertTrue(
             app.element("tab-assets").waitForExistence(timeout: 10),
             "S1.9: backing out of the stock page did not show the tab bar")
