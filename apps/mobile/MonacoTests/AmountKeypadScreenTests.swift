@@ -12,7 +12,7 @@ private struct KeypadHarness: View {
     var body: some View {
         AmountKeypadScreen(
             amountText: $text, state: state,
-            line: AmountKeypadLine(text: "From your cash · your share 35% → 36%", info: withInfo ? {} : nil),
+            line: AmountKeypadLine(text: "From your cash. Your share goes from 35% to 36%.", info: withInfo ? {} : nil),
             max: 500,
             action: AmountKeypadAction(title: "Fund $250", settledTitle: "$250 to AC Capital", perform: {}),
             onClose: {},
