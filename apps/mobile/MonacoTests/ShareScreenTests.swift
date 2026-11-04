@@ -156,6 +156,11 @@ struct ShareScreenTests {
         #expect(ShareEye.pnl.toggled(ShareEye.pnl.toggled(all)) == all)
     }
 
+    @Test func theTogglesCarryTheirShowTitles() {
+        #expect(ShareEye.allCases.map(\.title) == ["Show $", "Show trades", "Show code"])
+        #expect(ShareEye.allCases.map { $0.title(ledger: true) } == ["Show return", "Show calls", "Show code"])
+    }
+
     @Test func theFormatsCarryTheirLabelsAndIdentifiers() {
         #expect(ShareFormat.allCases.map(\.title) == ["Card 4:5", "Square", "Story", "Sticker"])
         #expect(
