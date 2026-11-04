@@ -30,6 +30,8 @@ struct MonacoSearchField: View {
     @Binding var text: String
     var isEnabled: Bool = true
     var showsClear: Bool = true
+    var fieldIdentifier: String = "monaco-search-field"
+    var clearIdentifier: String = "monaco-search-clear"
 
     @ScaledMetric(relativeTo: .body) private var iconSize = MonacoSearchFieldMetrics.iconSize
 
@@ -43,11 +45,12 @@ struct MonacoSearchField: View {
                 .font(MonacoTheme.Typo.body)
                 .foregroundStyle(MonacoTheme.ink)
                 .tint(MonacoTheme.accent)
+                .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
                 .submitLabel(.search)
                 .disabled(!isEnabled)
                 .accessibilityLabel(placeholder)
-                .accessibilityIdentifier("monaco-search-field")
+                .accessibilityIdentifier(fieldIdentifier)
             if !text.isEmpty, isEnabled, showsClear {
                 Button {
                     text = ""
@@ -59,6 +62,7 @@ struct MonacoSearchField: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Clear search")
+                .accessibilityIdentifier(clearIdentifier)
             }
         }
         .padding(.leading, MonacoTheme.Space.sm)

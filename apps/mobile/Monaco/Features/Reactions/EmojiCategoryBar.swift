@@ -41,9 +41,7 @@ struct EmojiCategoryBar: View {
                                 current == category.id ? MonacoTheme.primaryText : MonacoTheme.secondaryText
                             )
                             .frame(minWidth: tapSize, minHeight: tapSize)
-                            .background {
-                                if current == category.id { Circle().fill(MonacoTheme.border) }
-                            }
+                            .modifier(SelectedCategoryPill(isSelected: current == category.id))
                             .frame(maxWidth: .infinity, minHeight: tapSize)
                             .contentShape(Rectangle())
                     }
@@ -55,6 +53,28 @@ struct EmojiCategoryBar: View {
             }
             .padding(.horizontal, MonacoTheme.Space.gutter)
             .padding(.top, MonacoTheme.Space.xs)
+        }
+    }
+}
+
+private struct SelectedCategoryPill: ViewModifier {
+    let isSelected: Bool
+
+    @MonacoReduceTransparency private var reduceTransparency
+    @Environment(\.displayScale) private var displayScale
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if !isSelected {
+            content
+        } else if reduceTransparency {
+            content
+                .background(Circle().fill(MonacoTheme.surface))
+                .overlay(Circle().strokeBorder(MonacoTheme.hairline, lineWidth: 1 / displayScale))
+        } else if #available(iOS 26, *) {
+            content.glassEffect(.regular.interactive(), in: .circle)
+        } else {
+            content.background(Circle().fill(MonacoTheme.border))
         }
     }
 }
