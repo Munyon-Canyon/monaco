@@ -1233,7 +1233,7 @@ class PruneQACabals(unittest.TestCase):
         self.assertEqual(calls.count("psql "), 1)
         for text in ("BEGIN;", "COMMIT;", "fund_transfers", "cabal_positions", "p.units > 0",
                      "SET status = 'banned'", "DELETE FROM cabal_members", "LIKE 'QA %'", "interval '1 hour'",
-                     "started=2026-10-30T12:00:00Z"):
+                     "started=2026-10-30T12:00:00Z", "DELETE FROM rate_limit_buckets", ":actor:user:"):
             self.assertIn(text, calls)
         self.assertNotIn("DELETE FROM cabals", calls)
         self.assertIn("prune: skipped cabal id1 (QA rich)", done.stdout)

@@ -12,6 +12,7 @@
 # with units > 0 (a USDC pot or a stock). Otherwise, in one transaction:
 #   - a cabal an actor A, B or C created is closed (status banned, as the backend does),
 #   - a cabal where an actor is only a member loses that membership (the backend's leave path).
+# The run also resets the A, B and C actors' rate-limit buckets so back-to-back journeys don't hit 429s on setup.
 set -euo pipefail
 
 here="$(cd "$(dirname "$0")" && pwd)"
@@ -81,6 +82,9 @@ DELETE FROM cabal_members m
 USING prune_candidates pc
 WHERE m.cabal_id = pc.id AND NOT pc.created_by_actor AND NOT pc.funded AND m.role = 'member'
   AND m.user_id = ANY (ARRAY (SELECT id FROM users WHERE privy_user_id = ANY (:'dids'::text[])));
+DELETE FROM rate_limit_buckets
+WHERE key LIKE 'op:%:actor:user:%'
+  AND split_part(key, ':actor:user:', 2) IN (SELECT id::text FROM users WHERE privy_user_id = ANY (:'dids'::text[]));
 SELECT CASE WHEN funded THEN 'skipped' WHEN created_by_actor THEN 'closed' ELSE 'left' END, id, name
 FROM prune_candidates ORDER BY name, id;
 COMMIT;
