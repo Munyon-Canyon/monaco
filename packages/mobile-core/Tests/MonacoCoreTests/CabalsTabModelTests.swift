@@ -57,6 +57,64 @@ final class CabalsTabModelTests: XCTestCase {
 
         XCTAssertEqual(one.content?.showsReorderHint, false)
         XCTAssertEqual(two.content?.showsReorderHint, true)
+        XCTAssertEqual(CabalsTabCopy.reorderHint, "Hold a cabal for quick actions.")
+    }
+
+    func testTheNextStepAndItsLineFollowTheViewersPartInTheCabal() async throws {
+        var portfolio = Components.Schemas.MyPortfolio.sampleOwnProfile
+        let parts: [(Int32, Bool, Int32)] = [(1, true, 2), (4, true, 0), (4, true, 1), (4, false, 0)]
+        portfolio.cabals = parts.map { members, canVote, open in
+            var cabal = portfolio.cabals[0]
+            (cabal.memberCount, cabal.canVote, cabal.openVoteCount) = (members, canVote, open)
+            return cabal
+        }
+        let model = CabalsTabModel(api: api(try Self.transport(portfolio: portfolio, invites: "[]")))
+
+        await model.load()
+
+        let tiles = try XCTUnwrap(model.content?.tiles)
+        XCTAssertEqual(tiles.map(\.openVoteCount), [2, 0, 1, 0])
+        XCTAssertEqual(tiles.map(\.nextStep), [.invite, .propose, nil, nil])
+        XCTAssertEqual(tiles.map(\.nextStepLine), ["Just you so far.", "No vote open.", nil, nil])
+    }
+
+    func testUpNextListsTheTilesWithANextStepInTabOrder() async throws {
+        let few = CabalsTabModel(api: api(try Self.transport(portfolio: .sampleFewCabals, invites: "[]")))
+        await few.load()
+        let own = CabalsTabModel(api: api(try Self.transport()))
+        await own.load()
+
+        XCTAssertEqual(few.content?.upNext.map(\.name), ["Big Ballers", "Ac Capital Management"])
+        XCTAssertEqual(own.content?.upNext.map(\.shortName), ["Tech Titans", "Degens"])
+    }
+
+    func testUpNextNeverHoldsMoreThanThree() async throws {
+        var portfolio = Components.Schemas.MyPortfolio.sampleOwnProfile
+        portfolio.cabals = portfolio.cabals.map { cabal in
+            var open = cabal
+            open.openVoteCount = 0
+            return open
+        }
+        portfolio.cabals.append(portfolio.cabals[1])
+        let model = CabalsTabModel(api: api(try Self.transport(portfolio: portfolio, invites: "[]")))
+
+        await model.load()
+
+        XCTAssertEqual(model.content?.tiles.count, 4)
+        XCTAssertEqual(model.content?.upNext.count, 3)
+    }
+
+    func testTopCabalsShowForOneOrTwoCabalsOnly() async throws {
+        var shows: [Bool?] = []
+        for count in 0...3 {
+            var portfolio = Components.Schemas.MyPortfolio.sampleOwnProfile
+            portfolio.cabals = Array(portfolio.cabals.prefix(count))
+            let model = CabalsTabModel(api: api(try Self.transport(portfolio: portfolio, invites: "[]")))
+            await model.load()
+            shows.append(model.content?.showsTopCabals)
+        }
+
+        XCTAssertEqual(shows, [false, true, true, false])
     }
 
     func testTheShareLineFormatsTheTreasuryAndOwnership() async throws {

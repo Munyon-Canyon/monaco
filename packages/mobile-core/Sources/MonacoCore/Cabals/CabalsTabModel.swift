@@ -1,6 +1,11 @@
 import MonacoAPI
 import Observation
 
+public enum CabalNextStep: Equatable, Sendable {
+    case invite
+    case propose
+}
+
 public struct CabalTile: Identifiable, Equatable, Sendable {
     public let id: String
     public let name: String
@@ -16,6 +21,7 @@ public struct CabalTile: Identifiable, Equatable, Sendable {
     public let memberCount: Int32
     public let role: String
     public let canVote: Bool
+    public let openVoteCount: Int
     public let unreadCount: Int
 
     init(_ cabal: Components.Schemas.PortfolioCabal, unreadCount: Int) {
@@ -35,7 +41,22 @@ public struct CabalTile: Identifiable, Equatable, Sendable {
         memberCount = cabal.memberCount
         role = cabal.role.rawValue
         canVote = cabal.canVote
+        openVoteCount = Int(cabal.openVoteCount)
         self.unreadCount = unreadCount
+    }
+
+    public var nextStep: CabalNextStep? {
+        if memberCount <= 1 && role == "admin" { return .invite }
+        if canVote && openVoteCount == 0 { return .propose }
+        return nil
+    }
+
+    public var nextStepLine: String? {
+        switch nextStep {
+        case .invite: CabalsTabCopy.justYou
+        case .propose: CabalsTabCopy.noVoteOpen
+        case nil: nil
+        }
     }
 
     public var shareLine: String { "\(treasuryText) treasury · \(ownershipText) yours" }
@@ -63,6 +84,8 @@ public struct CabalsTabContent: Equatable, Sendable {
 
     public var isEmpty: Bool { tiles.isEmpty && invites.isEmpty }
     public var showsReorderHint: Bool { tiles.count >= 2 }
+    public var showsTopCabals: Bool { tiles.count == 1 || tiles.count == 2 }
+    public var upNext: [CabalTile] { Array(tiles.filter { $0.nextStep != nil }.prefix(3)) }
 
     public var countText: String {
         invites.isEmpty ? "\(tiles.count)" : "\(tiles.count) · \(invites.count) invited"
@@ -70,7 +93,9 @@ public struct CabalsTabContent: Equatable, Sendable {
 }
 
 public enum CabalsTabCopy {
-    public static let reorderHint = "Hold a cabal for actions · drag to reorder"
+    public static let reorderHint = "Hold a cabal for quick actions."
+    public static let justYou = "Just you so far."
+    public static let noVoteOpen = "No vote open."
 
     public static func unread(_ count: Int) -> String? {
         switch count {

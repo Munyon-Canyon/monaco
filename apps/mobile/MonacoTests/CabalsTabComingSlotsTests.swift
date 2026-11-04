@@ -61,7 +61,7 @@ struct CabalsTabComingSlotsTests {
         #expect(labels.contains("Tech Titans, down 1.7 percent"))
         #expect(labels.contains("Quant Kids, invited"))
         #expect(labels.contains("New cabal"))
-        #expect(labels.contains { $0.contains("Hold a cabal for actions") })
+        #expect(labels.contains { $0.contains("Hold a cabal for quick actions.") })
         #expect(labels.contains { $0.contains("$22,580 treasury · 12% yours") })
     }
 
