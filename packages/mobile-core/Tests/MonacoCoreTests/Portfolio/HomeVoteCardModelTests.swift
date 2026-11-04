@@ -229,4 +229,24 @@ final class HomeVoteCardModelTests: XCTestCase {
                 full: "5 of 8 voted \u{00B7} 6 replies \u{00B7} closes in 4h",
                 short: "5 of 8 voted \u{00B7} 6 replies \u{00B7} 4h"))
     }
+
+    func testPendingVoteCarriesProposerDisplayNameAndID() async throws {
+        let row = HomePendingVote(.sample(expiresAt: clock))
+        XCTAssertEqual(row.proposerName, "Mia")
+        XCTAssertEqual(row.proposerID, "user-mia")
+    }
+
+    func testPendingVoteProposerFallsBackToHandleWhenDisplayNameIsEmpty() async throws {
+        var value = Components.Schemas.PendingVote.sample(expiresAt: clock)
+        value.proposer = .init(userId: "user-mia", handle: "mia", displayName: "", photoUrl: nil)
+        XCTAssertEqual(HomePendingVote(value).proposerName, "mia")
+        value.proposer = .init(userId: "user-mia", handle: nil, displayName: "", photoUrl: nil)
+        XCTAssertNil(HomePendingVote(value).proposerName)
+    }
+
+    func testCallerNameIsYouOnlyForANonEmptyMatchingViewer() async throws {
+        XCTAssertEqual(HomePendingVote.callerName(proposerID: "u1", name: "Mia", viewerID: "u1"), "You")
+        XCTAssertEqual(HomePendingVote.callerName(proposerID: "u1", name: "Mia", viewerID: "u2"), "Mia")
+        XCTAssertNil(HomePendingVote.callerName(proposerID: "", name: nil, viewerID: ""))
+    }
 }

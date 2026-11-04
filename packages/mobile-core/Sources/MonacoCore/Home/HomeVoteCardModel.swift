@@ -18,6 +18,8 @@ public struct HomePendingVote: Identifiable, Equatable, Sendable {
     public let tally: ProposalTally
     public let replyCount: Int
     public let expiresAt: Date
+    public let proposerName: String?
+    public let proposerID: String
 
     public static let ruleKind = "rule"
 
@@ -27,7 +29,8 @@ public struct HomePendingVote: Identifiable, Equatable, Sendable {
     public init(
         id: String, cabalID: String, cabalName: String, kind: String, rule: String? = nil, symbol: String? = nil,
         assetName: String? = nil, logoURL: URL? = nil, usdcMicros: Int64? = nil, tokenAmount: Decimal? = nil,
-        tokenDecimals: Int? = nil, tally: ProposalTally, replyCount: Int, expiresAt: Date
+        tokenDecimals: Int? = nil, tally: ProposalTally, replyCount: Int, expiresAt: Date,
+        proposerName: String? = nil, proposerID: String = ""
     ) {
         self.id = id
         self.cabalID = cabalID
@@ -43,6 +46,19 @@ public struct HomePendingVote: Identifiable, Equatable, Sendable {
         self.tally = tally
         self.replyCount = replyCount
         self.expiresAt = expiresAt
+        self.proposerName = proposerName
+        self.proposerID = proposerID
+    }
+
+    public static func callerName(proposerID: String, name: String?, viewerID: String?) -> String? {
+        if !proposerID.isEmpty, proposerID == viewerID { return "You" }
+        return name
+    }
+
+    private static func name(of proposer: Components.Schemas.PendingVoteProposer) -> String? {
+        if !proposer.displayName.isEmpty { return proposer.displayName }
+        if let handle = proposer.handle, !handle.isEmpty { return handle }
+        return nil
     }
 
     init(_ value: Components.Schemas.PendingVote) {
@@ -51,7 +67,8 @@ public struct HomePendingVote: Identifiable, Equatable, Sendable {
             rule: value.ruleChange?.rule.rawValue, symbol: value.symbol, assetName: value.assetName,
             logoURL: value.assetLogoUrl.flatMap(URL.init(string:)), usdcMicros: value.usdcMicros,
             tokenAmount: value.tokenAmountValue, tokenDecimals: value.tokenDecimals, tally: ProposalTally(value.tally),
-            replyCount: value.replyCount, expiresAt: value.expiresAt)
+            replyCount: value.replyCount, expiresAt: value.expiresAt,
+            proposerName: Self.name(of: value.proposer), proposerID: value.proposer.userId)
     }
 }
 
