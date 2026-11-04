@@ -18,6 +18,14 @@ public enum HomeFigureCopy {
         return Figure(whole: String(text.dropLast(3)), cents: String(text.suffix(3)))
     }
 
+    public static func greeting(displayName: String?) -> String? {
+        guard
+            let first = displayName?.trimmingCharacters(in: .whitespacesAndNewlines)
+                .split(whereSeparator: \.isWhitespace).first
+        else { return nil }
+        return "Welcome, \(first)"
+    }
+
     public static func line(pnlMicros: Int64, returnBps: Int64, range: LeaderboardRange) -> Line {
         Line(
             amount: UsdAmountFormatter.format(signedMicros: pnlMicros),

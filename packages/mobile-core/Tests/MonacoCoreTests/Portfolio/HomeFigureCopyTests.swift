@@ -10,6 +10,18 @@ final class HomeFigureCopyTests: XCTestCase {
         XCTAssertEqual(HomeFigureCopy.netWorth(micros: 500_123_456).cents, ".12")
     }
 
+    func testGreetingIsNilWithoutAName() {
+        XCTAssertNil(HomeFigureCopy.greeting(displayName: nil))
+        XCTAssertNil(HomeFigureCopy.greeting(displayName: ""))
+        XCTAssertNil(HomeFigureCopy.greeting(displayName: "   "))
+    }
+
+    func testGreetingUsesTheFirstWordOfTheName() {
+        XCTAssertEqual(HomeFigureCopy.greeting(displayName: "Mia"), "Welcome, Mia")
+        XCTAssertEqual(HomeFigureCopy.greeting(displayName: "Logan Norman"), "Welcome, Logan")
+        XCTAssertEqual(HomeFigureCopy.greeting(displayName: "  Logan\tNorman  "), "Welcome, Logan")
+    }
+
     func testEveryRangeNamesItsWindow() {
         let words = LeaderboardRange.figurePeriods.map {
             HomeFigureCopy.line(pnlMicros: 1, returnBps: 1, range: $0).words

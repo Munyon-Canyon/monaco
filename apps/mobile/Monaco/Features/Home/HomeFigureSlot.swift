@@ -17,8 +17,14 @@ enum HomeFigureMetrics {
 }
 
 struct HomeFigureView: View {
+    @Environment(AppEnvironment.self) private var environment
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(PortfolioModel.self) private var portfolio: PortfolioModel?
     @Environment(\.homeReads) private var reads
+
+    private var greeting: String? {
+        HomeFigureCopy.greeting(displayName: environment.sessionStore.profile?.displayName)
+    }
 
     var body: some View {
         Group {
@@ -26,7 +32,7 @@ struct HomeFigureView: View {
                 HomeSharedErrorState()
             } else {
                 switch portfolio?.state ?? .loading {
-                case .idle, .loading: HomeFigureSkeleton()
+                case .idle, .loading: HomeFigureSkeleton(reservesGreeting: greeting != nil)
                 case .failed: failed
                 case .loaded: loaded
                 }
@@ -58,6 +64,14 @@ struct HomeFigureView: View {
                     .foregroundStyle(MonacoTheme.secondaryText)
                     .accessibilityIdentifier("home-portfolio-all-cash")
             } else if let netWorth = portfolio?.netWorth {
+                if let greeting {
+                    Text(greeting)
+                        .font(.body)
+                        .foregroundStyle(MonacoTheme.secondaryText)
+                        .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
+                        .truncationMode(.tail)
+                        .accessibilityIdentifier("home-welcome")
+                }
                 figure(netWorth)
                 line(netWorth)
             }
@@ -122,8 +136,14 @@ struct HomeFigureView: View {
 }
 
 struct HomeFigureSkeleton: View {
+    var reservesGreeting = false
+
     var body: some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
+            if reservesGreeting {
+                Text(" ").font(.body)
+                    .skeletonBar(width: HomeFigureMetrics.skeletonLineWidth, radius: MonacoTheme.Radius.chip)
+            }
             Text(UsdAmountFormatter.format(micros: 0))
                 .moneyFigure(.home)
                 .skeletonBar(width: HomeFigureMetrics.skeletonFigureWidth)
