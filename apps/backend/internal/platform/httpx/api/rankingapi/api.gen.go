@@ -1790,6 +1790,11 @@ type PortfolioCabal struct {
 	// Examples: 8
 	MemberCount int32 `json:"member_count"`
 
+	// MemberPreview Up to three other members of the cabal, never the caller, creator and admins first, then voters, then the rest by join time. The cabal's `member_count` still counts the caller. Absent when the cabal has no other member.
+	//
+	// Examples: [{"display_name":"Christelle","photo_url":null,"user_id":"0198a5f0-7b1e-7c3a-9d4e-2f6b8a1c3d5e"}]
+	MemberPreview *[]PortfolioMemberPreview `json:"member_preview,omitempty"`
+
 	// NetContributedMicros Contributed minus withdrawn in USDC micros.
 	//
 	// Examples: 900000
@@ -1855,6 +1860,24 @@ type PortfolioCabal struct {
 //
 // Examples: admin
 type PortfolioCabalRole string
+
+// PortfolioMemberPreview One member shown on a cabal's portfolio row.
+type PortfolioMemberPreview struct {
+	// DisplayName The member's display name.
+	//
+	// Examples: Christelle
+	DisplayName string `json:"display_name"`
+
+	// PhotoUrl The member's photo URL. Null when they have none.
+	//
+	// Examples: https://cdn.example.com/p/christelle.jpg
+	PhotoUrl *string `json:"photo_url"`
+
+	// UserId The member's user id.
+	//
+	// Examples: 0198a5f0-7b1e-7c3a-9d4e-2f6b8a1c3d5e
+	UserId openapi_types.UUID `json:"user_id"`
+}
 
 // SharedCabal One shared cabal and its pot figures.
 type SharedCabal struct {

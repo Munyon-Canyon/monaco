@@ -105,6 +105,7 @@ type portfolioFixture struct {
 	cards     *fakeCards
 	ownership fakeOwnership
 	roles     fakeRoles
+	users     *fakeCardUsers
 }
 
 func newPortfolioFixture() portfolioFixture {
@@ -128,6 +129,7 @@ func newPortfolioFixture() portfolioFixture {
 		cards:     &fakeCards{cards: map[ids.CabalID]cabal.View{cabalID: {ID: cabalID, Name: "Alpha"}}},
 		ownership: fakeOwnership{bps: map[ids.CabalID]int32{cabalID: 5000}},
 		roles:     fakeRoles{members: []cabal.MemberView{{UserID: user, Role: cabal.RoleMember, CanVote: true}}},
+		users:     &fakeCardUsers{},
 	}
 }
 
@@ -143,6 +145,7 @@ func (f portfolioFixture) read(t *testing.T, boards fakeBoards) (app.PortfolioVi
 		Cards:     f.cards,
 		Ownership: f.ownership,
 		Roles:     f.roles,
+		Users:     f.users,
 	})
 }
 
@@ -549,4 +552,17 @@ func TestReadPortfolio_ACashOutLargerThanEverythingElseShowsZeroNotADebt(t *test
 			err,
 		)
 	}
+}
+
+type fakeCardUsers struct {
+	cards map[ids.UserID]app.UserCard
+	err   error
+	calls int
+	asked []ids.UserID
+}
+
+func (f *fakeCardUsers) UsersByID(_ context.Context, in []ids.UserID) (map[ids.UserID]app.UserCard, error) {
+	f.calls++
+	f.asked = append(f.asked, in...)
+	return f.cards, f.err
 }

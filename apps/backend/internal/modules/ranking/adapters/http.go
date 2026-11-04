@@ -174,7 +174,7 @@ func (h HTTP) GetMyPortfolio(
 	}
 	view, err := app.ReadPortfolio{User: user}.Run(ctx, app.PortfolioPorts{
 		Balances: h.Balances, Joined: h.Members, Votes: h.Votes, Boards: h.Boards, Latest: h.Snapshots,
-		Stakes: h.Stakes, Cards: h.Cards, Ownership: h.Ownership, Roles: h.Roles,
+		Stakes: h.Stakes, Cards: h.Cards, Ownership: h.Ownership, Roles: h.Roles, Users: h.Users,
 	})
 	if err != nil {
 		return nil, err
@@ -285,15 +285,31 @@ func wirePortfolio(view app.PortfolioView) (api.MyPortfolio, error) {
 		ref := cabalRef(card)
 		member := view.Members[row.CabalID]
 		rowArriving, stale := row.Arriving.Int64(), row.Stale
-		out.Cabals = append(out.Cabals, api.PortfolioCabal{
+		pc := api.PortfolioCabal{
 			ArrivingMicros: &rowArriving, Stale: &stale, ValuedAt: row.ValuedAt,
 			Cabal: ref, ValueMicros: int64(value), ShareUnits: int64(shares), NetContributedMicros: row.Net.Int64(),
 			PnlMicros: row.PnL.Int64(), ReturnBps: bpsOf(row.Return), SliceBps: int64(row.SliceBps),
 			OwnershipBps: row.OwnershipBps, Role: api.PortfolioCabalRole(member.Role), CanVote: member.CanVote,
 			PotValueMicros: int64(pot), MemberCount: members, OpenVoteCount: votes,
-		})
+		}
+		if preview := view.Preview[row.CabalID]; len(preview) > 0 {
+			pc.MemberPreview = wirePreview(preview)
+		}
+		out.Cabals = append(out.Cabals, pc)
 	}
 	return out, nil
+}
+
+func wirePreview(preview []app.MemberPreview) *[]api.PortfolioMemberPreview {
+	out := make([]api.PortfolioMemberPreview, 0, len(preview))
+	for _, m := range preview {
+		item := api.PortfolioMemberPreview{UserId: m.UserID.UUID(), DisplayName: m.DisplayName}
+		if m.PhotoURL != "" {
+			item.PhotoUrl = &m.PhotoURL
+		}
+		out = append(out, item)
+	}
+	return &out
 }
 
 func int32Of(n int) (int32, bool) {
