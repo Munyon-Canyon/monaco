@@ -7,6 +7,8 @@
 #   scripts/qa/night.sh --until 07:30        # keep going until 07:30 local time
 #   scripts/qa/night.sh --skip-backend --only-ui CabalsTabSampleUITests
 #   scripts/qa/night.sh --screenshots        # also shoot every sample screen (round 1)
+#   scripts/qa/night.sh --journeys           # after the rounds: every journey, then the seeded bugs
+#                                            # of the journeys staging changed in the last 24 h
 #
 # What a round does, strictly one heavy job at a time:
 #   1. backend: just test backend
@@ -15,6 +17,9 @@
 #      with a watchdog timeout, one retry when the test runner itself is killed,
 #      and a screen recording per class
 #   4. with --screenshots: a PNG of every screen in scripts/qa/sample-screens.txt
+#   5. with --journeys, once after the last round: `journey.py run --all --runs <rounds>`
+#      (1 with --until), `journey.py mutants` for each journey `journey.py affected` lists
+#      for origin/staging over the last 24 h, and `journey.py report` to journeys.md
 #
 # App config (MONACO_QA_IOS_CONFIG): `generate` (default) builds the app from .env.local
 # via scripts/ensure-ios-privy-config.sh; `placeholder` builds against a compile-only
@@ -43,6 +48,7 @@ rounds=1
 until_time=""
 skip_backend=0
 skip_ui=0
+journeys=0
 only_ui=""
 sim="${MONACO_QA_SIM:-}"
 screenshots="${MONACO_QA_SCREENSHOTS:-0}"
@@ -60,7 +66,8 @@ while [[ $# -gt 0 ]]; do
     --only-ui) only_ui="$2"; shift 2 ;;
     --sim) sim="$2"; shift 2 ;;
     --screenshots) screenshots=1; shift ;;
-    -h|--help) sed -n '2,30p' "$0"; exit 0 ;;
+    --journeys) journeys=1; shift ;;
+    -h|--help) sed -n '2,36p' "$0"; exit 0 ;;
     *) echo "unknown option: $1" >&2; exit 2 ;;
   esac
 done
@@ -270,6 +277,20 @@ while (( round < rounds )); do
   fi
 done
 
+# Journeys run once, after the rounds, and the seeded bugs only for what staging changed in a day.
+if (( journeys )); then
+  runs="$rounds"; [[ -n "$until_time" ]] && runs=1
+  run_step 1 journeys-run 14400 python3 scripts/qa/journey.py run --all --runs "$runs" || true
+  since="$(git rev-list -1 --before=24.hours origin/staging 2>/dev/null || true)"
+  changed_journeys=""
+  [[ -n "$since" ]] && changed_journeys="$(python3 scripts/qa/journey.py affected --base "$since" --head origin/staging 2>/dev/null || true)"
+  for id in $changed_journeys; do
+    run_step 1 "journeys-mutants-${id//\//-}" 5400 python3 scripts/qa/journey.py mutants "$id" || true
+  done
+  python3 scripts/qa/journey.py report > "$out/journeys.md" 2>&1 || true
+  log "journeys: $out/journeys.md"
+fi
+
 {
   echo "# Monaco overnight QA — $stamp (UTC)"
   echo
@@ -282,6 +303,7 @@ done
   failed="$(hard_failures | wc -l | tr -d ' ')"
   echo "**${failed} failing step(s).** Flaky = a step that failed and then passed on \`-retry\`."
   echo
+  (( journeys )) && echo "Journey verdicts, runs and seeded-bug results: \`journeys.md\` (mutants ran for: ${changed_journeys:-none})." && echo
   echo "First failing lines:"
   echo '```'
   for f in $(hard_failures | awk -F'\t' '{print $5}'); do

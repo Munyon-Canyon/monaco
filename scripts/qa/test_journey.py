@@ -2794,7 +2794,7 @@ class Phases(unittest.TestCase):
             journey.RESULTS.write_text("\t".join(journey.COLUMNS) + "\n" + "\t".join(
                 self.row(wall_s="10", build_s="2.0", build_queue_s="1.0").get(c, "") for c in journey.COLUMNS) + "\n")
             with redirect_stdout(StringIO()) as printed:
-                self.assertEqual(journey.cmd_report(types.SimpleNamespace()), 0)
+                self.assertEqual(journey.cmd_report(types.SimpleNamespace(evidence=None)), 0)
         self.assertIn("Median build s", printed.getvalue())
         self.assertIn("r1: built in 2.0 s after 1.0 s in the queue", printed.getvalue())
 
@@ -2958,6 +2958,268 @@ class Dev(unittest.TestCase):
             journey.export_evidence(Path(folder), rows, "")
         self.assertIn("failed at S2.3", out.getvalue())
         self.assertIn("could not export", out.getvalue())
+
+POT_DOC = """---
+id: cabals/pot
+title: Pot
+version: 1
+requires: [auth/sign-in]
+actors: [A]
+flows: [01]
+xcuitest: []
+---
+
+# Pot
+
+## Scenarios
+
+### S1 Look
+
+| Step | Action | Target | Input | Expect |
+| --- | --- | --- | --- | --- |
+| S1.1 | tap | `row-id` | | `pat-abc` shows |
+"""
+
+ROW_SWIFT = 'Text("x").accessibilityIdentifier("row-id")\n'
+PATTERN_SWIFT = 'Text("y").accessibilityIdentifier(name)\n'
+EVIDENCE = "governance/vote@7 commit %s runs 3 of 3 PASS seeded caught 4 of 4"
+
+
+class Repo(Tree):
+    """Two commits in a throwaway repo: a base, and a head that bumps sign-in to version 3 and seeds one bug."""
+
+    def git(self, *args):
+        done = subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false"]
+                              + list(args), cwd=str(journey.ROOT), check=True, stdout=subprocess.PIPE, universal_newlines=True)
+        return done.stdout.strip()
+
+    def commit(self, message):
+        self.git("add", ".")
+        self.git("commit", "-qm", message, "--no-verify")
+        return self.git("rev-parse", "HEAD")
+
+    def setUp(self):
+        super().setUp()
+        self.write("docs/journeys/cabals/pot.md", POT_DOC)
+        self.write("apps/mobile/Monaco/Row.swift", ROW_SWIFT)
+        self.write("apps/mobile/Monaco/Pattern.swift", PATTERN_SWIFT)
+        self.write("qa/ids-composed.tsv", "pattern\tfile\twhy\npat-<x>\tapps/mobile/Monaco/Pattern.swift\tname\n")
+        self.git("init", "-q")
+        self.base = self.commit("base")
+        self.write("docs/journeys/auth/sign-in.md", DOC.replace("version: 2 ", "version: 3 "))
+        self.write("qa/auth/sign-in.mutants/a.patch", "expect-fail: S1\n")
+        self.head = self.commit("head")
+
+    def failures(self, body, fetch=lambda commit: False, head=None):
+        return journey.gate_failures(self.base, head or self.head, body, fetch)
+
+    def block(self, passed=3, total=3, caught=1, seeded=1, commit=None, version=3):
+        line = "auth/sign-in@%d commit %s runs %d of %d PASS seeded caught %d of %d" % (
+            version, commit or self.head, passed, total, caught, seeded)
+        return "Proof\n\n```journey-evidence\n%s\n```\n" % line
+
+
+class Gate(Repo):
+    def test_a_version_bump_with_no_block_fails_with_the_command_to_run(self):
+        self.assertEqual(self.failures("no proof here"), [
+            "auth/sign-in@3: no evidence block; run scripts/qa/journey.py run auth/sign-in --runs 3, "
+            "then mutants, then report --evidence"])
+
+    def test_a_block_for_another_version_or_journey_does_not_count(self):
+        self.assertEqual(len(self.failures(self.block(version=2))), 1)
+        self.assertEqual(len(self.failures(self.block().replace("auth/sign-in", "auth/other"))), 1)
+
+    def test_a_valid_block_passes_and_lines_that_do_not_parse_are_ignored(self):
+        self.assertEqual(self.failures(self.block()), [])
+        self.assertEqual(self.failures("```journey-evidence\nnonsense\n```\n" + self.block()), [])
+
+    def test_two_of_three_runs_fail(self):
+        failures = self.failures(self.block(passed=2))
+        self.assertEqual(len(failures), 1)
+        self.assertTrue(failures[0].startswith("auth/sign-in@3: evidence shows 2 of 3 runs"))
+
+    def test_a_missed_seeded_bug_fails(self):
+        failures = self.failures(self.block(caught=0))
+        self.assertTrue(failures[0].startswith("auth/sign-in@3: evidence shows caught 0 of 1 seeded bugs"))
+
+    def test_a_block_that_counts_fewer_seeded_bugs_than_the_journey_has_fails(self):
+        self.assertIn("caught 0 of 0 seeded bugs, but the journey has 1", self.failures(self.block(caught=0, seeded=0))[0])
+
+    def test_a_block_from_a_commit_with_other_journey_files_is_stale(self):
+        failures = self.failures(self.block(commit=self.base))
+        self.assertTrue(failures[0].startswith("auth/sign-in@3: evidence is from %s, whose journey files differ" % self.base[:12]))
+
+    def test_a_commit_that_cannot_be_fetched_is_stale(self):
+        asked = []
+        failures = self.failures(self.block(commit="f" * 40), lambda commit: asked.append(commit) or False)
+        self.assertEqual(asked, ["f" * 40])
+        self.assertIn("whose journey files differ", failures[0])
+
+    def test_a_block_from_an_earlier_commit_with_the_same_journey_files_passes(self):
+        self.write("notes.txt", "later\n")
+        later = self.commit("unrelated")
+        self.assertEqual(journey.gate_failures(self.base, later, self.block(commit=self.head), lambda commit: False), [])
+
+    def test_a_journey_the_pr_did_not_change_needs_no_block(self):
+        self.write("apps/mobile/Monaco/Row.swift", ROW_SWIFT + "// edit\n")
+        edit = self.commit("app edit")
+        self.assertEqual(journey.gate_failures(self.head, edit, "", lambda commit: False), [])
+
+    def test_a_changed_step_file_or_seeded_bug_needs_a_block(self):
+        self.write("ui/SignInJourney.swift", JOURNEY_SWIFT + "// edit\n")
+        edit = self.commit("steps")
+        self.assertEqual(len(journey.gate_failures(self.head, edit, "", lambda commit: False)), 1)
+        self.write("qa/auth/sign-in.mutants/b.patch", "expect-fail: S2\n")
+        more = self.commit("bug")
+        self.assertEqual(len(journey.gate_failures(edit, more, "", lambda commit: False)), 1)
+
+    def test_a_new_journey_needs_a_block(self):
+        self.assertEqual(len(journey.gate_failures(self.base, self.head, "")), 1)
+        self.write("docs/journeys/cabals/new.md", POT_DOC.replace("cabals/pot", "cabals/new"))
+        new = self.commit("new")
+        self.assertIn("cabals/new@1: no evidence block", journey.gate_failures(self.head, new, self.block())[0])
+
+    def test_a_fetched_commit_is_asked_for_once_and_the_files_then_compared(self):
+        asked = []
+        self.failures(self.block(commit="e" * 40), lambda commit: asked.append(commit) or True)
+        self.assertEqual(asked, ["e" * 40])
+
+    def test_the_gate_prints_failures_and_affected_warnings_and_exits_1(self):
+        body = Path(self.tmp.name) / "body.md"
+        body.write_text("nothing")
+        args = types.SimpleNamespace(base=self.base, head=self.head, body_file=str(body))
+        with redirect_stdout(StringIO()) as out:
+            self.assertEqual(journey.cmd_gate(args), 1)
+        self.assertIn("auth/sign-in@3: no evidence block", out.getvalue())
+        self.assertIn("::warning::journey cabals/pot is affected by this change", out.getvalue())
+        body.write_text(self.block())
+        with redirect_stdout(StringIO()) as out:
+            self.assertEqual(journey.cmd_gate(args), 0)
+        self.assertNotIn("no evidence block", out.getvalue())
+
+    def test_the_gate_reads_the_app_files_at_the_head_commit(self):
+        self.write("apps/mobile/Monaco/Row.swift", 'Text("x").accessibilityIdentifier("row-id")\n')
+        self.write("apps/mobile/Monaco/Row.swift", ROW_SWIFT + "// edit\n")
+        edit = self.commit("app edit")
+        body = Path(self.tmp.name) / "body.md"
+        body.write_text("")
+        with redirect_stdout(StringIO()) as out:
+            self.assertEqual(journey.cmd_gate(types.SimpleNamespace(base=self.head, head=edit, body_file=str(body))), 0)
+        self.assertIn("::warning::journey cabals/pot is affected", out.getvalue())
+
+    def test_a_diff_with_no_merge_base_falls_back_to_the_two_commits(self):
+        self.git("checkout", "-q", "--orphan", "other")
+        self.git("rm", "-rfq", ".")
+        self.write("lone.txt", "x\n")
+        lone = self.commit("lone")
+        self.assertIn("lone.txt", journey.changed_files(self.head, lone))
+
+    def test_a_ref_that_does_not_exist_is_an_error(self):
+        with self.assertRaises(journey.JourneyError):
+            journey.changed_files("no-such-ref")
+
+
+class Affected(Repo):
+    def test_a_doc_change_lists_the_journey_and_every_journey_that_requires_it(self):
+        self.assertEqual(journey.affected(["docs/journeys/auth/sign-in.md"], journey.load_journeys()),
+                         ["auth/sign-in", "cabals/pot"])
+
+    def test_the_requirers_of_a_requirer_are_listed_too(self):
+        self.write("docs/journeys/cabals/deep.md", POT_DOC.replace("cabals/pot", "cabals/deep").replace(
+            "requires: [auth/sign-in]", "requires: [cabals/pot]"))
+        self.assertEqual(journey.affected(["docs/journeys/auth/sign-in.md"], journey.load_journeys()),
+                         ["auth/sign-in", "cabals/deep", "cabals/pot"])
+
+    def test_a_requirer_change_lists_only_itself(self):
+        self.assertEqual(journey.affected(["qa/cabals/pot.truth.sh"], journey.load_journeys()), ["cabals/pot"])
+        self.assertEqual(journey.affected(["qa/auth/sign-in.mutants/a.patch"], journey.load_journeys()),
+                         ["auth/sign-in", "cabals/pot"])
+
+    def test_step_files_and_setup_scripts_count(self):
+        loaded = journey.load_journeys()
+        self.assertEqual(journey.affected(["ui/SignInJourneyUITests.swift"], loaded), ["auth/sign-in", "cabals/pot"])
+        self.assertEqual(journey.affected(["qa/auth/sign-in.setup.sh"], loaded), ["auth/sign-in", "cabals/pot"])
+
+    def test_an_app_file_lists_the_journeys_whose_targets_it_sets(self):
+        self.assertEqual(journey.affected(["apps/mobile/Monaco/Row.swift"], journey.load_journeys()), ["cabals/pot"])
+
+    def test_a_composed_id_row_lists_the_journey_that_targets_the_pattern(self):
+        self.assertEqual(journey.affected(["apps/mobile/Monaco/Pattern.swift"], journey.load_journeys()), ["cabals/pot"])
+
+    def test_a_file_that_is_gone_or_not_swift_lists_nothing(self):
+        loaded = journey.load_journeys()
+        self.assertEqual(journey.affected(["apps/mobile/Monaco/Gone.swift", "README.md"], loaded), [])
+
+    def test_the_command_prints_one_id_per_line_or_json(self):
+        with redirect_stdout(StringIO()) as out:
+            self.assertEqual(journey.main(["affected", "--base", self.base]), 0)
+        self.assertEqual(out.getvalue().splitlines(), ["auth/sign-in", "cabals/pot"])
+        with redirect_stdout(StringIO()) as out:
+            journey.main(["affected", "--base", self.base, "--json"])
+        self.assertEqual(json.loads(out.getvalue()), ["auth/sign-in", "cabals/pot"])
+
+
+class EvidenceReport(Repo):
+    def row(self, scenario="*", result="PASS", build=None, run="r1", version="3", expected="PASS", journey_id="auth/sign-in"):
+        return {"journey": journey_id, "version": version, "scenario": scenario, "result": result, "run": run,
+                "build": build or self.git("rev-parse", "--short", "HEAD"), "expected": expected}
+
+    def mutant(self, result, run, build=None):
+        build = (build or self.git("rev-parse", "--short", "HEAD")) + "+mutant:a"
+        return [self.row("S1", result, build, run, expected="FAIL"), self.row("*", result, build, run, expected="FAIL")]
+
+    def report(self, rows, ids=("auth/sign-in",)):
+        return journey.evidence_report(journey.load_journeys(), rows, list(ids))
+
+    def test_the_block_is_one_line_per_journey_in_the_format_the_gate_reads(self):
+        rows = [self.row(run="r%d" % n) for n in range(4)] + self.mutant("FAIL", "m1")
+        block = self.report(rows)
+        self.assertEqual(block, "```journey-evidence\nauth/sign-in@3 commit %s runs 3 of 3 PASS seeded caught 1 of 1\n```" % self.head)
+        self.assertEqual(self.failures(block), [])
+
+    def test_only_the_last_three_clean_runs_count(self):
+        rows = [self.row(result="FAIL", run="old")] + [self.row(run="r%d" % n) for n in range(3)]
+        self.assertIn("runs 3 of 3 PASS", self.report(rows + self.mutant("FAIL", "m")))
+
+    def test_fewer_clean_runs_or_a_failed_one_show_in_the_line(self):
+        self.assertIn("runs 2 of 3 PASS", self.report([self.row(run="a"), self.row(run="b")] + self.mutant("FAIL", "m")))
+        rows = [self.row(run="a"), self.row(result="FAIL", run="b"), self.row(run="c")]
+        self.assertIn("runs 2 of 3 PASS", self.report(rows + self.mutant("FAIL", "m")))
+
+    def test_the_latest_result_of_each_seeded_bug_counts(self):
+        clean = [self.row(run="r%d" % n) for n in range(3)]
+        self.assertIn("caught 0 of 1", self.report(clean + self.mutant("FAIL", "m1") + self.mutant("PASS", "m2")))
+        self.assertIn("caught 1 of 1", self.report(clean + self.mutant("PASS", "m1") + self.mutant("FAIL", "m2")))
+        self.assertIn("caught 0 of 1", self.report(clean))
+
+    def test_rows_of_another_version_or_commit_do_not_count(self):
+        clean = [self.row(run="r%d" % n) for n in range(3)]
+        stale = [self.row(version="2", run="v"), self.row(build="abcdef0", run="o"), self.row(build="dev", run="d")]
+        self.assertIn("runs 3 of 3 PASS", self.report(stale + clean + self.mutant("FAIL", "m")))
+        with self.assertRaises(journey.JourneyError) as raised:
+            self.report(stale)
+        self.assertIn("commit and rerun", str(raised.exception))
+
+    def test_a_dirty_app_or_journey_file_is_an_error(self):
+        rows = [self.row(run="r%d" % n) for n in range(3)]
+        for name in ("apps/mobile/Monaco/Row.swift", "qa/auth/sign-in.mutants/a.patch", "ui/SignInJourney.swift"):
+            self.write(name, "changed\n")
+            with self.assertRaises(journey.JourneyError) as raised:
+                self.report(rows)
+            self.assertIn("uncommitted changes", str(raised.exception))
+            self.git("checkout", "--", ".") if name != "ui/SignInJourney.swift" else self.git("checkout", "--", name)
+
+    def test_the_report_command_prints_the_block_and_plain_report_is_unchanged(self):
+        header = "\t".join(journey.COLUMNS) + "\n"
+        with unittest.mock.patch.object(journey, "RESULTS", Path(self.tmp.name) / "results.tsv"):
+            journey.RESULTS.write_text(header + "".join("\t".join(
+                str(self.row(run="r%d" % n).get(c, "")) for c in journey.COLUMNS) + "\n" for n in range(3)))
+            with redirect_stdout(StringIO()) as out:
+                self.assertEqual(journey.main(["report", "--evidence", "auth/sign-in"]), 0)
+            self.assertTrue(out.getvalue().startswith("```journey-evidence\nauth/sign-in@3 commit " + self.head))
+            with redirect_stdout(StringIO()) as out:
+                journey.main(["report"])
+            self.assertTrue(out.getvalue().startswith("| Journey | Runs |"))
 
 
 if __name__ == "__main__":

@@ -228,6 +228,24 @@ Known failures on staging lists each step that cannot pass yet and the ticket th
 
 A seeded bug is a patch under `<journey>.mutants/` that breaks one thing the doc promises. Its first lines say which scenarios must fail. `mutants` builds every patch under one Xcode slot hold, into `derived-<logins>-mutants/`, so each build after the first is incremental. It applies a patch, builds, copies the products to a folder of their own, and reverts the patch. It then runs each patch with `test-without-building` from its copied products, takes no slot, and deletes the copy after the run. It does not rebuild the clean app afterwards. A run stops after the last scenario the patch names. The bug is caught when each scenario it names fails, or is skipped after one of them failed. `mutants` refuses to start with less than 20 GB free at `.logs/qa/journeys`, and prints `mutants folder peak <n> GB` when it ends. The slot hold lasts `1200 + 600 * patches` seconds unless `MONACO_LOCK_HOLD` is set.
 
+## Evidence
+
+A PR that changes a journey's doc `version`, its step files (hand-written or generated) or its seeded bugs carries proof in its description. After step 7 of the `ios-journey-qa` skill, commit, then print the block and paste it into the PR body:
+
+```
+scripts/qa/journey.py report --evidence governance/vote
+```
+
+```journey-evidence
+governance/vote@7 commit 0123456789abcdef0123456789abcdef01234567 runs 3 of 3 PASS seeded caught 4 of 4
+```
+
+One line per journey: `<id>@<version> commit <head sha> runs <passes> of 3 PASS seeded caught <caught> of <seeded>`. It comes from `results.tsv`: the last 3 clean runs of that version on the current HEAD, and the latest result of each patch under `<journey>.mutants/`. `report --evidence` exits 2 when the app sources or the journey's files have uncommitted changes, or when HEAD has no runs: commit and rerun.
+
+The Journeys job runs `journey.py gate`. It compares the PR's base and head commits, and for each journey whose `version`, step files or seeded bugs changed it needs a line for `<id>@<new version>` with `runs 3 of 3 PASS` and every seeded bug caught. The line's commit must be the head, or a commit where the journey's doc, steps, seeded bugs and scripts are identical to the head, so an unrelated later commit does not make it stale. A missing or short block fails the job; no label skips it. The job also prints `journey.py affected` as warnings: the journeys whose files changed, those that require them, and those whose doc targets an id set in a changed app file.
+
+`scripts/qa/journey.py affected --base origin/staging [--json]` lists them yourself. `scripts/qa/night.sh --journeys` runs every journey and the seeded bugs of the journeys staging changed in the last 24 hours, and writes `journeys.md` beside the night report.
+
 ## Coverage and CI guard
 
 `flows` lists the backend flow ids the journey exercises. `scripts/qa/journey.py check` requires each id to have a backend flow file and requires every seeded bug patch to apply. Regenerate a stale patch with the `ios-journey-qa` skill.
