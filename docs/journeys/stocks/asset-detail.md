@@ -1,7 +1,8 @@
 ---
 id: stocks/asset-detail
 title: Look at a stock
-version: 14
+version: 15
+rpc: fake
 milestone: M11
 requires: [auth/sign-in, stocks/browse]
 actors: [A]

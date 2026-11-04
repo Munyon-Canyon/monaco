@@ -170,3 +170,21 @@ func TestSignatureStatuses_ARecordedFixtureWithoutOneStatusIsIgnored(t *testing.
 		t.Fatalf("SignatureStatuses = %+v, %v; want finalized, since the fixture names no single status", statuses, err)
 	}
 }
+
+func TestRPC_SeededJourneyMintsAnswerWithEightDecimals(t *testing.T) {
+	t.Parallel()
+	rpc := solana.New(config.Config{
+		Solana:   config.Solana{RPCURL: "http://fakes.test/rpc"},
+		Timeouts: config.Timeouts{RPC: 5 * time.Second},
+	}, clock.Real{}, httpclient.WithTransport(inProcess{fakes.New()}))
+	for _, mint := range []chain.SolanaAddress{
+		"HUf7vKc4ePm6sLvyNkXjCDJXpWoFRt4itqSfzL9FoAWa",
+		"HLh7Q2NFngA22eb6ECE1d59jToPFitKBgsvYtAHuHkpn",
+		"FHog94s1JLjAgq7UDDrvckRZhe6waFpeFtWCTFimdgNL",
+	} {
+		got, err := rpc.MintConfig(t.Context(), mint)
+		if err != nil || got.Mint.Address != mint || got.Mint.Decimals != 8 || got.TokenProgram != chain.SPLProgram {
+			t.Fatalf("MintConfig(%s) = %+v, %v; want an 8 decimal spl-token mint", mint, got, err)
+		}
+	}
+}
