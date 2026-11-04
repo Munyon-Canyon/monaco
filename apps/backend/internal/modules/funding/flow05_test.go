@@ -51,7 +51,7 @@ func TestFlow05_CreditDeposit_RPCUnavailable(t *testing.T) {
 
 func flow05Scenario(t *testing.T, extra ...scenario.Option) *scenario.Scenario {
 	t.Helper()
-	upstreams := fakes.New()
+	upstreams := fakes.NewFunded()
 	srv := httptest.NewServer(upstreams)
 	t.Cleanup(srv.Close)
 	return scenario.New(t, append([]scenario.Option{

@@ -21,7 +21,7 @@ import (
 
 func TestFlowStep30_FundCabal(t *testing.T) {
 	t.Parallel()
-	upstreams := fakes.New()
+	upstreams := fakes.NewFunded()
 	srv := httptest.NewServer(upstreams)
 	t.Cleanup(srv.Close)
 	cfg := config.Config{

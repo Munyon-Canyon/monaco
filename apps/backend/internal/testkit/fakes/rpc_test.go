@@ -250,3 +250,16 @@ func TestRPC_AnUnseededOwnerHasNoTokenAccounts(t *testing.T) {
 		t.Fatalf("getTokenAccountsByOwner for an unseeded owner = %d %q, want an empty value", got.status, got.body)
 	}
 }
+
+func TestNewFunded_UnseededOwnersReadTheRecordedFixture(t *testing.T) {
+	t.Parallel()
+	transport := inProcess{fakes.NewFunded()}
+	rpc := solana.New(config.Config{
+		Solana:   config.Solana{RPCURL: "http://fakes.test/rpc"},
+		Timeouts: config.Timeouts{RPC: 5 * time.Second},
+	}, clock.Real{}, httpclient.WithTransport(transport))
+	got, err := rpc.TokenBalance(t.Context(), unset, chain.Mint{Address: usdcMint, Decimals: 6})
+	if err != nil || got != money.NewBaseUnits(25_500_000, 6) {
+		t.Fatalf("NewFunded unseeded balance = %v, %v, want the recorded 25.5 USDC", got, err)
+	}
+}
