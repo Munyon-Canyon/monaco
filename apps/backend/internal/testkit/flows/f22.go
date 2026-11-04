@@ -57,8 +57,10 @@ func replyTo(parent, body string, alsoInChannel bool) scenario.Step {
 func chatRows(n int) scenario.Step {
 	return func(s *scenario.Scenario) {
 		var got int
-		if err := s.DB().QueryRow(s.Context(), `SELECT count(*) FROM cabal_messages WHERE cabal_id = $1`,
-			s.Recall("cabal")).Scan(&got); err != nil {
+		err := s.DB().QueryRow(s.Context(),
+			`SELECT count(*) FROM cabal_messages WHERE cabal_id = $1 AND kind <> 'system'`,
+			s.Recall("cabal")).Scan(&got)
+		if err != nil {
 			s.Fatalf("count the chat messages: %v", err)
 		}
 		if got != n {
