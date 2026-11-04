@@ -74,7 +74,6 @@ struct ChatPinCapsuleTests {
     @Test func theCapsuleIsFortyPointsWithTargetsOfFortyFour() {
         #expect(ChatPinMetrics.height == 40)
         #expect(ChatPinMetrics.minTarget == 44)
-        #expect(ChatPinMetrics.fadeHeight == 46)
         #expect(ChatPinMetrics.listRowLines == 3)
     }
 }

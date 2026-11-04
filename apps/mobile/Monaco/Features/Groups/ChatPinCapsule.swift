@@ -6,7 +6,6 @@ enum ChatPinMetrics {
     static let height: CGFloat = 40
     static let sideMargin: CGFloat = 16
     static let topGap: CGFloat = 8
-    static let fadeHeight: CGFloat = 46
     static let minTarget: CGFloat = 44
     static let listRowLines = 3
 }
@@ -228,17 +227,7 @@ private struct ChatPinSoftEdge<Capsule: View>: ViewModifier {
                 .scrollEdgeEffectStyle(.soft, for: .top)
                 .safeAreaBar(edge: .top, spacing: 0) { capsule }
         } else {
-            content
-                .mask(fadedTop)
-                .overlay(alignment: .top) { capsule }
-        }
-    }
-
-    private var fadedTop: some View {
-        VStack(spacing: 0) {
-            LinearGradient(colors: [.clear, .black], startPoint: .top, endPoint: .bottom)
-                .frame(height: ChatPinMetrics.fadeHeight)
-            Rectangle()
+            content.overlay(alignment: .top) { capsule }
         }
     }
 }
