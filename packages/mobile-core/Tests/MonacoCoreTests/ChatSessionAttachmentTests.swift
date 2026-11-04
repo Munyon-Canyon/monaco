@@ -166,7 +166,8 @@ final class ChatSessionAttachmentTests: XCTestCase {
         let session = Fixtures.session(transport)
         await session.open()
 
-        let sending = Task { await session.send(body: nil, attachment: .stock(assetID: Self.assetID)) }
+        let assetID = Self.assetID
+        let sending = Task { await session.send(body: nil, attachment: .stock(assetID: assetID)) }
         await transport.waitForRequests(2)
         let pending = await Fixtures.state(session)
 
