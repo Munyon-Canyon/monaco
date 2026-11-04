@@ -18,7 +18,6 @@ final class FeedPostFactsTests: XCTestCase {
         XCTAssertEqual(facts.object?.place, "Weekend investors")
         XCTAssertNil(facts.object?.trailing)
         XCTAssertEqual(facts.object?.showsLogo, true)
-        XCTAssertEqual(facts.accentCabalID, Item.sampleCabalID)
         XCTAssertEqual(
             facts.attachment,
             .tally(.init(yes: 4, no: 1, voters: 8, needed: 5, statusLine: "5 of 8 voted · ends in 4h")))

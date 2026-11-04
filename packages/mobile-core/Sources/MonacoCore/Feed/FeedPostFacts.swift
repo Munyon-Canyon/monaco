@@ -75,7 +75,6 @@ public struct FeedPostFacts: Equatable, Sendable {
     public let age: String
     public let object: Object?
     public let attachment: Attachment
-    public let accentCabalID: String?
     public let cabalName: String?
     public let companyName: String?
     public let spoken: String
@@ -95,7 +94,6 @@ public struct FeedPostFacts: Equatable, Sendable {
         self.age = age.short
         self.object = object?.line
         self.attachment = attachment.value
-        self.accentCabalID = item.cabalId
         self.cabalName = Self.text(item.cabalName)
         self.companyName = Self.text(item.assetName)
         self.spoken = Self.spoken(
