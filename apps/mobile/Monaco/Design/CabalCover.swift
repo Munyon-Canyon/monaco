@@ -2,7 +2,7 @@ import SwiftUI
 
 struct CabalCover<Overlay: View>: View {
     enum Style: Equatable {
-        case hero, heroTall, card, memberCard, art
+        case hero, heroTall, heroInset, card, memberCard, art
         case thumb(CGFloat)
     }
 
@@ -36,7 +36,7 @@ struct CabalCover<Overlay: View>: View {
 
     static func cornerRadius(for style: Style) -> CGFloat {
         switch style {
-        case .hero, .heroTall, .card, .memberCard: return MonacoTheme.Radius.card
+        case .hero, .heroTall, .heroInset, .card, .memberCard: return MonacoTheme.Radius.card
         case .art: return MonacoTheme.Radius.art
         case .thumb(let size): return size * MonacoTheme.Radius.squircleFraction
         }
@@ -44,7 +44,7 @@ struct CabalCover<Overlay: View>: View {
 
     static func overlay(for style: Style, reduceTransparency: Bool) -> Color? {
         switch style {
-        case .thumb, .art: return nil
+        case .thumb, .art, .heroInset: return nil
         case .hero, .heroTall, .card, .memberCard: break
         }
         return reduceTransparency ? MonacoTheme.coverOverlayReduced : MonacoTheme.coverOverlay
@@ -68,6 +68,8 @@ struct CabalCover<Overlay: View>: View {
             clearBaseWithOverlay.frame(maxWidth: .infinity, minHeight: Self.heroHeight, alignment: .bottomLeading)
         case .heroTall:
             clearBaseWithOverlay.frame(maxWidth: .infinity, minHeight: Self.heroTallHeight, alignment: .bottomLeading)
+        case .heroInset:
+            clearBaseWithOverlay.frame(maxWidth: .infinity).frame(height: CabalPageMetrics.coverHeight)
         case .card, .memberCard:
             clearBaseWithOverlay.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
         case .thumb(let size):

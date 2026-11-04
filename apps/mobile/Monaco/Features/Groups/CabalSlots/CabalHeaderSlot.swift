@@ -58,12 +58,12 @@ private struct CabalHeader: View {
         switch model?.state ?? .loading {
         case .idle, .loading:
             VStack(alignment: .leading, spacing: MonacoTheme.Space.sm) {
-                SkeletonBlock(height: CabalHeroMetrics.tallSkeletonHeight, radius: MonacoTheme.Radius.identity)
+                SkeletonBlock(height: CabalPageMetrics.coverHeight, radius: MonacoTheme.Radius.card)
                 VStack(alignment: .leading, spacing: MonacoTheme.Space.sm) {
                     HStack(spacing: MonacoTheme.Space.sm) {
                         SkeletonBlock(
                             width: CabalMark.Size.row.rawValue, height: CabalMark.Size.row.rawValue,
-                            radius: MonacoTheme.Radius.tile)
+                            radius: CabalMark.Size.row.rawValue * MonacoTheme.Radius.squircleFraction)
                         Text(" ").font(MonacoTheme.Typo.title2).skeletonBar(width: 220)
                     }
                     Text(" ").font(MonacoTheme.Typo.subhead).skeletonBar(width: 160)
@@ -79,7 +79,7 @@ private struct CabalHeader: View {
         case .loaded(let cabal):
             VStack(alignment: .leading, spacing: MonacoTheme.Space.sm) {
                 CabalHeroCover(
-                    cabal: cabal, tall: true, plain: true,
+                    cabal: cabal, inset: true,
                     pictureWriter: LiveCabalPictureWriter(api: environment.api),
                     pictureResult: { toast in
                         toasts.current = toast
@@ -118,30 +118,44 @@ private struct CabalIdentityRow: View {
         }
     }
 
+    @ViewBuilder private var peopleLayout: some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
+                if !faces.isEmpty {
+                    MonacoFaceStack(members: faces, total: faces.count)
+                }
+                Text(peopleText + CabalHeaderCopy.separator + sinceText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        } else {
+            HStack(spacing: MonacoTheme.Space.xs) {
+                if !faces.isEmpty {
+                    MonacoFaceStack(members: faces, total: faces.count)
+                }
+                HStack(spacing: 0) {
+                    Text(peopleText)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                    Text(CabalHeaderCopy.separator + sinceText)
+                        .lineLimit(1)
+                        .layoutPriority(1)
+                }
+            }
+        }
+    }
+
     private var peopleRow: some View {
-        HStack(spacing: MonacoTheme.Space.xs) {
-            if !faces.isEmpty {
-                MonacoFaceStack(members: faces, total: faces.count)
+        peopleLayout
+            .font(MonacoTheme.Typo.subhead)
+            .foregroundStyle(MonacoTheme.secondaryText)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("\(peopleText), \(sinceText)")
+            .accessibilityIdentifier("cabal-member-count")
+            .task(id: "\(cabal.id)-\(cabal.memberCount)") {
+                let loaded = CabalMembersPager(cabalID: cabal.id, api: environment.api, pageSize: 4)
+                await loaded.loadFirst()
+                pager = loaded
             }
-            HStack(spacing: 0) {
-                Text(peopleText)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                Text(CabalHeaderCopy.separator + sinceText)
-                    .lineLimit(1)
-                    .layoutPriority(1)
-            }
-        }
-        .font(MonacoTheme.Typo.subhead)
-        .foregroundStyle(MonacoTheme.secondaryText)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(peopleText), \(sinceText)")
-        .accessibilityIdentifier("cabal-member-count")
-        .task(id: "\(cabal.id)-\(cabal.memberCount)") {
-            let loaded = CabalMembersPager(cabalID: cabal.id, api: environment.api, pageSize: 4)
-            await loaded.loadFirst()
-            pager = loaded
-        }
     }
 
     var body: some View {
@@ -175,7 +189,7 @@ struct CabalHeroCover: View {
     let cabal: Components.Schemas.Cabal
     var subtitle: String?
     var tall = false
-    var plain = false
+    var inset = false
     var pictureWriter: (any CabalPictureWriting)?
     var share: (() -> Void)?
     var shareBusy = false
@@ -190,7 +204,7 @@ struct CabalHeroCover: View {
         cabal: Components.Schemas.Cabal,
         subtitle: String? = nil,
         tall: Bool = false,
-        plain: Bool = false,
+        inset: Bool = false,
         pictureWriter: (any CabalPictureWriting)? = nil,
         share: (() -> Void)? = nil,
         shareBusy: Bool = false,
@@ -199,7 +213,7 @@ struct CabalHeroCover: View {
         self.cabal = cabal
         self.subtitle = subtitle
         self.tall = tall
-        self.plain = plain
+        self.inset = inset
         self.pictureWriter = pictureWriter
         self.share = share
         self.shareBusy = shareBusy
@@ -238,9 +252,9 @@ struct CabalHeroCover: View {
     private var cover: some View {
         CabalCover(
             cabalId: cabal.id, tint: .forGroupId(cabal.id), pictureURL: CabalMark.resolvedURL(editor.pictureUrl),
-            style: tall ? .heroTall : .hero
+            style: inset ? .heroInset : (tall ? .heroTall : .hero)
         ) {
-            if plain {
+            if inset {
                 EmptyView()
             } else {
                 nameOverlay
