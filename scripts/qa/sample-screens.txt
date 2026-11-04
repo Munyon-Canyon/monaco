@@ -793,6 +793,7 @@ cabal-holding-ready-dark      -MonacoCabalHoldingSample ready -AppleInterfaceSty
 cabal-holding-ready-ax        -MonacoCabalHoldingSample ready -UIPreferredContentSizeCategoryName UICTContentSizeCategoryAccessibilityXXXL
 leaderboard-people-month      -MonacoLeaderboardSample peopleMonth
 leaderboard-people-month-dark -MonacoLeaderboardSample peopleMonth -AppleInterfaceStyle Dark
+leaderboard-people-long-docked  -MonacoLeaderboardSample peopleLong -MonacoSampleScroll bottom
 leaderboard-lead-change         -MonacoLeaderboardSample leadChange
 leaderboard-lead-change-dark    -MonacoLeaderboardSample leadChange -AppleInterfaceStyle Dark
 leaderboard-friends-month       -MonacoLeaderboardSample friendsMonth
