@@ -2,7 +2,7 @@ import XCTest
 
 enum MoneyBestPriceTradeJourney {
     static let id = "money/best-price-trade"
-    static let version = 4
+    static let version = 5
 
     static let screenTimeout: TimeInterval = 15
     static let checkTimeout: TimeInterval = 10
@@ -31,7 +31,8 @@ enum MoneyBestPriceTradeJourney {
         recorder.step("S2.2", "review $1 of Apple") {
             MoneyFundCabalJourney.typeAmount(app, "1")
             GovernanceProposeBuyJourney.tap(app, "amount-keypad-action", step: "S2.2")
-            GovernanceProposeBuyJourney.expectReview(app, cabal: cabal, step: "S2.2")
+            GovernanceProposeBuyJourney.expectReview(
+                app, cabal: cabal, step: "S2.2", toPass: "1 of 1 to pass")
         }
 
         recorder.step("S2.3", "send to the cabal") {

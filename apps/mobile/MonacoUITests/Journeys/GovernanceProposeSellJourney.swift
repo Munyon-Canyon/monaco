@@ -2,7 +2,7 @@ import XCTest
 
 enum GovernanceProposeSellJourney {
     static let id = "governance/propose-sell"
-    static let version = 8
+    static let version = 9
 
     static func recorder() -> JourneyRecorder {
         JourneyRecorder(journey: id, version: version)
@@ -52,8 +52,15 @@ enum GovernanceProposeSellJourney {
                 "S1.5: the 25% chip left the amount at \(String(describing: amount.value))")
             tapID(app, "amount-keypad-action", step: "S1.5")
             buy.expectTitle(sheet: app, step: "S1.5")
-            XCTAssertTrue(app.element("propose-review-stats").waitForExistence(timeout: 10), "S1.5: no stat row")
-            buy.expectTexts(app, ["Shares", "Price", "Of treasury", "To pass"], step: "S1.5")
+            let header = app.element("propose-review-header")
+            XCTAssertTrue(
+                JoinJourney.waitForLabel(header, containing: "Sell at the market price", timeout: 10),
+                "S1.5: the asset row does not read Sell at the market price: \(header.label)")
+            buy.expectCabalRow(app, cabal: name, cash: nil, step: "S1.5")
+            XCTAssertFalse(
+                buy.labelled(app, containing: " cash · ").exists, "S1.5: a sell shows a cash part on the cabal row")
+            buy.expectFacts(app, toPass: nil, step: "S1.5")
+            XCTAssertFalse(app.element(buy.oldGridID).exists, "S1.5: the old grid is still on the sheet")
         }
 
         recorder.step("S1.6", "send to the cabal") {

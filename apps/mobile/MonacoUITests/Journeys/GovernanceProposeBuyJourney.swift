@@ -2,7 +2,7 @@ import XCTest
 
 enum GovernanceProposeBuyJourney {
     static let id = "governance/propose-buy"
-    static let version = 11
+    static let version = 12
 
     static let screenTimeout: TimeInterval = 15
     static let checkTimeout: TimeInterval = 10
@@ -153,7 +153,7 @@ enum GovernanceProposeBuyJourney {
             tap(app, "amount-keypad-delete", step: "S2.5")
             MoneyFundCabalJourney.typeAmount(app, "1")
             tap(app, "amount-keypad-action", step: "S2.5")
-            expectReview(app, cabal: cabal, step: "S2.5")
+            expectReview(app, cabal: cabal, step: "S2.5", cash: "$3.00 cash · ", toPass: "2 of 2 to pass")
         }
 
         recorder.step("S2.6", "send to the cabal") {
@@ -177,23 +177,6 @@ enum GovernanceProposeBuyJourney {
             app.element("propose-amount-screen").waitForExistence(timeout: checkTimeout),
             "\(step): no keypad within \(Int(checkTimeout)) s"
         )
-    }
-
-    static func expectReview(_ app: XCUIApplication, cabal: String, step: String) {
-        XCTAssertTrue(
-            app.element("propose-review-screen").waitForExistence(timeout: checkTimeout),
-            "\(step): no Review screen within \(Int(checkTimeout)) s"
-        )
-        let order = app.element("propose-review-market-order")
-        XCTAssertTrue(
-            JoinJourney.waitForLabel(order, containing: "Buy · market order", timeout: checkTimeout),
-            "\(step): the stock row does not read Buy · market order: \(order.label)")
-        expectLabel(app, cabal, step: step)
-        XCTAssertTrue(
-            app.element("propose-review-thesis").waitForExistence(timeout: checkTimeout), "\(step): no thesis row")
-        let stats = app.element("propose-review-stats")
-        XCTAssertTrue(stats.waitForExistence(timeout: checkTimeout), "\(step): no stat row")
-        expectLabels(app, ["Shares", "Price", "Of treasury", "To pass"], step: step)
     }
 
     static func sendAndClose(_ app: XCUIApplication, cabal: String, step: String) {
@@ -410,5 +393,63 @@ extension GovernanceProposeBuyJourney {
             MoneyDepositJourney.waitForBalanceReading(balance, containing: "$0.00", timeout: potTimeout),
             "\(doneStep): the account balance does not read $0.00 within \(Int(potTimeout)) s: \(MoneyDepositJourney.balanceReading(balance))"
         )
+    }
+}
+
+extension GovernanceProposeBuyJourney {
+    static func expectReview(
+        _ app: XCUIApplication, cabal: String, step: String, cash: String? = nil, toPass: String? = nil
+    ) {
+        XCTAssertTrue(
+            app.element("propose-review-screen").waitForExistence(timeout: checkTimeout),
+            "\(step): no Review screen within \(Int(checkTimeout)) s"
+        )
+        let header = app.element("propose-review-header")
+        XCTAssertTrue(
+            JoinJourney.waitForLabel(header, containing: "Buy at the market price", timeout: checkTimeout),
+            "\(step): the asset row does not read Buy at the market price: \(header.label)")
+        XCTAssertTrue(
+            header.label.contains("of treasury"), "\(step): the asset row has no treasury share: \(header.label)")
+        expectCabalRow(app, cabal: cabal, cash: cash ?? " cash · ", step: step)
+        let thesis = app.element("propose-review-thesis")
+        XCTAssertTrue(
+            JoinJourney.waitForLabel(thesis, containing: "Share your thesis", timeout: checkTimeout),
+            "\(step): the thesis row does not read Share your thesis: \(thesis.label)")
+        expectFacts(app, toPass: toPass, step: step)
+        XCTAssertFalse(app.element(oldGridID).exists, "\(step): the old grid is still on the sheet")
+        for old in oldCopy {
+            XCTAssertFalse(labelled(app, containing: old).exists, "\(step): the sheet still says \(old)")
+        }
+    }
+
+    static let oldGridID = "propose-review-" + "stats"
+    static let oldCopy = ["Why this " + "trade", "market " + "order"]
+
+    static func expectCabalRow(_ app: XCUIApplication, cabal: String, cash: String?, step: String) {
+        var format = "label CONTAINS %@ AND label CONTAINS %@"
+        var args: [String] = [cabal, " to vote"]
+        if let cash {
+            format += " AND label CONTAINS %@"
+            args.append(cash)
+        }
+        let row = app.descendants(matching: .any).matching(NSPredicate(format: format, argumentArray: args)).firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: checkTimeout), "\(step): no cabal row with \(args)")
+    }
+
+    static func expectFacts(_ app: XCUIApplication, toPass: String?, step: String) {
+        let facts = app.element("propose-review-facts")
+        XCTAssertTrue(
+            JoinJourney.waitForLabel(facts, containing: "shares", timeout: checkTimeout),
+            "\(step): the facts line does not name shares: \(facts.label)")
+        XCTAssertNotNil(
+            facts.label.range(of: #"shares at \$\d"#, options: .regularExpression),
+            "\(step): the facts line has no shares at a price: \(facts.label)")
+        XCTAssertNotNil(
+            facts.label.range(of: #"\d+ of \d+ to pass"#, options: .regularExpression),
+            "\(step): the facts line has no N of M to pass: \(facts.label)")
+        if let toPass {
+            XCTAssertTrue(
+                facts.label.contains(toPass), "\(step): the facts line does not read \(toPass): \(facts.label)")
+        }
     }
 }

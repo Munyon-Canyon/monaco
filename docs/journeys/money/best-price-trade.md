@@ -1,7 +1,7 @@
 ---
 id: money/best-price-trade
 title: Buy at the best price
-version: 4
+version: 5
 milestone: M24
 requires: [auth/sign-in]
 actors: [A]
@@ -42,7 +42,7 @@ The format of this doc is in [App journeys](../README.md).
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
 | S2.1 | A | tap, tap, type, then tap | `cabal-action-propose`, `propose-kind-buy`, `monaco-search-field`, then the `propose-buy-stock-<symbol>` row for AAPL | `AAPL` | `propose-amount-screen` shows within 10 s |
-| S2.2 | A | tap, then tap | `amount-keypad-1`, then `amount-keypad-action` | `1` | `propose-review-screen` shows within 10 s with `propose-review-market-order` reading "Buy · market order", the cabal row, `propose-review-thesis` and `propose-review-stats` |
+| S2.2 | A | tap, then tap | `amount-keypad-1`, then `amount-keypad-action` | `1` | `propose-review-screen` shows within 10 s with the asset row `propose-review-header` reading "Buy at the market price" and "of treasury", the cabal row reading " cash · " and " to vote", `propose-review-thesis` reading "Share your thesis" and the facts line `propose-review-facts` reading "About {n} shares" then "at {price}" and "1 of 1 to pass" (A is the cabal's only voter). The old grid is gone |
 | S2.3 | A | tap, then tap | `propose-review-send`, then Close | | `propose-review-sent` shows and the flow closes back to the cabal screen within 10 s |
 
 ### S3 Vote it through
@@ -74,7 +74,6 @@ The format of this doc is in [App journeys](../README.md).
 
 ## Known failures on staging
 
-- S2.2: "Buy · market order" is no longer app copy. Blocked by #7983.
 - S5.1: "Cashing out $" is no longer app copy; "Cashed out $" is no longer app copy; the test checks "Cash out $", which the doc step does not quote. Blocked by #6198.
 - S5.2: "Withdrawing $" is no longer app copy. Blocked by #6198.
 

@@ -1,7 +1,7 @@
 ---
 id: governance/propose-buy
 title: Propose, vote and trade
-version: 11
+version: 12
 milestone: M14
 requires: [auth/sign-in]
 actors: [A, B]
@@ -51,7 +51,7 @@ With two voters and "Majority", a buy needs both yes votes.
 | S2.2 | A | tap | `cabal-action-propose` | | The Propose action sheet (`propose-chooser-sheet`) shows `propose-kind-buy` "Buy stock", `propose-kind-sell` "Sell a holding" with "No holdings to sell" and disabled, and `propose-chooser-cancel` "Cancel", within 10 s |
 | S2.3 | A | tap, type, then tap | `propose-kind-buy`, `monaco-search-field`, then the `propose-buy-stock-<symbol>` row for GOOGL | `GOOGL` | The screen titled "Buy stock" shows the search field within 10 s. Then `propose-amount-screen` shows within 10 s |
 | S2.4 | A | tap | `amount-keypad-5` | `5` | `amount-keypad-limit-line` shows within 5 s, and there is no `amount-keypad-action` |
-| S2.5 | A | tap, tap, then tap | `amount-keypad-delete`, `amount-keypad-1`, then `amount-keypad-action` | `1` | The sheet `propose-review-screen` shows within 10 s: the stock row `propose-review-market-order` reads "Buy · market order", the cabal row names `{cabalName}`, `propose-review-thesis` shows, and `propose-review-stats` shows "Shares", "Price", "Of treasury" and "To pass" |
+| S2.5 | A | tap, tap, then tap | `amount-keypad-delete`, `amount-keypad-1`, then `amount-keypad-action` | `1` | The sheet `propose-review-screen` shows within 10 s: the asset row `propose-review-header` reads "Buy at the market price" with "of treasury" under the amount, the cabal row names `{cabalName}` and reads "$3.00 cash · " (the pot after S1) and " to vote", `propose-review-thesis` reads "Share your thesis", and the facts line `propose-review-facts` reads "About {n} shares" then "at {price}" and "2 of 2 to pass" (two voters, "Majority"). The old grid and its words are gone |
 | S2.6 | A | tap | `propose-review-send` | | `propose-review-sent` shows within 10 s. Close returns to the cabal page (`cabal-header-name` reads `{cabalName}`) within 10 s |
 
 ### S3 The cabal votes it through
@@ -87,11 +87,11 @@ With two voters and "Majority", a buy needs both yes votes.
 
 ## Known failures on staging
 
-- S2.5 cannot type the thesis `Journey buy {QA.run}`: F's Propose flow has no thesis field (`propose-review-thesis` is a text row, and `ProposeAmountScreen` only seeds a thesis). The step checks the row shows, and the ground truth no longer matches the reason. Follow-up against the PV ticket (#6573).
+- S2.5 cannot type the thesis `Journey buy {QA.run}`: F's Propose flow has no thesis field (`propose-review-thesis` is a text row, and `ProposeAmountScreen` only seeds a thesis). The row is display-only and shows "Share your thesis"; the ground truth no longer matches the reason. Follow-up against the PV ticket (#6573).
 - The ticket names `cabal-position-GOOGL`; the app's Positions row is `cabal-holding-GOOGL`, which S4.1 uses.
 - The status line has no step for the tracker (`proposal-tracker`), which F replaced.
 - S2.1: the test checks "Proposal sent", which the doc step does not quote. Blocked by #7983.
-- S2.6: the test checks "Buy · market order", which the doc step does not quote; the test checks "Shares", which the doc step does not quote; the test checks "Price", which the doc step does not quote; the test checks "Of treasury", which the doc step does not quote; the test checks "To pass", which the doc step does not quote; the test checks "filled at $", which the doc step does not quote; the test checks "Needs your vote", which the doc step does not quote. Blocked by #7983.
+- S2.6: the test checks "filled at $", which the doc step does not quote; the test checks "Needs your vote", which the doc step does not quote. Blocked by #7983.
 - S4.2: the test checks "Cash out $", which the doc step does not quote; the test checks "Cashing out $", which the doc step does not quote; the test checks "Cashed out $", which the doc step does not quote. Blocked by #7983.
 - S5.1: "Cashing out $" is no longer app copy; "Cashed out $" is no longer app copy. Blocked by #7983.
 - S5.3: "Withdrawing $" is no longer app copy. Blocked by #7983.
@@ -99,6 +99,7 @@ With two voters and "Majority", a buy needs both yes votes.
 
 ## Not covered
 
+- The seal glyph on a settling vote's toast. It is hidden from VoiceOver; `ProposalVoteCopyTests` and the `toast-settled` harness frame cover it.
 - Voting ballot changes and the votes list. `governance/vote` covers them.
 - The preview errors other than "More than the pot has" ("Can't buy <name> right now. Try a smaller amount or another stock."). Flow 09's outcomes cover them in `monacoctl flows check`.
 - A member who is not a voter. `cabal-action-propose-caption` "Only voters can propose" is covered by `CabalActionsSlot`'s sample harness.
