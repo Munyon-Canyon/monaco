@@ -38,7 +38,7 @@ The format of this doc is in [App journeys](../README.md).
 | S1.3 | A | scroll to | "Your cabals" | | The header "Your cabals" and `cabal-row-<id>` for `cabalName` show within 15 s, whether or not A has funded it, each row reading the share in dollars or "Not funded", with no sideways rail (F `02-home-dark`) |
 | S1.4 | A | pull down | the Home screen | | After the refresh, "Your cabals" and the card for `cabalName` are still there within 15 s (screens.md Home: "Pull to refresh."; old app: `HomeView` `.refreshable`) |
 | S1.5 | A | tap | `cabal-row-<id>` | | `cabal-header-name` reads `cabalName` within 15 s (screens.md `HomeCabalsSlot`: "A card opens `CabalRoute`"; old app: `HomeView` cabal row opens `GroupDetailView`) |
-| S1.6 | A | tap | the Home tab, then `home-profile-button` | | The Profile tab is selected and `profile-header` shows within 15 s (screens.md Home: "the viewer's avatar, which opens the Profile tab"; old app: `HomeView` avatar opens Profile) |
+| S1.6 | A | tap | the Home tab, then `home-profile-button` | | The Profile tab is selected and `profile-card` shows within 15 s (screens.md Home: "the viewer's avatar, which opens the Profile tab"; old app: `HomeView` avatar opens Profile) |
 | S1.7 | A | tap, then read | the Home tab, then the chart | | The plain range labels `home-portfolio-range-<range>` (1H 1D 1W 1M 3M 6M All) show under the chart with 1M selected within 10 s (F `02-home-dark`) |
 
 ### S2 A member with no cabal is offered a new one

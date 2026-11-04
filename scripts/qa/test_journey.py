@@ -223,6 +223,101 @@ ALTER TABLE widgets ALTER COLUMN weight SET DEFAULT 0;
 """
 
 
+class Targets(Tree):
+    """The check that every id a journey names is one the app sets."""
+
+    APP = "apps/mobile/Monaco/Screen.swift"
+
+    def setUp(self):
+        super().setUp()
+        self.app("""struct Screen: View {
+    var body: some View {
+        Text("x").accessibilityIdentifier("login-submit")
+        Text("y").accessibilityIdentifier("cabal-open-proposal-\\(proposal.id)")
+        Text("z").accessibilityIdentifier(identifier)
+        Text("c").accessibilityIdentifier("\\(identifier)-confirm")
+    }
+}
+""")
+
+    def app(self, text):
+        self.write(self.APP, text)
+
+    def doc(self, target, known=""):
+        row = "| S1.1 | tap | %s | | b |\n" % target
+        self.write("docs/journeys/auth/sign-in.md", DOC.replace("| S1.1 | tap | `a` | | b |\n", row) + known)
+
+    def run_targets(self):
+        return journey.check_targets(journey.load_journeys())
+
+    def test_an_exact_id_the_app_sets_passes(self):
+        self.doc("`login-submit`")
+        errors, warnings, count = self.run_targets()
+        self.assertEqual((errors, warnings, count), ([], [], 1))
+
+    def test_an_interpolated_id_is_a_prefix(self):
+        self.doc("`cabal-open-proposal-<proposalID>`")
+        self.assertEqual(self.run_targets()[0], [])
+
+    def test_a_composed_id_comes_from_the_tsv(self):
+        self.doc("`profile-sign-out-confirm`")
+        self.assertEqual(len(self.run_targets()[0]), 1)
+        self.write("qa/ids-composed.tsv", "pattern\tfile\twhy\n<identifier>-confirm\t%s\ta dialog\n" % self.APP)
+        self.assertEqual(self.run_targets()[0], [])
+
+    def test_a_tsv_row_whose_file_builds_no_id_at_run_time_is_an_error(self):
+        self.write("qa/ids-composed.tsv", "pattern\tfile\twhy\n<identifier>-confirm\t%s\ta dialog\n" % self.APP)
+        self.doc("`login-submit`")
+        self.assertEqual(self.run_targets()[0], [])
+        self.app('Text("x").accessibilityIdentifier("login-submit")\n')
+        errors = self.run_targets()[0]
+        self.assertEqual(len(errors), 1)
+        self.assertIn("ids-composed.tsv", errors[0])
+        self.assertIn("builds its argument at run time", errors[0])
+
+    def test_a_tsv_row_whose_fixed_text_is_gone_is_an_error(self):
+        self.write("qa/ids-composed.tsv", "pattern\tfile\twhy\n<identifier>-gone\t%s\ta dialog\n" % self.APP)
+        self.doc("`login-submit`")
+        self.assertIn("matches nothing", self.run_targets()[0][0])
+
+    def test_labels_in_quotes_and_system_controls_are_skipped(self):
+        self.doc('"Sign in" and `BackButton`')
+        errors, warnings, count = self.run_targets()
+        self.assertEqual((errors, warnings, count), ([], [], 0))
+
+    def test_an_id_the_text_says_is_absent_is_skipped(self):
+        self.doc("`login-submit`, and there is no `login-gone`")
+        self.assertEqual(self.run_targets()[0], [])
+
+    def test_a_step_under_known_failures_is_a_warning(self):
+        self.doc("`login-missing`", "\n## Known failures on staging\n\n- S1.1: gone. Blocked by #77.\n")
+        errors, warnings, _ = self.run_targets()
+        self.assertEqual(errors, [])
+        self.assertEqual(len(warnings), 1)
+        self.assertIn("#77", warnings[0])
+
+    def test_a_miss_names_the_file_step_target_and_three_nearest_ids(self):
+        self.app(self.app_text() + '        Text("a").accessibilityIdentifier("login-submit-all")\n'
+                 '        Text("b").accessibilityIdentifier("login-subject")\n')
+        self.doc("`login-submitt`")
+        errors = self.run_targets()[0]
+        self.assertEqual(len(errors), 1)
+        self.assertTrue(errors[0].startswith("docs/journeys/auth/sign-in.md S1.1: target login-submitt is set nowhere in apps/mobile/Monaco (closest: "))
+        nearest = errors[0].split("closest: ")[1].rstrip(")").split(", ")
+        self.assertEqual(len(nearest), 3)
+        self.assertEqual(nearest[0], "login-submit")
+
+    def app_text(self):
+        return (journey.ROOT / self.APP).read_text()
+
+    def test_a_journey_test_that_looks_up_a_missing_id_is_named_with_its_step(self):
+        self.write("ui/SignInJourney.swift", JOURNEY_SWIFT + 'let x = app.element("login-gone")\n'
+                   'XCTAssertFalse(app.element("login-never").exists)\n')
+        errors = self.run_targets()[0]
+        self.assertEqual(len(errors), 1)
+        self.assertIn("ui/SignInJourney.swift:6 (after step S1.1 in auth/sign-in): target login-gone is set nowhere", errors[0])
+
+
 class SetupInserts(Tree):
     def setUp(self):
         super().setUp()

@@ -1560,6 +1560,215 @@ def check_setup_inserts(root=None):
     return problems
 
 
+# ---------------------------------------------------------------- identifier targets
+
+ID_SOURCES = ("apps/mobile/Monaco", "packages/mobile-core/Sources")
+ID_SHAPE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*-?$")
+PLACEHOLDER = re.compile(r"<[^<>`]*>|\{[^{}`]*\}")
+STRING_LITERAL = re.compile(r'"((?:[^"\\]|\\.)*)"')
+# A literal handed to something named identifier, id or prefix: a parameter label, a constant or a computed property.
+NAMED_LITERAL = re.compile(
+    r'(?i)((?:identifier|id|prefix)\w*)\s*(?::\s*String\s*)?(?:[:=]|\{)\s*(?:\{\s*)?(?:return\s+)?"((?:[^"\\]|\\.)*)"')
+NAMED_CLOSURE = re.compile(r"(?i)(?:identifier|id|prefix)\w*\s*:\s*\{([^{}]*)\}")
+ID_LITERAL = re.compile(r'"([a-z0-9][a-z0-9-]*(?:\\\([^"]*)?)"')
+SWIFT_TARGET = re.compile(
+    r"""(?:\belement\(\s*|\b\w+\[\s*)"((?:[^"\\]|\\.)*)"|identifier\s+BEGINSWITH\s+'([^']*)'""")
+
+
+class AppIds:
+    """The identifiers the app sets: exact ids, prefixes of interpolated ids and composed patterns."""
+
+    def __init__(self):
+        self.exact = set()
+        self.prefixes = set()
+        self.patterns = []
+
+    def add_literal(self, literal):
+        head, interpolated, _ = literal.partition("\\(")
+        if not head:
+            return
+        (self.prefixes if interpolated else self.exact).add(head)
+
+    def everything(self):
+        return sorted(self.exact | self.prefixes | {pattern for pattern, _ in self.patterns})
+
+    def covers(self, target, is_prefix):
+        if any(regex.match(target) for _, regex in self.patterns):
+            return True
+        if not is_prefix:
+            return target in self.exact or any(target.startswith(p) for p in self.prefixes)
+        return (any(i.startswith(target) for i in self.exact)
+                or any(p.startswith(target) or target.startswith(p) for p in self.prefixes))
+
+
+def call_arguments(text):
+    """The argument text of every `accessibilityIdentifier(` call in a Swift source."""
+    for found in re.finditer(r"accessibilityIdentifier\(", text):
+        depth, quoted, start, i = 1, False, found.end(), found.end()
+        while i < len(text) and depth:
+            char = text[i]
+            if char == "\\" and quoted:
+                i += 1
+            elif char == '"':
+                quoted = not quoted
+            elif not quoted:
+                depth += {"(": 1, ")": -1}.get(char, 0)
+            i += 1
+        yield text[start:i - 1].strip()
+
+
+def literal_arguments(argument):
+    """The literals of an argument that is one string or a choice between strings, else None."""
+    if re.fullmatch(r'"(?:[^"\\]|\\.)*"', argument):
+        return [argument[1:-1]]
+    choice = re.fullmatch(r'[^"?]*\?\s*("(?:[^"\\]|\\.)*")\s*:\s*("(?:[^"\\]|\\.)*")', argument)
+    return [choice.group(1)[1:-1], choice.group(2)[1:-1]] if choice else None
+
+
+def pattern_regex(pattern):
+    """A composed id as a regex: <…> and {…} match any id text. It matches the start of an id."""
+    parts = PLACEHOLDER.split(pattern)
+    return re.compile("[a-z0-9-]*".join(re.escape(part) for part in parts))
+
+
+def load_app_ids():
+    """(AppIds, problems): the ids in the app sources and the rows of ids-composed.tsv."""
+    ids, problems, composing, every = AppIds(), [], {}, []
+    for source in ID_SOURCES:
+        for path in sorted((ROOT / source).rglob("*.swift")):
+            text = path.read_text()
+            every.append(text)
+            for label, literal in NAMED_LITERAL.findall(text):
+                if literal and ID_SHAPE.match(literal.partition("\\(")[0]):
+                    ids.add_literal(literal)
+            for body in NAMED_CLOSURE.findall(text):
+                for literal in STRING_LITERAL.findall(body):
+                    if ID_SHAPE.match(literal.partition("\\(")[0]):
+                        ids.add_literal(literal)
+            for argument in call_arguments(text):
+                literals = literal_arguments(argument)
+                if literals is None or any(literal.startswith("\\(") for literal in literals):
+                    composing[path] = text
+                    for literal in ID_LITERAL.findall(text):
+                        if "-" in literal:
+                            ids.add_literal(literal)
+                else:
+                    for literal in literals:
+                        ids.add_literal(literal)
+    composed = QA / "ids-composed.tsv"
+    if composed.is_file():
+        name = os.path.relpath(str(composed), str(ROOT))
+        rows = [line.split("\t") for line in composed.read_text().splitlines()
+                if line.strip() and not line.startswith("#")]
+        for row in rows[1:]:
+            pattern, file = (row + ["", ""])[:2]
+            path = ROOT / file
+            if path not in composing:
+                problems.append("%s: %r names %s, which has no accessibilityIdentifier( call that builds its argument at run time"
+                                % (name, pattern, file))
+            elif any(part.strip("-") and not any(part.strip("-") in text for text in every)
+                     for part in PLACEHOLDER.split(pattern)):
+                problems.append("%s: %r matches nothing: its fixed text is in no Swift file of the app" % (name, pattern))
+            else:
+                ids.patterns.append((pattern, pattern_regex(pattern)))
+    return ids, problems
+
+
+ABSENT = re.compile(r"^[^`]{0,12}(?:does not (?:exist|show)|is gone|is not there|not show)")
+ABSENT_BEFORE = re.compile(r"\b(?:no|neither|without)\b[^`,.;]{0,40}$", re.I)
+ABSENT_ROW = re.compile(r"^\s*(?:Neither|None of)\b")
+SWIFT_ABSENT = re.compile(r"XCTAssertFalse\(|NonExistence|doesNotExist|\.exists\s*==\s*false")
+
+
+def doc_targets(journey):
+    """[(step, target, is_prefix, as written)] for each backticked id the step tables say must exist.
+
+    Only the Target, Input and Expect columns count, and a token followed by "does not exist" is a
+    thing that must be absent, not a target.
+    """
+    found, columns = [], []
+    for line in journey.path.read_text().splitlines():
+        if line.startswith("| Step |"):
+            columns = [cell.strip() for cell in line.strip().strip("|").split("|")]
+            continue
+        row = re.match(r"\| (S\d+\.\d+) \|(.*)", line)
+        if not row:
+            continue
+        cells = [row.group(1)] + row.group(2).rstrip().rstrip("|").split("|")
+        text = "|".join(cell for name, cell in zip(columns, cells) if name in ("Target", "Input", "Expect"))
+        absent_row = any(ABSENT_ROW.match(cell) for name, cell in zip(columns, cells) if name == "Expect")
+        for token in re.finditer(r"`([^`]+)`", text):
+            head = PLACEHOLDER.split(token.group(1), 1)[0]
+            is_prefix = head != token.group(1)
+            if absent_row or ABSENT.match(text[token.end():]) or ABSENT_BEFORE.search(text[:token.start()]):
+                continue
+            if ID_SHAPE.match(head) and head[0].isalpha() and "-" in head and (not is_prefix or head.endswith("-")):
+                found.append((row.group(1), head, is_prefix, token.group(1)))
+    return found
+
+
+def swift_targets(path):
+    """[(line, step, target, is_prefix)] for each id a journey test looks up.
+
+    The step is the last one named above the line, or the first one below it in a helper above all steps.
+    """
+    lines = path.read_text().splitlines()
+    steps = [(number, found.group(1)) for number, line in enumerate(lines, 1) for found in [re.search(r'"(S\d+\.\d+)', line)] if found]
+    result = []
+    for number, line in enumerate(lines, 1):
+        if SWIFT_ABSENT.search(line):
+            continue
+        for exact, prefix in SWIFT_TARGET.findall(line):
+            literal = exact or prefix
+            target, interpolated, _ = literal.partition("\\(")
+            if not target or not ID_SHAPE.match(target):
+                continue
+            before = [step for at, step in steps if at <= number]
+            step = before[-1] if before else (steps[0][1] if steps else None)
+            result.append((number, step, target, bool(prefix) or bool(interpolated) or target.endswith("-")))
+    return result
+
+
+def closest(target, candidates, count=3):
+    import difflib
+    scored = sorted(candidates, key=lambda c: (-difflib.SequenceMatcher(None, target, c).ratio(), c))
+    return scored[:count]
+
+
+def check_targets(journeys):
+    """(errors, warnings, count): each journey target the app sets nowhere."""
+    ids, errors = load_app_ids()
+    warnings, count, everything = [], 0, ids.everything()
+    seen = set()
+
+    def miss(where, step, journey, target, shown):
+        message = "%s: target %s is set nowhere in apps/mobile/Monaco (closest: %s)" % (
+            where, shown, ", ".join(closest(target, everything)))
+        tickets = journey.known.get(step)
+        if tickets:
+            warnings.append("%s [known failure %s]" % (message, " ".join(tickets)))
+        else:
+            errors.append(message)
+
+    for journey in journeys.values():
+        doc = os.path.relpath(str(journey.path), str(ROOT))
+        for step, target, is_prefix, shown in doc_targets(journey):
+            count += 1
+            if not ids.covers(target, is_prefix):
+                miss("%s %s" % (doc, step), step, journey, target, shown)
+        for path in journey.driver_files():
+            if not path.is_file():
+                continue
+            name = os.path.relpath(str(path), str(ROOT))
+            for number, step, target, is_prefix in swift_targets(path):
+                count += 1
+                if not ids.covers(target, is_prefix) and (name, target) not in seen:
+                    seen.add((name, target))
+                    where = "%s:%d" % (name, number) + (" (after step %s in %s)" % (step, journey.id) if step else "")
+                    miss(where, step, journey, target, target)
+    return errors, warnings, count
+
+
 # ---------------------------------------------------------------- commands
 
 
@@ -1568,11 +1777,16 @@ def cmd_check(args):
     problems = check_journeys(journeys, load_accounts(), git_apply_check)
     problems.extend(check_setup_inserts())
     problems.extend(check_setup_monacoctl())
+    misses, warnings, targets = check_targets(journeys)
+    problems.extend(misses)
+    for warning in warnings:
+        print("warning: " + warning)
     for problem in problems:
         print(problem)
     if problems:
         return 1
-    print("%d journey%s checked: docs and tests agree" % (len(journeys), "" if len(journeys) == 1 else "s"))
+    print("%d journey%s checked: docs and tests agree; %d identifier targets checked" % (
+        len(journeys), "" if len(journeys) == 1 else "s", targets))
     return 0
 
 

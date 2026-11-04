@@ -54,7 +54,7 @@ Starts signed in (S1). S3.5 signs in again, because S3.4 left the app signed out
 
 | Step | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- |
-| S3.1 | tap, then tap | the Profile tab, then `profile-settings-row` | | The "Settings" screen shows within 10 s, and `profileSignOutButton` shows within 15 s, the last row of Settings. The push pre-prompt (`push-pre-prompt`) is answered "Not now" first when it shows, and the Profile tab is tapped a second time when `profile-header` has not shown within 5 s |
+| S3.1 | tap, then tap | the Profile tab, then `profile-settings-row` | | The "Settings" screen shows within 10 s, and `profileSignOutButton` shows within 15 s, the last row of Settings. The push pre-prompt (`push-pre-prompt`) is answered "Not now" first when it shows, and the Profile tab is tapped a second time when `profile-card` has not shown within 5 s |
 | S3.2 | tap | `profileSignOutButton` | | The dialog "Sign out of Monaco?" shows within 5 s |
 | S3.3 | tap | `profile-sign-out-confirm` | | The login form shows within 30 s and the tab bar is gone |
 | S3.4 | relaunch | the app | | The login form shows within 30 s |
