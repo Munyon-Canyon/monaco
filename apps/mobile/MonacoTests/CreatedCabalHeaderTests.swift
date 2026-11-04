@@ -34,7 +34,7 @@ struct CreatedCabalHeaderTests {
 
         let header = try #require(
             await Self.eventually { Self.element("cabal-header-name", in: window) }, "the cabal never opened")
-        #expect(navigator.cabalsPath == [AnyAppRoute(CabalRoute(id: cabal.id))])
+        #expect(navigator.cabalsPath == [AnyAppRoute(CabalRoute(id: cabal.id, tab: .treasury))])
         var report = ""
         let visible = await Self.eventually { () -> Bool? in
             guard let bar = Self.first(UINavigationBar.self, in: window) else { return nil }

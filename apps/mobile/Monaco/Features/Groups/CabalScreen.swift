@@ -39,6 +39,7 @@ struct CabalScreen: View {
     @State private var nameBottom: CGFloat?
     @State private var barBottom: CGFloat = 0
     @State private var barWidth: CGFloat = 0
+    @State private var isOnScreen = false
 
     init(cabalID: String, tab: CabalTab = .default, sections: [any CabalSection.Type] = Self.sections) {
         self.context = CabalContext(cabalID: cabalID)
@@ -71,6 +72,10 @@ struct CabalScreen: View {
                 .environment(\.cabalPotModel, pot)
                 .environment(refresh)
                 .task(id: retryTick) { await preparedPublicChart().refresh() }
+            } else if selection.tab == .chat && !showsChat {
+                Color.clear
+                    .monacoCanvas()
+                    .accessibilityIdentifier("cabal-opening")
             } else if showsChat {
                 GroupChatView(cabalID: context.cabalID, embedded: true)
                     .id(context.cabalID)
@@ -96,7 +101,7 @@ struct CabalScreen: View {
         .onPreferenceChange(CabalHeaderNameBottom.self) { nameBottom = $0 }
         .onPreferenceChange(CabalTabsTop.self) { tabsTop = $0 }
         .overlay(alignment: .top) {
-            if cabal.cabal?.me != nil && !showsChat {
+            if cabal.cabal?.me != nil && selection.tab != .chat {
                 pinnedHeader(
                     memberCount: cabal.cabal?.memberCount,
                     chatHasUnread: selection.tab != .chat && unread.hasUnread,
@@ -149,7 +154,15 @@ struct CabalScreen: View {
         .onChange(of: selection.tab, initial: true) { _, tab in
             if tab == .chat { unread.markRead() }
         }
+        .onChange(of: Self.landingTab(tab: selection.tab, cabal: cabal.cabal), initial: true) { _, tab in
+            if selection.tab != tab { selection.tab = tab }
+        }
+        .onChange(of: Self.isChatVisible(tab: selection.tab, cabal: cabal.cabal, onScreen: isOnScreen), initial: true) {
+            _, visible in
+            syncVisibleChat(visible)
+        }
         .onScreenVisibilityChange { visible in
+            isOnScreen = visible
             cabal.setVisible(visible)
             pot.setVisible(visible)
             empty.setVisible(visible)
@@ -189,6 +202,24 @@ struct CabalScreen: View {
                     }
                 }
             }
+        }
+    }
+
+    static func landingTab(tab: CabalTab, cabal: Components.Schemas.Cabal?) -> CabalTab {
+        guard let cabal else { return tab }
+        return tab.resolved(isReadOnly: cabal.me == nil || CabalClosedModel.isReadOnly(cabal.status))
+    }
+
+    static func isChatVisible(tab: CabalTab, cabal: Components.Schemas.Cabal?, onScreen: Bool) -> Bool {
+        onScreen && showsChat(tab: tab, cabal: cabal)
+    }
+
+    private func syncVisibleChat(_ visible: Bool) {
+        let navigator = environment.navigator
+        if visible {
+            navigator.visibleChatCabalID = context.cabalID
+        } else if navigator.visibleChatCabalID == context.cabalID {
+            navigator.visibleChatCabalID = nil
         }
     }
 
