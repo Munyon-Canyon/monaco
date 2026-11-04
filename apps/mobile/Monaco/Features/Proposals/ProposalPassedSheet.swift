@@ -65,7 +65,7 @@ struct ProposalPassedSheet: View {
                             .resizable()
                             .scaledToFit()
                             .frame(width: sealSize, height: sealSize)
-                            .foregroundStyle(MonacoTheme.brand)
+                            .foregroundStyle(MonacoTheme.gain)
                             .accessibilityHidden(true)
                         VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
                             Text("Passed")

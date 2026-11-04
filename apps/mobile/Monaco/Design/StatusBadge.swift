@@ -27,7 +27,7 @@ struct StatusBadge: View {
 
         var label: Color {
             switch self {
-            case .positive: return MonacoTheme.brand
+            case .positive: return MonacoTheme.gain
             case .negative: return MonacoTheme.loss
             case .warn: return MonacoTheme.warning
             case .neutral: return MonacoTheme.secondaryText
