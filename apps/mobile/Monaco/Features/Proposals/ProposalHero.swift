@@ -155,9 +155,14 @@ struct ProposalHero: View {
                 }
                 .accessibilityElement(children: .combine)
             }
-            if let facts { factsRow(facts) }
+            if let facts {
+                factsRow(facts)
+                    .padding(.leading, dynamicTypeSize.isAccessibilitySize ? 0 : Self.factsInset)
+            }
         }
     }
+
+    private static let factsInset = StockMarkSize.review.rawValue + MonacoTheme.Space.sm
 
     @ViewBuilder private var mark: some View {
         if summary.isRule {
@@ -228,7 +233,7 @@ extension ProposalHero {
                 stackedFacts(facts)
             } else {
                 ViewThatFits(in: .horizontal) {
-                    HStack(alignment: .firstTextBaseline, spacing: MonacoTheme.Space.s) {
+                    HStack(alignment: .firstTextBaseline, spacing: 0) {
                         estimateLine(facts)
                         Spacer(minLength: MonacoTheme.Space.s)
                         treasuryLine(facts)

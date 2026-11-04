@@ -38,7 +38,7 @@ struct ProposalStatRowTests {
 
     @Test func aFarOutCloseKeepsItsDayAndTimeWholeAndSpeaksWithPlainSpaces() {
         let cells = [ProposalStats.Cell(label: "Closes", value: "Fri 5:41 PM")]
-        let items = ProposalStatRow.items(ProposalStats(cells: cells), showsInfo: false, onInfo: {})
+        let items = ProposalStatRow.items(ProposalStats(cells: cells))
         #expect(items.first?.value == "Fri 5:41\u{00A0}PM")
         #expect(items.first?.spokenValue == "Fri 5:41 PM")
     }
@@ -72,7 +72,7 @@ struct ProposalStatRowTests {
     }
 
     @Test func aFilledProposalColoursSinceInTheGainTone() {
-        let items = ProposalStatRow.items(Self.stats(.filledNVDA(now: Self.now)), showsInfo: true, onInfo: {})
+        let items = ProposalStatRow.items(Self.stats(.filledNVDA(now: Self.now)))
         #expect(items.map(\.value) == ["$219.40", "1.82", "$220.00", "+0.3%"])
         #expect(items.last?.tone == .gain)
         #expect(items.allSatisfy { $0.info == nil })

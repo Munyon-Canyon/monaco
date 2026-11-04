@@ -3,21 +3,19 @@ import SwiftUI
 
 struct ProposalStatRow: View {
     let stats: ProposalStats
-    var showsInfo = true
-    var onInfo: () -> Void = {}
 
     var body: some View {
-        StatGrid(items: Self.items(stats, showsInfo: showsInfo, onInfo: onInfo), singleLineValues: true)
+        StatGrid(items: Self.items(stats), singleLineValues: true)
             .padding(.horizontal, MonacoTheme.Space.gutter)
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("proposal-stat-row")
     }
 
-    static func items(_ stats: ProposalStats, showsInfo: Bool, onInfo: @escaping () -> Void) -> [StatItem] {
+    static func items(_ stats: ProposalStats) -> [StatItem] {
         stats.cells.map { cell in
             StatItem(
                 label: cell.label, value: Self.wrapsAtTheDay(cell.value), tone: cell.tone.statTone,
-                info: showsInfo && cell.hasInfo ? onInfo : nil, spokenValue: cell.value)
+                info: nil, spokenValue: cell.value)
         }
     }
 }
