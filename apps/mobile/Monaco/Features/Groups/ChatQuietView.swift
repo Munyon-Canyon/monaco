@@ -19,7 +19,7 @@ enum ChatQuietMetrics {
         max(sceneMinimumHeight, min(sceneHeight, container * sceneShare))
     }
 
-    static var ruleInset: CGFloat { MonacoTheme.Space.m + circle + rowGap }
+    static var ruleInset: CGFloat { MonacoTheme.Space.gutter + circle + rowGap }
 }
 
 struct ChatQuietFacts: Equatable {
@@ -36,7 +36,7 @@ struct ChatQuietFacts: Equatable {
         guard let me = payload.me else { return }
         let ratio: String? =
             me.netContributedMicros > 0
-            ? String(format: "%.6f", Double(me.pnlMicros) / Double(me.netContributedMicros)) : nil
+            ? Self.decimal(micros: me.pnlMicros * 1_000_000 / me.netContributedMicros) : nil
         figures = CabalPositionRowFigures(
             equityUsd: Self.decimal(micros: me.valueMicros), dollarPnl: Self.decimal(micros: me.pnlMicros),
             percentReturn: ratio)
@@ -44,7 +44,8 @@ struct ChatQuietFacts: Equatable {
 
     static func decimal(micros: Int64) -> String {
         let whole = abs(micros) / 1_000_000
-        let fraction = String(format: "%06lld", abs(micros) % 1_000_000)
+        let digits = String(abs(micros) % 1_000_000)
+        let fraction = String(repeating: "0", count: 6 - digits.count) + digits
         return "\(micros < 0 ? "-" : "")\(whole).\(fraction)"
     }
 
@@ -182,7 +183,7 @@ struct ChatQuietRow: View {
         Button(action: open) {
             HStack(spacing: ChatQuietMetrics.rowGap) {
                 mark
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
                     Text(action.title)
                         .font(MonacoTheme.Typo.headline)
                         .foregroundStyle(MonacoTheme.primaryText)
@@ -197,7 +198,7 @@ struct ChatQuietRow: View {
                     .foregroundStyle(MonacoTheme.tertiaryText)
                     .accessibilityHidden(true)
             }
-            .padding(.horizontal, MonacoTheme.Space.m)
+            .padding(.horizontal, MonacoTheme.Space.gutter)
             .padding(.vertical, MonacoTheme.Space.sm)
             .frame(maxWidth: .infinity, minHeight: ChatQuietMetrics.rowMinHeight, alignment: .leading)
             .contentShape(Rectangle())
