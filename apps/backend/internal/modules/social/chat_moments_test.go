@@ -1,6 +1,7 @@
 package social_test
 
 import (
+	"context"
 	"math/big"
 	"testing"
 	"time"
@@ -16,11 +17,46 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/testkit/marketfake"
 )
 
-func TestChatMoments_Joined_RejectsNilUser(t *testing.T) {
+func TestChatMoments_Joined_AcknowledgesNilUser(t *testing.T) {
 	t.Parallel()
 	err := adapters.ChatMoments{}.Joined(t.Context(), db.Tx{}, events.CabalMemberJoined{V: 1}, time.Time{})
-	if errs.CodeOf(err) != errs.CodeInvalidInput {
-		t.Fatalf("a join with no user returned %v, want invalid_input", err)
+	if err != nil {
+		t.Fatalf("a join with no user returned %v, want nil", err)
+	}
+}
+
+type failingAssets struct {
+	app.Assets
+	err error
+}
+
+func (f failingAssets) AssetByMint(context.Context, string) (app.AssetCard, error) {
+	return app.AssetCard{}, f.err
+}
+
+func TestChatMoments_FetchFilled_AcknowledgesUnlistedMintsAndSurfacesOtherErrors(t *testing.T) {
+	t.Parallel()
+	buy := events.TradeConfirmed{V: 1, Action: "buy", OutMint: marketfake.AAPLx().Mint.Address()}
+	notFound := adapters.ChatMoments{Assets: failingAssets{err: errs.New(errs.CodeAssetNotFound, "test")}}
+	asset, err := notFound.FetchFilled(t.Context(), buy)
+	if err != nil || asset.ID != uuid.Nil {
+		t.Fatalf("unlisted mint fetched (%+v, %v), want a zero card and no error", asset, err)
+	}
+	down := adapters.ChatMoments{Assets: failingAssets{err: errs.New(errs.CodeInternal, "test")}}
+	if _, err := down.FetchFilled(t.Context(), buy); errs.CodeOf(err) != errs.CodeInternal {
+		t.Fatalf("a failing catalog returned %v, want internal", err)
+	}
+	if _, err := down.FetchFilled(t.Context(), events.TradeConfirmed{V: 1, Action: "swap"}); err != nil {
+		t.Fatalf("a non-trade action returned %v, want nil", err)
+	}
+}
+
+func TestChatMoments_ApplyFilled_AcknowledgesAnUnlistedMint(t *testing.T) {
+	t.Parallel()
+	e := events.TradeConfirmed{V: 1, Action: "buy"}
+	err := adapters.ChatMoments{}.ApplyFilled(t.Context(), db.Tx{}, e, app.AssetCard{}, e.ConfirmedAt)
+	if err != nil {
+		t.Fatalf("a fill with no asset returned %v, want nil", err)
 	}
 }
 

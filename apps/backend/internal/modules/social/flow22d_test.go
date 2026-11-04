@@ -11,11 +11,6 @@ func TestFlow22d_WriteMemberJoinedMoment_OK(t *testing.T) {
 	flows.F22dWriteMemberJoinedMomentOK(chatScenario(t))
 }
 
-func TestFlow22d_WriteMemberJoinedMoment_InvalidInput(t *testing.T) {
-	t.Parallel()
-	flows.F22dWriteMemberJoinedMomentInvalidInput(chatScenario(t))
-}
-
 func TestFlow22d_WriteCabalCreatedMoment_OK(t *testing.T) {
 	t.Parallel()
 	flows.F22dWriteCabalCreatedMomentOK(chatScenario(t))
@@ -24,9 +19,4 @@ func TestFlow22d_WriteCabalCreatedMoment_OK(t *testing.T) {
 func TestFlow22d_WriteTradeFilledMoment_OK(t *testing.T) {
 	t.Parallel()
 	flows.F22dWriteTradeFilledMomentOK(chatScenario(t))
-}
-
-func TestFlow22d_WriteTradeFilledMoment_AssetNotFound(t *testing.T) {
-	t.Parallel()
-	flows.F22dWriteTradeFilledMomentAssetNotFound(chatScenario(t))
 }

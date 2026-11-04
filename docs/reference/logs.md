@@ -140,6 +140,7 @@ For a stuck money row, [Money runbook](../how-to/money-runbook.md) maps the sign
 | `relayer.topup_capped` | `wallet`, `topups` |
 | `relayer.topup_underfunded` | `relayer`, `wallet`, `relayer_lamports`, `lamports`, `floor_lamports` |
 | `social.chat_author_unreadable` | `message_id`, `cause` |
+| `social.chat_moment_skipped` | `reason` |
 | `social.chat_publish_failed` | `message_id`, `event`, `cause` |
 | `social.comment_created` | `comment_id`, `feed_object_id` |
 | `social.contacts_matched` | `submitted`, `matched` |

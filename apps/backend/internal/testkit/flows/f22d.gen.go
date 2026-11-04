@@ -5,10 +5,8 @@ package flows
 func (defined) ScriptsF22d() map[string]Script {
 	return map[string]Script{
 		"F22dWriteMemberJoinedMomentOK":                F22dWriteMemberJoinedMomentOK,
-		"F22dWriteMemberJoinedMomentInvalidInput":      F22dWriteMemberJoinedMomentInvalidInput,
 		"F22dWriteMemberJoinedMomentCrashBeforeCommit": F22dWriteMemberJoinedMomentCrashBeforeCommit,
 		"F22dWriteCabalCreatedMomentOK":                F22dWriteCabalCreatedMomentOK,
 		"F22dWriteTradeFilledMomentOK":                 F22dWriteTradeFilledMomentOK,
-		"F22dWriteTradeFilledMomentAssetNotFound":      F22dWriteTradeFilledMomentAssetNotFound,
 	}
 }
