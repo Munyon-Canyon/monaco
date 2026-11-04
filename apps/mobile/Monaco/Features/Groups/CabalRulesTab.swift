@@ -206,25 +206,35 @@ struct CabalCardRow<Trailing: View>: View {
     let isLast: Bool
     @ViewBuilder let trailing: () -> Trailing
     @ScaledMetric(relativeTo: .title3) private var iconWidth: CGFloat = CabalCardRowMetrics.iconWidth
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    private var stacks: Bool { dynamicTypeSize.isAccessibilitySize }
 
     var body: some View {
+        let layout =
+            stacks
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: MonacoTheme.Space.xs))
+            : AnyLayout(HStackLayout(spacing: MonacoTheme.Space.m))
         HStack(spacing: MonacoTheme.Space.m) {
-            Image(systemName: symbol)
-                .font(.title3)
-                .foregroundStyle(tone)
-                .frame(width: iconWidth)
-                .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
-                Text(title)
-                    .font(MonacoTheme.Typo.rowTitle)
-                    .foregroundStyle(titleTone)
-                    .fixedSize(horizontal: false, vertical: true)
-                if let detail {
-                    Text(detail)
-                        .font(MonacoTheme.Typo.subhead)
-                        .foregroundStyle(MonacoTheme.secondaryText)
+            layout {
+                Image(systemName: symbol)
+                    .font(.title3)
+                    .foregroundStyle(tone)
+                    .frame(width: iconWidth, alignment: stacks ? .leading : .center)
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
+                    Text(title)
+                        .font(MonacoTheme.Typo.rowTitle)
+                        .foregroundStyle(titleTone)
                         .fixedSize(horizontal: false, vertical: true)
+                    if let detail {
+                        Text(detail)
+                            .font(MonacoTheme.Typo.subhead)
+                            .foregroundStyle(MonacoTheme.secondaryText)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
+                .layoutPriority(1)
             }
             .layoutPriority(1)
             Spacer(minLength: MonacoTheme.Space.s)
@@ -236,7 +246,11 @@ struct CabalCardRow<Trailing: View>: View {
         .contentShape(Rectangle())
         .overlay(alignment: .bottom) {
             if !isLast {
-                MonacoRule().padding(.leading, CabalCardRowMetrics.leadingInset + iconWidth + MonacoTheme.Space.m)
+                MonacoRule().padding(
+                    .leading,
+                    stacks
+                        ? CabalCardRowMetrics.leadingInset
+                        : CabalCardRowMetrics.leadingInset + iconWidth + MonacoTheme.Space.m)
             }
         }
     }
