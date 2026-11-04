@@ -26,6 +26,8 @@ When the journey doc and the app disagree, stop and report the **step id** and b
 3. Write the XCUITest from [xcuitest.md](xcuitest.md).
 4. Write one **seeded bug** per scenario under `apps/mobile/qa/journeys/<area>/<journey>.mutants/`: a patch that breaks one promise the journey doc makes, with an `expect-fail: S…` line.
 5. Stamp the steps enum with the doc's id and version: `static let id` and `static let version`. Done when `scripts/qa/journey.py check` exits 0.
+Iterate with `scripts/qa/journey.py dev <journey> --scenario S2` (it keeps the backend and simulator up and never counts toward the done-when), then prove with steps 6 and 7.
+
 6. `scripts/qa/journey.py run <journey> --runs 3`. Done at 3 passes of 3. A single failure is a flaky test: fix the wait that raced.
 7. `scripts/qa/journey.py mutants <journey>`. Done when every seeded bug is caught.
 

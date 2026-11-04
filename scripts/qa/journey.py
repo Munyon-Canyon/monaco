@@ -1351,8 +1351,10 @@ def run_session(journey, scenarios, sim, accounts, channel, run_dir, api_base_ur
     if setup:
         env["TEST_RUNNER_MONACO_QA_SETUP_DIR"] = str(folder)
     # A failed test otherwise waits up to 600 s for a sysdiagnose the journey log never reads.
+    bundle = run_dir / "result.xcresult"
+    shutil.rmtree(str(bundle), ignore_errors=True)
     args = xcodebuild(sim, "-only-testing:MonacoUITests/%s" % test, "-collect-test-diagnostics", "never",
-                      "test-without-building")
+                      "-resultBundlePath", str(bundle), "test-without-building")
     log, setup_log = run_dir / "xcuitest.log", run_dir / "setup.log"
     timed_out, failed_setup, spent = None, [], 0.0
     started = time.time()
@@ -1379,10 +1381,62 @@ def run_session(journey, scenarios, sim, accounts, channel, run_dir, api_base_ur
     for row in rows:
         row["log"] = os.path.relpath(str(log), str(ROOT))
     (run_dir / "steps.tsv").write_text("".join(step_lines))
+    export_evidence(run_dir, rows, output)
     add_phase("setup_s", spent)
     add_phase("switch_s", sum(float(row["switch_s"] or 0) for row in rows))
     return rows, "%.1f" % wall, timed_out
 
+
+
+def failure_message(output):
+    """The assertion message of the first `error:` line of an xcodebuild test log, or ''."""
+    found = re.search(r": error: .*? : (.+)$", output, re.M)
+    return found.group(1).strip() if found else ""
+
+
+def failure_attachments(manifest):
+    """(screenshot, hierarchy) file names a failure left, from the manifest.json of `xcresulttool export
+    attachments`: the last one of each kind, those marked as belonging to a failure first. '' when absent."""
+    screenshots, hierarchies = [], []
+    for test in manifest:
+        for item in test.get("attachments", []):
+            name = item.get("exportedFileName", "")
+            label = item.get("suggestedHumanReadableName", "").lower()
+            if "hierarchy" in label or "debug description" in label:
+                hierarchies.append((bool(item.get("isAssociatedWithFailure")), name))
+            elif name.lower().endswith((".png", ".jpg", ".jpeg", ".heic")):
+                screenshots.append((bool(item.get("isAssociatedWithFailure")), name))
+
+    def last(items):
+        names = [name for failed, name in items if failed] or [name for _, name in items]
+        return names[-1] if names else ""
+    return last(screenshots), last(hierarchies)
+
+
+def export_evidence(run_dir, rows, output):
+    """Print the first failed row's step and message, and copy its screenshot and accessibility hierarchy out of
+    result.xcresult as <run_dir>/<step>.png and <step>-hierarchy.txt. Best effort: a failed export is reported."""
+    row = next((row for row in rows if row["result"] in ("FAIL", "ERROR")), None)
+    if row is None:
+        return
+    step = row["failed_step"] if re.match(r"^[A-Z]\d+(\.\d+)*$", row["failed_step"]) else row["scenario"]
+    print("  failed at %s: %s" % (step, failure_message(output) or "no assertion message in the log"))
+    folder = run_dir / "attachments"
+    try:
+        shutil.rmtree(str(folder), ignore_errors=True)
+        done = sh(["xcrun", "xcresulttool", "export", "attachments", "--path", str(run_dir / "result.xcresult"),
+                   "--output-path", str(folder)], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=120)
+        if done.returncode != 0:
+            raise OSError("xcresulttool exited %d" % done.returncode)
+        screenshot, hierarchy = failure_attachments(json.loads((folder / "manifest.json").read_text()))
+        for name, target in ((screenshot, "%s%s" % (step, Path(screenshot).suffix)), (hierarchy, "%s-hierarchy.txt" % step)):
+            if name:
+                shutil.copyfile(str(folder / name), str(run_dir / target))
+                print("  %s" % os.path.relpath(str(run_dir / target), str(ROOT)))
+            else:
+                print("  no %s attachment in the result bundle" % ("hierarchy" if target.endswith(".txt") else "screenshot"))
+    except (OSError, ValueError, BudgetExpired) as error:
+        print("  could not export the failure's screenshot and hierarchy: %s" % error)
 
 
 def run_truth(journey, accounts, channel, run_id, handoff, budget=None, api_base_url=None):
@@ -2353,6 +2407,104 @@ def cmd_run(args):
         return code
 
 
+def source_snapshot(root=ROOT, names=APP_SOURCES):
+    """{path relative to root: (mtime_ns, size)} of every file under names."""
+    snapshot = {}
+    for name in names:
+        for folder, dirs, files in os.walk(str(root / name)):
+            dirs[:] = [d for d in dirs if d not in (".build", ".git", "DerivedData", "build")]
+            for file in files:
+                path = Path(folder) / file
+                with contextlib.suppress(OSError):
+                    info = path.stat()
+                    snapshot[str(path.relative_to(root))] = (info.st_mtime_ns, info.st_size)
+    return snapshot
+
+
+def changed_paths(before, after):
+    """The paths added, removed or modified between two source_snapshot results, sorted."""
+    return sorted(path for path in set(before) | set(after) if before.get(path) != after.get(path))
+
+
+def only_tests_changed(paths, tests="apps/mobile/MonacoUITests/"):
+    """True when there are changes and every one is under the UI test bundle."""
+    return bool(paths) and all(path.startswith(tests) for path in paths)
+
+
+def watched_snapshot(journey, root=ROOT):
+    """source_snapshot of the app sources plus the journey's doc and Swift files, which `dev --watch` polls."""
+    snapshot = source_snapshot(root)
+    for path in [journey.path] + journey.driver_files():
+        with contextlib.suppress(OSError):
+            info = path.stat()
+            snapshot[str(path)] = (info.st_mtime_ns, info.st_size)
+    return snapshot
+
+
+def cmd_dev(args):
+    """Keep one backend, simulator and installed app up and rerun a journey through one scenario on demand."""
+    args.journey, args.all, args.fresh = [args.journey], False, False
+    warning = xcode_version_warning()
+    if warning:
+        print(warning, file=sys.stderr)
+    os.environ.setdefault("TRADE_ENGINE", backend_trade_engine(args))
+    if args.actor:
+        os.environ["TEST_RUNNER_MONACO_QA_ACTOR"] = args.actor
+        print("actor: %s" % args.actor)
+    journeys = load_journeys()
+    journey = pick(journeys, args.journey[0])
+    if args.scenario and args.scenario not in journey.scenarios:
+        raise JourneyError("%s has no scenario %s" % (journey.id, args.scenario))
+    scenarios = journey.scenarios[:journey.scenarios.index(args.scenario or journey.scenarios[-1]) + 1]
+    try:
+        with simulator_shutdown(args.keep_sims), journey_backend(args.slot, backend_fake_rpc(args)) as api_base_url:
+            with actor_logins(journey, load_accounts()) as accounts:
+                return dev_loop(args, api_base_url, journeys, journey, scenarios, accounts)
+    except KeyboardInterrupt:
+        return 0
+
+
+def dev_loop(args, api_base_url, journeys, journey, scenarios, accounts):
+    OUT.mkdir(parents=True, exist_ok=True)
+    problems = check_preconditions(journey, accounts, api_base_url, channel=args.channel)
+    if problems:
+        return setup_needed(journey, problems)
+    use_derived_data(held_logins(journey, accounts))
+    sim = resolve_simulator(args.sim, held_logins(journey, accounts), journey.simslim)
+    check_simulator_api_environment(sim, api_base_url)
+    prepare_logins(journey, accounts, api_base_url)
+    reset_journey_simulator(sim, bool(args.sim), False)
+    built = None
+    for index in range(1, 10 ** 6):
+        started = time.time()
+        current = build_stamp()
+        if build_is_current(current):
+            print("reusing build %s" % current[:8])
+            add_phase("build_s", 0.0)
+            add_phase("build_queue_s", 0.0)
+        else:
+            if built is not None and only_tests_changed(changed_paths(built, source_snapshot())):
+                print("only files under apps/mobile/MonacoUITests changed: Xcode recompiles only the test bundle")
+            build(sim, OUT / ("build-%s.log" % DERIVED.name.partition("-")[2]), current)
+        built = source_snapshot()
+        run_name = "%s-%s-dev%d" % (stamp(), journey.id.replace("/", "-"), index)
+        print("dev iteration %d" % index)
+        run_once(journey, journeys, args, sim, accounts, "dev", run_name, scenarios, api_base_url)
+        print("%s\n%s" % (phase_line(TAKEN[-1]) or "phases: none", "iteration took %.1f s" % (time.time() - started)))
+        try:
+            if args.watch:
+                before = watched_snapshot(journey)
+                print("watching the doc, the journey's Swift files and the app sources (Ctrl-C to stop)")
+                while watched_snapshot(journey) == before:
+                    time.sleep(1)
+                time.sleep(1)
+            else:
+                input("press Enter to rerun, Ctrl-C to stop ")
+        except EOFError:
+            return 0
+    return 0
+
+
 def picked_journeys(args):
     journeys = load_journeys()
     return list(journeys.values()) if args.all else [pick(journeys, name) for name in args.journey]
@@ -2671,6 +2823,8 @@ def summarize(rows):
     """Per journey: speed on clean builds, flake rate, catch rate and false passes."""
     groups = {}
     for row in rows:
+        if row["build"] == "dev":
+            continue
         groups.setdefault((row["journey"], row["driver"]), []).append(row)
     table = []
     for (journey, driver), group in sorted(groups.items()):
@@ -2716,7 +2870,7 @@ def build_lines(rows, limit=10):
     """One line per run call that built or reused a build, newest last."""
     lines = []
     for row in rows:
-        if row["scenario"] != "*" or row.get("build_s") in ("", None):
+        if row["scenario"] != "*" or row["build"] == "dev" or row.get("build_s") in ("", None):
             continue
         if float(row["build_s"]) == 0 and float(row.get("build_queue_s") or 0) == 0:
             lines.append("%s: reused build" % row["run"])
@@ -2729,7 +2883,7 @@ def latest_outcomes(rows, known):
     """Per journey, its last clean run: passing scenarios, known failures with tickets, fixed ones and new failures."""
     last = {}
     for row in rows:
-        if row["scenario"] == "*" and "+mutant:" not in row["build"]:
+        if row["scenario"] == "*" and "+mutant:" not in row["build"] and row["build"] != "dev":
             last[row["journey"]] = row["run"]
     table = []
     for journey_id, run in sorted(last.items()):
@@ -2824,6 +2978,18 @@ def main(argv=None):
             sub.add_argument("--fresh", action="store_true", help="also reinstall the app on --sim simulators")
         else:
             sub.add_argument("--only", action="append", metavar="NAME", help="a seeded bug's file name, no .patch")
+    dev = commands.add_parser("dev", help="iterate on one journey: keep the backend, simulator and app up, rerun on demand")
+    dev.set_defaults(run=cmd_dev)
+    dev.add_argument("journey", help="journey id, such as governance/vote")
+    dev.add_argument("--scenario", metavar="S2", help="run through this scenario; default: the last one")
+    dev.add_argument("--actor", metavar="A", help="the actor to watch; passed to the test as MONACO_QA_ACTOR")
+    dev.add_argument("--watch", action="store_true",
+                     help="rerun when the doc, the journey's Swift files or the app sources change, not on Enter")
+    dev.add_argument("--sim", default="", metavar="UDID")
+    dev.add_argument("--channel", choices=("sms", "email"), default="sms")
+    dev.add_argument("--timeout", type=int, default=300, metavar="SECONDS")
+    dev.add_argument("--slot", type=int, metavar="N")
+    dev.add_argument("--keep-sims", action="store_true")
     args = parser.parse_args(argv)
     try:
         return args.run(args)
