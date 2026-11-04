@@ -40,9 +40,17 @@ WHERE cabal_id = $1 AND role IN ('creator', 'admin')
 ORDER BY (role = 'creator') DESC, joined_at, user_id;
 
 -- name: ListCabalIDsForUser :many
-SELECT cabal_id FROM cabal_members
-WHERE user_id = $1
-ORDER BY sort_index NULLS LAST, joined_at, cabal_id;
+SELECT m.cabal_id FROM cabal_members m
+JOIN cabals c ON c.id = m.cabal_id
+WHERE m.user_id = $1
+  AND (
+    c.status <> 'banned'
+    OR EXISTS (
+      SELECT 1 FROM user_positions p
+      WHERE p.cabal_id = c.id AND p.user_id = m.user_id AND p.share_units > 0
+    )
+  )
+ORDER BY m.sort_index NULLS LAST, m.joined_at, m.cabal_id;
 
 -- name: LockMembers :many
 SELECT user_id, role FROM cabal_members
