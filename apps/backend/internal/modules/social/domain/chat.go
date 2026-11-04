@@ -87,6 +87,7 @@ type ChatParent struct {
 	CabalID  ids.CabalID
 	ParentID uuid.UUID
 	Deleted  bool
+	System   bool
 }
 
 func ValidateReply(in ids.CabalID, parent ChatParent) error {
@@ -94,6 +95,8 @@ func ValidateReply(in ids.CabalID, parent ChatParent) error {
 	switch {
 	case parent.CabalID != in || parent.Deleted:
 		return errs.New(errs.CodeChatParentNotFound, op, slog.Bool("deleted", parent.Deleted))
+	case parent.System:
+		return errs.New(errs.CodeInvalidInput, op, slog.String("reason", ReasonSystemMessage))
 	case parent.ParentID != uuid.Nil:
 		return errs.New(errs.CodeChatParentIsReply, op)
 	default:

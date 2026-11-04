@@ -352,3 +352,33 @@ func TestChatMomentWire_aFailedPublishStillStoresTheRow(t *testing.T) {
 		t.Fatalf("err = %v, published = %+v: a failed wire must not fail the write", err, f.rt.Published())
 	}
 }
+
+func TestPostChatMessage_refusesAReplyToASystemRow(t *testing.T) {
+	t.Parallel()
+	f := newChatRoutes(t)
+	moment := f.mustWriteJoined(t, "joined:1")
+	normal, err := f.send(t, f.member(0), "hello", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	before := f.count(t, `SELECT count(*) FROM cabal_messages`)
+	_, err = f.send(t, f.member(1), "reply", &domain.Reply{Parent: moment.ID})
+	if errs.CodeOf(err) != errs.CodeInvalidInput {
+		t.Fatalf("err = %v, want invalid_input", err)
+	}
+	var reason string
+	for _, attr := range errs.Detail(err) {
+		if attr.Key == "reason" {
+			reason = attr.Value.String()
+		}
+	}
+	if reason != domain.ReasonSystemMessage {
+		t.Fatalf("reason = %q, want %q", reason, domain.ReasonSystemMessage)
+	}
+	if after := f.count(t, `SELECT count(*) FROM cabal_messages`); after != before {
+		t.Fatalf("rows = %d, want %d: the refused reply wrote a row", after, before)
+	}
+	if _, err := f.send(t, f.member(1), "reply", &domain.Reply{Parent: normal.ID}); err != nil {
+		t.Fatalf("reply to a user row: %v", err)
+	}
+}

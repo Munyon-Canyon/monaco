@@ -78,5 +78,6 @@ func lockParent(ctx context.Context, q *sqlc.Queries, cabal ids.CabalID, id uuid
 	}
 	return domain.ValidateReply(cabal, domain.ChatParent{
 		CabalID: ids.CabalIDFrom(row.CabalID), ParentID: row.ParentID.Bytes, Deleted: row.Deleted,
+		System: row.Kind == string(domain.ChatKindSystem),
 	})
 }
