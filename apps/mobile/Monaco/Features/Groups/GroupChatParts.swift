@@ -238,6 +238,28 @@ struct ChatList<Header: View, Content: View>: View {
     }
 }
 
+enum ChatComposerSeed {
+    static var isDebugBuild: Bool {
+        #if DEBUG
+        true
+        #else
+        false
+        #endif
+    }
+
+    static func draft(
+        arguments: [String] = ProcessInfo.processInfo.arguments,
+        isDebugBuild: Bool = ChatComposerSeed.isDebugBuild
+    ) -> String {
+        guard isDebugBuild else { return "" }
+        #if DEBUG
+        return ChatSampleDraft.text(in: arguments) ?? ""
+        #else
+        return ""
+        #endif
+    }
+}
+
 struct ChatComposerBar: View {
     var focus: FocusState<Bool>.Binding
     var placeholder = GroupChatCopy.composerPlaceholder(cabalName: nil)
@@ -246,7 +268,7 @@ struct ChatComposerBar: View {
     var attachments: ChatComposerAttachments?
     let send: (String) -> Void
 
-    @State private var draft = ""
+    @State private var draft = ChatComposerSeed.draft()
     @State private var activeSheet: ChatComposerItem?
     @State private var selection: TextSelection?
 
