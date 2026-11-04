@@ -46,8 +46,8 @@ final class CabalTreasuryRowsTests: XCTestCase {
     func testAverageCostIsTheCostBasisOverTheUnitsInIntegerMicros() {
         let rows = CabalTreasuryRows(.sampleACCapital)
 
-        XCTAssertEqual(rows.positions[0].detail, "38 sh \u{00B7} avg $192.95")
-        XCTAssertEqual(rows.positions[1].detail, "24 sh \u{00B7} avg $183.30")
+        XCTAssertEqual(rows.positions[0].detail, "38 shares \u{00B7} average $192.95")
+        XCTAssertEqual(rows.positions[1].detail, "24 shares \u{00B7} average $183.30")
     }
 
     func testTheReturnIsPnlOverCostInBasisPoints() {
@@ -60,7 +60,7 @@ final class CabalTreasuryRowsTests: XCTestCase {
     func testAPreIpoPositionReadsAtEstimateInsteadOfAReturn() {
         let rows = CabalTreasuryRows(.sampleACCapital)
 
-        XCTAssertEqual(rows.positions[2].detail, "Pre-IPO \u{00B7} 12 sh")
+        XCTAssertEqual(rows.positions[2].detail, "Pre-IPO \u{00B7} 12 shares")
         XCTAssertEqual(rows.positions[2].trailing, .estimate("at estimate"))
     }
 
@@ -76,7 +76,7 @@ final class CabalTreasuryRowsTests: XCTestCase {
             let parts: [Substring] = position.detail.split(separator: "\u{00B7}")
             return String(parts.first ?? "").trimmingCharacters(in: .whitespaces)
         }
-        XCTAssertEqual(shares, ["1.82 sh", "2.5 sh", "<0.01 sh"])
+        XCTAssertEqual(shares, ["1.82 shares", "2.5 shares", "<0.01 shares"])
     }
 
     func testPositionsSortByValueDescending() {
@@ -101,8 +101,18 @@ final class CabalTreasuryRowsTests: XCTestCase {
         let rows = CabalTreasuryRows(
             pot([holding(symbol: "NVDAx", units: "3", value: 600_000_000, cost: 0, pnl: 0)]))
 
-        XCTAssertEqual(rows.positions[0].detail, "3 sh")
+        XCTAssertEqual(rows.positions[0].detail, "3 shares")
         XCTAssertEqual(rows.positions[0].trailing, .none)
+    }
+
+    func testOneShareReadsSingular() {
+        let rows = CabalTreasuryRows(
+            pot([
+                holding(symbol: "NVDAx", units: "1.0000", value: 100_000_000, cost: 0, pnl: 0),
+                holding(symbol: "AAPLx", units: "0.5", value: 50_000_000, cost: 0, pnl: 0),
+            ]))
+
+        XCTAssertEqual(rows.positions.map(\.detail), ["1 share", "0.5 shares"])
     }
 
     func testTheHistoryLineIsTheMonthMove() {
