@@ -64,6 +64,7 @@ enum GovernanceVoteJourney {
     }
 
     static func openHome(_ app: XCUIApplication, step: String) {
+        app.popToRoot()
         XCTAssertTrue(
             app.tab("Home").waitForExistence(timeout: screenTimeout),
             "\(step): the tab bar did not show within \(Int(screenTimeout)) s")
@@ -339,7 +340,6 @@ extension GovernanceVoteJourney {
         }
 
         recorder.step(S.s4p2) {
-            app.popToRoot()
             openClosed(app, offProposalID, step: S.s4p2.id)
             XCTAssertTrue(
                 JourneyDiagnostics.wait(for: app.element("proposal-result"), in: app, timeout: S.s4p2.seconds),
