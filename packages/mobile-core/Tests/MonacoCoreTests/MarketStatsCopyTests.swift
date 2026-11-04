@@ -21,23 +21,22 @@ final class MarketStatsCopyTests: XCTestCase {
             pollInterval: .seconds(seconds))
     }
 
-    func testTheMessageNamesOneTwoAndThreeChains() {
-        XCTAssertEqual(
-            MarketStatsCopy.message(facts(networks: [.solana])),
-            "Prices are for the tokenized stock on Solana, not the exchange listing. It trades 24/7.")
-        XCTAssertEqual(
-            MarketStatsCopy.message(facts(networks: [.solana, .base])),
-            "Prices are for the tokenized stock on Solana and Base, not the exchange listing. It trades 24/7.")
-        XCTAssertEqual(
-            MarketStatsCopy.message(facts()),
-            "Prices are for the tokenized stock on Solana, Base and Robinhood Chain, not the exchange listing. It trades 24/7."
-        )
+    func testTheMessageIsOneSentenceForEveryAsset() {
+        let sentence = "Monaco prices trade around the clock, so they can differ a little from the stock market's."
+        let sets: [[Components.Schemas.Network]] = [[.solana], [.solana, .base], [.solana, .base, .robinhood]]
+        for networks in sets {
+            let message = MarketStatsCopy.message(facts(networks: networks))
+            XCTAssertEqual(message, sentence)
+            for word in ["Solana", "Base", "Robinhood", "chain"] {
+                XCTAssertFalse(message.contains(word), word)
+            }
+        }
     }
 
     func testASessionAssetReadsTheSameAsAContinuousOne() {
         XCTAssertEqual(
             MarketStatsCopy.message(facts(networks: [.solana], continuous: false)),
-            "Prices are for the tokenized stock on Solana, not the exchange listing. It trades 24/7.")
+            MarketStatsCopy.message(facts(networks: [.solana], continuous: true)))
     }
 
     func testTheSourceNamesTheRealProvider() {

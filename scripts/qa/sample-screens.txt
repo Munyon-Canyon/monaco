@@ -357,6 +357,7 @@ asset-open                    -MonacoAssetDetailSample open
 asset-many-closed             -MonacoAssetDetailSample manyClosed
 asset-loss                    -MonacoAssetDetailSample loss
 asset-stats-dashes            -MonacoAssetDetailSample statsDashes
+asset-stats-info              -MonacoAssetDetailSample statsInfo
 asset-candles-sparse          -MonacoAssetDetailSample candlesSparse
 asset-candles-long            -MonacoAssetDetailSample candlesLong
 asset-no-holders              -MonacoAssetDetailSample noHolders
