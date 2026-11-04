@@ -202,3 +202,15 @@ struct SuccessMarkToneTests {
         #expect(OutcomeView<EmptyView>.Tone.done.accent == MonacoTheme.gain)
     }
 }
+
+struct MonacoFieldChromeShapeTests {
+    @Test func oneLineFieldsAreCapsules() {
+        #expect(MonacoFieldChrome.usesCapsule(height: MonacoFieldChrome.height))
+    }
+
+    @Test func tallFieldsUseTheCompactRadius() {
+        #expect(!MonacoFieldChrome.usesCapsule(height: MonacoFieldChrome.multilineHeight))
+        #expect(!MonacoFieldChrome.usesCapsule(height: 56))
+        #expect(MonacoTheme.Radius.compact == 20)
+    }
+}

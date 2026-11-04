@@ -1,6 +1,24 @@
 import SwiftUI
 import UIKit
 
+private nonisolated struct FieldShape: InsettableShape {
+    let cornerRadius: CGFloat
+    var inset: CGFloat = 0
+
+    func path(in rect: CGRect) -> Path {
+        let fullHeight = rect.height
+        let rect = rect.insetBy(dx: inset, dy: inset)
+        if MonacoFieldChrome.usesCapsule(height: fullHeight) {
+            return Capsule(style: .continuous).path(in: rect)
+        }
+        return RoundedRectangle(cornerRadius: max(0, cornerRadius - inset), style: .continuous).path(in: rect)
+    }
+
+    func inset(by amount: CGFloat) -> FieldShape {
+        FieldShape(cornerRadius: cornerRadius, inset: inset + amount)
+    }
+}
+
 struct MonacoFieldChrome: ViewModifier {
     let isFocused: Bool
     var isInvalid = false
@@ -12,13 +30,17 @@ struct MonacoFieldChrome: ViewModifier {
     static let multilineHeight: CGFloat = 92
     static let borderWidth: CGFloat = 1
 
-    private var shape: RoundedRectangle {
-        RoundedRectangle(cornerRadius: MonacoTheme.Radius.field, style: .continuous)
+    nonisolated static let capsuleMaxHeight: CGFloat = 56
+
+    nonisolated static func usesCapsule(height: CGFloat) -> Bool { height < capsuleMaxHeight }
+
+    private var shape: FieldShape {
+        FieldShape(cornerRadius: MonacoTheme.Radius.compact)
     }
 
-    private var stroke: Color {
+    private var stroke: Color? {
         if isInvalid { return MonacoTheme.loss }
-        return isFocused ? MonacoTheme.brand : MonacoTheme.border
+        return isFocused ? MonacoTheme.tint : nil
     }
 
     func body(content: Content) -> some View {
@@ -26,11 +48,13 @@ struct MonacoFieldChrome: ViewModifier {
             .padding(.horizontal, MonacoTheme.Space.m)
             .padding(.vertical, MonacoTheme.Space.sm)
             .frame(minHeight: minHeight)
-            .background(shape.fill(MonacoTheme.surface))
+            .background(shape.fill(MonacoTheme.surfaceSunken))
             .contentShape(Rectangle())
             .simultaneousGesture(TapGesture().onEnded { focus() })
             .overlay {
-                shape.strokeBorder(stroke, lineWidth: Self.borderWidth)
+                if let stroke {
+                    shape.strokeBorder(stroke, lineWidth: Self.borderWidth)
+                }
             }
             .animation(.easeOut(duration: 0.15), value: isFocused)
             .animation(.easeOut(duration: 0.15), value: isInvalid)
