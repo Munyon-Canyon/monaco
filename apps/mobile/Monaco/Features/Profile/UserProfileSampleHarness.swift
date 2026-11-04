@@ -80,6 +80,7 @@ struct UserProfileSampleScreen: View {
                 }
                 .padding(.top, MonacoTheme.Space.m)
             }
+            .defaultScrollAnchor(SampleScrollAnchor.requested(by: SampleScrollAnchor.flag))
             .monacoCanvas()
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)

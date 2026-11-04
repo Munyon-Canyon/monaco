@@ -199,9 +199,11 @@ struct UserProfileContent: View {
         VStack(spacing: MonacoTheme.Space.m) {
             UserProfileCard(data: data)
                 .padding(.horizontal, MonacoTheme.Space.gutter)
-            UserProfileCounts(data: data)
-            if let shared = data.shared {
-                UserProfileSharedLine(shared: shared)
+            VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
+                UserProfileCounts(data: data)
+                if let shared = data.shared {
+                    UserProfileSharedLine(shared: shared)
+                }
             }
             action
             extras
