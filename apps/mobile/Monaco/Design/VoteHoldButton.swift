@@ -14,19 +14,18 @@ struct VoteHoldButton: View {
     let count: Int
     let phase: VoteHoldPhase
 
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
     static let height: CGFloat = 44
-    static let strokeWidth: CGFloat = 2
 
     static func spokenLabel(side: VoteSide, count: Int, isCommitted: Bool) -> String {
         let votes = count == 1 ? "1 vote" : "\(count) votes"
         return isCommitted ? "Voted \(side.title), \(votes)" : "\(side.title), \(votes)"
     }
 
-    private var shape: RoundedRectangle {
-        RoundedRectangle(cornerRadius: MonacoTheme.Radius.button, style: .continuous)
+    static func sweepWidth(progress: Double, width: CGFloat) -> CGFloat {
+        width * min(max(progress, 0), 1)
     }
+
+    private var shape: Capsule { Capsule(style: .continuous) }
 
     private var progress: Double? {
         guard case .holding(let value) = phase else { return nil }
@@ -34,6 +33,14 @@ struct VoteHoldButton: View {
     }
 
     private var isCommitted: Bool { phase == .committed }
+
+    private var baseFill: Color {
+        switch phase {
+        case .committed: return MonacoTheme.brandFill
+        case .dimmed: return MonacoTheme.surfaceSunken.opacity(0.55)
+        case .idle, .picked, .holding, .disabled: return MonacoTheme.surfaceSunken
+        }
+    }
 
     private var labelColor: Color {
         switch phase {
@@ -46,11 +53,7 @@ struct VoteHoldButton: View {
 
     private func labelRow(_ color: Color) -> some View {
         HStack(spacing: MonacoTheme.Space.xs) {
-            if isCommitted {
-                Label("Voted \(side.title)", systemImage: "checkmark.seal.fill")
-            } else {
-                Label(side.title, systemImage: side.symbol)
-            }
+            Label(side.title, systemImage: side.symbol)
             Text("\(count)").monospacedDigit()
         }
         .font(MonacoTheme.Typo.button)
@@ -62,7 +65,10 @@ struct VoteHoldButton: View {
 
     var body: some View {
         ZStack {
-            shape.fill(isCommitted ? MonacoTheme.brandFill : MonacoTheme.surfaceSunken)
+            shape.fill(baseFill)
+            if phase == .picked {
+                shape.fill(MonacoTheme.brandFill.opacity(0.35))
+            }
             if let progress {
                 sweep(progress)
             }
@@ -71,17 +77,13 @@ struct VoteHoldButton: View {
                 labelRow(MonacoTheme.onBrand)
                     .mask(alignment: .leading) {
                         GeometryReader { geometry in
-                            Rectangle().frame(width: geometry.size.width * progress)
+                            Rectangle().frame(
+                                width: Self.sweepWidth(progress: progress, width: geometry.size.width))
                         }
                     }
             }
         }
         .frame(minHeight: Self.height)
-        .overlay {
-            if phase == .picked {
-                shape.strokeBorder(MonacoTheme.tint, lineWidth: Self.strokeWidth)
-            }
-        }
         .contentShape(shape)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Self.spokenLabel(side: side, count: count, isCommitted: isCommitted))
@@ -90,18 +92,12 @@ struct VoteHoldButton: View {
 
     private func sweep(_ progress: Double) -> some View {
         GeometryReader { geometry in
-            ZStack(alignment: .topLeading) {
-                Rectangle()
+            ZStack(alignment: .leading) {
+                Capsule(style: .continuous)
                     .fill(MonacoTheme.brandFill)
-                    .frame(width: geometry.size.width * progress)
-                if !reduceMotion {
-                    shape.strokeBorder(MonacoTheme.tint, lineWidth: Self.strokeWidth)
-                        .mask(alignment: .topLeading) {
-                            Rectangle().frame(
-                                width: geometry.size.width * progress, height: MonacoTheme.Radius.button)
-                        }
-                }
+                    .frame(width: Self.sweepWidth(progress: progress, width: geometry.size.width))
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
         .clipShape(shape)
     }

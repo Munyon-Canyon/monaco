@@ -362,4 +362,11 @@ struct VoteTallyViewTests {
         #expect(VoteSidesRow.spokenLabel(yes) == "Voted yes: Mia, Christelle, Logan, Sam, you.")
         #expect(VoteSidesRow.spokenLabel(none) == "Jordan and Priya did not vote.")
     }
+
+    @Test func sweepWidthFollowsProgressAndClamps() {
+        #expect(VoteHoldButton.sweepWidth(progress: 0.4, width: 300) == 120)
+        #expect(VoteHoldButton.sweepWidth(progress: -1, width: 300) == 0)
+        #expect(VoteHoldButton.sweepWidth(progress: 2, width: 300) == 300)
+        #expect(VoteHoldButton.sweepWidth(progress: 1.0, width: 300) == 300)
+    }
 }
