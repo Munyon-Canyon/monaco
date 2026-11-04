@@ -36,6 +36,7 @@ struct GroupChatRowView: View {
     var openMoment: ((ChatMoment) -> Void)?
 
     @Environment(ToastCenter.self) private var toasts
+    @Environment(\.chatPinControls) private var pinControls
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var reporting: ReportTarget?
@@ -475,6 +476,7 @@ extension GroupChatRowView {
                 }
             },
         ]
+        if let pinItem = pinAction { items.append(pinItem) }
         if !row.isMine {
             items.append(
                 ChatMessageAction(id: "report", title: "Report", icon: .report) {
@@ -494,6 +496,18 @@ extension GroupChatRowView {
                 })
         }
         return items
+    }
+
+    private var pinAction: ChatMessageAction? {
+        guard let controls = pinControls, controls.canPin(message) else { return nil }
+        if controls.isPinned(message) {
+            return ChatMessageAction(id: "unpin", title: ChatPinCopy.unpin, icon: .unpin) {
+                afterDismiss = { controls.unpin(message, toasts: toasts) }
+            }
+        }
+        return ChatMessageAction(id: "pin", title: ChatPinCopy.pin, icon: .pin) {
+            afterDismiss = { controls.pin(message) }
+        }
     }
 
     private var actionsOverlay: some View {
