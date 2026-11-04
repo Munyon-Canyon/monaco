@@ -67,8 +67,8 @@ public enum ChatQuietState {
 
     public static func composerPlaceholder(kind: Kind, cabalName: String?) -> String {
         switch kind {
-        case .none: GroupChatCopy.composerPlaceholder
-        case .fresh, .quiet: GroupChatCopy.composerPlaceholder(cabalName: cabalName ?? "")
+        case .none: GroupChatCopy.composerPlaceholder(cabalName: nil)
+        case .fresh, .quiet: GroupChatCopy.composerPlaceholder(cabalName: cabalName)
         }
     }
 

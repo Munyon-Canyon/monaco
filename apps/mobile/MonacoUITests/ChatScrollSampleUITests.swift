@@ -249,7 +249,7 @@ nonisolated final class ChatScrollSampleUITests: XCTestCase {
         XCTAssertTrue(sent.waitForExistence(timeout: 20), "the sent message should appear in the thread")
         XCTAssertEqual(
             composer.value as? String,
-            "Message your cabal",
+            "Message",
             "the composer must be empty after a send, showing its placeholder"
         )
         attachScreenshot(app, name: "04-sent")

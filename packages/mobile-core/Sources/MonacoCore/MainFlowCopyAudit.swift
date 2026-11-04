@@ -81,7 +81,7 @@ public enum MainFlowCopyManifest {
             GroupChatCopy.title,
             GroupChatCopy.emptyTitle,
             GroupChatCopy.emptyHint,
-            GroupChatCopy.composerPlaceholder,
+            GroupChatCopy.composerPlaceholder(cabalName: nil),
             GroupChatCopy.quietTitle,
             GroupChatCopy.quietPollLine,
             GroupChatCopy.quietShareStockLine,
