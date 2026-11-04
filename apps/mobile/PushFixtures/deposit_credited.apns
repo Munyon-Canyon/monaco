@@ -2,8 +2,8 @@
   "Simulator Target Bundle": "xyz.monacolabs.app",
   "aps": {
     "alert": {
-      "title": "Deposit received",
-      "body": "$25.00 is in your account balance."
+      "title": "$25 landed.",
+      "body": "It's in your cash."
     }
   },
   "kind": "deposit_credited"

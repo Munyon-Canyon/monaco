@@ -56,7 +56,7 @@ func TestNotify_CabalAccessRequestedAdmins_PushesEveryAdminOnceAndNobodyElse(t *
 	push := func(user ids.UserID, tok string) apns.Push {
 		return inCabal(apns.Push{
 			UserID: user, Token: tok, Environment: apns.Sandbox, CollapseID: "access-" + e.RequestID.String(),
-			Title: "New request to join", Body: "Bea wants to join " + cabalName,
+			Title: "Bea wants into " + cabalName + ".", Body: "Approve or skip.",
 			Data: map[string]string{"kind": "cabal_access_requested", "cabal_id": w.cabalID.String()},
 		}, w.cabalID, wantSender{"person", w.requester.String(), "Bea"})
 	}
@@ -131,7 +131,7 @@ func TestNotify_CabalAccessRequestedAdmins_NamesTheLinkOwnerWhenKnown(t *testing
 		t.Fatalf("sent %+v, want one push per admin", sent)
 	}
 	for _, push := range sent {
-		if want := "Bea wants to join " + cabalName + " through Jordan's link"; push.Body != want {
+		if want := "They used Jordan's link. Approve or skip."; push.Body != want {
 			t.Fatalf("body %q, want %q", push.Body, want)
 		}
 	}

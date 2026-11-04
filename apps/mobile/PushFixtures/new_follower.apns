@@ -2,8 +2,8 @@
   "Simulator Target Bundle": "xyz.monacolabs.app",
   "aps": {
     "alert": {
-      "title": "New follower",
-      "body": "Maya (@maya) followed you"
+      "title": "Maya follows you now.",
+      "body": "@maya"
     }
   },
   "kind": "new_follower",

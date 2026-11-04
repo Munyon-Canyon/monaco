@@ -2,16 +2,15 @@ package app
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/monaco/monaco/apps/backend/internal/events"
-	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 )
 
 const (
 	newFollowerDailyCap = 3
 	unnamedFollower     = "Someone"
+	noHandleBody        = "View their profile."
 	referralFollow      = "referral"
 )
 
@@ -36,23 +35,18 @@ func (k NewFollower) Render(ctx context.Context, e events.FollowCreated, _ ids.U
 	}
 	card := cards[follower]
 	card.ID = follower
+	name, body := unnamedFollower, noHandleBody
+	if !card.Deleted && card.DisplayName != "" {
+		name = card.DisplayName
+	}
+	if !card.Deleted && card.Handle != "" {
+		body = "@" + card.Handle
+	}
 	return Message{
-		Title:        "New follower",
-		Body:         followerLabel(card) + " followed you",
+		Title:        name + " follows you now.",
+		Body:         body,
 		Data:         map[string]string{"kind": k.Name(), "user_id": follower.String()},
 		CollapseID:   "follow-" + follower.String(),
 		Presentation: ForPerson(card),
 	}, nil
-}
-
-func followerLabel(card identity.UserCard) string {
-	switch {
-	case card.Deleted || card.DisplayName == "":
-		return unnamedFollower
-	case card.Handle == "":
-		return card.DisplayName
-	case card.Handle == card.DisplayName:
-		return "@" + card.Handle
-	}
-	return fmt.Sprintf("%s (@%s)", card.DisplayName, card.Handle)
 }
