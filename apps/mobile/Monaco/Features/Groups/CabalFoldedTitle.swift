@@ -40,11 +40,10 @@ struct CabalFoldedTitle: View {
         .accessibilityIdentifier("cabal-inline-title")
     }
 
-    private static let toolbarButtonWidth: CGFloat = 44
-    private static let trailingButtonCount: CGFloat = 2
+    private static let trailingCapsuleWidth: CGFloat = 96
     private static let barSideMargin: CGFloat = 16
     private static let titleGap: CGFloat = 8
-    private static let sideReserve = trailingButtonCount * toolbarButtonWidth + barSideMargin + titleGap
+    private static let sideReserve = trailingCapsuleWidth + barSideMargin + titleGap
 
     static func maxWidth(barWidth: CGFloat) -> CGFloat {
         max(0, barWidth - 2 * sideReserve)
