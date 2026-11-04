@@ -28,6 +28,7 @@ import random
 import re
 import shutil
 import signal
+import socket
 import statistics
 import subprocess
 import sys
@@ -534,6 +535,8 @@ def backend_is_running(base_url=None, opener=None):
 # 16 GB beside the simulators.
 SLOT_PORTS = ((8080, 8081), (8180, 8181))
 FAKES_PORTS = (8099, 8199)
+NATS_PORTS = (4232, 4233)
+NATS_IMAGE = "public.ecr.aws/docker/library/nats:2-alpine"
 BACKEND_PORTS = SLOT_PORTS[0]
 SLOT_LOCK = "/tmp/monaco-qa-slot%d.lock"
 ACTOR_LOCK = "/tmp/monaco-qa-actor-%s.lock"
@@ -668,14 +671,46 @@ def backend_environment():
             if key not in RUNNER_ONLY_VARIABLES and not key.startswith("MONACO_QA_")}
 
 
-def apply_event_streams(log):
+def slot_nats_url(slot):
+    return "nats://127.0.0.1:%d" % NATS_PORTS[slot]
+
+
+@contextlib.contextmanager
+def slot_nats(slot):
+    """A JetStream server of this slot's own, so the slot's worker is the only consumer of the slot's events.
+    The shared Compose monaco-nats hands each message to whichever worker pulls first, and the other slot and the
+    developer's own backend pull from it too. Removed when the slot's backend stops."""
+    name, port = "monaco-qa-nats-slot%d" % slot, NATS_PORTS[slot]
+    sh(["docker", "rm", "-f", name], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    refuse_busy_ports(listeners((port,)), (port,))
+    try:
+        sh(["docker", "run", "-d", "--name", name, "-p", "127.0.0.1:%d:4222" % port, NATS_IMAGE, "-js"],
+           stdout=subprocess.DEVNULL, check=True)
+        deadline = time.monotonic() + 30
+        while True:
+            try:
+                socket.create_connection(("127.0.0.1", port), timeout=1).close()
+                break
+            except OSError:
+                if time.monotonic() > deadline:
+                    raise JourneyError("%s did not accept connections on :%d within 30 s" % (name, port))
+                time.sleep(0.5)
+        yield slot_nats_url(slot)
+    finally:
+        sh(["docker", "rm", "-f", name], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+def apply_event_streams(log, nats_url=None):
     """Brings the local JetStream streams up to the subjects this checkout declares, so a new event subject
     on staging cannot stop the backend at boot (bus.VerifyStreams). Idempotent, local dev only."""
+    env = backend_environment()
+    if nats_url:
+        env["NATS_URL"] = nats_url
     with open(str(log), "w") as out:
         for step in (["just", "build", "backend"],
-                     ["docker", "compose", "up", "-d", "--wait", "postgres", "nats"],
+                     ["docker", "compose", "up", "-d", "--wait", "postgres"],
                      ["scripts/with-dotenv-local.sh", "bin/monacoctl", "bus", "apply"]):
-            if sh(step, env=backend_environment(), stdout=out, stderr=subprocess.STDOUT).returncode != 0:
+            if sh(step, env=env, stdout=out, stderr=subprocess.STDOUT).returncode != 0:
                 raise JourneyError("%s failed, see %s" % (" ".join(step[:3]), log))
 
 
@@ -683,8 +718,10 @@ def start_backend(base_url, timeout=300, trade_engine="stub", slot=0):
     log = OUT / ("backend-slot%d.log" % slot)
     OUT.mkdir(parents=True, exist_ok=True)
     print("starting the backend (log: %s)" % os.path.relpath(str(log), str(ROOT)))
-    apply_event_streams(log)
+    nats_url = slot_nats_url(slot)
+    apply_event_streams(log, nats_url)
     env = backend_environment()
+    env["NATS_URL"] = nats_url
     api_port, worker_port = SLOT_PORTS[slot]
     env["MONACO_HTTP_ADDR"] = ":%d" % api_port
     env["MONACO_WORKER_HEALTH_ADDR"] = ":%d" % worker_port
@@ -812,7 +849,7 @@ def journey_backend(forced_slot=None, fake_rpc=False):
         print("journey slot %d: api :%d, worker :%d" % ((slot,) + SLOT_PORTS[slot]), flush=True)
         refuse_busy_ports(listeners(SLOT_PORTS[slot]), SLOT_PORTS[slot])
         base_url = slot_base_url(slot)
-        with fake_rpc_environment(slot) if fake_rpc else contextlib.nullcontext():
+        with fake_rpc_environment(slot) if fake_rpc else contextlib.nullcontext(), slot_nats(slot):
             with phase("backend_s"):
                 process = start_backend(base_url, slot=slot)
             try:
