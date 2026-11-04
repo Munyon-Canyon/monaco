@@ -15,15 +15,13 @@ final class ReactionsModelTests: XCTestCase {
     ]
 
     func testAddingAnEmojiShowsItAtOnceAndSendsOnePut() async throws {
-        let transport = StubTransport(scripted: [
-            try summary([("💪", 3, false), ("👀", 2, false), ("🎉", 1, true)], total: 6)
-        ])
+        let transport = StubTransport(scripted: [.gate])
         let model = ReactionsModel(api: CommentsTestSupport.api(transport), clock: TestClock())
 
         let toggled = Task { await model.toggle("🎉", on: target, current: base) }
-        let showed = await CommentsTestSupport.waitUntil {
-            model.reactions(for: self.target, fallback: self.base).contains { $0.emoji == "🎉" }
-        }
+        await transport.waitForRequests(1)
+        let showed = model.reactions(for: target, fallback: base).contains { $0.emoji == "🎉" }
+        await transport.releaseGate(try summary([("💪", 3, false), ("👀", 2, false), ("🎉", 1, true)], total: 6))
         let reconciled = await toggled.value
 
         XCTAssertTrue(showed)
