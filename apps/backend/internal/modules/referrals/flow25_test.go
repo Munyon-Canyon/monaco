@@ -30,7 +30,7 @@ func referralScenario(t *testing.T, extra ...scenario.Option) *scenario.Scenario
 
 func qualifyScenario(t *testing.T) *scenario.Scenario {
 	t.Helper()
-	upstreams := fakes.NewFunded()
+	upstreams := fakes.New()
 	srv := httptest.NewServer(upstreams)
 	t.Cleanup(srv.Close)
 	cfg := config.Config{

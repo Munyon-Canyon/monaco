@@ -47,7 +47,7 @@ func newFlow08(t *testing.T) *flow08 {
 	clk := testkit.NewClock(clock.Real{}.Now())
 	cabal := testkit.NewCabal(t, pool)
 	exec(t, pool, `UPDATE treasury_wallets SET address = '`+string(flow08Treasury)+`'`)
-	srv := httptest.NewServer(fakes.NewFunded())
+	srv := httptest.NewServer(fakes.New())
 	t.Cleanup(srv.Close)
 	deps := module.Deps{
 		Config: config.Config{

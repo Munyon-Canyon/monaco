@@ -46,7 +46,7 @@ func TestFlowStep30_EVMDepositCredited(t *testing.T) {
 	t.Parallel()
 	execution := flows.ForwardedEVMDepositExecution()
 	forwarding := steadyForwarding{page: mc.ExecutionPage{Executions: []mc.Execution{execution}}}
-	upstreams := fakes.NewFunded()
+	upstreams := fakes.New()
 	srv := httptest.NewServer(upstreams)
 	t.Cleanup(srv.Close)
 	s := scenario.New(t,

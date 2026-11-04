@@ -27,7 +27,7 @@ func TestModule_aRoutedSwapUsesTheCabalsTreasuryEVMWallet(t *testing.T) {
 	e.seedCabal(cabal.StatusActive, 100)
 	e.mustBuy(t, e.request(), domain.StatusCreated)
 	e.clk.Advance(app.SwapSweepAge + time.Second)
-	srv := httptest.NewServer(fakes.NewFunded())
+	srv := httptest.NewServer(fakes.New())
 	t.Cleanup(srv.Close)
 	cfg := testkit.Config()
 	cfg.Solana.RPCURL, cfg.Timeouts.RPC, cfg.Timeouts.Privy = "http://fakes/rpc/", time.Second, time.Second

@@ -17,7 +17,7 @@ import (
 func TestModule_ordersNameTheConfiguredRelayerAsPayer(t *testing.T) {
 	t.Parallel()
 	e := newEngineEnv(t)
-	srv := httptest.NewServer(fakes.NewFunded())
+	srv := httptest.NewServer(fakes.New())
 	t.Cleanup(srv.Close)
 	cfg := testkit.Config()
 	cfg.Privy = config.Privy{
