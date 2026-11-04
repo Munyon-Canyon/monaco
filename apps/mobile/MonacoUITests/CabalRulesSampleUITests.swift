@@ -2,9 +2,9 @@ import XCTest
 
 nonisolated final class CabalRulesSampleUITests: XCTestCase {
     private static let rows = [
-        ("votesToPass", "5 of 8"), ("voteWindow", "6 hours"), ("maxPerTrade", "20% of the cash"),
-        ("whoCanPropose", "Voters"), ("cashOut", "Any time"),
-        ("showSides", "Show who voted what"),
+        ("cabal-rules-votesToPass", "5 of 8"), ("cabal-rules-voteWindow", "6 hours"),
+        ("cabal-rules-maxPerTrade", "20% of the cash"), ("cabal-rules-whoCanPropose", "Voters"),
+        ("cabal-rules-cashOut", "Any time"), ("cabal-rules-show-sides-toggle", "Show who voted what"),
     ]
 
     nonisolated override func setUpWithError() throws {
@@ -27,11 +27,11 @@ nonisolated final class CabalRulesSampleUITests: XCTestCase {
     @MainActor
     func testTheRulesTabListsTheSixRowsAndTheFooter() {
         let app = launch("fRules")
-        for (kind, value) in Self.rows {
-            let row = element(app, "cabal-rules-\(kind)")
+        for (identifier, value) in Self.rows {
+            let row = element(app, identifier)
             app.scrollIntoReach(row)
-            XCTAssertTrue(row.waitForExistence(timeout: 15), "\(kind) shows")
-            XCTAssertTrue(row.label.contains(value), "\(kind) reads \(value), got \(row.label)")
+            XCTAssertTrue(row.waitForExistence(timeout: 15), "\(identifier) shows")
+            XCTAssertTrue(row.label.contains(value), "\(identifier) reads \(value), got \(row.label)")
         }
         let footer = element(app, "cabal-rules-footer")
         app.scrollIntoReach(footer)
@@ -48,5 +48,15 @@ nonisolated final class CabalRulesSampleUITests: XCTestCase {
         toggle.tap()
         XCTAssertTrue(
             element(app, "cabal-rule-proposal-propose").waitForExistence(timeout: 10), "the propose sheet opens")
+    }
+
+    @MainActor
+    func testShowWhoVotedWhatReadsAsOneSwitch() {
+        let app = launch("fRules")
+        let named = app.switches.matching(NSPredicate(format: "label == %@", "Show who voted what"))
+        app.scrollIntoReach(named.firstMatch)
+        XCTAssertTrue(named.firstMatch.waitForExistence(timeout: 15), "the switch shows")
+        XCTAssertEqual(named.count, 1, "the row is one switch")
+        XCTAssertEqual(named.firstMatch.identifier, "cabal-rules-show-sides-toggle")
     }
 }

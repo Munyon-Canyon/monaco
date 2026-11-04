@@ -34,7 +34,9 @@ struct HomeVoteCard: View {
         return now.timeIntervalSince(committedAt) >= collapseDelay
     }
 
-    private var collapseTrigger: Bool { model.isSettled && toasts.current != nil }
+    static func collapseDelayAfterAppear(isSettled: Bool, collapsed: Bool) -> TimeInterval? {
+        isSettled && !collapsed ? collapseDelay : nil
+    }
 
     private var line: VoteCardLine {
         let line = model.subheadLine(now: .now, showsCabal: !inCabal)
@@ -62,15 +64,16 @@ struct HomeVoteCard: View {
             }
         }
         .task { await model.observe() }
-        .task(id: collapseTrigger) { await collapseWhenDue() }
+        .task(id: model.isSettled) { await collapseWhenDue() }
         .onChange(of: model.isSettled) { _, settled in if !settled { collapsed = false } }
         .onChange(of: model.phase) { _, new in phaseChanged(new) }
     }
 
     private func collapseWhenDue() async {
-        guard collapseTrigger, !collapsed, let committedAt = model.committedAt else { return }
-        let wait = committedAt.addingTimeInterval(Self.collapseDelay).timeIntervalSinceNow
-        if wait > 0 { try? await Task.sleep(for: .seconds(wait)) }
+        guard let delay = Self.collapseDelayAfterAppear(isSettled: model.isSettled, collapsed: collapsed) else {
+            return
+        }
+        try? await Task.sleep(for: .seconds(delay))
         guard !Task.isCancelled else { return }
         collapsed = true
     }
