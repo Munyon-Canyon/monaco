@@ -16,10 +16,11 @@ final class MarketFactsTests: XCTestCase {
     }
 
     func testHeldUnitsDropTrailingZeros() {
-        XCTAssertEqual(MarketFacts.subline(.held(units: "24.0000"), ticker: "AAPL"), "24 sh held")
-        XCTAssertEqual(MarketFacts.subline(.held(units: "2.2000"), ticker: "TSLA"), "2.2 sh held")
-        XCTAssertEqual(MarketFacts.subline(.held(units: "10.0500"), ticker: "AMZN"), "10.05 sh held")
-        XCTAssertEqual(MarketFacts.subline(.held(units: "100"), ticker: "AMZN"), "100 sh held")
+        XCTAssertEqual(MarketFacts.subline(.held(units: "24.0000"), ticker: "AAPL"), "24 shares held")
+        XCTAssertEqual(MarketFacts.subline(.held(units: "2.2000"), ticker: "TSLA"), "2.2 shares held")
+        XCTAssertEqual(MarketFacts.subline(.held(units: "10.0500"), ticker: "AMZN"), "10.05 shares held")
+        XCTAssertEqual(MarketFacts.subline(.held(units: "100"), ticker: "AMZN"), "100 shares held")
+        XCTAssertEqual(MarketFacts.subline(.held(units: "1.0000"), ticker: "AAPL"), "1 share held")
     }
 
     func testCalledItGoesThroughResultCopy() {

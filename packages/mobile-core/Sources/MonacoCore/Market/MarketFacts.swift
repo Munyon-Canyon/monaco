@@ -20,12 +20,16 @@ public enum MarketFacts {
         case .voteOpen(let cabalName, let count):
             count > 1 ? "\(count) votes open" : "Vote open in \(cabalName)"
         case .held(let units):
-            "\(trimmed(units)) sh held"
+            held(trimmed(units))
         case .called(let proposerName):
             ResultCopy.calledIt(proposerName)
         case nil:
             ticker
         }
+    }
+
+    private static func held(_ trimmed: String) -> String {
+        trimmed == "1" ? "1 share held" : "\(trimmed) shares held"
     }
 
     static func trimmed(_ units: String) -> String {
