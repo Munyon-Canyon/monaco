@@ -1,0 +1,2 @@
+id	flow	module	trigger	command	events	consumers	outcomes	status	doc
+22e	Write a chat proposal message	social	consumer:proposal.created	WriteChatProposalMessage			ok;ProposalNotFound;crash:before-commit	built	docs/architecture/chat.md#proposal-messages

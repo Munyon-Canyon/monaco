@@ -283,6 +283,47 @@ func (q *Queries) InsertChatMoment(ctx context.Context, arg InsertChatMomentPara
 	return i, err
 }
 
+const insertChatProposal = `-- name: InsertChatProposal :one
+INSERT INTO cabal_messages (id, cabal_id, author_id, body, kind, proposal_id, dedupe_key, created_at)
+VALUES (
+  $1, $2, $3::uuid, NULLIF($4::text, ''), 'proposal',
+  $5::uuid, $6::text, $7
+)
+ON CONFLICT (cabal_id, dedupe_key) WHERE dedupe_key IS NOT NULL DO UPDATE SET dedupe_key = cabal_messages.dedupe_key
+RETURNING id, cabal_id, created_at
+`
+
+type InsertChatProposalParams struct {
+	ID         uuid.UUID
+	CabalID    uuid.UUID
+	AuthorID   uuid.UUID
+	Body       string
+	ProposalID uuid.UUID
+	DedupeKey  string
+	CreatedAt  time.Time
+}
+
+type InsertChatProposalRow struct {
+	ID        uuid.UUID
+	CabalID   uuid.UUID
+	CreatedAt time.Time
+}
+
+func (q *Queries) InsertChatProposal(ctx context.Context, arg InsertChatProposalParams) (InsertChatProposalRow, error) {
+	row := q.db.QueryRow(ctx, insertChatProposal,
+		arg.ID,
+		arg.CabalID,
+		arg.AuthorID,
+		arg.Body,
+		arg.ProposalID,
+		arg.DedupeKey,
+		arg.CreatedAt,
+	)
+	var i InsertChatProposalRow
+	err := row.Scan(&i.ID, &i.CabalID, &i.CreatedAt)
+	return i, err
+}
+
 const listChatChannel = `-- name: ListChatChannel :many
 SELECT id, cabal_id, author_id, body, created_at, parent_id, also_in_channel, reply_count, last_reply_at, proposal_id, deleted_at, kind, moment,
   blocked_author.hit AS blocked

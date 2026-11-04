@@ -1,0 +1,14 @@
+//go:build faultpoints
+
+package social_test
+
+import (
+	"testing"
+
+	"github.com/monaco/monaco/apps/backend/internal/testkit/flows"
+)
+
+func TestFlow22e_WriteChatProposalMessage_CrashBeforeCommit(t *testing.T) {
+	t.Parallel()
+	flows.F22eWriteChatProposalMessageCrashBeforeCommit(chatScenario(t))
+}

@@ -208,6 +208,10 @@ func (m *Module) ProposalHeads() adapters.ProposalHeads {
 	return adapters.NewProposalHeads(m.deps.Pool)
 }
 
+func (m *Module) ProposalHead(ctx context.Context, id ids.ProposalID) (port.ProposalHead, error) {
+	return m.ProposalHeads().ProposalHead(ctx, id)
+}
+
 func (m *Module) InviteFacts() app.Queries { return app.NewQueries(m.deps.Pool) }
 
 func (m *Module) ProposedMints(ctx context.Context) ([]chain.SolanaAddress, error) {

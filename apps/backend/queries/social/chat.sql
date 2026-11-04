@@ -18,6 +18,15 @@ VALUES (sqlc.arg(id), sqlc.arg(cabal_id), 'system', sqlc.arg(moment)::jsonb, sql
 ON CONFLICT (cabal_id, dedupe_key) WHERE dedupe_key IS NOT NULL DO UPDATE SET dedupe_key = cabal_messages.dedupe_key
 RETURNING id, cabal_id, created_at;
 
+-- name: InsertChatProposal :one
+INSERT INTO cabal_messages (id, cabal_id, author_id, body, kind, proposal_id, dedupe_key, created_at)
+VALUES (
+  sqlc.arg(id), sqlc.arg(cabal_id), sqlc.arg(author_id)::uuid, NULLIF(sqlc.arg(body)::text, ''), 'proposal',
+  sqlc.arg(proposal_id)::uuid, sqlc.arg(dedupe_key)::text, sqlc.arg(created_at)
+)
+ON CONFLICT (cabal_id, dedupe_key) WHERE dedupe_key IS NOT NULL DO UPDATE SET dedupe_key = cabal_messages.dedupe_key
+RETURNING id, cabal_id, created_at;
+
 -- name: BumpChatReplies :one
 UPDATE cabal_messages
 SET reply_count = reply_count + 1, last_reply_at = sqlc.arg(at)::timestamptz
