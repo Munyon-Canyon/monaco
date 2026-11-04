@@ -34,7 +34,7 @@ struct LedgerStoryCard: View {
         .padding(.top, FShareCard.frameWidth * scale)
         .frame(width: size.width, height: size.height)
         .background(
-            MonacoTheme.brandFill,
+            ShareCardArtStore.art(for: spec).color,
             in: RoundedRectangle(cornerRadius: MonacoTheme.Radius.shareCard * scale, style: .continuous)
         )
         .environment(\.colorScheme, .dark)

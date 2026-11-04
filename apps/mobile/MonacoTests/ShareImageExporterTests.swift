@@ -1,4 +1,5 @@
 import MonacoCore
+import SwiftUI
 import Testing
 import UIKit
 
@@ -75,5 +76,26 @@ struct ShareImageExporterTests {
 
         #expect(spec.tickerLine.logoURL == nil)
         #expect(ShareImageExporter.render(spec, format: .square).cgImage?.width == 1080)
+    }
+
+    @Test func theFootTextClearsContrastOnTheHarbourAndOnAPhotoColour() throws {
+        let bright = UIGraphicsImageRenderer(size: CGSize(width: 8, height: 8)).image { context in
+            UIColor(white: 1, alpha: 1).setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 8, height: 8))
+        }
+        let colours = [Color(hex: 0x0E2A3D), SceneColor.color(forPhoto: bright)]
+
+        for colour in colours {
+            #expect(WCAGContrast.ratio(Color.white.opacity(0.7), on: [colour], .dark) >= 4.5)
+            #expect(WCAGContrast.ratio(Color.white.opacity(0.9), on: [colour], .dark) >= 4.5)
+        }
+    }
+
+    @Test func aCabalCardAndACardWithNoCabalBothExportAtFullSize() throws {
+        let noCabal = ShareSampleData.portfolio()
+
+        #expect(noCabal.header.mark.cabal == nil)
+        #expect(ShareSampleData.spec().header.mark.cabal != nil)
+        #expect(ShareImageExporter.render(noCabal, format: .post).cgImage?.height == 1350)
     }
 }

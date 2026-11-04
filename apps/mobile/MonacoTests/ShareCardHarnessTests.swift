@@ -31,7 +31,7 @@ struct ShareCardHarnessTests {
     @Test func theCardReadsAsOneElementWithTheSpokenLine() {
         let spec = ShareSampleData.spec()
 
-        #expect(spec.spoken == "AC Capital, NVDA, long 38 shares, up 1,027 dollars 90, 14 percent")
+        #expect(spec.spoken == "AC Capital, NVDA, holding 38 shares, up 1,027 dollars 90, 14 percent")
     }
 
     @Test func theChartDrawsEveryMarkerAtItsOwnPlace() {

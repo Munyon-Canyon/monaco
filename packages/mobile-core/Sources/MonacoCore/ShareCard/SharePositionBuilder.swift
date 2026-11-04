@@ -52,7 +52,7 @@ public enum SharePositionBuilder {
         let start = truncated ? ordered.first?.time : (position.firstBoughtAt ?? ordered.first?.time)
         let units = unitsLabel(position.unitsText)
         let figure = figure(for: position, dollars: eyes.pnlDollars)
-        let tickerDetail = "Long · \(units)"
+        let tickerDetail = "Holding \(units)"
         let title = position.crest.name
         return ShareCardSpec(
             header: .init(
@@ -148,7 +148,7 @@ public enum SharePositionBuilder {
         return [
             first,
             .init(
-                label: "Avg. entry",
+                label: "Average cost",
                 value: position.avgEntryMicros.map { UsdAmountFormatter.format(micros: $0) }
                     ?? CabalHoldingCopy.missing),
             .init(label: "Current", value: UsdAmountFormatter.format(micros: position.priceMicros)),
@@ -163,6 +163,6 @@ public enum SharePositionBuilder {
     private static func spoken(title: String, position: SharePosition, units: String, dollars: Bool) -> String {
         let figure = ShareFigureText.spoken(
             pnlMicros: position.pnlMicros, basisPoints: percentBasisPoints(position), dollars: dollars)
-        return "\(title), \(position.symbol), long \(units), \(figure)"
+        return "\(title), \(position.symbol), holding \(units), \(figure)"
     }
 }
