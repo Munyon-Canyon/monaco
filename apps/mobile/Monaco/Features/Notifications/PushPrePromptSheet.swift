@@ -8,26 +8,20 @@ struct PushPrePromptSheet: View {
 
     var body: some View {
         VStack(spacing: MonacoTheme.Space.m) {
-            Image(systemName: "bell.badge")
-                .font(MonacoTheme.Typo.section)
-                .foregroundStyle(MonacoTheme.accent)
-                .frame(width: 56, height: 56)
-                .background(MonacoTheme.brandSoft, in: Circle())
-                .accessibilityHidden(true)
             Text("Hear how votes end?")
                 .font(MonacoTheme.Typo.section)
                 .foregroundStyle(MonacoTheme.primaryText)
-                .multilineTextAlignment(.center)
+                .multilineTextAlignment(.leading)
                 .fixedSize(horizontal: false, vertical: true)
-                .frame(maxWidth: .infinity, alignment: .center)
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .accessibilityAddTraits(.isHeader)
                 .accessibilityIdentifier("push-pre-prompt-title")
-            Text("Get each result when a vote closes. No more vote reminders after you vote.")
+            Text("You get the result when a vote closes. That\u{2019}s it.")
                 .font(MonacoTheme.Typo.body)
                 .foregroundStyle(MonacoTheme.secondaryText)
-                .multilineTextAlignment(.center)
+                .multilineTextAlignment(.leading)
                 .fixedSize(horizontal: false, vertical: true)
-                .frame(maxWidth: .infinity, alignment: .center)
+                .frame(maxWidth: .infinity, alignment: .leading)
             if let sample = prompt.sample { sampleCard(sample) }
             Button {
                 Task { await prompt.turnOn() }
@@ -59,8 +53,12 @@ struct PushPrePromptSheet: View {
             ? AnyLayout(VStackLayout(alignment: .leading, spacing: MonacoTheme.Space.sm))
             : AnyLayout(HStackLayout(alignment: .top, spacing: MonacoTheme.Space.sm))
         return layout {
-            CabalMark(
-                groupId: "push-sample", name: "Cabal", size: .row, pictureUrl: sample.cabalImageURL?.absoluteString)
+            ZStack(alignment: .bottomTrailing) {
+                CabalMark(
+                    groupId: "push-sample", name: "Cabal", size: .row,
+                    pictureUrl: sample.cabalImageURL?.absoluteString)
+                appBadge
+            }
             VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
                 Text(sample.title)
                     .font(MonacoTheme.Typo.subheadStrong)
@@ -74,16 +72,33 @@ struct PushPrePromptSheet: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             Text("now")
                 .font(MonacoTheme.Typo.caption)
-                .foregroundStyle(MonacoTheme.muted)
+                .foregroundStyle(MonacoTheme.secondaryText)
         }
         .padding(MonacoTheme.Space.sm)
         .background(
             MonacoTheme.surface,
             in: RoundedRectangle(
-                cornerRadius: MonacoTheme.Radius.cardTight, style: .continuous)
+                cornerRadius: MonacoTheme.Radius.compact, style: .continuous)
         )
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Example notification. \(sample.title). \(sample.body)")
         .accessibilityIdentifier("push-pre-prompt-sample")
+    }
+
+    private var appBadge: some View {
+        RoundedRectangle(cornerRadius: MonacoTheme.Space.xs, style: .continuous)
+            .fill(MonacoTheme.brandFill)
+            .frame(width: 20, height: 20)
+            .overlay {
+                Image("LaunchMark")
+                    .renderingMode(.template)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .foregroundStyle(.white)
+                    .padding(MonacoTheme.Space.xs)
+            }
+            .offset(x: MonacoTheme.Space.xs, y: MonacoTheme.Space.xs)
+            .accessibilityHidden(true)
     }
 
     private func textButtons<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {

@@ -2,10 +2,10 @@ import XCTest
 
 enum SettingsNotificationsJourney {
     static let id = "settings/notifications"
-    static let version = 6
+    static let version = 7
 
     static let title = "Hear how votes end?"
-    static let body = "Get each result when a vote closes. No more vote reminders after you vote."
+    static let body = "You get the result when a vote closes. That\u{2019}s it."
 
     static func recorder() -> JourneyRecorder {
         JourneyRecorder(journey: id, version: version)

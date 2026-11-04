@@ -181,27 +181,36 @@ final class PushPrePromptTests: XCTestCase {
 
         func make(
             _ symbol: String, _ status: ProposalStatus, _ tally: ProposalTally, swap: ProposalSwap? = nil,
-            units: String? = nil, sell: Bool = false, usdc: Int64? = 400_000_000
+            units: String? = nil, sell: Bool = false, usdc: Int64? = 400_000_000, caller: String? = nil
         ) -> PushSample {
             .afterVote(
                 symbol: symbol, status: status, tally: tally, isSell: sell, usdcMicros: usdc, closesAt: closes,
-                swap: swap, pendingUnits: units, calendar: utc)
+                swap: swap, pendingUnits: units, calendar: utc, callerName: caller)
         }
 
         XCTAssertEqual(
             make("NVDAx", .executed, passed, swap: fill),
-            PushSample(title: "NVDA passed 5–1", body: "Bought 1.82 sh at $219.40."))
-        XCTAssertEqual(make("NVDAx", .passed, passed, units: "1.82").body, "Buying 1.82 sh now.")
+            PushSample(title: "Buy NVDA passed, 5 to 1", body: "Bought 1.82 shares at $219.40."))
+        XCTAssertEqual(make("NVDAx", .passed, passed, units: "1.82").body, "Buying 1.82 shares now.")
         XCTAssertEqual(make("NVDAx", .passed, passed, sell: true).body, "Selling now.")
         XCTAssertEqual(
-            make("TSLA", .failed, failed), PushSample(title: "TSLA failed 2–3", body: "No trade."))
+            make("TSLA", .failed, failed), PushSample(title: "Buy TSLA failed, 2 to 3", body: "No trade."))
+        XCTAssertEqual(
+            make("NVDAx", .passed, passed, caller: "Mia"),
+            PushSample(title: "Buy NVDA passed, 5 to 1", body: "Mia called it."))
+        XCTAssertEqual(
+            make("NVDAx", .executed, passed, swap: fill).body, "Bought 1.82 shares at $219.40.")
+        XCTAssertFalse(make("NVDAx", .executed, passed, swap: fill).body.contains(" sh "))
+        XCTAssertEqual(
+            make("TSLAx", .failed, ProposalTally(yes: 2, no: 2, voters: 8, needed: 5), sell: true),
+            PushSample(title: "Sell TSLA failed, 2 to 2", body: "No trade."))
         XCTAssertEqual(
             make("NVDAx", .open, passed),
             PushSample(title: "Buy NVDA $400 · closes 9:53 AM", body: "We'll tell you how it ends."))
         XCTAssertEqual(make("NVDAx", .open, passed, sell: true, usdc: nil).title, "Sell NVDA · closes 9:53 AM")
     }
 
-    private let sample = PushSample(title: "NVDA passed 5–1", body: "Bought 1.82 sh at $219.40.")
+    private let sample = PushSample(title: "Buy NVDA passed, 5 to 1", body: "Bought 1.82 shares at $219.40.")
 
     private struct Setup {
         let prompt: PushPrePrompt
