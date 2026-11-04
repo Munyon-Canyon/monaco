@@ -2,7 +2,7 @@ import XCTest
 
 enum ProfileOverviewJourney {
     static let id = "profile/overview"
-    static let version = 13
+    static let version = 14
 
     static let signOutTitle = "Sign out of Monaco?"
     static let signOutMessage =
@@ -53,17 +53,14 @@ enum ProfileOverviewJourney {
                 app.element("profile-positions").staticTexts["Positions"].exists,
                 "S1.2: no 'Positions' column")
             XCTAssertTrue(
-                app.element("profile-pnl-1m").label.contains("P&L \u{00B7} 1M"), "S1.2: no 'P&L · 1M' column")
+                app.element("profile-pnl-1m").staticTexts["This month"].exists, "S1.2: no 'This month' column")
+            XCTAssertFalse(
+                app.element("profile-card").staticTexts
+                    .matching(NSPredicate(format: "label CONTAINS %@", "P\u{26}L")).firstMatch.exists,
+                "S1.2: the card still names a profit-and-loss column")
             XCTAssertTrue(
                 app.element("profile-stat-cabals").label.contains("cabal"), "S1.2: no 'cabal' or 'cabals' count")
-            if (try? JourneyHandoff.read("hasStanding")) == "1" {
-                let standing = app.element("profile-standing")
-                XCTAssertTrue(standing.waitForExistence(timeout: 15), "S1.2: no month standing line")
-                XCTAssertTrue(
-                    standing.label.contains("right calls this month") || standing.label.contains("resolved"),
-                    "S1.2: the standing line reads '\(standing.label)', not the month's right calls or the unranked line"
-                )
-            }
+            if (try? JourneyHandoff.read("hasStanding")) == "1" { standingLine(app) }
         }
 
         recorder.step("S1.3", "find the cabal under Your cabals") {
@@ -74,8 +71,9 @@ enum ProfileOverviewJourney {
             XCTAssertTrue(
                 cabalRow.label.contains(cabal.name), "S1.3: the row reads '\(cabalRow.label)', not '\(cabal.name)'")
             XCTAssertTrue(
-                cabalRow.label.contains("admin") || cabalRow.label.contains("voter"),
-                "S1.3: the row reads '\(cabalRow.label)', with no 'admin' or 'voter' role")
+                cabalRow.label.contains("%"), "S1.3: the row reads '\(cabalRow.label)', with no ownership share")
+            XCTAssertFalse(
+                cabalRow.label.contains("voter"), "S1.3: the row reads '\(cabalRow.label)', which names a 'voter'")
         }
 
         recorder.step("S1.4", "find the Settings button") {
@@ -177,6 +175,11 @@ enum ProfileOverviewJourney {
             XCTAssertTrue(
                 app.element("share-screen").waitForExistence(timeout: 15),
                 "S5.1: the share screen did not open within 15 s")
+            shareDock(app)
+        }
+
+        recorder.step("S5.3", "copy the image") {
+            copyImage(app)
         }
 
         recorder.step("S5.2", "close the share screen") {
@@ -261,7 +264,7 @@ enum ProfileOverviewJourney {
                 "S7.1: 'Positions' reads '\(positionsFigure(app))', not a dollar figure")
             XCTAssertFalse(
                 pending.contains(performance.value as? String ?? ""),
-                "S7.1: 'P&L · 1M' reads '\(performance.value as? String ?? "")', not a figure")
+                "S7.1: 'This month' reads '\(performance.value as? String ?? "")', not a figure")
         }
 
         recorder.step("S7.2", "the cabal card shows its value") {

@@ -1,7 +1,7 @@
 ---
 id: profile/overview
 title: Your profile
-version: 13
+version: 14
 rpc: fake
 milestone: M9
 requires: [auth/sign-in]
@@ -11,6 +11,8 @@ xcuitest: [apps/mobile/MonacoUITests/Journeys/ProfileOverviewJourney.swift, apps
 ---
 
 # Your profile
+
+Frames: `docs/design/v5/screens/10-profile-own.png`, `docs/design/v5/screens/11-share-A.png`.
 
 A signed-in member opens the Profile tab, reads their profile card, month standing, cash row and Cabals tab, pulls to refresh, opens a cabal from the list, opens a block explorer, and signs out. The design is the [Profile tab](../../screens.md#profile-tab). The old app's version is `Profile/ProfileTabView.swift` at `c838bd24`.
 
@@ -34,8 +36,8 @@ Starts signed in (auth/sign-in).
 | Step | Action | Target | Input | Expect | Old app |
 | --- | --- | --- | --- | --- | --- |
 | S1.1 | tap | the Profile tab | | Within 15 s, `profile-card` shows with `profile-display-name` and `profile-handle` reading "@" and the handle, then "joined" with a month and year | `profile-root`, then `profile-card` |
-| S1.2 | wait | `profile-stat-cabals` | | Within 15 s, the card shows "Positions" (`profile-positions`) and "P&L · 1M" (`profile-pnl-1m`), and the counts line ends with "cabal" or "cabals" by count (`profile-stat-cabals`, 1 or more). When `hasStanding` is `1`, `profile-standing` reads "% right calls this month" or the unranked line an account under five resolved votes gets. When it is `0`, the step does not look for it | The count badge on "Your cabals" (`cabalRows.count`) |
-| S1.3 | tap, then scroll to | the Cabals tab (`profile-tab-cabals`), then `profile-cabal-row-{cabalID}` | | The tab lists the row for `cabalName` with its ownership share and "admin" or "voter" | `ProfileCabalsSection` rows |
+| S1.2 | wait | `profile-stat-cabals` | | Within 15 s, the card shows "Positions" (`profile-positions`) and "This month" (`profile-pnl-1m`), with no profit-and-loss label on the card, and the counts line ends with "cabal" or "cabals" by count (`profile-stat-cabals`, 1 or more). When `hasStanding` is `1`, `profile-standing` reads the ranked line, matching `^\d+ of \d+ right this month · \d+(st|nd|rd|th) of \d+$` with no "%" and no "#", or the unranked line containing "resolved this month". When it is `0`, the step does not look for it | The count badge on "Your cabals" (`cabalRows.count`) |
+| S1.3 | tap, then scroll to | the Cabals tab (`profile-tab-cabals`), then `profile-cabal-row-{cabalID}` | | The tab lists the row for `cabalName` with its ownership share ("%") and, when A is an admin there, "admin". The row never reads "voter" | `ProfileCabalsSection` rows |
 | S1.4 | find | `profile-settings-row` | | The round button in the title bar reads "Settings" | None, new in spec ("Settings" row) |
 | S1.5 | read | `profile-cash-row`, `profile-add-money-link` | | The cash row reads "Cash" and "USDC", with no APY text and no `profile-apy-info` button. `profile-add-money-link` reads "Deposit" above the tab bar | None, new in spec |
 
@@ -72,7 +74,8 @@ Starts signed in (auth/sign-in).
 
 | Step | Action | Target | Input | Expect | Old app |
 | --- | --- | --- | --- | --- | --- |
-| S5.1 | tap | the Profile tab, then `profile-share-button` | | Within 15 s the share screen (`share-screen`) shows, pushed over Profile (screens.md: the share round in the title bar) | New in the spec |
+| S5.1 | tap | the Profile tab, then `profile-share-button` | | Within 15 s the share screen (`share-screen`) shows, pushed over Profile (screens.md: the share round in the title bar). Within 15 s `share-send` ("Share") and `share-copy-image` ("Copy image") both show and are enabled, side by side at the default text size (equal `frame.minY`, the second starting right of the first). A's own profile shares the ledger card, so the toggles `ledger-share-toggle-return`, `ledger-share-toggle-calls` and `ledger-share-toggle-code` read "Show return", "Show calls" and "Show code" | New in the spec |
+| S5.3 | tap | `share-copy-image` | | Within 10 s the toast reads "Image copied.", and no toast reads "Couldn’t make the image. Try again." The test waits for the toast to go before S5.2 | New in the spec |
 | S5.2 | tap | the Back button | | The share screen closes and `profile-card` still shows within 5 s | New in the spec |
 
 ### S6 Sign out
@@ -93,7 +96,7 @@ Starts signed in (auth/sign-in).
 
 | Step | Action | Target | Input | Expect | Old app |
 | --- | --- | --- | --- | --- | --- |
-| S7.1 | tap | the Profile tab | | Within 15 s, `profile-positions` ("Positions") and `profile-pnl-1m` ("P&L · 1M") read a figure, not "loading" or "unavailable": "Positions" in dollars | The old header's portfolio total |
+| S7.1 | tap | the Profile tab | | Within 15 s, `profile-positions` ("Positions") and `profile-pnl-1m` ("This month") read a figure, not "loading" or "unavailable": "Positions" in dollars | The old header's portfolio total |
 | S7.2 | tap, then scroll to | `profile-tab-cabals`, then `profile-cabal-row-{cabalID}` | | The row reads the share in dollars ("$") and does not read "no share" | `ProfileCabalsSection` row value |
 
 ## Ground truth
@@ -110,3 +113,4 @@ None known.
 - A value that changes between two loads on pull to refresh. Steps run one at a time, so nothing writes to the backend while the scenario runs. S2 proves the refresh keeps every section on screen.
 - "Your cabals" when empty ("No cabals yet" / "Start a cabal or join one from the Cabals tab."). P3 makes A a member, and A cannot leave every cabal without changing other journeys' starting state.
 - The follow counts, the money strip, "Invite friends" and "Find friends". Their own journeys cover them.
+- What Copy image put on the pasteboard. Reading `UIPasteboard` from the test runner can raise the system paste prompt, so `ShareScreenTests` covers the image and S5.3 reads the toast, which shows only after `ShareActions.copy(_:)` succeeds. The share card's look is a picture, covered by `ShareCardHarnessTests` and the parity sheet.
