@@ -1,0 +1,19 @@
+journey: cabals/browse
+expect-fail: S1
+
+The Up next row loses its action capsule. S1.1 expects cabals-upnext-action-<id> reading Invite, so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Groups/CabalsUpNextSlot.swift b/apps/mobile/Monaco/Features/Groups/CabalsUpNextSlot.swift
+index cd01f7037..b1899e530 100644
+--- a/apps/mobile/Monaco/Features/Groups/CabalsUpNextSlot.swift
++++ b/apps/mobile/Monaco/Features/Groups/CabalsUpNextSlot.swift
+@@ -114,7 +114,7 @@ private struct CabalsUpNextRow: View {
+             Label(title, systemImage: icon)
+         }
+         .buttonStyle(.monacoCompact)
+-        .accessibilityIdentifier("cabals-upnext-action-\(tile.id)")
++        .accessibilityIdentifier("cabals-upnext-action-missing-\(tile.id)")
+     }
+ 
+     private func perform() {

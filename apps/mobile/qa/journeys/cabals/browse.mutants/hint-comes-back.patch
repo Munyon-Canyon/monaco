@@ -1,0 +1,19 @@
+journey: cabals/browse
+expect-fail: S1
+
+The hold hint ignores its dismissed flag. S1.2 expects the hint gone after dismissing it, so it must fail when A has two or more cabals.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Groups/CabalsHoldTip.swift b/apps/mobile/Monaco/Features/Groups/CabalsHoldTip.swift
+index 24b1adbdd..ed85feb98 100644
+--- a/apps/mobile/Monaco/Features/Groups/CabalsHoldTip.swift
++++ b/apps/mobile/Monaco/Features/Groups/CabalsHoldTip.swift
+@@ -13,7 +13,7 @@ struct CabalsHoldTip: View {
+     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+ 
+     var body: some View {
+-        if !dismissed {
++        if true {
+             HStack(spacing: MonacoTheme.Space.s) {
+                 HStack(spacing: MonacoTheme.Space.s) {
+                     Image(systemName: "hand.point.up")

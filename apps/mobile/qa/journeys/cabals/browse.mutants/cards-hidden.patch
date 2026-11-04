@@ -5,7 +5,7 @@ The Cabals tab has no Your cabals grid. S1.1 waits for the card, so it must fail
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/apps/mobile/Monaco/Features/Groups/CabalsGridSlot.swift b/apps/mobile/Monaco/Features/Groups/CabalsGridSlot.swift
-index de3876906..c952d4886 100644
+index 4f451dec9..cf46ac894 100644
 --- a/apps/mobile/Monaco/Features/Groups/CabalsGridSlot.swift
 +++ b/apps/mobile/Monaco/Features/Groups/CabalsGridSlot.swift
 @@ -2,7 +2,7 @@ import MonacoCore
