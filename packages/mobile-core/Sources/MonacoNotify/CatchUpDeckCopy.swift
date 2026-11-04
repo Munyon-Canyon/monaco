@@ -38,20 +38,26 @@ public enum CatchUpDeckCopy {
         if proposal.replyCount > 0 {
             parts.append("\(proposal.replyCount) \(proposal.replyCount == 1 ? "reply" : "replies")")
         }
-        if proposal.status == "open" { parts.append(CatchUpCopy.endsIn(proposal.expiresAt, now: now)) }
+        if proposal.status == "open", let closes = closesIn(proposal.expiresAt, now: now) { parts.append(closes) }
         return parts.joined(separator: " · ")
     }
 
     public static func closedLine(_ item: Item) -> String {
-        guard let proposal = item.proposal else { return "" }
-        var parts: [String] = []
-        switch proposal.yourChoice {
-        case .yes: parts.append("you voted Yes")
-        case .no: parts.append("you voted No")
-        case nil: break
+        switch item.proposal?.yourChoice {
+        case .yes: "you said yes"
+        case .no: "you said no"
+        case nil: ""
         }
-        if proposal.outcome == .filled, proposal.filled == true { parts.append("filled") }
-        return parts.joined(separator: " · ")
+    }
+
+    private static func closesIn(_ expires: Date, now: Date) -> String? {
+        let remaining = Int(expires.timeIntervalSince(now))
+        guard remaining > 0 else { return nil }
+        let days = remaining / 86400
+        let hours = remaining / 3600
+        if days >= 2 { return "closes in \(days)d" }
+        if hours > 0 { return "closes in \(hours)h" }
+        return "closes in \(max(remaining / 60, 1))m"
     }
 
     public static func postHead(_ post: Components.Schemas.CatchUpPost) -> String {
