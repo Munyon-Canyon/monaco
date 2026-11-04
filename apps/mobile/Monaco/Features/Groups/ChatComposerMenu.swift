@@ -49,15 +49,22 @@ enum ChatComposerItem: String, CaseIterable, Identifiable {
 
 struct ChatComposerMenu: View {
     let hasThesis: Bool
+    var hasStock = true
     let pick: (ChatComposerItem) -> Void
 
-    static func items(hasThesis: Bool) -> [ChatComposerItem] {
-        ChatComposerItem.allCases.filter { $0 != .thesis || hasThesis }
+    static func items(hasThesis: Bool, hasStock: Bool = true) -> [ChatComposerItem] {
+        ChatComposerItem.allCases.filter {
+            switch $0 {
+            case .gif: true
+            case .thesis: hasThesis
+            case .stock: hasStock
+            }
+        }
     }
 
     var body: some View {
         Menu {
-            ForEach(Self.items(hasThesis: hasThesis)) { item in
+            ForEach(Self.items(hasThesis: hasThesis, hasStock: hasStock)) { item in
                 Button {
                     pick(item)
                 } label: {

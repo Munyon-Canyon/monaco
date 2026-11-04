@@ -11,6 +11,7 @@ struct GroupChatScreen: View {
     var viewerID = ""
     var proposals: ChatProposalStore?
     var network: NetworkPathModel?
+    var gifs: (any GifProvider)?
     let openProfile: (String) -> Void
     let openThread: (String) -> Void
     var openProposal: (String) -> Void = { _ in }
@@ -132,10 +133,10 @@ struct GroupChatScreen: View {
     }
 
     private var attachments: ChatComposerAttachments? {
-        guard let appEnvironment else { return nil }
+        guard let provider = gifs ?? appEnvironment?.gifs else { return nil }
         return ChatComposerAttachments(
-            gifs: appEnvironment.gifs,
-            search: stockSearch ?? LiveStockSearch.make(appEnvironment.api),
+            gifs: provider,
+            search: stockSearch ?? appEnvironment.map { LiveStockSearch.make($0.api) },
             thesis: thesis
         ) { body, attachment in
             Task { await session?.send(body: body, attachment: attachment) }

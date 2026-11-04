@@ -284,7 +284,9 @@ struct ChatComposerBar: View {
         VStack(alignment: .trailing, spacing: MonacoTheme.Space.xs) {
             HStack(alignment: .bottom, spacing: MonacoTheme.Space.s) {
                 if let attachments {
-                    ChatComposerMenu(hasThesis: attachments.thesis != nil) { activeSheet = $0 }
+                    ChatComposerMenu(hasThesis: attachments.thesis != nil, hasStock: attachments.search != nil) {
+                        activeSheet = $0
+                    }
                 }
                 field
                 sendButton

@@ -14,6 +14,10 @@ struct ChatComposerMenuTests {
         #expect(ChatComposerMenu.items(hasThesis: false) == [.gif, .stock])
     }
 
+    @Test func hidesTheStockItemWithoutSearch() {
+        #expect(ChatComposerMenu.items(hasThesis: false, hasStock: false) == [.gif])
+    }
+
     @Test func itemsCarryTheirIdentifiers() {
         let identifiers = ChatComposerItem.allCases.map(\.identifier)
         #expect(identifiers == ["chat-menu-gif", "chat-menu-thesis", "chat-menu-stock"])
