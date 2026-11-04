@@ -2407,12 +2407,27 @@ class MutantRunSetup(unittest.TestCase):
         return unittest.mock.MagicMock(id="money/withdraw", funds=funds, scenarios=["S1"], mutants=lambda: [patch],
                                        spec=None), patch
 
-    def mutant_env(self, funds, scenarios=("S1",), expect=("S1",), rows=None, free=50 * 10 ** 9, calls=None):
+    def mutant_env(self, funds, scenarios=("S1",), expect=("S1",), rows=None, free=50 * 10 ** 9, calls=None,
+                   order=None, patches=1):
         fake, patch = self.fake_journey(funds)
+        if patches > 1:
+            stems = ["bug%d" % n for n in range(patches)]
+            fake.mutants = lambda: [unittest.mock.MagicMock(stem=stem) for stem in stems]
+        trail = order if order is not None else []
+
+        @contextlib.contextmanager
+        def backend(slot=None, fake_rpc=False):
+            trail.append("take_slot")
+            try:
+                yield "http://x"
+            finally:
+                trail.append("release_slot")
+
         fake.scenarios = list(scenarios)
         seen = []
 
         def run_once(*args, **kwargs):
+            trail.append("run_once")
             seen.append(journey.actor_environment({}, "sms", "R"))
             if calls is not None:
                 calls.append(args[7])
@@ -2427,7 +2442,8 @@ class MutantRunSetup(unittest.TestCase):
                                 ("use_derived_data", lambda l: None), ("resolve_simulator", lambda s, l, p: "sim"),
                                 ("check_simulator_api_environment", lambda s, u: None),
                                 ("reset_journey_simulator", lambda *a: None),
-                                ("build_mutants", lambda *a: {"build_s": {}, "peak": 0}),
+                                ("build_mutants", lambda *a: trail.append("build") or {"build_s": {}, "peak": 0}),
+                                ("journey_backend", backend),
                                 ("mutant_expectation", lambda p: list(expect)), ("run_once", run_once),
                                 ("check_preconditions", lambda *a, **k: []),
                                 ("stamp_file", lambda: unittest.mock.Mock()), ("build_label", lambda *a: "b"),
@@ -2437,13 +2453,20 @@ class MutantRunSetup(unittest.TestCase):
             stack.enter_context(unittest.mock.patch.object(journey, "with_dotenv", lambda args: "Pot1"))
             stack.enter_context(unittest.mock.patch.object(
                 journey.shutil, "disk_usage", lambda p: unittest.mock.Mock(free=free)))
-            args = unittest.mock.Mock(journey="money/withdraw", only=["bug"], sim="", runs=1)
-            self.code = journey.run_mutants(args, "http://x")
+            args = unittest.mock.Mock(journey="money/withdraw", only=[] if patches > 1 else ["bug"], sim="", runs=1,
+                                      slot=None)
+            self.code = journey.run_mutants(args)
         return seen[0]
 
     def test_mutants_pass_the_refund_address_the_run_path_passes(self):
         env = self.mutant_env({"A": 5})
         self.assertEqual(env["MONACO_QA_REFUND_ADDRESS"], "Pot1")
+
+    def test_builds_hold_no_slot_and_each_patch_takes_and_releases_one(self):
+        order = []
+        self.mutant_env({"A": 5}, order=order, patches=2)
+        self.assertEqual(order, ["build", "take_slot", "run_once", "release_slot",
+                                 "take_slot", "run_once", "release_slot"])
 
     def test_a_run_stops_after_the_last_scenario_the_patch_names(self):
         calls = []
