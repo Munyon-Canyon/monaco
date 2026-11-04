@@ -28,6 +28,7 @@ struct CabalFoldedTitle: View {
                     .lineLimit(1)
             }
         }
+        .fixedSize(horizontal: true, vertical: false)
         .opacity(shown ? 1 : 0)
         .animation(.easeOut(duration: 0.15), value: shown)
         .accessibilityHidden(!shown)

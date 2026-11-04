@@ -68,7 +68,7 @@ struct CabalMoreMenu: View {
         } label: {
             Image(systemName: "ellipsis")
                 .monacoToolbarIcon()
-                .frame(minWidth: 44, minHeight: 44)
+                .frame(width: 44, height: 44)
         }
         .accessibilityLabel("More")
         .accessibilityIdentifier("cabal-more-button")

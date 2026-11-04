@@ -143,16 +143,20 @@ struct CabalScreen: View {
                 }
             }
             if let loaded = cabal.cabal, loaded.me != nil {
-                ToolbarItemGroup(placement: .topBarTrailing) {
-                    if Self.canShare(cabal: loaded) {
-                        MonacoGlassButton(
-                            icon: .share, accessibilityLabel: "Share cabal", style: .quiet,
-                            placement: .toolbar
-                        ) { share(loaded) }
-                        .accessibilityIdentifier("cabal-share-button")
-                    }
-                    CabalMoreMenu(items: CabalMoreItem.items(role: loaded.me?.role, status: loaded.status)) {
-                        pendingMore = $0
+                ToolbarItem(placement: .topBarTrailing) {
+                    HStack(spacing: 0) {
+                        if Self.canShare(cabal: loaded) {
+                            MonacoGlassButton(
+                                icon: .share, accessibilityLabel: "Share cabal", style: .quiet,
+                                placement: .toolbar
+                            ) { share(loaded) }
+                            .frame(width: 44, height: 44)
+                            .accessibilityIdentifier("cabal-share-button")
+                        }
+                        CabalMoreMenu(items: CabalMoreItem.items(role: loaded.me?.role, status: loaded.status)) {
+                            pendingMore = $0
+                        }
+                        .frame(width: 44, height: 44)
                     }
                 }
             }
