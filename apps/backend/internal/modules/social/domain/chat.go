@@ -56,9 +56,6 @@ func ParseChatInput(body *string, att *AttachmentInput) (ChatInput, error) {
 	const op = "social.ParseChatInput"
 	var in ChatInput
 	if att != nil {
-		if att.Kind == string(AttachmentPoll) {
-			return ChatInput{}, errs.New(errs.CodeInvalidInput, op, slog.String("reason", "unknown_kind"))
-		}
 		if att.Kind == string(AttachmentThesisQuote) && att.ProposalID == uuid.Nil {
 			return ChatInput{}, errs.New(errs.CodeInvalidInput, op, slog.String("reason", "no_proposal"))
 		}

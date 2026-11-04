@@ -86,7 +86,8 @@ extension Components.Schemas.AssetSummary {
 
     private static func starter(
         id: String, symbol: String, displayName: String, issuer: Components.Schemas.AssetIssuer,
-        kind: Components.Schemas.AssetKind, priceMicros: Int64, changeBps: Int32?, cabalCount: Int
+        kind: Components.Schemas.AssetKind, priceMicros: Int64, changeBps: Int32?, cabalCount: Int,
+        valuationMicros: String? = nil, lastRoundOn: String? = nil
     ) -> Self {
         Self(
             id: id,
@@ -102,7 +103,9 @@ extension Components.Schemas.AssetSummary {
             quotable: true,
             session: .open,
             tradable: true,
-            cabalCount: cabalCount
+            cabalCount: cabalCount,
+            valuationMicros: valuationMicros,
+            lastRoundOn: lastRoundOn
         )
     }
 
@@ -114,7 +117,8 @@ extension Components.Schemas.AssetSummary {
     public static let starterSpaceX = starter(
         id: "01890a5d-ac96-774b-bcce-b302099a8111",
         symbol: "tSpaceX", displayName: "SpaceX", issuer: .tessera, kind: .preIpo,
-        priceMicros: 185_000_000, changeBps: nil, cabalCount: 29
+        priceMicros: 185_000_000, changeBps: nil, cabalCount: 29,
+        valuationMicros: "350000000000000000", lastRoundOn: "2026-06-01"
     )
     public static let starterApple = starter(
         id: "01890a5d-ac96-774b-bcce-b302099a8112",
@@ -188,7 +192,9 @@ extension Components.Schemas.AssetSummary {
         quotable: true,
         session: .init(state: .open, continuous: true, holiday: "", earlyClose: false),
         tradable: true,
-        estimate: .init(priceMicros: 185_000_000, asOf: "2026-10-20")
+        estimate: .init(priceMicros: 185_000_000, asOf: "2026-10-20"),
+        valuationMicros: "350000000000000000",
+        lastRoundOn: "2026-06-01"
     )
 }
 

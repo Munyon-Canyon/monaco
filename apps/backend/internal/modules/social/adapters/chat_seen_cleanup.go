@@ -21,6 +21,10 @@ func (ChatSeenCleanup) Handle(ctx context.Context, tx db.Tx, e events.CabalMembe
 	if err != nil {
 		return errs.Wrap(err, errs.CodeInternal, "social.ChatSeenCleanup")
 	}
+	err = q.DeleteUserChatPollVotes(ctx, sqlc.DeleteUserChatPollVotesParams{CabalID: e.CabalID, UserID: e.UserID})
+	if err != nil {
+		return errs.Wrap(err, errs.CodeInternal, "social.ChatSeenCleanup")
+	}
 	return nil
 }
 

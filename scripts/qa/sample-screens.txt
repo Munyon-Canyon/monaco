@@ -357,6 +357,7 @@ asset-open                    -MonacoAssetDetailSample open
 asset-many-closed             -MonacoAssetDetailSample manyClosed
 asset-loss                    -MonacoAssetDetailSample loss
 asset-stats-dashes            -MonacoAssetDetailSample statsDashes
+asset-stats-info              -MonacoAssetDetailSample statsInfo
 asset-candles-sparse          -MonacoAssetDetailSample candlesSparse
 asset-candles-long            -MonacoAssetDetailSample candlesLong
 asset-no-holders              -MonacoAssetDetailSample noHolders
@@ -792,6 +793,7 @@ cabal-holding-ready-dark      -MonacoCabalHoldingSample ready -AppleInterfaceSty
 cabal-holding-ready-ax        -MonacoCabalHoldingSample ready -UIPreferredContentSizeCategoryName UICTContentSizeCategoryAccessibilityXXXL
 leaderboard-people-month      -MonacoLeaderboardSample peopleMonth
 leaderboard-people-month-dark -MonacoLeaderboardSample peopleMonth -AppleInterfaceStyle Dark
+leaderboard-people-long-docked  -MonacoLeaderboardSample peopleLong -MonacoSampleScroll bottom
 leaderboard-lead-change         -MonacoLeaderboardSample leadChange
 leaderboard-lead-change-dark    -MonacoLeaderboardSample leadChange -AppleInterfaceStyle Dark
 leaderboard-friends-month       -MonacoLeaderboardSample friendsMonth

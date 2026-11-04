@@ -1,0 +1,29 @@
+journey: money/fund-cabal
+expect-fail: S2
+
+FirstFundCopy.line (and its spoken label, which is the card label the test reads) append " of the treasury" again. S2.4 asserts the card does not say it.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Deposit/FirstFundView.swift b/apps/mobile/Monaco/Features/Deposit/FirstFundView.swift
+index 14142e3b5..d7c05e95c 100644
+--- a/apps/mobile/Monaco/Features/Deposit/FirstFundView.swift
++++ b/apps/mobile/Monaco/Features/Deposit/FirstFundView.swift
+@@ -22,15 +22,15 @@ enum FirstFundCopy {
+ 
+     static func line(amountMicros: Int64, cabalName: String, share: String?) -> String {
+         let put = "\(FundCabalCopy.amount(micros: amountMicros)) in \(cabalName)"
+-        guard let share else { return put }
+-        return "\(put) \u{00B7} \(share)"
++        guard let share else { return put + " of the treasury" }
++        return "\(put) \u{00B7} \(share) of the treasury"
+     }
+ 
+     static func spoken(_ value: FirstFundValue) -> String {
+         var put = "\(FundCabalCopy.amount(micros: value.settledMicros)) in \(value.cabal.name)"
+         if let share = value.shareText { put += ", \(share.replacingOccurrences(of: "%", with: " percent"))" }
+         let with = value.othersText.map { " " + $0.prefix(1).uppercased() + $0.dropFirst() + "." } ?? ""
+-        return "\(title) \(put).\(with)"
++        return "\(title) \(put) of the treasury.\(with)"
+     }
+ 
+     static func voteTitle(_ vote: FirstFundVote) -> String {

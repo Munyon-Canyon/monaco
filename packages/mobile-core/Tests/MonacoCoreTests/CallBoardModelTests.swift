@@ -169,6 +169,13 @@ final class CallBoardModelTests: XCTestCase {
                 message: "That page is out of date.", traceId: "4bf92f3577b34da6a3ce929d0e0e4736", retryable: true))
     }
 
+    func testLongPeopleSampleKeepsTheViewerNearTheTopOfAScrollingBoard() async throws {
+        let rows = CallBoardScreen(.peopleMonthLong).around
+        XCTAssertGreaterThanOrEqual(rows.count, 15)
+        let viewerIndex = try XCTUnwrap(rows.firstIndex { $0.isViewer })
+        XCTAssertLessThanOrEqual(viewerIndex, 2)
+    }
+
     func testLoadMoreFollowsTheCursorOnceWithNoDuplicateOrMissingRank() async throws {
         let (model, transport) = make([try Self.body(.peopleMonth), try Self.body(.peopleMonthPage2)])
         await model.load()

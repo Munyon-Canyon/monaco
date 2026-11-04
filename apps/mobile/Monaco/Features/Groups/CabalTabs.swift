@@ -20,6 +20,7 @@ enum CabalPageMetrics {
     static let tabsGap = MonacoTheme.Space.sm
     static let treasuryLead: CGFloat = -(spacing - MonacoTheme.Space.xs)
     static let statsLead: CGFloat = -spacing
+    static let coverHeight: CGFloat = 136
 }
 
 enum CabalTabsPin {

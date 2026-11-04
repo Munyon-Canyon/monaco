@@ -1,7 +1,7 @@
 journey: money/withdraw
 expect-fail: S2
 
-Tapping a network chip keeps the network on Solana. S2.1 waits for the line to name Base, so it must fail.
+Tapping a network chip keeps the network on Solana. S2.1 waits for the Base chip to be selected and the placeholder to read "USDC address on Base", so it must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/apps/mobile/Monaco/Features/Settings/WithdrawScreen.swift b/apps/mobile/Monaco/Features/Settings/WithdrawScreen.swift

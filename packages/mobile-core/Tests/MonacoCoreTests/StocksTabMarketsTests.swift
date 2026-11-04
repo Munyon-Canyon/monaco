@@ -305,6 +305,36 @@ final class StocksTabMarketsTests: XCTestCase {
     }
 }
 
+extension StocksTabMarketsTests {
+    func testThePreIpoRoundLineSaysWhatTheCompanyIsValuedAtAndWhen() async throws {
+        let today = Date(timeIntervalSince1970: 1_793_750_400)
+        func line(_ valuation: String?, _ round: String?, _ estimate: String? = nil) -> String {
+            PreIpoRowCopy.roundLine(
+                valuationMicros: valuation, lastRoundOn: round, estimateAsOf: estimate, ticker: "SPACEX", today: today)
+        }
+        XCTAssertEqual(line("350000000000000000", "2026-06-01"), "Valued at $350B in June")
+        XCTAssertEqual(line("350000000000000000", "2025-06-01"), "Valued at $350B in June 2025")
+        XCTAssertEqual(line("350000000000000000", "2025-12-15"), "Valued at $350B in December")
+        XCTAssertEqual(line("350000000000000000", "2025-11-30"), "Valued at $350B in November 2025")
+        XCTAssertEqual(line("1600000000000000000", "2026-03-01"), "Valued at $1.6T in March")
+        XCTAssertEqual(line("500000000000000", "2026-03-01"), "Valued at $500M in March")
+        XCTAssertEqual(line("350000000000000000", nil), "Valued at $350B")
+        XCTAssertEqual(line("350000000000000000", "soon"), "Valued at $350B")
+        XCTAssertEqual(line(nil, "2026-06-01", "2026-10-20"), "Secondary estimate · Oct 20")
+        XCTAssertEqual(line("", nil, "2026-10-20"), "Secondary estimate · Oct 20")
+        XCTAssertEqual(line(nil, nil), "SPACEX")
+    }
+
+    func testMappingReadsTheValuationAndTheLastRoundFromTheListSummary() async throws {
+        let withRound = MarketMapping.asset(.spaceX)
+        XCTAssertEqual(withRound.valuationMicros, "350000000000000000")
+        XCTAssertEqual(withRound.lastRoundOn, "2026-06-01")
+        let without = MarketMapping.asset(.googl)
+        XCTAssertNil(without.valuationMicros)
+        XCTAssertNil(without.lastRoundOn)
+    }
+}
+
 private final class PrefixTransport: ClientTransport, Sendable {
     private let bodies: [(prefix: String, body: String)]
     private let paths = Mutex<[String]>([])

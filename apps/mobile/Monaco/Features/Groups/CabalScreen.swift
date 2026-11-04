@@ -149,17 +149,14 @@ struct CabalScreen: View {
                 }
             }
             if let loaded = cabal.cabal, loaded.me != nil {
-                if Self.canShare(cabal: loaded) {
-                    ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItemGroup(placement: .topBarTrailing) {
+                    if Self.canShare(cabal: loaded) {
                         MonacoGlassButton(
                             icon: .share, accessibilityLabel: "Share cabal", style: .quiet,
                             placement: .toolbar
                         ) { share(loaded) }
                         .accessibilityIdentifier("cabal-share-button")
                     }
-                    CabalToolbarSplit.spacer
-                }
-                ToolbarItem(placement: .topBarTrailing) {
                     CabalMoreMenu(items: CabalMoreItem.items(role: loaded.me?.role, status: loaded.status)) {
                         pendingMore = $0
                     }
@@ -199,15 +196,6 @@ struct CabalScreen: View {
 
     private static func showsPublicLayout(_ sections: [any CabalSection.Type]) -> Bool {
         sections.contains { $0 == CabalHeaderSlot.self }
-    }
-}
-
-enum CabalToolbarSplit {
-    @ToolbarContentBuilder
-    static var spacer: some ToolbarContent {
-        if #available(iOS 26.0, *) {
-            ToolbarSpacer(.fixed, placement: .topBarTrailing)
-        }
     }
 }
 

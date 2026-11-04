@@ -89,7 +89,24 @@ enum FeedPreviewFixtures {
         Components.Schemas.FeedItem.results[3],
         unfilledPass,
         tradeFailedPass,
+        votedProposal,
+        outsiderProposal,
     ])
+
+    static let votedProposal = item(
+        30, kind: "proposal", cabal: "Tech Titans", actor: 2, symbol: "AAPLx",
+        title: "Leo proposed buying $250.00 of Apple in Tech Titans", detail: "Voting open", minutes: 40, likes: 3,
+        canVote: true, myBallot: .yes,
+        figures: .init(
+            action: "buy", usdcMicros: 250_000_000, assetName: "Apple",
+            vote: (yes: 3, no: 1, voters: 6, needed: 4, endsInHours: 52)))
+
+    static let outsiderProposal = item(
+        31, kind: "proposal", cabal: "Degens", actor: 4, symbol: "TSLAx",
+        title: "Sam proposed selling Tesla in Degens", detail: "Voting open", minutes: 55, likes: 1,
+        figures: .init(
+            action: "sell", assetName: "Tesla", tokenAmount: 150_000_000, tokenDecimals: 8,
+            vote: (yes: 2, no: 2, voters: 5, needed: 3, endsInHours: 6)))
 
     private static func reacted(_ items: [Components.Schemas.FeedItem]) -> [Components.Schemas.FeedItem] {
         items.map { item in
@@ -256,7 +273,8 @@ enum FeedPreviewFixtures {
     private static func item(
         _ number: Int, kind: String, cabal: String?, cabalID: String = cabalID, actor: Int?, symbol: String?,
         title: String, detail: String?, body: String? = nil, tone: String = "neutral", comments: Int32 = 0,
-        minutes: Double, likes: Int32, returnBps: Int64? = nil, canVote: Bool = false, figures: Figures
+        minutes: Double, likes: Int32, returnBps: Int64? = nil, canVote: Bool = false,
+        myBallot: Components.Schemas.FeedItem.MyBallotPayload? = nil, figures: Figures
     ) -> Components.Schemas.FeedItem {
         let created = Date(timeIntervalSinceNow: -minutes * 60)
         let proposal = ["proposal", "threshold", "reply"].contains(kind)
@@ -275,7 +293,8 @@ enum FeedPreviewFixtures {
             proposalId: proposal ? String(format: "00000000-0000-7000-8000-0000000fa%03d", 100 + number) : nil,
             commentCount: comments,
             threadItemId: String(format: "00000000-0000-7000-8000-0000000fe%03d", number),
-            replyCount: comments, canReply: true, canReact: true, replyRule: .anyone, myBallot: nil, canVote: canVote,
+            replyCount: comments, canReply: true, canReact: true, replyRule: .anyone, myBallot: myBallot,
+            canVote: canVote,
             replyRuleCabalName: nil,
             likeCount: likes, likedByMe: false, reactions: [], reactionCount: 0,
             tally: figures.vote.map { .init(yes: $0.yes, no: $0.no, voters: $0.voters, needed: $0.needed) },

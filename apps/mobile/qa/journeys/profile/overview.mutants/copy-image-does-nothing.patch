@@ -1,0 +1,19 @@
+journey: profile/overview
+expect-fail: S5
+
+The Copy image button does nothing, so no toast shows. S5.3 reads "Image copied.", so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/ShareCard/ShareDock.swift b/apps/mobile/Monaco/Features/ShareCard/ShareDock.swift
+index cfd34442c..7aa3c0d22 100644
+--- a/apps/mobile/Monaco/Features/ShareCard/ShareDock.swift
++++ b/apps/mobile/Monaco/Features/ShareCard/ShareDock.swift
+@@ -119,7 +119,7 @@ struct ShareDock: View {
+                 }
+                 .buttonStyle(.monacoPrimary)
+                 .accessibilityIdentifier("share-send")
+-                Button(action: copyImage) {
++                Button(action: {}) {
+                     Label {
+                         Text("Copy image")
+                     } icon: {

@@ -12,15 +12,12 @@ enum CallBoardSharePayload {
 
 enum CallBoardDockedMetrics {
     static let avatar: CGFloat = 40
-    static let barHeight: CGFloat = 6
     static let tap: CGFloat = 44
 }
 
 struct CallBoardDocked: View {
     let card: CallBoardCard
     var onShare: () -> Void
-
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         HStack(spacing: MonacoTheme.Space.s) {
@@ -59,12 +56,13 @@ struct CallBoardDocked: View {
     private var nameBlock: some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
             Text(card.me.name).font(MonacoTheme.Typo.headline).foregroundStyle(MonacoTheme.primaryText)
+                .lineLimit(1).truncationMode(.tail)
             Text(card.me.turnout).font(MonacoTheme.Typo.subhead).foregroundStyle(MonacoTheme.secondaryText)
         }
     }
 
-    private func figures(alignment: HorizontalAlignment) -> some View {
-        VStack(alignment: alignment, spacing: MonacoTheme.Space.xs) {
+    private func figures() -> some View {
+        VStack(alignment: .trailing, spacing: MonacoTheme.Space.xs) {
             Text(card.me.rate).font(MonacoTheme.Typo.headline).foregroundStyle(MonacoTheme.primaryText)
             Text(card.me.record).font(MonacoTheme.Typo.subhead).foregroundStyle(MonacoTheme.secondaryText)
         }
@@ -74,30 +72,14 @@ struct CallBoardDocked: View {
 
     private var summary: some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
-            if dynamicTypeSize.isAccessibilitySize {
-                VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
-                    HStack(spacing: MonacoTheme.Space.sm) {
-                        rankText
-                        CallBoardAvatar(row: card.me, size: CallBoardDockedMetrics.avatar)
-                        nameBlock
-                    }
-                    figures(alignment: .leading)
-                }
-            } else {
-                HStack(spacing: MonacoTheme.Space.sm) {
-                    rankText
-                    CallBoardAvatar(row: card.me, size: CallBoardDockedMetrics.avatar)
-                    nameBlock
-                    Spacer(minLength: 0)
-                    figures(alignment: .trailing)
-                }
+            HStack(spacing: MonacoTheme.Space.sm) {
+                rankText
+                CallBoardAvatar(row: card.me, size: CallBoardDockedMetrics.avatar)
+                nameBlock
+                Spacer(minLength: 0)
+                figures()
             }
-            Capsule().fill(MonacoTheme.border).frame(height: CallBoardDockedMetrics.barHeight)
-                .overlay(alignment: .leading) {
-                    GeometryReader { proxy in
-                        Capsule().fill(MonacoTheme.profit).frame(width: proxy.size.width * card.climb)
-                    }
-                }
+            CallBoardClimbBar(fraction: card.climb)
             if let gap = card.gapLine {
                 Text(gap).font(MonacoTheme.Typo.subhead).foregroundStyle(MonacoTheme.secondaryText)
                     .accessibilityIdentifier("leaderboard-docked-gap")

@@ -1,19 +1,19 @@
 journey: cabals/info-and-members
 expect-fail: S1
 
-The member list calls the creator Owner. S1.4 expects the creator's row to read Admin, so S1 must fail.
+The member list calls the creator owner. S1.2 expects the creator's row to read admin, so S1 must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/packages/mobile-core/Sources/MonacoCore/Cabals/CabalMemberCopy.swift b/packages/mobile-core/Sources/MonacoCore/Cabals/CabalMemberCopy.swift
-index e09c03dfa..2e82b779f 100644
+index b44eba238..d96985539 100644
 --- a/packages/mobile-core/Sources/MonacoCore/Cabals/CabalMemberCopy.swift
 +++ b/packages/mobile-core/Sources/MonacoCore/Cabals/CabalMemberCopy.swift
-@@ -16,7 +16,7 @@ public enum CabalMemberGroup: Equatable, Sendable {
+@@ -62,7 +62,7 @@ public enum CabalMemberCopy {
  
-     public var word: String {
-         switch self {
--        case .admin: "Admin"
-+        case .admin: "Owner"
-         case .voter: "Voter"
-         case .member: "Member"
+     public static func tabLine(_ row: Components.Schemas.CabalMemberRow) -> String {
+         switch CabalMemberGroup(row) {
+-        case .admin: "\(tabRecord(row.month)) \u{00B7} admin"
++        case .admin: "\(tabRecord(row.month)) \u{00B7} owner"
+         case .voter: tabRecord(row.month)
+         case .member: holdsAShare
          }

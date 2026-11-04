@@ -2,7 +2,7 @@ import XCTest
 
 enum MoneyWithdrawJourney {
     static let id = "money/withdraw"
-    static let version = 7
+    static let version = 8
 
     static let screenTimeout: TimeInterval = 15
     static let badAddress = "not a solana address"
@@ -46,7 +46,10 @@ enum MoneyWithdrawJourney {
     }
 
     static func replaceAddress(_ app: XCUIApplication, with text: String, clearing old: String = "") {
+        let ending = app.element("withdraw-address-ending")
+        if ending.exists { ending.tap() }
         let field = app.element("withdraw-address-field")
+        XCTAssertTrue(field.waitForExistence(timeout: 5), "no editable address field")
         field.tap()
         if !old.isEmpty {
             field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: old.count))
@@ -62,11 +65,21 @@ enum MoneyWithdrawJourney {
     }
 
     static func withdrawAll(_ app: XCUIApplication, to address: String, recorder: JourneyRecorder) {
-        withdraw(app, to: address, recorder: recorder, checksBadAddress: false)
+        withdraw(app, to: address, recorder: recorder, checksBadAddress: false, reopensAddress: false)
+    }
+
+    static func expectFeeLine(_ app: XCUIApplication, step: String) {
+        let line = app.element("amount-keypad-line")
+        XCTAssertTrue(
+            JoinJourney.waitForLabel(line, containing: " fee · arrives in about ", timeout: screenTimeout),
+            "\(step): the line does not read … fee · arrives in about …: \(line.label)")
+        XCTAssertFalse(line.label.contains("≈"), "\(step): the line carries ≈: \(line.label)")
+        XCTAssertFalse(line.label.contains("USDC"), "\(step): the line names USDC: \(line.label)")
     }
 
     static func withdraw(
-        _ app: XCUIApplication, to address: String, recorder: JourneyRecorder, checksBadAddress: Bool
+        _ app: XCUIApplication, to address: String, recorder: JourneyRecorder, checksBadAddress: Bool,
+        reopensAddress: Bool = true
     ) {
         let problem = app.element("withdraw-address-problem")
 
@@ -79,6 +92,9 @@ enum MoneyWithdrawJourney {
             XCTAssertTrue(app.buttons["withdraw-scan"].exists, "S1.1: no scan")
             XCTAssertTrue(
                 app.buttons["withdraw-network-solana"].isSelected, "S1.1: the Solana chip is not selected")
+            XCTAssertTrue(app.buttons["withdraw-network-base"].exists, "S1.1: no Base chip")
+            let chips = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'withdraw-network-'"))
+            XCTAssertEqual(chips.count, 2, "S1.1: the network chips are not just Solana and Base: \(chips.count)")
         }
 
         if checksBadAddress {
@@ -93,13 +109,33 @@ enum MoneyWithdrawJourney {
             replaceAddress(app, with: address, clearing: checksBadAddress ? badAddress : "")
             XCTAssertTrue(problem.waitForNonExistence(timeout: 5), "S1.3: the address error stayed for \(address)")
             tapMax(app, step: "S1.3")
-            let line = app.element("amount-keypad-line")
+            let ending = app.element("withdraw-address-ending")
+            let expected = "Address ending " + String(address.suffix(4))
             XCTAssertTrue(
-                JoinJourney.waitForLabel(line, containing: "USDC", timeout: screenTimeout),
-                "S1.3: the line does not read … USDC · fee $…: \(line.label)")
-            XCTAssertFalse(line.label.contains("≈"), "S1.3: a Solana line carries ≈: \(line.label)")
+                JoinJourney.waitForLabel(ending, containing: expected, timeout: 5),
+                "S1.3: the address row does not read \(expected): \(ending.label)")
+            XCTAssertFalse(
+                app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", address)).count > 0,
+                "S1.3: the full address is on screen")
+            expectFeeLine(app, step: "S1.3")
             XCTAssertNotEqual(
                 app.element("amount-keypad-amount").value as? String, "$0", "S1.3: Max left the amount at $0")
+        }
+
+        if reopensAddress {
+            recorder.step("S1.5", "the address row opens the full address") {
+                let ending = app.element("withdraw-address-ending")
+                XCTAssertTrue(ending.waitForExistence(timeout: 5), "S1.5: no address row")
+                ending.tap()
+                let field = app.element("withdraw-address-field")
+                XCTAssertTrue(field.waitForExistence(timeout: 5), "S1.5: the row did not open the address field")
+                XCTAssertEqual(field.value as? String, address, "S1.5: the field does not hold the full address")
+                XCTAssertFalse(problem.exists, "S1.5: an address error shows for \(address)")
+                app.dismissKeyboard()
+                XCTAssertTrue(
+                    JoinJourney.waitForLabel(ending, containing: "Address ending ", timeout: 5),
+                    "S1.5: the row does not read Address ending … again")
+            }
         }
 
         recorder.step("S1.4", "Withdraw sends and settles") {
@@ -129,12 +165,11 @@ enum MoneyWithdrawJourney {
             let base = app.buttons["withdraw-network-base"]
             XCTAssertTrue(base.waitForExistence(timeout: 5), "S2.1: no Base chip")
             base.tap()
-            XCTAssertTrue(
-                JoinJourney.waitForLabel(app.element("amount-keypad-line"), containing: "on Base", timeout: 5),
-                "S2.1: the line does not name Base: \(app.element("amount-keypad-line").label)")
+            XCTAssertTrue(base.isSelected, "S2.1: the Base chip is not selected")
             XCTAssertEqual(
                 app.element("withdraw-address-field").placeholderValue, "USDC address on Base",
                 "S2.1: the placeholder does not name Base")
+            expectFeeLine(app, step: "S2.1")
         }
 
         recorder.step("S2.2", "an address that isn't Base is refused inline") {
@@ -152,11 +187,11 @@ enum MoneyWithdrawJourney {
             XCTAssertTrue(
                 problem.waitForNonExistence(timeout: 5), "S2.3: the address error stayed for \(baseAddress)")
             tapMax(app, step: "S2.3")
-            let line = app.element("amount-keypad-line")
+            let ending = app.element("withdraw-address-ending")
             XCTAssertTrue(
-                JoinJourney.waitForLabel(line, containing: "USDC", timeout: screenTimeout),
-                "S2.3: the line does not read ≈ … USDC · fee $…: \(line.label)")
-            XCTAssertTrue(line.label.contains("fee"), "S2.3: the line has no fee: \(line.label)")
+                JoinJourney.waitForLabel(ending, containing: "Address ending dEaD", timeout: 5),
+                "S2.3: the address row does not read Address ending dEaD: \(ending.label)")
+            expectFeeLine(app, step: "S2.3")
             XCTAssertTrue(app.buttons["amount-keypad-action"].exists, "S2.3: no Withdraw button")
             JoinJourney.snap(app, "S2-B-base-keypad")
         }

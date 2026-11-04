@@ -1,7 +1,7 @@
 ---
 id: cabals/info-and-members
 title: Members and voters on the cabal page
-version: 3
+version: 4
 milestone: UI v3
 requires: [auth/sign-in]
 actors: [A]
@@ -32,7 +32,7 @@ Starts signed in (auth/sign-in).
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
 | S1.1 | A | `openCabal(named:)` | the Cabals tab and the tile for the cabal | `QA info {QA.run}` | `cabal-header-name` reads `QA info {QA.run}` within 15 s |
-| S1.2 | A | `openCabalTab("Members")` | `cabal-tab-members`, then `cabal-members` | | Within 10 s, the tab label reads "Members 2"; `cabal-member-<A id>` reads "Admin" and "you"; `cabal-member-<B id>` names B and reads the empty record "No votes this month"; `cabal-members-footer` ends "Make a member a voter by proposal." |
+| S1.2 | A | `openCabalTab("Members")` | `cabal-tab-members`, then `cabal-members` | | Within 10 s, the tab label reads "Members 2"; `cabal-member-<A id>` reads "admin" and "you"; `cabal-member-<B id>` names B and reads "Holds a share"; `cabal-members-footer` ends "Anyone can become a voter by proposal." |
 | S1.3 | A | tap, then back | `cabal-members-see-all` | | The screen titled "Members" (Members all) shows `members-list` within 15 s, and back returns to the cabal page |
 
 ### S2 Make B a voter by proposal

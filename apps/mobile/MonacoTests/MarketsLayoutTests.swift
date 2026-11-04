@@ -32,4 +32,21 @@ struct MarketsLayoutTests {
         #expect(!searching)
         #expect(!focused)
     }
+
+    @Test func aPreIpoTileShowsTheFirstWordOfTheName() {
+        #expect(StockMark.tileText(symbol: "SPACEX", displayName: "SpaceX Holdings", assetKind: .preIpo) == "SpaceX")
+        #expect(StockMark.tileText(symbol: "OPENAI", displayName: "OpenAI", assetKind: .preIpo) == "OpenAI")
+    }
+
+    @Test func aPreIpoTileWithoutANameFallsBackToTheTicker() {
+        let symbol = "ANTHROPIC"
+        let expected = StockMark.tileText(forTicker: AssetSymbolFormatter.display(symbol, kind: .preIpo))
+        #expect(StockMark.tileText(symbol: symbol, displayName: nil, assetKind: .preIpo) == expected)
+        #expect(StockMark.tileText(symbol: symbol, displayName: "  ", assetKind: .preIpo) == expected)
+    }
+
+    @Test func aStockTileKeepsItsTickerWhateverItsName() {
+        #expect(StockMark.tileText(symbol: "MU", displayName: "Micron Technology", assetKind: .stock) == "MU")
+        #expect(StockMark.tileText(symbol: "SMCI", displayName: "Super Micro Computer", assetKind: .stock) == "SMCI")
+    }
 }

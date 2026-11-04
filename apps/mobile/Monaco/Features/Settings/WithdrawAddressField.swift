@@ -72,7 +72,7 @@ struct WithdrawAddressField: View {
             .buttonStyle(.plain)
             .disabled(!isEnabled)
             .accessibilityLabel("\(line), edit")
-            .accessibilityIdentifier("withdraw-address-resting")
+            .accessibilityIdentifier("withdraw-address-ending")
             actions
         }
         .padding(.leading, MonacoTheme.Space.m)

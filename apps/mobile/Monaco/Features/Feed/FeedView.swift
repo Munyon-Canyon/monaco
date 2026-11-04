@@ -223,8 +223,11 @@ private struct FeedScreen: View {
 
     private func row(_ item: Components.Schemas.FeedItem, now: Date, style: FeedPostStyle) -> some View {
         VStack(spacing: 0) {
-            FeedPost(item: item, now: now, style: style) { PostReactionsSlot(item: item, model: model) }
-                .padding(.horizontal, MonacoTheme.Space.gutter)
+            FeedPost(
+                item: item, now: now, style: style,
+                voteCard: style == .standard ? model.voteCard(for: item) : nil
+            ) { PostReactionsSlot(item: item, model: model) }
+            .padding(.horizontal, MonacoTheme.Space.gutter)
             MonacoRule(color: MonacoTheme.hairline)
                 .padding(.leading, FeedPostMetrics.textColumn)
         }

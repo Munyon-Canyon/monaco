@@ -30,6 +30,7 @@ struct LeaderboardView: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(\.dismiss) private var dismiss
     @Environment(ToastCenter.self) private var toasts
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var model: CallBoardModel?
     @State private var viewerRowVisible = true
     @State private var showsInfo = false
@@ -115,6 +116,7 @@ struct LeaderboardView: View {
         .refreshable { await model.load() }
         .safeAreaInset(edge: .bottom) {
             if case .loaded(let screen) = model.state, screen.showsDocked(viewerRowVisible: viewerRowVisible),
+                !dynamicTypeSize.isAccessibilitySize,
                 let card = screen.card
             {
                 CallBoardDocked(card: card) { share(card) }

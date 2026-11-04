@@ -1,3 +1,5 @@
+import Foundation
+
 public enum MarketsInfoCopy {
     public static let preIpoTitle = "Pre-IPO"
 
@@ -10,6 +12,39 @@ public enum PreIpoRowCopy {
 
     public static func estimateLine(asOf: String) -> String {
         "Secondary estimate · \(day(asOf))"
+    }
+
+    private static let monthNames = [
+        "January", "February", "March", "April", "May", "June",
+        "July", "August", "September", "October", "November", "December",
+    ]
+
+    public static func roundLine(
+        valuationMicros: String?, lastRoundOn: String?, estimateAsOf: String?, ticker: String, today: Date
+    ) -> String {
+        guard let valuationMicros, let amount = AssetStats.abbreviated(valuationMicros) else {
+            return estimateAsOf.map(estimateLine(asOf:)) ?? ticker
+        }
+        let valued = "Valued at \(amount)"
+        guard let lastRoundOn, let round = roundMonth(lastRoundOn) else { return valued }
+        let name = monthNames[round.month - 1]
+        return roundIsStale(round, today: today) ? "\(valued) in \(name) \(round.year)" : "\(valued) in \(name)"
+    }
+
+    private static func roundMonth(_ iso: String) -> (year: Int, month: Int)? {
+        let parts = iso.split(separator: "-")
+        guard parts.count == 3, let year = Int(parts[0]), let month = Int(parts[1]), (1...12).contains(month) else {
+            return nil
+        }
+        return (year, month)
+    }
+
+    private static func roundIsStale(_ round: (year: Int, month: Int), today: Date) -> Bool {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "UTC") ?? .gmt
+        let now = calendar.dateComponents([.year, .month], from: today)
+        guard let year = now.year, let month = now.month else { return false }
+        return (year * 12 + month) - (round.year * 12 + round.month) > 11
     }
 
     public static func eligibility(tradable: Bool) -> String {

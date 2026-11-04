@@ -9,6 +9,7 @@ struct CatchUpView: View {
     private let opensDeckAt: CatchUpDeckStart?
     private let now: @Sendable () -> Date
 
+    @Environment(\.dismiss) private var dismiss
     @Environment(AppEnvironment.self) private var environment
     @Environment(ToastCenter.self) private var toasts
     @Environment(ScreenRefresh.self) private var refresh: ScreenRefresh?
@@ -27,6 +28,7 @@ struct CatchUpView: View {
             .monacoCanvas()
             .navigationTitle(CatchUpCopy.title)
             .navigationBarTitleDisplayMode(.large)
+            .navigationBarBackButtonHidden()
             .toolbar(.hidden, for: .tabBar)
             .toolbar { oneByOne }
             .fullScreenCover(item: $deckStart) { start in deck(start) }
@@ -36,6 +38,12 @@ struct CatchUpView: View {
     }
 
     @ToolbarContentBuilder private var oneByOne: some ToolbarContent {
+        ToolbarItem(placement: .topBarLeading) {
+            MonacoGlassButton(
+                systemImage: "chevron.left", accessibilityLabel: "Back", style: .quiet, placement: .toolbar
+            ) { dismiss() }
+            .accessibilityIdentifier("BackButton")
+        }
         if case .loaded(let screen) = model?.state, !screen.isCaughtUp {
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
@@ -46,7 +54,10 @@ struct CatchUpView: View {
                             .accessibilityHidden(true)
                         Text(CatchUpCopy.oneByOne)
                     }
-                    .frame(minHeight: MonacoButtonMetrics.hitTarget)
+                    .font(MonacoTheme.Typo.subheadStrong)
+                    .foregroundStyle(MonacoTheme.primaryText)
+                    .modifier(OneByOnePill())
+                    .frame(minWidth: MonacoButtonMetrics.hitTarget, minHeight: MonacoButtonMetrics.hitTarget)
                     .contentShape(Rectangle())
                 }
                 .accessibilityLabel(CatchUpCopy.oneByOne)
@@ -92,7 +103,7 @@ struct CatchUpView: View {
         if screen.isCaughtUp {
             CatchUpCaughtUp(screen: screen, openFeed: openFeed).catchUpListRow()
         } else {
-            Text(CatchUpCopy.subLine(count: screen.count))
+            Text(CatchUpCopy.subLine(count: screen.count, hasVotes: !screen.waiting.isEmpty))
                 .font(MonacoTheme.Typo.subhead)
                 .foregroundStyle(MonacoTheme.muted)
                 .padding(.horizontal, MonacoTheme.Space.gutter)
@@ -190,5 +201,29 @@ struct CatchUpView: View {
         let created = CatchUpModel(api: environment.api, hints: environment.hints, clock: now)
         model = created
         return created
+    }
+}
+
+private struct OneByOnePill: ViewModifier {
+    @MonacoReduceTransparency private var reduceTransparency
+    @Environment(\.displayScale) private var displayScale
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if reduceTransparency {
+            outlined(content, fill: MonacoTheme.surface)
+        } else if #available(iOS 26, *) {
+            content
+        } else {
+            outlined(content, fill: Material.regularMaterial)
+        }
+    }
+
+    private func outlined<S: ShapeStyle>(_ content: Content, fill: S) -> some View {
+        content
+            .padding(.horizontal, MonacoTheme.Space.sm)
+            .padding(.vertical, MonacoTheme.Space.xs)
+            .background(Capsule().fill(fill))
+            .overlay(Capsule().strokeBorder(MonacoTheme.hairline, lineWidth: 1 / displayScale))
     }
 }

@@ -103,7 +103,7 @@ struct CatchUpRow: View {
             } label: {
                 Label(CatchUpCopy.clearAction, systemImage: "checkmark")
             }
-            .tint(MonacoTheme.tint)
+            .tint(MonacoTheme.brandFill)
         }
         .accessibilityAction(named: CatchUpCopy.clearAction) { actions.clear(item) }
     }
@@ -128,7 +128,7 @@ struct CatchUpRow: View {
         if let quote = CatchUpCopy.quote(item) {
             HStack(spacing: MonacoTheme.Space.s) {
                 Image(monaco: .replyArrow)
-                    .foregroundStyle(MonacoTheme.brand)
+                    .foregroundStyle(MonacoTheme.secondaryText)
                     .accessibilityHidden(true)
                 (Text(quote.author).font(MonacoTheme.Typo.subheadStrong).foregroundStyle(MonacoTheme.primaryText)
                     + Text(" ")
@@ -143,37 +143,28 @@ struct CatchUpRow: View {
                 Rectangle().fill(MonacoTheme.hairline).frame(width: 2)
             }
         } else if item.kind == .waitingVote, let proposal = item.proposal {
-            let tally = CatchUpCopy.tally(proposal)
-            HStack(spacing: MonacoTheme.Space.xs) {
-                Image(systemName: "checkmark").foregroundStyle(MonacoTheme.tint)
-                Text(tally.yes)
-                Text("\u{00B7}").foregroundStyle(MonacoTheme.secondaryText).padding(.horizontal, MonacoTheme.Space.xs)
-                Image(systemName: "xmark").foregroundStyle(MonacoTheme.loss)
-                Text(tally.no)
-            }
-            .font(MonacoTheme.Typo.caption)
-            .foregroundStyle(MonacoTheme.bodyText)
+            CabalLiveCount(yes: proposal.yes, no: proposal.no)
         }
     }
 
-    @ViewBuilder private var leading: some View {
-        let cabal = item.cabal
+    private var leading: some View {
         ZStack(alignment: .bottomTrailing) {
-            if item.kind == .waitingVote || item.kind == .result {
-                MonacoAvatar(
-                    photoURL: item.proposal?.assetLogoUrl, displayName: item.proposal.map(CatchUpCopy.symbol) ?? "",
-                    size: RankedRowMetrics.avatarSize, seed: item.proposal?.id)
-            } else {
-                MonacoAvatar(
-                    photoURL: item.actor?.photoUrl, displayName: CatchUpCopy.personName(item),
-                    size: RankedRowMetrics.avatarSize, seed: item.actor?.id)
-            }
-            if let cabal {
+            face
+            if let cabal = CatchUpCopy.badge(item) {
                 CabalMark(groupId: cabal.id, name: cabal.name, size: .inline, pictureUrl: cabal.pictureUrl)
                     .offset(x: MonacoTheme.Space.xs, y: MonacoTheme.Space.xs)
             }
         }
         .accessibilityHidden(true)
+    }
+
+    @ViewBuilder private var face: some View {
+        switch CatchUpCopy.leading(item) {
+        case .person(let id, let name, let photoURL):
+            MonacoAvatar(photoURL: photoURL, displayName: name, size: RankedRowMetrics.avatarSize, seed: id)
+        case .asset(let symbol, let logoURL, let seed):
+            MonacoAvatar(photoURL: logoURL, displayName: symbol, size: RankedRowMetrics.avatarSize, seed: seed)
+        }
     }
 
     @ViewBuilder private func trailing(_ actions: CatchUpRowActions) -> some View {

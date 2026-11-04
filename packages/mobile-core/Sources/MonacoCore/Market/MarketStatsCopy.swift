@@ -27,12 +27,10 @@ public enum MarketStatsCopy {
     public static let delayLabel = "Delay"
     public static let noSource = "—"
     public static let notPriced = "Not priced yet"
-    static let continuousTail = "It trades 24/7."
+    public static let continuousMessage =
+        "Monaco prices trade around the clock, so they can differ a little from the stock market's."
 
-    public static func message(_ facts: MarketStatsFacts) -> String {
-        let chains = joined(facts.listingNetworks.map(BestPrice.chainName))
-        return "Prices are for the tokenized stock on \(chains), not the exchange listing. \(continuousTail)"
-    }
+    public static func message(_ facts: MarketStatsFacts) -> String { continuousMessage }
 
     public static func rows(_ facts: MarketStatsFacts, now: Date, calendar: Calendar = .autoupdatingCurrent) -> [Row] {
         [
@@ -77,14 +75,9 @@ public enum MarketStatsCopy {
         return "up to \(seconds) s"
     }
 
-    private static func joined(_ names: [String]) -> String {
-        guard let last = names.last, names.count > 1 else { return names.first ?? "" }
-        return names.dropLast().joined(separator: ", ") + " and " + last
-    }
-
     public static let auditedStrings: [String] = [
         title, estimateTitle, estimateMessage, sourceLabel, updatedLabel, delayLabel, noSource, notPriced,
-        "Prices are for the tokenized stock on Solana, not the exchange listing. It trades 24/7.",
+        continuousMessage,
         "Jupiter", "CoinGecko", "up to 1 min", "up to 2 min", "up to 30 s",
     ]
 }

@@ -7,6 +7,7 @@ import SwiftUI
 
 enum LeaderboardSampleScenario: String, CaseIterable {
     case peopleMonth
+    case peopleLong
     case leadChange
     case cabalsMonth
     case cabalsUnranked
@@ -31,6 +32,7 @@ enum LeaderboardSampleScenario: String, CaseIterable {
     var state: LoadState<CallBoardScreen> {
         switch self {
         case .peopleMonth: .loaded(CallBoardScreen(.peopleMonth))
+        case .peopleLong: .loaded(CallBoardScreen(.peopleMonthLong))
         case .leadChange: .loaded(CallBoardScreen(.peopleMonthLeadChange))
         case .cabalsMonth: .loaded(CallBoardScreen(.cabalsMonth))
         case .cabalsUnranked: .loaded(CallBoardScreen(.cabalsUnranked))

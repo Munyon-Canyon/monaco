@@ -1,0 +1,18 @@
+journey: profile/user-profile
+expect-fail: S1
+
+The card's second figure reads "Right calls · 1M" again. S1.3 needs "Right this month", so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/packages/mobile-core/Sources/MonacoCore/Profile/ProfileCopy.swift b/packages/mobile-core/Sources/MonacoCore/Profile/ProfileCopy.swift
+--- a/packages/mobile-core/Sources/MonacoCore/Profile/ProfileCopy.swift
++++ b/packages/mobile-core/Sources/MonacoCore/Profile/ProfileCopy.swift
+@@ -23,7 +23,7 @@
+ public enum ProfileCopy {
+     public static let positionsLabel = "Positions"
+     public static let monthLabel = "This month"
+-    public static let rightMonthLabel = "Right this month"
++    public static let rightMonthLabel = "Right calls · 1M"
+     public static let pnlLabel = monthLabel
+     public static let positionsInfoTitle = "Positions"
+     public static let positionsInfo = "Only you see your positions and cash. Others see your P&L as a percent."

@@ -28,6 +28,7 @@ func (ChatMessagePosted) AggregateType() string { return "chat_message" }
 func (e ChatMessagePosted) AggregateID() uuid.UUID { return e.MessageID }
 
 const (
+	TypeChatPollVoted       Type = "chat.poll_voted"
 	TypeChatReactionAdded   Type = "chat.reaction_added"
 	TypeChatReactionRemoved Type = "chat.reaction_removed"
 )
@@ -61,3 +62,17 @@ func (ChatReactionRemoved) Type() Type { return TypeChatReactionRemoved }
 func (ChatReactionRemoved) AggregateType() string { return "chat_message" }
 
 func (e ChatReactionRemoved) AggregateID() uuid.UUID { return e.MessageID }
+
+type ChatPollVoted struct {
+	V         int       `json:"v"`
+	MessageID uuid.UUID `json:"message_id"`
+	CabalID   uuid.UUID `json:"cabal_id"`
+	UserID    uuid.UUID `json:"user_id"    pii:"true"`
+	Position  int       `json:"position"`
+}
+
+func (ChatPollVoted) Type() Type { return TypeChatPollVoted }
+
+func (ChatPollVoted) AggregateType() string { return "chat_message" }
+
+func (e ChatPollVoted) AggregateID() uuid.UUID { return e.MessageID }

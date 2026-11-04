@@ -15,6 +15,7 @@ struct VoteCard<Actions: View>: View {
     let eligible: Int
     let identifierPrefix: String
     let identifierSuffix: String?
+    var showsChevron = true
     let onOpen: () -> Void
     @ViewBuilder let actions: () -> Actions
 
@@ -51,9 +52,11 @@ struct VoteCard<Actions: View>: View {
                     lineView
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                Image(monaco: .chevron)
-                    .foregroundStyle(MonacoTheme.secondaryText)
-                    .accessibilityHidden(true)
+                if showsChevron {
+                    Image(monaco: .chevron)
+                        .foregroundStyle(MonacoTheme.secondaryText)
+                        .accessibilityHidden(true)
+                }
             }
             .frame(minHeight: MonacoButtonMetrics.hitTarget)
             .contentShape(Rectangle())

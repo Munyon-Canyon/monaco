@@ -108,12 +108,41 @@ struct UserProfileContentData: Equatable {
     var followers: Int
     var following: Int
     var cabals: Int?
-    var inCommon = 0
+    var shared: UserProfileSharedData?
     var isViewer = false
     var followedByMe = false
     var blockedByMe = false
     var isBusy = false
     var performanceHidden = false
+}
+
+struct UserProfileSharedData: Equatable {
+    struct Mark: Equatable, Identifiable {
+        var id: String
+        var name: String
+        var pictureURL: String?
+    }
+
+    var marks: [Mark]
+    var text: String
+
+    init(marks: [Mark], text: String) {
+        self.marks = marks
+        self.text = text
+    }
+
+    init(_ line: SharedCabalsLine) {
+        self.init(marks: line.marks.map { Mark(id: $0.id, name: $0.name, pictureURL: $0.pictureURL) }, text: line.text)
+    }
+
+    var accessibilityLabel: String {
+        if text.hasPrefix("Both in ") { return "You are b" + text.dropFirst() }
+        return "You are both in " + text.dropFirst("In ".count)
+    }
+}
+
+enum UserProfileSharedMetrics {
+    static let mark: CGFloat = 20
 }
 
 struct UserProfileActions {
@@ -129,6 +158,7 @@ private struct UserProfileLoaded: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(ToastCenter.self) private var toasts
     @Environment(UserProfileModel.self) private var model: UserProfileModel?
+    @Environment(UserCabalsModel.self) private var cabals: UserCabalsModel?
 
     var body: some View {
         UserProfileContent(data: data, actions: actions)
@@ -142,7 +172,7 @@ private struct UserProfileLoaded: View {
             photoURL: model?.photoURL, crown: model?.crown ?? false, handleLine: model?.handleLine ?? "",
             bio: model?.bio, pnl: model?.pnlFigure ?? "\u{2014}", rightCalls: model?.rightCallsFigure ?? "\u{2014}",
             followers: model?.followerCount ?? 0, following: model?.followingCount ?? 0,
-            cabals: model?.cabalCount, inCommon: model?.inCommon ?? 0, isViewer: isViewer,
+            cabals: model?.cabalCount, shared: cabals?.sharedLine.map(UserProfileSharedData.init), isViewer: isViewer,
             followedByMe: model?.followedByMe ?? false, blockedByMe: model?.blockedByMe ?? false,
             isBusy: model?.isToggling(userID) ?? false, performanceHidden: model?.performance == .hidden)
     }
@@ -169,7 +199,12 @@ struct UserProfileContent: View {
         VStack(spacing: MonacoTheme.Space.m) {
             UserProfileCard(data: data)
                 .padding(.horizontal, MonacoTheme.Space.gutter)
-            UserProfileCounts(data: data)
+            VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
+                UserProfileCounts(data: data)
+                if let shared = data.shared {
+                    UserProfileSharedLine(shared: shared)
+                }
+            }
             action
             extras
         }
@@ -242,9 +277,9 @@ private struct UserProfileCard: View {
                         ? AnyLayout(VStackLayout(alignment: .leading, spacing: MonacoTheme.Space.sm))
                         : AnyLayout(HStackLayout(alignment: .top, spacing: MonacoTheme.Space.sm))
                     statsLayout {
-                        figure("P&L \u{00B7} 1M", data.pnl, tint: Self.tint(data.pnl), id: "user-profile-pnl")
+                        figure(ProfileCopy.monthLabel, data.pnl, tint: Self.tint(data.pnl), id: "user-profile-pnl")
                         figure(
-                            "Right calls \u{00B7} 1M", data.rightCalls, tint: MonacoTheme.primaryText,
+                            ProfileCopy.rightMonthLabel, data.rightCalls, tint: MonacoTheme.primaryText,
                             id: "user-profile-right-calls")
                     }
                 }
@@ -336,24 +371,14 @@ private struct UserProfileCounts: View {
         if dynamicTypeSize.isAccessibilitySize {
             VStack(alignment: .leading, spacing: 0) {
                 counts(separated: false)
-                inCommon
             }
         } else {
             ViewThatFits(in: .horizontal) {
                 HStack(spacing: 0) {
                     counts(separated: true)
-                    if data.inCommon > 0 {
-                        separator
-                        inCommon
-                    }
-                }
-                VStack(alignment: .leading, spacing: 0) {
-                    HStack(spacing: 0) { counts(separated: true) }
-                    inCommon
                 }
                 VStack(alignment: .leading, spacing: 0) {
                     counts(separated: false)
-                    inCommon
                 }
             }
         }
@@ -369,17 +394,6 @@ private struct UserProfileCounts: View {
             if separated { separator }
             item(FollowCountFormatter.count(cabals), cabals == 1 ? "cabal" : "cabals")
                 .accessibilityIdentifier("user-profile-stat-cabals")
-        }
-    }
-
-    @ViewBuilder private var inCommon: some View {
-        if data.inCommon > 0 {
-            Text("\(data.inCommon) in common")
-                .font(MonacoTheme.Typo.caption)
-                .foregroundStyle(MonacoTheme.muted)
-                .fixedSize(horizontal: false, vertical: true)
-                .frame(minHeight: ProfileStandingMetrics.line, alignment: .leading)
-                .accessibilityIdentifier("user-profile-in-common")
         }
     }
 
@@ -411,5 +425,36 @@ private struct UserProfileCounts: View {
         .frame(minHeight: ProfileStandingMetrics.line)
         .contentShape(Rectangle().inset(by: -ProfileStandingMetrics.tapOutset))
         .accessibilityElement(children: .combine)
+    }
+}
+
+private struct UserProfileSharedLine: View {
+    let shared: UserProfileSharedData
+
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    var body: some View {
+        let layout =
+            dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: MonacoTheme.Space.s))
+            : AnyLayout(HStackLayout(alignment: .center, spacing: MonacoTheme.Space.s))
+        layout {
+            HStack(spacing: MonacoTheme.Space.xs) {
+                ForEach(shared.marks) { mark in
+                    CabalMark(
+                        groupId: mark.id, name: mark.name, size: UserProfileSharedMetrics.mark,
+                        pictureUrl: mark.pictureURL)
+                }
+            }
+            Text(shared.text)
+                .font(MonacoTheme.Typo.subhead)
+                .foregroundStyle(MonacoTheme.secondaryText)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, MonacoTheme.Space.gutter)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(shared.accessibilityLabel)
+        .accessibilityIdentifier("user-profile-shared-line")
     }
 }

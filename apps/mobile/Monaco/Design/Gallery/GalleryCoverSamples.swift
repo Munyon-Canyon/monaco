@@ -3,7 +3,8 @@ import SwiftUI
 
 struct GalleryCoverSamples: View {
     private let styles: [(name: String, style: CabalCover<AnyView>.Style, height: CGFloat?, minimum: CGFloat)] = [
-        ("hero", .hero, nil, 104), ("heroTall", .heroTall, nil, 104), ("card", .card, 110, 150),
+        ("hero", .hero, nil, 104), ("heroTall", .heroTall, nil, 104), ("heroInset", .heroInset, nil, 104),
+        ("card", .card, 110, 150),
         ("memberCard", .memberCard, 124, 150),
     ]
 
