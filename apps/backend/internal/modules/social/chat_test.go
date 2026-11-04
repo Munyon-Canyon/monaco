@@ -134,7 +134,14 @@ func TestPostChatMessage_storesTheMessageAndAppendsAnIDsOnlyEvent(t *testing.T) 
 	t.Parallel()
 	f := newChatFixture(t)
 	got := f.mustSend(t, f.member(0), "  gm frens  ", nil)
-	want := app.ChatMessage{ID: got.ID, CabalID: f.cabal.ID, AuthorID: f.member(0), Body: "gm frens", CreatedAt: f.now}
+	want := app.ChatMessage{
+		ID:        got.ID,
+		Kind:      domain.ChatKindUser,
+		CabalID:   f.cabal.ID,
+		AuthorID:  f.member(0),
+		Body:      "gm frens",
+		CreatedAt: f.now,
+	}
 	if got != want {
 		t.Fatalf("posted = %+v, want %+v", got, want)
 	}

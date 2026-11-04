@@ -30,7 +30,10 @@ CabalChat, which extends today's `group_messages`:
 cabal_messages                  (CabalChat)
   id               uuid         UUIDv7
   cabal_id         uuid         -> cabals
-  author_id        uuid         -> users
+  author_id        uuid?        -> users; null on a system row
+  kind             text         user | proposal | system; default user
+  moment           jsonb?       the payload of a system row
+  dedupe_key       text?        unique per cabal; makes a re-delivered moment write once
   body             text?        null on a message that is only an attachment
   created_at       timestamptz
   parent_id        uuid?        -> cabal_messages.id; null for a top-level message
@@ -204,6 +207,17 @@ A poll asks the cabal something that is not a trade (flow 22c). It mirrors the r
 - **Wire.** A poll message's `attachment` is the `PollAttachment`, viewer-relative: each option has its `count`, and `my_position` is the caller's. A page of messages loads its options and counts with one query (`ListChatPolls`). Who voted for what is never returned.
 - **Realtime.** After the commit a vote or a retraction that changed a row publishes `poll.updated` on `cabal:<id>` with `{message_id, options: [{position, votes}], total_votes}`. It has no `mine` because the channel is shared. A failed publish is logged as degraded and does not fail the request.
 - **Leaving.** The `social_chat_seen_cleanup` durable also deletes the leaver's poll votes in that cabal on `cabal.member_left`, so a left member's votes stop counting.
+
+### Moments
+
+A moment is the cabal speaking in its own chat: "Big Ballers was created", "Kai joined", "Bought NVDA at $196.75". It is a `cabal_messages` row with `kind = 'system'`, no author, no body and a `moment` payload (flow 22d). `kind` is `user` (the default, so every earlier row reads as `user`), `proposal` (reserved for the proposal card rows of a later ticket) or `system`. A check constraint fixes the shape of each kind: a `system` row has a null `author_id`, a null `body`, a `moment` and no `parent_id`, and the other kinds have an author and no `moment`. A `user` row with neither a body nor an attachment stays refused by the command, not the database.
+
+- **Payload.** `domain.ChatMoment` is a closed set built by constructors: `cabal_created {}`, `member_joined {user_id}` and `trade_filled {side, symbol, asset_id, price_micros, usdc_micros, filled_at, swap_id, proposal_id?}`, with `price_micros` the fill price per share in USD micros. It holds no free text. An unknown kind is `invalid_input` on write and is skipped on read, so a later build can add kinds.
+- **Write.** `WriteChatMoment{CabalID, Moment, At, DedupeKey}` is internal: no route calls it, and later tickets call it from consumers. A unique index on `(cabal_id, dedupe_key)` makes a re-delivered event write once, and the second call returns the stored row and changes nothing. The command appends no `chat.message_posted` event, so a moment sends no push, no mention and no notification. It is the one chat write that appends no event at all, which is why flow 22d lists none.
+- **Realtime.** After the commit a new row publishes `moment.created` on `cabal:<id>` with the wired message. `message.created` stays for `user` and `proposal` rows, so an older build ignores moments. A replay publishes nothing.
+- **Read.** `GET /v1/cabals/{id}/messages` and the thread route leave system rows out unless the request sets `moments=true`, so a cabal with only user messages reads as before apart from the new `kind` field. On the wire a system row has the nil UUID as `author.id`, a null handle, an empty name and a null `body`. `member_joined` carries the joined member as a `ChatAuthor` read when the page is built, so a rename shows.
+- **Unread and seen-by.** `UnreadCounts` and the seen-by queries skip `system` rows, so "Kai joined" never lights the Chat tab dot. Seen-by of a system row is `chat_message_not_found`.
+- **Moderation.** A member cannot delete or report a system row: both are `invalid_input` with `reason=system_message`. An admin removes one through the existing admin route.
 
 ## Alternatives considered
 

@@ -49,7 +49,7 @@ func (h HTTP) GetChatMessages(
 	}
 	q := app.ChatChannelQuery{
 		CabalID: ids.CabalIDFrom(req.Id), Viewer: me, Before: req.Params.Before, After: req.Params.After,
-		Limit: limitOr(req.Params.Limit),
+		Limit: limitOr(req.Params.Limit), Moments: req.Params.Moments != nil && *req.Params.Moments,
 	}
 	messages, err := app.ListChatChannel(ctx, h.Reads, h.Members, q)
 	if err != nil {
@@ -71,7 +71,7 @@ func (h HTTP) GetChatThread(
 	}
 	thread, err := app.GetChatThread(ctx, h.Reads, h.Members, app.ChatThreadQuery{
 		CabalID: ids.CabalIDFrom(req.Id), Viewer: me, ParentID: req.MessageId, Before: req.Params.Before,
-		Limit: limitOr(req.Params.Limit),
+		Limit: limitOr(req.Params.Limit), Moments: req.Params.Moments != nil && *req.Params.Moments,
 	})
 	if err != nil {
 		return nil, err
@@ -274,8 +274,10 @@ func wireChat(
 ) ([]api.ChatMessage, error) {
 	authors := make([]ids.UserID, 0, len(messages))
 	for _, m := range messages {
-		if !slices.Contains(authors, m.AuthorID) {
-			authors = append(authors, m.AuthorID)
+		for _, id := range cardsNeeded(m) {
+			if !slices.Contains(authors, id) {
+				authors = append(authors, id)
+			}
 		}
 	}
 	cards, err := users.UsersByID(ctx, authors)
@@ -290,31 +292,81 @@ func wireChatWith(
 ) []api.ChatMessage {
 	out := make([]api.ChatMessage, len(messages))
 	for i, m := range messages {
-		author := api.ChatAuthor{Id: m.AuthorID.UUID()}
-		if card, ok := cards[m.AuthorID]; ok && !card.Deleted {
-			author.Handle, author.DisplayName = optionalWireText(card.Handle), card.DisplayName
-			author.PhotoUrl = optionalWireText(card.PhotoURL)
-		}
 		out[i] = api.ChatMessage{
-			Id: m.ID, Author: author, CreatedAt: m.CreatedAt, ParentId: optionalWireID(m.ParentID),
-			AlsoInChannel: m.AlsoInChannel, ReplyCount: int(m.ReplyCount), LastReplyAt: m.LastReplyAt,
-			ProposalId: optionalWireID(m.ProposalID), Deleted: m.Deleted, SeenCount: m.SeenCount,
-			Reactions: []baseapi.Reaction{},
+			Id:            m.ID,
+			Kind:          api.ChatMessageKind(m.Kind),
+			Author:        wireChatAuthor(cards, m.AuthorID),
+			CreatedAt:     m.CreatedAt,
+			ParentId:      optionalWireID(m.ParentID),
+			AlsoInChannel: m.AlsoInChannel,
+			ReplyCount:    int(m.ReplyCount),
+			LastReplyAt:   m.LastReplyAt,
+			ProposalId:    optionalWireID(m.ProposalID),
+			Deleted:       m.Deleted,
+			SeenCount:     m.SeenCount,
+			Reactions:     []baseapi.Reaction{},
 		}
-		if !m.Deleted {
-			body := m.Body
-			if m.Attachment != nil {
-				out[i].Attachment = wireAttachment(m.Attachment, m.Stock, m.Poll)
-				if body == "" {
-					body = m.Attachment.Display().String()
-				}
-			}
-			out[i].Body = &body
+		switch {
+		case m.Kind == domain.ChatKindSystem:
+			out[i].Moment = wireMoment(cards, m.Moment)
+		case !m.Deleted:
+			out[i].Body, out[i].Attachment = wireChatBody(m)
+		}
+		if m.Kind == domain.ChatKindSystem || !m.Deleted {
 			summary := reactions[m.ID]
 			out[i].Reactions, out[i].ReactionCount = wireReactions(summary.Reactions), summary.Total
 		}
 	}
 	return out
+}
+
+func wireChatBody(m app.ChatMessage) (*string, *api.CommentAttachment) {
+	body := m.Body
+	if m.Attachment == nil {
+		return &body, nil
+	}
+	if body == "" {
+		body = m.Attachment.Display().String()
+	}
+	return &body, wireAttachment(m.Attachment, m.Stock, m.Poll)
+}
+
+func cardsNeeded(m app.ChatMessage) []ids.UserID {
+	need := []ids.UserID{m.AuthorID}
+	if m.Moment != nil && m.Moment.Kind() == domain.MomentMemberJoined {
+		need = append(need, m.Moment.Member())
+	}
+	return need
+}
+
+func wireChatAuthor(cards map[ids.UserID]app.UserCard, id ids.UserID) api.ChatAuthor {
+	author := api.ChatAuthor{Id: id.UUID()}
+	if card, ok := cards[id]; ok && !card.Deleted {
+		author.Handle, author.DisplayName = optionalWireText(card.Handle), card.DisplayName
+		author.PhotoUrl = optionalWireText(card.PhotoURL)
+	}
+	return author
+}
+
+func wireMoment(cards map[ids.UserID]app.UserCard, m *domain.ChatMoment) *api.ChatMoment {
+	var out api.ChatMoment
+	switch m.Kind() {
+	case domain.MomentCabalCreated:
+		_ = out.FromCabalCreatedMoment(api.CabalCreatedMoment{Kind: api.CabalCreated})
+	case domain.MomentMemberJoined:
+		_ = out.FromMemberJoinedMoment(api.MemberJoinedMoment{
+			Kind: api.MemberJoined, Member: wireChatAuthor(cards, m.Member()),
+		})
+	case domain.MomentTradeFilled:
+		t := m.Trade()
+		trade := api.TradeFilledMoment{
+			Kind: api.TradeFilled, Side: api.TradeFilledMomentSide(t.Side), Symbol: t.Symbol,
+			AssetId: t.AssetID, PriceMicros: t.PriceMicros, UsdcMicros: t.USDCMicros, FilledAt: t.FilledAt,
+			SwapId: t.SwapID, ProposalId: optionalWireID(t.ProposalID),
+		}
+		_ = out.FromTradeFilledMoment(trade)
+	}
+	return &out
 }
 
 func (h HTTP) CreateRealtimeToken(

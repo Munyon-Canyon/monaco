@@ -97,7 +97,8 @@ final class CabalCopyTests: XCTestCase {
 
     func testTheChatPreviewKeepsOnlyALiveMessageWithABody() {
         var message = Components.Schemas.ChatMessage(
-            id: "m-1", author: .init(id: "u-1", handle: "alex", displayName: " ", photoUrl: nil), body: "gm",
+            id: "m-1", kind: .user, author: .init(id: "u-1", handle: "alex", displayName: " ", photoUrl: nil),
+            body: "gm",
             createdAt: Date(timeIntervalSince1970: 0), alsoInChannel: false, replyCount: 0, deleted: false,
             reactions: [], reactionCount: 0)
         XCTAssertEqual(CabalChatPreviewMessage(message)?.author, "@alex")

@@ -13,7 +13,7 @@ final class ChatEventDecoderTests: XCTestCase {
     func testMessageCreatedReadsMicrosecondTimestampsFromTheBackend() throws {
         let data = Data(
             #"""
-            {"id":"m1","author":{"id":"u1","handle":null,"display_name":"Kai","photo_url":null},
+            {"id":"m1","kind":"user","author":{"id":"u1","handle":null,"display_name":"Kai","photo_url":null},
              "body":"gm","created_at":"2026-10-03T12:00:00.123456Z","parent_id":null,"also_in_channel":false,
              "reply_count":0,"last_reply_at":null,"proposal_id":null,"deleted":false,"reactions":[],"reaction_count":0}
             """#.utf8)
@@ -69,7 +69,7 @@ final class ChatEventDecoderTests: XCTestCase {
     func testAMessageWithoutReactionFieldsStillDecodesWithNoReactions() {
         let data = Data(
             #"""
-            {"id":"m1","author":{"id":"u1","handle":null,"display_name":"Kai","photo_url":null},
+            {"id":"m1","kind":"user","author":{"id":"u1","handle":null,"display_name":"Kai","photo_url":null},
              "body":"gm","created_at":"2026-10-03T12:00:00Z","parent_id":null,"also_in_channel":false,
              "reply_count":0,"last_reply_at":null,"proposal_id":null,"deleted":false}
             """#.utf8)

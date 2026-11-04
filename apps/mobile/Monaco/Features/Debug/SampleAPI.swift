@@ -717,7 +717,7 @@ nonisolated extension SampleAPIProtocol {
 
     private static var sampleChatMessage: Components.Schemas.ChatMessage {
         Components.Schemas.ChatMessage(
-            id: "sample-message",
+            id: "sample-message", kind: .user,
             author: .init(id: "sample-author", handle: "alex", displayName: "Alex", photoUrl: nil),
             body: "What\u{2019}s everyone watching this week?",
             createdAt: Date(timeIntervalSinceNow: -720), alsoInChannel: false, replyCount: 0, deleted: false,

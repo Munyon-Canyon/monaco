@@ -1,5 +1,5 @@
 -- name: LockChatMessage :one
-SELECT id, cabal_id, author_id, parent_id, (deleted_at IS NOT NULL)::bool AS deleted
+SELECT id, cabal_id, author_id, parent_id, kind, (deleted_at IS NOT NULL)::bool AS deleted
 FROM cabal_messages
 WHERE id = sqlc.arg(id)
 FOR UPDATE;
@@ -7,10 +7,16 @@ FOR UPDATE;
 -- name: InsertChatMessage :one
 INSERT INTO cabal_messages (id, cabal_id, author_id, body, created_at, parent_id, also_in_channel)
 VALUES (
-  sqlc.arg(id), sqlc.arg(cabal_id), sqlc.arg(author_id), NULLIF(sqlc.arg(body)::text, ''), sqlc.arg(created_at), NULLIF(sqlc.arg(parent_id)::uuid, '00000000-0000-0000-0000-000000000000'),
+  sqlc.arg(id), sqlc.arg(cabal_id), sqlc.arg(author_id)::uuid, NULLIF(sqlc.arg(body)::text, ''), sqlc.arg(created_at), NULLIF(sqlc.arg(parent_id)::uuid, '00000000-0000-0000-0000-000000000000'),
   sqlc.arg(also_in_channel)
 )
 RETURNING id, cabal_id, author_id, body, created_at, parent_id, also_in_channel;
+
+-- name: InsertChatMoment :one
+INSERT INTO cabal_messages (id, cabal_id, kind, moment, dedupe_key, created_at)
+VALUES (sqlc.arg(id), sqlc.arg(cabal_id), 'system', sqlc.arg(moment)::jsonb, sqlc.arg(dedupe_key)::text, sqlc.arg(created_at))
+ON CONFLICT (cabal_id, dedupe_key) WHERE dedupe_key IS NOT NULL DO UPDATE SET dedupe_key = cabal_messages.dedupe_key
+RETURNING id, cabal_id, created_at;
 
 -- name: BumpChatReplies :one
 UPDATE cabal_messages
@@ -35,7 +41,7 @@ FROM cabal_messages
 WHERE id = sqlc.arg(id) AND cabal_id = sqlc.arg(cabal_id);
 
 -- name: ListChatChannel :many
-SELECT id, cabal_id, author_id, body, created_at, parent_id, also_in_channel, reply_count, last_reply_at, proposal_id, deleted_at,
+SELECT id, cabal_id, author_id, body, created_at, parent_id, also_in_channel, reply_count, last_reply_at, proposal_id, deleted_at, kind, moment,
   blocked_author.hit AS blocked
 FROM cabal_messages
 CROSS JOIN LATERAL (
@@ -46,6 +52,7 @@ CROSS JOIN LATERAL (
 ) AS blocked_author
 WHERE cabal_id = sqlc.arg(cabal_id)
   AND (parent_id IS NULL OR also_in_channel)
+  AND (kind <> 'system' OR sqlc.arg(moments)::bool)
   AND (deleted_at IS NULL OR (parent_id IS NULL AND reply_count > 0))
   AND (
     NOT blocked_author.hit
@@ -59,7 +66,7 @@ ORDER BY created_at DESC, id DESC
 LIMIT sqlc.arg(row_limit)::int;
 
 -- name: ListChatChannelAfter :many
-SELECT id, cabal_id, author_id, body, created_at, parent_id, also_in_channel, reply_count, last_reply_at, proposal_id, deleted_at,
+SELECT id, cabal_id, author_id, body, created_at, parent_id, also_in_channel, reply_count, last_reply_at, proposal_id, deleted_at, kind, moment,
   blocked_author.hit AS blocked
 FROM cabal_messages
 CROSS JOIN LATERAL (
@@ -70,6 +77,7 @@ CROSS JOIN LATERAL (
 ) AS blocked_author
 WHERE cabal_id = sqlc.arg(cabal_id)
   AND (parent_id IS NULL OR also_in_channel)
+  AND (kind <> 'system' OR sqlc.arg(moments)::bool)
   AND (deleted_at IS NULL OR (parent_id IS NULL AND reply_count > 0))
   AND (
     NOT blocked_author.hit
@@ -80,12 +88,12 @@ ORDER BY created_at, id
 LIMIT sqlc.arg(row_limit)::int;
 
 -- name: GetChatMessage :one
-SELECT id, cabal_id, author_id, body, created_at, parent_id, also_in_channel, reply_count, last_reply_at, proposal_id, deleted_at
+SELECT id, cabal_id, author_id, body, created_at, parent_id, also_in_channel, reply_count, last_reply_at, proposal_id, deleted_at, kind, moment, dedupe_key
 FROM cabal_messages
 WHERE id = sqlc.arg(id) AND cabal_id = sqlc.arg(cabal_id);
 
 -- name: ListChatReplies :many
-SELECT id, cabal_id, author_id, body, created_at, parent_id, also_in_channel, reply_count, last_reply_at, proposal_id, deleted_at
+SELECT id, cabal_id, author_id, body, created_at, parent_id, also_in_channel, reply_count, last_reply_at, proposal_id, deleted_at, kind, moment, dedupe_key
 FROM cabal_messages
 WHERE parent_id = sqlc.arg(parent_id)::uuid
   AND deleted_at IS NULL
@@ -113,6 +121,7 @@ WITH newest AS (
   FROM cabal_messages
   WHERE cabal_id = sqlc.arg(cabal_id)
     AND (parent_id IS NULL OR also_in_channel)
+    AND kind <> 'system'
     AND deleted_at IS NULL
   ORDER BY created_at DESC, id DESC
   LIMIT 1
@@ -144,6 +153,7 @@ WITH newest AS (
   FROM cabal_messages
   WHERE cabal_id = sqlc.arg(cabal_id)
     AND (parent_id IS NULL OR also_in_channel)
+    AND kind <> 'system'
     AND deleted_at IS NULL
   ORDER BY created_at DESC, id DESC
   LIMIT 1
@@ -174,7 +184,8 @@ SELECT c.id::uuid AS cabal_id, (
     WHERE m.cabal_id = c.id
       AND (m.parent_id IS NULL OR m.also_in_channel)
       AND m.deleted_at IS NULL
-      AND m.author_id <> sqlc.arg(user_id)
+      AND m.kind <> 'system'
+      AND m.author_id <> sqlc.arg(user_id)::uuid
       AND NOT EXISTS (
         SELECT 1 FROM user_blocks b
         WHERE b.blocker_id = sqlc.arg(user_id)::uuid AND b.blocked_id = m.author_id
@@ -198,7 +209,7 @@ WHERE (id = sqlc.arg(parent_id) OR parent_id = sqlc.arg(parent_id))
 ORDER BY author_id;
 
 -- name: GetChatMessageByID :one
-SELECT id, cabal_id FROM cabal_messages WHERE id = sqlc.arg(id);
+SELECT id, cabal_id, kind FROM cabal_messages WHERE id = sqlc.arg(id);
 
 -- name: SeedChatSeen :exec
 INSERT INTO chat_seen (cabal_id, user_id, last_seen_at)

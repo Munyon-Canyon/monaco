@@ -14,7 +14,7 @@ import (
 type CabalMessage struct {
 	ID            uuid.UUID
 	CabalID       uuid.UUID
-	AuthorID      uuid.UUID
+	AuthorID      pgtype.UUID
 	Body          pgtype.Text
 	CreatedAt     time.Time
 	ParentID      pgtype.UUID
@@ -23,6 +23,9 @@ type CabalMessage struct {
 	LastReplyAt   pgtype.Timestamptz
 	ProposalID    pgtype.UUID
 	DeletedAt     pgtype.Timestamptz
+	Kind          string
+	Moment        []byte
+	DedupeKey     pgtype.Text
 }
 
 type FeedComment struct {

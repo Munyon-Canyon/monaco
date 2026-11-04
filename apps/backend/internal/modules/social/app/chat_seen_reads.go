@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
+	"github.com/monaco/monaco/apps/backend/internal/modules/social/domain"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 )
@@ -36,8 +37,11 @@ func GetChatSeenBy(ctx context.Context, db sqlc.DBTX, members Members, q ChatSee
 	if err != nil {
 		return SeenBy{}, errs.Wrap(err, errs.CodeInternal, op)
 	}
+	if message.Kind == string(domain.ChatKindSystem) {
+		return SeenBy{}, errs.New(errs.CodeChatMessageNotFound, op, slog.String("message_id", q.MessageID.String()))
+	}
 	seen, err := reads.ListSeenBy(ctx, sqlc.ListSeenByParams{
-		CabalID: q.CabalID.UUID(), AuthorID: message.AuthorID, MessageAt: message.CreatedAt,
+		CabalID: q.CabalID.UUID(), AuthorID: message.AuthorID.Bytes, MessageAt: message.CreatedAt,
 	})
 	if err != nil {
 		return SeenBy{}, errs.Wrap(err, errs.CodeInternal, op)

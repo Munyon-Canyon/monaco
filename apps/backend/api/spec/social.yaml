@@ -879,7 +879,8 @@ paths:
         oldest first, for catching up after a reconnect. Sending both is invalid_input, and a
         cursor that is not a message in this cabal is chat_message_not_found. A deleted top-level
         message that has replies comes back with `deleted: true` and a null body; other deleted
-        messages are left out. Only a member can read, otherwise not_cabal_member.
+        messages are left out. System rows are left out unless `moments=true`. Only a member can
+        read, otherwise not_cabal_member.
       parameters:
         - $ref: "#/components/parameters/ChatCabalId"
         - name: before
@@ -892,6 +893,13 @@ paths:
           required: false
           description: A message id. Returns the messages newer than it, oldest first.
           schema: {type: string, format: uuid, examples: ["01920000-0000-7000-8000-000000000007"]}
+        - name: moments
+          in: query
+          required: false
+          description: >-
+            True also returns the cabal's own system rows, such as a member joining or a trade
+            filling. Defaults to false, which leaves them out.
+          schema: {type: boolean, default: false, examples: [false]}
         - name: limit
           in: query
           required: false
@@ -916,7 +924,8 @@ paths:
       description: >-
         Soft-deletes the message. Only its author can delete it, otherwise
         chat_message_not_owned. A message that is unknown or in another cabal is
-        chat_message_not_found. Deleting a deleted message changes nothing.
+        chat_message_not_found. A system row is invalid_input with `reason=system_message`. Deleting a
+        deleted message changes nothing.
       parameters:
         - $ref: "#/components/parameters/IdempotencyKey"
         - $ref: "#/components/parameters/ChatCabalId"
@@ -1043,8 +1052,8 @@ paths:
         Returns the top-level message and a page of its live replies, oldest first. Without
         `before` the page is the newest replies; with it, the replies older than that reply. A
         parent that is unknown, in another cabal, or deleted with no replies is
-        chat_message_not_found, and a message that is itself a reply is chat_parent_is_reply.
-        Only a member can read, otherwise not_cabal_member.
+        chat_message_not_found, and a message that is itself a reply is chat_parent_is_reply. A
+        system row is chat_message_not_found unless `moments=true`. Only a member can read, otherwise not_cabal_member.
       parameters:
         - $ref: "#/components/parameters/ChatCabalId"
         - $ref: "#/components/parameters/ChatMessageId"
@@ -1053,6 +1062,13 @@ paths:
           required: false
           description: A reply id. Returns the replies older than it.
           schema: {type: string, format: uuid, examples: ["01920000-0000-7000-8000-000000000008"]}
+        - name: moments
+          in: query
+          required: false
+          description: >-
+            True also returns the cabal's own system rows, such as a member joining or a trade
+            filling. Defaults to false, which leaves them out.
+          schema: {type: boolean, default: false, examples: [false]}
         - name: limit
           in: query
           required: false
@@ -2382,11 +2398,16 @@ components:
       type: object
       description: One chat message.
       additionalProperties: false
-      required: [id, author, body, created_at, parent_id, also_in_channel, reply_count, last_reply_at, proposal_id, deleted, seen_count, reactions, reaction_count]
+      required: [id, kind, author, body, created_at, parent_id, also_in_channel, reply_count, last_reply_at, proposal_id, deleted, seen_count, reactions, reaction_count]
       properties:
         id: {type: string, format: uuid, description: "The message id.", examples: ["01920000-0000-7000-8000-000000000007"]}
+        kind: {type: string, enum: [user, proposal, system], description: "`system` for the cabal's own row, which has the nil UUID as `author.id`, a null `body` and a `moment`. It cannot be deleted or reported by a member: each is invalid_input with `reason=system_message`.", examples: [user]}
         author:
           $ref: "#/components/schemas/ChatAuthor"
+        moment:
+          $ref: "#/components/schemas/ChatMoment"
+          description: What the cabal did. Present only on a `system` row.
+          examples: [{kind: cabal_created}]
         body: {type: [string, "null"], description: "Null on a deleted message. `GIF`, `Shared a stock` or `Quoted the thesis` on a message that is only an attachment.", examples: [gm]}
         attachment:
           $ref: "#/components/schemas/CommentAttachment"
@@ -2427,6 +2448,62 @@ components:
           examples: [[{emoji: "😂", count: 3, mine: false}]]
           items: {$ref: "#/components/schemas/Reaction"}
         reaction_count: {type: integer, format: int32, minimum: 0, description: "The number of reactions on the message, over every emoji.", examples: [3]}
+    ChatMoment:
+      description: What a system row says happened, keyed by `kind`.
+      examples:
+        - {kind: cabal_created}
+      oneOf:
+        - $ref: "#/components/schemas/CabalCreatedMoment"
+        - $ref: "#/components/schemas/MemberJoinedMoment"
+        - $ref: "#/components/schemas/TradeFilledMoment"
+      discriminator:
+        propertyName: kind
+        mapping:
+          cabal_created: "#/components/schemas/CabalCreatedMoment"
+          member_joined: "#/components/schemas/MemberJoinedMoment"
+          trade_filled: "#/components/schemas/TradeFilledMoment"
+    CabalCreatedMoment:
+      type: object
+      description: The cabal was created.
+      additionalProperties: false
+      required: [kind]
+      examples:
+        - {kind: cabal_created}
+      properties:
+        kind: {type: string, enum: [cabal_created], description: The moment kind., examples: [cabal_created]}
+    MemberJoinedMoment:
+      type: object
+      description: A member joined the cabal.
+      additionalProperties: false
+      required: [kind, member]
+      examples:
+        - {kind: member_joined, member: {id: 01890a5d-ac96-774b-bcce-b302099a8058, handle: kai, display_name: Kai, photo_url: null}}
+      properties:
+        kind: {type: string, enum: [member_joined], description: The moment kind., examples: [member_joined]}
+        member:
+          $ref: "#/components/schemas/ChatAuthor"
+          description: The member who joined, with their current name and photo.
+    TradeFilledMoment:
+      type: object
+      description: A trade filled for the cabal.
+      additionalProperties: false
+      required: [kind, side, symbol, asset_id, price_micros, usdc_micros, filled_at, swap_id, proposal_id]
+      examples:
+        - {kind: trade_filled, side: buy, symbol: NVDA, asset_id: 01890a5d-ac96-774b-bcce-b302099a8070, price_micros: 196750000, usdc_micros: 300000000, filled_at: "2026-09-30T14:30:00Z", swap_id: 01890a5d-ac96-774b-bcce-b302099a8071, proposal_id: null}
+      properties:
+        kind: {type: string, enum: [trade_filled], description: The moment kind., examples: [trade_filled]}
+        side: {type: string, enum: [buy, sell], description: Whether the cabal bought or sold., examples: [buy]}
+        symbol: {type: string, description: The stock's ticker., examples: [NVDA]}
+        asset_id: {type: string, format: uuid, description: The traded asset., examples: ["01890a5d-ac96-774b-bcce-b302099a8070"]}
+        price_micros: {type: integer, format: int64, description: "The fill price per share in USD micros.", examples: [196750000]}
+        usdc_micros: {type: integer, format: int64, description: "The USDC the swap spent or received, in micros.", examples: [300000000]}
+        filled_at: {type: string, format: date-time, description: When the swap filled., examples: ["2026-09-30T14:30:00Z"]}
+        swap_id: {type: string, format: uuid, description: The swap that filled., examples: ["01890a5d-ac96-774b-bcce-b302099a8071"]}
+        proposal_id:
+          type: [string, "null"]
+          format: uuid
+          description: The proposal the trade came from. Null when none.
+          examples: [null]
     ChatSeenMark:
       type: object
       description: The caller's seen watermark.

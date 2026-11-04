@@ -181,7 +181,7 @@ private actor SampleChatStore {
         -> ChatMessage
     {
         ChatMessage(
-            id: id,
+            id: id, kind: .user,
             author: .init(id: author, handle: nil, displayName: name, photoUrl: nil),
             body: body,
             createdAt: Date(timeIntervalSinceNow: -TimeInterval(minutesAgo * 60)),

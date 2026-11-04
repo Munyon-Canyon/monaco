@@ -18,6 +18,7 @@ const (
 	EventSeenUpdated     = "seen.updated"
 	EventReactionUpdated = "reaction.updated"
 	EventPollUpdated     = "poll.updated"
+	EventMomentCreated   = "moment.created"
 )
 
 type ChatWire func(ctx context.Context, m ChatMessage) (any, error)
@@ -80,6 +81,16 @@ func (p ChatPublisher) created(ctx context.Context, m ChatMessage, thread *Threa
 	if thread != nil {
 		p.send(ctx, m.CabalID, m.ID, EventThreadUpdated, thread)
 	}
+}
+
+func (p ChatPublisher) moment(ctx context.Context, m ChatMessage) {
+	ctx = context.WithoutCancel(ctx)
+	payload, err := p.wire(ctx, m)
+	if err != nil {
+		failedPublish(ctx, m.ID, EventMomentCreated, err)
+		return
+	}
+	p.send(ctx, m.CabalID, m.ID, EventMomentCreated, payload)
 }
 
 func (p ChatPublisher) deleted(ctx context.Context, cabal ids.CabalID, id uuid.UUID, thread *ThreadUpdated) {

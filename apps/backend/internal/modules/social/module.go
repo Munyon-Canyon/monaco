@@ -323,11 +323,19 @@ func (*Module) Name() string { return "social" }
 
 func (m *Module) Mount(r api.Mount) { socialapi.Mount(m.http(), r) }
 
-func (m *Module) http() adapters.HTTP {
-	chat := app.ChatDeps{
+func (m *Module) WriteChatMoment() *app.WriteChatMomentHandler {
+	return app.NewWriteChatMomentHandler(m.chatDeps())
+}
+
+func (m *Module) chatDeps() app.ChatDeps {
+	return app.ChatDeps{
 		UoW: m.deps.UoW, Members: m.members, Users: m.users, IDs: m.deps.IDs, Clock: m.deps.Clock,
 		Publish: app.NewChatPublisher(m.realtime, adapters.ChatWire(m.users)), Reads: m.deps.Pool, Stocks: m.stocks,
 	}
+}
+
+func (m *Module) http() adapters.HTTP {
+	chat := m.chatDeps()
 	comments := app.CommentDeps{
 		UoW: m.deps.UoW, Reads: m.deps.Pool, Members: m.members, Users: m.users, IDs: m.deps.IDs,
 		Clock: m.deps.Clock, Hints: m.deps.Bus, Stocks: m.stocks,

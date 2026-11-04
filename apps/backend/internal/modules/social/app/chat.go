@@ -27,6 +27,8 @@ type ChatMembers interface {
 
 type ChatMessage struct {
 	ID            uuid.UUID
+	Kind          domain.ChatKind
+	Moment        *domain.ChatMoment
 	CabalID       ids.CabalID
 	AuthorID      ids.UserID
 	Body          string

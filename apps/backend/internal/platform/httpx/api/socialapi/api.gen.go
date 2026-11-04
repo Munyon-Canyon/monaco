@@ -83,6 +83,42 @@ func (e AdminReportStatus) Valid() bool {
 	}
 }
 
+// Defines values for CabalCreatedMomentKind.
+const (
+	CabalCreated CabalCreatedMomentKind = "cabal_created"
+)
+
+// Valid indicates whether the value is a known member of the CabalCreatedMomentKind enum.
+func (e CabalCreatedMomentKind) Valid() bool {
+	switch e {
+	case CabalCreated:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ChatMessageKind.
+const (
+	ChatMessageKindProposal ChatMessageKind = "proposal"
+	ChatMessageKindSystem   ChatMessageKind = "system"
+	ChatMessageKindUser     ChatMessageKind = "user"
+)
+
+// Valid indicates whether the value is a known member of the ChatMessageKind enum.
+func (e ChatMessageKind) Valid() bool {
+	switch e {
+	case ChatMessageKindProposal:
+		return true
+	case ChatMessageKindSystem:
+		return true
+	case ChatMessageKindUser:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ChatThesisQuoteAttachmentInputKind.
 const (
 	ChatThesisQuoteAttachmentInputKindThesisQuote ChatThesisQuoteAttachmentInputKind = "thesis_quote"
@@ -139,16 +175,16 @@ func (e FeedItemAssetKind) Valid() bool {
 
 // Defines values for FeedItemChartMarkersSide.
 const (
-	Buy  FeedItemChartMarkersSide = "buy"
-	Sell FeedItemChartMarkersSide = "sell"
+	FeedItemChartMarkersSideBuy  FeedItemChartMarkersSide = "buy"
+	FeedItemChartMarkersSideSell FeedItemChartMarkersSide = "sell"
 )
 
 // Valid indicates whether the value is a known member of the FeedItemChartMarkersSide enum.
 func (e FeedItemChartMarkersSide) Valid() bool {
 	switch e {
-	case Buy:
+	case FeedItemChartMarkersSideBuy:
 		return true
-	case Sell:
+	case FeedItemChartMarkersSideSell:
 		return true
 	default:
 		return false
@@ -320,6 +356,21 @@ func (e GifAttachmentInputKind) Valid() bool {
 	}
 }
 
+// Defines values for MemberJoinedMomentKind.
+const (
+	MemberJoined MemberJoinedMomentKind = "member_joined"
+)
+
+// Valid indicates whether the value is a known member of the MemberJoinedMomentKind enum.
+func (e MemberJoinedMomentKind) Valid() bool {
+	switch e {
+	case MemberJoined:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for PollAttachmentKind.
 const (
 	PollAttachmentKindPoll PollAttachmentKind = "poll"
@@ -449,6 +500,39 @@ const (
 func (e ThesisQuoteAttachmentInputKind) Valid() bool {
 	switch e {
 	case ThesisQuoteAttachmentInputKindThesisQuote:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for TradeFilledMomentKind.
+const (
+	TradeFilled TradeFilledMomentKind = "trade_filled"
+)
+
+// Valid indicates whether the value is a known member of the TradeFilledMomentKind enum.
+func (e TradeFilledMomentKind) Valid() bool {
+	switch e {
+	case TradeFilled:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for TradeFilledMomentSide.
+const (
+	TradeFilledMomentSideBuy  TradeFilledMomentSide = "buy"
+	TradeFilledMomentSideSell TradeFilledMomentSide = "sell"
+)
+
+// Valid indicates whether the value is a known member of the TradeFilledMomentSide enum.
+func (e TradeFilledMomentSide) Valid() bool {
+	switch e {
+	case TradeFilledMomentSideBuy:
+		return true
+	case TradeFilledMomentSideSell:
 		return true
 	default:
 		return false
@@ -738,6 +822,21 @@ type BlockedUsers struct {
 	Users []BlockedUser `json:"users"`
 }
 
+// CabalCreatedMoment The cabal was created.
+//
+// Examples: {"kind":"cabal_created"}
+type CabalCreatedMoment struct {
+	// Kind The moment kind.
+	//
+	// Examples: cabal_created
+	Kind CabalCreatedMomentKind `json:"kind"`
+}
+
+// CabalCreatedMomentKind The moment kind.
+//
+// Examples: cabal_created
+type CabalCreatedMomentKind string
+
 // ChatAttachmentInput The attachment of a chat message, keyed by `kind`. At most one per message.
 //
 // Examples: {"asset_id":"01890a5d-ac96-774b-bcce-b302099a8070","kind":"stock"}
@@ -811,10 +910,20 @@ type ChatMessage struct {
 	// Examples: 01920000-0000-7000-8000-000000000007
 	Id openapi_types.UUID `json:"id"`
 
+	// Kind `system` for the cabal's own row, which has the nil UUID as `author.id`, a null `body` and a `moment`. It cannot be deleted or reported by a member: each is invalid_input with `reason=system_message`.
+	//
+	// Examples: user
+	Kind ChatMessageKind `json:"kind"`
+
 	// LastReplyAt When the newest reply was posted. Null with no replies.
 	//
 	// Examples: null
 	LastReplyAt *time.Time `json:"last_reply_at"`
+
+	// Moment What the cabal did. Present only on a `system` row.
+	//
+	// Examples: {"kind":"cabal_created"}
+	Moment *ChatMoment `json:"moment,omitempty"`
 
 	// ParentId The top-level message this replies to. Null on a top-level message.
 	//
@@ -845,6 +954,18 @@ type ChatMessage struct {
 	//
 	// Examples: null
 	SeenCount *int `json:"seen_count"`
+}
+
+// ChatMessageKind `system` for the cabal's own row, which has the nil UUID as `author.id`, a null `body` and a `moment`. It cannot be deleted or reported by a member: each is invalid_input with `reason=system_message`.
+//
+// Examples: user
+type ChatMessageKind string
+
+// ChatMoment What a system row says happened, keyed by `kind`.
+//
+// Examples: {"kind":"cabal_created"}
+type ChatMoment struct {
+	union json.RawMessage
 }
 
 // ChatSeenBy The members who have seen a message.
@@ -1771,6 +1892,24 @@ type GifMedia struct {
 	Width int `json:"width"`
 }
 
+// MemberJoinedMoment A member joined the cabal.
+//
+// Examples: {"kind":"member_joined","member":{"display_name":"Kai","handle":"kai","id":"01890a5d-ac96-774b-bcce-b302099a8058","photo_url":null}}
+type MemberJoinedMoment struct {
+	// Kind The moment kind.
+	//
+	// Examples: member_joined
+	Kind MemberJoinedMomentKind `json:"kind"`
+
+	// Member The member who joined, with their current name and photo.
+	Member ChatAuthor `json:"member"`
+}
+
+// MemberJoinedMomentKind The moment kind.
+//
+// Examples: member_joined
+type MemberJoinedMomentKind string
+
 // PollAttachment A poll on a reply. Who voted for what is never returned.
 type PollAttachment struct {
 	// Closed True once `closes_at` has passed.
@@ -2134,6 +2273,66 @@ type ThesisQuoteAttachmentInput struct {
 // Examples: thesis_quote
 type ThesisQuoteAttachmentInputKind string
 
+// TradeFilledMoment A trade filled for the cabal.
+//
+// Examples: {"asset_id":"01890a5d-ac96-774b-bcce-b302099a8070","filled_at":"2026-09-30T14:30:00Z","kind":"trade_filled","price_micros":196750000,"proposal_id":null,"side":"buy","swap_id":"01890a5d-ac96-774b-bcce-b302099a8071","symbol":"NVDA","usdc_micros":300000000}
+type TradeFilledMoment struct {
+	// AssetId The traded asset.
+	//
+	// Examples: 01890a5d-ac96-774b-bcce-b302099a8070
+	AssetId openapi_types.UUID `json:"asset_id"`
+
+	// FilledAt When the swap filled.
+	//
+	// Examples: 2026-09-30T14:30:00Z
+	FilledAt time.Time `json:"filled_at"`
+
+	// Kind The moment kind.
+	//
+	// Examples: trade_filled
+	Kind TradeFilledMomentKind `json:"kind"`
+
+	// PriceMicros The fill price per share in USD micros.
+	//
+	// Examples: 196750000
+	PriceMicros int64 `json:"price_micros"`
+
+	// ProposalId The proposal the trade came from. Null when none.
+	//
+	// Examples: null
+	ProposalId *openapi_types.UUID `json:"proposal_id"`
+
+	// Side Whether the cabal bought or sold.
+	//
+	// Examples: buy
+	Side TradeFilledMomentSide `json:"side"`
+
+	// SwapId The swap that filled.
+	//
+	// Examples: 01890a5d-ac96-774b-bcce-b302099a8071
+	SwapId openapi_types.UUID `json:"swap_id"`
+
+	// Symbol The stock's ticker.
+	//
+	// Examples: NVDA
+	Symbol string `json:"symbol"`
+
+	// UsdcMicros The USDC the swap spent or received, in micros.
+	//
+	// Examples: 300000000
+	UsdcMicros int64 `json:"usdc_micros"`
+}
+
+// TradeFilledMomentKind The moment kind.
+//
+// Examples: trade_filled
+type TradeFilledMomentKind string
+
+// TradeFilledMomentSide Whether the cabal bought or sold.
+//
+// Examples: buy
+type TradeFilledMomentSide string
+
 // UserActivity One thing the member did, told apart by `kind`: `voted`, `proposed`, `replied` or `topped_board`. `choice` appears only on your own `voted` rows.
 type UserActivity struct {
 	union json.RawMessage
@@ -2389,6 +2588,9 @@ type GetChatMessagesParams struct {
 	// After A message id. Returns the messages newer than it, oldest first.
 	After *openapi_types.UUID `form:"after,omitempty" json:"after,omitempty"`
 
+	// Moments True also returns the cabal's own system rows, such as a member joining or a trade filling. Defaults to false, which leaves them out.
+	Moments *bool `form:"moments,omitempty" json:"moments,omitempty"`
+
 	// Limit Page size. Defaults to 50 and cannot exceed 100.
 	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
 }
@@ -2433,6 +2635,9 @@ type ReactToChatMessageParams struct {
 type GetChatThreadParams struct {
 	// Before A reply id. Returns the replies older than it.
 	Before *openapi_types.UUID `form:"before,omitempty" json:"before,omitempty"`
+
+	// Moments True also returns the cabal's own system rows, such as a member joining or a trade filling. Defaults to false, which leaves them out.
+	Moments *bool `form:"moments,omitempty" json:"moments,omitempty"`
 
 	// Limit Page size. Defaults to 50 and cannot exceed 100.
 	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
@@ -2895,6 +3100,143 @@ func (t ChatAttachmentInput) MarshalJSON() ([]byte, error) {
 }
 
 func (t *ChatAttachmentInput) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsCabalCreatedMoment returns the union data inside the ChatMoment as a CabalCreatedMoment
+func (t ChatMoment) AsCabalCreatedMoment() (CabalCreatedMoment, error) {
+	var body CabalCreatedMoment
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromCabalCreatedMoment overwrites any union data inside the ChatMoment as the provided CabalCreatedMoment
+func (t *ChatMoment) FromCabalCreatedMoment(v CabalCreatedMoment) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"kind":"cabal_created"}`))
+	t.union = b
+	return err
+}
+
+// MergeCabalCreatedMoment performs a merge with any union data inside the ChatMoment, using the provided CabalCreatedMoment
+func (t *ChatMoment) MergeCabalCreatedMoment(v CabalCreatedMoment) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"kind":"cabal_created"}`))
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsMemberJoinedMoment returns the union data inside the ChatMoment as a MemberJoinedMoment
+func (t ChatMoment) AsMemberJoinedMoment() (MemberJoinedMoment, error) {
+	var body MemberJoinedMoment
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromMemberJoinedMoment overwrites any union data inside the ChatMoment as the provided MemberJoinedMoment
+func (t *ChatMoment) FromMemberJoinedMoment(v MemberJoinedMoment) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"kind":"member_joined"}`))
+	t.union = b
+	return err
+}
+
+// MergeMemberJoinedMoment performs a merge with any union data inside the ChatMoment, using the provided MemberJoinedMoment
+func (t *ChatMoment) MergeMemberJoinedMoment(v MemberJoinedMoment) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"kind":"member_joined"}`))
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsTradeFilledMoment returns the union data inside the ChatMoment as a TradeFilledMoment
+func (t ChatMoment) AsTradeFilledMoment() (TradeFilledMoment, error) {
+	var body TradeFilledMoment
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromTradeFilledMoment overwrites any union data inside the ChatMoment as the provided TradeFilledMoment
+func (t *ChatMoment) FromTradeFilledMoment(v TradeFilledMoment) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"kind":"trade_filled"}`))
+	t.union = b
+	return err
+}
+
+// MergeTradeFilledMoment performs a merge with any union data inside the ChatMoment, using the provided TradeFilledMoment
+func (t *ChatMoment) MergeTradeFilledMoment(v TradeFilledMoment) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"kind":"trade_filled"}`))
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t ChatMoment) Discriminator() (string, error) {
+	var discriminator struct {
+		Discriminator string `json:"kind"`
+	}
+	err := json.Unmarshal(t.union, &discriminator)
+	return discriminator.Discriminator, err
+}
+
+func (t ChatMoment) ValueByDiscriminator() (interface{}, error) {
+	discriminator, err := t.Discriminator()
+	if err != nil {
+		return nil, err
+	}
+	switch discriminator {
+	case "cabal_created":
+		return t.AsCabalCreatedMoment()
+	case "member_joined":
+		return t.AsMemberJoinedMoment()
+	case "trade_filled":
+		return t.AsTradeFilledMoment()
+	default:
+		return nil, errors.New("unknown discriminator value: " + discriminator)
+	}
+}
+
+func (t ChatMoment) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *ChatMoment) UnmarshalJSON(b []byte) error {
 	err := t.union.UnmarshalJSON(b)
 	return err
 }
@@ -3924,6 +4266,19 @@ func (siw *ServerInterfaceWrapper) GetChatMessages(w http.ResponseWriter, r *htt
 		return
 	}
 
+	// ------------- Optional query parameter "moments" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "moments", r.URL.Query(), &params.Moments, runtime.BindQueryParameterOptions{Type: "boolean", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "moments"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "moments", Err: err})
+		}
+		return
+	}
+
 	// ------------- Optional query parameter "limit" -------------
 
 	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
@@ -4371,6 +4726,19 @@ func (siw *ServerInterfaceWrapper) GetChatThread(w http.ResponseWriter, r *http.
 			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "before"})
 		} else {
 			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "before", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "moments" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "moments", r.URL.Query(), &params.Moments, runtime.BindQueryParameterOptions{Type: "boolean", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "moments"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "moments", Err: err})
 		}
 		return
 	}
