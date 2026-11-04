@@ -53,7 +53,8 @@ final class FeedDestinationTests: XCTestCase {
             id: "item", kind: kind, refType: "proposals", refId: proposalID ?? "00000000-0000-7000-8000-0000000fa001",
             title: "t", tone: "neutral", proposalId: proposalID, commentCount: 0,
             threadItemId: "item", replyCount: 0, canReply: true, canReact: true, replyRule: .anyone,
-            replyRuleCabalName: nil, likeCount: 0, likedByMe: false, reactions: [], reactionCount: 0, shape: shape,
+            myBallot: nil, canVote: false, replyRuleCabalName: nil, likeCount: 0, likedByMe: false,
+            reactions: [], reactionCount: 0, shape: shape,
             tradeFailed: false, returnPrivate: false, createdAt: Date(), updatedAt: Date())
     }
 }

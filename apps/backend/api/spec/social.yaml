@@ -1498,7 +1498,7 @@ components:
       type: object
       description: One feed item with its display strings rendered.
       additionalProperties: false
-      required: [id, kind, ref_type, ref_id, cabal_id, cabal_name, cabal_picture_url, actor_id, actor_name, actor_photo_url, asset_id, asset_logo_url, symbol, title, detail, body, status, tone, action, usdc_micros, asset_name, token_amount, token_decimals, price_micros, share_of_pot_bps, change_bps, mark_micros, prev_close_micros, proposal_id, tally, expires_at, outcome, shape, caller, asset_kind, fill_state, filled_token_amount, filled_usdc_micros, filled_at, trade_failed, return_bps, chart, comment_count, thread_item_id, reply_count, can_reply, can_react, reply_rule, reply_rule_cabal_name, like_count, liked_by_me, reactions, reaction_count, return_1m_bps, return_private, created_at, updated_at]
+      required: [id, kind, ref_type, ref_id, cabal_id, cabal_name, cabal_picture_url, actor_id, actor_name, actor_photo_url, asset_id, asset_logo_url, symbol, title, detail, body, status, tone, action, usdc_micros, asset_name, token_amount, token_decimals, price_micros, share_of_pot_bps, change_bps, mark_micros, prev_close_micros, proposal_id, tally, expires_at, my_ballot, can_vote, outcome, shape, caller, asset_kind, fill_state, filled_token_amount, filled_usdc_micros, filled_at, trade_failed, return_bps, chart, comment_count, thread_item_id, reply_count, can_reply, can_react, reply_rule, reply_rule_cabal_name, like_count, liked_by_me, reactions, reaction_count, return_1m_bps, return_private, created_at, updated_at]
       properties:
         id: {type: string, format: uuid, description: "The item's id.", examples: ["01920000-0000-7000-8000-000000000007"]}
         kind:
@@ -1619,6 +1619,15 @@ components:
           enum: [anyone, members]
           description: "Who can reply in the item's thread: `members` when the thread is a proposal (only its cabal's members), else `anyone`."
           examples: [members]
+        my_ballot:
+          type: [string, "null"]
+          enum: ["yes", "no", null]
+          description: "Only on a `proposal`: how the caller voted. Null when the caller has not voted or is not a voter, and on every other kind."
+          examples: [null]
+        can_vote:
+          type: boolean
+          description: "Only on a `proposal`: true while it is open, its voting window has not closed and the caller is one of its voters. False on every other item."
+          examples: [false]
         reply_rule_cabal_name:
           type: [string, "null"]
           description: "The name of the cabal whose members can reply. Null when `reply_rule` is `anyone`."

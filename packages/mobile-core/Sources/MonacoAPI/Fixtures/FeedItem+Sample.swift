@@ -12,7 +12,7 @@ extension Components.Schemas.FeedItem {
             status: "open", comments: 6,
             reactions: [.init(emoji: "💪", count: 3, mine: false), .init(emoji: "👀", count: 2, mine: false)],
             vote: Vote(yes: 4, no: 1, voters: 8, needed: 5, endsInHours: 4), thread: .members("Weekend investors"),
-            minutesAgo: 4),
+            canVote: true, minutesAgo: 4),
         sample(
             2, kind: "trade", refType: "swaps", cabalID: sampleCabalID, actor: 2, symbol: "NVDAx",
             title: "Weekend investors bought $250 of NVDAx", detail: "NVIDIA", tone: "positive", comments: 3,
@@ -36,7 +36,7 @@ extension Components.Schemas.FeedItem {
             12, kind: "proposal", refType: "proposals", cabalID: sampleCabalID, actor: 2, symbol: "NVDAx",
             title: "Alex proposed buying $400 of NVDAx", detail: "Weekend investors", status: "open", comments: 6,
             vote: Vote(yes: 3, no: 1, voters: 8, needed: 5, endsInHours: 9), thread: .members("Weekend investors"),
-            minutesAgo: 8),
+            myBallot: .yes, canVote: true, minutesAgo: 8),
         sample(
             13, kind: "reply", refType: "feed_comments", cabalID: sampleCabalID, actor: 5, symbol: "TSLAx",
             title: "Rosa replied to Logan's proposal to sell TSLAx", detail: "Weekend investors",
@@ -172,7 +172,8 @@ extension Components.Schemas.FeedItem {
             tone: "neutral", action: facts.action, usdcMicros: facts.usdcMicros, assetName: facts.assetName,
             proposalId: String(format: "00000000-0000-7000-8000-0000000fa%03d", facts.number), commentCount: 0,
             threadItemId: fields.threadItemId, replyCount: fields.replyCount, canReply: fields.canReply,
-            canReact: fields.canReact, replyRule: fields.replyRule, replyRuleCabalName: fields.replyRuleCabalName,
+            canReact: fields.canReact, replyRule: fields.replyRule,
+            myBallot: nil, canVote: false, replyRuleCabalName: fields.replyRuleCabalName,
             likeCount: 0, likedByMe: false, reactions: [], reactionCount: 0,
             tally: .init(
                 yes: facts.vote.yes, no: facts.vote.no, voters: facts.vote.voters, needed: facts.vote.needed),
@@ -232,7 +233,8 @@ extension Components.Schemas.FeedItem {
         _ number: Int, kind: String, refType: String, cabalID: String?, actor: Int?, symbol: String?,
         title: String, detail: String?, body: String? = nil, status: String? = nil, tone: String = "neutral",
         comments: Int32 = 0, reactions: [Components.Schemas.Reaction] = [], vote: Vote? = nil,
-        thread: Thread? = nil, minutesAgo: Double
+        thread: Thread? = nil, myBallot: Components.Schemas.FeedItem.MyBallotPayload? = nil, canVote: Bool = false,
+        minutesAgo: Double
     ) -> Self {
         let created = Date(timeIntervalSinceNow: -minutesAgo * 60)
         let fields = threadFields(thread, number: number, comments: comments)
@@ -247,7 +249,8 @@ extension Components.Schemas.FeedItem {
             symbol: symbol,
             title: title, detail: detail, body: body, status: status, tone: tone, commentCount: comments,
             threadItemId: fields.threadItemId, replyCount: fields.replyCount, canReply: fields.canReply,
-            canReact: fields.canReact, replyRule: fields.replyRule, replyRuleCabalName: fields.replyRuleCabalName,
+            canReact: fields.canReact, replyRule: fields.replyRule,
+            myBallot: myBallot, canVote: canVote, replyRuleCabalName: fields.replyRuleCabalName,
             likeCount: 0, likedByMe: false, reactions: reactions,
             reactionCount: reactions.reduce(0) { $0 + $1.count },
             tally: vote.map { .init(yes: $0.yes, no: $0.no, voters: $0.voters, needed: $0.needed) },
