@@ -269,17 +269,16 @@ extension HomeVoteCardModel {
             atomics: atomics, decimals: decimals ?? AssetCatalogDefaults.decimals, kind: .stock)
     }
 
-    public func subhead(now: Date) -> String {
-        var facts = [row.cabalName]
+    public func subhead(now: Date) -> String { subheadLine(now: now, showsCabal: true).short }
+
+    public func subheadLine(now: Date, showsCabal: Bool) -> VoteCardLine {
         if let outcome, outcome.settled {
-            facts.append(contentsOf: settledFacts(outcome))
-        } else {
-            var live = ProposalVoteCopy.statusFacts(
-                tally: tally, replies: replyCount, expiresAt: row.expiresAt, now: now)
-            if let last = live.last, last.hasPrefix("ends in ") { live[live.count - 1] = String(last.dropFirst(8)) }
-            facts.append(contentsOf: live)
+            let text = ((showsCabal ? [row.cabalName] : []) + settledFacts(outcome)).joined(separator: " \u{00B7} ")
+            return VoteCardLine(full: text, short: text)
         }
-        return facts.joined(separator: " \u{00B7} ")
+        return ProposalVoteCopy.cardLine(
+            cabalName: showsCabal ? row.cabalName : nil, tally: tally, replies: replyCount, expiresAt: row.expiresAt,
+            now: now)
     }
 
     private func settledFacts(_ outcome: CastOutcome) -> [String] {
