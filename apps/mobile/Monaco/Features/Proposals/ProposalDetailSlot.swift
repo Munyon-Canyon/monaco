@@ -122,16 +122,16 @@ struct ProposalDetailSlotView: View {
         -> some View
     {
         let state = summary.state(now: .now)
+        let facts = ProposalFacts.make(detail: detail, asset: model.asset)
         return VStack(alignment: .leading, spacing: MonacoTheme.Space.section) {
             ProposalHero(
                 summary: summary, asset: model.asset, members: model.members, paused: pause?.isPaused == true,
-                subtitle: model.asset?.preIpo == nil ? nil : PreIpoCopy.proposalSubtitle
+                subtitle: model.asset?.preIpo == nil ? nil : PreIpoCopy.proposalSubtitle, facts: facts,
+                onInfo: { infoSheet = model.asset?.preIpo == nil ? .price : .estimate }
             )
             .padding(.horizontal, MonacoTheme.Space.gutter)
-            if !summary.isRule, let stats = model.stats {
-                ProposalStatRow(
-                    stats: stats,
-                    onInfo: { infoSheet = model.asset?.preIpo == nil ? .price : .estimate })
+            if facts == nil, !summary.isRule, let stats = model.stats {
+                ProposalStatRow(stats: stats)
             }
             if let preIpo = model.asset?.preIpo, let profile = preIpo.profile {
                 ProposalPreIpoLedger(
