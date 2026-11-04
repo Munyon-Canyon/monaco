@@ -49,13 +49,16 @@ struct CatchUpView: View {
                 Button {
                     deckStart = CatchUpDeckStart(key: nil)
                 } label: {
-                    Label(CatchUpCopy.oneByOne, systemImage: "square.stack")
-                        .labelStyle(.titleAndIcon)
-                        .font(MonacoTheme.Typo.subheadStrong)
-                        .foregroundStyle(MonacoTheme.primaryText)
-                        .modifier(OneByOnePill())
-                        .frame(minWidth: MonacoButtonMetrics.hitTarget, minHeight: MonacoButtonMetrics.hitTarget)
-                        .contentShape(Rectangle())
+                    HStack(spacing: MonacoTheme.Space.xs) {
+                        Image(systemName: "square.stack")
+                            .accessibilityHidden(true)
+                        Text(CatchUpCopy.oneByOne)
+                    }
+                    .font(MonacoTheme.Typo.subheadStrong)
+                    .foregroundStyle(MonacoTheme.primaryText)
+                    .modifier(OneByOnePill())
+                    .frame(minWidth: MonacoButtonMetrics.hitTarget, minHeight: MonacoButtonMetrics.hitTarget)
+                    .contentShape(Rectangle())
                 }
                 .accessibilityLabel(CatchUpCopy.oneByOne)
                 .accessibilityIdentifier("catch-up-one-by-one")
