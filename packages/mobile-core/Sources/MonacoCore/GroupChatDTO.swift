@@ -46,6 +46,19 @@ public enum GroupChatCopy {
     public static let emptyHint =
         "Messages here stay with your cabal. Proposal-specific discussion stays attached to the proposal."
     public static let composerPlaceholder = "Message your cabal"
+    public static let quietTitle = "No vote open."
+    public static let quietPropose = "Propose a trade"
+    public static let quietPoll = "Poll"
+    public static let quietPollLine = "Ask the cabal something."
+    public static let quietShareStock = "Share a stock"
+    public static let quietShareStockLine = "Drop a ticker into the chat."
+
+    public static func composerPlaceholder(cabalName: String) -> String {
+        let trimmed = cabalName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return composerPlaceholder }
+        return "Message \(CabalHeaderCopy.shortName(trimmed))"
+    }
+
     public static let loadEarlier = "Load earlier messages"
     public static let loadFailure = "Couldn't load messages."
     public static let closed = "You're not in this cabal anymore."
