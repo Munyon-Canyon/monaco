@@ -32,13 +32,31 @@ final class CabalMemberCopyTests: XCTestCase {
         XCTAssertEqual(CabalMemberCopy.recordLine(month), "No votes this month")
     }
 
-    func testTheTabLinePrefixesEachRole() {
-        XCTAssertEqual(CabalMemberCopy.tabLine(row(.creator)), "Admin \u{00B7} 7 of 9 right \u{00B7} voted 11 of 11")
-        XCTAssertEqual(CabalMemberCopy.tabLine(row(.admin)), "Admin \u{00B7} 7 of 9 right \u{00B7} voted 11 of 11")
-        XCTAssertEqual(CabalMemberCopy.tabLine(row(.member)), "Voter \u{00B7} 7 of 9 right \u{00B7} voted 11 of 11")
+    func testTheTabLineMarksAdminsAndDropsTurnoutOnceCallsResolve() {
+        XCTAssertEqual(CabalMemberCopy.tabLine(row(.creator)), "7 of 9 right \u{00B7} admin")
+        XCTAssertEqual(CabalMemberCopy.tabLine(row(.admin)), "7 of 9 right \u{00B7} admin")
+        XCTAssertEqual(CabalMemberCopy.tabLine(row(.member)), "7 of 9 right")
+        XCTAssertEqual(CabalMemberCopy.tabLine(row(.member, canVote: false)), "Holds a share")
+    }
+
+    func testTheTabLineFallsBackToTurnoutOrNoVotes() {
+        XCTAssertEqual(CabalMemberCopy.tabLine(row(.member, month: [0, 0, 3, 5])), "voted 3 of 5")
+        XCTAssertEqual(CabalMemberCopy.tabLine(row(.member, month: [0, 0, 0, 0])), "No votes this month")
         XCTAssertEqual(
-            CabalMemberCopy.tabLine(row(.member, canVote: false)),
-            "Member \u{00B7} 7 of 9 right \u{00B7} voted 11 of 11")
+            CabalMemberCopy.tabLine(row(.admin, month: [0, 0, 0, 0])), "No votes this month \u{00B7} admin")
+    }
+
+    func testTheMembersFooterNamesTheAdmins() {
+        let tail = "Anyone can become a voter by proposal."
+        XCTAssertEqual(CabalMemberCopy.membersFooter(admins: [], cabal: "AC Capital"), tail)
+        XCTAssertEqual(
+            CabalMemberCopy.membersFooter(admins: ["Logan"], cabal: "AC Capital"), "Logan runs AC Capital. \(tail)")
+        XCTAssertEqual(
+            CabalMemberCopy.membersFooter(admins: ["Christelle", "Logan"], cabal: "AC Capital"),
+            "Christelle and Logan run AC Capital. \(tail)")
+        XCTAssertEqual(
+            CabalMemberCopy.membersFooter(admins: ["Andres", "Christelle", "Logan"], cabal: "AC Capital"),
+            "Andres, Christelle and Logan run AC Capital. \(tail)")
     }
 
     func testTheVoterLineIsTheRecordForVotersAndHoldsAShareOtherwise() {

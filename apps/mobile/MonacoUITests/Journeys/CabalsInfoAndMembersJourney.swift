@@ -2,7 +2,7 @@ import XCTest
 
 enum CabalsInfoAndMembersJourney {
     static let id = "cabals/info-and-members"
-    static let version = 3
+    static let version = 4
 
     static let screenTimeout: TimeInterval = 15
 
@@ -43,16 +43,16 @@ enum CabalsInfoAndMembersJourney {
             let creator = app.element("cabal-member-\(seed.creatorID)")
             let member = app.element("cabal-member-\(seed.memberID)")
             XCTAssertTrue(creator.waitForExistence(timeout: 10), "S1.2: no row for the creator")
-            XCTAssertTrue(creator.label.contains("Admin"), "S1.2: the creator's row reads '\(creator.label)'")
+            XCTAssertTrue(creator.label.contains("admin"), "S1.2: the creator's row reads '\(creator.label)'")
             XCTAssertTrue(creator.label.contains("you"), "S1.2: the creator's row reads '\(creator.label)'")
             XCTAssertTrue(member.waitForExistence(timeout: 10), "S1.2: no row for \(seed.memberName)")
             XCTAssertTrue(
                 member.label.contains(seed.memberName), "S1.2: the member's row reads '\(member.label)'")
             XCTAssertTrue(
-                member.label.contains("No votes this month"),
-                "S1.2: the member's row reads '\(member.label)', not the empty record")
+                member.label.contains("Holds a share"),
+                "S1.2: the member's row reads '\(member.label)', not Holds a share")
             XCTAssertTrue(
-                app.element("cabal-members-footer").label.contains("Make a member a voter by proposal."),
+                app.element("cabal-members-footer").label.contains("Anyone can become a voter by proposal."),
                 "S1.2: the Members footer")
         }
 

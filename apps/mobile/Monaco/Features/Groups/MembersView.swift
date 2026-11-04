@@ -164,7 +164,7 @@ private struct MembersAllList: View {
             .padding(.horizontal, MonacoTheme.Space.gutter)
             .accessibilityIdentifier("members-invite-row")
         case .footer:
-            Text(CabalMemberCopy.membersFooter)
+            Text(CabalMemberCopy.allMembersFooter)
                 .font(MonacoTheme.Typo.caption)
                 .foregroundStyle(MonacoTheme.muted)
                 .fixedSize(horizontal: false, vertical: true)

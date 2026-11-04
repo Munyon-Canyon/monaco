@@ -41,17 +41,28 @@ private struct CabalMembersTabBody: View {
 
     private var canInvite: Bool { !CabalClosedModel.isReadOnly(cabal.status) }
 
+    private var footer: String {
+        let names = (cabal.admins ?? []).map { admin in
+            admin.displayName.isEmpty ? (admin.handle.map { "@\($0)" } ?? "Someone") : admin.displayName
+        }
+        return CabalMemberCopy.membersFooter(admins: names, cabal: CabalHeaderCopy.shortName(cabal.name))
+    }
+
     var body: some View {
         let viewerID = environment.viewer?.userID
         VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
             CabalMembersList(model: model) {
-                MonacoGroupedList {
-                    ForEach(model.preview) { entry in
-                        CabalMemberLink(
-                            entry: entry, viewerID: viewerID, subtitle: CabalMemberCopy.tabLine(entry.row),
-                            chevron: true, isLast: entry.id == model.preview.last?.id)
+                MonacoCard(style: .inset) {
+                    MonacoGroupedList {
+                        ForEach(model.preview) { entry in
+                            CabalMemberLink(
+                                entry: entry, viewerID: viewerID, subtitle: CabalMemberCopy.tabLine(entry.row),
+                                chevron: true, isLast: entry.id == model.preview.last?.id,
+                                hint: CabalMemberCopy.rightCallHint)
+                        }
                     }
                 }
+                .padding(.horizontal, MonacoTheme.Space.gutter)
             }
             MonacoCard(style: .inset) {
                 VStack(spacing: 0) {
@@ -78,7 +89,7 @@ private struct CabalMembersTabBody: View {
                 }
             }
             .padding(.horizontal, MonacoTheme.Space.gutter)
-            Text(CabalMemberCopy.membersFooter)
+            Text(footer)
                 .font(MonacoTheme.Typo.caption)
                 .foregroundStyle(MonacoTheme.muted)
                 .fixedSize(horizontal: false, vertical: true)
