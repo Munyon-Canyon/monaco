@@ -89,6 +89,30 @@ func (h *headBox) ProposalHead(_ context.Context, id ids.ProposalID) (governance
 	return h.byProposal[id.UUID()], h.err
 }
 
+type proposerBox struct {
+	byProposal map[uuid.UUID]ids.UserID
+	err        error
+}
+
+func (b *proposerBox) set(proposal uuid.UUID, user ids.UserID) *proposerBox {
+	if b.byProposal == nil {
+		b.byProposal = map[uuid.UUID]ids.UserID{}
+	}
+	b.byProposal[proposal] = user
+	return b
+}
+
+func (b *proposerBox) Proposer(_ context.Context, id ids.ProposalID) (ids.UserID, error) {
+	if b.err != nil {
+		return ids.UserID{}, b.err
+	}
+	user, ok := b.byProposal[id.UUID()]
+	if !ok {
+		return ids.UserID{}, errs.New(errs.CodeProposalNotFound, "test.Proposer")
+	}
+	return user, nil
+}
+
 type proposalRefs struct {
 	cabal    ids.CabalID
 	proposal uuid.UUID
@@ -101,6 +125,8 @@ type proposalPorts struct {
 	ballots *ballotBox
 	heads   *headBox
 	assets  *marketfake.CatalogFake
+
+	proposers *proposerBox
 }
 
 func (p proposalPorts) fail(op string, err error) {
@@ -113,6 +139,8 @@ func (p proposalPorts) fail(op string, err error) {
 		p.ballots.err = err
 	case "ProposalHead":
 		p.heads.err = err
+	case "Proposer":
+		p.proposers.err = err
 	case "AssetBySymbol":
 		p.assets.Fail(op, err)
 	}
@@ -125,7 +153,9 @@ func (p proposalPorts) created(r *pushRig) app.ProposalCreated {
 }
 
 func (p proposalPorts) results() app.ResultPorts {
-	return app.ResultPorts{Cabals: p.cabals, Assets: p.assets, Ballots: p.ballots, Heads: p.heads}
+	return app.ResultPorts{
+		Cabals: p.cabals, Assets: p.assets, Ballots: p.ballots, Heads: p.heads, Proposers: p.proposers, Users: p.names,
+	}
 }
 
 func goldenProposal(t *testing.T) (proposalRefs, proposalPorts) {
@@ -145,7 +175,8 @@ func goldenProposal(t *testing.T) (proposalRefs, proposalPorts) {
 			refs.proposal,
 			governanceport.ProposalHead{Kind: buyKind, Symbol: "AAPLx", Thesis: thesis},
 		),
-		assets: fixtureCatalog(),
+		assets:    fixtureCatalog(),
+		proposers: (&proposerBox{}).set(refs.proposal, refs.proposer),
 	}
 }
 
@@ -173,7 +204,8 @@ func (r *pushRig) proposalWorldOf(t *testing.T, members int) proposalWorld {
 			w.refs.proposal,
 			governanceport.ProposalHead{Kind: buyKind, Symbol: "AAPLx", Thesis: thesis},
 		),
-		assets: fixtureCatalog(),
+		assets:    fixtureCatalog(),
+		proposers: &proposerBox{},
 	}
 	return w
 }
