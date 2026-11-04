@@ -7,7 +7,7 @@ FOR UPDATE;
 -- name: InsertChatMessage :one
 INSERT INTO cabal_messages (id, cabal_id, author_id, body, created_at, parent_id, also_in_channel)
 VALUES (
-  sqlc.arg(id), sqlc.arg(cabal_id), sqlc.arg(author_id), sqlc.arg(body), sqlc.arg(created_at), NULLIF(sqlc.arg(parent_id)::uuid, '00000000-0000-0000-0000-000000000000'),
+  sqlc.arg(id), sqlc.arg(cabal_id), sqlc.arg(author_id), NULLIF(sqlc.arg(body)::text, ''), sqlc.arg(created_at), NULLIF(sqlc.arg(parent_id)::uuid, '00000000-0000-0000-0000-000000000000'),
   sqlc.arg(also_in_channel)
 )
 RETURNING id, cabal_id, author_id, body, created_at, parent_id, also_in_channel;

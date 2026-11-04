@@ -250,11 +250,11 @@ func (f chatRoutes) wantChannelLaughs(t *testing.T, viewer ids.UserID, mine bool
 func TestChatReactions_routesCarryThemOnEveryMessageOfTheChannelThreadAndPost(t *testing.T) {
 	t.Parallel()
 	f := newChatRoutes(t)
-	top := f.mustPost(t, f.member(0), api.PostChatMessageRequest{Body: "top"})
+	top := f.mustPost(t, f.member(0), api.PostChatMessageRequest{Body: ptr("top")})
 	if top.Reactions == nil || len(top.Reactions) != 0 || top.ReactionCount != 0 {
 		t.Fatalf("a new message = %+v, want empty reactions", top)
 	}
-	reply := f.mustPost(t, f.member(1), api.PostChatMessageRequest{Body: "reply", ParentId: &top.Id})
+	reply := f.mustPost(t, f.member(1), api.PostChatMessageRequest{Body: ptr("reply"), ParentId: &top.Id})
 	f.reactVia(t, f.member(0), top.Id, laugh)
 	f.reactVia(t, f.member(1), top.Id, laugh)
 	f.reactVia(t, f.member(1), reply.Id, fire)
@@ -270,7 +270,7 @@ func TestChatReactions_routesCarryThemOnEveryMessageOfTheChannelThreadAndPost(t 
 func TestChatReactions_unreactingViaTheRouteAndDeletingAMessageDropTheirReactions(t *testing.T) {
 	t.Parallel()
 	f := newChatRoutes(t)
-	top := f.mustPost(t, f.member(0), api.PostChatMessageRequest{Body: "top"})
+	top := f.mustPost(t, f.member(0), api.PostChatMessageRequest{Body: ptr("top")})
 	f.reactVia(t, f.member(0), top.Id, laugh)
 	f.reactVia(t, f.member(1), top.Id, laugh)
 	res, err := f.routes.UnreactToChatMessage(asUser(t.Context(), f.member(1)), api.UnreactToChatMessageRequestObject{
@@ -279,7 +279,7 @@ func TestChatReactions_unreactingViaTheRouteAndDeletingAMessageDropTheirReaction
 	if got, ok := res.(api.UnreactToChatMessage200JSONResponse); err != nil || !ok || got.Total != 1 {
 		t.Fatalf("unreact = %#v, %v, want a total of 1", res, err)
 	}
-	f.mustPost(t, f.member(2), api.PostChatMessageRequest{Body: "reply", ParentId: &top.Id})
+	f.mustPost(t, f.member(2), api.PostChatMessageRequest{Body: ptr("reply"), ParentId: &top.Id})
 	if err := f.remove(t, f.member(0), top.Id); err != nil {
 		t.Fatal(err)
 	}
@@ -380,7 +380,7 @@ func TestChatReactions_aDatabaseFailureIsInternal(t *testing.T) {
 func TestChatReactions_aFailedListQueryFailsTheRead(t *testing.T) {
 	t.Parallel()
 	f := newChatRoutes(t)
-	f.mustPost(t, f.member(0), api.PostChatMessageRequest{Body: "top"})
+	f.mustPost(t, f.member(0), api.PostChatMessageRequest{Body: ptr("top")})
 	if _, err := f.pool.Exec(t.Context(), `DROP TABLE chat_message_reactions`); err != nil {
 		t.Fatal(err)
 	}

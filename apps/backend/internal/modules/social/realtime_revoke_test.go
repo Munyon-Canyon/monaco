@@ -40,7 +40,7 @@ func (f chatRoutes) rejoin(t *testing.T, user ids.UserID) {
 
 func (f chatRoutes) say(t *testing.T, body string) {
 	t.Helper()
-	f.mustPost(t, f.member(0), api.PostChatMessageRequest{Body: body})
+	f.mustPost(t, f.member(0), api.PostChatMessageRequest{Body: ptr(body)})
 }
 
 func receivedMessages(c *testkit.RealtimeClient) int {

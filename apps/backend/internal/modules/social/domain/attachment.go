@@ -106,6 +106,8 @@ type AttachmentInput struct {
 	Start   *int
 	End     *int
 	AssetID uuid.UUID
+
+	ProposalID uuid.UUID
 }
 
 type CommentInput struct {
@@ -225,7 +227,11 @@ func parseAttachment(in AttachmentInput) (Attachment, error) {
 		if !validRange(in.Start, in.End) {
 			return Attachment{}, errs.New(errs.CodeInvalidInput, op, slog.String("reason", "invalid_range"))
 		}
-		return Attachment{Kind: AttachmentThesisQuote, Range: QuoteRange{Start: in.Start, End: in.End}}, nil
+		att := Attachment{Kind: AttachmentThesisQuote, Range: QuoteRange{Start: in.Start, End: in.End}}
+		if in.ProposalID != uuid.Nil {
+			att.Thesis = &ThesisQuote{ProposalID: in.ProposalID}
+		}
+		return att, nil
 	case AttachmentStock:
 		return Attachment{Kind: AttachmentStock, Stock: &StockSnapshot{AssetID: in.AssetID}}, nil
 	case AttachmentPoll:

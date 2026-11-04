@@ -12,6 +12,30 @@ import (
 	"github.com/google/uuid"
 )
 
+const insertChatAttachment = `-- name: InsertChatAttachment :exec
+INSERT INTO chat_message_attachments (message_id, cabal_id, kind, payload, created_at)
+VALUES ($1, $2, $3, $4, $5)
+`
+
+type InsertChatAttachmentParams struct {
+	MessageID uuid.UUID
+	CabalID   uuid.UUID
+	Kind      string
+	Payload   []byte
+	CreatedAt time.Time
+}
+
+func (q *Queries) InsertChatAttachment(ctx context.Context, arg InsertChatAttachmentParams) error {
+	_, err := q.db.Exec(ctx, insertChatAttachment,
+		arg.MessageID,
+		arg.CabalID,
+		arg.Kind,
+		arg.Payload,
+		arg.CreatedAt,
+	)
+	return err
+}
+
 const insertCommentAttachment = `-- name: InsertCommentAttachment :exec
 INSERT INTO comment_attachments (comment_id, feed_object_id, kind, payload, created_at)
 VALUES ($1, $2, $3, $4, $5)
@@ -34,4 +58,37 @@ func (q *Queries) InsertCommentAttachment(ctx context.Context, arg InsertComment
 		arg.CreatedAt,
 	)
 	return err
+}
+
+const listChatAttachments = `-- name: ListChatAttachments :many
+SELECT a.message_id, a.kind, a.payload
+FROM chat_message_attachments a
+JOIN cabal_messages m ON m.id = a.message_id AND m.deleted_at IS NULL
+WHERE a.message_id = ANY($1::uuid[])
+`
+
+type ListChatAttachmentsRow struct {
+	MessageID uuid.UUID
+	Kind      string
+	Payload   []byte
+}
+
+func (q *Queries) ListChatAttachments(ctx context.Context, messageIds []uuid.UUID) ([]ListChatAttachmentsRow, error) {
+	rows, err := q.db.Query(ctx, listChatAttachments, messageIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListChatAttachmentsRow
+	for rows.Next() {
+		var i ListChatAttachmentsRow
+		if err := rows.Scan(&i.MessageID, &i.Kind, &i.Payload); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }

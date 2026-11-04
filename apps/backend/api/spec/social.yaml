@@ -837,7 +837,12 @@ paths:
       description: >-
         Stores the message and appends `chat.message_posted`. Only a member can post, otherwise
         not_cabal_member. The body is trimmed and must be 1 to 2000 Unicode scalars, otherwise
-        chat_body_invalid. A reply names its `parent_id`, which must be a live top-level message
+        chat_body_invalid. It is optional when the message has an `attachment` (a GIF, a stock or a
+        quote of a proposal's thesis, at most one), and a message with neither is chat_body_invalid.
+        A message that is only an attachment reads back with `body` `GIF`, `Shared a stock` or
+        `Quoted the thesis`. A thesis quote of a proposal of another cabal or without a thesis is
+        invalid_input with `reason=no_thesis`, and a bad range is `reason=invalid_range`. An unknown
+        asset is invalid_input with `reason=asset_not_found`. A reply names its `parent_id`, which must be a live top-level message
         in the same cabal: an unknown, deleted or other-cabal parent is chat_parent_not_found and
         a parent that is itself a reply is chat_parent_is_reply. `also_in_channel` shows the reply
         in the channel too and needs a `parent_id`, otherwise invalid_input. A replay returns the
@@ -2240,12 +2245,14 @@ components:
       type: object
       description: A chat message to post.
       additionalProperties: false
-      required: [body]
       properties:
         body:
           type: string
-          description: The text, trimmed by the server to 1 to 2000 Unicode scalars.
+          description: The text, trimmed by the server to 1 to 2000 Unicode scalars. Optional when `attachment` is present, otherwise required.
           examples: [gm]
+        attachment:
+          $ref: "#/components/schemas/ChatAttachmentInput"
+          examples: [{kind: stock, asset_id: "01890a5d-ac96-774b-bcce-b302099a8070"}]
         parent_id:
           type: string
           format: uuid
@@ -2272,6 +2279,30 @@ components:
         ttl: {type: integer, format: int64, description: "How long the token lives, in milliseconds.", examples: [900000]}
         nonce: {type: string, description: A one-time value that stops a replay., examples: [d3b07384d113edec]}
         mac: {type: string, description: The signature over the other fields., examples: [c2lnbmF0dXJl]}
+    ChatAttachmentInput:
+      description: The attachment of a chat message, keyed by `kind`. At most one per message.
+      examples:
+        - {kind: stock, asset_id: "01890a5d-ac96-774b-bcce-b302099a8070"}
+      oneOf:
+        - $ref: "#/components/schemas/GifAttachmentInput"
+        - $ref: "#/components/schemas/StockAttachmentInput"
+        - $ref: "#/components/schemas/ChatThesisQuoteAttachmentInput"
+      discriminator:
+        propertyName: kind
+        mapping:
+          gif: "#/components/schemas/GifAttachmentInput"
+          stock: "#/components/schemas/StockAttachmentInput"
+          thesis_quote: "#/components/schemas/ChatThesisQuoteAttachmentInput"
+    ChatThesisQuoteAttachmentInput:
+      type: object
+      description: Quote the thesis of a proposal of this cabal. The server cuts the text; the client never sends it.
+      additionalProperties: false
+      required: [kind, proposal_id]
+      properties:
+        kind: {type: string, enum: [thesis_quote], description: The attachment kind., examples: [thesis_quote]}
+        proposal_id: {type: string, format: uuid, description: The buy or sell proposal of this cabal whose thesis is quoted., examples: ["01890a5d-ac96-774b-bcce-b302099a8057"]}
+        start: {type: integer, minimum: 0, description: "The first rune of the thesis to quote. Defaults to 0.", examples: [0]}
+        end: {type: integer, minimum: 0, description: "The rune offset where the quote ends, exclusive. Defaults to the end of the thesis.", examples: [40]}
     ChatAuthor:
       type: object
       description: The author of a chat message. A deleted account has a null handle and an empty name.
@@ -2291,7 +2322,11 @@ components:
         id: {type: string, format: uuid, description: "The message id.", examples: ["01920000-0000-7000-8000-000000000007"]}
         author:
           $ref: "#/components/schemas/ChatAuthor"
-        body: {type: [string, "null"], description: Null on a deleted message., examples: [gm]}
+        body: {type: [string, "null"], description: "Null on a deleted message. `GIF`, `Shared a stock` or `Quoted the thesis` on a message that is only an attachment.", examples: [gm]}
+        attachment:
+          $ref: "#/components/schemas/CommentAttachment"
+          description: The message's GIF, stock or thesis quote. Absent when there is none and on a deleted message.
+          examples: [{kind: thesis_quote, proposal_id: 0b6c5a3e-6d2f-4f7e-9a51-2c8d1e4f7a90, text: Small add to the position., proposer_name: Ada}]
         created_at: {type: string, format: date-time, description: When the server stored it., examples: ["2026-10-03T12:00:00Z"]}
         parent_id:
           type: [string, "null"]

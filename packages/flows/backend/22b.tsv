@@ -1,0 +1,2 @@
+id	flow	module	trigger	command	events	consumers	outcomes	status	doc
+22b	Post a chat message with an attachment	social	POST /v1/cabals/{id}/messages	PostChatMessage	chat.message_posted	notify	ok;InvalidInput;NotCabalMember;ChatBodyInvalid;Unauthorized;crash:before-commit	built	docs/architecture/chat.md#attachments

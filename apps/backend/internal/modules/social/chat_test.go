@@ -92,7 +92,7 @@ func (f chatFixture) send(t *testing.T, author ids.UserID, body string, reply *d
 		t.Fatal(err)
 	}
 	return f.post.Handle(f.as(t, author), app.PostChatMessage{
-		CabalID: f.cabal.ID, Author: author, Body: parsed, Reply: reply,
+		CabalID: f.cabal.ID, Author: author, Input: chatText(parsed), Reply: reply,
 	})
 }
 
@@ -238,7 +238,7 @@ func TestPostChatMessage_refusesBeforeWritingAnything(t *testing.T) {
 		t.Fatal(err)
 	}
 	elsewhere, err := f.post.Handle(f.as(t, f.other.Creator.ID), app.PostChatMessage{
-		CabalID: f.other.ID, Author: f.other.Creator.ID, Body: "other cabal",
+		CabalID: f.other.ID, Author: f.other.Creator.ID, Input: chatText("other cabal"),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -356,7 +356,7 @@ func TestPostChatMessage_MembersDown(t *testing.T) {
 	deps := f.deps
 	deps.Members = membersListDown{f.deps.Members}
 	_, err := app.NewPostChatMessageHandler(deps).Handle(f.as(t, f.member(0)), app.PostChatMessage{
-		CabalID: f.cabal.ID, Author: f.member(0), Body: mustBody(t, "@member1"),
+		CabalID: f.cabal.ID, Author: f.member(0), Input: chatText(mustBody(t, "@member1")),
 	})
 	wantCode(t, err, errs.CodeUpstreamUnavailable)
 }
@@ -385,7 +385,7 @@ func TestPostChatMessage_returnsTheMembershipLookupFailure(t *testing.T) {
 	deps := f.deps
 	deps.Members = members
 	_, err := app.NewPostChatMessageHandler(deps).Handle(f.as(t, f.member(0)), app.PostChatMessage{
-		CabalID: f.cabal.ID, Author: f.member(0), Body: "gm",
+		CabalID: f.cabal.ID, Author: f.member(0), Input: chatText("gm"),
 	})
 	if !errors.Is(err, boom) || errs.CodeOf(err) != errs.CodeUpstreamUnavailable {
 		t.Fatalf("err = %v, want the lookup error", err)
@@ -587,3 +587,5 @@ func TestChatCommands_failWithInternalWhenTheStoreFails(t *testing.T) {
 		})
 	}
 }
+
+func chatText(body domain.ChatBody) domain.ChatInput { return domain.ChatInput{Body: &body} }

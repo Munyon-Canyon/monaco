@@ -129,7 +129,7 @@ func wantIDs(t *testing.T, got []api.ChatMessage, want ...api.ChatMessage) {
 func TestChatRoutes_postRendersTheStoredMessageWithItsAuthor(t *testing.T) {
 	t.Parallel()
 	f := newChatRoutes(t)
-	got := f.mustPost(t, f.member(0), api.PostChatMessageRequest{Body: " gm "})
+	got := f.mustPost(t, f.member(0), api.PostChatMessageRequest{Body: ptr(" gm ")})
 	want := api.ChatMessage{
 		Id: got.Id, Body: ptr("gm"), CreatedAt: f.now,
 		Author: api.ChatAuthor{
@@ -142,7 +142,7 @@ func TestChatRoutes_postRendersTheStoredMessageWithItsAuthor(t *testing.T) {
 		t.Fatalf("posted = %+v, want %+v", got, want)
 	}
 	reply := f.mustPost(t, f.member(2), api.PostChatMessageRequest{
-		Body: "wagmi", ParentId: &got.Id, AlsoInChannel: ptr(true),
+		Body: ptr("wagmi"), ParentId: &got.Id, AlsoInChannel: ptr(true),
 	})
 	if reply.ParentId == nil || *reply.ParentId != got.Id || !reply.AlsoInChannel {
 		t.Fatalf("reply = %+v, want a reply to %s shown in the channel", reply, got.Id)
@@ -154,10 +154,10 @@ func TestChatRoutes_postRendersTheStoredMessageWithItsAuthor(t *testing.T) {
 
 func (f chatRoutes) postThread(t *testing.T) (top, quiet, loud api.ChatMessage) {
 	t.Helper()
-	top = f.mustPost(t, f.member(0), api.PostChatMessageRequest{Body: "buy AAPLx?"})
-	quiet = f.mustPost(t, f.member(1), api.PostChatMessageRequest{Body: "yes", ParentId: &top.Id})
+	top = f.mustPost(t, f.member(0), api.PostChatMessageRequest{Body: ptr("buy AAPLx?")})
+	quiet = f.mustPost(t, f.member(1), api.PostChatMessageRequest{Body: ptr("yes"), ParentId: &top.Id})
 	loud = f.mustPost(t, f.member(2), api.PostChatMessageRequest{
-		Body: "no", ParentId: &top.Id, AlsoInChannel: ptr(true),
+		Body: ptr("no"), ParentId: &top.Id, AlsoInChannel: ptr(true),
 	})
 	return top, quiet, loud
 }
@@ -214,11 +214,11 @@ func TestChatRoutes_threadPagesEveryReplyOldestFirst(t *testing.T) {
 func TestChatChannel_DeletedParentPlaceholder(t *testing.T) {
 	t.Parallel()
 	f := newChatRoutes(t)
-	parent := f.mustPost(t, f.member(0), api.PostChatMessageRequest{Body: "thread starter"})
-	reply := f.mustPost(t, f.member(1), api.PostChatMessageRequest{Body: "reply", ParentId: &parent.Id})
-	lonely := f.mustPost(t, f.member(0), api.PostChatMessageRequest{Body: "no replies"})
+	parent := f.mustPost(t, f.member(0), api.PostChatMessageRequest{Body: ptr("thread starter")})
+	reply := f.mustPost(t, f.member(1), api.PostChatMessageRequest{Body: ptr("reply"), ParentId: &parent.Id})
+	lonely := f.mustPost(t, f.member(0), api.PostChatMessageRequest{Body: ptr("no replies")})
 	echoed := f.mustPost(t, f.member(1), api.PostChatMessageRequest{
-		Body: "echo", ParentId: &parent.Id, AlsoInChannel: ptr(true),
+		Body: ptr("echo"), ParentId: &parent.Id, AlsoInChannel: ptr(true),
 	})
 	for _, m := range []api.ChatMessage{parent, lonely} {
 		if err := f.remove(t, f.member(0), m.Id); err != nil {
@@ -277,8 +277,8 @@ func (f chatRoutes) wantThreadGone(t *testing.T, parent uuid.UUID) {
 func TestChatChannel_ParentLeavesWhenItsOnlyReplyThenItIsDeleted(t *testing.T) {
 	t.Parallel()
 	f := newChatRoutes(t)
-	parent := f.mustPost(t, f.member(0), api.PostChatMessageRequest{Body: "thread starter"})
-	reply := f.mustPost(t, f.member(1), api.PostChatMessageRequest{Body: "reply", ParentId: &parent.Id})
+	parent := f.mustPost(t, f.member(0), api.PostChatMessageRequest{Body: ptr("thread starter")})
+	reply := f.mustPost(t, f.member(1), api.PostChatMessageRequest{Body: ptr("reply"), ParentId: &parent.Id})
 	f.mustRemove(t, f.member(1), reply.Id)
 	channel := f.mustChannel(t)
 	wantIDs(t, channel, parent)
@@ -293,8 +293,8 @@ func TestChatChannel_ParentLeavesWhenItsOnlyReplyThenItIsDeleted(t *testing.T) {
 func TestChatChannel_PlaceholderLeavesWhenItsOnlyReplyIsDeleted(t *testing.T) {
 	t.Parallel()
 	f := newChatRoutes(t)
-	parent := f.mustPost(t, f.member(0), api.PostChatMessageRequest{Body: "thread starter"})
-	reply := f.mustPost(t, f.member(1), api.PostChatMessageRequest{Body: "reply", ParentId: &parent.Id})
+	parent := f.mustPost(t, f.member(0), api.PostChatMessageRequest{Body: ptr("thread starter")})
+	reply := f.mustPost(t, f.member(1), api.PostChatMessageRequest{Body: ptr("reply"), ParentId: &parent.Id})
 	f.mustRemove(t, f.member(0), parent.Id)
 	channel := f.mustChannel(t)
 	wantIDs(t, channel, parent)
@@ -311,7 +311,7 @@ func TestChatChannel_AfterCursorCatchUp(t *testing.T) {
 	f := newChatRoutes(t)
 	sent := make([]api.ChatMessage, 0, 4)
 	for _, body := range []string{"one", "two", "three", "four"} {
-		sent = append(sent, f.mustPost(t, f.member(0), api.PostChatMessageRequest{Body: body}))
+		sent = append(sent, f.mustPost(t, f.member(0), api.PostChatMessageRequest{Body: ptr(body)}))
 	}
 	after, err := f.channel(t, f.member(1), api.GetChatMessagesParams{After: &sent[1].Id})
 	if err != nil {
@@ -338,9 +338,9 @@ func TestChatChannel_AfterCursorCatchUp(t *testing.T) {
 func TestChatReads_refuseBadRequests(t *testing.T) {
 	t.Parallel()
 	f := newChatRoutes(t)
-	m := f.mustPost(t, f.member(0), api.PostChatMessageRequest{Body: "gm"})
+	m := f.mustPost(t, f.member(0), api.PostChatMessageRequest{Body: ptr("gm")})
 	elsewhere, err := f.post.Handle(f.as(t, f.other.Creator.ID), app.PostChatMessage{
-		CabalID: f.other.ID, Author: f.other.Creator.ID, Body: "elsewhere",
+		CabalID: f.other.ID, Author: f.other.Creator.ID, Input: chatText("elsewhere"),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -373,11 +373,11 @@ func TestChatReads_refuseBadRequests(t *testing.T) {
 			t.Errorf("%s: err = %v, want %s", tt.name, err, tt.want)
 		}
 	}
-	other, err := f.postAs(t, f.member(0), api.PostChatMessageRequest{Body: "other thread"})
+	other, err := f.postAs(t, f.member(0), api.PostChatMessageRequest{Body: ptr("other thread")})
 	if err != nil {
 		t.Fatal(err)
 	}
-	otherReply := f.mustPost(t, f.member(1), api.PostChatMessageRequest{Body: "elsewhere", ParentId: &other.Id})
+	otherReply := f.mustPost(t, f.member(1), api.PostChatMessageRequest{Body: ptr("elsewhere"), ParentId: &other.Id})
 	threads := []struct {
 		name   string
 		viewer ids.UserID
@@ -416,10 +416,10 @@ func TestPostChatMessage_refusesABadRequestBeforeTheCommand(t *testing.T) {
 		want errs.Code
 	}{
 		{"no body", nil, errs.CodeInvalidInput},
-		{"blank text", &api.PostChatMessageRequest{Body: "  "}, errs.CodeChatBodyInvalid},
+		{"blank text", &api.PostChatMessageRequest{Body: ptr("  ")}, errs.CodeChatBodyInvalid},
 		{
 			"also in channel without a parent",
-			&api.PostChatMessageRequest{Body: "gm", AlsoInChannel: ptr(true)},
+			&api.PostChatMessageRequest{Body: ptr("gm"), AlsoInChannel: ptr(true)},
 			errs.CodeInvalidInput,
 		},
 	}
@@ -431,7 +431,7 @@ func TestPostChatMessage_refusesABadRequestBeforeTheCommand(t *testing.T) {
 			t.Errorf("%s: err = %v, want %s", tt.name, err, tt.want)
 		}
 	}
-	if _, err := f.postAs(t, f.outsider, api.PostChatMessageRequest{Body: "gm"}); errs.CodeOf(err) !=
+	if _, err := f.postAs(t, f.outsider, api.PostChatMessageRequest{Body: ptr("gm")}); errs.CodeOf(err) !=
 		errs.CodeNotCabalMember {
 		t.Fatalf("outsider: err = %v, want not_cabal_member", err)
 	}
@@ -459,12 +459,12 @@ func TestChatRoutes_requireASignedInUser(t *testing.T) {
 func TestChatRoutes_failWhenADependencyFails(t *testing.T) {
 	t.Parallel()
 	f := newChatRoutes(t)
-	m := f.mustPost(t, f.member(0), api.PostChatMessageRequest{Body: "gm"})
+	m := f.mustPost(t, f.member(0), api.PostChatMessageRequest{Body: ptr("gm")})
 	if err := f.remove(t, f.member(1), m.Id); errs.CodeOf(err) != errs.CodeChatMessageNotOwned {
 		t.Fatalf("delete by another member: err = %v, want chat_message_not_owned", err)
 	}
 	f.users.Fail("UsersByID", errs.New(errs.CodeUpstreamUnavailable, "test"))
-	posted, err := f.postAs(t, f.member(0), api.PostChatMessageRequest{Body: "gm again"})
+	posted, err := f.postAs(t, f.member(0), api.PostChatMessageRequest{Body: ptr("gm again")})
 	if err != nil {
 		t.Fatalf("post: err = %v, want the stored message despite the author lookup failure", err)
 	}
@@ -526,7 +526,7 @@ func TestChatReads_failWithInternalWhenTheStoreFails(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			f := newChatRoutes(t)
-			m := f.mustPost(t, f.member(0), api.PostChatMessageRequest{Body: "gm"})
+			m := f.mustPost(t, f.member(0), api.PostChatMessageRequest{Body: ptr("gm")})
 			if _, err := f.pool.Exec(t.Context(), tt.breaker); err != nil {
 				t.Fatal(err)
 			}
@@ -538,7 +538,7 @@ func TestChatReads_failWithInternalWhenTheStoreFails(t *testing.T) {
 func TestChatRoutes_deleteSoftDeletesTheCallersMessage(t *testing.T) {
 	t.Parallel()
 	f := newChatRoutes(t)
-	m := f.mustPost(t, f.member(0), api.PostChatMessageRequest{Body: "gm"})
+	m := f.mustPost(t, f.member(0), api.PostChatMessageRequest{Body: ptr("gm")})
 	for range 2 {
 		if err := f.remove(t, f.member(0), m.Id); err != nil {
 			t.Fatal(err)
@@ -555,7 +555,7 @@ func TestChatRoutes_deleteSoftDeletesTheCallersMessage(t *testing.T) {
 func TestChatRoutes_publishedMessagesAreTheSameJSONAsTheChannelRows(t *testing.T) {
 	t.Parallel()
 	f := newChatRoutes(t)
-	top := f.mustPost(t, f.member(0), api.PostChatMessageRequest{Body: "gm"})
+	top := f.mustPost(t, f.member(0), api.PostChatMessageRequest{Body: ptr("gm")})
 	assertPublishedIsRow := func(published testkit.RealtimePublish, id uuid.UUID) {
 		t.Helper()
 		var got api.ChatMessage
@@ -576,7 +576,7 @@ func TestChatRoutes_publishedMessagesAreTheSameJSONAsTheChannelRows(t *testing.T
 	}
 	assertPublishedIsRow(f.rt.Published()[0], top.Id)
 	reply := f.mustPost(t, f.member(1), api.PostChatMessageRequest{
-		Body: "wagmi", ParentId: &top.Id, AlsoInChannel: ptr(true),
+		Body: ptr("wagmi"), ParentId: &top.Id, AlsoInChannel: ptr(true),
 	})
 	published := f.rt.Published()
 	if len(published) != 3 || published[2].Name != app.EventThreadUpdated {
@@ -588,7 +588,7 @@ func TestChatRoutes_publishedMessagesAreTheSameJSONAsTheChannelRows(t *testing.T
 func TestChatRoutes_deleteAnnouncesTheDeletion(t *testing.T) {
 	t.Parallel()
 	f := newChatRoutes(t)
-	m := f.mustPost(t, f.member(0), api.PostChatMessageRequest{Body: "oops"})
+	m := f.mustPost(t, f.member(0), api.PostChatMessageRequest{Body: ptr("oops")})
 	if err := f.remove(t, f.member(0), m.Id); err != nil {
 		t.Fatal(err)
 	}

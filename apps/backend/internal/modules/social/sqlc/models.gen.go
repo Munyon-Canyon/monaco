@@ -15,7 +15,7 @@ type CabalMessage struct {
 	ID            uuid.UUID
 	CabalID       uuid.UUID
 	AuthorID      uuid.UUID
-	Body          string
+	Body          pgtype.Text
 	CreatedAt     time.Time
 	ParentID      pgtype.UUID
 	AlsoInChannel bool

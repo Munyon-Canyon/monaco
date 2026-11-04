@@ -69,7 +69,7 @@ func wireMedia(m domain.Media) api.GifMedia {
 	return api.GifMedia{Url: m.URL, Width: m.Width, Height: m.Height}
 }
 
-func attachmentInput(a api.CommentAttachmentInput) (domain.AttachmentInput, error) {
+func attachmentInput(a json.Marshaler) (domain.AttachmentInput, error) {
 	raw, _ := a.MarshalJSON()
 	var in struct {
 		Kind          string        `json:"kind"`
@@ -77,6 +77,7 @@ func attachmentInput(a api.CommentAttachmentInput) (domain.AttachmentInput, erro
 		Start         *int          `json:"start"`
 		End           *int          `json:"end"`
 		AssetID       uuid.UUID     `json:"asset_id"`
+		ProposalID    uuid.UUID     `json:"proposal_id"`
 		Question      string        `json:"question"`
 		Options       []string      `json:"options"`
 		ClosesInHours *int          `json:"closes_in_hours"`
@@ -86,7 +87,10 @@ func attachmentInput(a api.CommentAttachmentInput) (domain.AttachmentInput, erro
 			errs.CodeInvalidInput, "social.PostFeedComment", slog.String("reason", "invalid_attachment"),
 		)
 	}
-	out := domain.AttachmentInput{Kind: in.Kind, Start: in.Start, End: in.End, AssetID: in.AssetID}
+	out := domain.AttachmentInput{
+		Kind: in.Kind, Start: in.Start, End: in.End, AssetID: in.AssetID,
+		ProposalID: in.ProposalID,
+	}
 	if in.Gif != nil {
 		gif := domain.GifInput{
 			ID: in.Gif.Id, Title: in.Gif.Title, Still: mediaInput(in.Gif.Still), Preview: mediaInput(in.Gif.Preview),
@@ -105,14 +109,13 @@ func attachmentInput(a api.CommentAttachmentInput) (domain.AttachmentInput, erro
 	return out, nil
 }
 
-func wireAttachment(c app.Comment) *api.CommentAttachment {
-	a := c.Attachment
+func wireAttachment(a *domain.Attachment, stock *app.StockCard, poll *app.PollView) *api.CommentAttachment {
 	var out api.CommentAttachment
 	switch a.Kind {
 	case domain.AttachmentPoll:
 		_ = out.FromPollAttachment(api.PollAttachment{
-			Kind: api.PollAttachmentKindPoll, Question: a.Poll.Question, ClosesAt: c.Poll.ClosesAt,
-			Closed: c.Poll.Closed, Options: wirePollOptions(c.Poll), Total: c.Poll.Total, MyPosition: c.Poll.MyPosition,
+			Kind: api.PollAttachmentKindPoll, Question: a.Poll.Question, ClosesAt: poll.ClosesAt,
+			Closed: poll.Closed, Options: wirePollOptions(poll), Total: poll.Total, MyPosition: poll.MyPosition,
 		})
 	case domain.AttachmentThesisQuote:
 		_ = out.FromThesisQuoteAttachment(api.ThesisQuoteAttachment{
@@ -120,7 +123,7 @@ func wireAttachment(c app.Comment) *api.CommentAttachment {
 			ProposerName: a.Thesis.ProposerName,
 		})
 	case domain.AttachmentStock:
-		_ = out.FromStockAttachment(wireStock(a.Stock, c.Stock))
+		_ = out.FromStockAttachment(wireStock(a.Stock, stock))
 	case domain.AttachmentGIF:
 		_ = out.FromGifAttachment(api.GifAttachment{
 			Kind: api.GifAttachmentKindGif, Id: a.GIF.ID, Title: a.GIF.Title, Still: wireMedia(a.GIF.Still),
@@ -256,7 +259,7 @@ func wireLiveBody(out *api.Comment, c app.Comment) {
 	if c.Attachment == nil {
 		return
 	}
-	out.Attachment = wireAttachment(c)
+	out.Attachment = wireAttachment(c.Attachment, c.Stock, c.Poll)
 	if c.Body == "" {
 		out.BodyDisplay = string(c.Attachment.Display())
 	}

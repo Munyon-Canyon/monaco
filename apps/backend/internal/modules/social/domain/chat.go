@@ -30,6 +30,57 @@ func ParseChatBody(raw string) (ChatBody, error) {
 
 func (b ChatBody) String() string { return string(b) }
 
+type ChatInput struct {
+	Body       *ChatBody
+	Attachment *Attachment
+}
+
+func (c ChatInput) Stored() string {
+	if c.Body == nil {
+		return ""
+	}
+	return c.Body.String()
+}
+
+func (c ChatInput) Text() ChatBody {
+	switch {
+	case c.Body != nil:
+		return *c.Body
+	case c.Attachment != nil:
+		return ChatBody(c.Attachment.Display())
+	}
+	return ""
+}
+
+func ParseChatInput(body *string, att *AttachmentInput) (ChatInput, error) {
+	const op = "social.ParseChatInput"
+	var in ChatInput
+	if att != nil {
+		if att.Kind == string(AttachmentPoll) {
+			return ChatInput{}, errs.New(errs.CodeInvalidInput, op, slog.String("reason", "unknown_kind"))
+		}
+		if att.Kind == string(AttachmentThesisQuote) && att.ProposalID == uuid.Nil {
+			return ChatInput{}, errs.New(errs.CodeInvalidInput, op, slog.String("reason", "no_proposal"))
+		}
+		parsed, err := parseAttachment(*att)
+		if err != nil {
+			return ChatInput{}, err
+		}
+		in.Attachment = &parsed
+	}
+	if body != nil && (strings.TrimSpace(*body) != "" || att == nil) {
+		parsed, err := ParseChatBody(*body)
+		if err != nil {
+			return ChatInput{}, err
+		}
+		in.Body = &parsed
+	}
+	if in.Body == nil && in.Attachment == nil {
+		return ChatInput{}, errs.New(errs.CodeChatBodyInvalid, op, slog.Int("scalars", 0))
+	}
+	return in, nil
+}
+
 type Reply struct {
 	Parent        uuid.UUID
 	AlsoInChannel bool

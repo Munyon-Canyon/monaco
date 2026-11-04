@@ -31,7 +31,7 @@ cabal_messages                  (CabalChat)
   id               uuid         UUIDv7
   cabal_id         uuid         -> cabals
   author_id        uuid         -> users
-  body             text
+  body             text?        null on a message that is only an attachment
   created_at       timestamptz
   parent_id        uuid?        -> cabal_messages.id; null for a top-level message
   also_in_channel  boolean      default false; only true when parent_id is set
@@ -183,6 +183,17 @@ Any member reacts to a live chat message, top level or reply, with one emoji, th
 - **Wire.** Every `ChatMessage` the channel, thread and post routes return has `reactions` (at most 20, most used first and then earliest, `mine` for the caller) and `reaction_count`, read for the whole page by one query. A deleted message has none.
 - **Realtime.** After the commit the command publishes `reaction.updated` on `cabal:<id>` with `{message_id, reactions: [{emoji, count}], total}`. It has no `mine` because the channel is shared, so the client keeps its own. A failed publish is logged as degraded and does not fail the request.
 - **Leaving.** The `social_chat_seen_cleanup` durable also deletes the leaver's reactions in that cabal on `cabal.member_left`, so a left member's reactions stop counting.
+
+### Attachments
+
+A chat message carries at most one attachment: a GIF, a stock or a quote of a proposal's thesis (flow 22b). A poll is a separate ticket and photos never. The shapes are the ones replies on a feed item already use ([feed.md](feed.md)): the `GifAttachmentInput` and `StockAttachmentInput` request schemas, the `GifAttachment`, `StockAttachment` and `ThesisQuoteAttachment` response schemas under `CommentAttachment`, and the same `domain.Attachment` parsers.
+
+- **Rows.** `chat_message_attachments (message_id, cabal_id, kind, payload)` has one row per message. The foreign key to `cabal_messages (cabal_id, id)` cascades. `cabal_messages.body` is nullable, with `body IS NULL OR char_length(body) BETWEEN 1 AND 2000`. `PostChatMessage` insists on a body or an attachment, otherwise `chat_body_invalid`. A blank body beside an attachment is dropped.
+- **Request.** `POST /v1/cabals/{id}/messages` takes an optional `body` and an optional `attachment` keyed by `kind`. An unknown kind, or `poll`, is `invalid_input`. A `thesis_quote` names a `proposal_id` and an optional `start` and `end`, since a chat message is not on a proposal thread.
+- **Thesis rule.** The server cuts the text from the proposal's feed item, read in the same module, and never trusts the client. A proposal of another cabal, an unknown one, or one without a thesis is `invalid_input` with `reason=no_thesis`. A range outside the thesis is `reason=invalid_range`. The stored payload keeps the cut text and the proposer's name.
+- **Stock.** The server resolves `asset_id` from the catalog and stores a snapshot (symbol, name, logo). Price and change are read live for each page, as on a reply. An unknown asset is `invalid_input` with `reason=asset_not_found`.
+- **Command.** The attachment is resolved before the transaction and inserted in the same transaction as the message, which appends `chat.message_posted` once. The event carries ids only, so `notify` is unchanged.
+- **Wire.** `ChatMessage.attachment` is the `CommentAttachment` shape, absent when there is none and on a deleted message. A message that is only an attachment reads back with `body` `GIF`, `Shared a stock` or `Quoted the thesis`, so an older app build draws a readable bubble. A message with text keeps its own text. A page of messages loads its attachments with one query, and the `message.created` event carries the attachment too.
 
 ## Alternatives considered
 

@@ -38,7 +38,7 @@ func TestSeenCount_ExcludesTheAuthorAndMembersBehindTheMessage(t *testing.T) {
 	t.Parallel()
 	f := newChatRoutes(t)
 	f.markAs(t, f.member(2))
-	msg := f.mustPost(t, f.member(0), api.PostChatMessageRequest{Body: "gm"})
+	msg := f.mustPost(t, f.member(0), api.PostChatMessageRequest{Body: ptr("gm")})
 	f.markAs(t, f.member(0))
 	f.markAs(t, f.member(1))
 	got, err := f.seenBy(t, f.member(2), msg.Id)
@@ -56,7 +56,7 @@ func TestSeenCount_ExcludesTheAuthorAndMembersBehindTheMessage(t *testing.T) {
 func TestSeenBy_listsNewestWatermarkFirstWithNames(t *testing.T) {
 	t.Parallel()
 	f := newChatRoutes(t)
-	msg := f.mustPost(t, f.member(2), api.PostChatMessageRequest{Body: "gm"})
+	msg := f.mustPost(t, f.member(2), api.PostChatMessageRequest{Body: ptr("gm")})
 	f.markAs(t, f.member(1))
 	f.markAs(t, f.member(0))
 	got, err := f.seenBy(t, f.member(1), msg.Id)
@@ -78,7 +78,7 @@ func TestSeenBy_listsNewestWatermarkFirstWithNames(t *testing.T) {
 func TestSeenBy_errors(t *testing.T) {
 	t.Parallel()
 	f := newChatRoutes(t)
-	msg := f.mustPost(t, f.member(0), api.PostChatMessageRequest{Body: "gm"})
+	msg := f.mustPost(t, f.member(0), api.PostChatMessageRequest{Body: ptr("gm")})
 	if _, err := f.seenBy(t, f.outsider, msg.Id); errs.CodeOf(err) != errs.CodeNotCabalMember {
 		t.Fatalf("seen by for an outsider = %v, want not_cabal_member", err)
 	}
@@ -98,8 +98,8 @@ func TestSeenBy_errors(t *testing.T) {
 func TestChatChannel_seenCountIsOnlyOnTheNewestMessageOfAFreshRead(t *testing.T) {
 	t.Parallel()
 	f := newChatRoutes(t)
-	older := f.mustPost(t, f.member(0), api.PostChatMessageRequest{Body: "one"})
-	newest := f.mustPost(t, f.member(0), api.PostChatMessageRequest{Body: "two"})
+	older := f.mustPost(t, f.member(0), api.PostChatMessageRequest{Body: ptr("one")})
+	newest := f.mustPost(t, f.member(0), api.PostChatMessageRequest{Body: ptr("two")})
 	f.markAs(t, f.member(1))
 	f.markAs(t, f.member(2))
 	counts := func(p api.GetChatMessagesParams) map[uuid.UUID]*int {
@@ -136,8 +136,8 @@ func TestChatChannel_seenCountSkipsADeletedNewestMessageAndAnEmptyChannel(t *tes
 	if page, err := f.channel(t, f.member(0), api.GetChatMessagesParams{}); err != nil || len(page) != 0 {
 		t.Fatalf("empty channel = %v, %v, want no messages", page, err)
 	}
-	kept := f.mustPost(t, f.member(0), api.PostChatMessageRequest{Body: "kept"})
-	gone := f.mustPost(t, f.member(0), api.PostChatMessageRequest{Body: "gone"})
+	kept := f.mustPost(t, f.member(0), api.PostChatMessageRequest{Body: ptr("kept")})
+	gone := f.mustPost(t, f.member(0), api.PostChatMessageRequest{Body: ptr("gone")})
 	if err := f.remove(t, f.member(0), gone.Id); err != nil {
 		t.Fatal(err)
 	}
@@ -172,7 +172,7 @@ func TestSeenReads_databaseFailures(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			f := newChatRoutes(t)
-			msg := f.mustPost(t, f.member(0), api.PostChatMessageRequest{Body: "gm"})
+			msg := f.mustPost(t, f.member(0), api.PostChatMessageRequest{Body: ptr("gm")})
 			if _, err := f.pool.Exec(t.Context(), tt.breaker); err != nil {
 				t.Fatal(err)
 			}

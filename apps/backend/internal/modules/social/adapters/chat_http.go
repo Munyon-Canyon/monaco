@@ -144,11 +144,19 @@ func postChatCommand(cabal ids.CabalID, me ids.UserID, body *api.PostChatMessage
 	if body == nil {
 		return app.PostChatMessage{}, errs.New(errs.CodeInvalidInput, op)
 	}
-	text, err := domain.ParseChatBody(body.Body)
+	var att *domain.AttachmentInput
+	if a := body.Attachment; a != nil {
+		parsed, err := attachmentInput(a)
+		if err != nil {
+			return app.PostChatMessage{}, err
+		}
+		att = &parsed
+	}
+	input, err := domain.ParseChatInput(body.Body, att)
 	if err != nil {
 		return app.PostChatMessage{}, err
 	}
-	cmd := app.PostChatMessage{CabalID: cabal, Author: me, Body: text}
+	cmd := app.PostChatMessage{CabalID: cabal, Author: me, Input: input}
 	also := body.AlsoInChannel != nil && *body.AlsoInChannel
 	switch {
 	case body.ParentId != nil:
@@ -173,6 +181,9 @@ func (h HTTP) wireChat(ctx context.Context, viewer ids.UserID, messages []app.Ch
 	}
 	reactions, err := app.ChatReactions(ctx, h.Reads, viewer, messageIDs)
 	if err != nil {
+		return nil, err
+	}
+	if err := app.LoadChatAttachments(ctx, h.Reads, h.Stocks, messages); err != nil {
 		return nil, err
 	}
 	return wireChat(ctx, h.Users, reactions, messages)
@@ -253,7 +264,14 @@ func wireChatWith(
 			Reactions: []baseapi.Reaction{},
 		}
 		if !m.Deleted {
-			out[i].Body = &m.Body
+			body := m.Body
+			if m.Attachment != nil {
+				out[i].Attachment = wireAttachment(m.Attachment, m.Stock, nil)
+				if body == "" {
+					body = m.Attachment.Display().String()
+				}
+			}
+			out[i].Body = &body
 			summary := reactions[m.ID]
 			out[i].Reactions, out[i].ReactionCount = wireReactions(summary.Reactions), summary.Total
 		}
