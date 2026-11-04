@@ -28,6 +28,7 @@ public final class CommentsModel {
     public private(set) var canCommentFailed = false
     public private(set) var replySheet: ReplyTarget?
     public var isDockedFocused = false
+    public var placeholder = CommentsCopy.placeholder
     public private(set) var draft = ""
     public private(set) var sendFailed = false
     public private(set) var attachmentDraft: CommentAttachmentDraft?

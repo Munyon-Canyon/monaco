@@ -75,15 +75,24 @@ struct ProposalStatRowTests {
         #expect(items.allSatisfy { $0.info == nil })
     }
 
-    @Test func theHeroCrestLineReadsCabalProposerAndAge() {
-        let line = ProposalHero.crestLine(
-            cabalName: "AC Capital", proposer: "Mia", createdAt: Self.now.addingTimeInterval(-7_200), now: Self.now,
-            calendar: Self.utc)
-        #expect(line == "AC Capital · Mia proposed · 2h")
-        let old = ProposalHero.crestLine(
-            cabalName: "AC Capital", proposer: "Mia", createdAt: Self.now.addingTimeInterval(-86_400 * 3),
-            now: Self.now, calendar: Self.utc)
-        #expect(old == "AC Capital · Mia proposed · Oct 19")
+    @Test func theProposerFirstNameIsTheFirstWordOrNil() {
+        #expect(ProposalHero.firstName(of: "Mia Chen") == "Mia")
+        #expect(ProposalHero.firstName(of: "Mia") == "Mia")
+        #expect(ProposalHero.firstName(of: "  Mia   Chen ") == "Mia")
+        #expect(ProposalHero.firstName(of: "  ") == nil)
+        #expect(ProposalHero.firstName(of: nil) == nil)
+    }
+
+    @Test func theProposerGroupReadsRelativeThenDated() {
+        let recent = ProposalHero.proposedLabel(
+            firstName: "Mia", createdAt: Self.now.addingTimeInterval(-7_200), now: Self.now, calendar: Self.utc)
+        #expect(recent == "Mia proposed this 2 hours ago")
+        let minutes = ProposalHero.proposedLabel(
+            firstName: "Mia", createdAt: Self.now.addingTimeInterval(-60), now: Self.now, calendar: Self.utc)
+        #expect(minutes == "Mia proposed this 1 minute ago")
+        let old = ProposalHero.proposedLabel(
+            firstName: "Mia", createdAt: Self.now.addingTimeInterval(-86_400 * 3), now: Self.now, calendar: Self.utc)
+        #expect(old == "Mia proposed this on Oct 19")
     }
 
     @Test func theHeroAmountDropsWholeDollarCents() {

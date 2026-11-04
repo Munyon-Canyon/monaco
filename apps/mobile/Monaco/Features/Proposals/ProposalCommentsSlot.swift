@@ -28,6 +28,9 @@ private struct ProposalCommentsSlotView: View {
                 .onChange(of: detail?.value?.replyCount, initial: true) { _, count in
                     if let count { model.declare(count: count) }
                 }
+                .onChange(of: proposerFirstName, initial: true) { _, name in
+                    model.placeholder = name.map { "Reply to \($0)" } ?? CommentsCopy.placeholder
+                }
                 .onAppear { model.onCountChange = { detail?.setReplyCount($0) } }
                 .onChange(of: model.lastPostedID) { _, id in
                     guard let id else { return }
@@ -35,6 +38,11 @@ private struct ProposalCommentsSlotView: View {
                 }
                 .task(id: model.phase) { await applyFocus(model) }
         }
+    }
+
+    private var proposerFirstName: String? {
+        guard let proposerID = detail?.value?.summary.proposerID else { return nil }
+        return ProposalHero.firstName(of: detail?.members.first { $0.id == proposerID }?.name)
     }
 
     private func scrollToPosted(_ id: String) async {
