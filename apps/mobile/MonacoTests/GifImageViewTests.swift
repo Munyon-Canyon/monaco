@@ -47,4 +47,17 @@ nonisolated final class GifImageViewTests: XCTestCase {
 
         XCTAssertNil(GifImageView.initialStill(for: url, store: store))
     }
+
+    @MainActor
+    func testBudget_releasingASlotLetsAWaitingTileClaimIt() {
+        let budget = GifPlaybackBudget(limit: 1)
+        XCTAssertTrue(budget.claim("a"))
+        XCTAssertFalse(budget.claim("b"))
+        let before = budget.revision
+
+        budget.release("a")
+
+        XCTAssertGreaterThan(budget.revision, before)
+        XCTAssertTrue(budget.claim("b"))
+    }
 }

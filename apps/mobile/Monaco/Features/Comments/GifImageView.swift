@@ -31,12 +31,13 @@ struct GifPlayButton: View {
     }
 }
 
-@MainActor
+@MainActor @Observable
 final class GifPlaybackBudget {
     static let sheet = GifPlaybackBudget(limit: 6)
 
-    private let limit: Int
-    private var active: Set<String> = []
+    @ObservationIgnored private let limit: Int
+    @ObservationIgnored private var active: Set<String> = []
+    private(set) var revision = 0
 
     init(limit: Int) {
         self.limit = limit
@@ -50,7 +51,7 @@ final class GifPlaybackBudget {
     }
 
     func release(_ id: String) {
-        active.remove(id)
+        if active.remove(id) != nil { revision += 1 }
     }
 }
 
@@ -126,6 +127,9 @@ struct GifImageView: View {
             isOnScreen = false
             hasSlot = false
             budget?.release(id)
+        }
+        .onChange(of: budget?.revision) { _, _ in
+            if isOnScreen && !hasSlot { hasSlot = budget?.claim(id) ?? true }
         }
         .task(id: "\(still.absoluteString)#\(attempt)") { await loadStill() }
         .onChange(of: isShowingStill, initial: true) { _, shown in stillShown?.wrappedValue = shown }
