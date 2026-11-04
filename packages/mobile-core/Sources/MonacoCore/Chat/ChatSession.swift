@@ -165,15 +165,12 @@ public actor ChatSession {
         case .attached(let resumed):
             channelAttached = true
             await applyAttach(resumed: resumed)
-            let pins = state.pins
-            let hidden = await blocked?.authors ?? []
-            Task { await pins.load(hiding: hidden) }
+            Task { await self.loadPins() }
         case .seenUpdated(let messageId, let count):
             guard messageId == state.timeline.newestID else { return }
             state.seen = Seen(messageID: messageId, count: count)
         case .pinUpdated:
-            let hidden = await blocked?.authors ?? []
-            await state.pins.load(hiding: hidden)
+            await loadPins()
             return
         case .detached:
             channelAttached = false
