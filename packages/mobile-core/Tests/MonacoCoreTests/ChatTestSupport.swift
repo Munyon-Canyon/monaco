@@ -16,7 +16,8 @@ enum ChatFixtures {
         parentID: String? = nil,
         alsoInChannel: Bool = false,
         replyCount: Int = 0,
-        seenCount: Int? = nil
+        seenCount: Int? = nil,
+        reactions: [Components.Schemas.Reaction] = []
     ) -> ChatMessage {
         ChatMessage(
             id: id,
@@ -28,8 +29,8 @@ enum ChatFixtures {
             replyCount: replyCount,
             deleted: false,
             seenCount: seenCount,
-            reactions: [],
-            reactionCount: 0
+            reactions: reactions,
+            reactionCount: Int32(reactions.reduce(0) { $0 + Int($1.count) })
         )
     }
 

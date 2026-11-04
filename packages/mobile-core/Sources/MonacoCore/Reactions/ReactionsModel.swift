@@ -55,6 +55,18 @@ public final class ReactionsModel {
         }
     }
 
+    private enum Kind {
+        case feed, comment, chat
+
+        var operationSuffix: String {
+            switch self {
+            case .feed: "FeedReaction"
+            case .comment: "CommentReaction"
+            case .chat: "ChatReaction"
+            }
+        }
+    }
+
     public func dismissNotice() {
         notice = nil
     }
@@ -63,28 +75,43 @@ public final class ReactionsModel {
         _ emoji: String, adding: Bool, on target: ReactionTarget, submission: IdempotentSubmission
     ) async throws -> Components.Schemas.ReactionSummary {
         let id = target.id
-        let isComment: Bool
-        if case .comment = target { isComment = true } else { isComment = false }
-        let operation = (adding ? "put" : "delete") + (isComment ? "CommentReaction" : "FeedReaction")
+        let kind: Kind
+        let cabalID: String
+        switch target {
+        case .feedItem: (kind, cabalID) = (.feed, "")
+        case .comment: (kind, cabalID) = (.comment, "")
+        case .chatMessage(let cabal, _): (kind, cabalID) = (.chat, cabal)
+        }
+        let operation = (adding ? "put" : "delete") + kind.operationSuffix
         let api = api
         let call: @Sendable () async throws -> Components.Schemas.ReactionSummary = {
             try await api.submit(submission, payload: emoji, operation: operation) { client, key in
-                switch (isComment, adding) {
-                case (false, true):
+                switch (kind, adding) {
+                case (.feed, true):
                     return try await client.putFeedReaction(
                         path: .init(id: id, emoji: emoji), headers: .init(idempotencyKey: key)
                     ).ok.body.json
-                case (false, false):
+                case (.feed, false):
                     return try await client.deleteFeedReaction(
                         path: .init(id: id, emoji: emoji), headers: .init(idempotencyKey: key)
                     ).ok.body.json
-                case (true, true):
+                case (.comment, true):
                     return try await client.putCommentReaction(
                         path: .init(commentId: id, emoji: emoji), headers: .init(idempotencyKey: key)
                     ).ok.body.json
-                case (true, false):
+                case (.comment, false):
                     return try await client.deleteCommentReaction(
                         path: .init(commentId: id, emoji: emoji), headers: .init(idempotencyKey: key)
+                    ).ok.body.json
+                case (.chat, true):
+                    return try await client.reactToChatMessage(
+                        path: .init(id: cabalID, messageId: id, emoji: emoji),
+                        headers: .init(idempotencyKey: key)
+                    ).ok.body.json
+                case (.chat, false):
+                    return try await client.unreactToChatMessage(
+                        path: .init(id: cabalID, messageId: id, emoji: emoji),
+                        headers: .init(idempotencyKey: key)
                     ).ok.body.json
                 }
             }

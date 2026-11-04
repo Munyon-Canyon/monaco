@@ -139,6 +139,25 @@ public actor ChatSession {
         await deliver(key: key)
     }
 
+    public func settleReactions(id: String, reactions: [Components.Schemas.Reaction], total: Int32) {
+        guard state.timeline.settleReactions(id: id, reactions: reactions, total: total) else { return }
+        publish()
+    }
+
+    private func applyToTimeline(_ event: ChatRealtimeEvent) -> Bool {
+        switch event {
+        case .threadUpdated(let id, let replyCount, let lastReplyAt):
+            state.timeline.applyThread(id: id, replyCount: replyCount, lastReplyAt: lastReplyAt)
+        case .messageDeleted(let id):
+            state.timeline.markDeleted(id: id)
+        case .reactionUpdated(let id, let counts, let total):
+            return state.timeline.applyReactions(id: id, counts: counts, total: total)
+        default:
+            return false
+        }
+        return true
+    }
+
     func apply(_ event: ChatRealtimeEvent) async {
         if case .messageCreated(let message) = event, await isBlocked(message) { return }
         for thread in attached.values { await thread.apply(event) }
@@ -151,10 +170,8 @@ public actor ChatSession {
             publish()
             await onArrival()
             return
-        case .threadUpdated(let id, let replyCount, let lastReplyAt):
-            state.timeline.applyThread(id: id, replyCount: replyCount, lastReplyAt: lastReplyAt)
-        case .messageDeleted(let id):
-            state.timeline.markDeleted(id: id)
+        case .threadUpdated, .messageDeleted, .reactionUpdated:
+            guard applyToTimeline(event) else { return }
         case .attached(let resumed):
             channelAttached = true
             await applyAttach(resumed: resumed)

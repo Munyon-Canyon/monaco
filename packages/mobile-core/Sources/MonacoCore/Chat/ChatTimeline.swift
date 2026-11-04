@@ -48,6 +48,14 @@ public enum ChatDayLabel {
     }
 }
 
+extension ChatMessage {
+    mutating func applyReactions(counts: [ChatReactionCount], total: Int32) {
+        let mine = Set(reactions.filter(\.mine).map(\.emoji))
+        reactions = counts.map { .init(emoji: $0.emoji, count: $0.count, mine: mine.contains($0.emoji)) }
+        reactionCount = total
+    }
+}
+
 public struct ChatTimeline: Equatable, Sendable {
     struct Unsent: Equatable, Sendable {
         let key: String
@@ -154,6 +162,29 @@ public struct ChatTimeline: Equatable, Sendable {
             messages.remove(at: index)
         }
         rebuildRows()
+    }
+
+    public func reactions(for id: String) -> [Components.Schemas.Reaction] {
+        message(id: id)?.reactions ?? []
+    }
+
+    @discardableResult
+    public mutating func applyReactions(id: String, counts: [ChatReactionCount], total: Int32) -> Bool {
+        guard let index = messages.firstIndex(where: { $0.id == id }) else { return false }
+        messages[index].applyReactions(counts: counts, total: total)
+        rebuildRows()
+        return true
+    }
+
+    @discardableResult
+    public mutating func settleReactions(
+        id: String, reactions: [Components.Schemas.Reaction], total: Int32
+    ) -> Bool {
+        guard let index = messages.firstIndex(where: { $0.id == id }) else { return false }
+        messages[index].reactions = reactions
+        messages[index].reactionCount = total
+        rebuildRows()
+        return true
     }
 
     public mutating func applyThread(id: String, replyCount: Int, lastReplyAt: Date?) {
