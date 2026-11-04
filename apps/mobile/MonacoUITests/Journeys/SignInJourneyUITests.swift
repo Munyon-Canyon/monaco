@@ -12,12 +12,12 @@ nonisolated final class SignInJourneyUITests: XCTestCase {
         let recorder = SignInJourney.recorder()
 
         try session.scenario("S1") {
-            try session.act(as: "A")
+            try session.act(as: "A", viaUI: true)
             attachScreenshot(of: app, named: "S1-signed-in")
         }
 
         try session.scenario("S2") {
-            try session.act(as: "A")
+            try session.act(as: "A", viaUI: true)
             recorder.step("S2.1", "terminate and relaunch") {
                 app.terminate()
                 app.launch()
@@ -30,7 +30,7 @@ nonisolated final class SignInJourneyUITests: XCTestCase {
         }
 
         try session.scenario("S3") {
-            try session.act(as: "A")
+            try session.act(as: "A", viaUI: true)
             SignInJourney.signOut(app, recorder: recorder)
             recorder.step("S3.4", "relaunch and stay on the login form") {
                 app.terminate()
@@ -40,7 +40,7 @@ nonisolated final class SignInJourneyUITests: XCTestCase {
                     "S3.4: a relaunch after sign-out did not show the login form")
             }
             attachScreenshot(of: app, named: "S3-signed-out")
-            try session.act(as: "A")
+            try session.act(as: "A", viaUI: true)
             SignInJourney.signOutEverywhere(app, recorder: recorder)
             attachScreenshot(of: app, named: "S3-signed-out-everywhere")
         }

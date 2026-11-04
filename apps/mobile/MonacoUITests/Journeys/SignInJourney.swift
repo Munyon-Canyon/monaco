@@ -2,6 +2,10 @@ import XCTest
 
 private typealias S = SignInJourneySteps
 
+enum QASignOutOnLaunch {
+    static let key = "MONACO_QA_SIGN_OUT_ON_LAUNCH"
+}
+
 enum SignInJourney {
     private static let launchTimeout: TimeInterval = 30
 
@@ -48,40 +52,61 @@ enum SignInJourney {
     }
 
     private static func reachLogin(_ app: XCUIApplication, recorder: JourneyRecorder) {
+        if detectLoginNeedingSignOut(app, recorder: recorder) {
+            signOut(app, recorder: recorder)
+        }
+    }
+
+    private static func detectLoginNeedingSignOut(_ app: XCUIApplication, recorder: JourneyRecorder) -> Bool {
         app.dismissPushPrePromptIfShown(timeout: 1)
         switch currentScreen(app) {
         case .login:
-            return
+            return false
         case .invite:
             app.buttons["invite-skip-button"].tap()
-            reachLogin(app, recorder: recorder)
+            return detectLoginNeedingSignOut(app, recorder: recorder)
         case .findFriends:
             app.buttons["friends-not-now"].tap()
-            reachLogin(app, recorder: recorder)
+            return detectLoginNeedingSignOut(app, recorder: recorder)
         case .tabs:
-            signOut(app, recorder: recorder)
+            return true
         case .firstRunStep:
             let signOut = firstRunSignOuts.map { app.buttons[$0] }.first(where: \.exists)
             signOut?.tap()
             XCTAssertEqual(
                 currentScreen(app), .login, "P1: Sign out on the first-run step did not reach the login form")
+            return false
         case nil:
             XCTFail("P1: neither the login form nor the tab bar showed within \(Int(launchTimeout)) s")
+            return false
         }
     }
 
-    static func switchActor(_ app: XCUIApplication, to account: JourneyAccount) {
+    static func switchActor(_ app: XCUIApplication, to account: JourneyAccount, viaUI: Bool) {
         let recorder = recorder()
-        recorder.step("P1", "sign out to the login form") {
-            switch app.state {
-            case .notRunning, .unknown:
+        recorder.step("P1.launch", "get the app running") {
+            if viaUI {
+                switch app.state {
+                case .notRunning, .unknown:
+                    app.launch()
+                case .runningForeground:
+                    break
+                default:
+                    app.activate()
+                }
+            } else {
+                app.terminate()
+                app.launchEnvironment[QASignOutOnLaunch.key] = "1"
                 app.launch()
-            case .runningForeground:
-                break
-            default:
-                app.activate()
+                app.launchEnvironment.removeValue(forKey: QASignOutOnLaunch.key)
             }
-            reachLogin(app, recorder: recorder)
+        }
+        var needsSignOut = false
+        recorder.step("P1.detect", "find the login form or the tab bar") {
+            needsSignOut = detectLoginNeedingSignOut(app, recorder: recorder)
+        }
+        recorder.step("P1.signout", "sign out to the login form") {
+            if needsSignOut { signOut(app, recorder: recorder) }
         }
         signIn(app, as: account, recorder: recorder)
     }

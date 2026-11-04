@@ -40,6 +40,9 @@ class PrivyAuthService: ObservableObject {
     }
     private var serverSessionsEnded = false
     private var isRestoreInFlight = false
+    #if DEBUG
+    private var didQALaunchSignOut = false
+    #endif
     /// The access tokens this sign-in has used. A 401 for a token that is not in here
     /// belongs to a session that has already ended, so it must neither mint a token nor
     /// sign out whoever is signed in now.
@@ -116,6 +119,13 @@ class PrivyAuthService: ObservableObject {
     // MARK: Session restore
 
     func restoreSessionIfNeeded() async {
+        #if DEBUG
+        if !didQALaunchSignOut, QASessionReset.requested(in: ProcessInfo.processInfo.environment) {
+            didQALaunchSignOut = true
+            await performLogout(reason: nil)
+            return
+        }
+        #endif
         guard accessToken == nil, sessionStore.hasExplicitLogin else {
             if phase == .restoring { flow.signedOut() }
             return

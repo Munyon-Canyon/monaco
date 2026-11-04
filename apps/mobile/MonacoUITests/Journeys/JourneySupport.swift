@@ -262,13 +262,13 @@ final class JourneySession {
     }
 
     @discardableResult
-    func act(as actor: String) throws -> JourneyAccount {
+    func act(as actor: String, viaUI: Bool = false) throws -> JourneyAccount {
         let account = try account(actor)
         let running = app.state == .runningForeground
         if self.actor == actor, running, SignInJourney.currentScreen(app, timeout: 2) == .tabs {
             return account
         }
-        SignInJourney.switchActor(app, to: account)
+        SignInJourney.switchActor(app, to: account, viaUI: viaUI)
         self.actor = actor
         return account
     }
