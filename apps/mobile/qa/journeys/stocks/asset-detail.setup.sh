@@ -14,7 +14,7 @@ UPDATE price_points p SET price_micros = 120000000
 FROM assets a
 WHERE a.mint = p.mint AND a.symbol = 'JRNYAx' AND p.source = 'qa-journey' AND p.ts < now() - interval '11 hours'
 SQL
-# S1.3's change line needs a sample at the last US close (the backend's change_bps reference); holidays are out of scope.
+# S1.3's change line needs samples at the last and the previous US close, because after hours the backend measures the day change from the previous close (SessionInfo.ChangeBase); holidays are out of scope.
 qa_sql >/dev/null <<'SQL'
 INSERT INTO price_points (mint, ts, price_micros, source)
 SELECT a.mint, c.ts, 120000000, 'qa-journey'
@@ -24,7 +24,7 @@ CROSS JOIN (
   FROM generate_series((now() AT TIME ZONE 'America/New_York')::date - 7,
                        (now() AT TIME ZONE 'America/New_York')::date, interval '1 day') AS d
   WHERE extract(isodow FROM d) < 6 AND (d::date + time '16:00') AT TIME ZONE 'America/New_York' <= now()
-  ORDER BY d DESC LIMIT 1
+  ORDER BY d DESC LIMIT 2
 ) AS c(ts)
 WHERE a.symbol = 'JRNYAx'
 ON CONFLICT (mint, ts) DO UPDATE SET price_micros = excluded.price_micros, source = excluded.source
@@ -36,7 +36,7 @@ qa_api_ready
 did="$(apps/mobile/qa/journeys/privy-user-id.sh A)"
 qa_sql -v did="$did" >/dev/null \
   <<<"UPDATE users SET auth_state = 'ONBOARDING_COMPLETED', auth_state_changed_at = now() WHERE privy_user_id = :'did' AND auth_state <> 'ONBOARDING_COMPLETED'"
-have="$(qa_sql -v did="$did" <<<"SELECT count(*) FROM cabal_members m JOIN users u ON u.id = m.user_id WHERE u.privy_user_id = :'did' AND m.can_vote")"
+have="$(qa_sql -v did="$did" <<<"SELECT count(*) FROM cabal_members m JOIN users u ON u.id = m.user_id JOIN cabals c ON c.id = m.cabal_id WHERE u.privy_user_id = :'did' AND m.can_vote AND c.status = 'active'")"
 for ((n = have + 1; n <= 2; n++)); do
   qa_api A POST /v1/cabals \
     "{\"name\":\"QA stocks $run $n\",\"join_mode\":\"request\",\"voter_mode\":\"all\",\"threshold\":\"majority\",\"proposal_expiry_seconds\":86400}" >/dev/null

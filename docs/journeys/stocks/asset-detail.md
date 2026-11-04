@@ -1,7 +1,7 @@
 ---
 id: stocks/asset-detail
 title: Look at a stock
-version: 16
+version: 18
 rpc: fake
 milestone: M11
 requires: [auth/sign-in, stocks/browse]
@@ -24,8 +24,9 @@ The format of this doc is in [App journeys](../README.md).
 | P2 | Before each scenario, `scripts/qa/journey.py` runs `apps/mobile/qa/journeys/stocks/asset-detail.setup.sh` with the scenario id. It runs `apps/mobile/qa/journeys/stocks/browse.setup.sh`, which upserts the catalogue rows of [stocks/browse](browse.md) (P3 there), among them `JRNYQx`, a second `pre_ipo` listing of "Journey Private" from issuer `tessera`, with the same `company_key` as `JRNYPx`. Each row gets two `price_points` samples, stamped six days ago and now, and `JRNYAx` gets 120 more at five-minute spacing ending at now, so its chart has bars to draw, pinch and pan. The setup then lowers the older `JRNYAx` sample (six days ago) to $120.00, so the year range has a width and the 52-week bar draws (it needs a high above the low). No step taps to create them |
 | P3 | `JRNYAx` is `issuer_tradable`, so its Propose a buy is enabled |
 | P4 | S5 needs a cabal of A's that holds `JRNYAx`. A treasury position comes only from a confirmed trade, and the trade path is #2136's, so the setup script seeds no holding and S5 runs against a member with none |
-| P5 | S1 needs A in at least two cabals so Propose a buy opens the cabal picker. The S1 setup counts the cabals A votes in and has A create cabals `QA stocks {QA.run} <n>` through the API for the shortfall (cabal creation is rate limited, and earlier runs leave cabals), and marks A done with onboarding |
+| P5 | S1 needs A in at least two cabals so Propose a buy opens the cabal picker. The S1 setup counts the active cabals A votes in (banned cabals do not count, since the app lists only active ones) and has A create cabals `QA stocks {QA.run} <n>` through the API for the shortfall (cabal creation is rate limited, and earlier runs leave cabals), and marks A done with onboarding |
 | P6 | The run never calls the live Jupiter API. The steps read only what `GET /v1/assets/{symbol}` and its chart serve from the seeded rows |
+| P7 | Scenarios run in order in one app session. When a stock page from the previous scenario is still showing, each scenario's open step (S2.1, S3.1, S4.1, S5.1) first has A tap back and Cancel `markets-search-cancel`, and waits for the tab bar `tab-assets` |
 
 ## Scenarios
 
@@ -43,7 +44,7 @@ Starts signed in (auth/sign-in).
 | S1.6 | tap | "All" in `asset-chart-ranges` | | Within 10 s, "All" is selected |
 | S1.7 | scroll to | `asset-detail-propose-buy` | | `asset-detail-propose-buy` reads "Propose buy" and is enabled, and there is no `asset-detail-propose-sell` (no cabal of A's holds `JRNYAx`, P4), so Propose buy stands alone |
 | S1.8 | tap | `asset-detail-propose-buy` | | Within 10 s, the cabal picker shows as a half sheet titled "Choose a cabal", `propose-pick-cabal-question` asks "Which cabal should buy JRNYA?", and at least two cabal rows follow |
-| S1.9 | tap | the first cabal row | | Within 10 s, `propose-amount-screen` shows with no navigation title and the header `propose-amount-operation` reading "Buy Journey Alpha". A taps the close X `amount-keypad-close` and, within 10 s, `asset-detail-root` shows again; A taps back to Markets and, within 10 s, the tab bar `tab-assets` shows; nothing is proposed. Old app: the picker opened the amount screen. screens.md: Propose from a stock (#613) |
+| S1.9 | tap | the first cabal row | | Within 10 s, `propose-amount-screen` shows with no navigation title and the header `propose-amount-operation` reading "Buy Journey Alpha". A taps the close X `amount-keypad-close` and, within 10 s, `asset-detail-root` shows again; A taps back to Markets, taps Cancel `markets-search-cancel` to close the search and, within 10 s, the tab bar `tab-assets` shows; nothing is proposed. Old app: the picker opened the amount screen. screens.md: Propose from a stock (#613) |
 
 ### S2 Market stats and the 52-week bar
 
@@ -53,7 +54,7 @@ Starts signed in (auth/sign-in).
 | --- | --- | --- | --- | --- |
 | S2.1 | tap, type, then tap | the Markets tab `tab-assets`, then `monaco-search-field`, then `assets-row-JRNYAx` | `JRNYA` | Within 15 s, `asset-detail-root` shows |
 | S2.2 | scroll to | `asset-stats` | | Within 10 s, `asset-stats` shows the Market stats grid: open, previous close, day high and low, and 52-week high and low, leaving out a cell the candles cannot give, then a "24h volume" cell when the seeded asset has a volume reading from the last 36 hours. Old app: the Stats card. screens.md: "Market stats" (open, previous close, day high and low, 52-week high and low, 24h volume). The grid has no market cap or supply cell |
-| S2.3 | tap | `asset-stats-info-button` | | Within 10 s, `market-stats-sheet` shows "Market stats" and "Monaco prices trade around the clock, so they can differ a little from the stock market's.", and no text in it contains "Solana", "Base" or "Robinhood Chain". Closing it with `market-stats-sheet-close` shows `asset-stats` again within 5 s |
+| S2.3 | tap | `asset-stats-info-button` | | Within 10 s, the sheet title `market-stats-sheet-title` reads "Market stats", and the sheet `asset-stats-info` shows "Monaco prices trade around the clock, so they can differ a little from the stock market's.", and no text in it contains "Solana", "Base" or "Robinhood Chain". Closing it with `market-stats-sheet-close` shows `asset-stats` again within 5 s |
 
 ### S3 A Pre-IPO token
 
@@ -91,7 +92,7 @@ Looking at a stock writes nothing, and S1.9 backs out of Amount. After a run, `a
 
 | Step | Why | Blocking ticket |
 | --- | --- | --- |
-| S5.2, S5.3 | No path seeds a holding of `JRNYAx` for A (P4), so "In your cabals" is hidden and Propose a sell does not show | #2136 |
+| S5.2, S5.3 | No path seeds a holding of `JRNYAx` for A (P4), so "In your cabals" is hidden and Propose a sell does not show | #8351 |
 - S2.2: "24h volume" is no longer app copy. Blocked by #6198.
 
 ## Not covered

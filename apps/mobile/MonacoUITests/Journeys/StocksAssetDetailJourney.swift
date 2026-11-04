@@ -2,7 +2,7 @@ import XCTest
 
 enum StocksAssetDetailJourney {
     static let id = "stocks/asset-detail"
-    static let version = 16
+    static let version = 18
 
     static let alpha = StocksBrowseJourney.alpha
     static let preIpo = StocksBrowseJourney.preIpo
@@ -21,6 +21,13 @@ enum StocksAssetDetailJourney {
     }
 
     static func openAsset(_ app: XCUIApplication, _ asset: StocksBrowseJourney.SeededAsset, step: String) {
+        if app.element("asset-detail-root").exists {
+            app.navigationBars.buttons["BackButton"].tap()
+            StocksBrowseJourney.cancelSearch(app, step: step)
+            XCTAssertTrue(
+                app.element("tab-assets").waitForExistence(timeout: 10),
+                "\(step): backing out of the previous stock page did not show the tab bar")
+        }
         StocksBrowseJourney.openStocks(app, step: step)
         XCTAssertTrue(
             StocksBrowseJourney.searchField(app).waitForExistence(timeout: 15),
@@ -159,7 +166,7 @@ enum StocksAssetDetailJourney {
             let retry = app.buttons["propose-amount-cash-error"]
             if retry.waitForExistence(timeout: 4) { retry.tap() }
         }
-        XCTAssertTrue(header.waitForExistence(timeout: 5), "S1.9: no stock header on Amount")
+        XCTAssertTrue(header.waitForExistence(timeout: 10), "S1.9: no stock header on Amount")
         XCTAssertEqual(
             header.label, "Buy \(alpha.name)",
             "S1.9: the Amount header reads '\(header.label)', not 'Buy \(alpha.name)'")
@@ -168,6 +175,7 @@ enum StocksAssetDetailJourney {
             app.element("asset-detail-root").waitForExistence(timeout: 10),
             "S1.9: closing Amount did not return to the stock page")
         app.navigationBars.buttons["BackButton"].tap()
+        StocksBrowseJourney.cancelSearch(app, step: "S1.9")
         XCTAssertTrue(
             app.element("tab-assets").waitForExistence(timeout: 10),
             "S1.9: backing out of the stock page did not show the tab bar")
@@ -186,10 +194,12 @@ enum StocksAssetDetailJourney {
             let info = app.buttons["asset-stats-info-button"]
             XCTAssertTrue(info.waitForExistence(timeout: 10), "S2.3: no asset-stats-info-button")
             info.tap()
-            let sheet = app.element("market-stats-sheet")
-            XCTAssertTrue(sheet.waitForExistence(timeout: 10), "S2.3: no market-stats-sheet")
-            XCTAssertTrue(
-                sheet.staticTexts["Market stats"].waitForExistence(timeout: 10), "S2.3: no 'Market stats' title")
+            let title = app.staticTexts["market-stats-sheet-title"]
+            XCTAssertTrue(title.waitForExistence(timeout: 10), "S2.3: no market-stats-sheet-title")
+            XCTAssertEqual(
+                title.label, "Market stats", "S2.3: the sheet title reads '\(title.label)', not 'Market stats'")
+            let sheet = app.element("asset-stats-info")
+            XCTAssertTrue(sheet.waitForExistence(timeout: 5), "S2.3: no asset-stats-info sheet")
             let sentence = "Monaco prices trade around the clock, so they can differ a little from the stock market's."
             XCTAssertTrue(
                 sheet.staticTexts[sentence].waitForExistence(timeout: 10), "S2.3: the sheet does not read the sentence")
