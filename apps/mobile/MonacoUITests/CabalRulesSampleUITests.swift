@@ -2,9 +2,9 @@ import XCTest
 
 nonisolated final class CabalRulesSampleUITests: XCTestCase {
     private static let rows = [
-        ("votesToPass", "5 of 8"), ("voteWindow", "6 h"), ("maxPerTrade", "20% of cash"),
-        ("whoCanPropose", "Voters"), ("cashOut", "Anytime, your share"),
-        ("showSides", "After a vote closes"),
+        ("votesToPass", "5 of 8"), ("voteWindow", "6 hours"), ("maxPerTrade", "20% of the cash"),
+        ("whoCanPropose", "Voters"), ("cashOut", "Any time"),
+        ("showSides", "Show who voted what"),
     ]
 
     nonisolated override func setUpWithError() throws {
@@ -35,7 +35,8 @@ nonisolated final class CabalRulesSampleUITests: XCTestCase {
         }
         let footer = element(app, "cabal-rules-footer")
         app.scrollIntoReach(footer)
-        XCTAssertTrue(footer.label.contains("admins are Andres and Christelle"), "the footer names the admins")
+        XCTAssertTrue(footer.label.contains("Rules change by proposal."), "the footer says rules change by proposal")
+        XCTAssertFalse(footer.label.contains("admins"), "the footer names no admins")
     }
 
     @MainActor
@@ -47,14 +48,5 @@ nonisolated final class CabalRulesSampleUITests: XCTestCase {
         toggle.tap()
         XCTAssertTrue(
             element(app, "cabal-rule-proposal-propose").waitForExistence(timeout: 10), "the propose sheet opens")
-    }
-
-    @MainActor
-    func testTheSidesSampleReadsOnSince() {
-        let app = launch("fRulesSides")
-        let row = element(app, "cabal-rules-showSides")
-        app.scrollIntoReach(row)
-        XCTAssertTrue(row.waitForExistence(timeout: 15), "the row shows")
-        XCTAssertTrue(row.label.contains("on since Oct 20"), "the row reads on since Oct 20, got \(row.label)")
     }
 }
