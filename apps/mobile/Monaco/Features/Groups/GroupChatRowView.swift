@@ -42,6 +42,7 @@ struct GroupChatRowView: View {
     @State private var pickingEmoji = false
     @State private var listingReactions = false
     @State private var afterDismiss: (() -> Void)?
+    @State private var badgeHeight: CGFloat = 0
 
     private var message: ChatMessage { row.message }
 
@@ -343,7 +344,7 @@ extension GroupChatRowView {
             .overlay(alignment: row.isMine ? .topLeading : .topTrailing) {
                 if hasBadge { badge }
             }
-            .padding(.top, hasBadge ? ChatTapbackMetrics.topSpace : 0)
+            .padding(.top, hasBadge ? max(badgeHeight - ChatTapbackMetrics.overlap, ChatTapbackMetrics.topSpace) : 0)
             .onLongPressGesture(minimumDuration: 0.4) {
                 if opensActions { presentActions() }
             }
@@ -371,8 +372,10 @@ extension GroupChatRowView {
             },
             onLongPress: { listingReactions = true }
         )
+        .onGeometryChange(for: CGFloat.self, of: { $0.size.height }, action: { badgeHeight = $0 })
         .offset(
-            x: row.isMine ? -ChatTapbackMetrics.out : ChatTapbackMetrics.out, y: -ChatTapbackMetrics.rise)
+            x: row.isMine ? -ChatTapbackMetrics.out : ChatTapbackMetrics.out,
+            y: ChatTapbackMetrics.overlap - badgeHeight)
     }
 
     private var reactionList: some View {

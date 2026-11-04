@@ -2,7 +2,7 @@ import MonacoAPI
 import SwiftUI
 
 enum ChatTapbackMetrics {
-    static let rise: CGFloat = 12
+    static let overlap: CGFloat = 6
     static let out: CGFloat = 6
     static let ring: CGFloat = 2
     static let topSpace: CGFloat = 10
