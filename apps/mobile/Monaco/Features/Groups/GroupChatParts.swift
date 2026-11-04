@@ -243,9 +243,11 @@ struct ChatComposerBar: View {
     var placeholder = GroupChatCopy.composerPlaceholder(cabalName: nil)
     var members: [Components.Schemas.CabalMember] = []
     var viewerID = ""
+    var attachments: ChatComposerAttachments?
     let send: (String) -> Void
 
     @State private var draft = ""
+    @State private var activeSheet: ChatComposerItem?
     @State private var selection: TextSelection?
 
     private var mentionMatches: [Components.Schemas.CabalMember] {
@@ -281,6 +283,9 @@ struct ChatComposerBar: View {
     private var composer: some View {
         VStack(alignment: .trailing, spacing: MonacoTheme.Space.xs) {
             HStack(alignment: .bottom, spacing: MonacoTheme.Space.s) {
+                if let attachments {
+                    ChatComposerMenu(hasThesis: attachments.thesis != nil) { activeSheet = $0 }
+                }
                 field
                 sendButton
             }
@@ -297,6 +302,7 @@ struct ChatComposerBar: View {
         .padding(.horizontal, MonacoTheme.Space.m)
         .padding(.vertical, MonacoTheme.Space.s)
         .modifier(ChatComposerDock())
+        .modifier(ChatComposerSheets(active: $activeSheet, attachments: attachments, send: sendAttachment))
     }
 
     private var field: some View {
@@ -316,9 +322,34 @@ struct ChatComposerBar: View {
         .padding(.horizontal, MonacoTheme.Space.sm)
         .padding(.vertical, MonacoTheme.Space.sm)
         .frame(minHeight: MonacoButtonMetrics.hitTarget)
+        .padding(.trailing, attachments != nil && !fieldGrown ? gifChipReserve : 0)
         .background(shape.fill(MonacoTheme.surfaceSunken))
+        .overlay(alignment: .trailing) {
+            if attachments != nil, !fieldGrown { gifChip }
+        }
         .accessibilityIdentifier("chat-composer")
         .monacoPrivate()
+    }
+
+    private var gifChipReserve: CGFloat { ChatGifChip.width + MonacoTheme.Space.s }
+
+    private var gifChip: some View {
+        Button {
+            activeSheet = .gif
+        } label: {
+            ChatGifChip()
+        }
+        .buttonStyle(.plain)
+        .padding(.trailing, MonacoTheme.Space.s)
+        .accessibilityLabel(GroupChatCopy.menuGif)
+        .accessibilityIdentifier("chat-gif-chip")
+    }
+
+    private func sendAttachment(_ attachment: ChatAttachmentDraft) {
+        guard case .success(let body) = GroupChatDraft.prepare(draft, hasAttachment: true) else { return }
+        selection = nil
+        draft = ""
+        attachments?.send(body, attachment)
     }
 
     private var sendButton: some View {
@@ -368,12 +399,30 @@ private struct ChatComposerDock: ViewModifier {
     }
 }
 
+struct ChatGifChip: View {
+    static let width: CGFloat = 44
+    static let height: CGFloat = 32
+
+    var body: some View {
+        Text(GroupChatCopy.gifChip)
+            .font(MonacoTheme.Typo.captionStrong)
+            .foregroundStyle(MonacoTheme.primaryText)
+            .frame(width: Self.width, height: Self.height)
+            .overlay(
+                RoundedRectangle(cornerRadius: MonacoTheme.Radius.button, style: .continuous)
+                    .strokeBorder(MonacoTheme.border, lineWidth: MonacoFieldChrome.borderWidth)
+            )
+            .accessibilityHidden(true)
+    }
+}
+
 struct ChatSendDisc: View {
     let isLive: Bool
 
     var body: some View {
         Image(monaco: .up)
             .font(MonacoTheme.Typo.subheadStrong)
+            .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
             .foregroundStyle(isLive ? MonacoTheme.onAction : MonacoTheme.disabledLabel)
             .frame(width: MonacoButtonMetrics.hitTarget, height: MonacoButtonMetrics.hitTarget)
             .background(Circle().fill(isLive ? MonacoTheme.action : MonacoTheme.surfaceSunken))

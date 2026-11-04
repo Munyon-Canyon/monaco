@@ -257,6 +257,7 @@ struct ComposerSendDisc: View {
             } else {
                 Image(monaco: .up)
                     .font(MonacoTheme.Typo.subheadStrong)
+                    .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
                     .foregroundStyle(isLive ? MonacoTheme.onAction : MonacoTheme.muted)
             }
         }

@@ -74,6 +74,11 @@ public enum GroupChatCopy {
     public static let quietPollLine = "Ask the cabal something."
     public static let quietShareStock = "Share a stock"
     public static let quietShareStockLine = "Drop a ticker into the chat."
+    public static let addToMessage = "Add to message"
+    public static let gifChip = "GIF"
+    public static let menuGif = "GIF"
+    public static let menuThesis = "Quote the thesis"
+    public static let menuStock = "Share a stock"
 
     public static func composerPlaceholder(cabalName: String?) -> String {
         let trimmed = cabalName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
