@@ -3,28 +3,15 @@ import MonacoCore
 import SwiftUI
 
 enum ChatBubbleMetrics {
-    static let tailRadius: CGFloat = 4
-    static let avatarSize: CGFloat = 26
+    static let avatarSize: CGFloat = 28
     static let avatarHitInset: CGFloat = -9
     static let widthFraction: CGFloat = 0.87
+    static let mineWidthFraction: CGFloat = 0.78
+    static let runGap: CGFloat = 2
+    static let groupGap: CGFloat = 6
+    static let nameInset: CGFloat = 12
     static let sentOpacity: Double = 1
     static let pendingOpacity: Double = 0.5
-}
-
-nonisolated struct ChatBubbleShape: Shape {
-    let isMine: Bool
-    let radius: CGFloat
-    let tail: CGFloat
-
-    func path(in rect: CGRect) -> Path {
-        UnevenRoundedRectangle(
-            topLeadingRadius: isMine ? radius : tail,
-            bottomLeadingRadius: radius,
-            bottomTrailingRadius: radius,
-            topTrailingRadius: isMine ? tail : radius,
-            style: .continuous
-        ).path(in: rect)
-    }
 }
 
 struct GroupChatRowView: View {
@@ -69,17 +56,22 @@ struct GroupChatRowView: View {
                     openThread: openThread.map { open in { open(message.id) } })
             } else {
                 messageRow
-                    .padding(.top, row.startsRun && !row.startsDay ? MonacoTheme.Space.sm : 0)
+                    .padding(
+                        .top,
+                        row.startsDay ? 0 : (row.startsRun ? ChatBubbleMetrics.groupGap : ChatBubbleMetrics.runGap))
             }
         }
         .frame(maxWidth: .infinity)
     }
 
     private var messageRow: some View {
-        HStack(alignment: .top, spacing: MonacoTheme.Space.s) {
-            if !row.isMine { avatarColumn }
-            VStack(alignment: row.isMine ? .trailing : .leading, spacing: MonacoTheme.Space.xs) {
-                threadHeader
+        VStack(alignment: row.isMine ? .trailing : .leading, spacing: MonacoTheme.Space.xs) {
+            threadHeader.padding(.leading, columnInset)
+            if Self.showsAuthorName(startsRun: row.startsRun, isMine: row.isMine) {
+                authorLine.padding(.leading, columnInset + ChatBubbleMetrics.nameInset)
+            }
+            HStack(alignment: .bottom, spacing: MonacoTheme.Space.s) {
+                if !row.isMine { avatarColumn }
                 bubble
                     .modifier(
                         ChatMessageMenu(
@@ -100,25 +92,37 @@ struct GroupChatRowView: View {
                         ChatFailedMenu(
                             enabled: row.delivery == .failed, retry: { retry(row.id) },
                             discard: discard.map { discard in { discard(row.id) } }))
-                statusLine
-                if message.replyCount > 0 { repliesRow }
             }
-            .containerRelativeFrame(.horizontal, alignment: row.isMine ? .trailing : .leading) { length, _ in
-                bubbleWidth(in: length)
-            }
+            statusLine.padding(.leading, columnInset)
+            if message.replyCount > 0 { repliesRow.padding(.leading, columnInset) }
+        }
+        .containerRelativeFrame(.horizontal, alignment: row.isMine ? .trailing : .leading) { length, _ in
+            bubbleWidth(in: length)
         }
         .frame(maxWidth: .infinity, alignment: row.isMine ? .trailing : .leading)
     }
 
+    private var columnInset: CGFloat {
+        row.isMine ? 0 : ChatBubbleMetrics.avatarSize + MonacoTheme.Space.s
+    }
+
+    static func showsAuthorName(startsRun: Bool, isMine: Bool) -> Bool { startsRun && !isMine }
+
+    static func showsFace(endsRun: Bool, isMine: Bool) -> Bool { endsRun && !isMine }
+
+    static func bubbleFill(isMine: Bool) -> Color {
+        isMine ? MonacoTheme.chatBubbleMine : MonacoTheme.surfaceSunken
+    }
+
     private func bubbleWidth(in length: CGFloat) -> CGFloat {
         let content = length - MonacoTheme.Space.gutter * 2
-        let avatar = row.isMine ? 0 : ChatBubbleMetrics.avatarSize + MonacoTheme.Space.s
-        return max(content * ChatBubbleMetrics.widthFraction - avatar, 0)
+        let fraction = row.isMine ? ChatBubbleMetrics.mineWidthFraction : ChatBubbleMetrics.widthFraction
+        return max(content * fraction, 0)
     }
 
     @ViewBuilder private var avatarColumn: some View {
         let author = message.author
-        if row.startsRun {
+        if Self.showsFace(endsRun: row.endsRun, isMine: row.isMine) {
             Button {
                 openProfile(author.id)
             } label: {
@@ -139,24 +143,17 @@ struct GroupChatRowView: View {
     }
 
     private var bubble: some View {
-        VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
-            if row.startsRun && !row.isMine { authorLine }
-            bubbleText
-        }
-        .padding(.horizontal, MonacoTheme.Space.sm)
-        .padding(.vertical, MonacoTheme.Space.s)
-        .background(
-            ChatBubbleShape(isMine: row.isMine, radius: MonacoTheme.Radius.bubble, tail: ChatBubbleMetrics.tailRadius)
-                .fill(fill)
-        )
-        .opacity(row.delivery == .pending ? ChatBubbleMetrics.pendingOpacity : ChatBubbleMetrics.sentOpacity)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(accessibilityText)
-        .accessibilityIdentifier("chat-message-\(row.id)")
-    }
-
-    private var fill: Color {
-        row.isMine ? MonacoTheme.brandSoft : MonacoTheme.surfaceSunken
+        bubbleText
+            .padding(.horizontal, MonacoTheme.Space.sm)
+            .padding(.vertical, MonacoTheme.Space.s)
+            .background(
+                RoundedRectangle(cornerRadius: MonacoTheme.Radius.compact, style: .continuous)
+                    .fill(Self.bubbleFill(isMine: row.isMine))
+            )
+            .opacity(row.delivery == .pending ? ChatBubbleMetrics.pendingOpacity : ChatBubbleMetrics.sentOpacity)
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(accessibilityText)
+            .accessibilityIdentifier("chat-message-\(row.id)")
     }
 
     @ViewBuilder private var authorLine: some View {
@@ -166,7 +163,7 @@ struct GroupChatRowView: View {
             openProfile(author.id)
         } label: {
             Text(named ? author.displayName : "Former member")
-                .font(MonacoTheme.Typo.captionStrong)
+                .font(MonacoTheme.Typo.caption)
                 .foregroundStyle(MonacoTheme.secondaryText)
                 .lineLimit(1)
                 .monacoPrivate()
@@ -186,8 +183,8 @@ struct GroupChatRowView: View {
         } else {
             ChatMessageText(
                 text: message.body ?? "", members: members,
-                color: row.isMine ? MonacoTheme.primaryText : MonacoTheme.bodyText,
-                mentionColor: MonacoTheme.brand, openProfile: openProfile)
+                color: MonacoTheme.primaryText,
+                mentionColor: MonacoTheme.tint, openProfile: openProfile)
         }
     }
 }
@@ -338,8 +335,8 @@ struct ChatDayLabel: View {
             .multilineTextAlignment(.center)
             .lineLimit(2)
             .frame(maxWidth: .infinity)
-            .padding(.top, MonacoTheme.Space.sm)
-            .padding(.bottom, MonacoTheme.Space.l)
+            .padding(.top, MonacoTheme.Space.s)
+            .padding(.bottom, MonacoTheme.Space.sm)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(label)
     }
