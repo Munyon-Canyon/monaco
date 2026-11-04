@@ -61,6 +61,17 @@ func (s *Stack) crashProcess(ctx context.Context, name string, point faultpoint.
 	return s.startProcess(ctx, name)
 }
 
+func (s *Stack) disarm(ctx context.Context) error {
+	if !s.armed {
+		return nil
+	}
+	name := s.armedName
+	err := s.procs[name].stop(ctx)
+	s.armed = false
+	s.armedName = ""
+	return errors.Join(err, s.startProcess(ctx, name))
+}
+
 func (s *Stack) arm(ctx context.Context) error {
 	if s.armed || s.opts.Faultpoint == "" {
 		return nil

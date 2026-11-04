@@ -42,6 +42,7 @@ type Env struct {
 	Logs            *Logs
 	Crash           func(ctx context.Context, u Unit, point faultpoint.Name) error
 	Arm             func(ctx context.Context, u Unit) error
+	Disarm          func(ctx context.Context) error
 	BeforeCoreFlush func()
 	PollEvery       time.Duration
 	ProbeTimeout    time.Duration
@@ -112,6 +113,7 @@ func (d *driver) runAll(ctx context.Context, units []Unit, parallel int) []*Resu
 
 func (d *driver) run(ctx context.Context, u Unit) *Result {
 	res := &Result{Unit: u, Phases: map[Phase]time.Duration{}, startedAt: time.Now()}
+	defer d.disarm(ctx, res)
 	if err := d.env.Arm(ctx, u); err != nil {
 		res.fail(err)
 		return res
@@ -131,6 +133,17 @@ func (d *driver) run(ctx context.Context, u Unit) *Result {
 		res.fail(err)
 	}
 	return res
+}
+
+func (d *driver) disarm(ctx context.Context, res *Result) {
+	if d.env.Disarm == nil {
+		return
+	}
+	ctx, cancel := detached(ctx, d.budget.Stack)
+	defer cancel()
+	if err := d.env.Disarm(ctx); err != nil {
+		res.fail(err)
+	}
 }
 
 func (d *driver) script(ctx context.Context, u Unit, res *Result) error {
