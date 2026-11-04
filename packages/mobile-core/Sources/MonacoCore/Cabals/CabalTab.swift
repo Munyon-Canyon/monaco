@@ -2,15 +2,22 @@ import Foundation
 import Observation
 
 public enum CabalTab: String, CaseIterable, Hashable, Sendable {
+    case chat
     case treasury
     case rules
     case members
     case voters
 
     public static let `default`: CabalTab = .treasury
+    public static let hostsChat = false
+
+    public static var shown: [CabalTab] {
+        hostsChat ? allCases : allCases.filter { $0 != .chat }
+    }
 
     public var title: String {
         switch self {
+        case .chat: "Chat"
         case .treasury: "Treasury"
         case .rules: "Rules"
         case .members: "Members"

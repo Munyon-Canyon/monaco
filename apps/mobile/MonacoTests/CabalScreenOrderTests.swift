@@ -51,6 +51,7 @@ struct CabalScreenOrderTests {
     }
 
     @Test func eachTabHostsItsSlots() {
+        #expect(CabalTabs.sections(for: .chat).isEmpty)
         #expect(Self.names(CabalTabs.sections(for: .treasury)) == ["CabalTreasuryTabSlot"])
         #expect(Self.names(CabalTabs.sections(for: .rules)) == ["CabalRulesSlot"])
         #expect(Self.names(CabalTabs.sections(for: .members)) == ["CabalMembersSlot"])
@@ -103,7 +104,7 @@ struct CabalScreenOrderTests {
 
         await ProposalTestWindow.until { AccessibilityTree.identifiers(in: window).contains("cabal-tab-members") }
         let identifiers = AccessibilityTree.identifiers(in: window)
-        for shown in CabalTab.allCases {
+        for shown in CabalTab.shown {
             #expect(identifiers.contains("cabal-tab-\(shown.rawValue)"), "identifiers: \(identifiers)")
         }
         if tab == .rules {

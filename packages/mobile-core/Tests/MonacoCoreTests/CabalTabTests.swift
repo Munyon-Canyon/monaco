@@ -11,9 +11,20 @@ final class CabalTabTests: XCTestCase {
         XCTAssertEqual(CabalTabSelection().tab, .treasury)
     }
 
-    func testTheTabsRunTreasuryRulesMembersVoters() async {
-        XCTAssertEqual(CabalTab.allCases, [.treasury, .rules, .members, .voters])
-        XCTAssertEqual(CabalTab.allCases.map(\.title), ["Treasury", "Rules", "Members", "Voters"])
+    func testTheTabsRunChatTreasuryRulesMembersVoters() async {
+        XCTAssertEqual(CabalTab.allCases, [.chat, .treasury, .rules, .members, .voters])
+        XCTAssertEqual(CabalTab.allCases.map(\.title), ["Chat", "Treasury", "Rules", "Members", "Voters"])
+    }
+
+    func testChatIsHiddenUntilTheThreadIsHosted() async {
+        XCTAssertFalse(CabalTab.hostsChat)
+        XCTAssertEqual(CabalTab.shown, [.treasury, .rules, .members, .voters])
+        XCTAssertEqual(CabalTab(rawValue: "chat"), .chat)
+    }
+
+    func testChatCarriesNoCount() async {
+        XCTAssertNil(CabalTab.chat.count(memberCount: 8))
+        XCTAssertEqual(CabalTab.chat.title(memberCount: 8), "Chat")
     }
 
     func testOnlyMembersCarriesTheCount() async {
