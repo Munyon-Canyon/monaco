@@ -112,7 +112,7 @@ struct GroupChatScreen: View {
         let showsPin = !chat.pins.pins.isEmpty && network?.isOnline != false
         return threadList(chat)
             .modifier(ChatPinFade(active: showsPin))
-            .overlay(alignment: .top) {
+            .safeAreaInset(edge: .top, spacing: 0) {
                 if showsPin {
                     ChatPinCapsule(
                         pins: chat.pins, cabalName: cabal?.name ?? "", scrollTo: { scroll(to: $0) },

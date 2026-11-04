@@ -56,6 +56,7 @@ struct ChatPinCapsule: View {
                         }
                     }
                     .padding(.leading, MonacoTheme.Space.sm)
+                    .padding(.vertical, MonacoTheme.Space.xs)
                     .frame(maxHeight: .infinity)
                     .contentShape(Rectangle().inset(by: -2))
                 }
@@ -72,7 +73,7 @@ struct ChatPinCapsule: View {
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("chat-pin-list-button")
             }
-            .frame(height: ChatPinMetrics.height)
+            .frame(minHeight: ChatPinMetrics.height)
             .monacoGlassCapsule()
             .padding(.horizontal, MonacoTheme.Space.gutter)
             .padding(.top, MonacoTheme.Space.s)
