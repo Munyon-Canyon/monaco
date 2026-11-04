@@ -60,8 +60,8 @@ final class HoldingSupportTests: XCTestCase {
         guard case .loaded(let facts) = store.state(for: detail.id) else {
             return XCTFail("got \(store.state(for: detail.id))")
         }
-        XCTAssertEqual(facts.phase, .open)
-        XCTAssertEqual(facts.proposerID, detail.proposerId)
-        XCTAssertFalse(facts.isSell)
+        XCTAssertEqual(facts.summary.status, .open)
+        XCTAssertEqual(facts.summary.proposerID, detail.proposerId)
+        XCTAssertFalse(facts.summary.isRule)
     }
 }

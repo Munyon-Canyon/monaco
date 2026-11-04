@@ -68,9 +68,20 @@ struct GroupChatRowView: View {
                         row.startsDay ? 0 : ChatMomentRow.topGap(previousIsEventLine: followsEventLine))
             } else if let proposalID = message.proposalId, let proposals {
                 ChatProposalCard(
-                    message: message, proposalID: proposalID, store: proposals, members: members,
-                    cabalName: cabalName, now: now, openProposal: { openProposal?(proposalID) },
-                    openThread: openThread.map { open in { open(message.id) } })
+                    message: message, proposalID: proposalID, store: proposals, columnInset: columnInset,
+                    isMine: row.isMine,
+                    openProposal: { openProposal?(proposalID) },
+                    name: {
+                        if Self.showsAuthorName(startsRun: true, isMine: row.isMine) { authorLine }
+                    },
+                    thesis: {
+                        reactable(textBubble)
+                            .containerRelativeFrame(.horizontal, alignment: row.isMine ? .trailing : .leading) {
+                                length, _ in bubbleWidth(in: length)
+                            }
+                    },
+                    face: { if !row.isMine { avatarColumn } },
+                    replies: { if message.replyCount > 0 { repliesRow } })
             } else {
                 messageRow
                     .padding(

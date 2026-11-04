@@ -25,7 +25,7 @@ enum VoteResultMark: Equatable {
 }
 
 enum VoteIdentifier {
-    static let barePrefixes: Set<String> = ["cabal-open-proposal"]
+    static let barePrefixes: Set<String> = ["cabal-open-proposal", "chat-proposal"]
 
     static func make(_ prefix: String, _ name: String, _ suffix: String?) -> String {
         let name = barePrefixes.contains(prefix) ? bare(name) : name

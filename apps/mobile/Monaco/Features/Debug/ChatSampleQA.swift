@@ -35,9 +35,15 @@ private struct ChatSampleHost: View {
     @State private var openedProfile: String?
     @State private var sent = false
     @State private var proposals = ChatProposalStore { id in
-        ChatProposalFacts(
-            proposalID: id, proposerID: "u-mia", assetName: "NVIDIA", isSell: false, amountMicros: 1_200_000_000,
-            createdAt: Date(), phase: .open)
+        var proposal = Components.Schemas.Proposal.sample()
+        proposal.id = id
+        proposal.symbol = "NVDAx"
+        proposal.usdcMicros = 400_000_000
+        proposal.tally = .init(yes: 4, no: 1, voters: 8, needed: 5)
+        proposal.canVote = true
+        proposal.replyCount = 6
+        proposal.expiresAt = Date().addingTimeInterval(4 * 3_600)
+        return ChatProposalFacts(summary: ProposalSummary(proposal), asset: nil)
     }
     @State private var network: NetworkPathModel
     @State private var reactions = ReactionsModel.sample(reactions: [:], fails: false, clock: ContinuousClock())

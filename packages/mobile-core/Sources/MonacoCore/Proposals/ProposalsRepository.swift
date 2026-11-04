@@ -145,7 +145,7 @@ public struct ProposalSummary: Identifiable, Equatable, Sendable {
         self.ruleChange = ruleChange
     }
 
-    init(
+    public init(
         _ proposal: Components.Schemas.Proposal,
         canVote: Bool? = nil,
         canWithdraw: Bool = false,

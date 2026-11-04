@@ -42,6 +42,7 @@ struct GroupChatView: View {
             _ = preparedSession()
             await model.load()
         }
+        .task { await preparedProposals().observe(cabalID: cabalID, hints: environment.hints) }
     }
 
     private func preparedProposals() -> ChatProposalStore {
