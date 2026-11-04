@@ -105,7 +105,7 @@ func (s *Server) swapTransaction(w http.ResponseWriter, r *http.Request) {
 	}
 	landed, ok := s.landedSwap(sig)
 	if !ok {
-		s.serveFixture(w, []string{"/rpc/getTransaction/" + sig, "/rpc/getTransaction"})
+		s.serveFixture(r.Context(), w, []string{"/rpc/getTransaction/" + sig, "/rpc/getTransaction"})
 		return
 	}
 	rpcReply(w, call.ID, s.inboundTransaction(landed), nil)

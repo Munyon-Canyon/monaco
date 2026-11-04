@@ -3,12 +3,14 @@ package fakes
 import (
 	"bytes"
 	"cmp"
+	"context"
 	"embed"
 	"encoding/json"
 	"io"
 	"io/fs"
 	"log/slog"
 	"net/http"
+	"os"
 	"slices"
 	"strings"
 	"sync"
@@ -68,6 +70,7 @@ type fieldError string
 func (f fieldError) Error() string { return "invalid step field: " + string(f) }
 
 type Server struct {
+	log          *slog.Logger
 	mux          *http.ServeMux
 	live         *http.ServeMux
 	fixtures     map[string]fixture
@@ -95,6 +98,7 @@ func New() *Server { return newFrom(fixtures, "testdata/fakes") }
 
 func newFrom(fsys fs.FS, root string) *Server {
 	s := &Server{
+		log:          slog.New(slog.NewTextHandler(os.Stderr, nil)),
 		mux:          http.NewServeMux(),
 		live:         http.NewServeMux(),
 		fixtures:     loadFixtures(fsys, root),
@@ -316,7 +320,7 @@ func (s *Server) replay(upstream string) http.HandlerFunc {
 		if s.answerRPC(w, r, route, keys, step.fixture != "") {
 			return
 		}
-		s.serveFixture(w, keys)
+		s.serveFixture(r.Context(), w, keys)
 	}
 }
 
@@ -349,7 +353,7 @@ func (s *Server) multipleAccounts(w http.ResponseWriter, r *http.Request) bool {
 	return true
 }
 
-func (s *Server) serveFixture(w http.ResponseWriter, keys []string) {
+func (s *Server) serveFixture(ctx context.Context, w http.ResponseWriter, keys []string) {
 	for _, key := range keys {
 		f, ok := s.fixtures[key]
 		if !ok {
@@ -362,6 +366,7 @@ func (s *Server) serveFixture(w http.ResponseWriter, keys []string) {
 		_, _ = w.Write(f.Body)
 		return
 	}
+	s.log.ErrorContext(ctx, "fakes: no answer for request", slog.String("route", keys[len(keys)-1]))
 	http.Error(w, "no fixture for "+keys[len(keys)-1], http.StatusNotImplemented)
 }
 

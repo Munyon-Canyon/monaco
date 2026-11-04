@@ -61,7 +61,7 @@ func (s *Server) jupiterOrder(w http.ResponseWriter, r *http.Request) {
 	quoted, ok := s.quotedOrder()
 	walletID, held := s.walletAt(taker)
 	if !ok || taker != "" && !held {
-		s.serveFixture(w, []string{orderRoute})
+		s.serveFixture(r.Context(), w, []string{orderRoute})
 		return
 	}
 	in, okIn := new(big.Int).SetString(q.Get("amount"), 10)
@@ -220,7 +220,7 @@ func (s *Server) jupiterExecute(w http.ResponseWriter, r *http.Request) {
 	outcome := s.swaps[order.taker]
 	s.mu.Unlock()
 	if !known {
-		s.serveFixture(w, []string{executeRoute})
+		s.serveFixture(r.Context(), w, []string{executeRoute})
 		return
 	}
 	raw, _ := base64.StdEncoding.DecodeString(req.SignedTransaction)
