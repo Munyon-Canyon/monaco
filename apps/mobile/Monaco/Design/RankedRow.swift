@@ -7,6 +7,8 @@ enum RankedRowMetrics {
     static let columnGap: CGFloat = MonacoTheme.Space.sm
     static let movementGlyphSize: CGFloat = 8
     static let minHeight: CGFloat = MonacoRowLayout.minHeight
+    static let bandInset: CGFloat = MonacoTheme.Space.s
+    static let bandStroke: CGFloat = 1
 
     static let ruleInset = MonacoTheme.Space.gutter + rankWidth + columnGap + avatarSize + columnGap
 }
@@ -88,6 +90,7 @@ struct RankedRow<Leading: View>: View {
     }
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.colorSchemeContrast) private var contrast
     @ScaledMetric(relativeTo: .footnote) private var movementGlyphSize = RankedRowMetrics.movementGlyphSize
 
     private var layout: MonacoRowLayout {
@@ -121,12 +124,21 @@ struct RankedRow<Leading: View>: View {
         .frame(minHeight: RankedRowMetrics.minHeight)
         .background {
             if isYouBand {
-                MonacoTheme.surface
+                let band = RoundedRectangle(cornerRadius: MonacoTheme.Radius.compact, style: .continuous)
+                band.fill(MonacoTheme.surface)
+                    .overlay {
+                        if contrast == .increased {
+                            band.strokeBorder(MonacoTheme.hairline, lineWidth: RankedRowMetrics.bandStroke)
+                        }
+                    }
+                    .padding(.horizontal, RankedRowMetrics.bandInset)
             }
         }
         .overlay(alignment: .bottom) {
-            MonacoRule(color: MonacoTheme.hairline)
-                .padding(.leading, layout.isStacked ? MonacoTheme.Space.gutter : RankedRowMetrics.ruleInset)
+            if !isYouBand {
+                MonacoRule(color: MonacoTheme.hairline)
+                    .padding(.leading, layout.isStacked ? MonacoTheme.Space.gutter : RankedRowMetrics.ruleInset)
+            }
         }
         .contentShape(Rectangle())
         .accessibilityElement(children: .ignore)

@@ -81,4 +81,16 @@ struct RankedRowTests {
         #expect(labels.contains { $0.contains("78 percent, 7 of 9 right") }, "labels: \(labels)")
         #expect(labels.count == 1, "labels: \(labels)")
     }
+
+    @Test func theBandSitsEightPointsFromTheEdgeAndEightOutsideTheContent() {
+        #expect(RankedRowMetrics.bandInset == 8)
+        #expect(MonacoTheme.Space.gutter - RankedRowMetrics.bandInset == 8)
+    }
+
+    @Test(arguments: [DynamicTypeSize.large, .accessibility3])
+    func theBandNeverChangesTheRowHeight(size: DynamicTypeSize) {
+        let band = Self.fitted(Self.row(isYouBand: true), at: size).height
+        let plain = Self.fitted(Self.row(isYouBand: false), at: size).height
+        #expect(band == plain, "band \(band), plain \(plain)")
+    }
 }
