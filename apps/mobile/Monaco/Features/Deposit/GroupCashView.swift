@@ -143,10 +143,12 @@ struct GroupCashView: View {
 
     private func returnToHoldings() {
         let navigator = environment.navigator
-        if navigator.path(for: navigator.selectedTab).contains(AnyAppRoute(CabalRoute(id: cabalID))) {
+        let path = navigator.path(for: navigator.selectedTab)
+        let isOpen = CabalTab.allCases.contains { path.contains(AnyAppRoute(CabalRoute(id: cabalID, tab: $0))) }
+        if isOpen {
             dismiss()
         } else {
-            navigator.open(CabalRoute(id: cabalID), in: navigator.selectedTab)
+            navigator.open(CabalRoute(id: cabalID, tab: .treasury), in: navigator.selectedTab)
         }
     }
 }

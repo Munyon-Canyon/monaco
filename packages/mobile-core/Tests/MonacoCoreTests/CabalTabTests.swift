@@ -8,7 +8,7 @@ final class CabalTabTests: XCTestCase {
         XCTAssertEqual(selection.tab, .members)
         selection.tab = .voters
         XCTAssertEqual(selection.tab, .voters)
-        XCTAssertEqual(CabalTabSelection().tab, .treasury)
+        XCTAssertEqual(CabalTabSelection().tab, .chat)
     }
 
     func testTheTabsRunChatTreasuryRulesMembersVoters() async {
@@ -43,8 +43,17 @@ final class CabalTabTests: XCTestCase {
         XCTAssertNil(CabalTab.members.count(memberCount: nil))
     }
 
-    func testTheDefaultTabIsTreasury() async {
-        XCTAssertEqual(CabalTab.default, .treasury)
+    func testTheDefaultTabIsChat() async {
+        XCTAssertEqual(CabalTab.default, .chat)
         XCTAssertEqual(CabalTab(rawValue: "members"), .members)
+    }
+
+    func testAReadOnlyCabalResolvesChatToTreasuryAndKeepsEveryOtherTab() async {
+        XCTAssertEqual(CabalTab.chat.resolved(isReadOnly: true), .treasury)
+        XCTAssertEqual(CabalTab.chat.resolved(isReadOnly: false), .chat)
+        for tab in CabalTab.allCases where tab != .chat {
+            XCTAssertEqual(tab.resolved(isReadOnly: true), tab)
+            XCTAssertEqual(tab.resolved(isReadOnly: false), tab)
+        }
     }
 }

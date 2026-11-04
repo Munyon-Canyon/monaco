@@ -22,7 +22,7 @@ struct CabalScreenLoadTests {
             Self.potPath: [.json(.ok, try Self.json(Components.Schemas.CabalPot.sampleZero))],
             Self.myCabalsPath: Array(repeating: .json(.ok, "[]"), count: 4),
         ])
-        let screen = CabalScreen(cabalID: "cabal-1", sections: Self.cabalReadingSections)
+        let screen = CabalScreen(cabalID: "cabal-1", tab: .treasury, sections: Self.cabalReadingSections)
         let window = try Self.window(hosting: screen, over: transport)
         defer { TestWindow.close(window) }
 
@@ -42,7 +42,7 @@ struct CabalScreenLoadTests {
             Self.potPath: Array(repeating: .failure(URLError(.notConnectedToInternet)), count: 8),
             Self.myCabalsPath: Array(repeating: .json(.ok, "[]"), count: 4),
         ])
-        let screen = CabalScreen(cabalID: "cabal-1", sections: Self.cabalReadingSections)
+        let screen = CabalScreen(cabalID: "cabal-1", tab: .treasury, sections: Self.cabalReadingSections)
         try AccessibilityTree.setAutomation(enabled: true)
         defer { try? AccessibilityTree.setAutomation(enabled: false) }
         let window = try Self.window(hosting: screen, over: transport)
@@ -62,7 +62,7 @@ struct CabalScreenLoadTests {
     func theHeaderReadsTheCabalThePotTheMonthTheOpenProposalsAndTheLatestClosedOneOnce() async throws {
         let transport = try Self.transport(
             cabal: .sample(role: "member"), pot: .sampleInvested, proposals: [.sample(status: .open)])
-        let screen = CabalScreen(cabalID: "cabal-1", sections: Self.headerSections)
+        let screen = CabalScreen(cabalID: "cabal-1", tab: .treasury, sections: Self.headerSections)
         let window = try Self.window(hosting: screen, over: transport)
         defer { TestWindow.close(window) }
 
@@ -91,7 +91,7 @@ struct CabalScreenLoadTests {
         try AccessibilityTree.setAutomation(enabled: true)
         defer { try? AccessibilityTree.setAutomation(enabled: false) }
         let window = try Self.window(
-            hosting: CabalScreen(cabalID: "cabal-1", sections: Self.headerSections), over: transport)
+            hosting: CabalScreen(cabalID: "cabal-1", tab: .treasury, sections: Self.headerSections), over: transport)
         defer { TestWindow.close(window) }
 
         await ProposalTestWindow.until {
@@ -110,7 +110,7 @@ struct CabalScreenLoadTests {
         try AccessibilityTree.setAutomation(enabled: true)
         defer { try? AccessibilityTree.setAutomation(enabled: false) }
         let window = try Self.window(
-            hosting: CabalScreen(cabalID: "cabal-1", sections: Self.headerSections), over: transport)
+            hosting: CabalScreen(cabalID: "cabal-1", tab: .treasury, sections: Self.headerSections), over: transport)
         defer { TestWindow.close(window) }
 
         await ProposalTestWindow.until { AccessibilityTree.identifiers(in: window).contains("cabal-action-fund") }

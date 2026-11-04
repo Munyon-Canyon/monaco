@@ -281,7 +281,7 @@ The page is the header (#6481: cover, name and facts line, stat block, Fund and 
 | Members (`cabal-tab-members`) | `CabalMembersSlot`: the first five members with role, record and share, "See all N", Invite and the footer (#6534) |
 | Voters (`cabal-tab-voters`) | `CabalVotersSlot`: every member grouped "Vote (N)" and "Don't vote (N)", with propose actions in each row's menu (#6534) |
 
-**The ··· menu** (`cabal-more-button`) holds Chat (`cabal-more-chat`, opens `ChatRoute`; hidden on a closed cabal), Edit name and picture (`cabal-more-edit`, creator only, opens Cabal settings), Treasury address (`cabal-more-treasury`, a sheet with the warning, the address and "View on Solscan") and Leave cabal (`cabal-more-leave`, destructive and last, a sheet whose "Leave cabal" button asks for confirmation). There is no information screen: the chat screen’s details sheet is the only place that still lists the rules, links and treasury sections together.
+**The ··· menu** (`cabal-more-button`) has no Chat item: the page opens on the Chat tab (Treasury on a closed, winding-down or non-member cabal). It holds Edit name and picture (`cabal-more-edit`, creator only, opens Cabal settings), Treasury address (`cabal-more-treasury`, a sheet with the warning, the address and "View on Solscan") and Leave cabal (`cabal-more-leave`, destructive and last, a sheet whose "Leave cabal" button asks for confirmation). There is no information screen: the chat screen’s details sheet is the only place that still lists the rules, links and treasury sections together.
 
 The actions and the proposals that need a vote sit above the tabs. A closed cabal keeps its notice second and hides the actions.
 

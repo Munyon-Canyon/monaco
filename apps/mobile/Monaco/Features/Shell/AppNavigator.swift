@@ -11,6 +11,7 @@ final class AppNavigator {
     var stocksPath: [AnyAppRoute] = []
     var profilePath: [AnyAppRoute] = []
     var deposit: DepositRequest?
+    var visibleChatCabalID: String?
     var voteHold: VoteHoldRequest?
     var ledger: LedgerRoute?
     var signedOutLanding: InviteLandingRoute?
