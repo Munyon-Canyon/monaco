@@ -305,7 +305,10 @@ private struct PermissionSheetSample: View {
         ProposalSampleRoute(votes: .closed).destination()
             .task {
                 await prompt.noteFirstVote(
-                    sample: PushSample(title: "NVDA passed 5–1", body: "Bought 1.82 sh at $219.40."))
+                    sample: PushSample.afterVote(
+                        symbol: "NVDAx", status: .passed, tally: ProposalTally(yes: 5, no: 1, voters: 8, needed: 5),
+                        isSell: false, usdcMicros: 400_000_000, closesAt: Date(timeIntervalSince1970: 1_792_662_780),
+                        swap: nil, pendingUnits: nil, callerName: "Mia"))
             }
             .sheet(isPresented: $prompt.isPresented) { PushPrePromptSheet(prompt: prompt) }
     }

@@ -14,7 +14,7 @@ public struct PushSample: Equatable, Sendable {
     public static func afterVote(
         symbol: String, status: ProposalStatus, tally: ProposalTally, isSell: Bool, usdcMicros: Int64?,
         closesAt: Date, swap: ProposalSwap?, pendingUnits: String?, cabalImageURL: URL? = nil,
-        calendar: Calendar = .current, isRule: Bool = false
+        calendar: Calendar = .current, isRule: Bool = false, callerName: String? = nil
     ) -> PushSample {
         let score0 = "\(tally.yes)–\(tally.no)"
         if isRule {
@@ -35,16 +35,25 @@ public struct PushSample: Equatable, Sendable {
             }
         }
         let ticker = symbol.hasSuffix("x") ? String(symbol.dropLast()) : symbol
-        let score = "\(tally.yes)–\(tally.no)"
+        let verb = isSell ? "Sell" : "Buy"
+        let score = "\(tally.yes) to \(tally.no)"
         switch ProposalResultCopy.seal(status: status) {
         case .passed:
-            let body =
-                swap.flatMap { ProposalResultCopy.filled($0, unit: .shares, isSell: isSell) }.map { $0 + "." }
-                ?? pendingUnits.map { "\(isSell ? "Selling" : "Buying") \($0) sh now." }
-                ?? "\(isSell ? "Selling" : "Buying") now."
-            return PushSample(title: "\(ticker) passed \(score)", body: body, cabalImageURL: cabalImageURL)
+            let body: String
+            if let callerName {
+                body = "\(callerName) called it."
+            } else if let fill = swap.flatMap({ ProposalResultCopy.filled($0, unit: .ticker("shares"), isSell: isSell) }
+            ) {
+                body = fill + "."
+            } else if let pendingUnits {
+                body = "\(isSell ? "Selling" : "Buying") \(pendingUnits) shares now."
+            } else {
+                body = "\(isSell ? "Selling" : "Buying") now."
+            }
+            return PushSample(title: "\(verb) \(ticker) passed, \(score)", body: body, cabalImageURL: cabalImageURL)
         case .failed:
-            return PushSample(title: "\(ticker) failed \(score)", body: "No trade.", cabalImageURL: cabalImageURL)
+            return PushSample(
+                title: "\(verb) \(ticker) failed, \(score)", body: "No trade.", cabalImageURL: cabalImageURL)
         case .neutral:
             let clock = SharedFormatters.string(
                 from: closesAt, pattern: .fixed("h:mm a"), locale: Locale(identifier: "en_US_POSIX"),
