@@ -2,7 +2,6 @@ import MonacoCore
 import SwiftUI
 
 enum CabalInviteMetrics {
-    static let coverHeight: CGFloat = 48
     static let crestSize: CGFloat = 56
     static let inviterPhoto: CGFloat = 32
     static let faceSize: CGFloat = 32
@@ -24,39 +23,22 @@ struct CabalInviteCard: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            cover
-            VStack(alignment: .leading, spacing: MonacoTheme.Space.sm) {
-                identity
-                inviter
-                if let proposal = preview.proposal {
-                    Rectangle()
-                        .fill(MonacoTheme.hairline)
-                        .frame(height: 1)
-                    CabalInviteProposalRow(proposal: proposal)
-                }
+        VStack(alignment: .leading, spacing: MonacoTheme.Space.sm) {
+            identity
+            inviter
+            if let proposal = preview.proposal {
+                Rectangle()
+                    .fill(MonacoTheme.hairline)
+                    .frame(height: 1)
+                CabalInviteProposalRow(proposal: proposal)
             }
-            .padding(MonacoTheme.Space.m)
         }
+        .padding(MonacoTheme.Space.m)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(MonacoTheme.surfaceSunken)
         .clipShape(RoundedRectangle(cornerRadius: MonacoTheme.Radius.card, style: .continuous))
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("cabal-invite-link")
-    }
-
-    private var cover: some View {
-        CabalCover(
-            cabalId: preview.cabalID, tint: .forGroupId(preview.cabalID),
-            pictureURL: CabalMark.resolvedURL(preview.pictureURL), style: .card
-        ) {
-            Color.clear
-        }
-        .frame(height: CabalInviteMetrics.coverHeight)
-        .accessibilityElement(children: .ignore)
-        .accessibilityAddTraits(.isImage)
-        .accessibilityLabel("\(preview.name) cover")
-        .accessibilityIdentifier("cabal-invite-cover")
     }
 
     private var stacks: Bool { dynamicTypeSize >= .xxxLarge }
@@ -167,6 +149,8 @@ private struct CabalInviteProposalRow: View {
         HStack(spacing: MonacoTheme.Space.s) {
             Label("\(proposal.yes)", systemImage: "checkmark")
                 .foregroundStyle(MonacoTheme.profit)
+            Text("\u{00B7}")
+                .foregroundStyle(MonacoTheme.secondaryText)
             Label("\(proposal.no)", systemImage: "xmark")
                 .foregroundStyle(MonacoTheme.loss)
         }

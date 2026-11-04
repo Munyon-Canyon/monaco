@@ -25,7 +25,7 @@ final class CabalInviteModelTests: XCTestCase {
         XCTAssertEqual(preview.moreText, "+4")
         let proposal = try XCTUnwrap(preview.proposal)
         XCTAssertEqual(proposal.title, "Buy NVDA \u{00B7} $400")
-        XCTAssertEqual(proposal.detail, "5 of 8 voted \u{00B7} 6 replies \u{00B7} ends in 4h")
+        XCTAssertEqual(proposal.detail, "5 of 8 voted \u{00B7} 6 replies \u{00B7} 4h")
         XCTAssertEqual(proposal.yes, 4)
         XCTAssertEqual(proposal.no, 1)
     }
@@ -53,13 +53,13 @@ final class CabalInviteModelTests: XCTestCase {
         await model.load()
 
         XCTAssertEqual(
-            try XCTUnwrap(model.preview?.proposal).detail, "5 of 8 voted \u{00B7} ends in 4h")
+            try XCTUnwrap(model.preview?.proposal).detail, "5 of 8 voted \u{00B7} 4h")
     }
 
     func testOneReplyIsSingular() async {
         XCTAssertEqual(
             CabalInviteCopy.proposalDetail(voted: 2, eligible: 6, replies: 1, expiresAt: Self.expiry, now: Self.now),
-            "2 of 6 voted \u{00B7} 1 reply \u{00B7} ends in 4h")
+            "2 of 6 voted \u{00B7} 1 reply \u{00B7} 4h")
     }
 
     func testThePlusCountIsTheMembersNotShownBesideYou() async throws {
@@ -88,13 +88,15 @@ final class CabalInviteModelTests: XCTestCase {
         XCTAssertEqual(preview.proposal?.title, "Sell NVDA \u{00B7} $400.50")
     }
 
-    func testTimeLeftReadsInTheLargestUnit() async {
+    func testTimeLeftReadsInTheShortForm() async {
         let cases: [(TimeInterval, String)] = [
-            (-5, "ends now"), (30, "ends in 1m"), (90, "ends in 1m"), (45 * 60, "ends in 45m"),
-            (3600 * 5 + 59, "ends in 5h"), (3600 * 23, "ends in 23h"), (3600 * 49, "ends in 2d"),
+            (-5, "voting closed"), (30, "1m"), (25 * 60 + 10, "25m"), (3600 * 4 + 30, "4h"), (3600 * 49, "2d"),
         ]
         for (seconds, text) in cases {
-            XCTAssertEqual(CabalInviteCopy.endsIn(Self.now.addingTimeInterval(seconds), now: Self.now), text)
+            let detail = CabalInviteCopy.proposalDetail(
+                voted: 5, eligible: 8, replies: nil, expiresAt: Self.now.addingTimeInterval(seconds), now: Self.now)
+            XCTAssertEqual(detail, "5 of 8 voted \u{00B7} \(text)")
+            XCTAssertFalse(detail.contains("ends in") || detail.contains("closes in"), detail)
         }
     }
 
@@ -179,7 +181,7 @@ final class CabalInviteModelTests: XCTestCase {
         XCTAssertTrue(moved)
         XCTAssertEqual(model.preview?.proposal?.yes, 5)
         XCTAssertEqual(model.preview?.proposal?.no, 1)
-        XCTAssertEqual(model.preview?.proposal?.detail, "6 of 8 voted \u{00B7} 6 replies \u{00B7} ends in 4h")
+        XCTAssertEqual(model.preview?.proposal?.detail, "6 of 8 voted \u{00B7} 6 replies \u{00B7} 4h")
         observer.cancel()
     }
 
