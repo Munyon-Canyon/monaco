@@ -33,7 +33,7 @@ public final class ChatPinsModel {
         self.makeKey = makeKey
     }
 
-    public func load() async {
+    public func load(hiding authors: Set<String> = []) async {
         generation += 1
         let issued = generation
         do {
@@ -42,7 +42,8 @@ public final class ChatPinsModel {
                 try await client.getChatPins(path: .init(id: cabalID)).ok.body.json
             }
             guard issued == generation else { return }
-            settle(Array(page.messages.prefix(Self.maxPins)))
+            let shown = page.messages.filter { !$0.deleted && !authors.contains($0.author.id) }
+            settle(Array(shown.prefix(Self.maxPins)))
         } catch {
             return
         }
@@ -90,6 +91,12 @@ public final class ChatPinsModel {
         } catch {
             fail(APIError(error), restoring: before, removing: messageID)
         }
+    }
+
+    public func drop(messageID: String) {
+        guard pins.contains(where: { $0.id == messageID }) else { return }
+        generation += 1
+        settle(pins.filter { $0.id != messageID })
     }
 
     public func next() {

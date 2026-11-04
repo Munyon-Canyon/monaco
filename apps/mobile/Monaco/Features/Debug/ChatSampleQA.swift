@@ -9,7 +9,7 @@ enum ChatSampleQA {
     }
 
     @MainActor static func screen(arguments: [String]) -> some View {
-        let scenario = ChatSampleScenario(
+        var scenario = ChatSampleScenario(
             startEmpty: arguments.contains("-MonacoChatSampleEmpty"),
             failSends: arguments.contains("-MonacoChatSampleFailed"),
             busy: arguments.contains("-MonacoChatSampleBusy"),
@@ -20,8 +20,10 @@ enum ChatSampleQA {
             neverPosts: arguments.contains("-MonacoChatSampleSending"),
             proposalCard: arguments.contains("-MonacoChatSampleProposal"),
             moments: arguments.contains("-MonacoChatSampleMoments"),
-            poll: arguments.contains("-MonacoChatSamplePoll")
+            poll: arguments.contains("-MonacoChatSamplePoll"),
+            pins: arguments.contains("-MonacoChatSamplePins")
         )
+        if scenario == ChatSampleScenario() { scenario.pins = true }
         let acts = arguments.contains(SampleHarnessRegistry.actArgument)
         let offline = arguments.contains("-MonacoChatSampleOffline")
         return OpensOnceActive {

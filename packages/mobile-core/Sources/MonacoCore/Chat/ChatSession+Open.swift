@@ -21,6 +21,7 @@ extension ChatSession {
         } else {
             await catchUp()
         }
+        await loadPins()
         if catchUpOwed { await catchUp() }
         catchUpOwed = false
         let buffered = openBuffer ?? []
@@ -32,7 +33,13 @@ extension ChatSession {
     public func reload() async {
         await refreshBlocked()
         await loadNewest()
+        await loadPins()
         if isOpen, !state.isClosed { subscribe() }
+    }
+
+    func loadPins() async {
+        let hidden = await blocked?.authors ?? []
+        await state.pins.load(hiding: hidden)
     }
 
     func bufferWhileOpening(_ message: ChatMessage) -> Bool {
