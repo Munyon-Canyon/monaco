@@ -28,7 +28,7 @@ Frames: `docs/design/v5/screens/04-proposal-dark.png`, `docs/design/v5/screens/0
 | P3 | `apps/mobile/qa/journeys/governance/vote.setup.sh` ran right before the scenario. It marks A and B as done with onboarding and sets their display names to the `name` column of `accounts.tsv`. It closes every open proposal A or B can vote on. A new dev user, "QA host", creates the cabal `QA vote {QA.run} <scenario>`, A and B join it, and QA host proposes a $5.00 buy with the reason `QA vote {QA.run}`, so 2 yes of 3 voters pass it ("Majority"). For S3 it also adds a closed proposal with the reason `QA closed {QA.run}`. For S4 it makes two cabals, one with "Show who voted what" on and one with it off, each with a passed proposal that QA host and A voted Yes on and B voted No on. It hands the test `cabalName`, `proposalID` and, for S3, `closedProposalID`, and for S4 `closedProposalID` (rule on) and `offProposalID` (rule off) |
 | P4 | Each run reinstalls the app, so A's first vote in S1.4 is this install's first vote |
 
-The setup seeds the proposal, so this journey does not depend on the propose screens.
+The setup seeds the proposal, so this journey does not depend on the propose screens. The setup snapshots each cabal's `show_sides` rule onto the proposal's `sides_after_close`, as proposal create does.
 
 ## Scenarios
 

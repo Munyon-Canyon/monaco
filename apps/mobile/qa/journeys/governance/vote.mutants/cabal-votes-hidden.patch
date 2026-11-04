@@ -1,7 +1,7 @@
 journey: governance/vote
-expect-fail: S2
+expect-fail: S1
 
-The cabal page does not draw its open proposal vote card. S2.1 waits for cabal-open-proposal-<proposalID> above the tabs, so it must fail.
+The cabal page does not draw its open proposal vote card. S1.6 taps cabal-open-proposal-open-<proposalID> on that card, so it must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalProposalsSlot.swift b/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalProposalsSlot.swift
