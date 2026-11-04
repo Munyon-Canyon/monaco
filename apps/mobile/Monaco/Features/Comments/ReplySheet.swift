@@ -14,11 +14,12 @@ struct ReplySheet: View {
     @State private var picksGif = false
     @State private var picksPoll = false
     @Environment(ToastCenter.self) private var toasts
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         let toasts = toasts
         return VStack(alignment: .leading, spacing: MonacoTheme.Space.sm) {
-            ReplySheetQuote(target: target)
+            quote
             ComposerNotices(model: model)
             ComposerAttachmentSlot(model: model)
             HStack(alignment: .bottom, spacing: MonacoTheme.Space.s) {
@@ -37,19 +38,33 @@ struct ReplySheet: View {
                     if case .post = target { toasts.show(success: CommentsCopy.replied) }
                 }
             }
+            .layoutPriority(1)
             ComposerTooLong(draft: CommentDraft(text: model.draft))
         }
         .padding(.horizontal, MonacoTheme.Space.gutter)
         .padding(.bottom, MonacoTheme.Space.s)
         .monacoFittedSheet(
             title: title, titleIdentifier: "reply-sheet-title", detents: .fitted, showsClose: true,
-            closeIdentifier: "reply-sheet-close"
+            closeIdentifier: "reply-sheet-close",
+            contentScrolls: dynamicTypeSize >= .accessibility1
         )
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("reply-sheet")
         .gifPicker(isPresented: $picksGif, model: model)
         .pollComposer(isPresented: $picksPoll, model: model, isCabal: asksCabal)
         .onAppear { focused = true }
+    }
+
+    @ViewBuilder
+    private var quote: some View {
+        if dynamicTypeSize >= .accessibility1 {
+            ViewThatFits(in: .vertical) {
+                ReplySheetQuote(target: target)
+                ScrollView(.vertical) { ReplySheetQuote(target: target) }
+            }
+        } else {
+            ReplySheetQuote(target: target)
+        }
     }
 
     private var title: String {
