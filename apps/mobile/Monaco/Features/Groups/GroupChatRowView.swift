@@ -138,7 +138,25 @@ struct GroupChatRowView: View {
         }
     }
 
-    private var bubble: some View {
+    @ViewBuilder private var bubble: some View {
+        if ChatAttachmentRow.showsAttachment(row) {
+            attachmentBubble
+        } else {
+            textBubble
+        }
+    }
+
+    private var attachmentBubble: some View {
+        VStack(alignment: row.isMine ? .trailing : .leading, spacing: ChatBubbleMetrics.runGap) {
+            if ChatAttachmentRow.showsTextAbove(row) { textBubble }
+            ChatAttachmentRow(row: row)
+        }
+        .opacity(row.delivery == .pending ? ChatBubbleMetrics.pendingOpacity : ChatBubbleMetrics.sentOpacity)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("chat-message-\(row.id)")
+    }
+
+    private var textBubble: some View {
         bubbleText
             .padding(.horizontal, MonacoTheme.Space.sm)
             .padding(.vertical, MonacoTheme.Space.s)
@@ -178,7 +196,8 @@ struct GroupChatRowView: View {
                 .foregroundStyle(MonacoTheme.secondaryText)
         } else {
             ChatMessageText(
-                text: message.body ?? "", members: members,
+                text: ChatAttachmentRow.showsAttachment(row) ? row.displayText : (message.body ?? ""),
+                members: members,
                 color: MonacoTheme.primaryText,
                 mentionColor: MonacoTheme.tint, openProfile: openProfile)
         }
