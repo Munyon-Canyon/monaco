@@ -15,17 +15,6 @@ enum CabalRulesTabCopy {
     static let failedThing = "the rules"
     static let readOnlyHint = "Voters propose rule changes."
     static let proposedAction = "View"
-
-    static func symbol(_ kind: CabalRulesRows.Kind) -> String {
-        switch kind {
-        case .votesToPass: MonacoIcon.pollCheck.symbol
-        case .voteWindow: MonacoIcon.clock.symbol
-        case .maxPerTrade: "percent"
-        case .whoCanPropose: "person.2"
-        case .cashOut: "arrow.down.to.line"
-        case .showSides: MonacoIcon.eye.symbol
-        }
-    }
 }
 
 struct CabalRulesTab: View {
@@ -76,7 +65,7 @@ private struct CabalRulesBody: View {
     private var canPropose: Bool { cabal.me?.canPropose == true }
 
     var body: some View {
-        let rows = CabalRulesRows(cabal, now: .now)
+        let rows = CabalRulesRows(cabal)
         VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
             MonacoCard(style: .inset) {
                 VStack(spacing: 0) {
@@ -108,39 +97,29 @@ private struct CabalRulesBody: View {
         }
     }
 
-    @ViewBuilder
     private func ruleRow(_ row: CabalRulesRows.Row, isLast: Bool, showSides: Bool) -> some View {
-        if row.kind == .showSides {
-            CabalCardRow(
-                symbol: CabalRulesTabCopy.symbol(row.kind), title: row.title, detail: row.value, isLast: isLast,
-                trailing: {
-                    let binding = sidesBinding(current: showSides)
-                    Toggle(row.title, isOn: binding)
-                        .labelsHidden()
-                        .frame(minHeight: MonacoButtonMetrics.hitTarget)
-                        .contentShape(Rectangle())
-                        .onTapGesture { binding.wrappedValue.toggle() }
-                        .disabled(!canPropose)
-                        .accessibilityHint(canPropose ? "" : CabalRulesTabCopy.readOnlyHint)
-                        .accessibilityIdentifier("cabal-rules-show-sides-toggle")
-                }
-            )
-            .accessibilityIdentifier("cabal-rules-\(row.kind.rawValue)")
-        } else {
-            CabalCardRow(
-                symbol: CabalRulesTabCopy.symbol(row.kind), title: row.title, detail: nil, isLast: isLast,
-                trailing: {
-                    Text(row.value)
-                        .font(MonacoTheme.Typo.body)
-                        .foregroundStyle(MonacoTheme.secondaryText)
-                        .lineLimit(dynamicTypeSize.isAccessibilitySize ? 3 : 1)
-                        .minimumScaleFactor(0.8)
-                        .multilineTextAlignment(.trailing)
-                }
-            )
-            .accessibilityElement(children: .combine)
-            .accessibilityIdentifier("cabal-rules-\(row.kind.rawValue)")
+        CabalRulesRow(title: row.title, isLast: isLast) {
+            if row.kind == .showSides {
+                let binding = sidesBinding(current: showSides)
+                Toggle(row.title, isOn: binding)
+                    .labelsHidden()
+                    .frame(minHeight: MonacoButtonMetrics.hitTarget)
+                    .contentShape(Rectangle())
+                    .onTapGesture { binding.wrappedValue.toggle() }
+                    .disabled(!canPropose)
+                    .accessibilityHint(canPropose ? "" : CabalRulesTabCopy.readOnlyHint)
+                    .accessibilityIdentifier("cabal-rules-show-sides-toggle")
+            } else {
+                Text(row.value)
+                    .font(MonacoTheme.Typo.body)
+                    .foregroundStyle(MonacoTheme.secondaryText)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? 3 : 1)
+                    .minimumScaleFactor(0.8)
+                    .multilineTextAlignment(.trailing)
+            }
         }
+        .modifier(CabalRulesRowAccessibility(combine: row.kind != .showSides))
+        .accessibilityIdentifier("cabal-rules-\(row.kind.rawValue)")
     }
 
     private func sidesBinding(current: Bool) -> Binding<Bool> {
@@ -170,6 +149,45 @@ private struct CabalRulesBody: View {
     private func open(_ proposalID: String) {
         environment.navigator.open(
             ProposalRoute(proposalID: proposalID), in: hostMainTab ?? environment.navigator.selectedTab)
+    }
+}
+
+private struct CabalRulesRowAccessibility: ViewModifier {
+    let combine: Bool
+
+    func body(content: Content) -> some View {
+        if combine {
+            content.accessibilityElement(children: .combine)
+        } else {
+            content
+        }
+    }
+}
+
+private struct CabalRulesRow<Value: View>: View {
+    let title: String
+    let isLast: Bool
+    @ViewBuilder let value: () -> Value
+
+    var body: some View {
+        HStack(spacing: MonacoTheme.Space.s) {
+            Text(title)
+                .font(MonacoTheme.Typo.body)
+                .foregroundStyle(MonacoTheme.primaryText)
+                .fixedSize(horizontal: false, vertical: true)
+                .layoutPriority(1)
+            Spacer(minLength: MonacoTheme.Space.s)
+            value()
+        }
+        .padding(.leading, CabalCardRowMetrics.leadingInset)
+        .padding(.vertical, MonacoTheme.Space.s)
+        .frame(minHeight: CabalCardRowMetrics.minHeight)
+        .contentShape(Rectangle())
+        .overlay(alignment: .bottom) {
+            if !isLast {
+                MonacoRule().padding(.leading, CabalCardRowMetrics.leadingInset)
+            }
+        }
     }
 }
 
