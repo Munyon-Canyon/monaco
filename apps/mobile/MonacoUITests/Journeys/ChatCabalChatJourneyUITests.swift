@@ -20,6 +20,17 @@ nonisolated final class ChatCabalChatJourneyUITests: XCTestCase {
             try session.act(as: "B")
             ChatCabalChatJourney.bReceives(app, run: run, sender: sender.name, recorder: recorder)
             attachScreenshot(of: app, named: "S1-B-received")
+            ChatCabalChatJourney.bReacts(app, run: run, recorder: recorder)
+            attachScreenshot(of: app, named: "S1-B-reacted")
+            ChatCabalChatJourney.leaveChat(app)
+            try session.act(as: "A")
+            ChatCabalChatJourney.aSeesTheTapbackAndPins(app, run: run, recorder: recorder)
+            attachScreenshot(of: app, named: "S1-A-pinned")
+            ChatCabalChatJourney.leaveChat(app)
+            try session.act(as: "B")
+            try ChatCabalChatJourney.bSeesThePinAndVotes(
+                app, session: session, run: run, pinner: sender.name, recorder: recorder)
+            attachScreenshot(of: app, named: "S1-B-voted")
         }
     }
 }

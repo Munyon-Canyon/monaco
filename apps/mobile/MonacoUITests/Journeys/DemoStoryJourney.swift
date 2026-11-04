@@ -2,7 +2,7 @@ import XCTest
 
 enum DemoStoryJourney {
     static let id = "demo/story"
-    static let version = 9
+    static let version = 10
 
     static let screenTimeout: TimeInterval = 15
     static let formTimeout: TimeInterval = 10
@@ -27,13 +27,14 @@ enum DemoStoryJourney {
     }
 
     static func openChat(_ app: XCUIApplication, run: String, step: String) {
-        app.openCabal(named: cabal(run: run))
-        let more = app.element("cabal-more-button")
-        XCTAssertTrue(more.waitForExistence(timeout: formTimeout), "\(step): no '…' button on the cabal page")
-        more.tap()
-        let chat = app.element("cabal-more-chat")
-        XCTAssertTrue(chat.waitForExistence(timeout: formTimeout), "\(step): no Chat item in the '…' menu")
-        chat.tap()
+        app.openCabal(named: cabal(run: run), tab: "chat", step: step)
+    }
+
+    static func expectChatTab(_ app: XCUIApplication, labelled label: String, step: String) {
+        XCTAssertTrue(
+            JoinJourney.waitForLabel(app.element("cabal-tab-pinned-chat"), containing: label, timeout: formTimeout),
+            "\(step): the Chat tab does not read \(label) within 10 s"
+        )
     }
 
     static func waitForTitle(_ app: XCUIApplication, _ title: String, step: String, blockedBy tickets: String) {
@@ -49,15 +50,10 @@ enum DemoStoryJourney {
     }
 
     static func sendMessage(_ app: XCUIApplication, _ text: String, step: String) {
-        let composer = app.textFields["Message your cabal"].firstMatch
+        TalkItOverJourney.send(app, text, step: step)
         XCTAssertTrue(
-            composer.waitForExistence(timeout: formTimeout),
-            "\(step): no Message your cabal composer within 10 s (known failure, #623)"
-        )
-        composer.tap()
-        composer.typeText(text + "\n")
-        XCTAssertTrue(
-            app.staticTexts[text].waitForExistence(timeout: formTimeout), "\(step): '\(text)' did not show within 10 s")
+            TalkItOverJourney.message(app, containing: text).waitForExistence(timeout: formTimeout),
+            "\(step): '\(text)' did not show within 10 s")
     }
 
     static func startTheCabal(
@@ -199,6 +195,7 @@ enum DemoStoryJourney {
     static func chatFirst(_ app: XCUIApplication, run: String, recorder: JourneyRecorder) {
         recorder.step("S5.1", "say it in the chat") {
             openChat(app, run: run, step: "S5.1")
+            expectChatTab(app, labelled: "Chat", step: "S5.1")
             sendMessage(app, "In. Told you", step: "S5.1")
         }
     }
@@ -206,9 +203,10 @@ enum DemoStoryJourney {
     static func chatReply(_ app: XCUIApplication, run: String, recorder: JourneyRecorder) {
         recorder.step("S5.2", "read the friend and reply") {
             openChat(app, run: run, step: "S5.2")
+            expectChatTab(app, labelled: "Chat", step: "S5.2")
             XCTAssertTrue(
-                app.staticTexts["In. Told you"].waitForExistence(timeout: formTimeout),
-                "S5.2: B's message did not show within 10 s (known failure, #623)"
+                TalkItOverJourney.message(app, containing: "In. Told you").waitForExistence(timeout: formTimeout),
+                "S5.2: B's message did not show within 10 s"
             )
             sendMessage(app, "We own Google now", step: "S5.2")
         }

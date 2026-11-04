@@ -1,0 +1,19 @@
+journey: chat/cabal-chat
+expect-fail: S1
+
+The tapback counts only the viewer's own reactions, so a reaction from another member never shows. S1.5b expects A to see B's 👍 as "1 reaction", so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Groups/ChatTapbackBadge.swift b/apps/mobile/Monaco/Features/Groups/ChatTapbackBadge.swift
+index b81150c2c..878ab46a1 100644
+--- a/apps/mobile/Monaco/Features/Groups/ChatTapbackBadge.swift
++++ b/apps/mobile/Monaco/Features/Groups/ChatTapbackBadge.swift
+@@ -53,7 +53,7 @@ struct ChatTapbackBadge: View {
+     }
+ 
+     static func total(_ reactions: [Components.Schemas.Reaction]) -> Int {
+-        reactions.reduce(0) { $0 + max(Int($1.count), 0) }
++        reactions.reduce(0) { $0 + ($1.mine ? max(Int($1.count), 0) : 0) }
+     }
+ 
+     static func accessibilityLabel(_ reactions: [Components.Schemas.Reaction]) -> String {

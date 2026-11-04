@@ -1,7 +1,7 @@
 ---
 id: demo/story
 title: The demo story
-version: 9
+version: 10
 milestone: M8.5
 requires: [auth/sign-in, cabals/create-cabal, stocks/asset-detail]
 actors: [A, B]
@@ -40,8 +40,8 @@ Beats 1 to 4.
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
 | S1.1 | A | sign in | `SignInJourney.ensureSignedIn` | A's test login | Home shows within 30 s (beat 1 "Sign in"; old app: `LoginView` number, code, then Home; screens.md Home) |
-| S1.2 | A | tap | the Profile tab | | `profile-card` shows A's name within 15 s (beat 2 "Create your profile"; old app: the onboarding name then Profile; screens.md Profile header) |
-| S1.3 | A | run | `CreateCabalJourney.creatorStartsAnOpenCabal` | `QA duo {QA.run}`, join "Anyone" | The cabal screen for `QA duo {QA.run}` and the toast "Cabal created." (beat 3 "Start a cabal / Set the rules"; old app: Cabals "+", "Start a cabal", `CreateGroupView`; screens.md Start a cabal) |
+| S1.2 | A | tap | the Profile tab | | `profile-card` shows A's name within 15 s (beat 2, Create your profile; old app: the onboarding name then Profile; screens.md Profile header) |
+| S1.3 | A | run | `CreateCabalJourney.creatorStartsAnOpenCabal` | `QA duo {QA.run}`, join "Anyone" | The cabal screen for `QA duo {QA.run}` and the toast "Cabal created." (beat 3, Start a cabal and set the rules; old app: Cabals "+", "Start a cabal", `CreateGroupView`; screens.md Start a cabal) |
 | S1.4 | B | run | `CreateCabalJourney.friendRequestsToJoin` | `QA duo {QA.run}` | `cabal-join-button` shows, then the toast "Request sent. You'll be in once the creator says yes." and `cabal-join-requested` reads "Request sent" (beat 4 "Find the cabal and ask to join"; screens.md `CabalJoinSlot`) |
 
 ### S2 Fund the pot
@@ -60,9 +60,9 @@ Beats 10 and 16.
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S3.1 | B | run | `StocksAssetDetailJourney.openAsset` | Journey Alpha | `asset-detail-root` shows and `asset-detail-name` reads "Journey Alpha" within 15 s (beat 10 "Browse real stocks"; old app: Stocks row to `AssetDetailView`; screens.md Stocks: Asset screen) |
+| S3.1 | B | run | `StocksAssetDetailJourney.openAsset` | Journey Alpha | `asset-detail-root` shows and `asset-detail-name` reads "Journey Alpha" within 15 s (beat 10, Browse real stocks; old app: Stocks row to `AssetDetailView`; screens.md Stocks: Asset screen) |
 | S3.2 | B | tap | the 1M then All range chips | | `asset-detail-range-change` shows for each (ranges 1H 1D 1W 1M 3M 6M All) |
-| S3.3 | B | run | `StocksAssetDetailJourney.openAsset`, then scroll to | Journey Private, "Round stats" | "Round stats" shows within 10 s (beat 16 "Pre-IPO too") |
+| S3.3 | B | run | `StocksAssetDetailJourney.openAsset`, then scroll to | Journey Private, "Round stats" | "Round stats" shows within 10 s (beat 16, Pre-IPO too) |
 
 ### S4 Propose a buy and vote
 
@@ -73,7 +73,7 @@ Beats 11 to 13.
 | S4.1 | B | open, then tap | `QA story {QA.run}` (`openCabal(named:)`), then `cabal-action-propose` | | The Propose sheet shows `propose-kind-buy` "Buy stock" within 10 s (beat 11 "Propose a buy"; screens.md Propose chooser) |
 | S4.2 | B | tap, type, then tap | `propose-kind-buy`, the GOOGL row, the amount `1` on the keypad, `amount-keypad-action`, then `propose-review-send` | | The sheet reads "Proposal sent"; after Close the cabal's proposal card reads "2 yes votes needed" within 15 s (screens.md Review sheet and proposal card) |
 | S4.3 | A | tap, then hold | the Home tab's `proposal-card-<id>`, then `pickAndHold("yes")` | | The toast ends, then the permission sheet "Hear how votes end?" shows and the test answers "Not now" (`answerVotePermissionSheet(turnOn: false)`) within 20 s (beat 12 "Everyone votes"; screens.md `HomePendingVotesSlot` and the proposal screen) |
-| S4.4 | B | tap, then hold | the Home tab's `proposal-card-<id>`, then `pickAndHold("yes")` | | The toast "Voted Yes. Passed 2–0." shows, and the status line reads "filled at $…" within 120 s (beat 13 "Majority wins, the cabal buys"; screens.md `ProposalDetailSlot`) |
+| S4.4 | B | tap, then hold | the Home tab's `proposal-card-<id>`, then `pickAndHold("yes")` | | The toast "Voted Yes. Passed 2–0." shows, and the status line reads "filled at $…" within 120 s (beat 13, majority wins and the cabal buys; screens.md `ProposalDetailSlot`) |
 
 ### S5 Talk it over
 
@@ -81,8 +81,8 @@ Beats 14 and 15.
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S5.1 | B | open, tap, type, then send | `QA story {QA.run}`, `cabal-more-button`, `cabal-more-chat`, "Message your cabal" | "In. Told you" | The message shows on the right within 10 s (beat 14 "Talk it over"; old app: `GroupChatView`; screens.md Chat composer "Message your cabal") |
-| S5.2 | A | open, tap, type, then send | `QA story {QA.run}`, `cabal-more-button`, `cabal-more-chat`, "Message your cabal" | "We own Google now" | B's "In. Told you" shows on the left and A's message on the right within 10 s (beat 15; screens.md Chat) |
+| S5.1 | B | run, type, then tap | `openCabal(named:tab:)`, `cabal-tab-pinned-chat`, `chat-composer`, then `chat-send` | `QA story {QA.run}`, tab `chat`, then `In. Told you` | The cabal opens on Chat, `cabal-tab-pinned-chat` reads "Chat", and the message shows on the right within 10 s (beat 14 "Talk it over"; old app: `GroupChatView`; #7918) |
+| S5.2 | A | run, type, then tap | `openCabal(named:tab:)`, `cabal-tab-pinned-chat`, `chat-composer`, then `chat-send` | `QA story {QA.run}`, tab `chat`, then `We own Google now` | `cabal-tab-pinned-chat` reads "Chat", B's first message shows on the left and A's message on the right within 10 s (beat 15; screens.md Chat) |
 
 ### S7 Cash out
 
@@ -99,7 +99,7 @@ Beat 22.
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S8.1 | A | tap | the Home tab, then `home-leaderboard-row` | | `leaderboard-page` shows within 15 s (beat 22 "See who's up"; Leaderboard C) |
+| S8.1 | A | tap | the Home tab, then `home-leaderboard-row` | | `leaderboard-page` shows within 15 s (beat 22, See who's up; Leaderboard C) |
 | S8.2 | A | scroll, then wait | `leaderboard-section-unranked`, then B's `leaderboard-row-<id>` | | B, with one resolved vote, shows under "Not ranked yet" reading "4 more to rank" with Week selected within 15 s (#6514; `ranking/leaderboards` S1.4 asserts the same rows) |
 
 ## Ground truth
@@ -108,17 +108,12 @@ Beat 22.
 
 ## Known failures on staging
 
-- S1.2: "Create your profile" is no longer app copy. Blocked by #7977.
-- S1.3: "Start a cabal / Set the rules" is no longer app copy. Blocked by #7977.
-- S3.1: "Browse real stocks" is no longer app copy. Blocked by #7977.
-- S3.3: "Pre-IPO too" is no longer app copy. Blocked by #7977.
-- S4.4: "Majority wins, the cabal buys" is no longer app copy. Blocked by #7977.
-- S5.2: "In. Told you" is no longer app copy. Blocked by #7977.
-- S8.1: "See who's up" is no longer app copy. Blocked by #7977.
+None.
+
 ## Not covered
 
 - Priya, the third friend (beats 7, 8 and 12 as Priya). A run has two actors, A and B.
 - Beats 0 and 23, the intro and outro cards. They are not app screens.
 - Beat 9, Maya funding $200. It is the same flow as S2 with another actor.
 - The face sheet on Profile. The storyboard keeps it off camera.
-- Identifiers. The fund, propose, vote, chat and cash-out screens have no accessibility identifiers yet, so S2.2 to S7.2 find them by their screens.md copy. #651 (`FundRoute`), #613 (`ProposeRoute`), #612 (`ProposalDetailSlot`), #623 (`ChatRoute`) and #657 (`CashOutRoute`) should add them; this ticket does not touch app code.
+- The reaction, pin and vote-in-the-thread beats of the chat. `chat/cabal-chat` S1.5 to S1.7 cover them without moving money.

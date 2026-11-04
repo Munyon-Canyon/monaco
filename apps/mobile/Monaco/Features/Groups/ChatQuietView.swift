@@ -107,6 +107,7 @@ struct ChatQuietHeader: View {
         .padding(.bottom, ChatQuietMetrics.headerBottom)
         .contentShape(Rectangle())
         .onTapGesture { content.focusComposer() }
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("chat-quiet-scene")
     }
 

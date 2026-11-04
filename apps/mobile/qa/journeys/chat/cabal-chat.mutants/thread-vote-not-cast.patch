@@ -1,0 +1,19 @@
+journey: chat/cabal-chat
+expect-fail: S1
+
+The vote card in the thread offers no vote, so a member cannot hold Yes there. S1.7 holds chat-proposal-yes-<id>, so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Groups/ChatProposalCard.swift b/apps/mobile/Monaco/Features/Groups/ChatProposalCard.swift
+index 3cd6dca9b..5182571a4 100644
+--- a/apps/mobile/Monaco/Features/Groups/ChatProposalCard.swift
++++ b/apps/mobile/Monaco/Features/Groups/ChatProposalCard.swift
+@@ -62,7 +62,7 @@ struct ChatProposalCard<Name: View, Thesis: View, Face: View, Replies: View>: Vi
+         if summary.status == .open {
+             HomeVoteCard(
+                 model: model, identifierPrefix: Self.identifierPrefix,
+-                tab: hostMainTab ?? environment.navigator.selectedTab, inCabal: true, canVote: summary.canVote)
++                tab: hostMainTab ?? environment.navigator.selectedTab, inCabal: true, canVote: false)
+         } else {
+             let result = Self.resultLine(summary)
+             VoteCard(
