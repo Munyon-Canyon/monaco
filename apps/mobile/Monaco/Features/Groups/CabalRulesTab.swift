@@ -97,19 +97,23 @@ private struct CabalRulesBody: View {
         }
     }
 
+    @ViewBuilder
     private func ruleRow(_ row: CabalRulesRows.Row, isLast: Bool, showSides: Bool) -> some View {
-        CabalRulesRow(title: row.title, isLast: isLast) {
-            if row.kind == .showSides {
-                let binding = sidesBinding(current: showSides)
+        if row.kind == .showSides {
+            let binding = sidesBinding(current: showSides)
+            CabalRulesRow(title: row.title, isLast: isLast) {
                 Toggle(row.title, isOn: binding)
                     .labelsHidden()
                     .frame(minHeight: MonacoButtonMetrics.hitTarget)
-                    .contentShape(Rectangle())
-                    .onTapGesture { binding.wrappedValue.toggle() }
                     .disabled(!canPropose)
-                    .accessibilityHint(canPropose ? "" : CabalRulesTabCopy.readOnlyHint)
-                    .accessibilityIdentifier("cabal-rules-show-sides-toggle")
-            } else {
+            }
+            .contentShape(Rectangle())
+            .onTapGesture { if canPropose { binding.wrappedValue.toggle() } }
+            .accessibilityElement(children: .combine)
+            .accessibilityHint(canPropose ? "" : CabalRulesTabCopy.readOnlyHint)
+            .accessibilityIdentifier("cabal-rules-show-sides-toggle")
+        } else {
+            CabalRulesRow(title: row.title, isLast: isLast) {
                 Text(row.value)
                     .font(MonacoTheme.Typo.body)
                     .foregroundStyle(MonacoTheme.secondaryText)
@@ -117,9 +121,9 @@ private struct CabalRulesBody: View {
                     .minimumScaleFactor(0.8)
                     .multilineTextAlignment(.trailing)
             }
+            .accessibilityElement(children: .combine)
+            .accessibilityIdentifier("cabal-rules-\(row.kind.rawValue)")
         }
-        .modifier(CabalRulesRowAccessibility(combine: row.kind != .showSides))
-        .accessibilityIdentifier("cabal-rules-\(row.kind.rawValue)")
     }
 
     private func sidesBinding(current: Bool) -> Binding<Bool> {
@@ -149,18 +153,6 @@ private struct CabalRulesBody: View {
     private func open(_ proposalID: String) {
         environment.navigator.open(
             ProposalRoute(proposalID: proposalID), in: hostMainTab ?? environment.navigator.selectedTab)
-    }
-}
-
-private struct CabalRulesRowAccessibility: ViewModifier {
-    let combine: Bool
-
-    func body(content: Content) -> some View {
-        if combine {
-            content.accessibilityElement(children: .combine)
-        } else {
-            content
-        }
     }
 }
 

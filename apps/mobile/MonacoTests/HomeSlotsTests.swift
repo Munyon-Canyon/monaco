@@ -82,4 +82,11 @@ struct HomeSlotsTests {
         #expect(!HomeVoteCard.hasCollapsed(model, now: .now))
         #expect(HomeVoteCard.hasCollapsed(model, now: .now.addingTimeInterval(HomeVoteCard.collapseDelay + 1)))
     }
+
+    @Test func aSettledCardCollapsesOnItsOwnClockWithNoToast() {
+        let delay = HomeVoteCard.collapseDelay
+        #expect(HomeVoteCard.collapseDelayAfterAppear(isSettled: true, collapsed: false) == delay)
+        #expect(HomeVoteCard.collapseDelayAfterAppear(isSettled: false, collapsed: false) == nil)
+        #expect(HomeVoteCard.collapseDelayAfterAppear(isSettled: true, collapsed: true) == nil)
+    }
 }
