@@ -36,6 +36,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 DOCS = ROOT / "docs" / "journeys"
 QA = ROOT / "apps" / "mobile" / "qa" / "journeys"
+PHOTO_FIXTURE = "photo.jpg"
 OUT = ROOT / ".logs" / "qa" / "journeys"
 DERIVED = OUT / "derived"
 RESULTS = OUT / "results.tsv"
@@ -160,11 +161,22 @@ class Journey:
         self.xcuitest = _as_list(meta.get("xcuitest", []))
         funds = meta.get("funds", {})
         self.funds = funds if isinstance(funds, dict) else {}
+        preconditions = meta.get("preconditions", {})
+        self.preconditions = preconditions if isinstance(preconditions, dict) else {}
         self.simslim = meta.get("simslim", "")
         self.rpc = meta.get("rpc", "")
         self.scenarios = re.findall(r"^### (S\d+) ", body, re.M)
         self.steps = re.findall(r"^\| (S\d+\.\d+) \|", body, re.M)
         self.known = parse_known(body, self.steps)
+
+    def balance_needs(self):
+        """{actor: whole USDC} the journey needs in cash: `funds`, raised by any `balance.<actor>` precondition."""
+        needs = dict(self.funds)
+        for key, amount in self.preconditions.items():
+            if key.startswith("balance."):
+                actor = key.partition(".")[2]
+                needs[actor] = max(needs.get(actor, 0), amount) if isinstance(amount, int) else amount
+        return needs
 
     def driver_files(self):
         return [ROOT / p for p in self.xcuitest]
@@ -331,6 +343,20 @@ def check_journeys(journeys, accounts, git_apply_check=None, base_text=None):
                 bad(journey.path, "funds names actor %s, which is not in actors" % actor)
             if not isinstance(amount, int) or amount < 1:
                 bad(journey.path, "funds for actor %s must be whole USDC from 1, got %r" % (actor, amount))
+        for key, value in journey.preconditions.items():
+            actor = key.partition(".")[2]
+            if key.startswith("balance.") and actor in journey.actors and isinstance(value, int) and value >= 1:
+                continue
+            if key == "photos" and isinstance(value, int) and value >= 1:
+                if not (QA / "fixtures" / PHOTO_FIXTURE).is_file():
+                    bad(journey.path, "photos needs apps/mobile/qa/journeys/fixtures/%s, which does not exist" % PHOTO_FIXTURE)
+                continue
+            if key == "fresh_handle" and value == "true":
+                if not journey.setup_script():
+                    bad(journey.path, "fresh_handle needs a setup script that answers --check-handle")
+                continue
+            bad(journey.path, "preconditions %s: %r is not valid: use balance.<actor> and photos as whole numbers from 1, "
+                "or fresh_handle: true, with each balance actor in actors" % (key, value))
         if journey.simslim and not (ROOT / "ci" / "profiles" / ("%s.json" % journey.simslim)).is_file():
             bad(journey.path, "simslim names profile %r, which has no ci/profiles/%s.json" % (journey.simslim, journey.simslim))
         if journey.rpc not in ("", "fake"):
@@ -522,6 +548,22 @@ def try_lock(path):
         handle.close()
         return None
     return handle
+
+
+def run_lock_path(run_id):
+    """The file a run holds for its whole life. prune.sh reads it as the run's liveness: held means live."""
+    return "%s/monaco-qa-run-%s.lock" % (os.environ.get("MONACO_QA_LOCK_DIR", "/tmp"), run_id)
+
+
+@contextlib.contextmanager
+def run_lock(run_id):
+    """Holds the run's flock, the one `/usr/bin/lockf -t 0 <path> true` fails on, until the run ends."""
+    handle = try_lock(run_lock_path(run_id))
+    try:
+        yield
+    finally:
+        if handle:
+            handle.close()
 
 
 def take_qa_lock(path):
@@ -1303,6 +1345,7 @@ def run_session(journey, scenarios, sim, accounts, channel, run_dir, api_base_ur
     setup_env.update(actor_environment(accounts, channel, run_id))
     setup_env["QA_ACCOUNTS_FILE"] = write_run_accounts(accounts)
     setup_env["MONACO_QA_HANDOFF"] = str(handoff)
+    setup_env["MONACO_QA_SIM_UDID"] = sim
     setup_env["MONACO_API_BASE_URL"] = setup_env["MONACO_QA_API_BASE_URL"] = api_base_url
     if setup:
         env["TEST_RUNNER_MONACO_QA_SETUP_DIR"] = str(folder)
@@ -1389,33 +1432,35 @@ def run_once(journey, journeys, args, sim, accounts, build_name, run_name, scena
     run_dir.mkdir(parents=True, exist_ok=True)
     run_id = new_run_id()
     print("  {QA.run} is %s" % run_id)
-    budget = Budget(args.timeout)
-    rows, wall, timed_out = run_session(journey, scenarios, sim, accounts, args.channel, run_dir,
-                                        api_base_url, run_id, budget)
-    truth = run_truth(journey, accounts, args.channel, run_id, run_dir / "handoff.json", budget, api_base_url)
-    if truth == "timeout" and not timed_out:
-        timed_out = "* truth"
-    if timed_out:
-        print("%s timed out after %d s in %s" % (journey.id, budget.seconds, timed_out))
-    for row in rows:
-        row["truth"] = truth
-    if expected is None:
-        expected = classify_known(rows, journey.known)
-    for row in rows:
-        row["expected"] = expected.get(row["scenario"], "PASS")
-    verdicts = [row["result"] for row in rows] + (["TIMEOUT"] if timed_out else [])
-    overall = next((v for v in ("ERROR", "TIMEOUT", "FAIL") if v in verdicts), "PASS")
-    summary = {"scenario": "*", "result": overall, "truth": truth, "wall_s": wall,
-               "steps_ms": sum(int(row.get("steps_ms") or 0) for row in rows) or ""}
-    summary.update(take_phases())
-    record(journey, build_name, run_name, rows, summary, expected)
-    for row in rows:
-        detail = (" at %s" if row["result"] != "SKIP" else " %s") % row["failed_step"] if row.get("failed_step") else ""
-        if row["result"] == "KNOWN":
-            detail += " (%s)" % ", ".join(journey.known[row["failed_step"]])
-        timing = " %ss" % row["wall_s"] if row.get("wall_s") else ""
-        print("  %s@%s %s %s%s%s" % (journey.id, journey.version, row["scenario"], row["result"], timing, detail))
-    return rows, overall
+    with run_lock(run_id):
+        prune_qa_cabals(datetime.datetime.now(datetime.timezone.utc))
+        budget = Budget(args.timeout)
+        rows, wall, timed_out = run_session(journey, scenarios, sim, accounts, args.channel, run_dir,
+                                            api_base_url, run_id, budget)
+        truth = run_truth(journey, accounts, args.channel, run_id, run_dir / "handoff.json", budget, api_base_url)
+        if truth == "timeout" and not timed_out:
+            timed_out = "* truth"
+        if timed_out:
+            print("%s timed out after %d s in %s" % (journey.id, budget.seconds, timed_out))
+        for row in rows:
+            row["truth"] = truth
+        if expected is None:
+            expected = classify_known(rows, journey.known)
+        for row in rows:
+            row["expected"] = expected.get(row["scenario"], "PASS")
+        verdicts = [row["result"] for row in rows] + (["TIMEOUT"] if timed_out else [])
+        overall = next((v for v in ("ERROR", "TIMEOUT", "FAIL") if v in verdicts), "PASS")
+        summary = {"scenario": "*", "result": overall, "truth": truth, "wall_s": wall,
+                   "steps_ms": sum(int(row.get("steps_ms") or 0) for row in rows) or ""}
+        summary.update(take_phases())
+        record(journey, build_name, run_name, rows, summary, expected)
+        for row in rows:
+            detail = (" at %s" if row["result"] != "SKIP" else " %s") % row["failed_step"] if row.get("failed_step") else ""
+            if row["result"] == "KNOWN":
+                detail += " (%s)" % ", ".join(journey.known[row["failed_step"]])
+            timing = " %ss" % row["wall_s"] if row.get("wall_s") else ""
+            print("  %s@%s %s %s%s%s" % (journey.id, journey.version, row["scenario"], row["result"], timing, detail))
+        return rows, overall
 
 
 def monacoctl():
@@ -1452,6 +1497,68 @@ def funding_notice(journey, accounts, user_id=actor_user_id):
                      "or send %s USDC from the Phantom agent wallet to %s's deposit address"
                      % (actor, amount, user, amount, amount, actor))
     return "\n".join(lines)
+
+
+def actor_balance(actor, accounts, api_base_url):
+    """(user id, available micros) of an actor from GET /v1/me/balance on the run's backend, the number the app
+    shows as cash. (user id, None) when the backend does not answer; ("", None) before the actor's first sign-in."""
+    user = actor_user_id(accounts.get(actor, {}))
+    if not user:
+        return "", None
+    token = with_dotenv(monacoctl() + ["dev", "token", "--user", user, "--ttl", "1h"])
+    try:
+        request = urllib.request.Request(api_base_url + "/v1/me/balance", headers={"Authorization": "Bearer " + token})
+        with urllib.request.urlopen(request, timeout=30) as response:
+            return user, int(json.load(response)["available_micros"])
+    except (OSError, ValueError, KeyError):
+        return user, None
+
+
+def handle_check(journey, accounts, channel, run_dir):
+    """The setup script's own --check-handle answer: '' when the journey's handle is free to take, else why not."""
+    script = journey.setup_script()
+    if not script:
+        return "%s has no setup script to answer --check-handle" % journey.id
+    env = dict(os.environ)
+    env.update(actor_environment(accounts, channel, new_run_id()))
+    env["QA_ACCOUNTS_FILE"] = write_run_accounts(accounts)
+    env["MONACO_QA_HANDOFF"] = str(run_dir / "handoff.json")
+    done = sh([str(script), "--check-handle"], env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    return "" if done.returncode == 0 else (done.stdout or "").strip() or "--check-handle exited %d" % done.returncode
+
+
+def check_preconditions(journey, accounts, api_base_url, balance=None, handle=None, channel="sms",
+                        run_dir=None):
+    """What must be fixed before the build starts, one line each with the command that fixes it.
+
+    balance: cash per actor, read from the backend. photos: the fixture file exists, and the setup script
+    adds it to the simulator with qa_add_photo (a Photos count is not cheap to read). fresh_handle: the
+    setup script's --check-handle."""
+    balance, handle = balance or actor_balance, handle or handle_check
+    problems = []
+    for actor, usdc in sorted(journey.balance_needs().items()):
+        user, micros = balance(actor, accounts, api_base_url)
+        if micros is not None and micros >= usdc * 1000000:
+            continue
+        have = "unknown" if micros is None else "$%.2f" % (micros / 1e6)
+        problems.append("%s's cash is %s, under the $%d %s needs: run scripts/qa/monacoctl.sh qa fund --user %s --usdc %d"
+                        % (actor, have, usdc, journey.id, user or "<%s's user id, after its first sign-in>" % actor, usdc))
+    if journey.preconditions.get("photos") and not (QA / "fixtures" / PHOTO_FIXTURE).is_file():
+        problems.append("the photo fixture is missing: run git checkout -- apps/mobile/qa/journeys/fixtures/%s" % PHOTO_FIXTURE)
+    if journey.preconditions.get("fresh_handle") == "true":
+        why = handle(journey, accounts, channel, run_dir or OUT)
+        if why:
+            problems.append("the handle %s needs is taken: %s" % (journey.id, why))
+    return problems
+
+
+def setup_needed(journey, problems):
+    """Print what to fix, record a SETUP run and give its exit code."""
+    for problem in problems:
+        print("SETUP %s: %s" % (journey.id, problem))
+    record(journey, "-", "%s-%s-setup" % (stamp(), journey.id.replace("/", "-")), [],
+           {"scenario": "*", "result": "SETUP", "failed_step": problems[0]})
+    return EXIT_CODES["SETUP"]
 
 
 def refund_address():
@@ -2208,11 +2315,12 @@ def cmd_list(args):
     return 0
 
 
-EXIT_CODES = {"PASS": 0, "FAIL": 1, "TIMEOUT": 1, "ERROR": 2}
+EXIT_CODES = {"PASS": 0, "FAIL": 1, "TIMEOUT": 1, "ERROR": 2, "SETUP": 2}
 
 
 def prune_qa_cabals(started_at, runner=sh):
-    """Close the QA cabals earlier runs left behind, once, before the first setup (prune.sh holds the rules).
+    """Close the QA cabals earlier runs left behind, at the start of every run once it holds its run lock
+    (prune.sh holds the rules and skips the cabals of a run whose lock is held).
     A failure prints a warning and the run goes on."""
     env = dict(os.environ)
     env["JOURNEY_RUN_STARTED"] = started_at.strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -2235,9 +2343,7 @@ def cmd_run(args):
         print(warning, file=sys.stderr)
     builder = once_builder(args)
     os.environ.setdefault("TRADE_ENGINE", backend_trade_engine(args))
-    started_at = datetime.datetime.now(datetime.timezone.utc)
     with simulator_shutdown(args.keep_sims), journey_backend(args.slot, backend_fake_rpc(args)) as api_base_url:
-        prune_qa_cabals(started_at)
         if len(args.journey) == 1:
             code = run_journey(args, api_base_url, args.journey[0], builder)
         else:
@@ -2369,14 +2475,17 @@ def actor_logins(journey, accounts):
 
 
 def run_journey_as(args, api_base_url, journeys, journey, scenarios, accounts, builder):
-    logins = held_logins(journey, accounts)
-    use_derived_data(logins)
-    sim = resolve_simulator(args.sim, logins, journey.simslim)
-    check_simulator_api_environment(sim, api_base_url)
     OUT.mkdir(parents=True, exist_ok=True)
     funding, refund = funding_refund(journey, accounts)
     if funding:
         print(funding)
+    problems = check_preconditions(journey, accounts, api_base_url, channel=args.channel)
+    if problems:
+        return setup_needed(journey, problems)
+    logins = held_logins(journey, accounts)
+    use_derived_data(logins)
+    sim = resolve_simulator(args.sim, logins, journey.simslim)
+    check_simulator_api_environment(sim, api_base_url)
     builder(sim)
     prepare_logins(journey, accounts, api_base_url)
     worst = 0
@@ -2415,11 +2524,14 @@ def run_mutants(args, api_base_url):
         if sh(["git", "diff", "--quiet", "--", "apps/mobile/Monaco", "packages/mobile-core"]).returncode != 0:
             raise JourneyError("the app sources have uncommitted changes: commit or set them aside before seeding bugs")
         accounts = locks.enter_context(actor_logins(journey, load_accounts()))
+        funding_refund(journey, accounts)
+        problems = check_preconditions(journey, accounts, api_base_url, channel=args.channel)
+        if problems:
+            return setup_needed(journey, problems)
         logins = held_logins(journey, accounts)
         use_derived_data(logins)
         sim = resolve_simulator(args.sim, logins, journey.simslim)
         check_simulator_api_environment(sim, api_base_url)
-        funding_refund(journey, accounts)
         caught = 0
         for patch in patches:
             expected_fail = mutant_expectation(patch)
@@ -2471,7 +2583,8 @@ def summarize(rows):
         on_clean_build = [r for r in group if r["scenario"] == "*" and "+mutant:" not in r["build"]]
         # A run whose tests never started (the runner or the simulator fell over) says nothing
         # about the journey: it is counted on its own, not as a flake.
-        clean = [r for r in on_clean_build if r["result"] != "ERROR"]
+        needs_setup = [r for r in on_clean_build if r["result"] == "SETUP"]
+        clean = [r for r in on_clean_build if r["result"] not in ("ERROR", "SETUP")]
         passed = [r for r in clean if r["result"] == "PASS"]
         seeded = {}
         for row in group:
@@ -2485,7 +2598,8 @@ def summarize(rows):
             return statistics.median(values) if values else None
 
         table.append({
-            "journey": journey, "driver": DRIVER, "runs": len(clean), "errors": len(on_clean_build) - len(clean),
+            "journey": journey, "driver": DRIVER, "runs": len(clean), "errors": len(on_clean_build) - len(clean) - len(needs_setup),
+            "setup": len(needs_setup),
             "flake": (len(clean) - len(passed)) / float(len(clean)) if clean else None,
             "wall_s": median("wall_s"), "steps_s": (median("steps_ms") or 0) / 1000.0 or None,
             "seeded": len(seeded), "caught": len(caught),
@@ -2552,13 +2666,13 @@ def cmd_report(args):
     def show(value, pattern="%.1f"):
         return "-" if value is None else pattern % value
 
-    print("| Journey | Runs | Did not start | Flake rate | Median wall s | Median steps s | Caught | False passes |")
-    print("| --- | --- | --- | --- | --- | --- | --- | --- |")
+    print("| Journey | Runs | Did not start | Needs setup | Flake rate | Median wall s | Median steps s | Caught | False passes |")
+    print("| --- | --- | --- | --- | --- | --- | --- | --- | --- |")
     for item in summarize(rows):
         caught = "%d of %d" % (item["caught"], item["seeded"]) if item["seeded"] else "-"
         flake = "-" if item["flake"] is None else "%d%%" % round(item["flake"] * 100)
-        print("| %s | %d | %d | %s | %s | %s | %s | %d |" % (
-            item["journey"], item["runs"], item["errors"], flake, show(item["wall_s"]), show(item["steps_s"]), caught,
+        print("| %s | %d | %d | %d | %s | %s | %s | %s | %d |" % (
+            item["journey"], item["runs"], item["errors"], item["setup"], flake, show(item["wall_s"]), show(item["steps_s"]), caught,
             item["false_passes"]))
     print()
     print("| Journey | " + " | ".join("Median %s s" % name[:-2].replace("_", " ") for name in PHASE_COLUMNS) + " | Total s |")

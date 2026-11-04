@@ -50,6 +50,7 @@ flows: [01]                 # backend flows this journey exercises
 # funds: only for a journey that moves money, see below
 # simslim: only for a journey that needs a category base-slim turns off, see below
 # rpc: fake, only for a journey that must not read the public Solana endpoint, see below
+# preconditions: only for state the run checks before it builds, see Preconditions in the run
 xcuitest: [apps/mobile/MonacoUITests/Journeys/SignInJourney.swift, apps/mobile/MonacoUITests/Journeys/SignInJourneyUITests.swift]
 ---
 ```
@@ -100,6 +101,25 @@ A journey runs on one simulator in one `xcodebuild` call, whatever its actors. I
 
 The test signs in with `session.act(as:)`, which runs the `auth/sign-in` steps. There is one copy of the sign-in steps, so every journey runs the current one.
 
+## Preconditions the run checks
+
+A journey that needs state the run cannot make itself lists it under `preconditions`. `journey.py` checks each before the build and before the first scenario:
+
+```yaml
+preconditions:
+  balance.A: 1        # actor A holds at least $1 of cash (`funds` implies the same amounts)
+  photos: 1           # the photo fixture exists; the setup script adds it with qa_add_photo <udid>
+  fresh_handle: true  # the setup script's --check-handle finds no foreign holder of the handle
+```
+
+`balance.<actor>` reads the actor's available cash from `GET /v1/me/balance` on the run's backend. `photos` checks that `apps/mobile/qa/journeys/fixtures/photo.jpg` exists (Photos has no cheap count), and the setup script adds it to the simulator with `qa_add_photo` from `scripts/qa/seed.sh`. `fresh_handle` runs `<journey>.setup.sh --check-handle`.
+
+A precondition that fails ends the run as `SETUP`, exit code 2, before any build, and prints the command that fixes it, such as `A's cash is $0.00, under the $1 money/deposit needs: run scripts/qa/monacoctl.sh qa fund --user <id> --usdc 1`. `report` counts `SETUP` runs in their own column, apart from `FAIL` and `ERROR`.
+
+## Pruning old QA cabals
+
+Every run, once it holds `/tmp/monaco-qa-run-<run id>.lock` (taken with `flock` for the whole run), runs `apps/mobile/qa/journeys/prune.sh`. A `QA %` cabal whose name ends in a run id (six characters of the `{QA.run}` alphabet, such as `QA chat K7M2QX`) is closed once that run's lock is no longer held, whatever its age, so two runs on one machine never prune each other's cabals. A `QA %` name without a run id keeps the one-hour rule. A cabal that holds money is never pruned.
+
 ## Journeys that move money
 
 A journey that deposits, funds a cabal, trades or cashes out needs real USDC on Solana mainnet in the actor's member wallet. The test does not move that money. Whoever runs the journey does, before and after the run, from one of two wallets:
@@ -142,7 +162,7 @@ Git keeps the history. There are no `V2` copies of a doc or a test.
 
 A run passes its API URL under a QA-only name and uses dedicated journey simulators so shared simulator settings do not point it elsewhere.
 It reinstalls the app on dedicated journey simulators before every run, so every run starts signed out.
-`run` and `mutants` take a backend slot, so two journey runs can share a Mac. Slot 0 is api :8080 and worker :8081, slot 1 is :8180 and :8181. A run takes the first free slot with `/tmp/monaco-qa-slot<N>.lock`, waits when both are taken, and `--slot N` forces one. Holding its slot, a run refuses to start when anything already listens on its two ports and names its pid and worktree. Then it runs `monacoctl bus apply` on the local dev NATS (so a new event subject cannot stop boot) and starts the backend with `just run backend` on those ports (with `TRADE_ENGINE=stub`, so a passed vote reaches a stub of the trade engine and moves no money, unless `TRADE_ENGINE` is set or the run moves real USDC) and stops it when the run ends. It stops only the backend it started, through that backend's process group (SIGTERM to api and worker, SIGKILL for the rest), never `just stop backend`, which kills by name and would take the other slot's backend down too. The slot's api URL goes to the app (`MONACO_QA_API_BASE_URL`) and to the setup and truth scripts (`MONACO_API_BASE_URL` and `MONACO_QA_API_BASE_URL`), so a script never assumes :8080. Before the first setup, a local run also runs `apps/mobile/qa/journeys/prune.sh` once, which closes the `QA %` cabals that A, B and C created and leaves the ones they only joined, when they are more than an hour older than the run, and never touches a cabal that holds money (any fund transfer, or any position above zero). A database that is not on localhost is never pruned. A run also holds `/tmp/monaco-qa-actor-<login>.lock` on the `accounts.tsv` login of each of its actors: its own login when free, otherwise the first free one among A, B and C (L, the link number, only goes to an actor L). When too few logins are free it waits. Setup and truth scripts read the run's accounts through `QA_ACCOUNTS_FILE` (`.logs/qa/journeys/accounts-<hash>.tsv`), where each journey actor's row is the login it holds, so an actor remapped from A onto C seeds C's user. Before the first scenario, `scripts/qa/ready-login.sh <actor>` gives each held login a handle (`qa_<name>`, or `qa_<name>_<first 6 characters of its Privy id>` when another user holds that one) and an `auth_state` past `CREATED` through the API (`PUT /v1/me/handle`, then skipping the phone step), so the first-run gate opens the tab bar (sign-in P4). A login with no `users` row waits for its first sign-in. Backend logs are `.logs/qa/journeys/backend-slot<N>.log` (boot) and `.logs/qa/journeys/backend-slot<N>-<time>/` (api.log, worker.log) and build logs `build-<logins>.log`, one per slot and per set of logins. A two-actor journey on A and B in slot 0 leaves C for a one-actor journey in slot 1. With `MONACO_API_BASE_URL` set, they use that backend instead, take no slot and only check its `/healthz`.
+`run` and `mutants` take a backend slot, so two journey runs can share a Mac. Slot 0 is api :8080 and worker :8081, slot 1 is :8180 and :8181. A run takes the first free slot with `/tmp/monaco-qa-slot<N>.lock`, waits when both are taken, and `--slot N` forces one. Holding its slot, a run refuses to start when anything already listens on its two ports and names its pid and worktree. Then it runs `monacoctl bus apply` on the local dev NATS (so a new event subject cannot stop boot) and starts the backend with `just run backend` on those ports (with `TRADE_ENGINE=stub`, so a passed vote reaches a stub of the trade engine and moves no money, unless `TRADE_ENGINE` is set or the run moves real USDC) and stops it when the run ends. It stops only the backend it started, through that backend's process group (SIGTERM to api and worker, SIGKILL for the rest), never `just stop backend`, which kills by name and would take the other slot's backend down too. The slot's api URL goes to the app (`MONACO_QA_API_BASE_URL`) and to the setup and truth scripts (`MONACO_API_BASE_URL` and `MONACO_QA_API_BASE_URL`), so a script never assumes :8080. At the start of every run, a local run also runs `apps/mobile/qa/journeys/prune.sh`, which closes the `QA %` cabals that A, B and C created and leaves the ones they only joined, when their run is no longer live (see Pruning old QA cabals) or, for a name without a run id, they are more than an hour older than the run, and never touches a cabal that holds money (any fund transfer, or any position above zero). A database that is not on localhost is never pruned. A run also holds `/tmp/monaco-qa-actor-<login>.lock` on the `accounts.tsv` login of each of its actors: its own login when free, otherwise the first free one among A, B and C (L, the link number, only goes to an actor L). When too few logins are free it waits. Setup and truth scripts read the run's accounts through `QA_ACCOUNTS_FILE` (`.logs/qa/journeys/accounts-<hash>.tsv`), where each journey actor's row is the login it holds, so an actor remapped from A onto C seeds C's user. Before the first scenario, `scripts/qa/ready-login.sh <actor>` gives each held login a handle (`qa_<name>`, or `qa_<name>_<first 6 characters of its Privy id>` when another user holds that one) and an `auth_state` past `CREATED` through the API (`PUT /v1/me/handle`, then skipping the phone step), so the first-run gate opens the tab bar (sign-in P4). A login with no `users` row waits for its first sign-in. Backend logs are `.logs/qa/journeys/backend-slot<N>.log` (boot) and `.logs/qa/journeys/backend-slot<N>-<time>/` (api.log, worker.log) and build logs `build-<logins>.log`, one per slot and per set of logins. A two-actor journey on A and B in slot 0 leaves C for a one-actor journey in slot 1. With `MONACO_API_BASE_URL` set, they use that backend instead, take no slot and only check its `/healthz`.
 
 ```sh
 scripts/qa/journey.py check                                   # docs and tests agree
@@ -200,6 +220,7 @@ Known failures on staging lists each step that cannot pass yet and the ticket th
 | `FAIL` | The scenario failed at a step that is not listed: a new failure | Exits 1 |
 | `SKIP` | An earlier scenario did not pass, so this one never ran | Takes the earlier scenario's result |
 | `TIMEOUT`, `ERROR` | The budget ran out, or the test did not run | Exits 1, 2 |
+| `SETUP` | A `preconditions` check failed before the build | Exits 2 |
 
 `report` ends with a second table: each journey's last clean run, with its passing scenarios, its known failures and their tickets, its fixed scenarios and its new failures.
 

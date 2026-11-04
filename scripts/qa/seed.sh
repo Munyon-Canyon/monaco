@@ -17,6 +17,7 @@
 #   qa_flow_seed <flow> <outcome>         bin/monacoctl flows seed
 #   qa_seed_scenario <name> [actor ...]   bin/monacoctl dev seed-scenario, each actor owning its scenario letter;
 #                                         exports each seeded id uppercased (CABAL_ID, ASSET_MINT, ...)
+#   qa_add_photo <udid>                   adds apps/mobile/qa/journeys/fixtures/photo.jpg to the simulator's Photos
 #   qa_fake_usdc <actor> <usdc>           sets the actor's on-chain USDC on bin/fakes (QA_FAKES_URL), e.g. 25 or 0.5
 #
 # QA_FAKE_RPC=1 exported before sourcing points SOLANA_RPC_URL at bin/fakes, so a backend started from this
@@ -187,4 +188,8 @@ print(int(v))' "$usdc")"; then
     echo "qa_fake_usdc: POST $QA_FAKES/_balance failed: is bin/fakes running there?" >&2
     return 1
   fi
+}
+
+qa_add_photo() {
+  xcrun simctl addmedia "${1:?usage: qa_add_photo <udid>}" "$QA_ROOT/apps/mobile/qa/journeys/fixtures/photo.jpg"
 }

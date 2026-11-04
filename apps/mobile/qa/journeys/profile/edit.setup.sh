@@ -4,6 +4,14 @@
 set -euo pipefail
 
 : "${1:?usage: edit.setup.sh <scenario>}"
+# The photos precondition: the simulator holds the fixture photo the picker step chooses.
+# shellcheck source=/dev/null
+source scripts/qa/seed.sh
+photo_marker="${TMPDIR:-/tmp}/monaco-qa-photo-${MONACO_QA_RUN:?}-${MONACO_QA_SIM_UDID:?journey.py sets MONACO_QA_SIM_UDID}"
+if [[ ! -e "$photo_marker" ]]; then
+  qa_add_photo "$MONACO_QA_SIM_UDID"
+  touch "$photo_marker"
+fi
 state=AWAITING_SOCIALS
 
 privy_user_id="$(apps/mobile/qa/journeys/privy-user-id.sh A)"

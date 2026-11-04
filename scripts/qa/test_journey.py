@@ -630,6 +630,66 @@ class FakeRpcEnvironment(unittest.TestCase):
             self.assertIs(journey.start_fakes(0), process)
 
 
+class Preconditions(Tree):
+    def declare(self, lines, funds=""):
+        self.write("docs/journeys/auth/sign-in.md", DOC.replace(
+            "actors: [A]\n", "actors: [A]\n%spreconditions:\n%s" % (funds, lines)))
+        self.write("qa/auth/sign-in.setup.sh", "#!/bin/bash\n")
+        self.write("qa/fixtures/photo.jpg", "x")
+        return journey.load_journeys()["auth/sign-in"]
+
+    def test_the_keys_parse_and_funds_implies_a_balance(self):
+        loaded = self.declare("  balance.A: 3\n  photos: 1\n  fresh_handle: true\n", funds="funds:\n  A: 2\n")
+        self.assertEqual(loaded.preconditions, {"balance.A": 3, "photos": 1, "fresh_handle": "true"})
+        self.assertEqual(loaded.balance_needs(), {"A": 3})
+        self.assertEqual(self.problems(), [])
+        plain = self.declare("  photos: 1\n", funds="funds:\n  A: 2\n")
+        self.assertEqual(plain.balance_needs(), {"A": 2})
+
+    def test_check_names_a_bad_key_and_a_missing_fixture(self):
+        self.declare("  balance.Z: 1\n  sparkles: 2\n")
+        self.assertEqual(len([p for p in self.problems() if "preconditions" in p]), 2)
+        self.declare("  photos: 1\n")
+        (journey.QA / "fixtures" / "photo.jpg").unlink()
+        self.assertTrue(any("photo.jpg" in p for p in self.problems()))
+
+    def test_a_cash_shortfall_names_the_fix_and_a_funded_actor_passes(self):
+        loaded = self.declare("  balance.A: 1\n")
+        poor = journey.check_preconditions(loaded, {}, "http://x", balance=lambda *a: ("u-1", 0))
+        self.assertEqual(poor, ["A's cash is $0.00, under the $1 auth/sign-in needs: run scripts/qa/monacoctl.sh "
+                                "qa fund --user u-1 --usdc 1"])
+        self.assertEqual(journey.check_preconditions(loaded, {}, "http://x", balance=lambda *a: ("u-1", 1500000)), [])
+
+    def test_a_foreign_handle_holder_is_a_problem(self):
+        loaded = self.declare("  fresh_handle: true\n")
+        problems = journey.check_preconditions(loaded, {}, "http://x", handle=lambda *a: "taken by someone")
+        self.assertEqual(problems, ["the handle auth/sign-in needs is taken: taken by someone"])
+
+    def test_a_failed_precondition_is_setup_exit_2_and_never_builds(self):
+        self.declare("  balance.A: 1\n")
+        built, rows, booted = [], [], []
+        args = types.SimpleNamespace(sim="", channel="sms", runs=1, fresh=False, timeout=5)
+        loaded = journey.load_journeys()["auth/sign-in"]
+        with unittest.mock.patch.object(journey, "held_logins", lambda j, a: []), \
+                unittest.mock.patch.object(journey, "use_derived_data", lambda l: None), \
+                unittest.mock.patch.object(journey, "resolve_simulator", lambda *a: booted.append("resolve") or "sim"), \
+                unittest.mock.patch.object(journey, "check_simulator_api_environment",
+                                           lambda s, u: booted.append("boot")), \
+                unittest.mock.patch.object(journey, "actor_balance", lambda *a: ("u-1", 0)), \
+                unittest.mock.patch.object(journey, "record", lambda *a, **k: rows.append(a[4])), \
+                unittest.mock.patch.object(journey, "OUT", Path(self.tmp.name) / "out"), \
+                redirect_stdout(StringIO()) as printed:
+            code = journey.run_journey_as(args, "http://x", {}, loaded, ["S1"], {}, lambda sim: built.append(sim))
+        self.assertEqual((code, built, booted), (2, [], []))
+        self.assertEqual(rows[0]["result"], "SETUP")
+        self.assertIn("SETUP auth/sign-in: A's cash is $0.00", printed.getvalue())
+
+    def test_report_counts_setup_apart_from_fail(self):
+        base = {"journey": "j", "driver": journey.DRIVER, "build": "b", "scenario": "*", "truth": ""}
+        table = journey.summarize([dict(base, result="SETUP"), dict(base, result="FAIL"), dict(base, result="ERROR")])
+        self.assertEqual((table[0]["setup"], table[0]["errors"], table[0]["runs"]), (1, 1, 1))
+
+
 class Funds(Tree):
     def fund(self, lines):
         self.write("docs/journeys/auth/sign-in.md", DOC.replace("actors: [A]\n", "actors: [A]\nfunds:\n" + lines))
@@ -1074,11 +1134,11 @@ if [[ $1 == inspect ]]; then echo true; else /bin/cat; fi"""})
 
 
 class PruneQACabals(unittest.TestCase):
-    """cmd_run prunes once; apps/mobile/qa/journeys/prune.sh runs here with a fake psql on PATH."""
+    """Every run prunes; apps/mobile/qa/journeys/prune.sh runs here with a fake psql on PATH."""
 
     SCRIPT = journey.QA / "prune.sh"
 
-    def run_script(self, url, psql_output=""):
+    def run_script(self, url, psql_output="", lock_dir=None):
         folder = tempfile.TemporaryDirectory()
         self.addCleanup(folder.cleanup)
         bin_dir = Path(folder.name)
@@ -1087,30 +1147,40 @@ class PruneQACabals(unittest.TestCase):
         tool.write_text("#!/bin/bash\necho \"psql $*\" >> %s\n/bin/cat >> %s\nprintf '%%s' '%s'\n" % (log, log, psql_output))
         tool.chmod(0o755)
         env = {"PATH": "%s:/usr/bin:/bin" % bin_dir, "DATABASE_URL": url,
-               "JOURNEY_RUN_STARTED": "2026-10-30T12:00:00Z"}
+               "JOURNEY_RUN_STARTED": "2026-10-30T12:00:00Z", "MONACO_QA_LOCK_DIR": lock_dir or folder.name}
         done = subprocess.run(["/bin/bash", str(self.SCRIPT)], env=env, stdout=subprocess.PIPE,
                               stderr=subprocess.PIPE, universal_newlines=True)
         return done, log.read_text() if log.exists() else ""
 
-    def test_prune_runs_once_even_with_several_journeys(self):
-        calls = []
-        args = types.SimpleNamespace(all=False, journey=["auth/sign-in", "cabals/join"], scenario=None,
-                                     keep_sims=False, slot=None)
+    def test_every_run_prunes_after_taking_its_run_lock(self):
+        events = []
+        args = types.SimpleNamespace(timeout=5, channel="sms")
+        fake = types.SimpleNamespace(id="auth/sign-in", version=1, known={}, scenarios=["S1"])
+        with tempfile.TemporaryDirectory() as locks, tempfile.TemporaryDirectory() as out, \
+                unittest.mock.patch.dict(os.environ, {"MONACO_QA_LOCK_DIR": locks}), \
+                unittest.mock.patch.object(journey, "OUT", Path(out)), \
+                unittest.mock.patch.object(journey, "new_run_id", lambda: "LIVE22"), \
+                unittest.mock.patch.object(journey, "prune_qa_cabals", lambda started: events.append(
+                    "locked" if journey.try_lock(journey.run_lock_path("LIVE22")) is None else "unlocked")), \
+                unittest.mock.patch.object(journey, "run_session", lambda *a, **k: ([], 0, None)), \
+                unittest.mock.patch.object(journey, "run_truth", lambda *a, **k: "ok"), \
+                unittest.mock.patch.object(journey, "record", lambda *a, **k: None), \
+                redirect_stdout(StringIO()):
+            journey.run_once(fake, {}, args, "sim", {}, "b", "r", ["S1"], "http://x")
+            journey.run_once(fake, {}, args, "sim", {}, "b", "r", ["S1"], "http://x")
+        self.assertEqual(events, ["locked", "locked"])
 
-        @contextlib.contextmanager
-        def backend(*a):
-            yield "http://127.0.0.1:8080"
-
-        with unittest.mock.patch.object(journey, "xcode_version_warning", return_value=""), \
-                unittest.mock.patch.object(journey, "once_builder", return_value=None), \
-                unittest.mock.patch.object(journey, "backend_trade_engine", return_value="stub"), \
-                unittest.mock.patch.object(journey, "simulator_shutdown", lambda keep: contextlib.nullcontext()), \
-                unittest.mock.patch.object(journey, "journey_backend", backend), \
-                unittest.mock.patch.object(journey, "prune_qa_cabals", lambda started: calls.append(started)), \
-                unittest.mock.patch.object(journey, "run_all", return_value=0) as run_all:
-            self.assertEqual(journey.cmd_run(args), 0)
-        run_all.assert_called_once()
-        self.assertEqual(len(calls), 1)
+    def test_a_held_run_lock_is_live_and_a_released_one_is_not(self):
+        with tempfile.TemporaryDirectory() as locks:
+            with unittest.mock.patch.dict(os.environ, {"MONACO_QA_LOCK_DIR": locks}):
+                with journey.run_lock("HELD22"):
+                    Path(journey.run_lock_path("DEAD22")).write_text("")
+                    done, calls = self.run_script("postgres://monaco:monaco@localhost:54322/monaco", lock_dir=locks)
+                    self.assertIn("-v live={HELD22}", calls)
+                done, calls = self.run_script("postgres://monaco:monaco@localhost:54322/monaco", lock_dir=locks)
+                self.assertIn("-v live={}", calls)
+        self.assertIn("right(c.name, 6) = ANY", calls)
+        self.assertIn("created_at < :'started'::timestamptz - interval '1 hour'", calls)
 
     def test_a_failed_prune_warns_and_does_not_raise(self):
         def runner(args, **kwargs):
@@ -2279,6 +2349,7 @@ class MutantRunSetup(unittest.TestCase):
                                 ("check_simulator_api_environment", lambda s, u: None),
                                 ("reset_journey_simulator", lambda *a: None), ("build", lambda *a: None),
                                 ("mutant_expectation", lambda p: ["S1"]), ("run_once", run_once),
+                                ("check_preconditions", lambda *a, **k: []),
                                 ("stamp_file", lambda: unittest.mock.Mock()), ("build_label", lambda *a: "b"),
                                 ("stamp", lambda: "T")):
                 stack.enter_context(unittest.mock.patch.object(journey, name, value))
@@ -2364,6 +2435,7 @@ class All(Output):
                 unittest.mock.patch.object(journey, "resolve_simulator", lambda override="", logins=None, profile="": "sim"), \
                 unittest.mock.patch.object(journey, "check_simulator_api_environment", lambda sim, url: None), \
                 unittest.mock.patch.object(journey, "prepare_logins", lambda *a: None), \
+                unittest.mock.patch.object(journey, "check_preconditions", lambda *a, **k: []), \
                 unittest.mock.patch.object(journey, "reset_journey_simulator", lambda *a: None), \
                 unittest.mock.patch.object(journey, "ensure_build", lambda sim, log, rebuild=False: builds.append(sim)), \
                 unittest.mock.patch.object(journey, "run_once", run_once), \

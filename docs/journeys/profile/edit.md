@@ -7,6 +7,8 @@ requires: [auth/sign-in]
 actors: [A]
 flows: [23, 23a]
 simslim: photos
+preconditions:
+  photos: 1
 xcuitest: [apps/mobile/MonacoUITests/Journeys/ProfileEditJourney.swift, apps/mobile/MonacoUITests/Journeys/ProfileEditJourneyUITests.swift]
 ---
 
