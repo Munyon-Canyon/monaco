@@ -81,10 +81,6 @@ public enum CatchUpCopy {
         hasVotes ? "\(count) to catch up. Votes first." : "\(count) to catch up."
     }
 
-    public static func subLine(count: Int) -> String {
-        subLine(count: count, hasVotes: true)
-    }
-
     public static func joinedToast(_ cabalName: String) -> String {
         "You're in \(cabalName)."
     }
@@ -146,10 +142,6 @@ public enum CatchUpCopy {
         if days >= 2 { return "\(days)d" }
         if hours > 0 { return "\(hours)h" }
         return "\(max(remaining / 60, 1))m"
-    }
-
-    public static func tally(_ proposal: Components.Schemas.CatchUpProposal) -> (yes: String, no: String) {
-        ("\(proposal.yes)", "\(proposal.no)")
     }
 
     public static func personName(_ item: Item) -> String {

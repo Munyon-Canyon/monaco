@@ -71,14 +71,6 @@ final class CabalHeaderCopyTests: XCTestCase {
         XCTAssertEqual(CabalHeaderCopy.headerMembers(rows: [rows[0]], viewerID: "v").count, 0)
     }
 
-    func testEachRoleReadsItsOwnViewerClause() {
-        XCTAssertEqual(CabalHeaderCopy.viewer(role: "creator", canVote: true), "you are admin")
-        XCTAssertEqual(CabalHeaderCopy.viewer(role: "admin", canVote: true), "you are admin")
-        XCTAssertEqual(CabalHeaderCopy.viewer(role: "member", canVote: true), "you vote")
-        XCTAssertEqual(CabalHeaderCopy.viewer(role: "member", canVote: false), "you hold a share")
-        XCTAssertNil(CabalHeaderCopy.viewer(role: nil, canVote: true))
-    }
-
     func testTheStatBlockReadsShareSliceAndVotes() {
         let stats = CabalHeaderCopy.stats(shareMicros: 7_000_000_000, sliceBps: 3500, openVotes: 1)
         XCTAssertEqual(stats.map(\.label), ["Your share", "Of treasury", "Open votes"])

@@ -18,17 +18,13 @@ final class CatchUpCopyTests: XCTestCase {
     func testSubLine() {
         XCTAssertEqual(Copy.subLine(count: 6, hasVotes: true), "6 to catch up. Votes first.")
         XCTAssertEqual(Copy.subLine(count: 6, hasVotes: false), "6 to catch up.")
-        XCTAssertEqual(Copy.subLine(count: 1), "1 to catch up. Votes first.")
         XCTAssertEqual(Copy.joinedToast("Quant Kids"), "You're in Quant Kids.")
     }
 
     func testWaitingRow() throws {
         let item = try XCTUnwrap(six.waiting.first)
-        let proposal = try XCTUnwrap(item.proposal)
         XCTAssertEqual(Copy.rowTitle(item), "Buy NVDA · $400")
         XCTAssertEqual(Copy.subtitle(item, now: now), "AC Capital · 5 of 8 voted · 6 replies · 4h")
-        XCTAssertEqual(Copy.tally(proposal).yes, "4")
-        XCTAssertEqual(Copy.tally(proposal).no, "1")
     }
 
     func testWaitingSubtitleReplyAndTimeForms() throws {
