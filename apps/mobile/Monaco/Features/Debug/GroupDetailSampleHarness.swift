@@ -192,6 +192,7 @@ enum GroupDetailSampleData {
         proposal.expiresAt = .now.addingTimeInterval(4 * 3_600 + 600)
         proposal.tally = .init(yes: 4, no: 1, voters: 8, needed: 5)
         proposal.replyCount = 6
+        script.viewerCanVote = true
         script.openProposal = proposal
         let start = Date(timeIntervalSince1970: 1_790_931_600)
         script.valueHistory = Components.Schemas.CabalValueHistory(

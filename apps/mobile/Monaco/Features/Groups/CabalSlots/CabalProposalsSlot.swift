@@ -18,7 +18,9 @@ struct CabalProposals: View {
     @Environment(ScreenRefresh.self) private var refresh: ScreenRefresh?
     @Environment(\.cabalModel) private var cabalModel
     @State private var model: ProposalListModel?
+    @Environment(\.analytics) private var analytics
     @State private var assets = CabalProposalAssets()
+    @State private var cards = CabalVoteCards()
     private let makeModel: @MainActor (AppEnvironment, String) -> ProposalListModel
 
     init(
@@ -61,13 +63,17 @@ struct CabalProposals: View {
                     Color.clear.frame(height: 0)
                 }
             } else {
-                VStack(spacing: 0) {
-                    ForEach(Array(open.enumerated()), id: \.element.id) { index, proposal in
-                        CabalOpenProposalRow(
-                            proposal: proposal, asset: assets.byTicker[proposal.symbol],
-                            isLast: index == open.count - 1, open: { openProposal(proposal) })
+                VStack(spacing: MonacoTheme.Space.m) {
+                    ForEach(open) { proposal in
+                        HomeVoteCard(
+                            model: card(for: proposal), identifierPrefix: Self.cardPrefix,
+                            tab: hostMainTab ?? environment.navigator.selectedTab, inCabal: true,
+                            canVote: proposal.canVote
+                        )
+                        .id(proposal.id)
                     }
                 }
+                .padding(.horizontal, MonacoTheme.Space.gutter)
             }
         }
     }
@@ -76,9 +82,26 @@ struct CabalProposals: View {
         proposals.filter { $0.status == .open }.sorted { $0.createdAt > $1.createdAt }
     }
 
-    private func openProposal(_ proposal: ProposalSummary) {
-        environment.navigator.open(
-            ProposalRoute(proposalID: proposal.id), in: hostMainTab ?? environment.navigator.selectedTab)
+    static let cardPrefix = "cabal-open-proposal"
+
+    private func card(for proposal: ProposalSummary) -> HomeVoteCardModel {
+        let row = Self.pendingVote(proposal, asset: assets.byTicker[proposal.symbol])
+        return cards.card(
+            for: row, ballot: proposal.myBallot.flatMap(ProposalBallot.init(rawValue:)), environment: environment
+        ) {
+            [environment, toasts, analytics, weak model] card, outcome in
+            HomeVoteCommit.accepted(card, outcome, environment: environment, toasts: toasts, analytics: analytics)
+            Task { await model?.refresh() }
+        }
+    }
+
+    static func pendingVote(_ proposal: ProposalSummary, asset: ProposalAsset?) -> HomePendingVote {
+        HomePendingVote(
+            id: proposal.id, cabalID: proposal.cabalID, cabalName: proposal.cabalName, kind: proposal.kind,
+            rule: proposal.ruleChange?.rule, symbol: proposal.isRule ? nil : proposal.symbol,
+            assetName: asset?.displayName, logoURL: asset?.logoURL, usdcMicros: proposal.usdcMicros,
+            tokenAmount: proposal.tokenAmount, tokenDecimals: proposal.tokenDecimals, tally: proposal.tally,
+            replyCount: proposal.replyCount, expiresAt: proposal.expiresAt)
     }
 
     private func loadAssets() async {
@@ -109,57 +132,24 @@ struct CabalProposals: View {
     }
 }
 
-struct CabalOpenProposalRow: View {
-    let proposal: ProposalSummary
-    let asset: ProposalAsset?
-    var isLast = false
-    let open: () -> Void
-
-    var body: some View {
-        Button(action: open) {
-            MonacoRow(
-                title: Self.title(proposal, asset: asset), subtitle: Self.statusLine(proposal), subtitleLineLimit: 2,
-                isLast: isLast,
-                isPrivate: true,
-                leading: {
-                    if proposal.kind == CabalOpenProposalRow.ruleKind {
-                        Image(monaco: .eye)
-                            .font(MonacoTheme.Typo.rowTitle)
-                            .foregroundStyle(MonacoTheme.secondaryText)
-                            .frame(width: MonacoRowLayout.baseMarkSize, height: MonacoRowLayout.baseMarkSize)
-                            .accessibilityHidden(true)
-                    } else {
-                        StockMark(
-                            symbol: proposal.symbol, displayName: asset?.displayName, assetKind: asset?.kind ?? .stock,
-                            size: MonacoRowLayout.baseMarkSize, logoURL: asset?.logoURL)
-                    }
-                },
-                trailing: { CabalLiveCount(yes: proposal.tally.yes, no: proposal.tally.no) })
+@MainActor
+final class CabalVoteCards {
+    private var models: [String: HomeVoteCardModel] = [:]
+    func card(
+        for row: HomePendingVote, ballot: ProposalBallot?, environment: AppEnvironment,
+        onCommitted: @escaping @MainActor (HomeVoteCardModel, CastOutcome) -> Void
+    ) -> HomeVoteCardModel {
+        if let existing = models[row.id] {
+            if existing.row != row { existing.update(row) }
+            return existing
         }
-        .buttonStyle(.monacoRow)
-        .accessibilityElement(children: .combine)
-        .accessibilityHint("Opens the proposal")
-        .accessibilityIdentifier("cabal-open-proposal-\(proposal.id)")
-    }
-
-    static let ruleKind = "rule"
-    static let ruleTitle = "Rule change"
-
-    static func title(_ proposal: ProposalSummary, asset: ProposalAsset?) -> String {
-        if proposal.kind == ruleKind { return ruleTitle }
-        let isSell = proposal.kind == "sell"
-        let amount =
-            isSell
-            ? ProposalCard.shareLabel(summary: proposal, asset: asset)
-            : proposal.usdcMicros.map(CabalHeaderCopy.compactDollars)
-        let ticker = AssetSymbolFormatter.display(proposal.symbol, kind: asset?.kind ?? .stock)
-        let name = "\(isSell ? "Sell" : "Buy") \(ticker)"
-        return [name, amount].compactMap { $0 }.joined(separator: " \u{00B7} ")
-    }
-
-    static func statusLine(_ proposal: ProposalSummary, now: Date = .now) -> String {
-        ProposalVoteCopy.statusLine(
-            tally: proposal.tally, replies: proposal.replyCount, expiresAt: proposal.expiresAt, now: now)
+        let created = HomeVoteCardModel(
+            api: environment.api, hints: environment.hints, row: row, myBallot: ballot)
+        created.onCommitted = { [weak created] outcome in
+            if let created { onCommitted(created, outcome) }
+        }
+        models[row.id] = created
+        return created
     }
 }
 

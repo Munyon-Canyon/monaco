@@ -16,6 +16,7 @@ struct VoteCard<Actions: View>: View {
     let identifierPrefix: String
     let identifierSuffix: String?
     var showsChevron = true
+    var ruleIcon = MonacoIcon.thesis
     let onOpen: () -> Void
     @ViewBuilder let actions: () -> Actions
 
@@ -71,7 +72,7 @@ struct VoteCard<Actions: View>: View {
         case .stock(let symbol, let name, let logoURL):
             StockMark(symbol: symbol, displayName: name, size: Self.markSize, logoURL: logoURL)
         case .rule:
-            SunkenGlyphMark(icon: .thesis, size: Self.markSize)
+            SunkenGlyphMark(icon: ruleIcon, size: Self.markSize)
         }
     }
 
