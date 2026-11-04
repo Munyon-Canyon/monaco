@@ -187,10 +187,12 @@ enum StocksAssetDetailJourney {
             let info = app.buttons["asset-stats-info-button"]
             XCTAssertTrue(info.waitForExistence(timeout: 10), "S2.3: no asset-stats-info-button")
             info.tap()
-            let sheet = app.element("market-stats-sheet")
-            XCTAssertTrue(sheet.waitForExistence(timeout: 10), "S2.3: no market-stats-sheet")
-            XCTAssertTrue(
-                sheet.staticTexts["Market stats"].waitForExistence(timeout: 10), "S2.3: no 'Market stats' title")
+            let title = app.staticTexts["market-stats-sheet-title"]
+            XCTAssertTrue(title.waitForExistence(timeout: 10), "S2.3: no market-stats-sheet-title")
+            XCTAssertEqual(
+                title.label, "Market stats", "S2.3: the sheet title reads '\(title.label)', not 'Market stats'")
+            let sheet = app.element("asset-stats-info")
+            XCTAssertTrue(sheet.waitForExistence(timeout: 5), "S2.3: no asset-stats-info sheet")
             let sentence = "Monaco prices trade around the clock, so they can differ a little from the stock market's."
             XCTAssertTrue(
                 sheet.staticTexts[sentence].waitForExistence(timeout: 10), "S2.3: the sheet does not read the sentence")
