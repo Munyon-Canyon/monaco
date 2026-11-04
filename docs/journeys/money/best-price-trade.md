@@ -74,8 +74,10 @@ The format of this doc is in [App journeys](../README.md).
 
 ## Known failures on staging
 
+- S2.2: "Buy · market order" is no longer app copy. Blocked by #7983.
 - S5.1: "Cashing out $" is no longer app copy; "Cashed out $" is no longer app copy; the test checks "Cash out $", which the doc step does not quote. Blocked by #6198.
 - S5.2: "Withdrawing $" is no longer app copy. Blocked by #6198.
+
 ## Not covered
 
 - The best price on Review, the proposal and the trade detail. F's review sheet has no best-price row (Q10). `BestPriceSheetTests` and flow 30 cover the comparison.
