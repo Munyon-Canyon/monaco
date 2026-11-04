@@ -77,8 +77,9 @@ struct ChatAttachmentRowTests {
         #expect(
             ChatAttachmentRow.content(of: pendingRow(.thesisQuote(proposalID: "p", start: nil, end: nil)))
                 == .pending(.thesis))
-        #expect(ChatAttachmentRow.skeletonSize(gifDraft).width == GifBubbleMetrics.width)
-        #expect(ChatAttachmentRow.skeletonSize(gifDraft).height == GifBubbleMetrics.width / 2)
+        #expect(ChatAttachmentRow.skeletonSize(gifDraft).width == ChatAttachmentRow.gifWidth)
+        #expect(ChatAttachmentRow.skeletonSize(gifDraft).height == ChatAttachmentRow.gifWidth / 2)
+        #expect(ChatAttachmentRow.skeletonSize(.stock(assetID: "a")).width == GifBubbleMetrics.width)
     }
 
     @Test func aDeletedMessageStaysDeleted() async {

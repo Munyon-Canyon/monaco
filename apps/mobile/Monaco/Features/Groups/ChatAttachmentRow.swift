@@ -19,6 +19,8 @@ struct ChatAttachmentRow: View {
 
     let row: ChatRow
 
+    static let gifWidth: CGFloat = 116
+
     static func content(of row: ChatRow) -> Content {
         if row.message.deleted { return .deleted }
         if let attachment = row.attachment { return .attachment(kind(of: attachment)) }
@@ -77,6 +79,7 @@ struct ChatAttachmentRow: View {
     @ViewBuilder private func sent(_ attachment: Components.Schemas.CommentAttachment) -> some View {
         if case .gif(let gif) = attachment {
             AttachmentBubble(commentID: row.id, attachment: attachment)
+                .frame(width: Self.gifWidth)
                 .accessibilityElement(children: .combine)
                 .accessibilityLabel(
                     Self.gifLabel(author: row.message.author.displayName, isMine: row.isMine, title: gif.title))
@@ -95,9 +98,11 @@ struct ChatAttachmentRow: View {
     }
 
     static func skeletonSize(_ draft: ChatAttachmentDraft) -> CGSize {
-        let width = GifBubbleMetrics.width
-        guard case .gif(let gif) = draft else { return CGSize(width: width, height: width * 3 / 4) }
+        guard case .gif(let gif) = draft else {
+            let width = GifBubbleMetrics.width
+            return CGSize(width: width, height: width * 3 / 4)
+        }
         return GifBubbleMetrics.size(
-            mediaWidth: CGFloat(gif.preview.width), mediaHeight: CGFloat(gif.preview.height), available: width)
+            mediaWidth: CGFloat(gif.preview.width), mediaHeight: CGFloat(gif.preview.height), available: gifWidth)
     }
 }
