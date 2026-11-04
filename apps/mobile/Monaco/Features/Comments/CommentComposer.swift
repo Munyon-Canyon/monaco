@@ -146,7 +146,7 @@ struct ComposerField: View {
     }
 
     var body: some View {
-        let shape = RoundedRectangle(cornerRadius: CommentRowMetrics.replyTarget / 2, style: .continuous)
+        let shape = FieldShape(cornerRadius: MonacoTheme.Radius.compact)
         HStack(alignment: .bottom, spacing: 0) {
             TextField(
                 "",
@@ -171,7 +171,6 @@ struct ComposerField: View {
         .padding(.trailing, onGif == nil ? MonacoTheme.Space.m : MonacoTheme.Space.sm)
         .frame(minHeight: CommentRowMetrics.replyTarget)
         .background(shape.fill(MonacoTheme.surfaceSunken))
-        .overlay(shape.strokeBorder(MonacoTheme.border, lineWidth: 1))
     }
 }
 
@@ -237,14 +236,14 @@ struct ComposerSendDisc: View {
     var body: some View {
         ZStack {
             Circle()
-                .fill(isLive ? MonacoTheme.primaryButtonFill : MonacoTheme.surfaceSunken)
+                .fill(isLive ? MonacoTheme.action : MonacoTheme.surfaceSunken)
             if isSending {
                 ProgressView()
-                    .tint(MonacoTheme.onBrand)
+                    .tint(MonacoTheme.onAction)
             } else {
                 Image(monaco: .up)
                     .font(MonacoTheme.Typo.subheadStrong)
-                    .foregroundStyle(isLive ? MonacoTheme.primaryButtonLabel : MonacoTheme.muted)
+                    .foregroundStyle(isLive ? MonacoTheme.onAction : MonacoTheme.muted)
             }
         }
         .frame(width: CommentRowMetrics.replyTarget, height: CommentRowMetrics.replyTarget)

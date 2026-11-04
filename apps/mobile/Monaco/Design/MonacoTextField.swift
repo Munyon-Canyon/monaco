@@ -1,7 +1,7 @@
 import SwiftUI
 import UIKit
 
-private nonisolated struct FieldShape: InsettableShape {
+nonisolated struct FieldShape: InsettableShape {
     let cornerRadius: CGFloat
     var inset: CGFloat = 0
 

@@ -19,7 +19,7 @@ struct ReplySheetQuote: View {
             QuoteFrame(label: "\(row.authorName). \(row.text)") {
                 (Text(row.authorName).font(MonacoTheme.Typo.subheadStrong).foregroundStyle(MonacoTheme.primaryText)
                     + Text(" ") + Text(row.text).font(MonacoTheme.Typo.body).foregroundStyle(MonacoTheme.secondaryText))
-                    .lineLimit(dynamicTypeSize >= .xxxLarge ? nil : 2)
+                    .lineLimit(dynamicTypeSize >= .xxxLarge ? nil : 1)
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -27,6 +27,10 @@ struct ReplySheetQuote: View {
             PostQuote(facts: FeedPostFacts(item, now: Date()))
         }
     }
+}
+
+private enum QuoteFrameMetrics {
+    static let rule: CGFloat = 2
 }
 
 private struct QuoteFrame<Content: View>: View {
@@ -40,6 +44,11 @@ private struct QuoteFrame<Content: View>: View {
                 .foregroundStyle(MonacoTheme.secondaryText)
             content
         }
+        .padding(.leading, MonacoTheme.Space.s)
+        .overlay(alignment: .leading) {
+            Rectangle().fill(MonacoTheme.hairline).frame(width: QuoteFrameMetrics.rule)
+        }
+        .fixedSize(horizontal: false, vertical: true)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(label)
         .accessibilityIdentifier("reply-sheet-quote")
