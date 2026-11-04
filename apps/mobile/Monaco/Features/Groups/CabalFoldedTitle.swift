@@ -42,7 +42,7 @@ struct CabalFoldedTitle: View {
 
     private static let trailingCapsuleWidth: CGFloat = 96
     private static let barSideMargin: CGFloat = 16
-    private static let titleGap: CGFloat = 8
+    private static let titleGap: CGFloat = 16
     private static let sideReserve = trailingCapsuleWidth + barSideMargin + titleGap
 
     static func maxWidth(barWidth: CGFloat) -> CGFloat {
