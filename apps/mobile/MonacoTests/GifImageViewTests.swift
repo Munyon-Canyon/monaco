@@ -67,4 +67,19 @@ nonisolated final class GifImageViewTests: XCTestCase {
     func testWantsSlot_isFalseOffScreen() {
         XCTAssertFalse(GifImageView.wantsSlot(isOnScreen: false, reduceMotion: false, runs: 1))
     }
+
+    @MainActor
+    func testFailed_isFalseForACancellation() {
+        XCTAssertFalse(GifImageView.failed(after: CancellationError()))
+    }
+
+    @MainActor
+    func testFailed_isFalseForACancelledURLRequest() {
+        XCTAssertFalse(GifImageView.failed(after: URLError(.cancelled)))
+    }
+
+    @MainActor
+    func testFailed_isTrueForANetworkError() {
+        XCTAssertTrue(GifImageView.failed(after: URLError(.notConnectedToInternet)))
+    }
 }
