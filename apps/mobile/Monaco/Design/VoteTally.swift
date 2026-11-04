@@ -284,9 +284,34 @@ struct VoteHoldRow<Yes: View, No: View>: View {
 struct VoteStatusLine: View {
     let result: VoteResultMark?
     let facts: [String]
+    let cardLine: VoteCardLine?
     let identifierPrefix: String
-    var identifierSuffix: String? = nil
-    var minHeight: CGFloat = MonacoButtonMetrics.hitTarget
+    let identifierSuffix: String?
+    let minHeight: CGFloat
+
+    init(
+        result: VoteResultMark?, facts: [String], identifierPrefix: String, identifierSuffix: String? = nil,
+        minHeight: CGFloat = MonacoButtonMetrics.hitTarget
+    ) {
+        self.result = result
+        self.facts = facts
+        self.cardLine = nil
+        self.identifierPrefix = identifierPrefix
+        self.identifierSuffix = identifierSuffix
+        self.minHeight = minHeight
+    }
+
+    init(
+        line: VoteCardLine, identifierPrefix: String, identifierSuffix: String? = nil,
+        minHeight: CGFloat = MonacoButtonMetrics.hitTarget
+    ) {
+        self.result = nil
+        self.facts = [line.full]
+        self.cardLine = line
+        self.identifierPrefix = identifierPrefix
+        self.identifierSuffix = identifierSuffix
+        self.minHeight = minHeight
+    }
 
     private var markSymbol: String? {
         switch result {
@@ -321,7 +346,13 @@ struct VoteStatusLine: View {
                     .foregroundStyle(markColor)
                     .accessibilityHidden(true)
             }
-            if markSymbol == nil {
+            if let cardLine {
+                ViewThatFits(in: .horizontal) {
+                    Text(verbatim: cardLine.full).lineLimit(1)
+                    Text(verbatim: cardLine.short).lineLimit(1)
+                    Text(verbatim: cardLine.short).lineLimit(nil).fixedSize(horizontal: false, vertical: true)
+                }
+            } else if markSymbol == nil {
                 Text(verbatim: facts.joined(separator: " · "))
             } else {
                 line

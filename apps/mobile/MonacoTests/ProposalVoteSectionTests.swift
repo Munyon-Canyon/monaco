@@ -132,6 +132,10 @@ struct ProposalVoteSectionTests {
         let identifiers = AccessibilityTree.identifiers(in: window)
         #expect(identifiers.contains("proposal-vote-yes") && identifiers.contains("proposal-vote-no"))
         #expect(!identifiers.contains("proposal-vote-readonly"))
+        let status = try #require(VoteTestKit.node("proposal-vote-status", in: window))
+        let line = try #require(model.cardLine(now: .now))
+        #expect(status.accessibilityLabel == ProposalVoteCopy.spoken(facts: [line.full]))
+        #expect(status.accessibilityLabel?.contains("closes in") == true)
         let yes = try #require(VoteTestKit.node("proposal-vote-yes", in: window))
         #expect(yes.accessibilityLabel == "Yes, 4 votes")
 

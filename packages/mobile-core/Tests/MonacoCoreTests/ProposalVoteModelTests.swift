@@ -471,3 +471,50 @@ extension ProposalDetailVoteTests {
         XCTAssertEqual(model.settledLine, "Passed 5–1 · 6 of 8 voted · buying ≈ 1.82 sh")
     }
 }
+
+@MainActor
+final class ProposalCardLineTests: XCTestCase {
+    private func model(_ transport: StubTransport) -> ProposalDetailModel {
+        let api = APIClient(serverURL: testServerURL, tokens: StubTokenProvider(token: "token"), transport: transport)
+        return ProposalDetailModel(
+            id: "proposal-1", cabalID: "cabal-1", repository: ProposalsRepository(api: api), hints: FakeHintStream())
+    }
+
+    private func detail(replies: Int, expiresAt: Date) throws -> StubTransport.Reply {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        var value = Components.Schemas.ProposalDetail.sample(status: .open, myBallot: nil, canVote: true)
+        value.tally = .init(yes: 4, no: 1, voters: 8, needed: 5)
+        value.replyCount = replies
+        value.expiresAt = expiresAt
+        return .json(.ok, String(decoding: try encoder.encode(value), as: UTF8.self))
+    }
+
+    func testTheCardLineIsNilBeforeLoadAndReadsClosesInWithAShortForm() async throws {
+        let now = Date(timeIntervalSince1970: 1_790_000_000)
+        let transport = StubTransport(
+            routes: ["/v1/proposals/proposal-1": [try detail(replies: 6, expiresAt: now.addingTimeInterval(4 * 3_600))]]
+        )
+        let model = model(transport)
+        XCTAssertNil(model.cardLine(now: now))
+        await model.load()
+        XCTAssertEqual(
+            model.cardLine(now: now),
+            VoteCardLine(
+                full: "5 of 8 voted \u{00B7} 6 replies \u{00B7} closes in 4h",
+                short: "5 of 8 voted \u{00B7} 6 replies \u{00B7} 4h"))
+    }
+
+    func testTheCardLineDropsTheRepliesWhenThereAreNone() async throws {
+        let now = Date(timeIntervalSince1970: 1_790_000_000)
+        let transport = StubTransport(
+            routes: ["/v1/proposals/proposal-1": [try detail(replies: 0, expiresAt: now.addingTimeInterval(4 * 3_600))]]
+        )
+        let model = model(transport)
+        await model.load()
+        XCTAssertEqual(
+            model.cardLine(now: now),
+            VoteCardLine(
+                full: "5 of 8 voted \u{00B7} closes in 4h", short: "5 of 8 voted \u{00B7} 4h"))
+    }
+}

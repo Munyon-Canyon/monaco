@@ -324,6 +324,13 @@ public final class ProposalDetailModel {
 
     public var statusLine: String? { value == nil ? nil : statusFacts.joined(separator: " · ") }
 
+    public func cardLine(now: Date) -> VoteCardLine? {
+        guard let value else { return nil }
+        return ProposalVoteCopy.cardLine(
+            cabalName: nil, tally: summary?.tally ?? value.summary.tally, replies: value.replyCount,
+            expiresAt: value.summary.expiresAt, now: now)
+    }
+
     public var settledFacts: [String]? {
         guard let vote = lastVote, vote.settled, let summary = value?.summary else { return nil }
         return ProposalVoteCopy.settledFacts(
