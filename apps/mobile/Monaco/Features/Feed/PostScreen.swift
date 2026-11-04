@@ -164,7 +164,7 @@ private struct PostContent: View {
             }
         case .ready(let item):
             VStack(alignment: .leading, spacing: 0) {
-                FeedPost(item: item, now: Date(), opensPost: false) {
+                FeedPost(item: item, now: Date(), opensPost: false, voteCard: feed.voteCard(for: item)) {
                     PostReactionsSlot(item: item, model: feed, onReply: { model.reply() })
                 }
                 .padding(.horizontal, MonacoTheme.Space.gutter)

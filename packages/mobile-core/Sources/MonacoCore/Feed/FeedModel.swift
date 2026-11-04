@@ -56,21 +56,24 @@ public final class FeedModel {
     public var items: [Components.Schemas.FeedItem] { pager.items }
 
     public func voteCard(for item: Components.Schemas.FeedItem) -> HomeVoteCardModel? {
-        guard FeedVoteCard.isVotable(item), let proposalID = item.proposalId else { return nil }
-        return voteCards[proposalID]
+        guard FeedVoteCard.isVotable(item) else { return nil }
+        return syncVoteCard(for: item)
     }
 
     private func syncVoteCards() {
-        for item in pager.items where FeedVoteCard.isVotable(item) {
-            guard let row = FeedVoteCard.row(for: item) else { continue }
-            if let card = voteCards[row.id] {
-                if card.row != row { card.update(row) }
-            } else {
-                voteCards[row.id] = HomeVoteCardModel(
-                    api: api, hints: hints, row: row, now: now, myBallot: FeedVoteCard.ballot(of: item),
-                    showsReplies: false)
-            }
+        for item in pager.items where FeedVoteCard.isVotable(item) { _ = syncVoteCard(for: item) }
+    }
+
+    private func syncVoteCard(for item: Components.Schemas.FeedItem) -> HomeVoteCardModel? {
+        guard let row = FeedVoteCard.row(for: item) else { return nil }
+        if let card = voteCards[row.id] {
+            if card.row != row { card.update(row) }
+            return card
         }
+        let card = HomeVoteCardModel(
+            api: api, hints: hints, row: row, now: now, myBallot: FeedVoteCard.ballot(of: item), showsReplies: false)
+        voteCards[row.id] = card
+        return card
     }
 
     public var isLoadingMore: Bool { pager.phase == .loadingMore }
