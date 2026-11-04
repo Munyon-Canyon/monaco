@@ -113,6 +113,10 @@ public actor ThreadSession {
     }
 
     func apply(_ event: ChatRealtimeEvent) async {
+        if !applyPoll(event) { await applyOther(event) }
+    }
+
+    private func applyOther(_ event: ChatRealtimeEvent) async {
         switch event {
         case .messageCreated(let message):
             guard state.timeline.insertLive(message) else { return }
@@ -136,10 +140,20 @@ public actor ThreadSession {
         case .attached(let resumed):
             if !resumed { await loadNewest() }
             return
-        case .seenUpdated, .detached, .momentCreated:
+        case .seenUpdated, .detached, .momentCreated, .pollUpdated:
             return
         }
         publish()
+    }
+
+    private func applyPoll(_ event: ChatRealtimeEvent) -> Bool {
+        guard case .pollUpdated(let id, let options, let total) = event else { return false }
+        let changed =
+            id == parentID
+            ? state.parent?.applyPoll(counts: options, total: total) == true
+            : state.timeline.applyPoll(id: id, counts: options, total: total)
+        if changed { publish() }
+        return true
     }
 
     func dropBlocked(_ authors: Set<String>) {

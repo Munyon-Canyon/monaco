@@ -307,7 +307,7 @@ struct ChatComposerBar: View {
             HStack(alignment: .bottom, spacing: MonacoTheme.Space.s) {
                 if let attachments {
                     ChatComposerMenu(hasThesis: attachments.thesis != nil, hasStock: attachments.search != nil) {
-                        activeSheet = $0
+                        if $0 == .poll { attachments.presentPoll() } else { activeSheet = $0 }
                     }
                 }
                 field

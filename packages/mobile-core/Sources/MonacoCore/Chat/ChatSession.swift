@@ -153,6 +153,8 @@ public actor ChatSession {
             state.timeline.markDeleted(id: id)
         case .reactionUpdated(let id, let counts, let total):
             return state.timeline.applyReactions(id: id, counts: counts, total: total)
+        case .pollUpdated(let id, let options, let total):
+            return state.timeline.applyPoll(id: id, counts: options, total: total)
         default:
             return false
         }
@@ -169,7 +171,7 @@ public actor ChatSession {
         case .momentCreated(let message):
             await insertLive(message, raisesArrival: false)
             return
-        case .threadUpdated, .messageDeleted, .reactionUpdated:
+        case .threadUpdated, .messageDeleted, .reactionUpdated, .pollUpdated:
             guard applyToTimeline(event) else { return }
         case .attached(let resumed):
             channelAttached = true
