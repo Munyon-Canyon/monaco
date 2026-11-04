@@ -8,6 +8,7 @@ private struct KeypadHarness: View {
     @State var text: String
     let state: AmountKeypadState
     var withInfo = true
+    var tallHeader = false
 
     var body: some View {
         AmountKeypadScreen(
@@ -17,7 +18,13 @@ private struct KeypadHarness: View {
             action: AmountKeypadAction(title: "Fund $250", settledTitle: "$250 to AC Capital", perform: {}),
             onClose: {},
             source: { Text("AC Capital") },
-            header: { EmptyView() })
+            header: {
+                if tallHeader {
+                    VStack(alignment: .leading) {
+                        ForEach(0..<6, id: \.self) { Text("Header line \($0) with enough words to wrap around") }
+                    }
+                }
+            })
     }
 }
 
@@ -57,12 +64,12 @@ struct AmountKeypadScreenTests {
 
     private static func shown(
         _ state: AmountKeypadState, text: String, size: DynamicTypeSize = .large,
-        run: ([NSObject], UIWindow) throws -> Void
+        tallHeader: Bool = false, run: ([NSObject], UIWindow) throws -> Void
     ) async throws {
         try AccessibilityTree.setAutomation(enabled: true)
         defer { try? AccessibilityTree.setAutomation(enabled: false) }
         let window = try ProposalTestWindow.hosting(
-            KeypadHarness(text: text, state: state).environment(\.dynamicTypeSize, size))
+            KeypadHarness(text: text, state: state, tallHeader: tallHeader).environment(\.dynamicTypeSize, size))
         defer { TestWindow.close(window) }
         await ProposalTestWindow.until { AccessibilityTree.identifiers(in: window).contains("amount-keypad-amount") }
         for _ in 0..<300 { await Task.yield() }
@@ -153,6 +160,14 @@ struct AmountKeypadScreenTests {
                 let frame = try #require(frames[id], "\(id) missing")
                 #expect(frame.minY >= 0 && frame.maxY <= bounds.height, "\(id) is clipped: \(frame)")
             }
+        }
+    }
+
+    @Test(.timeLimit(.minutes(1))) func theHeroKeepsAWholeLineUnderATallHeaderAtAccessibility5() async throws {
+        try await Self.shown(.typed, text: "250", size: .accessibility5, tallHeader: true) { nodes, _ in
+            let hero = try #require(nodes.first { Self.identifier($0) == "amount-keypad-amount" })
+            let heroLine = MoneyStyle.hero.baseSize * 1.2
+            #expect(hero.accessibilityFrame.height >= heroLine, "\(hero.accessibilityFrame)")
         }
     }
 
