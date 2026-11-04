@@ -2,7 +2,7 @@ import XCTest
 
 enum ProfileUserProfileJourney {
     static let id = "profile/user-profile"
-    static let version = 6
+    static let version = 7
 
     static let memberName = "Bartholomez"
 
@@ -11,13 +11,15 @@ enum ProfileUserProfileJourney {
         let cabalName: String
         let meID: String
         let memberID: String
+        let sharedCount: Int
 
         static func handedOff() throws -> Seed {
             Seed(
                 cabalID: try JourneyHandoff.read("cabalID"),
                 cabalName: try JourneyHandoff.read("cabalName"),
                 meID: try JourneyHandoff.read("meID"),
-                memberID: try JourneyHandoff.read("memberID"))
+                memberID: try JourneyHandoff.read("memberID"),
+                sharedCount: Int(try JourneyHandoff.read("sharedCount")) ?? 0)
         }
     }
 
@@ -79,14 +81,42 @@ enum ProfileUserProfileJourney {
             let rightCalls = app.element("user-profile-right-calls")
             XCTAssertTrue(rightCalls.waitForExistence(timeout: 5), "S1.3: no right-calls line")
             XCTAssertTrue(
-                rightCalls.label.contains("Right calls"),
-                "S1.3: the line reads '\(rightCalls.label)', not 'Right calls'")
+                rightCalls.label.contains("Right this month"),
+                "S1.3: the line reads '\(rightCalls.label)', not 'Right this month'")
+            let card = app.element("user-profile-card")
+            for banned in ["Right calls", "P&L", "in common"] {
+                let hit = card.descendants(matching: .any).matching(
+                    NSPredicate(format: "label CONTAINS[c] %@", banned)
+                ).firstMatch
+                XCTAssertFalse(hit.exists, "S1.3: the card reads '\(hit.label)', which holds '\(banned)'")
+            }
+            XCTAssertFalse(
+                app.element("user-profile-in-common").exists, "S1.3: the counts row still shows the old tail")
         }
 
         recorder.step("S1.4", "find the more menu") {
             let more = app.element("user-profile-more")
             XCTAssertTrue(more.waitForExistence(timeout: 5), "S1.4: no '…' menu on another member's profile")
             XCTAssertEqual(more.label, "More", "S1.4: the menu is labelled '\(more.label)', not 'More'")
+        }
+
+        recorder.step("S1.5", "read the shared cabals line") {
+            let line = app.element("user-profile-shared-line")
+            if seed.sharedCount == 0 {
+                XCTAssertFalse(
+                    waitUntil(5) { line.exists }, "S1.5: the line shows '\(line.label)' with no shared cabal")
+                return
+            }
+            XCTAssertTrue(line.waitForExistence(timeout: 10), "S1.5: no shared cabals line")
+            XCTAssertTrue(
+                line.label.hasPrefix("You are both in "), "S1.5: the line reads '\(line.label)', not 'Both in' or 'In'")
+            if seed.sharedCount <= 2 {
+                XCTAssertTrue(
+                    line.label.contains(seed.cabalName), "S1.5: the line reads '\(line.label)', not '\(seed.cabalName)'"
+                )
+            } else {
+                XCTAssertTrue(line.label.hasSuffix(" more"), "S1.5: the line reads '\(line.label)', not '… more'")
+            }
         }
     }
 

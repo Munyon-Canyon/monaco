@@ -1,7 +1,7 @@
 ---
 id: profile/user-profile
 title: Another member's profile
-version: 6
+version: 7
 milestone: M17
 requires: [auth/sign-in]
 actors: [A]
@@ -11,7 +11,9 @@ xcuitest: [apps/mobile/MonacoUITests/Journeys/ProfileUserProfileJourney.swift, a
 
 # Another member's profile
 
-A member opens a cabal, opens the cabal's Members tab, taps another member's row, reads their profile, follows and unfollows them, reads the cabals they have in common, and opens the "…" menu. On their own row the profile hides Follow and the menu. The design is the [User profile](../../screens.md#profile-tab) (`UserProfileRoute`). The old app opened its profile from a leaderboard or member row; the new app's is `UserProfileRoute`, which renders `UserProfileScreen`.
+A member opens a cabal, opens the cabal's Members tab, taps another member's row, reads their profile and the line naming the cabals they share, follows and unfollows them, reads the cabals they share, and opens the "…" menu. On their own row the profile hides Follow and the menu. The design is the [User profile](../../screens.md#profile-tab) (`UserProfileRoute`). The old app opened its profile from a leaderboard or member row; the new app's is `UserProfileRoute`, which renders `UserProfileScreen`.
+
+Frames: `docs/design/v5/screens/10-profile-other.png`.
 
 The format of this doc is in [App journeys](../README.md). The Old app column names the old app's tap or element for each step, or says the step is new in the spec.
 
@@ -21,7 +23,7 @@ The format of this doc is in [App journeys](../README.md). The Old app column na
 | --- | --- |
 | P1 | Actors A and B have each signed in once (`auth/sign-in`), and their `privy_user_id` is in `apps/mobile/qa/journeys/accounts.tsv` |
 | P2 | Before each scenario, `apps/mobile/qa/journeys/profile/user-profile.setup.sh` marks A and B as done with onboarding and sets B's display name to "Bartholomez" |
-| P3 | The setup script reads the cabals A and B share (`GET /v1/users/{id}/shared-cabals`, which leaves out a cabal the ranking run has not valued yet) and picks the first. When they share none, it has A create the cabal `QA profile {QA.run}` and B join it through the API, and S3.2 fails because the list leaves that cabal out. It hands the test `cabalID`, `cabalName`, `meID` (A's user id) and `memberID` (B's user id) |
+| P3 | The setup script reads the cabals A and B share (`GET /v1/users/{id}/shared-cabals`, which leaves out a cabal the ranking run has not valued yet) and picks the first. When they share none, it has A create the cabal `QA profile {QA.run}` and B join it through the API, and S3.2 fails because the list leaves that cabal out. It hands the test `cabalID`, `cabalName`, `meID` (A's user id), `memberID` (B's user id) and `sharedCount`, the length of the shared list (0 when it fell back to creating the cabal) |
 | P4 | Before S2, the setup script ends any follow of B by A through `DELETE /v1/users/{id}/follow`, and hands the truth check `followRowsBefore`, the count of A-to-B rows in `follows` |
 
 ## Scenarios
@@ -34,8 +36,9 @@ Starts signed in (auth/sign-in).
 | --- | --- | --- | --- | --- | --- |
 | S1.1 | open | `openCabal(named: cabalName)` | | The cabal screen shows within 15 s, with `cabal-header-name` reading `cabalName` | A leaderboard or Groups row opens the cabal |
 | S1.2 | tap | the member's row on the Members tab (B's name, "Bartholomez") | | `user-profile-card` shows within 15 s | A member row opens the profile (`UserProfileRoute`) |
-| S1.3 | read | `user-profile-card` | | `user-profile-name` reads "Bartholomez", and the counts row below the identity card shows a count and "follower" or "followers" (`user-profile-followers`) and a count and "following" (`user-profile-following`). `user-profile-right-calls` reads "Right calls · 1M" with a figure | The profile header: avatar, name, "@handle", counts |
+| S1.3 | read | `user-profile-card` | | `user-profile-name` reads "Bartholomez", and the counts row below the identity card shows a count and "follower" or "followers" (`user-profile-followers`) and a count and "following" (`user-profile-following`). `user-profile-right-calls` reads "Right this month" with a figure ("<n> of <m>", or the "Private" figure when B hides performance). No text on the card reads "Right calls", "P&L" or "in common", and there is no `user-profile-in-common` | The profile header: avatar, name, "@handle", counts |
 | S1.4 | read | `user-profile-more` | | The "…" menu shows in the toolbar, labelled "More" | The report and block menu |
+| S1.5 | read | `user-profile-shared-line` | | Within 10 s the line shows under the counts row and reads "You are both in …", the spoken form of "Both in …" or "In …". When `sharedCount` is 1 or 2 it contains `cabalName`; with 3 or more it ends with " more". When `sharedCount` is 0 (P3 fallback, the ranking run has not valued the cabal) no line shows | None, new in spec |
 
 ### S2 Follow, then unfollow
 
@@ -47,7 +50,7 @@ Starts signed in (auth/sign-in).
 | S2.2 | tap | `user-profile-follow` | | Within 10 s it reads "Following" | "Follow" turns into "Following" |
 | S2.3 | tap | `user-profile-follow` | | Within 10 s it reads "Follow" again | "Following" (Unfollow) turns back into "Follow" |
 
-### S3 Cabals in common
+### S3 Shared cabals
 
 Starts signed in (auth/sign-in).
 
@@ -86,5 +89,6 @@ None known.
 
 - The "@handle" line. `UserProfileHeaderSlot.swift` shows `user-profile-handle` only when it differs from the name, and B's handle is not fixed across databases.
 - The follower and following numbers. S1.3 reads the words only. `profile/follow-lists` covers the counts and lists.
-- The empty "No cabals in common" / "You and Maya aren't in a cabal together yet." P3 picks a cabal A and B share, so the shared list is never empty.
+- The empty shared-cabals state ("You and Maya aren't in a cabal together yet.") P3 picks a cabal A and B share, so the shared list is never empty.
 - "Profile not found" / "This profile isn't available." for a banned or deleted user (`user-profile-unavailable`). No journey actor can be banned or deleted without breaking every other journey.
+- B's activity rows ("Voted on <title>" over "<cabal>"). The setup seeds no vote by B; `MemberActivityModelTests` covers the copy.
