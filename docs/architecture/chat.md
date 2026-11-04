@@ -210,7 +210,7 @@ A poll asks the cabal something that is not a trade (flow 22c). It mirrors the r
 
 ### Moments
 
-A moment is the cabal speaking in its own chat: "Big Ballers was created", "Kai joined", "Bought NVDA at $196.75". It is a `cabal_messages` row with `kind = 'system'`, no author, no body and a `moment` payload (flow 22d). `kind` is `user` (the default, so every earlier row reads as `user`), `proposal` (reserved for the proposal card rows of a later ticket) or `system`. A check constraint fixes the shape of each kind: a `system` row has a null `author_id`, a null `body`, a `moment` and no `parent_id`, and the other kinds have an author and no `moment`. A `user` row with neither a body nor an attachment stays refused by the command, not the database.
+A moment is the cabal speaking in its own chat: "Big Ballers was created", "Kai joined", "Bought NVDA at $196.75". It is a `cabal_messages` row with `kind = 'system'`, no author, no body and a `moment` payload (flow 22d). `kind` is `user` (the default, so every earlier row reads as `user`), `proposal` (a new proposal's card row, see [Proposal messages](#proposal-messages)) or `system`. A check constraint fixes the shape of each kind: a `system` row has a null `author_id`, a null `body`, a `moment` and no `parent_id`, and the other kinds have an author and no `moment`. A `user` row with neither a body nor an attachment stays refused by the command, not the database.
 
 - **Payload.** `domain.ChatMoment` is a closed set built by constructors: `cabal_created {}`, `member_joined {user_id}` and `trade_filled {side, symbol, asset_id, price_micros, usdc_micros, filled_at, swap_id, proposal_id?}`, with `price_micros` the fill price per share in USD micros. It holds no free text. An unknown kind is `invalid_input` on write and is skipped on read, so a later build can add kinds.
 - **Write.** `WriteChatMoment{CabalID, Moment, At, DedupeKey}` is internal: no route calls it, and later tickets call it from consumers. A unique index on `(cabal_id, dedupe_key)` makes a re-delivered event write once, and the second call returns the stored row and changes nothing. The command appends no `chat.message_posted` event, so a moment sends no push, no mention and no notification. It is the one chat write that appends no event at all, which is why flow 22d lists none.
@@ -219,6 +219,16 @@ A moment is the cabal speaking in its own chat: "Big Ballers was created", "Kai 
 - **Writers.** The durable `social_chat_moments` (`adapters/chat_moments.go`) turns events into rows through the same write, inside the handler's transaction. `social.chat_moment.cabal_created` on `cabal.created` writes `cabal_created` at the event time under the key `created`. `social.chat_moment.member_joined` on `cabal.member_joined` writes `member_joined` under `joined:<user_id>:<request_id>`, or the event id when the join has no request, so a rejoin adds a second row. `social.chat_moment.trade_filled` on `trade.confirmed` writes `trade_filled` for a buy or sell under `fill:<swap_id>`, with the fill price per share worked out from the USDC amount and the share amount using the asset's decimals, and `proposal_id` only when the swap came from a proposal. A redelivery hits the key and writes and publishes nothing.
 - **Unread and seen-by.** `UnreadCounts` and the seen-by queries skip `system` rows, so "Kai joined" never lights the Chat tab dot. Seen-by of a system row is `chat_message_not_found`.
 - **Moderation.** A member cannot delete or report a system row: both are `invalid_input` with `reason=system_message`. An admin removes one through the existing admin route.
+
+### Proposal messages
+
+A new proposal appears in the chat as its proposer's message (flow 22e).
+
+- **Write.** The `social_chat_proposals` durable reacts to `proposal.created` with `social.chat.proposal_created`. It reads the thesis through the governance port and inserts one `cabal_messages` row in the delivery's transaction: `kind = 'proposal'`, `author_id` the proposer, `proposal_id` set, `created_at` the event time and `dedupe_key = 'proposal:<proposal_id>'`, so a redelivery writes once. A proposal that is gone is acknowledged and writes nothing.
+- **Body.** The body is the thesis trimmed and cut to 280 characters. It is null when the proposal has no thesis, and always null for a rule change.
+- **Realtime and events.** After the commit the row publishes `message.created` with the wired message. It appends no `chat.message_posted` event, because the proposal already pushes through its own notify path. A redelivery publishes nothing.
+- **Wire.** The row reads as `kind: proposal` with `proposal_id`, the proposer as `author` and the `body`. The card's tally, status and closing time are not in the message; the app loads them by proposal id.
+- **Rules that hold.** The row counts toward unread for the other members and not for the proposer. It takes reactions and replies like any message. A withdrawn or voided proposal keeps its row. Proposals created before this shipped have no row.
 
 ## Alternatives considered
 

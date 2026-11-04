@@ -42,6 +42,7 @@ type Module struct {
 	ballots  app.ViewerBallots
 	members  app.ChatMembers
 	cabals   app.Cabals
+	heads    governanceport.ProposalHeads
 	realtime app.Realtime
 	assets   app.Assets
 	logos    app.AssetLogos
@@ -76,6 +77,10 @@ func WithBallots(ballots app.ViewerBallots) Option {
 
 func WithCabals(cabals app.Cabals) Option {
 	return func(m *Module) { m.cabals = cabals }
+}
+
+func WithProposalHeads(heads governanceport.ProposalHeads) Option {
+	return func(m *Module) { m.heads = heads }
 }
 
 func WithCabalPictures(pictures app.CabalPictures) Option {
@@ -244,6 +249,9 @@ func (m *Module) Wire(set module.Set) {
 			MemberActivity() governanceport.MemberActivity
 		}); ok {
 			m.activity = provider.MemberActivity()
+		}
+		if provider, ok := mod.(governanceport.ProposalHeads); ok {
+			m.heads = provider
 		}
 		if provider, ok := mod.(interface{ CallBoards() rankingport.CallBoards }); ok {
 			m.tops = app.MonthTops{Boards: provider.CallBoards()}
@@ -433,7 +441,7 @@ func (m *Module) Consumers() []bus.Consumer {
 	leftSettled := adapters.Settled[events.CabalMemberLeft]
 	standingSettled := adapters.Settled[events.UserAccountStatusChanged]
 	deletedSettled := adapters.Settled[events.UserDeleted]
-	return append(cleanupConsumers(), []bus.Consumer{
+	return append(append(cleanupConsumers(), m.chatProposalConsumer()), []bus.Consumer{
 		{
 			Durable: "social_feed",
 			Handlers: []bus.HandlerSpec{
@@ -487,6 +495,20 @@ func (m *Module) Consumers() []bus.Consumer {
 			},
 		},
 	}...)
+}
+
+func (m *Module) WriteChatProposalMessage() *app.WriteChatProposalMessage {
+	return app.NewWriteChatProposalMessage(m.chatDeps(), m.heads)
+}
+
+func (m *Module) chatProposalConsumer() bus.Consumer {
+	write := m.WriteChatProposalMessage()
+	return bus.Consumer{
+		Durable: "social_chat_proposals",
+		Handlers: []bus.HandlerSpec{
+			bus.HandleFetched("social.chat.proposal_created", write.Fetch, write.Apply),
+		},
+	}
 }
 
 func cleanupConsumers() []bus.Consumer {

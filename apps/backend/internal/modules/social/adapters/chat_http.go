@@ -322,6 +322,9 @@ func wireChatWith(
 
 func wireChatBody(m app.ChatMessage) (*string, *api.CommentAttachment) {
 	body := m.Body
+	if m.Kind == domain.ChatKindProposal && body == "" && m.Attachment == nil {
+		return nil, nil
+	}
 	if m.Attachment == nil {
 		return &body, nil
 	}
