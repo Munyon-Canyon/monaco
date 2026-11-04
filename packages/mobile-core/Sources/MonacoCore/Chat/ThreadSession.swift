@@ -124,6 +124,12 @@ public actor ThreadSession {
                 break
             }
             state.timeline.markDeleted(id: id)
+        case .reactionUpdated(let id, let counts, let total):
+            if id == parentID {
+                state.parent?.applyReactions(counts: counts, total: total)
+            } else if !state.timeline.applyReactions(id: id, counts: counts, total: total) {
+                return
+            }
         case .attached(let resumed):
             if !resumed { await loadNewest() }
             return
