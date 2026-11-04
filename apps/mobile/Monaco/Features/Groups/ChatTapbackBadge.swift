@@ -8,6 +8,7 @@ enum ChatTapbackMetrics {
     static let topSpace: CGFloat = 10
     static let hitInset: CGFloat = 14
     static let maxEmoji = 3
+    static let minMenuWidth: CGFloat = 220
 }
 
 struct ChatTapbackBadge: View {
@@ -52,7 +53,7 @@ struct ChatTapbackBadge: View {
     }
 
     static func total(_ reactions: [Components.Schemas.Reaction]) -> Int {
-        reactions.reduce(0) { $0 + max($1.count, 0) }
+        reactions.reduce(0) { $0 + max(Int($1.count), 0) }
     }
 
     static func accessibilityLabel(_ reactions: [Components.Schemas.Reaction]) -> String {

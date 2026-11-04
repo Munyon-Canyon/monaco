@@ -87,7 +87,7 @@ struct ChatMessageActionsOverlay<Bubble: View>: View {
                 row(item)
             }
         }
-        .frame(width: max(frame.width, Self.minMenuWidth), alignment: .leading)
+        .frame(width: max(frame.width, ChatTapbackMetrics.minMenuWidth), alignment: .leading)
         .background(RoundedRectangle(cornerRadius: MonacoTheme.Radius.card).fill(MonacoTheme.surface))
         .clipShape(RoundedRectangle(cornerRadius: MonacoTheme.Radius.card))
         .overlay(
@@ -95,8 +95,6 @@ struct ChatMessageActionsOverlay<Bubble: View>: View {
                 .strokeBorder(MonacoTheme.hairline, lineWidth: 1 / displayScale)
         )
     }
-
-    private static let minMenuWidth: CGFloat = 220
 
     private func row(_ item: ChatMessageAction) -> some View {
         Button {
