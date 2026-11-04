@@ -9,6 +9,21 @@ import MonacoCore
 import SwiftUI
 import os
 
+enum QASessionReset {
+    static var environmentKey: String? {
+        #if DEBUG
+        "MONACO_QA_SIGN_OUT_ON_LAUNCH"
+        #else
+        nil
+        #endif
+    }
+
+    static func requested(in environment: [String: String], key: String? = environmentKey) -> Bool {
+        guard let key else { return false }
+        return environment[key] == "1"
+    }
+}
+
 @main
 struct MonacoApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate

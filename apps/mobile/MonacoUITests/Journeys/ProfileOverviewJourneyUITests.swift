@@ -13,46 +13,46 @@ nonisolated final class ProfileOverviewJourneyUITests: XCTestCase {
 
         try session.scenario("S1") {
             let cabal = try ProfileOverviewJourney.Cabal.handedOff()
-            try session.act(as: "A")
+            try session.act(as: "A", viaUI: true)
             ProfileOverviewJourney.sections(app, cabal: cabal, recorder: recorder)
             attachScreenshot(of: app, named: "S1 Profile sections")
         }
 
         try session.scenario("S2") {
             let cabal = try ProfileOverviewJourney.Cabal.handedOff()
-            try session.act(as: "A")
+            try session.act(as: "A", viaUI: true)
             ProfileOverviewJourney.pullToRefresh(app, cabal: cabal, recorder: recorder)
             attachScreenshot(of: app, named: "S2 Profile after refresh")
         }
 
         try session.scenario("S3") {
             let cabal = try ProfileOverviewJourney.Cabal.handedOff()
-            try session.act(as: "A")
+            try session.act(as: "A", viaUI: true)
             ProfileOverviewJourney.openCabal(app, cabal: cabal, recorder: recorder)
             attachScreenshot(of: app, named: "S3 cabal from Profile")
         }
 
         try session.scenario("S4") {
-            try session.act(as: "A")
+            try session.act(as: "A", viaUI: true)
             ProfileOverviewJourney.openExplorer(app, recorder: recorder)
             attachScreenshot(of: app, named: "S4 back from Solscan")
         }
 
         try session.scenario("S5") {
-            try session.act(as: "A")
+            try session.act(as: "A", viaUI: true)
             ProfileOverviewJourney.shareReturn(app, recorder: recorder)
             attachScreenshot(of: app, named: "S5 share your return")
         }
 
         try session.scenario("S6") {
-            try session.act(as: "A")
+            try session.act(as: "A", viaUI: true)
             ProfileOverviewJourney.signOut(app, recorder: recorder)
             attachScreenshot(of: app, named: "S6 signed out")
         }
 
         try session.scenario("S7") {
             let cabal = try ProfileOverviewJourney.Cabal.handedOff()
-            try session.act(as: "A")
+            try session.act(as: "A", viaUI: true)
             ProfileOverviewJourney.totals(app, cabal: cabal, recorder: recorder)
             attachScreenshot(of: app, named: "S7 totals")
         }
