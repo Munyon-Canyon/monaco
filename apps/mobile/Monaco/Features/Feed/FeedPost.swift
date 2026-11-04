@@ -166,7 +166,7 @@ private struct FeedVoteCardSlot: View {
     @Environment(\.analytics) private var analytics
 
     var body: some View {
-        HomeVoteCard(model: card, identifierPrefix: "feed", tab: .feed)
+        HomeVoteCard(model: card, identifierPrefix: "feed", tab: .feed, compact: true)
             .onAppear {
                 card.onCommitted = { [environment, toasts, analytics, weak card] outcome in
                     guard let card else { return }

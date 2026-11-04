@@ -6,6 +6,7 @@ struct HomeVoteCard: View {
     let model: HomeVoteCardModel
     var identifierPrefix = "home"
     var tab: MainTab = .home
+    var compact = false
     @Environment(AppEnvironment.self) private var environment
     @Environment(ToastCenter.self) private var toasts
     @State private var holding = false
@@ -13,10 +14,11 @@ struct HomeVoteCard: View {
 
     static let collapseDelay: TimeInterval = 1
 
-    init(model: HomeVoteCardModel, identifierPrefix: String = "home", tab: MainTab = .home) {
+    init(model: HomeVoteCardModel, identifierPrefix: String = "home", tab: MainTab = .home, compact: Bool = false) {
         self.model = model
         self.identifierPrefix = identifierPrefix
         self.tab = tab
+        self.compact = compact
         _collapsed = State(initialValue: Self.hasCollapsed(model, now: .now))
     }
 
@@ -27,6 +29,11 @@ struct HomeVoteCard: View {
 
     private var collapseTrigger: Bool { model.isSettled && toasts.current != nil }
 
+    private var line: VoteCardLine {
+        let line = model.subheadLine(now: .now, showsCabal: true)
+        return compact ? VoteCardLine(full: line.short, short: line.short) : line
+    }
+
     private var row: HomePendingVote { model.row }
     private var tally: ProposalTally { model.tally }
 
@@ -34,9 +41,9 @@ struct HomeVoteCard: View {
         VoteCard(
             title: model.headline,
             mark: row.isRule ? .rule : .stock(symbol: row.symbol ?? "", name: row.assetName, logoURL: row.logoURL),
-            line: model.subheadLine(now: .now, showsCabal: true),
+            line: line,
             yes: tally.yes, no: tally.no, eligible: tally.voters,
-            identifierPrefix: identifierPrefix, identifierSuffix: model.id,
+            identifierPrefix: identifierPrefix, identifierSuffix: model.id, showsChevron: !compact,
             onOpen: { environment.navigator.open(ProposalRoute(proposalID: model.id), in: tab) }
         ) {
             if let outcome = model.outcome, outcome.settled, collapsed {
