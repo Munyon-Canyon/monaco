@@ -1,0 +1,18 @@
+journey: stocks/browse
+expect-fail: S1
+
+A Pre-IPO row draws the estimate line, not the round line. S1.3 expects "Valued at $350B in ", so S1 must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+diff --git a/apps/mobile/Monaco/Features/Assets/MarketsPreIpoRow.swift b/apps/mobile/Monaco/Features/Assets/MarketsPreIpoRow.swift
+index 7a952f9d5..5951fb005 100644
+--- a/apps/mobile/Monaco/Features/Assets/MarketsPreIpoRow.swift
++++ b/apps/mobile/Monaco/Features/Assets/MarketsPreIpoRow.swift
+@@ -35,7 +35,7 @@ struct MarketsPreIpoRow: View {
+                     .font(MonacoTheme.Typo.rowTitle)
+                     .foregroundStyle(MonacoTheme.primaryText)
+                     .fixedSize(horizontal: false, vertical: true)
+-                Text(roundLine)
++                Text(PreIpoRowCopy.estimateLine(asOf: asset.estimate?.asOf ?? ""))
+                     .font(MonacoTheme.Typo.caption)
+                     .foregroundStyle(MonacoTheme.secondaryText)
+                     .fixedSize(horizontal: false, vertical: true)

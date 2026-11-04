@@ -1,0 +1,18 @@
+journey: stocks/asset-detail
+expect-fail: S2
+
+The Market stats sheet names the listing networks again. S2.3 expects no chain name, so S2 must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+diff --git a/packages/mobile-core/Sources/MonacoCore/Market/MarketStatsCopy.swift b/packages/mobile-core/Sources/MonacoCore/Market/MarketStatsCopy.swift
+index d69f88889..4272fcb60 100644
+--- a/packages/mobile-core/Sources/MonacoCore/Market/MarketStatsCopy.swift
++++ b/packages/mobile-core/Sources/MonacoCore/Market/MarketStatsCopy.swift
+@@ -30,7 +30,7 @@ public enum MarketStatsCopy {
+     public static let continuousMessage =
+         "Monaco prices trade around the clock, so they can differ a little from the stock market's."
+ 
+-    public static func message(_ facts: MarketStatsFacts) -> String { continuousMessage }
++    public static func message(_ facts: MarketStatsFacts) -> String { continuousMessage + " Listed on Solana and Base." }
+ 
+     public static func rows(_ facts: MarketStatsFacts, now: Date, calendar: Calendar = .autoupdatingCurrent) -> [Row] {
+         [

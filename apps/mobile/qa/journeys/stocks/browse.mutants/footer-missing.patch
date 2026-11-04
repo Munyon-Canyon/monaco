@@ -1,0 +1,18 @@
+journey: stocks/browse
+expect-fail: S1
+
+The Pre-IPO footer never draws. S1.3 expects markets-preipo-footer, so S1 must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+diff --git a/packages/mobile-core/Sources/MonacoCore/Market/MarketsInfoCopy.swift b/packages/mobile-core/Sources/MonacoCore/Market/MarketsInfoCopy.swift
+index bbcce08c5..32979c14a 100644
+--- a/packages/mobile-core/Sources/MonacoCore/Market/MarketsInfoCopy.swift
++++ b/packages/mobile-core/Sources/MonacoCore/Market/MarketsInfoCopy.swift
+@@ -53,7 +53,7 @@ public enum PreIpoRowCopy {
+ 
+     public static func footer(asOfDates: [String]) -> String? {
+         let sorted = asOfDates.sorted()
+-        guard let first = sorted.first, let last = sorted.last else { return nil }
++        guard let first = sorted.first, let last = sorted.last, first.isEmpty else { return nil }
+         let prefix = "Prices are secondary-market estimates from "
+         return first == last ? "\(prefix)\(day(first))." : "\(prefix)\(day(first)) to \(day(last))."
+     }

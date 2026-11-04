@@ -1,7 +1,7 @@
 ---
 id: stocks/asset-detail
 title: Look at a stock
-version: 13
+version: 14
 milestone: M11
 requires: [auth/sign-in, stocks/browse]
 actors: [A]
@@ -40,7 +40,7 @@ Starts signed in (auth/sign-in).
 | S1.4 | wait | `asset-detail-chart` | | Within 15 s, `asset-detail-chart` shows the seeded line |
 | S1.5 | tap | "1W" in `asset-chart-ranges` | | Within 10 s, "1W" is selected |
 | S1.6 | tap | "All" in `asset-chart-ranges` | | Within 10 s, "All" is selected |
-| S1.7 | scroll to | `asset-detail-propose-buy` | | `asset-detail-propose-buy` reads "Propose buy" and is enabled |
+| S1.7 | scroll to | `asset-detail-propose-buy` | | `asset-detail-propose-buy` reads "Propose buy" and is enabled, and there is no `asset-detail-propose-sell` (no cabal of A's holds `JRNYAx`, P4), so Propose buy stands alone |
 | S1.8 | tap | `asset-detail-propose-buy` | | Within 10 s, the cabal picker shows as a half sheet titled "Choose a cabal", `propose-pick-cabal-question` asks "Which cabal should buy JRNYA?", and at least two cabal rows follow |
 | S1.9 | tap | the first cabal row | | Within 10 s, `propose-amount-screen` shows with no navigation title and the header `propose-amount-operation` reading "Buy Journey Alpha". A backs out without proposing. Old app: the picker opened the amount screen. screens.md: Propose from a stock (#613) |
 
@@ -52,6 +52,7 @@ Starts signed in (auth/sign-in).
 | --- | --- | --- | --- | --- |
 | S2.1 | tap, type, then tap | the Markets tab `tab-assets`, then `monaco-search-field`, then `assets-row-JRNYAx` | `JRNYA` | Within 15 s, `asset-detail-root` shows |
 | S2.2 | scroll to | `asset-stats` | | Within 10 s, `asset-stats` shows the Market stats grid: open, previous close, day high and low, and 52-week high and low, leaving out a cell the candles cannot give, then a "24h volume" cell when the seeded asset has a volume reading from the last 36 hours. Old app: the Stats card. screens.md: "Market stats" (open, previous close, day high and low, 52-week high and low, 24h volume). The grid has no market cap or supply cell |
+| S2.3 | tap | `asset-stats-info-button` | | Within 10 s, `market-stats-sheet` shows "Market stats" and "Monaco prices trade around the clock, so they can differ a little from the stock market's.", and no text in it contains "Solana", "Base" or "Robinhood Chain". Closing it with `market-stats-sheet-close` shows `asset-stats` again within 5 s |
 
 ### S3 A Pre-IPO token
 
@@ -78,7 +79,7 @@ Starts signed in (auth/sign-in), with a cabal of A's holding `JRNYAx` (P4).
 | Step | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- |
 | S5.1 | tap, type, then tap | the Markets tab `tab-assets`, then `monaco-search-field`, then `assets-row-JRNYAx` | `JRNYA` | Within 15 s, `asset-detail-root` shows |
-| S5.2 | scroll to | `asset-in-your-cabals` | | Within 10 s, `asset-in-your-cabals` ("In your cabals") shows one `asset-held-<cabal id>` row per cabal that holds it. Old app: the position card. screens.md: "Cabals holding <TICKER>" with one row per cabal of the viewer's that holds it |
+| S5.2 | scroll to | `asset-in-your-cabals` | | Within 10 s, `asset-in-your-cabals` ("In your cabals") shows one `asset-held-<cabal id>` row per cabal that holds it, reading "<n> shares · <p>% of the treasury". Old app: the position card. screens.md: "Cabals holding <TICKER>" with one row per cabal of the viewer's that holds it |
 | S5.3 | scroll to, then tap | `asset-detail-propose-sell` | | Within 10 s, the propose screen opens with "Propose sell". Old app: Propose sell from the position card. screens.md: plus "Propose a sell" when a cabal holds it |
 
 ## Ground truth
@@ -95,7 +96,7 @@ Looking at a stock writes nothing, and S1.9 backs out of Amount. After a run, `a
 
 - "Also available from" and its listings (`asset-other-listing-*`). The F stock page (`07-stock-preipo`, #6544) does not draw it.
 - The 52-week bar `asset-year-range`. The F stock page has no identifier for it, so no step asserts it. It is a follow-up against the stock page ticket.
-- Zoom, pan and the jump-to-latest button, which need candles (Q34). "Secondary estimate" on the Pre-IPO page: the seeded rows carry no estimate.
+- Zoom, pan and the jump-to-latest button, which need candles (Q34).
 
 - The cash on the picker rows ("<amount> cash") and the Amount helper "The cabal can spend $0.00". [governance/propose-from-asset](../governance/propose-from-asset.md) reads the Amount screen of an empty pot.
 - Review and Send. [governance/propose-from-asset](../governance/propose-from-asset.md) covers them.

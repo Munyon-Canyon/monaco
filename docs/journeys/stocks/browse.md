@@ -1,7 +1,7 @@
 ---
 id: stocks/browse
 title: Browse stocks
-version: 7
+version: 8
 milestone: M11
 requires: [auth/sign-in]
 actors: [A]
@@ -35,7 +35,7 @@ Starts signed in (auth/sign-in).
 | --- | --- | --- | --- | --- |
 | S1.1 | tap | the Markets tab, `tab-assets` | | Within 15 s, `assets-root` shows under the large title "Markets", with `monaco-search-field` holding the placeholder "Stocks and Pre-IPO" and the chips `markets-chip-All` (selected), `markets-chip-Watchlist`, `markets-chip-Pre-IPO` and `markets-chip-Held`. The chip identifiers carry the chip's title, so they are not lowercase |
 | S1.2 | type | `monaco-search-field` | `Journey` | Within 15 s, `assets-row-JRNYAx` shows reading "JRNYA", "Journey Alpha" and "$123.45", and there is no `stocks-sort` and no `stocks-filter` |
-| S1.3 | tap Cancel, then tap | `markets-search-cancel`, then `markets-chip-Pre-IPO` | | Within 10 s, `markets-chip-Pre-IPO` is selected and `markets-preipo-row-JRNYPx` reads "Journey Private" with "Eligible" or "Research only", and `markets-preipo-row-JRNYAx` does not show |
+| S1.3 | tap Cancel, then tap | `markets-search-cancel`, then `markets-chip-Pre-IPO` | | Within 10 s, `markets-chip-Pre-IPO` is selected and `markets-preipo-row-JRNYPx` reads "Journey Private", "Can buy" (the seeded rows are tradable by override) and "Valued at $350B in " followed by a month, and `markets-preipo-row-JRNYAx` does not show. `markets-preipo-footer` reads "Prices are secondary-market estimates from " (the dates come from every Pre-IPO row the dev catalogue lists, so the step reads the prefix). No row on the tab keeps the old eligibility words |
 | S1.4 | tap, type, then scroll to | `markets-chip-All`, `monaco-search-field`, then `assets-row-JRNYZx` | `Journey` | Within 30 s, `assets-row-JRNYZx` reading "Journey Zulu" shows. The All chip draws Watchlist, Stocks (the popular names), Pre-IPO and Moving today, so a name with no popular rank is reached through search |
 | S1.5 | tap Cancel, then tap | `markets-search-cancel`, then `markets-chip-Held` | | Within 10 s, `markets-held-empty` shows "Your cabals don't hold any stocks yet." for a member whose cabals hold nothing |
 
@@ -56,7 +56,7 @@ Starts signed in (auth/sign-in).
 | Step | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- |
 | S3.1 | tap, then tap | the Markets tab, then `markets-chip-Pre-IPO` | | Within 15 s, `markets-preipo-row-JRNYPx` shows |
-| S3.2 | pull down | `assets-root` | | Within 15 s, `markets-preipo-row-JRNYPx` still shows reading "Journey Private", and neither `assets-failed` ("Couldn't load this view") nor a toast shows |
+| S3.2 | pull down | `assets-root` | | Within 15 s, `markets-preipo-row-JRNYPx` still shows reading "Journey Private", "Can buy" and "Valued at $350B in ", and neither `assets-failed` ("Couldn't load this view") nor a toast shows |
 
 ## Ground truth
 
@@ -72,5 +72,5 @@ None known. The ticket words S2.2 as "No matching stocks", but Markets search sa
 - The day change chip's value. The seeded samples sit one day apart, and the change window moves with the clock. The step reads the price, which the seed fixes.
 - Top movers and Moving today. The seeded rows carry no day change a mover ranking could read, so `StocksTabSampleUITests` covers them against the sample harness (`-MonacoStocksTabSample ready`). [stocks/watchlist](watchlist.md) covers the Watchlist section, Manage and the stars.
 - The "Prices delayed" notice and the full-screen "Couldn't load this view" with "Try again". They need the backend to fail mid-run, which belongs to the flow layer. `StocksTabSampleUITests` covers them (`stale` and `failed`).
-- "Secondary estimate · <date>" on a Pre-IPO row. The seeded rows carry no estimate, so the row reads its ticker where the estimate line goes.
-- Logos. The seeded rows have no `logo_url`, so each row draws its monogram.
+- The Pre-IPO row without a valuation, which falls back to its estimate line. The seeded row carries a valuation, so `StocksTabMarketsTests` covers the fallback.
+- The Pre-IPO wordmark. It is decorative and hidden from VoiceOver, so `MarketsLayoutTests` covers it.

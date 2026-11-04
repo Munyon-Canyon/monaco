@@ -11,6 +11,16 @@ ON CONFLICT (symbol) DO UPDATE SET
   display_name = excluded.display_name, logo_url = NULL, issuer_tradable = true, tradable_override = true,
   popular_rank = excluded.popular_rank, company_key = excluded.company_key, updated_at = now(), chain_checked_at = now();
 
+INSERT INTO pre_ipo_profiles (company_key, estimate_micros, estimate_on, valuation_micros, min_order_micros, sell_window, updated_at)
+VALUES ('qa-journey-private', 50000000, current_date, 350000000000000000, 1000000, 'any_time', now())
+ON CONFLICT (company_key) DO UPDATE SET
+  estimate_micros = excluded.estimate_micros, estimate_on = excluded.estimate_on, valuation_micros = excluded.valuation_micros,
+  min_order_micros = excluded.min_order_micros, sell_window = excluded.sell_window, updated_at = now();
+
+INSERT INTO pre_ipo_rounds (company_key, round_on, price_micros)
+VALUES ('qa-journey-private', current_date - 30, 48000000)
+ON CONFLICT (company_key, round_on) DO UPDATE SET price_micros = excluded.price_micros;
+
 DELETE FROM price_points WHERE source = 'qa-journey';
 
 INSERT INTO price_points (mint, ts, price_micros, source)

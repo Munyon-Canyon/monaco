@@ -1,0 +1,18 @@
+journey: stocks/browse
+expect-fail: S1
+
+The Pre-IPO pill reads "Eligible" again. S1.3 expects "Can buy", so S1 must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+diff --git a/packages/mobile-core/Sources/MonacoCore/Market/MarketsInfoCopy.swift b/packages/mobile-core/Sources/MonacoCore/Market/MarketsInfoCopy.swift
+index bbcce08c5..d3456bc78 100644
+--- a/packages/mobile-core/Sources/MonacoCore/Market/MarketsInfoCopy.swift
++++ b/packages/mobile-core/Sources/MonacoCore/Market/MarketsInfoCopy.swift
+@@ -48,7 +48,7 @@ public enum PreIpoRowCopy {
+     }
+ 
+     public static func eligibility(tradable: Bool) -> String {
+-        tradable ? "Can buy" : "Watch only"
++        tradable ? "Eligible" : "Watch only"
+     }
+ 
+     public static func footer(asOfDates: [String]) -> String? {
