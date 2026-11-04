@@ -108,7 +108,9 @@ struct ProposalVoteSection: View {
         Button {
             showsVotes = true
         } label: {
-            VoteStatusLine(result: nil, facts: model.statusFacts, identifierPrefix: "proposal")
+            if let line = model.cardLine(now: .now) {
+                VoteStatusLine(line: line, identifierPrefix: "proposal")
+            }
         }
         .buttonStyle(.plain)
         .padding(.vertical, -Self.statusOverlap)
