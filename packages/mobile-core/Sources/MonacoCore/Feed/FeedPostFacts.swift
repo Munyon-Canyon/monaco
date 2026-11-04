@@ -3,8 +3,20 @@ import MonacoAPI
 
 public struct FeedPostFacts: Equatable, Sendable {
     public enum Lead: Equatable, Sendable {
-        case person(name: String, photoURL: String?, userID: String)
+        case person(name: String, photoURL: String?, userID: String, cabal: CabalBadge? = nil)
         case cabal(name: String, pictureURL: String?, cabalID: String?)
+    }
+
+    public struct CabalBadge: Equatable, Sendable {
+        public let name: String
+        public let pictureURL: String?
+        public let cabalID: String?
+
+        public init(name: String, pictureURL: String?, cabalID: String?) {
+            self.name = name
+            self.pictureURL = pictureURL
+            self.cabalID = cabalID
+        }
     }
 
     public enum Trailing: Equatable, Sendable {
@@ -88,23 +100,26 @@ public struct FeedPostFacts: Equatable, Sendable {
         let object = result?.object ?? Self.object(of: item, kind: kind)
         let attachment = result?.attachment ?? Self.attachment(of: item, kind: kind, now: now)
 
+        let name = result?.possessive == true ? "\(lead.name)\u{2019}s" : lead.name
         self.lead = lead
-        self.name = lead.name
+        self.name = name
         self.verb = verb.value
         self.age = age.short
         self.object = object?.line
         self.attachment = attachment.value
         self.cabalName = Self.text(item.cabalName)
         self.companyName = Self.text(item.assetName)
-        self.spoken = Self.spoken(
-            name: lead.name, verb: verb.spoken, object: object, age: age.spoken, attachment: attachment.spoken)
+        self.spoken =
+            result?.sentence?(name, age.spoken)
+            ?? Self.spoken(
+                name: lead.name, verb: verb.spoken, object: object, age: age.spoken, attachment: attachment.spoken)
     }
 }
 
 extension FeedPostFacts.Lead {
     fileprivate var name: String {
         switch self {
-        case .person(let name, _, _), .cabal(let name, _, _): name
+        case .person(let name, _, _, _), .cabal(let name, _, _): name
         }
     }
 }
@@ -150,9 +165,15 @@ extension FeedPostFacts {
     fileprivate static func lead(of item: Components.Schemas.FeedItem, kind: FeedPostKind) -> Lead {
         let cabal = Lead.cabal(
             name: text(item.cabalName) ?? "Monaco", pictureURL: text(item.cabalPictureUrl), cabalID: item.cabalId)
-        if kind == .result, item.shape == .cabal { return cabal }
         guard let actorID = item.actorId else { return cabal }
-        return .person(name: text(item.actorName) ?? "Someone", photoURL: text(item.actorPhotoUrl), userID: actorID)
+        var badge: CabalBadge?
+        if kind == .result, item.shape == .cabal {
+            badge = CabalBadge(
+                name: text(item.cabalName) ?? "Monaco", pictureURL: text(item.cabalPictureUrl), cabalID: item.cabalId)
+        }
+        return .person(
+            name: text(item.actorName) ?? "Someone", photoURL: text(item.actorPhotoUrl), userID: actorID,
+            cabal: badge)
     }
 
     fileprivate static func verb(of item: Components.Schemas.FeedItem, kind: FeedPostKind) -> Spoken<String> {

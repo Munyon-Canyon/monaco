@@ -6,13 +6,20 @@ extension FeedPostFacts {
         let verb: Spoken<String>
         let object: Line?
         let attachment: Spoken<Attachment>
+        let possessive: Bool
+        let sentence: ((_ name: String, _ age: String) -> String)?
 
         init?(_ item: Components.Schemas.FeedItem, now: Date) {
             guard let outcome = item.outcome else { return nil }
             let order = Order(item, passed: outcome == .passed)
             verb = order.verb
             object = order.object
-            attachment = order.attachment(now: now)
+            let attachment = order.attachment(now: now)
+            self.attachment = attachment
+            possessive = order.callsIt
+            sentence =
+                order.callsIt
+                ? { name, age in order.callSentence(name: name, age: age, attachment: attachment.value) } : nil
         }
     }
 
@@ -26,12 +33,13 @@ extension FeedPostFacts {
         let isSell: Bool
         let isPreIPO: Bool
         let leadsWithCabal: Bool
+        let callsIt: Bool
 
         init(_ item: Components.Schemas.FeedItem, passed: Bool) {
             self.item = item
             isSell = item.action == "sell"
             isPreIPO = item.assetKind == .preIpo
-            leadsWithCabal = item.shape == .cabal || item.actorId == nil
+            leadsWithCabal = item.actorId == nil
             switch (passed, item.fillState) {
             case (false, _): state = .noTrade
             case (true, .filled): state = .filled
@@ -39,11 +47,27 @@ extension FeedPostFacts {
             case (true, .failed): state = .failed
             default: state = .pending
             }
+            callsIt = item.shape == .cabal && item.actorId != nil && !(state == .filled && (isSell || isPreIPO))
         }
 
         var isNamed: Bool { state == .filled && (isSell || isPreIPO) }
 
+        private var ticker: String? {
+            guard let symbol = FeedPostFacts.text(item.symbol) else { return nil }
+            return isPreIPO
+                ? FeedPostFacts.text(item.assetName) ?? AssetSymbolFormatter.display(symbol, kind: .preIpo)
+                : AssetSymbolFormatter.display(symbol)
+        }
+
+        private var callVerb: String {
+            let tally = item.tally.map { ", \($0.yes) to \($0.no)" } ?? ""
+            let word = isSell ? "sale" : "buy"
+            let outcome = state == .noTrade ? "failed" : "passed"
+            return [ticker, word, outcome].compactMap { $0 }.joined(separator: " ") + tally
+        }
+
         var verb: Spoken<String> {
+            if callsIt { return Spoken(value: callVerb, spoken: callVerb) }
             let tally = item.tally.map { " \($0.yes)–\($0.no)" } ?? ""
             switch state {
             case .noTrade: return Spoken(value: "failed it\(tally)", spoken: "failed")
@@ -56,10 +80,7 @@ extension FeedPostFacts {
 
         var object: Line? {
             guard let symbol = FeedPostFacts.text(item.symbol) else { return nil }
-            let ticker =
-                isPreIPO
-                ? FeedPostFacts.text(item.assetName) ?? AssetSymbolFormatter.display(symbol, kind: .preIpo)
-                : AssetSymbolFormatter.display(symbol)
+            let ticker = ticker ?? symbol
             let action = isNamed ? nil : item.action.map(FeedPostFacts.capitalized)
             let name = [action, ticker].compactMap { $0 }.joined(separator: " ")
             let figure = FeedPostFacts.amount(of: item)
@@ -76,13 +97,25 @@ extension FeedPostFacts {
 
         private var place: (text: String?, isWarning: Bool) {
             switch state {
-            case .noTrade: ("no trade", false)
-            case .pending: (isSell ? "selling" : "buying", false)
-            case .partial: ("partly filled · trade failed", true)
-            case .failed: ("trade failed", true)
-            case .filled:
-                (!isNamed && leadsWithCabal ? "filled" : FeedPostFacts.text(item.cabalName), false)
+            case .noTrade: (FeedPostFacts.text(item.cabalName), false)
+            case .pending: (isSell ? "Selling now" : "Buying now", false)
+            case .partial: ("Half filled", true)
+            case .failed: ("Didn\u{2019}t go through", true)
+            case .filled: (FeedPostFacts.text(item.cabalName), false)
             }
+        }
+
+        func callSentence(name: String, age: String, attachment: Attachment) -> String {
+            let order = [item.action.map(FeedPostFacts.capitalized), ticker, FeedPostFacts.amount(of: item)?.spoken]
+                .compactMap { $0 }.joined(separator: " ")
+            var parts = [order, place.text].compactMap { $0 }
+            if state == .filled, let bps = item.returnBps {
+                let move = Self.spokenMove(bps, basis: "since the fill").dropLast()
+                parts.append(move.prefix(1).lowercased() + move.dropFirst())
+            }
+            var sentences = ["\(name) \(callVerb), \(age).", parts.joined(separator: ", ") + "."]
+            if case .result(let caller, _, _) = attachment { sentences.append(ResultCopy.calledIt(caller) + ".") }
+            return sentences.joined(separator: " ")
         }
 
         private var trailing: Trailing? {
@@ -93,10 +126,10 @@ extension FeedPostFacts {
 
         func attachment(now: Date) -> Spoken<Attachment> {
             switch state {
-            case .noTrade: return Spoken(value: .none, spoken: "No trade.")
-            case .pending: return Spoken(value: .none, spoken: isSell ? "Selling." : "Buying.")
-            case .partial: return Spoken(value: .none, spoken: "Partly filled. Trade failed.")
-            case .failed: return Spoken(value: .none, spoken: "Trade failed.")
+            case .noTrade: return Spoken(value: .none, spoken: "")
+            case .pending: return Spoken(value: .none, spoken: isSell ? "Selling now." : "Buying now.")
+            case .partial: return Spoken(value: .none, spoken: "Half filled.")
+            case .failed: return Spoken(value: .none, spoken: "Didn\u{2019}t go through.")
             case .filled: return filled(now: now)
             }
         }
