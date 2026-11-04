@@ -8,6 +8,9 @@
   journey.py run --all [options]               every journey in requires order, one build, one backend
   journey.py mutants <journey> [options]       run a journey against its seeded bugs
   journey.py report                         speed and correctness per journey
+  journey.py report --evidence <journey>...  the journey-evidence block for the PR body
+  journey.py affected --base <ref> [--json]  the journeys a diff touches
+  journey.py gate --base <sha> --head <sha> --body-file <path>   CI: changed journeys need evidence
 
 The rules the checks enforce are in docs/journeys/README.md. Results go to
 .logs/qa/journeys/results.tsv, one row per scenario and one `*` row per run.
@@ -150,9 +153,10 @@ def _scalar(value):
 
 
 class Journey:
-    def __init__(self, path):
+    def __init__(self, path, text=None):
         self.path = path
-        meta, body = parse_front_matter(path.read_text())
+        self.text = path.read_text() if text is None else text
+        meta, body = parse_front_matter(self.text)
         self.meta = meta
         self.id = meta.get("id", "")
         self.version = meta.get("version")
@@ -1802,6 +1806,39 @@ def pattern_regex(pattern):
     return re.compile("[a-z0-9-]*".join(re.escape(part) for part in parts))
 
 
+def file_ids(ids, text):
+    """Add the identifiers one Swift source sets to `ids`. True when it builds an id argument at run time."""
+    for label, literal in NAMED_LITERAL.findall(text):
+        if literal and ID_SHAPE.match(literal.partition("\\(")[0]):
+            ids.add_literal(literal)
+    for body in NAMED_CLOSURE.findall(text):
+        for literal in STRING_LITERAL.findall(body):
+            if ID_SHAPE.match(literal.partition("\\(")[0]):
+                ids.add_literal(literal)
+    composing = False
+    for argument in call_arguments(text):
+        literals = literal_arguments(argument)
+        if literals is None or any(literal.startswith("\\(") for literal in literals):
+            composing = True
+            for literal in ID_LITERAL.findall(text):
+                if "-" in literal:
+                    ids.add_literal(literal)
+        else:
+            for literal in literals:
+                ids.add_literal(literal)
+    return composing
+
+
+def composed_rows():
+    """[(pattern, file)] from ids-composed.tsv, without its header."""
+    composed = QA / "ids-composed.tsv"
+    if not composed.is_file():
+        return []
+    rows = [line.split("\t") for line in composed.read_text().splitlines()
+            if line.strip() and not line.startswith("#")]
+    return [tuple((row + ["", ""])[:2]) for row in rows[1:]]
+
+
 def load_app_ids():
     """(AppIds, problems): the ids in the app sources and the rows of ids-composed.tsv."""
     ids, problems, composing, every = AppIds(), [], {}, []
@@ -1809,30 +1846,11 @@ def load_app_ids():
         for path in sorted((ROOT / source).rglob("*.swift")):
             text = path.read_text()
             every.append(text)
-            for label, literal in NAMED_LITERAL.findall(text):
-                if literal and ID_SHAPE.match(literal.partition("\\(")[0]):
-                    ids.add_literal(literal)
-            for body in NAMED_CLOSURE.findall(text):
-                for literal in STRING_LITERAL.findall(body):
-                    if ID_SHAPE.match(literal.partition("\\(")[0]):
-                        ids.add_literal(literal)
-            for argument in call_arguments(text):
-                literals = literal_arguments(argument)
-                if literals is None or any(literal.startswith("\\(") for literal in literals):
-                    composing[path] = text
-                    for literal in ID_LITERAL.findall(text):
-                        if "-" in literal:
-                            ids.add_literal(literal)
-                else:
-                    for literal in literals:
-                        ids.add_literal(literal)
-    composed = QA / "ids-composed.tsv"
-    if composed.is_file():
-        name = os.path.relpath(str(composed), str(ROOT))
-        rows = [line.split("\t") for line in composed.read_text().splitlines()
-                if line.strip() and not line.startswith("#")]
-        for row in rows[1:]:
-            pattern, file = (row + ["", ""])[:2]
+            if file_ids(ids, text):
+                composing[path] = text
+    if (QA / "ids-composed.tsv").is_file():
+        name = os.path.relpath(str(QA / "ids-composed.tsv"), str(ROOT))
+        for pattern, file in composed_rows():
             path = ROOT / file
             if path not in composing:
                 problems.append("%s: %r names %s, which has no accessibilityIdentifier( call that builds its argument at run time"
@@ -1858,7 +1876,7 @@ def doc_targets(journey):
     thing that must be absent, not a target.
     """
     found, columns = [], []
-    for line in journey.path.read_text().splitlines():
+    for line in journey.text.splitlines():
         if line.startswith("| Step |"):
             columns = [cell.strip() for cell in line.strip().strip("|").split("|")]
             continue
@@ -2915,6 +2933,9 @@ def cmd_report(args):
         raise JourneyError("no results yet: run a journey first")
     lines = RESULTS.read_text().splitlines()
     rows = [dict(zip(lines[0].split("\t"), line.split("\t"))) for line in lines[1:]]
+    if args.evidence:
+        print(evidence_report(load_journeys(), rows, args.evidence))
+        return 0
 
     def show(value, pattern="%.1f"):
         return "-" if value is None else pattern % value
@@ -2945,6 +2966,202 @@ def cmd_report(args):
     return 0
 
 
+# ---------------------------------------------------------------- affected, evidence and the gate
+
+def git_lines(*args):
+    """Lines a git command prints, or None when it fails."""
+    done = sh(["git"] + list(args), stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    return done.stdout.splitlines() if done.returncode == 0 else None
+
+
+def changed_files(base, head="HEAD"):
+    """Paths changed from the merge base of `base` and `head` to `head`; the two commits when there is no merge base."""
+    names = git_lines("diff", "--name-only", "%s...%s" % (base, head))
+    if names is None:
+        names = git_lines("diff", "--name-only", base, head)
+    if names is None:
+        raise JourneyError("cannot diff %s against %s: is the ref fetched?" % (base, head))
+    return names
+
+
+def journeys_at(ref):
+    """{id: Journey} as the docs are at a commit, not in the working tree."""
+    journeys = {}
+    for name in git_lines("ls-tree", "-r", "--name-only", ref, "--", os.path.relpath(str(DOCS), str(ROOT))) or []:
+        if name.endswith(".md") and Path(name).name != "README.md":
+            text = sh(["git", "show", "%s:%s" % (ref, name)], stdout=subprocess.PIPE).stdout
+            journey = Journey(ROOT / name, text)
+            journeys.setdefault(journey.id or name, journey)
+    return journeys
+
+
+def journey_files(journey):
+    """The repo paths a journey is made of: doc, steps, seeded-bug folder, setup and truth scripts."""
+    qa = os.path.relpath(str(QA), str(ROOT))
+    steps = list(journey.xcuitest)
+    with contextlib.suppress(JourneyError):
+        steps.append(os.path.relpath(str(generated_path(journey)), str(ROOT)))
+    return {"doc": os.path.relpath(str(journey.path), str(ROOT)), "steps": steps,
+            "mutants": "%s/%s.mutants/" % (qa, journey.id),
+            "scripts": ["%s/%s.%s.sh" % (qa, journey.id, kind) for kind in ("setup", "truth")]}
+
+
+def touches(changed, files, parts=("doc", "steps", "mutants", "scripts")):
+    paths = set(changed)
+    for part in parts:
+        for name in [files[part]] if isinstance(files[part], str) else files[part]:
+            if name in paths or (name.endswith("/") and any(path.startswith(name) for path in paths)):
+                return True
+    return False
+
+
+def read_working_tree(relative):
+    path = ROOT / relative
+    return path.read_text() if path.is_file() else None
+
+
+def affected(changed, journeys, read=read_working_tree):
+    """Sorted ids of the journeys a diff touches, as `journey.py affected` lists them."""
+    direct = {key for key, journey in journeys.items() if touches(changed, journey_files(journey))}
+    ids = AppIds()
+    sources = [name for name in changed if name.endswith(".swift") and name.startswith(ID_SOURCES)]
+    for name in sources:
+        text = read(name)
+        if text is not None:
+            file_ids(ids, text)
+    for pattern, file in composed_rows():
+        if file in sources:
+            ids.patterns.append((pattern, pattern_regex(pattern)))
+    hit = set(direct)
+    for key, journey in journeys.items():
+        if any(ids.covers(target, is_prefix) for _, target, is_prefix, _ in doc_targets(journey)):
+            hit.add(key)
+    grew = True
+    while grew:
+        grew = False
+        for key, journey in journeys.items():
+            if key not in hit and any(need in direct for need in journey.requires):
+                direct.add(key)
+                hit.add(key)
+                grew = True
+    return sorted(hit)
+
+
+def cmd_affected(args):
+    names = affected(changed_files(args.base, args.head), load_journeys())
+    print(json.dumps(names) if args.json else "\n".join(names))
+    return 0
+
+
+EVIDENCE_FENCE = re.compile(r"^```journey-evidence[ \t]*\n(.*?)^```", re.M | re.S)
+EVIDENCE_LINE = re.compile(
+    r"^(?P<id>\S+)@(?P<version>\d+) commit (?P<commit>[0-9a-f]{40}) runs (?P<passed>\d+) of (?P<total>\d+) PASS "
+    r"seeded caught (?P<caught>\d+) of (?P<seeded>\d+)$")
+EVIDENCE_RUNS = 3
+
+
+def evidence_lines(body):
+    """{(id, version): match} for each line of each journey-evidence block in a PR body; the last line of a key wins."""
+    found = {}
+    for block in EVIDENCE_FENCE.findall(body):
+        for line in block.splitlines():
+            match = EVIDENCE_LINE.match(line.strip())
+            if match:
+                found[(match.group("id"), int(match.group("version")))] = match
+    return found
+
+
+def seeded_count(ref, files):
+    return sum(1 for name in git_lines("ls-tree", "-r", "--name-only", ref, "--", files["mutants"]) or []
+               if name.endswith(".patch"))
+
+
+def gate_failures(base, head, body, fetch=None):
+    """['id@version: message'] for each journey changed between two commits that the PR body does not prove."""
+    fetch = fetch or (lambda commit: sh(["git", "fetch", "--depth=1", "origin", commit],
+                                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0)
+    changed = changed_files(base, head)
+    before, after = journeys_at(base), journeys_at(head)
+    found = evidence_lines(body)
+    failures = []
+    for key, journey in sorted(after.items()):
+        files = journey_files(journey)
+        old = before.get(key)
+        if not (old is None or old.version != journey.version or touches(changed, files, ("steps", "mutants"))):
+            continue
+        label = "%s@%s" % (key, journey.version)
+        redo = "run scripts/qa/journey.py run %s --runs 3, then mutants, then report --evidence" % key
+        line = found.get((key, journey.version))
+        if line is None:
+            failures.append("%s: no evidence block; %s" % (label, redo))
+            continue
+        seeded = seeded_count(head, files)
+        if (int(line.group("passed")), int(line.group("total"))) != (EVIDENCE_RUNS, EVIDENCE_RUNS):
+            failures.append("%s: evidence shows %s of %s runs, not %d of %d; %s" % (
+                label, line.group("passed"), line.group("total"), EVIDENCE_RUNS, EVIDENCE_RUNS, redo))
+        elif (int(line.group("caught")), int(line.group("seeded"))) != (seeded, seeded):
+            failures.append("%s: evidence shows caught %s of %s seeded bugs, but the journey has %d; %s" % (
+                label, line.group("caught"), line.group("seeded"), seeded, redo))
+        elif not same_journey_files(line.group("commit"), head, files, fetch):
+            failures.append("%s: evidence is from %s, whose journey files differ from the head; %s" % (
+                label, line.group("commit")[:12], redo))
+    return failures
+
+
+def same_journey_files(commit, head, files, fetch):
+    """The journey's own files are identical at `commit` and `head`; a commit that cannot be fetched is stale."""
+    if commit == head:
+        return True
+    if sh(["git", "cat-file", "-e", commit + "^{commit}"], stderr=subprocess.DEVNULL).returncode != 0 and not fetch(commit):
+        return False
+    paths = [files["doc"]] + files["steps"] + [files["mutants"]] + files["scripts"]
+    return sh(["git", "diff", "--quiet", commit, head, "--"] + paths).returncode == 0
+
+
+def cmd_gate(args):
+    failures = gate_failures(args.base, args.head, Path(args.body_file).read_text())
+    for name in affected(changed_files(args.base, args.head), journeys_at(args.head),
+                         lambda relative: sh(["git", "show", "%s:%s" % (args.head, relative)], stdout=subprocess.PIPE,
+                                             stderr=subprocess.DEVNULL).stdout or None):
+        print("::warning::journey %s is affected by this change" % name)
+    for failure in failures:
+        print(failure)
+    return 1 if failures else 0
+
+
+def evidence_report(journeys, rows, ids):
+    """The journey-evidence block for the PR body, from the runs made on the committed HEAD."""
+    head = sh(["git", "rev-parse", "HEAD"], stdout=subprocess.PIPE).stdout.strip()
+    lines = []
+    for key in ids:
+        journey = pick(journeys, key)
+        files = journey_files(journey)
+        watched = [name for part in ("doc", "steps", "scripts") for name in ([files[part]] if part == "doc" else files[part])]
+        dirty = sh(["git", "status", "--porcelain", "--untracked-files=all", "--"] + list(APP_SOURCES) + watched + [files["mutants"]],
+                   stdout=subprocess.PIPE).stdout.strip()
+        if dirty:
+            raise JourneyError("%s has uncommitted changes in the app sources or the journey files: commit and rerun" % key)
+        mine = [r for r in rows if r["journey"] == key and r["version"] == str(journey.version)
+                and r["build"] != "dev" and len(r["build"].partition("+mutant:")[0]) >= 7
+                and head.startswith(r["build"].partition("+mutant:")[0])]
+        if not mine:
+            raise JourneyError("no runs of %s@%s on commit %s: commit and rerun scripts/qa/journey.py run %s --runs 3, "
+                               "then mutants" % (key, journey.version, head[:12], key))
+        clean = [r for r in mine if r["scenario"] == "*" and "+mutant:" not in r["build"]][-EVIDENCE_RUNS:]
+        passed = sum(1 for r in clean if r["result"] == "PASS")
+        patches = [patch.stem for patch in journey.mutants()]
+        caught = 0
+        for stem in patches:
+            runs = {}
+            for row in mine:
+                if row["scenario"] != "*" and row["build"].endswith("+mutant:" + stem):
+                    runs.setdefault(row["run"], []).append(row)
+            caught += bool(runs) and mutant_caught(list(runs.values())[-1])
+        lines.append("%s@%s commit %s runs %d of %d PASS seeded caught %d of %d" % (
+            key, journey.version, head, passed, EVIDENCE_RUNS, caught, len(patches)))
+    return "```journey-evidence\n%s\n```" % "\n".join(lines)
+
+
 def main(argv=None):
     argv = sys.argv[1:] if argv is None else argv
     if argv[:1] == ["_build-mutants"]:
@@ -2958,7 +3175,20 @@ def main(argv=None):
     gen = commands.add_parser("gen", help="write the generated steps file of each journey from its doc")
     gen.set_defaults(run=cmd_gen)
     gen.add_argument("journey", nargs="*", help="journey id, such as governance/vote; default: every journey with a generated file")
-    commands.add_parser("report").set_defaults(run=cmd_report)
+    report = commands.add_parser("report")
+    report.set_defaults(run=cmd_report)
+    report.add_argument("--evidence", nargs="+", metavar="JOURNEY",
+                        help="print the journey-evidence block for the PR body instead of the tables")
+    affect = commands.add_parser("affected", help="the journeys a diff touches, one id per line")
+    affect.set_defaults(run=cmd_affected)
+    affect.add_argument("--base", required=True, metavar="REF")
+    affect.add_argument("--head", default="HEAD", metavar="REF", help="default HEAD")
+    affect.add_argument("--json", action="store_true")
+    gate = commands.add_parser("gate", help="CI: fail when a changed journey has no evidence block in the PR body")
+    gate.set_defaults(run=cmd_gate)
+    gate.add_argument("--base", required=True, metavar="SHA")
+    gate.add_argument("--head", required=True, metavar="SHA")
+    gate.add_argument("--body-file", required=True, metavar="PATH")
     for name, handler in (("run", cmd_run), ("mutants", cmd_mutants)):
         sub = commands.add_parser(name)
         sub.set_defaults(run=handler)
