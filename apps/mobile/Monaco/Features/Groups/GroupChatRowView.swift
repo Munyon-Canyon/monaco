@@ -427,7 +427,7 @@ extension GroupChatRowView {
         ]
         if !row.isMine {
             items.append(
-                ChatMessageAction(id: "report", title: "Report", icon: .report, destructive: true) {
+                ChatMessageAction(id: "report", title: "Report", icon: .report) {
                     afterDismiss = { reporting = ReportTarget(kind: .message, targetID: row.id) }
                 })
         }

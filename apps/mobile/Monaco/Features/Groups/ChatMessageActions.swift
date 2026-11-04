@@ -114,6 +114,7 @@ struct ChatMessageActionsOverlay<Bubble: View>: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(item.title)
         .accessibilityIdentifier("chat-action-\(item.id)")
     }
 }
