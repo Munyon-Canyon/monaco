@@ -300,6 +300,7 @@ extension JoinJourney {
 
     static func memberRequestsTheGate(_ app: XCUIApplication, run: String, recorder: JourneyRecorder) {
         recorder.step("S3.1", "request to join an approval cabal") {
+            app.popToRoot()
             app.openCabal(named: gateCabal(run: run))
             XCTAssertTrue(
                 waitForLabel(
