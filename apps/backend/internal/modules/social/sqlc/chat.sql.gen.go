@@ -148,7 +148,7 @@ func (q *Queries) GetChatCursor(ctx context.Context, arg GetChatCursorParams) (G
 }
 
 const getChatMessage = `-- name: GetChatMessage :one
-SELECT id, cabal_id, author_id, body, created_at, parent_id, also_in_channel, reply_count, last_reply_at, proposal_id, deleted_at, kind, moment, dedupe_key
+SELECT id, cabal_id, author_id, body, created_at, parent_id, also_in_channel, reply_count, last_reply_at, proposal_id, deleted_at, kind, moment, dedupe_key, pinned_at, pinned_by
 FROM cabal_messages
 WHERE id = $1 AND cabal_id = $2
 `
@@ -176,6 +176,8 @@ func (q *Queries) GetChatMessage(ctx context.Context, arg GetChatMessageParams) 
 		&i.Kind,
 		&i.Moment,
 		&i.DedupeKey,
+		&i.PinnedAt,
+		&i.PinnedBy,
 	)
 	return i, err
 }
@@ -325,7 +327,7 @@ func (q *Queries) InsertChatProposal(ctx context.Context, arg InsertChatProposal
 }
 
 const listChatChannel = `-- name: ListChatChannel :many
-SELECT id, cabal_id, author_id, body, created_at, parent_id, also_in_channel, reply_count, last_reply_at, proposal_id, deleted_at, kind, moment,
+SELECT id, cabal_id, author_id, body, created_at, parent_id, also_in_channel, reply_count, last_reply_at, proposal_id, deleted_at, kind, moment, pinned_at, pinned_by,
   blocked_author.hit AS blocked
 FROM cabal_messages
 CROSS JOIN LATERAL (
@@ -374,6 +376,8 @@ type ListChatChannelRow struct {
 	DeletedAt     pgtype.Timestamptz
 	Kind          string
 	Moment        []byte
+	PinnedAt      pgtype.Timestamptz
+	PinnedBy      pgtype.UUID
 	Blocked       bool
 }
 
@@ -408,6 +412,8 @@ func (q *Queries) ListChatChannel(ctx context.Context, arg ListChatChannelParams
 			&i.DeletedAt,
 			&i.Kind,
 			&i.Moment,
+			&i.PinnedAt,
+			&i.PinnedBy,
 			&i.Blocked,
 		); err != nil {
 			return nil, err
@@ -421,7 +427,7 @@ func (q *Queries) ListChatChannel(ctx context.Context, arg ListChatChannelParams
 }
 
 const listChatChannelAfter = `-- name: ListChatChannelAfter :many
-SELECT id, cabal_id, author_id, body, created_at, parent_id, also_in_channel, reply_count, last_reply_at, proposal_id, deleted_at, kind, moment,
+SELECT id, cabal_id, author_id, body, created_at, parent_id, also_in_channel, reply_count, last_reply_at, proposal_id, deleted_at, kind, moment, pinned_at, pinned_by,
   blocked_author.hit AS blocked
 FROM cabal_messages
 CROSS JOIN LATERAL (
@@ -466,6 +472,8 @@ type ListChatChannelAfterRow struct {
 	DeletedAt     pgtype.Timestamptz
 	Kind          string
 	Moment        []byte
+	PinnedAt      pgtype.Timestamptz
+	PinnedBy      pgtype.UUID
 	Blocked       bool
 }
 
@@ -499,6 +507,8 @@ func (q *Queries) ListChatChannelAfter(ctx context.Context, arg ListChatChannelA
 			&i.DeletedAt,
 			&i.Kind,
 			&i.Moment,
+			&i.PinnedAt,
+			&i.PinnedBy,
 			&i.Blocked,
 		); err != nil {
 			return nil, err
@@ -512,7 +522,7 @@ func (q *Queries) ListChatChannelAfter(ctx context.Context, arg ListChatChannelA
 }
 
 const listChatReplies = `-- name: ListChatReplies :many
-SELECT id, cabal_id, author_id, body, created_at, parent_id, also_in_channel, reply_count, last_reply_at, proposal_id, deleted_at, kind, moment, dedupe_key
+SELECT id, cabal_id, author_id, body, created_at, parent_id, also_in_channel, reply_count, last_reply_at, proposal_id, deleted_at, kind, moment, dedupe_key, pinned_at, pinned_by
 FROM cabal_messages
 WHERE parent_id = $1::uuid
   AND deleted_at IS NULL
@@ -568,6 +578,8 @@ func (q *Queries) ListChatReplies(ctx context.Context, arg ListChatRepliesParams
 			&i.Kind,
 			&i.Moment,
 			&i.DedupeKey,
+			&i.PinnedAt,
+			&i.PinnedBy,
 		); err != nil {
 			return nil, err
 		}
@@ -615,7 +627,7 @@ func (q *Queries) ListSeenBy(ctx context.Context, arg ListSeenByParams) ([]uuid.
 }
 
 const lockChatMessage = `-- name: LockChatMessage :one
-SELECT id, cabal_id, author_id, parent_id, kind, (deleted_at IS NOT NULL)::bool AS deleted
+SELECT id, cabal_id, author_id, parent_id, kind, (deleted_at IS NOT NULL)::bool AS deleted, pinned_at, pinned_by
 FROM cabal_messages
 WHERE id = $1
 FOR UPDATE
@@ -628,6 +640,8 @@ type LockChatMessageRow struct {
 	ParentID pgtype.UUID
 	Kind     string
 	Deleted  bool
+	PinnedAt pgtype.Timestamptz
+	PinnedBy pgtype.UUID
 }
 
 func (q *Queries) LockChatMessage(ctx context.Context, id uuid.UUID) (LockChatMessageRow, error) {
@@ -640,6 +654,8 @@ func (q *Queries) LockChatMessage(ctx context.Context, id uuid.UUID) (LockChatMe
 		&i.ParentID,
 		&i.Kind,
 		&i.Deleted,
+		&i.PinnedAt,
+		&i.PinnedBy,
 	)
 	return i, err
 }
@@ -725,7 +741,7 @@ func (q *Queries) SeedChatSeen(ctx context.Context, arg SeedChatSeenParams) erro
 
 const softDeleteChatMessage = `-- name: SoftDeleteChatMessage :execrows
 UPDATE cabal_messages
-SET deleted_at = $1::timestamptz
+SET deleted_at = $1::timestamptz, pinned_at = NULL, pinned_by = NULL
 WHERE id = $2 AND deleted_at IS NULL
 `
 

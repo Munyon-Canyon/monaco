@@ -30,6 +30,8 @@ type HTTP struct {
 	UnreactChat             *app.UnreactChatMessageHandler
 	VoteChatPollCmd         *app.VoteChatPollHandler
 	UnvoteChatPollCmd       *app.UnvoteChatPollHandler
+	PinChat                 *app.PinChatMessageHandler
+	UnpinChat               *app.UnpinChatMessageHandler
 	MarkSeen                *app.MarkChatSeenHandler
 	Token                   *app.RealtimeTokenHandler
 	CreateComment           *app.CreateCommentHandler

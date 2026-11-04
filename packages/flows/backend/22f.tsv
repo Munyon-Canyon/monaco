@@ -1,0 +1,2 @@
+id	flow	module	trigger	command	events	consumers	outcomes	status	doc
+22f	Pin a chat message	social	PUT /v1/cabals/{id}/messages/{message_id}/pin;DELETE /v1/cabals/{id}/messages/{message_id}/pin	PinChatMessage;UnpinChatMessage	chat.message_pinned;chat.message_unpinned		ok;NotCabalMember;ChatMessageNotFound;ChatPinForbidden;ChatPinLimit;Unauthorized;crash:before-commit	built	docs/architecture/chat.md#pins

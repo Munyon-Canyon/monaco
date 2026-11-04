@@ -397,6 +397,17 @@ Subject `events.cashout.started`, version 1.
 | `sell_usdc_micros` | `money.Micros` |
 | `cause` | `string` |
 
+## `chat.message_pinned`
+
+Subject `events.chat.message_pinned`, version 1.
+
+| Field | Go type |
+| --- | --- |
+| `v` | `int` |
+| `message_id` | `uuid.UUID` |
+| `cabal_id` | `uuid.UUID` |
+| `actor_id` | `uuid.UUID` |
+
 ## `chat.message_posted`
 
 Subject `events.chat.message_posted`, version 1.
@@ -412,6 +423,17 @@ Subject `events.chat.message_posted`, version 1.
 | `created_at` | `time.Time` |
 | `mentioned_user_ids` | `[]uuid.UUID` |
 | `thread_participant_ids` | `[]uuid.UUID` |
+
+## `chat.message_unpinned`
+
+Subject `events.chat.message_unpinned`, version 1.
+
+| Field | Go type |
+| --- | --- |
+| `v` | `int` |
+| `message_id` | `uuid.UUID` |
+| `cabal_id` | `uuid.UUID` |
+| `actor_id` | `uuid.UUID` |
 
 ## `chat.poll_voted`
 

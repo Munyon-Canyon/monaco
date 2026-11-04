@@ -76,3 +76,34 @@ func (ChatPollVoted) Type() Type { return TypeChatPollVoted }
 func (ChatPollVoted) AggregateType() string { return "chat_message" }
 
 func (e ChatPollVoted) AggregateID() uuid.UUID { return e.MessageID }
+
+const (
+	TypeChatMessagePinned   Type = "chat.message_pinned"
+	TypeChatMessageUnpinned Type = "chat.message_unpinned"
+)
+
+type ChatMessagePinned struct {
+	V         int       `json:"v"`
+	MessageID uuid.UUID `json:"message_id"`
+	CabalID   uuid.UUID `json:"cabal_id"`
+	ActorID   uuid.UUID `json:"actor_id"   pii:"true"`
+}
+
+func (ChatMessagePinned) Type() Type { return TypeChatMessagePinned }
+
+func (ChatMessagePinned) AggregateType() string { return "chat_message" }
+
+func (e ChatMessagePinned) AggregateID() uuid.UUID { return e.MessageID }
+
+type ChatMessageUnpinned struct {
+	V         int       `json:"v"`
+	MessageID uuid.UUID `json:"message_id"`
+	CabalID   uuid.UUID `json:"cabal_id"`
+	ActorID   uuid.UUID `json:"actor_id"   pii:"true"`
+}
+
+func (ChatMessageUnpinned) Type() Type { return TypeChatMessageUnpinned }
+
+func (ChatMessageUnpinned) AggregateType() string { return "chat_message" }
+
+func (e ChatMessageUnpinned) AggregateID() uuid.UUID { return e.MessageID }
