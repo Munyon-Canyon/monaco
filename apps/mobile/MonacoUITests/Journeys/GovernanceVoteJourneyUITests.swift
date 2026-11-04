@@ -14,11 +14,13 @@ nonisolated final class GovernanceVoteJourneyUITests: XCTestCase {
 
         try session.scenario("S1") {
             let proposalID = try JourneyHandoff.read("proposalID")
+            let cabalName = try JourneyHandoff.read("cabalName")
             try session.act(as: "A")
             GovernanceVoteJourney.voteFromHome(app, proposalID: proposalID, run: run, recorder: recorder)
             attachScreenshot(of: app, named: "S1-A-voted-yes")
             try session.act(as: "B")
-            GovernanceVoteJourney.secondVoterPasses(app, proposalID: proposalID, recorder: recorder)
+            GovernanceVoteJourney.secondVoterPasses(
+                app, cabalName: cabalName, proposalID: proposalID, recorder: recorder)
             attachScreenshot(of: app, named: "S1-B-passed")
             try session.act(as: "A")
             GovernanceVoteJourney.firstVoterSeesItSettled(app, proposalID: proposalID, recorder: recorder)
