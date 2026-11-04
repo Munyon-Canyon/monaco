@@ -265,8 +265,11 @@ final class JourneySession {
     func act(as actor: String, viaUI: Bool = false) throws -> JourneyAccount {
         let account = try account(actor)
         let running = app.state == .runningForeground
-        if self.actor == actor, running, SignInJourney.currentScreen(app, timeout: 2) == .tabs {
-            return account
+        if self.actor == actor, running {
+            let screen = SignInJourney.currentScreen(app, timeout: 2)
+            if screen == .tabs || (screen == nil && app.navigationBars.buttons["BackButton"].firstMatch.exists) {
+                return account
+            }
         }
         SignInJourney.switchActor(app, to: account, viaUI: viaUI)
         self.actor = actor
@@ -353,6 +356,16 @@ extension XCUIApplication {
 
     func tab(_ title: String) -> XCUIElement {
         tabBars.buttons[title]
+    }
+
+    func revealTabBar(maxBacks: Int = 4) {
+        for _ in 0..<maxBacks {
+            guard !tabBars.firstMatch.exists else { return }
+            let back = navigationBars.buttons["BackButton"].firstMatch
+            guard back.exists else { return }
+            back.tap()
+            _ = tabBars.firstMatch.waitForExistence(timeout: 2)
+        }
     }
 
     func waitForFirst(of elements: [XCUIElement], timeout: TimeInterval) -> Int? {
