@@ -6,7 +6,6 @@ struct MonacoChipLabel: ViewModifier {
     static let symbolGap: CGFloat = 4
 
     let isSelected: Bool
-    var isPreset = false
     var leadingSymbol: MonacoIcon?
     var fillsWidth = false
     var horizontalPadding = MonacoTheme.Space.m
@@ -44,12 +43,12 @@ struct MonacoChipLabel: ViewModifier {
 
 extension View {
     func monacoChipLabel(
-        isSelected: Bool, isPreset: Bool = false, leadingSymbol: MonacoIcon? = nil, fillsWidth: Bool = false,
+        isSelected: Bool, leadingSymbol: MonacoIcon? = nil, fillsWidth: Bool = false,
         horizontalPadding: CGFloat = MonacoTheme.Space.m
     ) -> some View {
         modifier(
             MonacoChipLabel(
-                isSelected: isSelected, isPreset: isPreset, leadingSymbol: leadingSymbol, fillsWidth: fillsWidth,
+                isSelected: isSelected, leadingSymbol: leadingSymbol, fillsWidth: fillsWidth,
                 horizontalPadding: horizontalPadding))
     }
 }
