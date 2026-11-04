@@ -25,6 +25,29 @@ extension CommentsModel {
         return result
     }
 
+    public func previewEntries(roots: Int) -> [CommentThreadEntry] {
+        var seen = 0
+        var result: [CommentThreadEntry] = []
+        for entry in entries {
+            if case .row(let row) = entry, !row.isReply {
+                seen += 1
+                if seen > roots { break }
+            }
+            result.append(entry)
+        }
+        return result
+    }
+
+    public func showsAllRepliesLink(roots: Int) -> Bool {
+        let reachable = previewEntries(roots: roots).reduce(0) { total, entry in
+            switch entry {
+            case .row(let row): total + (row.isDeleted ? 0 : 1)
+            case .fold(_, let count, let isExpanded): total + (isExpanded ? 0 : count)
+            }
+        }
+        return commentCount > reachable
+    }
+
     public func isExpanded(rootID: String) -> Bool { expandedRoots.contains(rootID) }
 
     public func expand(rootID: String) {

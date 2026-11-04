@@ -11,6 +11,8 @@ enum CommentThreadHeaderMetrics {
 struct CommentThreadView: View {
     let model: CommentsModel
     var pinsHeader = false
+    var previewRoots: Int?
+    var showsAll: Binding<Bool> = .constant(true)
     @Environment(\.sectionScrollProxy) private var scroll
     @State private var deleting: CommentThreadRow?
     @State private var reporting: ReportTarget?
@@ -111,7 +113,7 @@ struct CommentThreadView: View {
 
     private var loaded: some View {
         LazyVStack(alignment: .leading, spacing: 0) {
-            ForEach(model.entries) { entry in
+            ForEach(shownEntries) { entry in
                 switch entry {
                 case .row(let row):
                     commentRow(row)
@@ -122,12 +124,18 @@ struct CommentThreadView: View {
                     .id(entry.id)
                 }
             }
-            if model.isLoadingMore {
+            if let roots = previewRoots, !showsAll.wrappedValue {
+                if model.showsAllRepliesLink(roots: roots) {
+                    CommentAllRepliesLink(count: model.commentCount, identifier: "proposal-all-replies") {
+                        showsAll.wrappedValue = true
+                    }
+                }
+            } else if model.isLoadingMore {
                 CommentSkeleton(rows: 1)
             } else if model.hasMore {
                 CommentAllRepliesLink(count: model.commentCount) { Task { await model.loadMore() } }
             }
-            if model.hasMore {
+            if model.hasMore, previewRoots == nil || showsAll.wrappedValue {
                 Color.clear.frame(height: 1)
                     .onAppear { Task { await model.loadMore() } }
             }
@@ -137,6 +145,11 @@ struct CommentThreadView: View {
 }
 
 extension CommentThreadView {
+    fileprivate var shownEntries: [CommentThreadEntry] {
+        guard let roots = previewRoots, !showsAll.wrappedValue else { return model.entries }
+        return model.previewEntries(roots: roots)
+    }
+
     fileprivate func commentRow(_ row: CommentThreadRow) -> some View {
         CommentRow(
             row: row,
@@ -292,6 +305,7 @@ private struct CommentNotices: ViewModifier {
 
 private struct CommentAllRepliesLink: View {
     let count: Int
+    var identifier = "comment-all-replies"
     let action: () -> Void
 
     var body: some View {
@@ -309,6 +323,6 @@ private struct CommentAllRepliesLink: View {
         }
         .buttonStyle(.plain)
         .padding(.horizontal, MonacoTheme.Space.gutter)
-        .accessibilityIdentifier("comment-all-replies")
+        .accessibilityIdentifier(identifier)
     }
 }

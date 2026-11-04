@@ -20,10 +20,11 @@ private struct ProposalCommentsSlotView: View {
     @Environment(\.sectionScrollProxy) private var scroll
     @Environment(ToastCenter.self) private var toasts
     @State private var handled = false
+    @State private var showsAll = false
 
     var body: some View {
         if let model {
-            CommentThreadView(model: model)
+            CommentThreadView(model: model, previewRoots: 2, showsAll: $showsAll)
                 .id(ProposalFocus.repliesAnchorID)
                 .onChange(of: detail?.value?.replyCount, initial: true) { _, count in
                     if let count { model.declare(count: count) }
@@ -34,6 +35,7 @@ private struct ProposalCommentsSlotView: View {
                 .onAppear { model.onCountChange = { detail?.setReplyCount($0) } }
                 .onChange(of: model.lastPostedID) { _, id in
                     guard let id else { return }
+                    showsAll = true
                     Task { await scrollToPosted(id) }
                 }
                 .task(id: model.phase) { await applyFocus(model) }
@@ -65,9 +67,11 @@ private struct ProposalCommentsSlotView: View {
             scroll?.scrollTo(ProposalFocus.repliesAnchorID, anchor: .top)
             model.presentReplySheet(.thread)
         case .replySheetQuoting(let row):
+            showsAll = true
             scroll?.scrollTo(row.id, anchor: .center)
             model.presentReplySheet(.comment(row))
         case .scroll(let id):
+            showsAll = true
             withAnimation { scroll?.scrollTo(id, anchor: .center) }
         case .notFound:
             toasts.show(success: "That reply was deleted.")
