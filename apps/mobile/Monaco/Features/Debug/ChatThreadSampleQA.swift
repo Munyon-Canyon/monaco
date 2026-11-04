@@ -8,13 +8,15 @@ enum ChatThreadSampleQA {
         arguments.contains("-MonacoChatThreadSampleQA")
     }
 
-    @MainActor static func screen() -> some View {
-        ChatThreadSampleHost(session: ChatSession.sample(ChatSampleScenario(threaded: true)) { Date() })
+    @MainActor static func screen(arguments: [String]) -> some View {
+        ChatThreadSampleHost(
+            session: ChatSession.sample(ChatSampleScenario(threaded: true)) { Date() }, arguments: arguments)
     }
 }
 
 private struct ChatThreadSampleHost: View {
     let session: ChatSession
+    let arguments: [String]
 
     @State private var openedThread: String?
 
@@ -29,6 +31,7 @@ private struct ChatThreadSampleHost: View {
         .navigationDestination(item: $openedThread) { parentID in
             ChatThreadSampleScreen(session: session, parentID: parentID)
         }
+        .onAppear { SampleHarnessRegistry.markDrawn(arguments) }
     }
 }
 
@@ -45,11 +48,14 @@ private struct ChatThreadSampleScreen: View {
 }
 
 final class ChatThreadSampleQAEntry: SampleHarnessEntry {
+    @MainActor override class var marksOwnDraw: Bool { true }
+
     @MainActor
     override class func root(arguments: [String], auth: PrivyAuthService) -> AnyView? {
         guard ChatThreadSampleQA.matches(arguments) else { return nil }
-        let route = SampleScreenRoute(screen: .chatThread, arguments: arguments)
-        return AnyView(SampleAppFrame(auth: auth, tab: .cabals, routes: [route]))
+        return AnyView(
+            SampleAppFrame(
+                auth: auth, tab: .cabals, root: { AnyView(ChatThreadSampleQA.screen(arguments: arguments)) }))
     }
 }
 #endif
