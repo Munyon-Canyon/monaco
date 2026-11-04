@@ -376,6 +376,27 @@ func TestNotify_ProposalCreated_ASellQuoteThatIsNotMicrosIsAnError(t *testing.T)
 	}
 }
 
+func TestNotify_ProposalCreated_RenderReturnsAProposalHeadReadError(t *testing.T) {
+	t.Parallel()
+	r := newPushRig(t)
+	refs, ports := goldenProposal(t)
+	kind := ports.created(r)
+	kind.Users = users{cards: map[ids.UserID]identity.UserCard{refs.proposer: {DisplayName: "Dana"}}}
+	want := errs.New(errs.CodeInternal, "test.ProposalHead")
+	ports.heads.err = want
+
+	if _, err := kind.Render(
+		t.Context(),
+		r.createdEvent(t, refs, buyKind, "AAPLx"),
+		refs.proposer,
+	); !errors.Is(
+		err,
+		want,
+	) {
+		t.Fatalf("Render with the proposal head read failing = %v, want %v", err, want)
+	}
+}
+
 func TestNotify_ProposalCreated_NamesTheProposerOrSomeone(t *testing.T) {
 	t.Parallel()
 	for name, tc := range map[string]struct {
