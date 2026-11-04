@@ -326,11 +326,11 @@ struct ChatComposerBar: View {
         .frame(minHeight: MonacoButtonMetrics.hitTarget)
         .padding(.trailing, attachments != nil && !fieldGrown ? gifChipReserve : 0)
         .background(shape.fill(MonacoTheme.surfaceSunken))
+        .accessibilityIdentifier("chat-composer")
+        .monacoPrivate()
         .overlay(alignment: .trailing) {
             if attachments != nil, !fieldGrown { gifChip }
         }
-        .accessibilityIdentifier("chat-composer")
-        .monacoPrivate()
     }
 
     private var gifChipReserve: CGFloat { ChatGifChip.width + MonacoTheme.Space.s }
