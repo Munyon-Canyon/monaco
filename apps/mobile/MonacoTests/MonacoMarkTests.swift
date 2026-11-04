@@ -43,9 +43,8 @@ struct StockMarkTests {
 @MainActor
 struct CabalCrestTests {
     @Test(arguments: [24, 40, 56] as [CGFloat])
-    func theCrestIsASixPointSquareAtEverySize(size: CGFloat) {
-        #expect(MarkGeometry.tileRadius(for: size) == 6)
-        #expect(MarkGeometry.tileRadius(for: size) == MonacoTheme.Radius.crest)
+    func theCrestRadiusIsTwoAndAQuarterTenthsOfTheSize(size: CGFloat) {
+        #expect(MarkGeometry.tileRadius(for: size) == size * 0.225)
     }
 
     @Test func crestSizesMatchTheListedValues() {
@@ -68,9 +67,9 @@ struct CabalCrestTests {
         #expect(CrestMetrics.badgeText(100) == "99+")
     }
 
-    @Test func theRingAndBadgeAddNothingToTheLayoutSize() {
+    @Test func theBadgeAddsNothingToTheLayoutSize() {
         let bare = Self.size(of: CabalMark(groupId: "a", name: "A", size: .row))
-        let marked = Self.size(of: CabalMark(groupId: "a", name: "A", size: .row).crestVoteRing(true).crestBadge(3))
+        let marked = Self.size(of: CabalMark(groupId: "a", name: "A", size: .row).crestBadge(3))
 
         #expect(bare == CGSize(width: 40, height: 40))
         #expect(marked == bare)

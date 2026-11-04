@@ -104,10 +104,6 @@ struct CabalMark: View {
         MarkGeometry.shape(markForm, size: size)
     }
 
-    func crestVoteRing(_ isOn: Bool) -> some View {
-        modifier(CrestVoteRing(isOn: isOn, color: tint.fill))
-    }
-
     private var initialsLabel: some View {
         Text(initials)
             .font(.system(size: size * (initials.count > 1 ? 0.36 : 0.42), weight: .semibold))
@@ -171,9 +167,6 @@ struct CabalMark: View {
 }
 
 enum CrestMetrics {
-    static let ringWidth: CGFloat = 2
-    static let ringGap: CGFloat = 2
-    static let ringRadius: CGFloat = 8
     static let badgeHeight: CGFloat = 18
     static let badgeOffset: CGFloat = 6
     static let cornerRing: CGFloat = 2
@@ -182,22 +175,6 @@ enum CrestMetrics {
     static func badgeText(_ count: Int?) -> String? {
         guard let count, count > 0 else { return nil }
         return count > maxBadgeCount ? "\(maxBadgeCount)+" : "\(count)"
-    }
-}
-
-private struct CrestVoteRing: ViewModifier {
-    let isOn: Bool
-    let color: Color
-
-    func body(content: Content) -> some View {
-        content.overlay {
-            if isOn {
-                RoundedRectangle(cornerRadius: CrestMetrics.ringRadius, style: .continuous)
-                    .strokeBorder(color, lineWidth: CrestMetrics.ringWidth)
-                    .padding(-(CrestMetrics.ringGap + CrestMetrics.ringWidth))
-                    .allowsHitTesting(false)
-            }
-        }
     }
 }
 
@@ -233,7 +210,9 @@ private struct CrestOnCorner: ViewModifier {
                 .background(
                     MonacoTheme.canvas,
                     in: RoundedRectangle(
-                        cornerRadius: MonacoTheme.Radius.crest + CrestMetrics.cornerRing, style: .continuous))
+                        cornerRadius: CabalMark.Size.inline.rawValue * MonacoTheme.Radius.squircleFraction
+                            + CrestMetrics.cornerRing,
+                        style: .continuous))
         }
     }
 }
@@ -349,7 +328,7 @@ struct StockMark: View {
     @State private var logo: UIImage?
 
     private var shape: RoundedRectangle {
-        RoundedRectangle(cornerRadius: MonacoTheme.Radius.tile, style: .continuous)
+        RoundedRectangle(cornerRadius: size * MonacoTheme.Radius.squircleFraction, style: .continuous)
     }
 
     /// The issuer's artwork frames every company logo with four grey arrows that reach about
@@ -448,7 +427,7 @@ enum MarkGeometry {
     }
 
     static func tileRadius(for size: CGFloat) -> CGFloat {
-        MonacoTheme.Radius.crest
+        size * MonacoTheme.Radius.squircleFraction
     }
 
     static func shape(_ form: MarkForm, size: CGFloat) -> AnyShape {
