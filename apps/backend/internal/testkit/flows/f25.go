@@ -152,6 +152,7 @@ func seedPayer(s *scenario.Scenario, referrer string) payer {
 		string(user.Address), user.ID.UUID()); err != nil {
 		s.Fatalf("flows: give the payer the fake Privy wallet's address: %v", err)
 	}
+	fundWallet(s, user.Address)
 	if _, err := s.DB().Exec(s.Context(), `UPDATE users SET phone_verified_at = now() WHERE id = $1`,
 		user.ID.UUID()); err != nil {
 		s.Fatalf("flows: verify the payer's phone: %v", err)
