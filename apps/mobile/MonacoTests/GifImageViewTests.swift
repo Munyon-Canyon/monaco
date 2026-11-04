@@ -47,4 +47,24 @@ nonisolated final class GifImageViewTests: XCTestCase {
 
         XCTAssertNil(GifImageView.initialStill(for: url, store: store))
     }
+
+    @MainActor
+    func testWantsSlot_isFalseOnScreenWithReduceMotionAndNoRuns() {
+        XCTAssertFalse(GifImageView.wantsSlot(isOnScreen: true, reduceMotion: true, runs: 0))
+    }
+
+    @MainActor
+    func testWantsSlot_isTrueWithReduceMotionOnceTheViewerTapsPlay() {
+        XCTAssertTrue(GifImageView.wantsSlot(isOnScreen: true, reduceMotion: true, runs: 1))
+    }
+
+    @MainActor
+    func testWantsSlot_isTrueOnScreenWithMotionAllowed() {
+        XCTAssertTrue(GifImageView.wantsSlot(isOnScreen: true, reduceMotion: false, runs: 0))
+    }
+
+    @MainActor
+    func testWantsSlot_isFalseOffScreen() {
+        XCTAssertFalse(GifImageView.wantsSlot(isOnScreen: false, reduceMotion: false, runs: 1))
+    }
 }
