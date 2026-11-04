@@ -230,7 +230,7 @@ func (r *ProposalReads) page(
 		}
 		view.CabalName = names[view.CabalID]
 		view.ReplyCount = replies[view.ID]
-		view.CanVote = view.Status == domain.StatusOpen && tallies[row.ID].callerVotes
+		view.CanVote = r.votingOpen(view.Status, row.ExpiresAt) && tallies[row.ID].callerVotes
 		page.Items = append(page.Items, view)
 		rules = append(rules, view.Rule)
 	}

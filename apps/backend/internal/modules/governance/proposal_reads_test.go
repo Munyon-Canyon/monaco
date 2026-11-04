@@ -328,3 +328,31 @@ func TestHTTP_GetCabalProposals(t *testing.T) {
 		t.Errorf("GetCabalProposals over the page limit err = %v, want invalid_input", err)
 	}
 }
+
+func TestListProposals_aLapsedOpenProposalCannotBeVotedOn(t *testing.T) {
+	t.Parallel()
+	d := newReadsDB(t)
+	id := d.proposedBy(t, d.caller, d.ids.NewV7())
+	expires := d.now.Add(24 * time.Hour)
+	clk := testkit.NewClock(expires.Add(-time.Second))
+	reads := d.reads().Priced(nil, clk)
+	canVote := func() bool {
+		page, err := reads.List(t.Context(), app.ListProposals{
+			CabalID: ids.CabalIDFrom(d.cabal), Caller: ids.UserIDFrom(d.caller), Filter: app.FilterAll,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(page.Items) != 1 || page.Items[0].ID.UUID() != id || page.Items[0].Status != domain.StatusOpen {
+			t.Fatalf("page = %+v, want the one open proposal %s", page.Items, id)
+		}
+		return page.Items[0].CanVote
+	}
+	if !canVote() {
+		t.Fatal("one second before expiry CanVote = false, want true")
+	}
+	clk.Set(expires)
+	if canVote() {
+		t.Fatal("at expiry CanVote = true, want false while the poller has not closed it")
+	}
+}
