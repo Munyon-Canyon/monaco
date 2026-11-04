@@ -24,7 +24,7 @@ final class ProfileCabalRowsTests: XCTestCase {
         ]
         let rows = members(ProfileCabalRows.make(cabals: cabals, portfolio: portfolio, invites: []))
         XCTAssertEqual(rows.map(\.name), ["AC Capital", "Tech Titans", "Degens"])
-        XCTAssertEqual(rows.map(\.subtitle), ["35% · admin", "12% · member", "8% · voter"])
+        XCTAssertEqual(rows.map(\.subtitle), ["35% · admin", "12% · member", "8%"])
         XCTAssertEqual(rows.map(\.value), ["$7,000.00", "$2,710.00", "$1,872.00"])
         XCTAssertEqual(rows.map(\.returnText), ["+4.7%", "\u{2212}1.7%", "+11.2%"])
         XCTAssertEqual(rows.map(\.returnTone), [.gain, .loss, .gain])
