@@ -238,12 +238,15 @@ struct ProposalVoteSection: View {
             toast.offersUndo
             ? MonacoToastAction(title: "Undo", expiresAt: outcome.undoUntil) { undo() }
             : nil
-        toasts.show(success: toast.message, action: action)
+        toasts.show(vote: toast, action: action)
         guard let prompt = environment?.pushPrePrompt else { return }
         let sample = PushSample.afterVote(
             symbol: summary.symbol, status: outcome.status, tally: outcome.tally, isSell: summary.kind == "sell",
             usdcMicros: summary.usdcMicros, closesAt: summary.expiresAt, swap: summary.swap, pendingUnits: nil,
-            isRule: summary.isRule)
+            isRule: summary.isRule,
+            callerName: HomePendingVote.callerName(
+                proposerID: summary.proposerID, name: model.members.first { $0.id == summary.proposerID }?.name,
+                viewerID: viewer))
         Task { await prompt.noteFirstVote(sample: sample, after: toasts) }
     }
 

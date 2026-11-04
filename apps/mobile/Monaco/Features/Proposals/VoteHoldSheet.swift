@@ -214,11 +214,15 @@ struct VoteHoldSheet: View {
                 ? MonacoToastAction(title: "Undo", expiresAt: outcome.undoUntil) { undo(model) }
                 : nil
             dismiss()
-            toasts.show(success: toast.message, action: action)
+            toasts.show(vote: toast, action: action)
             let sample = PushSample.afterVote(
                 symbol: summary.symbol, status: outcome.status, tally: outcome.tally, isSell: summary.kind == "sell",
                 usdcMicros: summary.usdcMicros, closesAt: summary.expiresAt, swap: summary.swap, pendingUnits: nil,
-                isRule: summary.isRule)
+                isRule: summary.isRule,
+                callerName: HomePendingVote.callerName(
+                    proposerID: summary.proposerID,
+                    name: model.detail.members.first { $0.id == summary.proposerID }?.name,
+                    viewerID: environment.viewer?.userID))
             await environment.pushPrePrompt.noteFirstVote(sample: sample, after: toasts)
         }
     }

@@ -202,12 +202,14 @@ enum HomeVoteCommit {
                 undo(card, toasts: toasts, analytics: analytics)
             }
             : nil
-        toasts.show(success: toast.message, action: action)
+        toasts.show(vote: toast, action: action)
         let row = card.row
         guard !row.isRule, let symbol = row.symbol else { return }
         let sample = PushSample.afterVote(
             symbol: symbol, status: outcome.status, tally: outcome.tally, isSell: row.isSell,
-            usdcMicros: row.usdcMicros, closesAt: row.expiresAt, swap: nil, pendingUnits: nil)
+            usdcMicros: row.usdcMicros, closesAt: row.expiresAt, swap: nil, pendingUnits: nil,
+            callerName: HomePendingVote.callerName(
+                proposerID: row.proposerID, name: row.proposerName, viewerID: environment.viewer?.userID))
         Task { await environment.pushPrePrompt.noteFirstVote(sample: sample, after: toasts) }
     }
 
