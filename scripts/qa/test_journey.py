@@ -31,7 +31,8 @@ import journey  # noqa: E402
 # No test takes a lock a real journey run on this Mac holds.
 _LOCKS = tempfile.TemporaryDirectory()
 journey.SLOT_LOCK = _LOCKS.name + "/slot%d.lock"
-journey.ACTOR_LOCK = _LOCKS.name + "/actor-%s.lock"
+journey.ACTOR_LOCK = _LOCKS.name + "/actor-%s-%s.lock"
+journey.LANE_ACTOR_LOCK = _LOCKS.name + "/lane-%s-%s.lock"
 
 # No test queues for a machine-wide simulator slot; the SimSlots tests use the real ones.
 REAL_TAKE_SIM_SLOT, REAL_RELEASE_SIM_SLOT = journey.take_sim_slot, journey.release_sim_slot
@@ -970,7 +971,7 @@ class JourneyTradeEngine(unittest.TestCase):
                 raise RuntimeError("stop")
 
             with unittest.mock.patch.dict(os.environ, environ, clear=True), \
-                    unittest.mock.patch.object(journey, "apply_event_streams", lambda log, url=None: None), \
+                    unittest.mock.patch.object(journey, "apply_event_streams", lambda log, url=None, *rest: None), \
                     unittest.mock.patch.object(journey.subprocess, "Popen", popen), \
                     unittest.mock.patch.object(journey, "OUT", Path(tempfile.mkdtemp())):
                 with self.assertRaises(RuntimeError):
@@ -985,7 +986,7 @@ class JourneyTradeEngine(unittest.TestCase):
             raise RuntimeError("stop")
 
         with unittest.mock.patch.dict(os.environ, {"MONACO_FUND_PAGE_PORT": "5173"}, clear=True), \
-                unittest.mock.patch.object(journey, "apply_event_streams", lambda log, url=None: None), \
+                unittest.mock.patch.object(journey, "apply_event_streams", lambda log, url=None, *rest: None), \
                 unittest.mock.patch.object(journey.subprocess, "Popen", popen), \
                 unittest.mock.patch.object(journey, "OUT", Path(tempfile.mkdtemp())):
             with self.assertRaises(RuntimeError):
@@ -1008,7 +1009,7 @@ class JourneyTradeEngine(unittest.TestCase):
                 seen.append(kwargs["env"])
                 raise RuntimeError("stop")
 
-            with unittest.mock.patch.object(journey, "apply_event_streams", lambda log, url=None: None), \
+            with unittest.mock.patch.object(journey, "apply_event_streams", lambda log, url=None, *rest: None), \
                     unittest.mock.patch.object(journey.subprocess, "Popen", popen), \
                     unittest.mock.patch.object(journey, "OUT", Path(tempfile.mkdtemp())):
                 with self.assertRaises(RuntimeError):
@@ -1041,7 +1042,8 @@ class Slots(unittest.TestCase):
     def setUp(self):
         folder = tempfile.TemporaryDirectory()
         self.addCleanup(folder.cleanup)
-        for name, template in (("SLOT_LOCK", "/slot%d.lock"), ("ACTOR_LOCK", "/actor-%s.lock")):
+        for name, template in (("SLOT_LOCK", "/slot%d.lock"), ("ACTOR_LOCK", "/actor-%s-%s.lock"),
+                               ("LANE_ACTOR_LOCK", "/lane-%s-%s.lock")):
             patcher = unittest.mock.patch.object(journey, name, folder.name + template)
             patcher.start()
             self.addCleanup(patcher.stop)
@@ -1089,7 +1091,7 @@ class Slots(unittest.TestCase):
         with unittest.mock.patch.object(journey.subprocess, "Popen", lambda *a, **k: popen.append(k["env"]) or
                                         type("P", (), {"poll": lambda self: None})()), \
                 unittest.mock.patch.object(journey, "OUT", Path(tempfile.mkdtemp())), \
-                unittest.mock.patch.object(journey, "apply_event_streams", lambda log, url=None: None), \
+                unittest.mock.patch.object(journey, "apply_event_streams", lambda log, url=None, *rest: None), \
                 unittest.mock.patch.object(journey, "backend_is_running", lambda url: True):
             journey.start_backend("http://127.0.0.1:8180", slot=1)
         self.assertEqual(popen[0]["MONACO_HTTP_ADDR"], ":8180")
@@ -1101,7 +1103,7 @@ class Slots(unittest.TestCase):
         with unittest.mock.patch.object(journey.subprocess, "Popen", lambda *a, **k: popen.append(k["env"]) or
                                         type("P", (), {"poll": lambda self: None})()), \
                 unittest.mock.patch.object(journey, "OUT", Path(tempfile.mkdtemp())), \
-                unittest.mock.patch.object(journey, "apply_event_streams", lambda log, url=None: applied.append(url)), \
+                unittest.mock.patch.object(journey, "apply_event_streams", lambda log, url=None, *rest: applied.append(url)), \
                 unittest.mock.patch.object(journey, "backend_is_running", lambda url: True), \
                 unittest.mock.patch.dict(os.environ, {"NATS_URL": "nats://127.0.0.1:4222"}):
             for slot in (0, 1):
@@ -1109,6 +1111,65 @@ class Slots(unittest.TestCase):
         urls = [env["NATS_URL"] for env in popen]
         self.assertEqual(urls, ["nats://127.0.0.1:4232", "nats://127.0.0.1:4233"])
         self.assertEqual(applied, urls)
+
+    DEV_URL = "postgres://monaco:pw@localhost:54322/monaco?sslmode=disable"
+
+    def test_each_slot_backend_gets_its_own_database(self):
+        popen, applied = [], []
+        with unittest.mock.patch.object(journey.subprocess, "Popen", lambda *a, **k: popen.append(k["env"]) or
+                                        type("P", (), {"poll": lambda self: None})()), \
+                unittest.mock.patch.object(journey, "OUT", Path(tempfile.mkdtemp())), \
+                unittest.mock.patch.object(journey, "apply_event_streams",
+                                           lambda log, nats=None, dev=None, slot=0: applied.append(
+                                               journey.slot_database_url(dev, slot))), \
+                unittest.mock.patch.object(journey, "backend_is_running", lambda url: True), \
+                unittest.mock.patch.dict(os.environ, {"DATABASE_URL": self.DEV_URL}):
+            for slot in (0, 1):
+                journey.start_backend(journey.slot_base_url(slot), slot=slot)
+        urls = [env["DATABASE_URL"] for env in popen]
+        self.assertEqual(urls, [self.DEV_URL.replace("/monaco?", "/monaco_qa_slot0?"),
+                                self.DEV_URL.replace("/monaco?", "/monaco_qa_slot1?")])
+        self.assertEqual(applied, urls)
+
+    def test_migrations_and_bus_apply_run_on_the_slot_database(self):
+        seen = []
+
+        def run(args, **kwargs):
+            seen.append((args[-2:], (kwargs.get("env") or {}).get("DATABASE_URL")))
+            return types.SimpleNamespace(returncode=0, stdout="1")
+
+        with tempfile.TemporaryDirectory() as out, unittest.mock.patch.object(journey, "sh", run):
+            journey.apply_event_streams(Path(out) / "log", "nats://x", self.DEV_URL, 1)
+        slot_url = self.DEV_URL.replace("/monaco?", "/monaco_qa_slot1?")
+        self.assertEqual([step for step in seen if step[0] in (["migrate", "apply"], ["bus", "apply"])],
+                         [(["migrate", "apply"], slot_url), (["bus", "apply"], slot_url)])
+
+    def test_the_slot_database_is_created_only_when_missing(self):
+        for found, creates in (("", 1), ("1", 0)):
+            calls = []
+
+            def run(args, **kwargs):
+                calls.append((args, kwargs["env"]["DATABASE_URL"]))
+                return types.SimpleNamespace(returncode=0, stdout=found)
+
+            with unittest.mock.patch.object(journey, "sh", run):
+                journey.ensure_slot_database(self.DEV_URL, 0, subprocess.DEVNULL)
+            created = [c for c in calls if c[0][-1].startswith("CREATE DATABASE")]
+            self.assertEqual(len(created), creates)
+            self.assertEqual([c[0][-1] for c in created], ['CREATE DATABASE "monaco_qa_slot0"'] * creates)
+            self.assertTrue(all("/postgres?" in url for _, url in calls))
+
+    def test_the_run_environment_points_every_consumer_at_the_slot_database(self):
+        with unittest.mock.patch.dict(os.environ, {"DATABASE_URL": self.DEV_URL}):
+            with journey.slot_database_environment(1) as url:
+                self.assertEqual(os.environ["DATABASE_URL"], url)
+                self.assertIn("/monaco_qa_slot1?", url)
+                self.assertEqual(journey.slot_database_url(url, 1), url)
+            self.assertEqual(os.environ["DATABASE_URL"], self.DEV_URL)
+
+    def test_the_slot_databases_differ_from_each_other_and_from_the_dev_database(self):
+        urls = {self.DEV_URL, journey.slot_database_url(self.DEV_URL, 0), journey.slot_database_url(self.DEV_URL, 1)}
+        self.assertEqual(len(urls), 3)
 
     def test_a_slot_nats_container_is_removed_on_stop(self):
         calls = []
@@ -1132,7 +1193,7 @@ class Slots(unittest.TestCase):
         with unittest.mock.patch.object(journey.subprocess, "Popen", lambda *a, **k: popen.append(k["env"]) or
                                         type("P", (), {"poll": lambda self: None})()), \
                 unittest.mock.patch.object(journey, "OUT", Path(tempfile.mkdtemp())), \
-                unittest.mock.patch.object(journey, "apply_event_streams", lambda log, url=None: None), \
+                unittest.mock.patch.object(journey, "apply_event_streams", lambda log, url=None, *rest: None), \
                 unittest.mock.patch.object(journey, "backend_is_running", lambda url: True), \
                 unittest.mock.patch.dict(os.environ, {"MARKET_HISTORY_ENABLED": "true"}):
             for slot in (0, 1):
@@ -1144,7 +1205,37 @@ class Slots(unittest.TestCase):
         mapping, handles = journey.claim_logins(["A", "B"], logins)
         self.hold(*handles)
         self.assertEqual(mapping, {"A": "A", "B": "B"})
-        self.assertIsNone(journey.try_lock(journey.ACTOR_LOCK % "A"))
+        self.assertIsNone(journey.try_lock(journey.ACTOR_LOCK % ("ext", "A")))
+
+    def test_two_slots_of_two_checkouts_use_the_same_login_at_once(self):
+        logins = ["A", "B", "C", "L"]
+        with unittest.mock.patch.object(journey, "lane_name", lambda: "lane-x"):
+            first, handles = journey.claim_logins(["A"], logins, slot="0")
+        self.hold(*handles)
+        with unittest.mock.patch.object(journey, "lane_name", lambda: "lane-y"):
+            second, handles = journey.claim_logins(["A"], logins, slot="1")
+        self.hold(*handles)
+        self.assertEqual((first, second), ({"A": "A"}, {"A": "A"}))
+
+    def test_one_slot_still_holds_a_login_against_a_second_run_of_it(self):
+        logins = ["A", "B", "C", "L"]
+        with unittest.mock.patch.object(journey, "lane_name", lambda: "lane-x"):
+            self.hold(*journey.claim_logins(["A"], logins, slot="0")[1])
+            second, handles = journey.claim_logins(["A"], logins, slot="0")
+        self.hold(*handles)
+        self.assertEqual(second, {"A": "B"})
+
+    def test_two_slots_of_one_checkout_use_two_logins(self):
+        logins = ["A", "B", "C", "L"]
+        with unittest.mock.patch.object(journey, "lane_name", lambda: "lane-x"):
+            self.hold(*journey.claim_logins(["A"], logins, slot="0")[1])
+            second, handles = journey.claim_logins(["A"], logins, slot="1")
+        self.hold(*handles)
+        self.assertEqual(second, {"A": "B"})
+
+    def test_the_slot_of_a_backend_url(self):
+        self.assertEqual([journey.slot_of(journey.slot_base_url(slot)) for slot in (0, 1)], ["0", "1"])
+        self.assertEqual(journey.slot_of("http://127.0.0.1:9999"), "ext")
 
     def test_a_run_in_slot_one_takes_the_logins_slot_zero_leaves(self):
         logins = ["A", "B", "C", "L"]
@@ -1174,7 +1265,7 @@ class Slots(unittest.TestCase):
         self.hold(*journey.claim_logins(["A", "B"], logins)[1])
 
         def sleep(seconds):
-            free = journey.try_lock(journey.ACTOR_LOCK % "C")
+            free = journey.try_lock(journey.ACTOR_LOCK % ("ext", "C"))
             self.assertIsNotNone(free)
             free.close()
             raise StopIteration
@@ -1979,7 +2070,7 @@ class RemappedSetup(Output):
     def test_each_slot_writes_its_own_backend_log(self):
         logs = []
         with tempfile.TemporaryDirectory() as out, unittest.mock.patch.object(journey, "OUT", Path(out)), \
-                unittest.mock.patch.object(journey, "apply_event_streams", lambda log, url=None: logs.append(log.name)), \
+                unittest.mock.patch.object(journey, "apply_event_streams", lambda log, url=None, *rest: logs.append(log.name)), \
                 unittest.mock.patch.object(journey.subprocess, "Popen", self.refuse_boot), \
                 redirect_stdout(StringIO()):
             for slot in (0, 1):
@@ -2512,7 +2603,7 @@ class MutantRunSetup(unittest.TestCase):
         stack = contextlib.ExitStack()
         with stack:
             for name, value in (("load_journeys", lambda: {"money/withdraw": fake}), ("pick", lambda j, i: fake),
-                                ("sh", sh), ("actor_logins", lambda j, a: contextlib.nullcontext({})),
+                                ("sh", sh), ("actor_logins", lambda j, a, u="": contextlib.nullcontext({})),
                                 ("load_accounts", lambda: {}), ("held_logins", lambda j, a: []),
                                 ("use_derived_data", lambda l: None), ("resolve_simulator", lambda s, l, p: "sim"),
                                 ("check_simulator_api_environment", lambda s, u: None),
@@ -2924,7 +3015,7 @@ class StartBackend(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as out, unittest.mock.patch.object(journey, "OUT", Path(out)), \
                 unittest.mock.patch.dict(os.environ, environ, clear=True), \
-                unittest.mock.patch.object(journey, "apply_event_streams", lambda log, url=None: None), \
+                unittest.mock.patch.object(journey, "apply_event_streams", lambda log, url=None, *rest: None), \
                 unittest.mock.patch.object(journey.subprocess, "Popen", popen), redirect_stdout(StringIO()):
             with self.assertRaises(StopIteration):
                 journey.start_backend("http://127.0.0.1:8080")

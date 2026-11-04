@@ -35,6 +35,7 @@ import sys
 import tempfile
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -556,12 +557,21 @@ NATS_PORTS = (4232, 4233, 4234)
 NATS_IMAGE = "public.ecr.aws/docker/library/nats:2-alpine"
 BACKEND_PORTS = SLOT_PORTS[0]
 SLOT_LOCK = "/tmp/monaco-qa-slot%d.lock"
-ACTOR_LOCK = "/tmp/monaco-qa-actor-%s.lock"
+ACTOR_LOCK = "/tmp/monaco-qa-actor-%s-%s.lock"  # (slot, login): logins are not shared between slots
+LANE_ACTOR_LOCK = "/tmp/monaco-qa-actor-lane-%s-%s.lock"  # (lane, login): a checkout's simulators and derived data are per login
 LOCK_POLL_SECONDS = 2
 
 
 def slot_base_url(slot):
     return "http://127.0.0.1:%d" % SLOT_PORTS[slot][0]
+
+
+def slot_of(api_base_url):
+    """The slot whose backend serves `api_base_url`, or "ext" for a backend the run did not start."""
+    for slot in range(len(SLOT_PORTS)):
+        if api_base_url == slot_base_url(slot):
+            return str(slot)
+    return "ext"
 
 
 def try_lock(path):
@@ -619,12 +629,27 @@ def take_slot(forced=None, sleep=time.sleep):
         sleep(LOCK_POLL_SECONDS)
 
 
-def claim_logins(actors, logins, sleep=time.sleep):
+def try_actor_lock(slot, lane, login):
+    """The handles holding `login` for this slot and this checkout, or None when either is taken. Slots do not share
+    a database, so one slot's login is free in the other; two runs of one checkout still need two logins, because
+    a checkout names its simulator and derived data after the logins it holds."""
+    first = try_lock(ACTOR_LOCK % (slot, login))
+    if first is None:
+        return None
+    second = try_lock(LANE_ACTOR_LOCK % (lane, login))
+    if second is None:
+        first.close()
+        return None
+    return [first, second]
+
+
+def claim_logins(actors, logins, sleep=time.sleep, slot="ext"):
     """({actor: login}, [lock handles]): each actor on a login no other run holds, its own when free.
 
     The L row is the link number, so only an actor named L takes it. When there are not enough free
     logins the run waits for them, holding none meanwhile."""
     spare = [login for login in logins if login != "L"]
+    lane = lane_name() or "primary"
     announced = False
     while True:
         handles, mapping = [], {}
@@ -633,9 +658,9 @@ def claim_logins(actors, logins, sleep=time.sleep):
             for login in order:
                 if login in mapping.values():
                     continue
-                handle = try_lock(ACTOR_LOCK % login)
-                if handle:
-                    handles.append(handle)
+                held = try_actor_lock(slot, lane, login)
+                if held:
+                    handles.extend(held)
                     mapping[actor] = login
                     break
         if len(mapping) == len(actors):
@@ -717,18 +742,55 @@ def slot_nats(slot):
         sh(["docker", "rm", "-f", name], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
-def apply_event_streams(log, nats_url=None):
-    """Brings the local JetStream streams up to the subjects this checkout declares, so a new event subject
-    on staging cannot stop the backend at boot (bus.VerifyStreams). Idempotent, local dev only."""
+def slot_database_name(slot):
+    return "monaco_qa_slot%d" % slot
+
+
+def slot_database_url(url, slot):
+    """`url` with its database swapped for the slot's own; the host, role and query stay."""
+    parts = urllib.parse.urlsplit(url)
+    return urllib.parse.urlunsplit(parts._replace(path="/" + slot_database_name(slot)))
+
+
+def ensure_slot_database(url, slot, out):
+    """Creates the slot's database on the server `url` names, when it is missing. The role in `url` owns it, as it
+    owns the dev database. The database lives across runs: migrations only add, so nothing drops it."""
+    name = slot_database_name(slot)
+    psql = "apps/mobile/qa/journeys/psql.sh"
+    admin = urllib.parse.urlunsplit(urllib.parse.urlsplit(url)._replace(path="/postgres"))
+    env = dict(backend_environment(), DATABASE_URL=admin)
+    found = sh([psql, "-tAc", "SELECT 1 FROM pg_database WHERE datname = '%s'" % name], env=env,
+               stdout=subprocess.PIPE, stderr=out)
+    if found.returncode != 0:
+        raise JourneyError("could not look for database %s" % name)
+    if found.stdout.strip() != "1" and sh([psql, "-c", 'CREATE DATABASE "%s"' % name], env=env, stdout=out,
+                                          stderr=subprocess.STDOUT).returncode != 0:
+        raise JourneyError("could not create database %s" % name)
+
+
+def apply_event_streams(log, nats_url=None, dev_database_url=None, slot=0):
+    """Brings the slot's database and the local JetStream streams up to this checkout, so a new migration or event
+    subject on staging cannot stop the backend at boot (db_schema_behind, bus.VerifyStreams). Idempotent, local dev
+    only. With `dev_database_url` the slot's own database is created when missing and migrated; with-dotenv-local.sh
+    keeps a DATABASE_URL already in the environment over the one in .env.local, so the override reaches
+    migrate apply and bus apply."""
     env = backend_environment()
     if nats_url:
         env["NATS_URL"] = nats_url
+    if dev_database_url:
+        env["DATABASE_URL"] = slot_database_url(dev_database_url, slot)
     with open(str(log), "w") as out:
-        for step in (["just", "build", "backend"],
-                     ["docker", "compose", "up", "-d", "--wait", "postgres"],
-                     ["scripts/with-dotenv-local.sh", "bin/monacoctl", "bus", "apply"]):
+        for step in (["just", "build", "backend"], ["docker", "compose", "up", "-d", "--wait", "postgres"]):
             if sh(step, env=env, stdout=out, stderr=subprocess.STDOUT).returncode != 0:
                 raise JourneyError("%s failed, see %s" % (" ".join(step[:3]), log))
+        if dev_database_url:
+            ensure_slot_database(dev_database_url, slot, out)
+        steps = [["scripts/with-dotenv-local.sh", "bin/monacoctl", "bus", "apply"]]
+        if dev_database_url:
+            steps.insert(0, ["scripts/with-dotenv-local.sh", "bin/monacoctl", "migrate", "apply"])
+        for step in steps:
+            if sh(step, env=env, stdout=out, stderr=subprocess.STDOUT).returncode != 0:
+                raise JourneyError("%s failed, see %s" % (" ".join(step[:4]), log))
 
 
 def start_backend(base_url, timeout=300, trade_engine="stub", slot=0):
@@ -736,9 +798,12 @@ def start_backend(base_url, timeout=300, trade_engine="stub", slot=0):
     OUT.mkdir(parents=True, exist_ok=True)
     print("starting the backend (log: %s)" % os.path.relpath(str(log), str(ROOT)))
     nats_url = slot_nats_url(slot)
-    apply_event_streams(log, nats_url)
+    dev_database_url = os.environ.get("DATABASE_URL")
+    apply_event_streams(log, nats_url, dev_database_url, slot)
     env = backend_environment()
     env["NATS_URL"] = nats_url
+    if dev_database_url:
+        env["DATABASE_URL"] = slot_database_url(dev_database_url, slot)
     api_port, worker_port = SLOT_PORTS[slot]
     env["MONACO_HTTP_ADDR"] = ":%d" % api_port
     env["MONACO_WORKER_HEALTH_ADDR"] = ":%d" % worker_port
@@ -887,6 +952,26 @@ def fake_rpc_environment(slot, trade=False):
 
 
 @contextlib.contextmanager
+def slot_database_environment(slot):
+    """Points DATABASE_URL at the slot's own database for the run, so the backend, the setup and truth scripts, prune
+    and the psql helper all read it from the environment. The dev database URL comes from the exported one, else from
+    .env.local; with neither the run goes on with the environment as it is."""
+    dev_url = os.environ.get("DATABASE_URL") or with_dotenv(["printenv", "DATABASE_URL"])
+    if not dev_url:
+        yield
+        return
+    saved = os.environ.get("DATABASE_URL")
+    os.environ["DATABASE_URL"] = slot_database_url(dev_url, slot)
+    try:
+        yield os.environ["DATABASE_URL"]
+    finally:
+        if saved is None:
+            os.environ.pop("DATABASE_URL", None)
+        else:
+            os.environ["DATABASE_URL"] = saved
+
+
+@contextlib.contextmanager
 def journey_backend(forced_slot=None, fake_rpc=False, fake_trade=False):
     """The api a run talks to. MONACO_API_BASE_URL names one that is already up; otherwise the run
     takes a slot's lock, refuses ports another process holds, and starts and stops its own backend. That backend
@@ -900,7 +985,8 @@ def journey_backend(forced_slot=None, fake_rpc=False, fake_trade=False):
         print("journey slot %d: api :%d, worker :%d" % ((slot,) + SLOT_PORTS[slot]), flush=True)
         refuse_busy_ports(listeners(SLOT_PORTS[slot]), SLOT_PORTS[slot])
         base_url = slot_base_url(slot)
-        with fake_rpc_environment(slot, fake_trade) if fake_rpc else contextlib.nullcontext(), slot_nats(slot):
+        with fake_rpc_environment(slot, fake_trade) if fake_rpc else contextlib.nullcontext(), slot_nats(slot), \
+                slot_database_environment(slot):
             with phase("backend_s"):
                 process = start_backend(base_url, slot=slot)
             try:
@@ -2679,7 +2765,7 @@ def cmd_dev(args):
     try:
         with simulator_shutdown(args.keep_sims), journey_backend(
             args.slot, backend_fake_rpc(args), backend_fake_trade(args)) as api_base_url:
-            with actor_logins(journey, load_accounts()) as accounts:
+            with actor_logins(journey, load_accounts(), api_base_url) as accounts:
                 return dev_loop(args, api_base_url, journeys, journey, scenarios, accounts)
     except KeyboardInterrupt:
         return 0
@@ -2847,14 +2933,14 @@ def run_journey(args, api_base_url, journey_id, builder):
     unknown = [s for s in scenarios if s not in journey.scenarios]
     if unknown:
         raise JourneyError("%s has no scenario %s" % (journey.id, ", ".join(unknown)))
-    with actor_logins(journey, load_accounts()) as accounts:
+    with actor_logins(journey, load_accounts(), api_base_url) as accounts:
         return run_journey_as(args, api_base_url, journeys, journey, scenarios, accounts, builder)
 
 
 @contextlib.contextmanager
-def actor_logins(journey, accounts):
+def actor_logins(journey, accounts, api_base_url=""):
     """The accounts a run uses: each journey actor on a login it holds the lock of until the run ends."""
-    mapping, handles = claim_logins(journey.actors, list(accounts))
+    mapping, handles = claim_logins(journey.actors, list(accounts), slot=slot_of(api_base_url))
     try:
         if any(actor != login for actor, login in mapping.items()):
             print("logins: %s" % ", ".join("%s on %s" % pair for pair in mapping.items()))
@@ -2999,7 +3085,7 @@ def run_mutants(args):
             raise JourneyError("%s has no seeded bugs under %s.mutants/" % (journey.id, journey.id))
         if sh(["git", "diff", "--quiet", "--", "apps/mobile/Monaco", "packages/mobile-core"]).returncode != 0:
             raise JourneyError("the app sources have uncommitted changes: commit or set them aside before seeding bugs")
-        accounts = locks.enter_context(actor_logins(journey, load_accounts()))
+        accounts = locks.enter_context(actor_logins(journey, load_accounts(), api_base_url))
         funding_refund(journey, accounts)
         logins = held_logins(journey, accounts)
         use_derived_data(logins)
