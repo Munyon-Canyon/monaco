@@ -2774,8 +2774,8 @@ def run_journey_as(args, api_base_url, journeys, journey, scenarios, accounts, b
 
 
 def cmd_mutants(args):
-    with simulator_shutdown(args.keep_sims), journey_backend(args.slot) as api_base_url:
-        return run_mutants(args, api_base_url)
+    with simulator_shutdown(args.keep_sims):
+        return run_mutants(args)
 
 
 MUTANTS_MIN_FREE = 20 * 10 ** 9
@@ -2861,7 +2861,9 @@ def cmd_build_mutants(argv):
     return code
 
 
-def run_mutants(args, api_base_url):
+def run_mutants(args):
+    """Builds every patched app first, holding no backend slot; each patch's pass then takes a slot of its own
+    and releases it before the next, so a waiting single-pass run can take it in between."""
     global DERIVED
     journeys = load_journeys()
     journey = pick(journeys, args.journey)
@@ -2881,13 +2883,9 @@ def run_mutants(args, api_base_url):
             raise JourneyError("the app sources have uncommitted changes: commit or set them aside before seeding bugs")
         accounts = locks.enter_context(actor_logins(journey, load_accounts()))
         funding_refund(journey, accounts)
-        problems = check_preconditions(journey, accounts, api_base_url, channel=args.channel)
-        if problems:
-            return setup_needed(journey, problems)
         logins = held_logins(journey, accounts)
         use_derived_data(logins)
         sim = resolve_simulator(args.sim, logins, journey.simslim)
-        check_simulator_api_environment(sim, api_base_url)
         caught = 0
         plan = []
         for patch in patches:
@@ -2908,13 +2906,18 @@ def run_mutants(args, api_base_url):
             kept = mutants_runs(mutants) / patch.stem
             clean_derived = DERIVED
             try:
-                reset_journey_simulator(sim, bool(args.sim), False)
-                DERIVED = kept
-                add_phase("build_s", built["build_s"].get(patch.stem, 0.0))
-                run_name = "%s-%s-%s" % (stamp(), journey.id.replace("/", "-"), patch.stem)
-                rows, _ = run_once(journey, journeys, args, sim, accounts, build_label(patch.stem), run_name,
-                                   scenarios_through(journey.scenarios, expected_fail), api_base_url,
-                                   expected=dict({s: "FAIL" for s in expected_fail}, **{"*": "FAIL"}))
+                with journey_backend(args.slot) as api_base_url:
+                    problems = check_preconditions(journey, accounts, api_base_url, channel=args.channel)
+                    if problems:
+                        return setup_needed(journey, problems)
+                    check_simulator_api_environment(sim, api_base_url)
+                    reset_journey_simulator(sim, bool(args.sim), False)
+                    DERIVED = kept
+                    add_phase("build_s", built["build_s"].get(patch.stem, 0.0))
+                    run_name = "%s-%s-%s" % (stamp(), journey.id.replace("/", "-"), patch.stem)
+                    rows, _ = run_once(journey, journeys, args, sim, accounts, build_label(patch.stem), run_name,
+                                       scenarios_through(journey.scenarios, expected_fail), api_base_url,
+                                       expected=dict({s: "FAIL" for s in expected_fail}, **{"*": "FAIL"}))
             finally:
                 DERIVED = clean_derived
                 shutil.rmtree(str(kept), ignore_errors=True)
