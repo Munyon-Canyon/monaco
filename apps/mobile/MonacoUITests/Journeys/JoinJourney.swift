@@ -3,7 +3,7 @@ import XCTest
 
 enum JoinJourney {
     static let id = "cabals/join"
-    static let version = 14
+    static let version = 15
 
     static let screenTimeout: TimeInterval = 15
 
@@ -256,20 +256,16 @@ extension JoinJourney {
     static func creatorOpensTheCabal(_ app: XCUIApplication, run: String, recorder: JourneyRecorder) {
         let name = openCabal(run: run)
 
-        recorder.step("S2.1", "propose Who can join · Open and vote Yes") {
+        recorder.step("S2.1", "open the open cabal") {
             app.openCabal(named: name)
-            app.openCabalTab("rules")
-            CabalsEditRulesJourney.assertRule(app, "join", reads: "Approval required", step: "S2.1")
-            app.element("cabal-rules-join").tap()
-            let open = app.buttons["Open"].firstMatch
-            XCTAssertTrue(open.waitForExistence(timeout: 10), "S2.1: the join proposal has no Open choice within 10 s")
-            open.tap()
-            let propose = app.buttons["cabal-rule-proposal-propose"]
-            XCTAssertTrue(propose.waitForExistence(timeout: 5), "S2.1: no Propose button on the proposal")
-            propose.tap()
-            app.pickAndHold("yes")
-            app.openCabalTab("rules")
-            CabalsEditRulesJourney.assertRule(app, "join", reads: "Open", step: "S2.1")
+            XCTAssertTrue(
+                waitForLabel(app.element("cabal-header-name"), containing: name, timeout: screenTimeout),
+                "S2.1: the cabal screen for \(name) did not show within \(Int(screenTimeout)) s"
+            )
+            XCTAssertTrue(
+                waitForLabel(app.element("cabal-member-count"), containing: "1 member", timeout: screenTimeout),
+                "S2.1: the hero does not read 1 member: \(app.element("cabal-member-count").label)"
+            )
         }
     }
 

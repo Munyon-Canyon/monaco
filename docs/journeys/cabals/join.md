@@ -1,7 +1,7 @@
 ---
 id: cabals/join
 title: Join a cabal
-version: 14
+version: 15
 milestone: M10
 requires: [auth/sign-in]
 actors: [A, B]
@@ -25,7 +25,7 @@ Every step that says "open the cabal" uses `openCabal(named:)`. Only S1.4 uses p
 | --- | --- |
 | P1 | Actors A and B have each signed in once (`auth/sign-in`), and their `privy_user_id` is in `apps/mobile/qa/journeys/accounts.tsv` |
 | P2 | The dev database is migrated (`just migrate db`). `scripts/qa/journey.py run` starts the backend with `just run backend`, which also builds `bin/monacoctl` |
-| P3 | `apps/mobile/qa/journeys/cabals/join.setup.sh` ran right before the scenario. `scripts/qa/journey.py run` runs it. It marks A and B as done with onboarding and sets their display names to the `name` column of `accounts.tsv` (B is "Bartholomez"). It closes every pending join request A or B sent and every one waiting on a cabal A created. Then A creates the request cabal `QA pot {QA.run}`. The setup for S2 creates the approval cabal `QA open {QA.run}`, and the setup for S3 creates the approval cabal `QA gate {QA.run}` |
+| P3 | `apps/mobile/qa/journeys/cabals/join.setup.sh` ran right before the scenario. `scripts/qa/journey.py run` runs it. It marks A and B as done with onboarding and sets their display names to the `name` column of `accounts.tsv` (B is "Bartholomez"). It closes every pending join request A or B sent and every one waiting on a cabal A created. Then A creates the request cabal `QA pot {QA.run}`. The setup for S2 creates the open cabal `QA open {QA.run}`, and the setup for S3 creates the approval cabal `QA gate {QA.run}` |
 
 The setup creates both cabals through the API, so this journey does not depend on `cabals/create-cabal`.
 
@@ -49,7 +49,7 @@ The setup creates both cabals through the API, so this journey does not depend o
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S2.1 | A | open, tap, propose, then vote | the cabal `QA open {QA.run}`, the Rules tab, the `cabal-rules-join` row, "Open" and `cabal-rule-proposal-propose`, then `pickAndHold("yes")` | Open | A, the only voter, holds Yes. The Rules tab then reads "Open" on `cabal-rules-join` (rules change by proposal, Q4) |
+| S2.1 | A | open | the cabal `QA open {QA.run}` through `openCabal(named:)` | | `cabal-header-name` reads `QA open {QA.run}` and `cabal-member-count` reads "1 member" within 15 s |
 | S2.2 | B | open | the cabal `QA open {QA.run}` through `openCabal(named:)` | | `cabal-join-policy` reads "Open: anyone can join." and `cabal-join-button` reads "Join" |
 | S2.3 | B | tap | `cabal-join-button` | | The toast "You're in." shows, no request is sent, and `cabal-action-fund` shows within 15 s. There is no `cabal-join-button` |
 
@@ -70,7 +70,6 @@ After S1, B is a member of both seeded cabals, and B's request to `QA pot {QA.ru
 
 ## Known failures on staging
 
-- S2.1: the Rules tab's `cabal-rules-join` row is read-only and `CabalRuleProposalModel` has no join-policy change yet, so the step cannot propose "Who can join · Open". Owning tickets: #6498 and #6510.
 
 The ticket names the request row `members-request-<id>`. The app builds `cabal-join-request-row`, `cabal-join-approve` and `cabal-join-deny` (Decline sits in the row's long-press menu), and the journey follows the app. The request rows list in Members · all (`cabal-members-see-all`).
 - S1.4: "No cabal called" is no longer app copy. Blocked by #6198.
@@ -78,6 +77,7 @@ The ticket names the request row `members-request-<id>`. The app builds `cabal-j
 
 ## Not covered
 
+- Changing who can join by proposal. The v5 Rules tab has no join row and the app has no join_mode rule change yet, so the S2 setup creates `QA open {QA.run}` as an open cabal through the API.
 - A seeing B's request arrive on a screen already open, and B's screen turning into a member's without a relaunch. The test signs each actor in again when the actor changes, so S1.7 and S1.9 load the cabal fresh. `CabalAccessModelTests` covers the hint that refreshes an open screen.
 - Cancel request. `CabalAccessModelTests` covers it on the host.
 - The policy changing between a screen load and a tap. `CabalEntryTests` covers both fallbacks on the host.
