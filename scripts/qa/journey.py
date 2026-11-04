@@ -1144,13 +1144,63 @@ def stamp_file():
 
 
 def build_is_current(current):
-    """The last build is of these sources and its test bundle is still there."""
+    """The last build is of these sources, its test bundle is still there, and the app is signed. Stage 0 builds
+    the same folder unsigned, and an unsigned app drops the Privy session (docs/how-to/local-simulator.md)."""
     path = stamp_file()
     return (path.exists() and path.read_text().strip() == current
-            and any((DERIVED / "Build" / "Products").glob("*.xctestrun")))
+            and any((DERIVED / "Build" / "Products").glob("*.xctestrun")) and app_is_signed())
+
+
+def app_is_signed():
+    app = DERIVED / "Build" / "Products" / "Debug-iphonesimulator" / "Monaco.app"
+    return sh(["codesign", "-v", str(app)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0
 
 
 SHARED_BUILD = "derived-build"
+
+
+def shared_build_folder():
+    """The worktree's .build/DerivedData, where stage 0's xcode row builds the same scheme: a journey build after
+    it only signs and packages (15 s against 40 s cold on 2026-11-04), and xcode-lock.sh serializes the two."""
+    return ROOT / ".build" / "DerivedData"
+
+
+@contextlib.contextmanager
+def holding_derived_folder(folder, sleep=time.sleep):
+    """Holds xcode-lock.sh's lock on `folder` (the directory <folder>.lock with its pid), so no xcodebuild writes
+    the products while a run clones them. A lock whose pid is gone is taken over, as xcode-lock.sh does."""
+    lock = Path(str(folder) + ".lock")
+    lock.parent.mkdir(parents=True, exist_ok=True)
+    announced = False
+    while True:
+        try:
+            lock.mkdir()
+            break
+        except FileExistsError:
+            owner = (lock / "pid").read_text().strip() if (lock / "pid").exists() else ""
+            if owner.isdigit() and not pid_alive(int(owner)):
+                shutil.rmtree(str(lock), ignore_errors=True)
+                continue
+            if not announced:
+                print("waiting for %s: an xcodebuild holds it" % folder, flush=True)
+                announced = True
+            sleep(LOCK_POLL_SECONDS)
+    try:
+        (lock / "pid").write_text("%d\n" % os.getpid())
+        (lock / "cwd").write_text(str(ROOT) + "\n")
+        yield
+    finally:
+        shutil.rmtree(str(lock), ignore_errors=True)
+
+
+def pid_alive(pid):
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
 
 
 def shared_build_lock():
@@ -1192,7 +1242,7 @@ def ensure_build(sim, log, rebuild=False):
     shared folder together. Returns True when it built."""
     current = build_stamp()
     run_folder = DERIVED
-    shared = OUT / SHARED_BUILD
+    shared = shared_build_folder()
     OUT.mkdir(parents=True, exist_ok=True)
     built = False
     with take_qa_lock(str(shared_build_lock())):
@@ -1205,7 +1255,8 @@ def ensure_build(sim, log, rebuild=False):
                 build(sim, log, current)
                 built = True
         if built or not build_is_current(current):
-            clone_products(shared, current)
+            with holding_derived_folder(shared):
+                clone_products(shared, current)
     return built
 
 

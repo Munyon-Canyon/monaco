@@ -2509,6 +2509,14 @@ class MutantRunSetup(unittest.TestCase):
         self.assertTrue(journey.mutant_caught(started))
 
 
+@contextlib.contextmanager
+def _patched(*patches):
+    with contextlib.ExitStack() as stack:
+        for patch in patches:
+            stack.enter_context(patch)
+        yield
+
+
 class Stamp(Output):
     def setUp(self):
         super().setUp()
@@ -2531,12 +2539,16 @@ class Stamp(Output):
         self.write("apps/mobile/New.swift", "let b = 2\n")
         self.assertNotEqual(journey.build_stamp(), added)
 
-    def fake_build(self, built):
+    def fake_build(self, built, signed=True):
         def build(sim, log, current=None):
             built.append((journey.DERIVED.name, current))
-            self.write("out/%s/Build/Products/Monaco.xctestrun" % journey.DERIVED.name, "")
-            self.write("out/%s/build.stamp" % journey.DERIVED.name, current + "\n")
-        return unittest.mock.patch.object(journey, "build", build)
+            products = journey.DERIVED / "Build" / "Products"
+            products.mkdir(parents=True, exist_ok=True)
+            (products / "Monaco.xctestrun").write_text("")
+            journey.stamp_file().write_text(current + "\n")
+        return _patched(
+            unittest.mock.patch.object(journey, "build", build),
+            unittest.mock.patch.object(journey, "app_is_signed", lambda: signed))
 
     def test_a_matching_stamp_and_test_bundle_skip_the_build(self):
         built = []
@@ -2544,8 +2556,34 @@ class Stamp(Output):
             journey.ensure_build("sim", journey.OUT / "build.log")
             journey.ensure_build("sim", journey.OUT / "build.log")
             journey.ensure_build("sim", journey.OUT / "build.log", rebuild=True)
-        self.assertEqual([name for name, _ in built], ["derived-build", "derived-build"])
+        self.assertEqual([name for name, _ in built], ["DerivedData", "DerivedData"])
         self.assertIn("reusing build %s" % journey.build_stamp()[:8], printed.getvalue())
+
+    def test_the_journey_builds_into_the_folder_stage_0_builds(self):
+        self.assertEqual(journey.shared_build_folder(), journey.ROOT / ".build" / "DerivedData")
+
+    def test_an_unsigned_build_of_the_same_sources_is_built_again(self):
+        built = []
+        with self.fake_build(built, signed=False), redirect_stdout(StringIO()):
+            journey.ensure_build("sim", journey.OUT / "build.log")
+            journey.ensure_build("sim", journey.OUT / "build.log")
+        self.assertEqual(len(built), 2)
+
+    def test_the_clone_waits_for_an_xcodebuild_that_holds_the_folder_and_takes_a_dead_ones_lock(self):
+        folder = journey.ROOT / ".build" / "DerivedData"
+        lock = Path(str(folder) + ".lock")
+        lock.mkdir(parents=True)
+        (lock / "pid").write_text("%d\n" % os.getpid())
+        waits = []
+
+        def sleep(seconds):
+            waits.append(seconds)
+            (lock / "pid").write_text("999999\n")
+
+        with redirect_stdout(StringIO()), journey.holding_derived_folder(folder, sleep=sleep):
+            self.assertEqual((lock / "pid").read_text().strip(), str(os.getpid()))
+        self.assertEqual(waits, [journey.LOCK_POLL_SECONDS])
+        self.assertFalse(lock.exists())
 
     def test_two_login_sets_on_one_stamp_build_once_and_each_gets_its_own_clone(self):
         built = []
