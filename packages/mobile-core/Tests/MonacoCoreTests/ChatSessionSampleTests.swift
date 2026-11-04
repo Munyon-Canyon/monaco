@@ -39,6 +39,17 @@ final class ChatSessionSampleTests: XCTestCase {
         XCTAssertEqual(row.message.reactions.first?.emoji, "🔥")
     }
 
+    func testTheMomentsThreadOpensWithTheCabalsOwnVoiceAndAFill() async throws {
+        let session = session(ChatSampleScenario(moments: true))
+        await session.open()
+
+        let opened = await state(session)
+        let moments = opened.timeline.rows.compactMap(\.moment)
+        XCTAssertEqual(moments.count, 3)
+        XCTAssertEqual(moments.compactMap(\.symbol), ["NVDAx"])
+        XCTAssertEqual(opened.timeline.rows.first { $0.id == "mo3" }?.message.reactions.first?.emoji, "🔥")
+    }
+
     func testAnEmptyCabalOpensLoadedWithNoRows() async {
         let session = session(ChatSampleScenario(startEmpty: true))
         await session.open()

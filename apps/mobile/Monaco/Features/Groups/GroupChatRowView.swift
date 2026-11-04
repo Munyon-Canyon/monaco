@@ -31,6 +31,9 @@ struct GroupChatRowView: View {
     var openSeen: (() -> Void)?
     var reactions: ReactionsModel?
     var cabalID = ""
+    var momentPrice: Int64?
+    var followsEventLine = false
+    var openMoment: ((ChatMoment) -> Void)?
 
     @Environment(ToastCenter.self) private var toasts
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -58,7 +61,12 @@ struct GroupChatRowView: View {
                 ChatDayLabel(label: label)
                     .accessibilityIdentifier("chat-day-\(row.id)")
             }
-            if let proposalID = message.proposalId, let proposals {
+            if let moment = row.moment {
+                momentRow(moment)
+                    .padding(
+                        .top,
+                        row.startsDay ? 0 : ChatMomentRow.topGap(previousIsEventLine: followsEventLine))
+            } else if let proposalID = message.proposalId, let proposals {
                 ChatProposalCard(
                     message: message, proposalID: proposalID, store: proposals, members: members,
                     cabalName: cabalName, now: now, openProposal: { openProposal?(proposalID) },
@@ -139,7 +147,9 @@ struct GroupChatRowView: View {
     }
 
     @ViewBuilder private var bubble: some View {
-        if ChatAttachmentRow.showsAttachment(row) {
+        if let moment = row.moment {
+            momentContent(moment)
+        } else if ChatAttachmentRow.showsAttachment(row) {
             attachmentBubble
         } else {
             textBubble
@@ -278,7 +288,7 @@ extension GroupChatRowView {
     private var rootID: String { message.parentId ?? message.id }
 
     private var canOpenMenu: Bool {
-        (openThread != nil || replyHere != nil) && !message.deleted && row.delivery == .sent
+        row.moment == nil && (openThread != nil || replyHere != nil) && !message.deleted && row.delivery == .sent
     }
 
     @ViewBuilder private var threadHeader: some View {
@@ -353,17 +363,24 @@ extension GroupChatRowView {
 
     private var opensActions: Bool { canReact || canOpenMenu }
 
-    private func reactable(_ content: some View) -> some View {
+    private func reactable(_ content: some View, badgeBelow: Bool = false) -> some View {
         content
             .onGeometryChange(
                 for: CGRect.self,
                 of: { $0.frame(in: .global) },
                 action: { actionsFrame = $0 }
             )
-            .overlay(alignment: row.isMine ? .topLeading : .topTrailing) {
-                if hasBadge { badge }
+            .overlay(alignment: badgeBelow ? .bottomTrailing : (row.isMine ? .topLeading : .topTrailing)) {
+                if hasBadge { badge(below: badgeBelow) }
             }
-            .padding(.top, hasBadge ? max(badgeHeight - ChatTapbackMetrics.overlap, ChatTapbackMetrics.topSpace) : 0)
+            .padding(
+                .top,
+                hasBadge && !badgeBelow ? max(badgeHeight - ChatTapbackMetrics.overlap, ChatTapbackMetrics.topSpace) : 0
+            )
+            .padding(
+                .bottom,
+                hasBadge && badgeBelow ? max(badgeHeight - ChatTapbackMetrics.overlap, ChatMomentMetrics.badgeSpace) : 0
+            )
             .onLongPressGesture(minimumDuration: 0.4) {
                 if opensActions { presentActions() }
             }
@@ -379,7 +396,7 @@ extension GroupChatRowView {
             .sheet(isPresented: $listingReactions) { reactionList }
     }
 
-    private var badge: some View {
+    private func badge(below: Bool) -> some View {
         ChatTapbackBadge(
             messageID: message.id, reactions: liveReactions,
             onTap: {
@@ -393,8 +410,8 @@ extension GroupChatRowView {
         )
         .onGeometryChange(for: CGFloat.self, of: { $0.size.height }, action: { badgeHeight = $0 })
         .offset(
-            x: row.isMine ? -ChatTapbackMetrics.out : ChatTapbackMetrics.out,
-            y: ChatTapbackMetrics.overlap - badgeHeight)
+            x: below ? ChatTapbackMetrics.out : (row.isMine ? -ChatTapbackMetrics.out : ChatTapbackMetrics.out),
+            y: below ? badgeHeight - ChatTapbackMetrics.overlap : ChatTapbackMetrics.overlap - badgeHeight)
     }
 
     private var reactionList: some View {
@@ -470,13 +487,42 @@ extension GroupChatRowView {
 
     private var actionsOverlay: some View {
         ChatMessageActionsOverlay(
-            messageID: message.id, target: target, frame: actionsFrame, isMine: row.isMine,
+            messageID: message.id, target: target, frame: actionsFrame, isMine: row.isMine && row.moment == nil,
             actions: actionItems,
             onPick: { emoji in afterDismiss = { react(emoji) } },
             onOpenPicker: { afterDismiss = { pickingEmoji = true } },
             onDismiss: { dismissActions() },
             bubble: { bubble }
         )
+    }
+}
+
+extension GroupChatRowView {
+    private func momentLines(_ moment: ChatMoment) -> ChatMoment.Lines {
+        moment.lines(
+            cabalName: cabalName, currentPriceMicros: momentPrice, now: now,
+            calendar: .current, locale: .current)
+    }
+
+    private func momentContent(_ moment: ChatMoment) -> some View {
+        let lines = momentLines(moment)
+        return ChatMomentRow(
+            moment: moment, lines: lines,
+            spokenLabel: ChatMomentRow.spokenLabel(for: moment, lines: lines, now: now),
+            identifier: ChatMomentRow.identifier(rowID: row.id),
+            open: ChatMomentRow.destination(of: moment) == nil ? nil : { openMoment?(moment) })
+    }
+
+    private func momentRow(_ moment: ChatMoment) -> some View {
+        HStack(spacing: 0) {
+            Spacer(minLength: 0)
+            reactable(momentContent(moment), badgeBelow: true)
+            Spacer(minLength: 0)
+        }
+        .containerRelativeFrame(.horizontal) { length, _ in
+            max((length - MonacoTheme.Space.gutter * 2) * ChatMomentMetrics.widthFraction, 0)
+        }
+        .frame(maxWidth: .infinity)
     }
 }
 
