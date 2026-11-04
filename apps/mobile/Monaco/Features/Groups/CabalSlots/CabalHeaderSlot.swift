@@ -59,14 +59,14 @@ private struct CabalHeader: View {
         case .idle, .loading:
             VStack(alignment: .leading, spacing: MonacoTheme.Space.sm) {
                 SkeletonBlock(height: CabalHeroMetrics.tallSkeletonHeight, radius: MonacoTheme.Radius.identity)
-                HStack(spacing: MonacoTheme.Space.sm) {
-                    SkeletonBlock(
-                        width: CabalMark.Size.row.rawValue, height: CabalMark.Size.row.rawValue,
-                        radius: MonacoTheme.Radius.tile)
-                    VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
+                VStack(alignment: .leading, spacing: MonacoTheme.Space.sm) {
+                    HStack(spacing: MonacoTheme.Space.sm) {
+                        SkeletonBlock(
+                            width: CabalMark.Size.row.rawValue, height: CabalMark.Size.row.rawValue,
+                            radius: MonacoTheme.Radius.tile)
                         Text(" ").font(MonacoTheme.Typo.title2).skeletonBar(width: 220)
-                        Text(" ").font(MonacoTheme.Typo.caption).skeletonBar(width: 160)
                     }
+                    Text(" ").font(MonacoTheme.Typo.subhead).skeletonBar(width: 160)
                 }
             }
             .accessibilityElement()
