@@ -964,10 +964,12 @@ def use_derived_data(logins):
 
 def simslim_ensure(mode, udid, profile=""):
     """Slims a dedicated simulator when it is created, or repairs it once before a run. Raises when SimSlim is missing.
-    A profile name selects ci/profiles/<name>.json; none leaves the script's base-slim default."""
+    A profile name selects ci/profiles/<name>.json; none leaves the script's base-slim default. `simslim on` boots
+    the simulator for a moment, so this holds its machine-wide `sim` slot first; boot_simulator keeps that slot."""
     env = None
     if profile:
         env = dict(os.environ, SIMSLIM_PROFILE=str(ROOT / "ci" / "profiles" / ("%s.json" % profile)))
+    take_sim_slot(udid)
     sh([str(ROOT / "scripts" / "simslim-ensure.sh"), mode, udid], check=True, env=env)
 
 

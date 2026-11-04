@@ -1385,6 +1385,13 @@ class Simulators(Tree):
         self.assertEqual(envs[0]["SIMSLIM_PROFILE"], str(journey.ROOT / "ci" / "profiles" / "photos.json"))
         self.assertTrue(envs[0]["SIMSLIM_PROFILE"].endswith("ci/profiles/photos.json"))
 
+    def test_simslim_takes_the_sim_slot_before_it_boots_the_simulator(self):
+        order = []
+        with unittest.mock.patch.object(journey, "take_sim_slot", lambda udid: order.append(("slot", udid))), \
+                unittest.mock.patch.object(journey, "sh", lambda args, **kw: order.append(("sh", os.path.basename(args[0])))):
+            journey.simslim_ensure("create", "U1")
+        self.assertEqual(order, [("slot", "U1"), ("sh", "simslim-ensure.sh")])
+
     def test_a_journey_without_a_profile_leaves_the_environment_alone(self):
         self.assertEqual(self.ensure_envs(), [None])
 
