@@ -49,6 +49,16 @@ private struct ChatSampleHost: View {
         _network = State(initialValue: NetworkPathModel(forcedOffline: offline))
     }
 
+    private static let stockSearch: StockSearch = { _ in
+        [
+            Components.Schemas.AssetSummary(
+                id: "01890a5d-ac96-774b-bcce-b302099a8070",
+                symbol: "AAPLx", displayName: "Apple", issuer: .xstocks, kind: .equity, logoUrl: nil,
+                priceMicros: 180_000_000, priceAsOf: Date(timeIntervalSince1970: 0), changeBps: -80,
+                sparklineMicros: [181_000_000, 180_000_000], quotable: true, session: .open, tradable: true)
+        ]
+    }
+
     var body: some View {
         GroupChatScreen(
             cabalID: ChatSession.sampleCabalID,
@@ -56,10 +66,12 @@ private struct ChatSampleHost: View {
             cabal: .sample(role: "member"),
             proposals: proposals,
             network: network,
+            gifs: SampleGifProvider(),
             openProfile: { openedProfile = $0 },
             openThread: { _ in },
             reactionsOverride: reactions
         )
+        .environment(\.stockSearch, Self.stockSearch)
         .task {
             guard sendsOnLaunch, !sent else { return }
             sent = true

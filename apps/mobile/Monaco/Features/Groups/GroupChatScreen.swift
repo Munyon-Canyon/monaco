@@ -11,6 +11,7 @@ struct GroupChatScreen: View {
     var viewerID = ""
     var proposals: ChatProposalStore?
     var network: NetworkPathModel?
+    var gifs: (any GifProvider)?
     let openProfile: (String) -> Void
     let openThread: (String) -> Void
     var openProposal: (String) -> Void = { _ in }
@@ -23,6 +24,9 @@ struct GroupChatScreen: View {
     @State private var chat: ChatSession.State?
     @Environment(ToastCenter.self) private var toasts
     @State private var messageToDelete: String?
+    @State private var thesis: ChatThesisSource?
+    @Environment(AppEnvironment.self) private var appEnvironment: AppEnvironment?
+    @Environment(\.stockSearch) private var stockSearch
     @FocusState private var composerFocused: Bool
     @Environment(\.scenePhase) private var scenePhase
 
@@ -49,6 +53,7 @@ struct GroupChatScreen: View {
         .task { network?.start() }
         .task(id: sessionID) { await observe() }
         .task(id: sessionID) { await session?.open() }
+        .task(id: cabalID) { await loadThesis() }
         .task(id: reporterID) { await reporter?.setScreenVisible(true) }
         .onAppear { Task { await reporter?.setScreenVisible(true) } }
         .sheet(item: $seenTarget) { target in
@@ -126,11 +131,30 @@ struct GroupChatScreen: View {
             GroupChatClosedNotice()
         case .composer:
             ChatComposerBar(
-                focus: $composerFocused, members: cabal?.members ?? [], viewerID: viewerID
+                focus: $composerFocused, members: cabal?.members ?? [], viewerID: viewerID,
+                attachments: attachments
             ) { body in
                 Task { await session?.send(body: body) }
             }
         }
+    }
+
+    private var attachments: ChatComposerAttachments? {
+        guard let provider = gifs ?? appEnvironment?.gifs else { return nil }
+        return ChatComposerAttachments(
+            gifs: provider,
+            search: stockSearch ?? appEnvironment.map { LiveStockSearch.make($0.api) },
+            thesis: thesis
+        ) { body, attachment in
+            Task { await session?.send(body: body, attachment: attachment) }
+        }
+    }
+
+    private func loadThesis() async {
+        guard let appEnvironment else { return }
+        let page = try? await ProposalsRepository(api: appEnvironment.api).list(
+            cabalID: cabalID, filter: .open, cursor: nil)
+        thesis = ChatThesisSource.newest(in: page?.items ?? [])
     }
 
     private func observe() async {
