@@ -184,3 +184,10 @@ struct MonacoToastActionTests {
         #expect(MonacoToastLayout.alignment == .top)
     }
 }
+
+struct MonacoToastGlyphTests {
+    @Test func successGlyphIsWhiteAndErrorGlyphIsLoss() async throws {
+        #expect(MonacoTheme.toastSuccessGlyph == MonacoTheme.primaryText)
+        #expect(MonacoTheme.toastErrorGlyph == MonacoTheme.loss)
+    }
+}
