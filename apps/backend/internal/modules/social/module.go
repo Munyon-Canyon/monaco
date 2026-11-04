@@ -497,8 +497,8 @@ func (m *Module) Consumers() []bus.Consumer {
 	}...)
 }
 
-func (m *Module) WriteChatProposalMessage() *app.WriteChatProposalMessageHandler {
-	return app.NewWriteChatProposalMessageHandler(m.chatDeps(), m.heads)
+func (m *Module) WriteChatProposalMessage() *app.WriteChatProposalMessage {
+	return app.NewWriteChatProposalMessage(m.chatDeps(), m.heads)
 }
 
 func (m *Module) chatProposalConsumer() bus.Consumer {

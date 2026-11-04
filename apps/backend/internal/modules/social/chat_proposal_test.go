@@ -32,7 +32,7 @@ func (h stubHeads) ProposalHead(_ context.Context, id ids.ProposalID) (governanc
 	return head, nil
 }
 
-func (f chatRoutes) proposalWriter(heads stubHeads) *app.WriteChatProposalMessageHandler {
+func (f chatRoutes) proposalWriter(heads stubHeads) *app.WriteChatProposalMessage {
 	deps := module.Deps{Pool: f.pool, UoW: f.deps.UoW, IDs: f.deps.IDs, Clock: f.clock}
 	return social.New(deps, social.WithUsers(f.users), social.WithRealtime(f.rt), social.WithProposalHeads(heads)).
 		WriteChatProposalMessage()

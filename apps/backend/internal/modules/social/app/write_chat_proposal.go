@@ -24,18 +24,18 @@ type ChatProposalThesis struct {
 	Thesis  string
 }
 
-type WriteChatProposalMessageHandler struct {
+type WriteChatProposalMessage struct {
 	d     ChatDeps
 	heads governanceport.ProposalHeads
 }
 
-func NewWriteChatProposalMessageHandler(
+func NewWriteChatProposalMessage(
 	d ChatDeps, heads governanceport.ProposalHeads,
-) *WriteChatProposalMessageHandler {
-	return &WriteChatProposalMessageHandler{d: d, heads: heads}
+) *WriteChatProposalMessage {
+	return &WriteChatProposalMessage{d: d, heads: heads}
 }
 
-func (h *WriteChatProposalMessageHandler) Fetch(
+func (h *WriteChatProposalMessage) Fetch(
 	ctx context.Context, e events.ProposalCreated,
 ) (ChatProposalThesis, error) {
 	if e.Kind == ruleProposalKind {
@@ -51,7 +51,7 @@ func (h *WriteChatProposalMessageHandler) Fetch(
 	return ChatProposalThesis{Thesis: head.Thesis}, nil
 }
 
-func (h *WriteChatProposalMessageHandler) Apply(
+func (h *WriteChatProposalMessage) Apply(
 	ctx context.Context, tx db.Tx, e events.ProposalCreated, fetched ChatProposalThesis, at time.Time,
 ) error {
 	const op = "social.WriteChatProposalMessage"
@@ -79,7 +79,7 @@ func (h *WriteChatProposalMessageHandler) Apply(
 	return nil
 }
 
-func (h *WriteChatProposalMessageHandler) Handle(ctx context.Context, e events.ProposalCreated) error {
+func (h *WriteChatProposalMessage) Handle(ctx context.Context, e events.ProposalCreated) error {
 	fetched, err := h.Fetch(ctx, e)
 	if err != nil {
 		return err

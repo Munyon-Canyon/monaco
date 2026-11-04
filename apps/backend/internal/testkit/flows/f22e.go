@@ -33,7 +33,7 @@ func (h fixedHeads) ProposalHead(_ context.Context, id ids.ProposalID) (governan
 }
 
 type proposalWriter struct {
-	handler  *app.WriteChatProposalMessageHandler
+	handler  *app.WriteChatProposalMessage
 	rt       *momentRealtime
 	proposal uuid.UUID
 }
@@ -52,7 +52,7 @@ func newProposalWriter(s *scenario.Scenario, known bool) proposalWriter {
 	}
 	return proposalWriter{
 		rt: rt, proposal: proposal,
-		handler: app.NewWriteChatProposalMessageHandler(app.ChatDeps{
+		handler: app.NewWriteChatProposalMessage(app.ChatDeps{
 			UoW: db.New(s.DB(), ids.Real{}, clock.Real{}), IDs: ids.Real{}, Clock: clock.Real{},
 			Publish: app.NewChatPublisher(rt, wire),
 		}, heads),
