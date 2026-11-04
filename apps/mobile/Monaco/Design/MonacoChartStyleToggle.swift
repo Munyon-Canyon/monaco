@@ -18,12 +18,12 @@ struct MonacoChartStyleToggle: View {
                 } label: {
                     Image(systemName: option.symbol)
                         .font(MonacoTheme.Typo.subheadStrong)
-                        .foregroundStyle(isSelected ? MonacoTheme.onBrand : MonacoTheme.ink)
+                        .foregroundStyle(isSelected ? MonacoTheme.onChipOn : MonacoTheme.ink)
                         .frame(width: 44, height: 44)
                         .background {
                             if isSelected {
                                 Capsule()
-                                    .fill(MonacoTheme.brandFill)
+                                    .fill(MonacoTheme.chipOn)
                                     .padding(MonacoTheme.Space.xs)
                                     .matchedGeometryEffect(id: "thumb", in: thumb)
                             }

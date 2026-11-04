@@ -38,7 +38,7 @@ struct MonacoChipLabel: ViewModifier {
     static func colors(isSelected: Bool, isEnabled: Bool) -> (fill: Color, label: Color) {
         if !isEnabled { return (MonacoTheme.surfaceSunken, MonacoTheme.disabledLabel) }
         return isSelected
-            ? (MonacoTheme.brandFill, MonacoTheme.onBrand) : (MonacoTheme.surfaceSunken, MonacoTheme.primaryText)
+            ? (MonacoTheme.chipOn, MonacoTheme.onChipOn) : (MonacoTheme.surfaceSunken, MonacoTheme.primaryText)
     }
 }
 
