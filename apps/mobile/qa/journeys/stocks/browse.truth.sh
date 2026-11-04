@@ -8,7 +8,9 @@ query="SELECT
   (SELECT string_agg(symbol || '=' || display_name || '=' || kind, ',' ORDER BY symbol) FROM assets
      WHERE symbol IN ('JRNYAx', 'JRNYPx', 'JRNYQx', 'JRNYZx')),
   (SELECT count(*) FROM proposals WHERE symbol IN ('JRNYAx', 'JRNYPx', 'JRNYQx', 'JRNYZx'))"
-cleanup="DELETE FROM price_points WHERE source = 'qa-journey';
+cleanup="DELETE FROM pre_ipo_rounds WHERE company_key = 'qa-journey-private';
+DELETE FROM pre_ipo_profiles WHERE company_key = 'qa-journey-private';
+DELETE FROM price_points WHERE source = 'qa-journey';
 DELETE FROM assets WHERE symbol IN ('JRNYAx', 'JRNYPx', 'JRNYQx', 'JRNYZx')"
 
 psql_local() {

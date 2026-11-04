@@ -2,7 +2,7 @@ import XCTest
 
 enum StocksBrowseJourney {
     static let id = "stocks/browse"
-    static let version = 7
+    static let version = 8
 
     static let searchPlaceholder = "Stocks and Pre-IPO"
     static let alpha = SeededAsset(symbol: "JRNYAx", ticker: "JRNYA", name: "Journey Alpha", price: "$123.45")
@@ -134,9 +134,20 @@ enum StocksBrowseJourney {
             let row = preIpoRow(app, preIpo)
             XCTAssertTrue(row.waitForExistence(timeout: 10), "S1.3: no \(preIpo.preIpoRowID) under Pre-IPO")
             XCTAssertTrue(row.label.contains(preIpo.name), "S1.3: the row reads '\(row.label)', not '\(preIpo.name)'")
+            XCTAssertTrue(row.label.contains("Can buy"), "S1.3: the row reads '\(row.label)', not 'Can buy'")
             XCTAssertTrue(
-                row.label.contains("Eligible") || row.label.contains("Research only"),
-                "S1.3: the row reads '\(row.label)', with no eligibility")
+                row.label.contains("Valued at $350B in "),
+                "S1.3: the row reads '\(row.label)', not 'Valued at $350B in '")
+            for word in ["Eligibl", "Research o"] {
+                XCTAssertFalse(
+                    app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", word)).firstMatch.exists,
+                    "S1.3: a row reads '\(word)'")
+            }
+            let footer = app.element("markets-preipo-footer")
+            XCTAssertTrue(footer.waitForExistence(timeout: 10), "S1.3: no markets-preipo-footer")
+            XCTAssertTrue(
+                footer.label.hasPrefix("Prices are secondary-market estimates from "),
+                "S1.3: the footer reads '\(footer.label)'")
             XCTAssertFalse(preIpoRow(app, alpha).exists, "S1.3: \(alpha.preIpoRowID) shows under Pre-IPO")
         }
 
@@ -201,6 +212,10 @@ enum StocksBrowseJourney {
             XCTAssertTrue(
                 preIpoRow(app, preIpo).waitForExistence(timeout: 15), "S3.2: no \(preIpo.preIpoRowID) after a refresh")
             assertRowReads(app, preIpo, price: false, step: "S3.2", preIpoSection: true)
+            let label = preIpoRow(app, preIpo).label
+            XCTAssertTrue(label.contains("Can buy"), "S3.2: the row reads '\(label)', not 'Can buy' after a refresh")
+            XCTAssertTrue(
+                label.contains("Valued at $350B in "), "S3.2: the row reads '\(label)', not 'Valued at $350B in '")
             XCTAssertFalse(app.element("assets-failed").exists, "S3.2: 'Couldn't load this view' after a refresh")
             XCTAssertFalse(app.element("monaco-toast-banner").exists, "S3.2: a toast showed after a refresh")
         }

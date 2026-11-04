@@ -2,7 +2,7 @@ import XCTest
 
 enum StocksAssetDetailJourney {
     static let id = "stocks/asset-detail"
-    static let version = 13
+    static let version = 14
 
     static let alpha = StocksBrowseJourney.alpha
     static let preIpo = StocksBrowseJourney.preIpo
@@ -130,6 +130,9 @@ enum StocksAssetDetailJourney {
             app.scrollIntoReach(buy)
             XCTAssertEqual(buy.label, "Propose buy", "S1.7: the CTA reads '\(buy.label)', not 'Propose buy'")
             XCTAssertTrue(buy.isEnabled, "S1.7: Propose buy is disabled for a tradable asset")
+            XCTAssertFalse(
+                app.buttons["asset-detail-propose-sell"].exists,
+                "S1.7: Propose sell shows with no cabal holding \(alpha.ticker)")
         }
 
         recorder.step("S1.8", "tap Propose buy") {
@@ -170,6 +173,28 @@ enum StocksAssetDetailJourney {
         recorder.step("S2.2", "scroll to Stats") {
             scrollTo(app, app.element("asset-stats"), named: "asset-stats", step: "S2.2")
         }
+
+        recorder.step("S2.3", "open the Market stats sheet") {
+            let info = app.buttons["asset-stats-info-button"]
+            XCTAssertTrue(info.waitForExistence(timeout: 10), "S2.3: no asset-stats-info-button")
+            info.tap()
+            let sheet = app.element("market-stats-sheet")
+            XCTAssertTrue(sheet.waitForExistence(timeout: 10), "S2.3: no market-stats-sheet")
+            XCTAssertTrue(
+                sheet.staticTexts["Market stats"].waitForExistence(timeout: 10), "S2.3: no 'Market stats' title")
+            let sentence = "Monaco prices trade around the clock, so they can differ a little from the stock market's."
+            XCTAssertTrue(
+                sheet.staticTexts[sentence].waitForExistence(timeout: 10), "S2.3: the sheet does not read the sentence")
+            for chain in ["Solana", "Base", "Robinhood Chain"] {
+                XCTAssertFalse(
+                    sheet.descendants(matching: .staticText).containing(NSPredicate(format: "label CONTAINS %@", chain))
+                        .firstMatch.exists,
+                    "S2.3: the sheet names '\(chain)'")
+            }
+            app.buttons["market-stats-sheet-close"].tap()
+            XCTAssertTrue(
+                app.element("asset-stats").waitForExistence(timeout: 5), "S2.3: asset-stats is gone after closing")
+        }
     }
 
     static func preIpoBlock(_ app: XCUIApplication, recorder: JourneyRecorder) {
@@ -194,6 +219,9 @@ enum StocksAssetDetailJourney {
             let holding = app.descendants(matching: .any)
                 .matching(NSPredicate(format: "identifier BEGINSWITH 'asset-held-'")).firstMatch
             XCTAssertTrue(holding.exists, "S5.2: no cabal row under 'In your cabals'")
+            XCTAssertTrue(
+                holding.label.contains("shares ·") && holding.label.contains("of the treasury"),
+                "S5.2: the held row reads '\(holding.label)', not '<n> shares · <p>% of the treasury'")
         }
 
         recorder.step("S5.3", "tap Propose a sell") {
