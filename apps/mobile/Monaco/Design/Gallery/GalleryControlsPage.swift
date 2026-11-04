@@ -208,6 +208,7 @@ struct GalleryBoardControlSamples: View {
             GalleryUsageRow(title: "Underline tabs", note: "sibling sections of one screen · max 1 row") {
                 MonacoUnderlineTabs(
                     Self.tabs, selection: $tab, count: { $0 == "Members" ? 8 : nil },
+                    dot: { $0 == "Voters" },
                     identifier: { "gallery-tab-\($0)" }
                 ) { $0 }
                 .monacoBleed()

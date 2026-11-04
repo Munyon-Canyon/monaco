@@ -5,12 +5,15 @@ enum MonacoUnderlineTabsMetrics {
     static let barHeight: CGFloat = 2
     static let labelSpacing: CGFloat = 24
     static let countGap: CGFloat = 4
+    static let dotSize: CGFloat = 7
+    static let dotGap: CGFloat = 2
 }
 
 struct MonacoUnderlineTabs<T: Hashable>: View {
     private let options: [T]
     @Binding private var selection: T
     private let count: ((T) -> Int?)?
+    private let dot: ((T) -> Bool)?
     private let identifier: ((T) -> String)?
     private let label: (T) -> String
 
@@ -20,11 +23,12 @@ struct MonacoUnderlineTabs<T: Hashable>: View {
 
     init(
         _ options: [T], selection: Binding<T>, count: ((T) -> Int?)? = nil,
-        identifier: ((T) -> String)? = nil, label: @escaping (T) -> String
+        dot: ((T) -> Bool)? = nil, identifier: ((T) -> String)? = nil, label: @escaping (T) -> String
     ) {
         self.options = options
         _selection = selection
         self.count = count
+        self.dot = dot
         self.identifier = identifier
         self.label = label
     }
@@ -49,9 +53,15 @@ struct MonacoUnderlineTabs<T: Hashable>: View {
         .padding(.horizontal, MonacoTheme.Space.gutter)
     }
 
+    private func accessibilityText(_ option: T, number: Int?, dotted: Bool) -> String {
+        let parts = [label(option)] + (number.map { ["\($0)"] } ?? []) + (dotted ? ["new messages"] : [])
+        return parts.joined(separator: ", ")
+    }
+
     private func tab(_ option: T) -> some View {
         let isSelected = option == selection
         let number = count?(option)
+        let dotted = dot?(option) == true
         return Button {
             guard option != selection else { return }
             Haptics.selection()
@@ -62,6 +72,21 @@ struct MonacoUnderlineTabs<T: Hashable>: View {
             HStack(spacing: MonacoUnderlineTabsMetrics.countGap) {
                 Text(label(option))
                     .foregroundStyle(isSelected ? MonacoTheme.primaryText : MonacoTheme.secondaryText)
+                    .overlay(alignment: .topTrailing) {
+                        if dotted {
+                            Circle()
+                                .fill(MonacoTheme.tint)
+                                .frame(
+                                    width: MonacoUnderlineTabsMetrics.dotSize,
+                                    height: MonacoUnderlineTabsMetrics.dotSize
+                                )
+                                .offset(
+                                    x: MonacoUnderlineTabsMetrics.dotSize + MonacoUnderlineTabsMetrics.dotGap,
+                                    y: -MonacoUnderlineTabsMetrics.dotGap
+                                )
+                                .accessibilityHidden(true)
+                        }
+                    }
                 if let number {
                     Text("\(number)").foregroundStyle(MonacoTheme.secondaryText)
                 }
@@ -82,7 +107,7 @@ struct MonacoUnderlineTabs<T: Hashable>: View {
         }
         .buttonStyle(.plain)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(number.map { "\(label(option)), \($0)" } ?? label(option))
+        .accessibilityLabel(accessibilityText(option, number: number, dotted: dotted))
         .accessibilityAddTraits(isSelected ? [.isSelected] : [])
         .tabIdentifier(identifier?(option))
     }
