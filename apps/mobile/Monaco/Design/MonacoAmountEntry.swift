@@ -273,7 +273,7 @@ struct AmountEntry<Accessory: View>: View {
             amountText = AmountText.plain(target)
             onPreset(preset)
         } label: {
-            Text(preset.label).monacoChipLabel(isSelected: selected, isPreset: true)
+            Text(preset.label).monacoChipLabel(isSelected: selected)
         }
         .buttonStyle(.plain)
         .disabled(target == nil || (preset.capsAtMax && isOverMax(target)))
