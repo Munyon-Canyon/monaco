@@ -56,6 +56,7 @@ func SignIn(sub string) Step {
 		s.t.Helper()
 		s.send(request{method: http.MethodPost, path: "/v1/auth/session", token: s.app.privyToken(sub)})
 		if s.last.status < http.StatusOK || s.last.status >= http.StatusMultipleChoices {
+			s.actor = nil
 			return
 		}
 		var me struct {
