@@ -31,29 +31,6 @@ struct GifPlayButton: View {
     }
 }
 
-@MainActor
-final class GifPlaybackBudget {
-    static let sheet = GifPlaybackBudget(limit: 6)
-
-    private let limit: Int
-    private var active: Set<String> = []
-
-    init(limit: Int) {
-        self.limit = limit
-    }
-
-    func claim(_ id: String) -> Bool {
-        if active.contains(id) { return true }
-        guard active.count < limit else { return false }
-        active.insert(id)
-        return true
-    }
-
-    func release(_ id: String) {
-        active.remove(id)
-    }
-}
-
 struct GifImageView: View {
     let id: String
     let still: URL
@@ -126,6 +103,9 @@ struct GifImageView: View {
             isOnScreen = false
             hasSlot = false
             budget?.release(id)
+        }
+        .onChange(of: budget?.revision) { _, _ in
+            if isOnScreen && !hasSlot { hasSlot = budget?.claim(id) ?? true }
         }
         .task(id: "\(still.absoluteString)#\(attempt)") { await loadStill() }
         .onChange(of: isShowingStill, initial: true) { _, shown in stillShown?.wrappedValue = shown }
