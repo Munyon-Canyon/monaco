@@ -40,6 +40,15 @@ public enum GroupChatDraft {
     }
 }
 
+public enum ChatPinsCopy {
+    public static let limit = "Unpin one first. A cabal can pin three messages."
+    public static let forbidden = "Only admins and the author can pin this."
+
+    public static func counter(index: Int, count: Int) -> String {
+        count > 1 ? "\(index + 1) of \(count)" : ""
+    }
+}
+
 public enum GroupChatCopy {
     public static let title = "Cabal chat"
     public static let emptyTitle = "Start the conversation"
