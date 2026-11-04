@@ -255,54 +255,71 @@ struct GalleryBoardControlSamples: View {
         }
     }
 
+    private func voteCard(
+        _ suffix: String, line: VoteCardLine, yes: VoteHoldPhase = .idle, no: VoteHoldPhase = .idle,
+        counts: (yes: Int, no: Int) = (4, 1)
+    ) -> some View {
+        GalleryVoteCard(suffix: "usage-\(suffix)", line: line, yes: yes, no: no, counts: counts)
+    }
+
     private var votes: some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.l) {
             GalleryUsageRow(
-                title: "Two-ended tally · idle",
-                note:
-                    "theme 1: the bar fills Yes from the left and No from the right; neutral pair with the live counts"
+                title: "Vote card · Home and Cabals",
+                note: "the cabal leads, so the close is the bare \"4h\""
             ) {
-                VoteTallyBar(yes: 4, no: 1, eligible: 8)
-                VoteHoldRow(
-                    yes: VoteHoldButton(side: .yes, count: 4, phase: .idle),
-                    no: VoteHoldButton(side: .no, count: 1, phase: .idle))
-                VoteStatusLine(
-                    result: nil, facts: ["5 of 8 voted", "6 replies", "ends in 4h"], identifierPrefix: "gallery-usage",
-                    identifierSuffix: "idle")
+                voteCard(
+                    "home",
+                    line: VoteCardLine(
+                        full: "AC Capital \u{00B7} 5 of 8 voted \u{00B7} 6 replies \u{00B7} 4h",
+                        short: "AC Capital \u{00B7} 5 of 8 voted \u{00B7} 6 replies \u{00B7} 4h"))
             }
             GalleryUsageRow(
-                title: "Pick → hold → committed",
-                note: "0.6 s, F's ring and sweep are the progress; the count ticks on commit"
+                title: "Vote card · the cabal's own page",
+                note: "the name drops and \"closes in 4h\" fits"
             ) {
-                VoteHoldRow(
-                    yes: VoteHoldButton(side: .yes, count: 4, phase: .picked),
-                    no: VoteHoldButton(side: .no, count: 1, phase: .dimmed))
-                VoteHoldRow(
-                    yes: VoteHoldButton(side: .yes, count: 4, phase: .holding(progress: 0.4)),
-                    no: VoteHoldButton(side: .no, count: 1, phase: .dimmed))
-                VoteHoldRow(
-                    yes: VoteHoldButton(side: .yes, count: 5, phase: .committed),
-                    no: VoteHoldButton(side: .no, count: 1, phase: .dimmed))
+                voteCard(
+                    "cabal",
+                    line: VoteCardLine(
+                        full: "5 of 8 voted \u{00B7} 6 replies \u{00B7} closes in 4h",
+                        short: "5 of 8 voted \u{00B7} 6 replies \u{00B7} 4h"))
             }
             GalleryUsageRow(
-                title: "Closed · sides",
-                note:
-                    "the counts at the two ends; the names by side only when the cabal's Rules switch is on (decision 6)"
+                title: "Vote card · after a Yes",
+                note: "the capsule fills and the counts are live"
             ) {
-                VoteTallyBar(yes: 5, no: 1, eligible: 8, winner: .yes)
-                VoteTallyEnds(
-                    yes: 5, no: 1, middle: "6 of 8 voted",
-                    identifierPrefix: "gallery-usage", identifierSuffix: "closed")
-                VoteStatusLine(
-                    result: .passed, facts: ["filled at $219.40", "Oct 22"], identifierPrefix: "gallery-usage",
-                    identifierSuffix: "passed")
-                VoteSidesRow(
-                    lines: [
-                        .init(side: .yes, avatars: Self.people, text: "Mia, Christelle, Logan, Sam, you"),
-                        .init(side: .no, avatars: [Self.people[1]], text: "Kai"),
-                        .init(
-                            side: nil, avatars: [Self.people[2], Self.people[3]], text: "Jordan and Priya did not vote"),
-                    ], identifierPrefix: "gallery-usage")
+                voteCard(
+                    "voted",
+                    line: VoteCardLine(
+                        full: "6 of 8 voted \u{00B7} 6 replies \u{00B7} closes in 4h",
+                        short: "6 of 8 voted \u{00B7} 6 replies \u{00B7} 4h"),
+                    yes: .committed, no: .dimmed, counts: (5, 1))
+            }
+            GalleryUsageRow(
+                title: "Vote card · the Feed",
+                note: "the replies sit on the post's chip, so the line leaves them out"
+            ) {
+                voteCard(
+                    "feed",
+                    line: VoteCardLine(
+                        full: "AC Capital \u{00B7} 5 of 8 voted \u{00B7} 4h",
+                        short: "AC Capital \u{00B7} 5 of 8 voted \u{00B7} 4h"))
+            }
+            GalleryUsageRow(
+                title: "Pair · idle, holding, committed",
+                note: "hold 0.6 s: the capsule fills with the progress, the count ticks on commit"
+            ) {
+                voteCard(
+                    "pair-idle",
+                    line: VoteCardLine(full: "5 of 8 voted \u{00B7} 4h", short: "5 of 8 voted \u{00B7} 4h"))
+                voteCard(
+                    "pair-holding",
+                    line: VoteCardLine(full: "5 of 8 voted \u{00B7} 4h", short: "5 of 8 voted \u{00B7} 4h"),
+                    yes: .holding(progress: 0.4), no: .dimmed)
+                voteCard(
+                    "pair-committed",
+                    line: VoteCardLine(full: "6 of 8 voted \u{00B7} 4h", short: "6 of 8 voted \u{00B7} 4h"),
+                    yes: .committed, no: .dimmed, counts: (5, 1))
             }
         }
     }
@@ -382,7 +399,7 @@ struct GalleryBoardControlSamples: View {
                     .background(MonacoTheme.surfaceSunken, in: Capsule())
                 }
             }
-            GalleryUsageRow(title: "Crest", note: "theme 12: the cover cut square, 6 pt; people stay circles") {
+            GalleryUsageRow(title: "Crest", note: "a 22.5 % squircle; people stay circles") {
                 HStack(spacing: MonacoTheme.Space.sm) {
                     CabalMark(
                         groupId: GalleryFixtures.cabalNames[0].id,
@@ -402,10 +419,6 @@ struct GalleryBoardControlSamples: View {
                     insetsGutter: false)
             }
         }
-    }
-
-    private static let people: [MonacoAvatar.Source] = ["Mia", "Christelle", "Logan", "Sam", "You"].map {
-        MonacoAvatar.Source(id: $0, displayName: $0, photoURL: nil)
     }
 
     private func avatar(_ name: String) -> some View {
@@ -439,39 +452,72 @@ struct GalleryVoteSamples: View {
     }
 }
 
+private struct GalleryVoteCard: View {
+    let suffix: String
+    let line: VoteCardLine
+    var yes: VoteHoldPhase = .idle
+    var no: VoteHoldPhase = .idle
+    var counts: (yes: Int, no: Int) = (4, 1)
+
+    var body: some View {
+        VoteCard(
+            title: "Buy NVDA \u{00B7} $400", mark: .stock(symbol: "NVDA", name: "NVIDIA", logoURL: nil),
+            line: line, yes: counts.yes, no: counts.no, eligible: 8,
+            identifierPrefix: "gallery", identifierSuffix: suffix, onOpen: {},
+            actions: {
+                VoteHoldRow(
+                    yes: VoteHoldButton(side: .yes, count: counts.yes, phase: yes),
+                    no: VoteHoldButton(side: .no, count: counts.no, phase: no))
+            }
+        )
+    }
+}
+
 private struct GalleryVoteStates: View {
     private static let people: [MonacoAvatar.Source] = ["Mia", "Christelle", "Logan", "Sam", "You"].map {
         MonacoAvatar.Source(id: $0, displayName: $0, photoURL: nil)
     }
 
-    private func row(_ yes: VoteHoldPhase, _ no: VoteHoldPhase, counts: (Int, Int) = (4, 1)) -> some View {
-        VoteHoldRow(
-            yes: VoteHoldButton(side: .yes, count: counts.0, phase: yes),
-            no: VoteHoldButton(side: .no, count: counts.1, phase: no))
-    }
-
     var body: some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
-            GalleryCase(caption: "Two-ended tally, idle") {
+            GalleryCase(caption: "The shared vote card: Home and Cabals, the cabal's page, after a Yes, the Feed") {
                 VStack(alignment: .leading, spacing: MonacoTheme.Space.sm) {
-                    VoteTallyBar(yes: 4, no: 1, eligible: 8)
-                    row(.idle, .idle)
-                    VoteStatusLine(
-                        result: nil, facts: ["5 of 8 voted", "6 replies", "ends in 4h"], identifierPrefix: "gallery",
-                        identifierSuffix: "idle")
+                    GalleryVoteCard(
+                        suffix: "home",
+                        line: VoteCardLine(
+                            full: "AC Capital \u{00B7} 5 of 8 voted \u{00B7} 6 replies \u{00B7} 4h",
+                            short: "AC Capital \u{00B7} 5 of 8 voted \u{00B7} 6 replies \u{00B7} 4h"))
+                    GalleryVoteCard(
+                        suffix: "cabal",
+                        line: VoteCardLine(
+                            full: "5 of 8 voted \u{00B7} 6 replies \u{00B7} closes in 4h",
+                            short: "5 of 8 voted \u{00B7} 6 replies \u{00B7} 4h"))
+                    GalleryVoteCard(
+                        suffix: "voted",
+                        line: VoteCardLine(
+                            full: "6 of 8 voted \u{00B7} 6 replies \u{00B7} closes in 4h",
+                            short: "6 of 8 voted \u{00B7} 6 replies \u{00B7} 4h"),
+                        yes: .committed, no: .dimmed, counts: (5, 1))
+                    GalleryVoteCard(
+                        suffix: "feed",
+                        line: VoteCardLine(
+                            full: "AC Capital \u{00B7} 5 of 8 voted \u{00B7} 4h",
+                            short: "AC Capital \u{00B7} 5 of 8 voted \u{00B7} 4h"))
                 }
             }
-            GalleryCase(caption: "Picked, holding at 40 %, committed") {
+            GalleryCase(caption: "In the card: idle, holding at 40 %, committed") {
                 VStack(alignment: .leading, spacing: MonacoTheme.Space.sm) {
-                    row(.picked, .dimmed)
-                    row(.holding(progress: 0.4), .dimmed)
-                    Text("Keep holding · lift to cancel")
-                        .font(MonacoTheme.Typo.subhead)
-                        .foregroundStyle(MonacoTheme.secondaryText)
-                    row(.committed, .dimmed, counts: (5, 1))
-                    VoteStatusLine(
-                        result: .executing, facts: ["Passed 5–1", "6 of 8 voted", "buying 1.82 sh"],
-                        identifierPrefix: "gallery", identifierSuffix: "executing")
+                    GalleryVoteCard(
+                        suffix: "pair-idle",
+                        line: VoteCardLine(full: "5 of 8 voted \u{00B7} 4h", short: "5 of 8 voted \u{00B7} 4h"))
+                    GalleryVoteCard(
+                        suffix: "pair-holding",
+                        line: VoteCardLine(full: "5 of 8 voted \u{00B7} 4h", short: "5 of 8 voted \u{00B7} 4h"),
+                        yes: .holding(progress: 0.4), no: .dimmed)
+                    GalleryVoteCard(
+                        suffix: "pair-committed",
+                        line: VoteCardLine(full: "6 of 8 voted \u{00B7} 4h", short: "6 of 8 voted \u{00B7} 4h"),
+                        yes: .committed, no: .dimmed, counts: (5, 1))
                 }
             }
             GalleryCase(caption: "Closed, passed: ends, winner in label colour") {
@@ -499,7 +545,7 @@ private struct GalleryVoteStates: View {
                         yes: 3, no: 0, middle: "Pilates members vote", identifierPrefix: "gallery",
                         identifierSuffix: "public")
                     VoteStatusLine(
-                        result: nil, facts: ["3 of 7 voted", "2 replies", "ends in 23h"], identifierPrefix: "gallery",
+                        result: nil, facts: ["3 of 7 voted", "2 replies", "closes in 23h"], identifierPrefix: "gallery",
                         identifierSuffix: "public")
                 }
             }

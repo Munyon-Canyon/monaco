@@ -348,9 +348,6 @@ enum MonacoTheme {
         static let field: CGFloat = 14
         static let bubble: CGFloat = 17
         static let toast: CGFloat = 15
-        static let logoFraction: CGFloat = 0.15
-        static let keypadKey: CGFloat = 8
-        static let crest: CGFloat = 6
         static let squircleFraction: CGFloat = 0.225
 
         static func inner(of outer: CGFloat, padding: CGFloat) -> CGFloat {
