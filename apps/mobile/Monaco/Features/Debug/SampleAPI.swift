@@ -2,6 +2,7 @@
 import Foundation
 import MonacoAPI
 import MonacoCore
+import os
 import Synchronization
 
 nonisolated struct SampleAPIScript: Sendable {
@@ -112,8 +113,14 @@ nonisolated final class SampleAPIProtocol: URLProtocol {
 
     static func failAssetReads() { assetReadsDown.withLock { $0 = true } }
 
+    private static let log = Logger(subsystem: "xyz.monacolabs.app", category: "SampleAPI")
+    private static let unhandledLog = Mutex<[String]>([])
+
+    static var unhandledRequests: [String] { unhandledLog.withLock { $0 } }
+
     static func install(_ next: SampleAPIScript) {
         script.withLock { $0 = next }
+        unhandledLog.withLock { $0 = [] }
         assetReadsDown.withLock { $0 = false }
         let needsRegistering = registered.withLock { done in
             defer { done = true }
@@ -161,6 +168,10 @@ nonisolated final class SampleAPIProtocol: URLProtocol {
         let reply =
             Self.invitePreviewReply(path: url.path, script: script)
             ?? Self.reply(path: url.path, method: method, query: query, script: script)
+        if reply.isUnhandled {
+            Self.unhandledLog.withLock { $0.append("\(method) \(url.path)") }
+            Self.log.error("Not in the sample data: \(method, privacy: .public) \(url.path, privacy: .public)")
+        }
         let response = HTTPURLResponse(
             url: url, statusCode: reply.status, httpVersion: "HTTP/1.1",
             headerFields: ["Content-Type": reply.contentType].merging(reply.headers) { first, _ in first }
@@ -200,6 +211,13 @@ nonisolated final class SampleAPIProtocol: URLProtocol {
         var contentType = "application/json"
         var headers: [String: String] = [:]
         var body: Data
+        var isUnhandled = false
+    }
+
+    private static func unhandled() -> Reply {
+        var reply = problem(404, "not_found", "Not in the sample data.")
+        reply.isUnhandled = true
+        return reply
     }
 
     private static func json(_ value: some Encodable) -> Reply {
@@ -242,7 +260,7 @@ nonisolated final class SampleAPIProtocol: URLProtocol {
             let tail = Array(parts.dropFirst(3))
             return proposeReply(id: parts[2], tail: tail, method: method, query: query, script: script)
                 ?? membersReply(id: parts[2], tail: tail, method: method, query: query, script: script)
-                ?? cabalReply(id: parts[2], tail: tail, range: range, script: script)
+                ?? cabalReply(id: parts[2], tail: tail, method: method, range: range, script: script)
         }
         if parts.count >= 3, parts[1] == "proposals" {
             return proposalReply(
@@ -251,7 +269,7 @@ nonisolated final class SampleAPIProtocol: URLProtocol {
         if parts.count >= 2, parts[1] == "assets" {
             return assetReply(tail: Array(parts.dropFirst(2)), query: query, script: script)
         }
-        if let own = ownReply(path: path, parts: parts, script: script) { return own }
+        if let own = socialReply(path: path) ?? ownReply(path: path, parts: parts, script: script) { return own }
         switch path {
         case "/v1/leaderboards/cabals" where !script.cabalBoard.isEmpty:
             var page = Components.Schemas.LeaderboardPage.samplePeople(count: 0)
@@ -266,7 +284,7 @@ nonisolated final class SampleAPIProtocol: URLProtocol {
             if path.hasPrefix("/v1/feed/") {
                 return feedItemReply(id: String(path.dropFirst("/v1/feed/".count)), script: script)
             }
-            return problem(404, "not_found", "Not in the sample data.")
+            return unhandled()
         }
     }
 }
@@ -336,7 +354,7 @@ nonisolated extension SampleAPIProtocol {
         case "/v1/me/cabal-invites", "/v1/me/catch-up/count":
             return invitesReply(path: path, script: script)
         default:
-            return path == "/v1/me/held" ? heldReply(script) : problem(404, "not_found", "Not in the sample data.")
+            return path == "/v1/me/held" ? heldReply(script) : unhandled()
         }
     }
 
@@ -464,7 +482,7 @@ nonisolated extension SampleAPIProtocol {
             reply.status = 201
             return reply
         default:
-            return problem(404, "not_found", "Not in the sample data.")
+            return unhandled()
         }
     }
 
@@ -546,7 +564,7 @@ nonisolated extension SampleAPIProtocol {
             return json(
                 chartReply(script.chart, query: query, candleCount: script.candleCount, sparse: script.sparseCandles))
         default:
-            return problem(404, "not_found", "Not in the sample data.")
+            return unhandled()
         }
     }
 
@@ -676,7 +694,9 @@ nonisolated extension SampleAPIProtocol {
         return json(Components.Schemas.ProposalVotePage(items: items, nextCursor: nil))
     }
 
-    private static func cabalReply(id: String, tail: [String], range: String?, script: SampleAPIScript) -> Reply {
+    private static func cabalReply(
+        id: String, tail: [String], method: String, range: String?, script: SampleAPIScript
+    ) -> Reply {
         let empty = script.mode == .empty
         switch tail.first {
         case nil:
@@ -703,8 +723,8 @@ nonisolated extension SampleAPIProtocol {
             return json(script.cashOut)
         case "access-requests":
             return json(script.accessRequests)
-        case "messages":
-            return json(Components.Schemas.ChatChannelPage(messages: empty ? [] : [Self.sampleChatMessage]))
+        case "messages", "chat":
+            return chatReply(tail: tail, method: method, empty: empty)
         case "invites":
             return raw("[]")
         case "picture":
@@ -713,7 +733,35 @@ nonisolated extension SampleAPIProtocol {
             cabal.pictureUrl = nil
             return json(cabal)
         default:
-            return problem(404, "not_found", "Not in the sample data.")
+            return unhandled()
+        }
+    }
+
+    private static func chatReply(tail: [String], method: String, empty: Bool) -> Reply {
+        switch tail.last {
+        case "thread":
+            return json(Components.Schemas.ChatThread(parent: sampleChatMessage, replies: []))
+        case "seen" where method == "POST":
+            return json(Components.Schemas.ChatSeenMark(lastSeenAt: Date(timeIntervalSinceNow: 0)))
+        case "seen":
+            return json(Components.Schemas.ChatSeenBy(count: 0, members: []))
+        default:
+            guard tail.first == "messages" else { return unhandled() }
+            return json(Components.Schemas.ChatChannelPage(messages: empty ? [] : [sampleChatMessage]))
+        }
+    }
+
+    private static func socialReply(path: String) -> Reply? {
+        switch path {
+        case "/v1/me/blocks":
+            return json(Components.Schemas.BlockedUsers(users: [], nextCursor: nil))
+        case "/v1/realtime/token":
+            return json(
+                Components.Schemas.RealtimeTokenRequest(
+                    keyName: "sample.key", clientId: "sample-viewer", capability: "{}",
+                    timestamp: 0, ttl: 300_000, nonce: "sample", mac: "sample"))
+        default:
+            return nil
         }
     }
 
