@@ -56,12 +56,6 @@ public enum CabalHeaderCopy {
         return "since \(month)"
     }
 
-    public static func viewer(role: String?, canVote: Bool) -> String? {
-        guard let role else { return nil }
-        if role == "creator" || role == "admin" { return "you are admin" }
-        return canVote ? "you vote" : "you hold a share"
-    }
-
     public static func stats(shareMicros: Int64, sliceBps: Int, openVotes: Int) -> [Stat] {
         var stats: [Stat] = [
             Stat(label: "Your share", value: wholeDollars(shareMicros)),
