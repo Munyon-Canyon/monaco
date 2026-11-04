@@ -83,7 +83,7 @@ private struct PollBubbleContent: View {
             ZStack(alignment: .leading) {
                 GeometryReader { proxy in
                     Rectangle()
-                        .fill(MonacoTheme.brand.opacity(mine ? 0.28 : 0.14))
+                        .fill(MonacoTheme.pollVoteWash.opacity(mine ? 0.28 : 0.14))
                         .frame(width: proxy.size.width * CGFloat(model.shareBps(option)) / 10_000)
                 }
                 HStack(spacing: MonacoTheme.Space.s) {

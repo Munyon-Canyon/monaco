@@ -163,10 +163,16 @@ enum MonacoTheme {
 
     static let discussionTint = tint
 
+    static let pollVoteWash = brandFill
+
+    static let unreadDot = voteNeededFill
+
+    static let thesisBar = gain
+
     static let discussionWash = surfaceSunken
 
     static let allocationTints: [Color] = [
-        tint,
+        gain,
         Color(hex: 0x0A84FF),
         Color(hex: 0xBF5AF2),
         border,
