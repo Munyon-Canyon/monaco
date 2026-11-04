@@ -2,7 +2,7 @@ import XCTest
 
 enum ProfileUserProfileJourney {
     static let id = "profile/user-profile"
-    static let version = 7
+    static let version = 8
 
     static let memberName = "Bartholomez"
 
@@ -165,7 +165,7 @@ enum ProfileUserProfileJourney {
         recorder.step("S3.3", "open the shared cabal") {
             row.tap()
             XCTAssertTrue(
-                app.element("cabal-header-name").waitForExistence(timeout: 15),
+                app.waitForCabalTitle(seed.cabalName, timeout: 15),
                 "S3.3: the shared cabal did not open")
         }
     }

@@ -1,7 +1,7 @@
 ---
 id: money/activity
 title: Account activity
-version: 4
+version: 5
 milestone: M12
 requires: [auth/sign-in]
 actors: [A]
@@ -41,7 +41,7 @@ The format of this doc is in [App journeys](../README.md).
 | --- | --- | --- | --- | --- | --- |
 | S2.1 | A | tap, tap, then scroll to and tap | the Profile tab, `profile-settings-row`, then `settings-activity` | | A row "Funding QA activity {QA.run}" shows within 15 s |
 | S2.2 | A | tap | the row "Funding QA activity {QA.run}" | | The receipt shows `account-txn-receipt-cabal` with "QA activity {QA.run}" within 10 s |
-| S2.3 | A | tap | `account-txn-receipt-cabal` | | The cabal screen shows, and `cabal-header-name` reads `QA activity {QA.run}` within 15 s (old app: open the cabal from the receipt) |
+| S2.3 | A | tap | `account-txn-receipt-cabal` | | The cabal screen shows, and its title (`cabal-inline-title` on Chat, or `cabal-header-name`) reads `QA activity {QA.run}` within 15 s (old app: open the cabal from the receipt) |
 
 ### S3 See a withdrawal
 

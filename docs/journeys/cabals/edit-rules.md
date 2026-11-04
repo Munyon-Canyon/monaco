@@ -1,7 +1,7 @@
 ---
 id: cabals/edit-rules
 title: Edit a cabal's rules and name
-version: 9
+version: 10
 milestone: M10
 requires: [auth/sign-in]
 actors: [A, B]
@@ -34,7 +34,7 @@ The format of this doc is in [App journeys](../README.md).
 | S1.1 | A | `openCabal(named:)` | the Cabals tab and the tile | `QA rules {QA.run}` | `cabal-header-name` reads `QA rules {QA.run}` within 15 s |
 | S1.2 | A | `openCabalTab("Rules")` | `cabal-rules` | | Within 10 s: `cabal-rules-votesToPass` "2 of 2", `cabal-rules-voteWindow` "24 hours", `cabal-rules-maxPerTrade` "No limit", `cabal-rules-whoCanPropose` "Voters", `cabal-rules-cashOut` "Any time", and `cabal-rules-show-sides-toggle` is off; `cabal-rules-footer` starts "Everyone sees the count as it happens." and ends "Rules change by proposal." |
 | S1.3 | A | tap, then tap | `cabal-more-button`, then `cabal-more-edit` | | The editor shows `edit-cabal-name` within 10 s |
-| S1.4 | A | clear, type, then tap | `edit-cabal-name`, then `edit-cabal-save` | `QA renamed {QA.run}` | The toast "Cabal updated." shows within 10 s and `cabal-header-name` reads `QA renamed {QA.run}` |
+| S1.4 | A | clear, type, then tap | `edit-cabal-name`, then `edit-cabal-save` | `QA renamed {QA.run}` | The toast "Cabal updated." shows within 10 s and the cabal title (`cabal-header-name` or `cabal-inline-title`) reads `QA renamed {QA.run}` |
 
 ### S2 Show who voted what, by proposal
 

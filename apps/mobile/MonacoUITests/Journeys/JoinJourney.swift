@@ -3,7 +3,7 @@ import XCTest
 
 enum JoinJourney {
     static let id = "cabals/join"
-    static let version = 12
+    static let version = 13
 
     static let screenTimeout: TimeInterval = 15
 
@@ -104,7 +104,7 @@ enum JoinJourney {
         XCTAssertTrue(row.waitForExistence(timeout: 10), "\(step): no search result named \(name) within 10 s")
         row.tap()
         XCTAssertTrue(
-            waitForLabel(app.element("cabal-header-name"), containing: name, timeout: screenTimeout),
+            app.waitForCabalTitle(name, timeout: screenTimeout),
             "\(step): the cabal screen for \(name) did not show within \(Int(screenTimeout)) s"
         )
     }

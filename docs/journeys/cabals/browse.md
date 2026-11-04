@@ -1,7 +1,7 @@
 ---
 id: cabals/browse
 title: Browse and search cabals
-version: 10
+version: 11
 milestone: M10
 requires: [auth/sign-in]
 actors: [A]
@@ -33,7 +33,7 @@ The format of this doc is in [App journeys](../README.md).
 | --- | --- | --- | --- | --- | --- |
 | S1.1 | A | tap | the Cabals tab | | `cabals-grid` has the "Your cabals" header with a count, a tile `cabals-tile-<id>` labelled `QA mine {QA.run}`, and the `cabals-new-tile` "New cabal" tile within 15 s. With no vote waiting for A, `cabals-upnext-row-<id>` for `QA mine {QA.run}` reads "Just you so far." and its `cabals-upnext-action-<id>` reads "Invite". `cabals-reorder-hint` reads "Hold a cabal for quick actions." and `cabals-reorder-hint-dismiss` shows |
 | S1.2 | A | tap, then relaunch, then tap | `cabals-reorder-hint-dismiss`, the app, then the Cabals tab | | `cabals-reorder-hint` is gone within 5 s, and still gone within 5 s of `cabals-grid` showing after the relaunch (30 s for the tab bar). |
-| S1.3 | A | tap | the `cabals-tile-<id>` for `QA mine {QA.run}` | | `cabal-header-name` reads `QA mine {QA.run}` within 15 s |
+| S1.3 | A | tap | the `cabals-tile-<id>` for `QA mine {QA.run}` | | The cabal title (`cabal-inline-title` on Chat, or `cabal-header-name`) reads `QA mine {QA.run}` within 15 s |
 | S1.4 | A | wait for the toast to close, go back, open Find a cabal, then type | the search field | `QA ask {QA.run}` | One `cabals-search-result-<id>` names `QA ask {QA.run}` with "1 member", and its `cabals-search-enter-<id>` reads "Request" and is labelled "Request to join QA ask {QA.run}" within 10 s |
 | S1.5 | A | tap | the `cabals-search-enter-<id>` | | The toast "Request sent. You'll be in once the creator says yes." shows within 10 s, and the row shows `cabals-search-requested` "Request pending", with the notice "Your request to join QA ask {QA.run} is pending." above the list |
 

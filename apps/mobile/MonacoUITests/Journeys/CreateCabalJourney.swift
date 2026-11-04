@@ -3,7 +3,7 @@ import XCTest
 
 enum CreateCabalJourney {
     static let id = "cabals/create-cabal"
-    static let version = 15
+    static let version = 16
 
     private static let listTimeout: TimeInterval = 15
     private static let formTimeout: TimeInterval = 10
@@ -86,13 +86,10 @@ enum CreateCabalJourney {
             if toast.waitForExistence(timeout: createdTimeout) {
                 createdToastLabel = toast.label
             }
-            let hero = app.element("cabal-header-name")
-            let landed = JourneyDiagnostics.wait(for: hero, in: app, timeout: createdTimeout)
             XCTAssertTrue(
-                landed,
-                "S2.3: the cabal screen did not show within \(Int(createdTimeout)) s"
+                app.waitForCabalTitle(name, timeout: createdTimeout),
+                "S2.3: the cabal screen for \(name) did not show within \(Int(createdTimeout)) s"
             )
-            XCTAssertEqual(hero.label, name, "S2.3: the hero does not name the cabal")
             XCTAssertFalse(app.textFields["create-group-name"].exists, "S2.3: the create form is still on screen")
         }
 
@@ -180,7 +177,7 @@ enum CreateCabalJourney {
                 "S4.2: the toast \"Cabal created.\" did not show within \(Int(createdTimeout)) s"
             )
             XCTAssertTrue(
-                JoinJourney.waitForLabel(app.element("cabal-header-name"), containing: name, timeout: createdTimeout),
+                app.waitForCabalTitle(name, timeout: createdTimeout),
                 "S4.2: the cabal screen for \(name) did not show within \(Int(createdTimeout)) s"
             )
         }

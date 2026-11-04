@@ -1,7 +1,7 @@
 ---
 id: cabals/join
 title: Join a cabal
-version: 12
+version: 13
 milestone: M10
 requires: [auth/sign-in]
 actors: [A, B]
