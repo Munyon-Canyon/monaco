@@ -41,7 +41,7 @@ struct ProposalScreen: View {
                         .accessibilityIdentifier("proposal-share")
                     }
                 }
-                .safeAreaInset(edge: .bottom, spacing: 0) {
+                .dockedComposer {
                     if let comments {
                         CommentComposerBar(
                             model: comments, thesis: model.value?.summary.thesis, offersPoll: true, asksCabal: true)

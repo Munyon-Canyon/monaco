@@ -264,3 +264,24 @@ struct ComposerSendDisc: View {
         .animation(.easeOut(duration: 0.15), value: isLive)
     }
 }
+
+struct DockedComposerPlacement<Bar: View>: ViewModifier {
+    @ViewBuilder let bar: () -> Bar
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if #available(iOS 26, *) {
+            content
+                .safeAreaBar(edge: .bottom, spacing: 0) { bar() }
+                .scrollEdgeEffectStyle(.soft, for: .bottom)
+        } else {
+            content.safeAreaInset(edge: .bottom, spacing: 0) { bar() }
+        }
+    }
+}
+
+extension View {
+    func dockedComposer<Bar: View>(@ViewBuilder _ bar: @escaping () -> Bar) -> some View {
+        modifier(DockedComposerPlacement(bar: bar))
+    }
+}

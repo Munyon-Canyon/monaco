@@ -134,13 +134,11 @@ private struct PostContent: View {
             .scrollDismissesKeyboard(.interactively)
             .environment(\.sectionScrollProxy, proxy)
             .refreshable { await model.refresh() }
-            .modifier(
-                PostComposerBar {
-                    if phase != .unavailable, phase != .failed {
-                        CommentComposerBar(model: model.comments, offersPoll: true)
-                    }
+            .dockedComposer {
+                if phase != .unavailable, phase != .failed {
+                    CommentComposerBar(model: model.comments, offersPoll: true)
                 }
-            )
+            }
             .onChange(of: model.comments.lastPostedID) { _, id in
                 guard let id else { return }
                 withAnimation { proxy.scrollTo(id, anchor: .center) }
@@ -214,20 +212,5 @@ private struct PostSkeleton: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Loading the post")
         .accessibilityIdentifier("feed-item-detail-loading")
-    }
-}
-
-private struct PostComposerBar<Bar: View>: ViewModifier {
-    @ViewBuilder let bar: () -> Bar
-
-    @ViewBuilder
-    func body(content: Content) -> some View {
-        if #available(iOS 26, *) {
-            content
-                .safeAreaBar(edge: .bottom, spacing: 0) { bar() }
-                .scrollEdgeEffectStyle(.soft, for: .bottom)
-        } else {
-            content.safeAreaInset(edge: .bottom, spacing: 0) { bar() }
-        }
     }
 }
