@@ -195,7 +195,6 @@ enum CabalCardRowMetrics {
     static let minHeight: CGFloat = 52
     static let iconWidth: CGFloat = 24
     static let leadingInset: CGFloat = MonacoTheme.Space.xs
-    static let dividerInset: CGFloat = leadingInset + iconWidth + MonacoTheme.Space.m
 }
 
 struct CabalCardRow<Trailing: View>: View {
@@ -206,13 +205,14 @@ struct CabalCardRow<Trailing: View>: View {
     let detail: String?
     let isLast: Bool
     @ViewBuilder let trailing: () -> Trailing
+    @ScaledMetric(relativeTo: .body) private var iconWidth: CGFloat = CabalCardRowMetrics.iconWidth
 
     var body: some View {
         HStack(spacing: MonacoTheme.Space.m) {
             Image(systemName: symbol)
                 .font(.title3)
                 .foregroundStyle(tone)
-                .frame(width: CabalCardRowMetrics.iconWidth)
+                .frame(width: iconWidth)
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
                 Text(title)
@@ -236,7 +236,7 @@ struct CabalCardRow<Trailing: View>: View {
         .contentShape(Rectangle())
         .overlay(alignment: .bottom) {
             if !isLast {
-                MonacoRule().padding(.leading, CabalCardRowMetrics.dividerInset)
+                MonacoRule().padding(.leading, CabalCardRowMetrics.leadingInset + iconWidth + MonacoTheme.Space.m)
             }
         }
     }
