@@ -978,10 +978,12 @@ class Slots(unittest.TestCase):
         self.assertEqual((first[0], second[0]), (0, 1))
         self.assertEqual(journey.slot_base_url(0), "http://127.0.0.1:8080")
         self.assertEqual(journey.slot_base_url(1), "http://127.0.0.1:8180")
-        self.assertEqual(journey.SLOT_PORTS, ((8080, 8081), (8180, 8181)))
+        self.assertEqual(journey.SLOT_PORTS, ((8080, 8081), (8180, 8181), (8280, 8281)))
+        self.assertEqual(len(journey.FAKES_PORTS), len(journey.SLOT_PORTS))
+        self.assertEqual(len(journey.NATS_PORTS), len(journey.SLOT_PORTS))
 
-    def test_a_third_run_waits_for_a_slot(self):
-        first, second = self.hold(journey.take_slot(), journey.take_slot())
+    def test_a_run_waits_when_every_slot_is_taken(self):
+        first, *_ = self.hold(*(journey.take_slot() for _ in journey.SLOT_PORTS))
         waits = []
 
         def sleep(seconds):
@@ -1000,8 +1002,8 @@ class Slots(unittest.TestCase):
         self.assertIsNotNone(free)
         free.close()
         self.assertIsNone(journey.try_lock(journey.SLOT_LOCK % 1))
-        with self.assertRaisesRegex(journey.JourneyError, "--slot is 0 to 1"):
-            journey.take_slot(2)
+        with self.assertRaisesRegex(journey.JourneyError, "--slot is 0 to 2"):
+            journey.take_slot(3)
 
     def test_a_slot_starts_its_backend_on_its_own_ports(self):
         popen = []

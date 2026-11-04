@@ -531,11 +531,11 @@ def backend_is_running(base_url=None, opener=None):
         return False
 
 
-# Two runs can share a Mac: slot 0 is api 8080 and worker 8081, slot 1 is 8180 and 8181. More would not fit in
-# 16 GB beside the simulators.
-SLOT_PORTS = ((8080, 8081), (8180, 8181))
-FAKES_PORTS = (8099, 8199)
-NATS_PORTS = (4232, 4233)
+# Three runs can share a Mac: slot 0 is api 8080 and worker 8081, slot 1 is 8180 and 8181, slot 2 is 8280 and 8281.
+# A slot's api and worker take about 140 MB and its simulator about 1 GB; the machine-wide sim slots cap at three.
+SLOT_PORTS = ((8080, 8081), (8180, 8181), (8280, 8281))
+FAKES_PORTS = (8099, 8199, 8299)
+NATS_PORTS = (4232, 4233, 4234)
 NATS_IMAGE = "public.ecr.aws/docker/library/nats:2-alpine"
 BACKEND_PORTS = SLOT_PORTS[0]
 SLOT_LOCK = "/tmp/monaco-qa-slot%d.lock"
@@ -597,7 +597,7 @@ def take_slot(forced=None, sleep=time.sleep):
             if handle:
                 return slot, handle
         if not announced:
-            print("waiting for a journey slot: both are in use", flush=True)
+            print("waiting for a journey slot: all %d are in use" % len(SLOT_PORTS), flush=True)
             announced = True
         sleep(LOCK_POLL_SECONDS)
 
@@ -766,7 +766,7 @@ def backend_group(pgid, run=None):
 
 def stop_backend(process, grace=10, run=None, kill=os.kill, killpg=os.killpg, sleep=time.sleep):
     """Stops this run's backend and nothing else. `just stop backend` and the trap of `just run backend` both
-    pkill bin/api and bin/worker by name, and two slots run the same binaries, so either would take the other
+    pkill bin/api and bin/worker by name, and the slots run the same binaries, so either would take the other
     slot's backend down too. This signals only the process group start_backend made: the wrappers die first,
     before their trap can run, then api and worker get SIGTERM and `grace` seconds, then the group gets SIGKILL."""
     group = backend_group(process.pid, run)
