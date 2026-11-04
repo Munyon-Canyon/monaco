@@ -147,16 +147,30 @@ struct GifImageView: View {
     }
 
     private var failureRow: some View {
-        Text("GIF didn’t load. Tap to retry.")
-            .font(MonacoTheme.Typo.subhead)
-            .foregroundStyle(MonacoTheme.secondaryText)
-            .multilineTextAlignment(.center)
-            .minimumScaleFactor(0.5)
-            .padding(MonacoTheme.Space.s)
+        failureLabel
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .contentShape(Rectangle())
             .highPriorityGesture(TapGesture().onEnded { retry() })
             .accessibilityIdentifier("gif-still-retry-\(id)")
+    }
+
+    @ViewBuilder private var failureLabel: some View {
+        let text = Text("GIF didn’t load. Tap to retry.")
+            .font(MonacoTheme.Typo.subhead)
+            .multilineTextAlignment(.center)
+            .minimumScaleFactor(0.5)
+        if isShowingStill {
+            text
+                .foregroundStyle(MonacoTheme.onCover)
+                .padding(.horizontal, MonacoTheme.Space.s)
+                .padding(.vertical, MonacoTheme.Space.xs)
+                .background(MonacoTheme.scrim, in: Capsule())
+                .padding(MonacoTheme.Space.s)
+        } else {
+            text
+                .foregroundStyle(MonacoTheme.secondaryText)
+                .padding(MonacoTheme.Space.s)
+        }
     }
 
     private func retry() {
