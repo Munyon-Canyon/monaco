@@ -120,6 +120,15 @@ struct MarketsPreIpoSection: View {
                     .onAppear { if asset.id == rows.last?.id { onLastAppear?() } }
                 }
             }
+            if let footer = PreIpoRowCopy.footer(asOfDates: rows.compactMap { $0.estimate?.asOf }) {
+                Text(footer)
+                    .font(MonacoTheme.Typo.caption)
+                    .foregroundStyle(MonacoTheme.secondaryText)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, MonacoTheme.Space.gutter)
+                    .padding(.top, MonacoTheme.Space.sm)
+                    .accessibilityIdentifier("markets-preipo-footer")
+            }
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("markets-preipo")

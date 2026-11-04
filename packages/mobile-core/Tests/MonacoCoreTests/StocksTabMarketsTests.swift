@@ -115,8 +115,20 @@ final class StocksTabMarketsTests: XCTestCase {
         XCTAssertEqual(row.estimate, MarketEstimate(priceMicros: 185_000_000, asOf: "2026-10-20"))
         XCTAssertEqual(PreIpoRowCopy.estimateLine(asOf: "2026-10-20"), "Secondary estimate · Oct 20")
         XCTAssertFalse(PreIpoRowCopy.estimateLine(asOf: "2026-10-20").contains("%"))
-        XCTAssertEqual(PreIpoRowCopy.eligibility(tradable: true), "Eligible")
-        XCTAssertEqual(PreIpoRowCopy.eligibility(tradable: false), "Research only")
+        XCTAssertEqual(PreIpoRowCopy.eligibility(tradable: true), "Can buy")
+        XCTAssertEqual(PreIpoRowCopy.eligibility(tradable: false), "Watch only")
+        XCTAssertEqual(
+            PreIpoRowCopy.footer(asOfDates: ["2026-10-20", "2026-10-09", "2026-10-15"]),
+            "Prices are secondary-market estimates from Oct 9 to Oct 20.")
+        XCTAssertEqual(
+            PreIpoRowCopy.footer(asOfDates: ["2026-10-20", "2026-10-20"]),
+            "Prices are secondary-market estimates from Oct 20.")
+        XCTAssertNil(PreIpoRowCopy.footer(asOfDates: []))
+        XCTAssertEqual(
+            MarketsInfoCopy.preIpo,
+            "Pre-IPO companies are private. Their price is a secondary estimate between funding rounds, "
+                + "not a live quote. You can propose to buy the ones marked Can buy; "
+                + "the ones marked Watch only can't be bought here yet.")
     }
 
     func testAFailedRefreshWithRowsOnScreenMakesTheTabStaleFromTheLastGoodLoad() async throws {
