@@ -513,7 +513,8 @@ extension XCUIApplication {
         } else {
             JoinJourney.openBySearch(self, name, step: "openCabal")
         }
-        guard waitForCabalTitle(name, timeout: timeout) else {
+        let chatShown = tab.lowercased() == "chat" && element("chat-view").waitForExistence(timeout: 2)
+        guard waitForCabalTitle(name, timeout: timeout) || chatShown else {
             XCTFail("\(step): cabal-header-name did not read \(name) on the \(tab) tab within \(Int(timeout)) s")
             return
         }

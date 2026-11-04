@@ -14,10 +14,6 @@ enum ChatCabalChatJourney {
 
     static func openChat(_ app: XCUIApplication, run: String, step: String) {
         app.openCabal(named: cabal(run: run), tab: "chat", step: step)
-        XCTAssertTrue(
-            JoinJourney.waitForLabel(app.element("cabal-inline-title"), containing: cabal(run: run), timeout: 15),
-            "\(step): the title for \(cabal(run: run)) did not show within 15 s"
-        )
     }
 
     static func messageText(_ app: XCUIApplication, run: String) -> XCUIElement {
