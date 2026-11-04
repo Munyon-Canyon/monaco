@@ -15,7 +15,7 @@ final class ChatBlockedAuthorsTests: XCTestCase {
     private func transport(_ blocks: StubTransport.Reply..., then page: StubTransport.Reply) -> StubTransport {
         StubTransport(routes: [
             "/v1/me/blocks": blocks,
-            "/v1/cabals/\(Fixtures.cabalID)/messages?limit=50": [page],
+            "/v1/cabals/\(Fixtures.cabalID)/messages?moments=true&limit=50": [page],
         ])
     }
 
@@ -63,7 +63,7 @@ final class ChatBlockedAuthorsTests: XCTestCase {
         let transport = StubTransport(routes: [
             "/v1/me/blocks": [.json(.ok, first)],
             "/v1/me/blocks?cursor=c1": [.json(.ok, second)],
-            "/v1/cabals/\(Fixtures.cabalID)/messages?limit=50": [try Fixtures.page([])],
+            "/v1/cabals/\(Fixtures.cabalID)/messages?moments=true&limit=50": [try Fixtures.page([])],
         ])
         let session = Fixtures.session(transport, blocked: true)
         await session.open()
@@ -92,7 +92,7 @@ final class ChatBlockedAuthorsTests: XCTestCase {
         let parent = Fixtures.message("p1", author: "someone-else", minutes: 1, replyCount: 0)
         let transport = StubTransport(routes: [
             "/v1/me/blocks": [blocks(Fixtures.otherID)],
-            "/v1/cabals/\(Fixtures.cabalID)/messages?limit=50": [try Fixtures.page([parent])],
+            "/v1/cabals/\(Fixtures.cabalID)/messages?moments=true&limit=50": [try Fixtures.page([parent])],
             "/v1/cabals/\(Fixtures.cabalID)/messages/p1/thread?limit=50": [
                 try Fixtures.thread(parent: parent, replies: [])
             ],
@@ -133,7 +133,7 @@ final class ChatBlockedAuthorsTests: XCTestCase {
         let m1 = Fixtures.message("m1", minutes: 1)
         let m2 = Fixtures.message("m2", minutes: 2)
         let transport = StubTransport(routes: [
-            "/v1/cabals/\(Fixtures.cabalID)/messages?limit=50": [
+            "/v1/cabals/\(Fixtures.cabalID)/messages?moments=true&limit=50": [
                 try Fixtures.page([m0, m1, m2]), try Fixtures.page([m0, m2]),
             ]
         ])

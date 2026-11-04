@@ -164,12 +164,10 @@ public actor ChatSession {
         for thread in attached.values { await thread.apply(event) }
         switch event {
         case .messageCreated(let message):
-            if bufferWhileOpening(message) { return }
-            guard state.timeline.hasLoadedNewest else { return }
-            cursor.noteLive(message)
-            guard state.timeline.insertLive(message) else { return }
-            publish()
-            await onArrival()
+            await insertLive(message, raisesArrival: true)
+            return
+        case .momentCreated(let message):
+            await insertLive(message, raisesArrival: false)
             return
         case .threadUpdated, .messageDeleted, .reactionUpdated:
             guard applyToTimeline(event) else { return }
@@ -185,6 +183,15 @@ public actor ChatSession {
             return
         }
         publish()
+    }
+
+    private func insertLive(_ message: ChatMessage, raisesArrival: Bool) async {
+        if bufferWhileOpening(message) { return }
+        guard state.timeline.hasLoadedNewest else { return }
+        cursor.noteLive(message)
+        guard state.timeline.insertLive(message) else { return }
+        publish()
+        if raisesArrival { await onArrival() }
     }
 
     func stopListening() {

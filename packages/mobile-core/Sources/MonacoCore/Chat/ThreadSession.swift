@@ -136,7 +136,7 @@ public actor ThreadSession {
         case .attached(let resumed):
             if !resumed { await loadNewest() }
             return
-        case .seenUpdated, .detached:
+        case .seenUpdated, .detached, .momentCreated:
             return
         }
         publish()

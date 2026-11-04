@@ -6,7 +6,7 @@ extension ChatSession {
         return try await api.read { client in
             try await client.getChatMessages(
                 path: .init(id: cabalID),
-                query: .init(before: before, after: after, limit: Self.pageSize)
+                query: .init(before: before, after: after, moments: true, limit: Self.pageSize)
             ).ok.body.json.messages
         }
     }

@@ -30,7 +30,7 @@ final class ChatSessionCatchUpTests: XCTestCase {
         XCTAssertEqual(state.timeline.newestID, "tail")
         XCTAssertEqual(state.timeline.rows.count, 12 * ChatSession.pageSize + 2)
         let sent = await transport.sent
-        XCTAssertEqual(sent[13].path, "/v1/cabals/\(Fixtures.cabalID)/messages?after=p11-049&limit=50")
+        XCTAssertEqual(sent[13].path, "/v1/cabals/\(Fixtures.cabalID)/messages?after=p11-049&moments=true&limit=50")
     }
 
     func testALiveMessageDuringACatchUpDoesNotMoveThePageCursor() async throws {
@@ -59,7 +59,7 @@ final class ChatSessionCatchUpTests: XCTestCase {
         await catching.value
 
         let sent = await transport.sent
-        XCTAssertEqual(sent[3].path, "/v1/cabals/\(Fixtures.cabalID)/messages?after=b049&limit=50")
+        XCTAssertEqual(sent[3].path, "/v1/cabals/\(Fixtures.cabalID)/messages?after=b049&moments=true&limit=50")
         let state = await Fixtures.state(session)
         XCTAssertEqual(state.timeline.rows.count, 2 * ChatSession.pageSize + 3)
         XCTAssertEqual(state.timeline.newestID, "z001")
