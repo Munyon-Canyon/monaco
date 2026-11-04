@@ -1,0 +1,19 @@
+journey: governance/vote
+expect-fail: S1
+
+The vote status line drops "closes in". S1.2 expects "0 of 3 voted" and "closes in" in proposal-vote-status, so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/packages/mobile-core/Sources/MonacoCore/Proposals/ProposalVoteCopy.swift b/packages/mobile-core/Sources/MonacoCore/Proposals/ProposalVoteCopy.swift
+index 501019b05..5e440ae84 100644
+--- a/packages/mobile-core/Sources/MonacoCore/Proposals/ProposalVoteCopy.swift
++++ b/packages/mobile-core/Sources/MonacoCore/Proposals/ProposalVoteCopy.swift
+@@ -105,7 +105,7 @@ public enum ProposalVoteCopy {
+         let close = closesIn(expiresAt, now: now)
+         let separator = " \u{00B7} "
+         return VoteCardLine(
+-            full: (facts + [close.long]).joined(separator: separator),
++            full: facts.joined(separator: separator),
+             short: (facts + [close.short]).joined(separator: separator))
+     }
+ 

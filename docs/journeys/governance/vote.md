@@ -1,7 +1,7 @@
 ---
 id: governance/vote
 title: Vote on a proposal
-version: 7
+version: 8
 milestone: M13
 requires: [auth/sign-in]
 actors: [A, B]
@@ -16,6 +16,8 @@ Two members of a cabal vote on a buy that a third member proposed. A picks and h
 A vote is a pick, then a 0.6 s hold: a short tap casts nothing. The counts are live in every state and neither side is highlighted before a pick. The vote that reaches the threshold marks the proposal Passed on the spot, with no Undo and no Change. Before settlement an ordinary first ballot toasts with Undo and the open card reads "You voted Yes" with Change; a change toasts "Changed to No." with no Undo. Nobody sees who voted which way on an open proposal; a cabal can turn on "Show who voted what after a vote closes" and then its closed proposals show the sides row. The push permission sheet "Hear how votes end?" follows the first vote's toast once per install.
 
 The format of this doc is in [App journeys](../README.md).
+
+Frames: `docs/design/v5/screens/04-proposal-dark.png`, `docs/design/v5/screens/04b-hold-2-holding.png`, `docs/design/v5/screens/12-toast.png` and `docs/design/v5/screens/19-permission-sheet.png`.
 
 ## Preconditions
 
@@ -35,21 +37,21 @@ The setup seeds the proposal, so this journey does not depend on the propose scr
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
 | S1.1 | A | tap | the Home tab | | "Your vote" shows the proposal with `home-vote-yes-<proposalID>` and `home-vote-no-<proposalID>` within 15 s. Both show the live count "0" and neither is highlighted |
-| S1.2 | A | tap | the card's row (`home-vote-open-<proposalID>`) | | The Proposal screen shows `proposal-stat-row` with "Price", "Shares", "Of treasury" and "Closes", the thesis "QA vote {QA.run}", `proposal-vote-yes` reading "Yes, 0 votes", `proposal-vote-no` reading "No, 0 votes" and `proposal-remind` "Remind me at close" within 15 s |
+| S1.2 | A | tap | the card's row (`home-vote-open-<proposalID>`) | | The Proposal screen shows `proposal-crest-line` (the asker's first name and the cabal chip), `proposal-facts` (the setup's proposal is priced, so it reads the estimate and "of treasury"), the thesis "QA vote {QA.run}", `proposal-vote-status` reading "0 of 3 voted" and "closes in", `proposal-vote-yes` reading "Yes, 0 votes", `proposal-vote-no` reading "No, 0 votes" and `proposal-remind` "Remind me at close" within 15 s |
 | S1.3 | A | tap | `proposal-vote-yes`, and let go before 0.6 s | | Nothing is cast: the counts still read "Yes, 0 votes" and "No, 0 votes" after 2 s, and no toast shows |
-| S1.4 | A | tap, then hold | `proposal-vote-yes` | | Within 10 s `proposal-vote-yes` reads "Voted Yes, 1 vote", the status line reads "1 of 3 voted", the toast reads "Voted Yes. 1st of 3." with "Undo", and `proposal-remind` is gone. While the toast shows, `push-pre-prompt` does not. A leaves the toast alone. Within 10 s of the toast closing `push-pre-prompt` shows "Hear how votes end?", and "Not now" dismisses it. This step never taps Undo |
-| S1.5 | A | tap, then pick and hold | `proposal-change-vote` "Change", then `proposal-vote-no`, then Change and `proposal-vote-yes` | | The card reads "You voted Yes" with `proposal-change-vote`. After the first change the tally reads "Yes, 0 votes" / "No, 1 vote" within 10 s, the toast reads "Changed to No." with no `monaco-toast-action`, and "Change" shows again. After the second it reads "Yes, 1 vote" / "No, 0 votes" and "Changed to Yes." with no Undo. The permission sheet does not show again |
-| S1.6 | B | tap, then tap | the Home tab, then `home-vote-open-<proposalID>` | | The tally reads "Yes, 1 vote" / "No, 0 votes" and the status line "1 of 3 voted" within 15 s. There is no votes list with names: `proposal-votes-see-all` does not exist |
-| S1.7 | B | pick and hold, then tap | `proposal-vote-no`, then the toast's "Undo" while it shows | | Within 10 s `proposal-vote-no` reads "Voted No, 1 vote" and the toast reads "Voted No. 2nd of 3." with "Undo". After Undo, within 10 s the tally reads "Yes, 1 vote" / "No, 0 votes", the toast reads "Vote undone.", both buttons can be picked and `proposal-change-vote` does not exist. No permission sheet shows |
-| S1.8 | B | pick and hold | `proposal-vote-yes` | | Within 10 s the toast reads "Voted Yes. Passed 2–0." with no `monaco-toast-action`, `proposal-vote-yes` reads "Voted Yes, 2 votes", the status line starts "Passed 2–0", `proposal-change-vote` does not exist, and the stat row's last cell reads "Passed" |
+| S1.4 | A | tap, then hold | `proposal-vote-yes` | | Within 10 s `proposal-vote-yes` reads "Voted Yes, 1 vote", the status line reads "1 of 3 voted" and "closes in", the toast reads "Voted Yes. 1st of 3." with "Undo", and `proposal-remind` is gone. While the toast shows, `push-pre-prompt` does not. A leaves the toast alone. Within 10 s of the toast closing `push-pre-prompt` shows "Hear how votes end?", and "Not now" dismisses it. This step never taps Undo |
+| S1.5 | A | tap, then pick and hold | `proposal-change-vote` "Change", then `proposal-vote-no`, then Change and `proposal-vote-yes` | | The card reads "You voted Yes" with `proposal-change-vote`. After the first change the tally reads "Yes, 0 votes" / "Voted No, 1 vote" within 10 s, the toast reads "Changed to No." with no `monaco-toast-action`, and "Change" shows again. After the second it reads "Voted Yes, 1 vote" / "No, 0 votes" and "Changed to Yes." with no Undo. The permission sheet does not show again |
+| S1.6 | B | tap, then tap | the Home tab, then `home-vote-open-<proposalID>` | | The tally reads "1 vote" / "0 votes" and the status line "1 of 3 voted" and "closes in" within 15 s. There is no votes list with names: `proposal-votes-see-all` does not exist |
+| S1.7 | B | pick and hold, then tap | `proposal-vote-no`, then the toast's "Undo" while it shows | | Within 10 s `proposal-vote-no` reads "Voted No, 1 vote" and the toast reads "Voted No. 2nd of 3." with "Undo". After Undo, within 10 s the tally reads "1 vote" / "0 votes", the toast reads "Vote undone.", both buttons can be picked and `proposal-change-vote` does not exist. No permission sheet shows |
+| S1.8 | B | pick and hold | `proposal-vote-yes` | | Within 10 s the toast reads "Voted Yes. Passed 2–0." with no `monaco-toast-action`, `proposal-vote-yes` reads "Voted Yes, 2 votes", the status line starts "Passed 2–0", `proposal-change-vote` does not exist, and `monaco-toast-banner` reads "Your vote decided it." (the spoken words for the seal glyph) |
 | S1.9 | A | relaunch, then tap | the Home tab | | Within 15 s "Your vote" no longer offers the proposal for a vote (`home-vote-yes-<proposalID>` does not exist). If Home still shows it, opening it shows no `proposal-change-vote` |
 
 ### S2 Vote from the cabal page
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S2.1 | A | open the cabal | the Cabals tab, then the cabal named `{cabalName}` | | `cabal-header-name` reads `{cabalName}` and the vote card `cabal-open-proposal-<proposalID>` shows above the tabs within 15 s |
-| S2.2 | A | tap | `cabal-open-proposal-open-<proposalID>`, the card's header | | The Proposal screen shows `proposal-stat-row` within 15 s |
+| S2.1 | A | open the cabal | the Cabals tab, then the cabal named `{cabalName}` | | `cabal-header-name` reads `{cabalName}` and `cabal-open-proposal-<proposalID>` is the vote card above the tabs and shows `cabal-open-proposal-yes-<proposalID>` within 15 s |
+| S2.2 | A | tap | `cabal-open-proposal-open-<proposalID>`, the card's header | | The Proposal screen shows `proposal-crest-line` within 15 s |
 | S2.3 | A | pick and hold | `proposal-vote-yes` | | The toast reads "Voted Yes." with "Undo" within 10 s, and `proposal-change-vote` shows |
 
 ### S3 All proposals
@@ -74,9 +76,6 @@ The setup seeds the proposal, so this journey does not depend on the propose scr
 
 - S4.1 and S4.2 depend on #6433's `show_sides` rule and #6506's closed result card, which the setup seeds through `cabals.show_sides`.
 - S2.1 finds a member's cabal by the `cabals-tile-<id>` icon and its label, not the `cabals-grid-<id>` identifier the ticket names, which the app does not set; `openCabal(named:)` falls back to the cabal search when no tile matches.
-- S1.5: "No, 1 vote" is no longer app copy; "Yes, 1 vote" is no longer app copy. Blocked by #7975.
-- S1.6: "Yes, 1 vote" is no longer app copy. Blocked by #7975.
-- S1.7: "Yes, 1 vote" is no longer app copy. Blocked by #7975.
 
 ## Not covered
 

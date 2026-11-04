@@ -2,6 +2,13 @@ import SwiftUI
 
 enum MonacoToastGlyph: Equatable {
     case check, seal
+
+    var spokenSuffix: String? {
+        switch self {
+        case .check: nil
+        case .seal: "Your vote decided it."
+        }
+    }
 }
 
 struct MonacoToast: Equatable, Identifiable {
@@ -117,6 +124,20 @@ struct MonacoToastBanner: View {
         .frame(maxWidth: insetsGutter ? .infinity : nil, alignment: .leading)
         .accessibilityElement(children: link == nil && action == nil ? .combine : .contain)
         .accessibilityIdentifier("monaco-toast-banner")
+        .modifier(MonacoToastSpokenSuffix(message: message, suffix: isSuccess ? glyph.spokenSuffix : nil))
+    }
+}
+
+private struct MonacoToastSpokenSuffix: ViewModifier {
+    let message: String
+    let suffix: String?
+
+    func body(content: Content) -> some View {
+        if let suffix {
+            content.accessibilityLabel("\(message) \(suffix)")
+        } else {
+            content
+        }
     }
 }
 
