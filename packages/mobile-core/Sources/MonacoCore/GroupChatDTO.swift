@@ -55,17 +55,11 @@ public enum GroupChatCopy {
     public static let stockBody = "Shared a stock"
     public static let thesisBody = "Quoted the thesis"
     public static let retry = "Retry"
-    public static let discuss = "Discuss"
     public static let sent = "Sent"
     public static let sending = "Sending…"
     public static let offline = "You're offline. Messages can be drafted but won't send yet."
     public static let infoLabel = "Cabal information"
     public static let sendLabel = "Send message"
-    public static let review = "Review"
-    public static let status = "Status"
-    public static let executionPending = "Execution pending · Not completed"
-    public static let unknownProposal = "A proposal"
-    public static let approved = "Proposal approved"
     public static let deleted = "Message deleted"
     public static let copy = "Copy"
     public static let quietTitle = "No vote open."
@@ -94,14 +88,6 @@ public enum GroupChatCopy {
 
     public static func newMessagesPill(count: Int) -> String {
         count == 1 ? "1 new message" : "\(count) new messages"
-    }
-
-    public static func proposed(_ name: String, _ asset: String, isSell: Bool = false) -> String {
-        isSell ? "\(name) proposed selling \(asset)" : "\(name) proposed \(asset)"
-    }
-
-    public static func fromPot(_ amount: String) -> String {
-        "\(amount) from the cabal pot"
     }
 
     public static func statusLine(time: String, status: String) -> String {

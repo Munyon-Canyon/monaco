@@ -3,61 +3,12 @@ import MonacoAPI
 import Observation
 
 public struct ChatProposalFacts: Equatable, Sendable {
-    public enum Phase: Equatable, Sendable {
-        case open
-        case approved
-        case closed
-    }
+    public let summary: ProposalSummary
+    public let asset: ProposalAsset?
 
-    public let proposalID: String
-    public let proposerID: String
-    public let assetName: String
-    public let isSell: Bool
-    public let amountMicros: Int64?
-    public let createdAt: Date
-    public let phase: Phase
-
-    public init(
-        proposalID: String, proposerID: String, assetName: String, isSell: Bool, amountMicros: Int64?,
-        createdAt: Date, phase: Phase
-    ) {
-        self.proposalID = proposalID
-        self.proposerID = proposerID
-        self.assetName = assetName
-        self.isSell = isSell
-        self.amountMicros = amountMicros
-        self.createdAt = createdAt
-        self.phase = phase
-    }
-
-    public init(_ detail: ProposalDetail, asset: ProposalAsset?) {
-        let summary = detail.summary
-        self.init(
-            proposalID: summary.id, proposerID: summary.proposerID,
-            assetName: asset?.displayName ?? AssetSymbolFormatter.display(summary.symbol),
-            isSell: summary.kind == "sell",
-            amountMicros: summary.usdcMicros ?? TokenAmount.int64(summary.quoteOutAmount),
-            createdAt: summary.createdAt, phase: Self.phase(summary.status))
-    }
-
-    private static func phase(_ status: ProposalStatus) -> Phase {
-        switch status {
-        case .open: .open
-        case .passed: .approved
-        case .executed, .failed, .expired, .withdrawn, .voided, .executionBlocked: .closed
-        }
-    }
-
-    public func title(proposer: String) -> String {
-        phase == .approved ? GroupChatCopy.approved : GroupChatCopy.proposed(proposer, assetName, isSell: isSell)
-    }
-
-    public var amountLine: String? {
-        amountMicros.map { GroupChatCopy.fromPot(UsdAmountFormatter.format(micros: $0)) }
-    }
-
-    public var buttonTitle: String {
-        phase == .open ? GroupChatCopy.review : GroupChatCopy.status
+    public init(summary: ProposalSummary, asset: ProposalAsset?) {
+        self.summary = summary
+        self.asset = asset
     }
 }
 
@@ -85,7 +36,7 @@ public final class ChatProposalStore {
         self.init { id in
             let detail = try await repository.detail(id: id)
             let asset = try? await repository.asset(symbol: detail.summary.symbol)
-            return ChatProposalFacts(detail, asset: asset)
+            return ChatProposalFacts(summary: detail.summary, asset: asset)
         }
     }
 
@@ -102,6 +53,29 @@ public final class ChatProposalStore {
         } catch {
             guard !Task.isCancelled else { return }
             states[id] = .failed
+        }
+    }
+
+    public func retry(_ id: String) async {
+        guard case .failed = states[id] else { return }
+        states[id] = .loading
+        await load(id)
+    }
+
+    public func reload(_ ids: [String]) async {
+        for id in ids {
+            guard case .loaded = states[id] else { continue }
+            guard let facts = try? await fetch(id) else { continue }
+            states[id] = .loaded(facts)
+        }
+    }
+
+    public func observe(cabalID: String, hints: any HintSource) async {
+        for await hint in hints.hints(matching: .cabal(id: cabalID, what: "proposal_updated")) {
+            switch hint {
+            case .changed(_, _, let id): await reload([id])
+            case .resync: await reload(Array(states.keys))
+            }
         }
     }
 }

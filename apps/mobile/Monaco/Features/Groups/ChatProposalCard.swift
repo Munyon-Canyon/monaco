@@ -2,161 +2,100 @@ import MonacoAPI
 import MonacoCore
 import SwiftUI
 
-enum ChatProposalMetrics {
-    static let avatarSize: CGFloat = 38
-    static let footerHeight: CGFloat = 44
-}
+struct ChatProposalCard<Name: View, Thesis: View, Face: View, Replies: View>: View {
+    static var identifierPrefix: String { "chat-proposal" }
 
-struct ChatProposalCard: View {
     let message: ChatMessage
     let proposalID: String
     let store: ChatProposalStore
-    let members: [Components.Schemas.CabalMember]
-    let cabalName: String
-    let now: Date
+    let columnInset: CGFloat
+    let isMine: Bool
     let openProposal: () -> Void
-    let openThread: (() -> Void)?
+    @ViewBuilder let name: () -> Name
+    @ViewBuilder let thesis: () -> Thesis
+    @ViewBuilder let face: () -> Face
+    @ViewBuilder let replies: () -> Replies
 
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(AppEnvironment.self) private var environment
+    @Environment(ToastCenter.self) private var toasts
+    @Environment(\.analytics) private var analytics
+    @Environment(\.hostMainTab) private var hostMainTab
+    @State private var cards = CabalVoteCards()
 
     private var state: ChatProposalState { store.state(for: proposalID) }
 
     var body: some View {
-        let shape = RoundedRectangle(cornerRadius: MonacoTheme.Radius.card, style: .continuous)
-        VStack(spacing: 0) {
-            mainRow
-                .padding(.horizontal, MonacoTheme.Space.sm)
-                .padding(.top, MonacoTheme.Space.sm)
-                .padding(.bottom, MonacoTheme.Space.xs)
-            MonacoRule()
-            footer
+        VStack(alignment: isMine ? .trailing : .leading, spacing: MonacoTheme.Space.xs) {
+            name().padding(.leading, columnInset + ChatBubbleMetrics.nameInset)
+            if !(message.body ?? "").isEmpty { thesis().padding(.leading, columnInset) }
+            HStack(alignment: .bottom, spacing: MonacoTheme.Space.s) {
+                face()
+                content.frame(maxWidth: .infinity)
+            }
+            replies().padding(.leading, columnInset)
         }
-        .background(shape.fill(MonacoTheme.surface))
-        .overlay(shape.strokeBorder(MonacoTheme.hairline, lineWidth: 1))
-        .padding(.horizontal, MonacoTheme.Space.sm)
-        .padding(.vertical, MonacoTheme.Space.l)
+        .padding(.vertical, MonacoTheme.Space.sm)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("chat-proposal-\(message.id)")
         .task(id: proposalID) { await store.load(proposalID) }
     }
 
-    private var proposer: (name: String, id: String, photoURL: String?) {
-        if case .loaded(let facts) = state,
-            let member = members.first(where: { $0.userId == facts.proposerID })
-        {
-            return (member.displayName, member.userId, member.photoUrl)
-        }
-        let author = message.author
-        return (author.displayName, author.id, author.photoUrl)
-    }
-
-    private var layout: AnyLayout {
-        dynamicTypeSize.isAccessibilitySize
-            ? AnyLayout(VStackLayout(alignment: .leading, spacing: MonacoTheme.Space.s))
-            : AnyLayout(HStackLayout(alignment: .center, spacing: MonacoTheme.Space.s))
-    }
-
-    @ViewBuilder private var mainRow: some View {
+    @ViewBuilder private var content: some View {
         switch state {
         case .loading:
-            HStack(spacing: MonacoTheme.Space.s) {
-                SkeletonBlock(
-                    width: ChatProposalMetrics.avatarSize, height: ChatProposalMetrics.avatarSize,
-                    radius: ChatProposalMetrics.avatarSize / 2)
-                VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
-                    SkeletonBar(width: 180)
-                    SkeletonBar(width: 120)
-                }
-                Spacer(minLength: 0)
-            }
-            .frame(minHeight: MonacoButtonMetrics.hitTarget)
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("Loading proposal")
-            .accessibilityIdentifier("chat-proposal-loading-\(message.id)")
-        case .loaded(let facts):
-            loadedRow(
-                title: facts.title(proposer: proposer.name), amount: facts.amountLine, buttonTitle: facts.buttonTitle)
+            SkeletonBlock(height: 120, radius: MonacoTheme.Radius.card)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Loading proposal")
+                .accessibilityIdentifier("chat-proposal-loading-\(message.id)")
         case .failed:
-            loadedRow(title: GroupChatCopy.unknownProposal, amount: nil, buttonTitle: GroupChatCopy.review)
-        }
-    }
-
-    private func loadedRow(title: String, amount: String?, buttonTitle: String) -> some View {
-        layout {
-            HStack(spacing: MonacoTheme.Space.s) {
-                MonacoAvatar(
-                    photoURL: proposer.photoURL, displayName: proposer.name, size: ChatProposalMetrics.avatarSize,
-                    seed: proposer.id)
-                texts(title: title, amount: amount)
+            MonacoErrorRow(thing: "proposal", identifier: "chat-proposal-error-\(message.id)", inset: false) {
+                Task { await store.retry(proposalID) }
             }
-            if !dynamicTypeSize.isAccessibilitySize { Spacer(minLength: MonacoTheme.Space.xs) }
-            Button(buttonTitle, action: openProposal)
-                .buttonStyle(.monacoCompactProminent)
-                .accessibilityIdentifier("chat-proposal-review-\(message.id)")
+        case .loaded(let facts):
+            loaded(facts)
         }
     }
 
-    private func texts(title: String, amount: String?) -> some View {
-        VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
-            Text(title)
-                .font(MonacoTheme.Typo.subheadStrong)
-                .foregroundStyle(MonacoTheme.primaryText)
-                .fixedSize(horizontal: false, vertical: true)
-            if let amount {
-                Text(amount)
-                    .font(MonacoTheme.Typo.caption)
-                    .foregroundStyle(MonacoTheme.secondaryText)
-            }
-            Text(GroupChatCopy.statusLine(time: cabalName, status: age))
-                .font(MonacoTheme.Typo.caption)
-                .foregroundStyle(MonacoTheme.secondaryText)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .accessibilityElement(children: .combine)
-    }
-
-    private var age: String {
-        Self.relative.localizedString(for: message.createdAt, relativeTo: now)
-    }
-
-    private static let relative: RelativeDateTimeFormatter = {
-        let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .short
-        formatter.dateTimeStyle = .named
-        return formatter
-    }()
-
-    @ViewBuilder private var footer: some View {
-        let isApproved = { if case .loaded(let facts) = state { facts.phase == .approved } else { false } }()
-        let label = isApproved ? GroupChatCopy.executionPending : repliesText
-        let content = HStack(spacing: MonacoTheme.Space.s) {
-            if isApproved {
-                Image(systemName: "clock")
-                    .foregroundStyle(MonacoTheme.warning)
-                    .accessibilityHidden(true)
-            }
-            Text(label)
-                .font(MonacoTheme.Typo.caption)
-                .foregroundStyle(MonacoTheme.secondaryText)
-            Spacer(minLength: 0)
-            Image(systemName: "chevron.right")
-                .font(MonacoTheme.Typo.captionStrong)
-                .foregroundStyle(MonacoTheme.secondaryText)
-                .accessibilityHidden(true)
-        }
-        .padding(.horizontal, MonacoTheme.Space.sm)
-        .frame(maxWidth: .infinity, minHeight: ChatProposalMetrics.footerHeight, alignment: .leading)
-        .contentShape(Rectangle())
-        if let openThread {
-            Button(action: openThread) { content }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("chat-replies-\(message.id)")
+    @ViewBuilder private func loaded(_ facts: ChatProposalFacts) -> some View {
+        let summary = facts.summary
+        let model = card(for: summary, asset: facts.asset)
+        if summary.status == .open {
+            HomeVoteCard(
+                model: model, identifierPrefix: Self.identifierPrefix,
+                tab: hostMainTab ?? environment.navigator.selectedTab, inCabal: true, canVote: summary.canVote)
         } else {
-            content
+            let result = Self.resultLine(summary)
+            VoteCard(
+                title: model.headline,
+                mark: summary.isRule
+                    ? .rule
+                    : .stock(symbol: summary.symbol, name: facts.asset?.displayName, logoURL: facts.asset?.logoURL),
+                line: VoteCardLine(full: result, short: result),
+                yes: summary.tally.yes, no: summary.tally.no, eligible: summary.tally.voters,
+                identifierPrefix: Self.identifierPrefix, identifierSuffix: summary.id, onOpen: openProposal
+            ) {
+                EmptyView()
+            }
         }
     }
 
-    private var repliesText: String {
-        message.replyCount > 0 ? GroupChatCopy.replies(message.replyCount) : GroupChatCopy.discuss
+    static func resultLine(_ summary: ProposalSummary) -> String {
+        let caption = ProposalResultCopy.caption(
+            status: summary.status, tally: summary.tally, swap: summary.swap, isSell: summary.kind == "sell",
+            pendingUnits: nil, statusMessage: summary.statusMessage, isRule: summary.isRule)
+        return caption
+            ?? ProposalChip.label(status: summary.status, isSell: summary.kind == "sell", isRule: summary.isRule)
+            ?? "Closed"
+    }
+
+    private func card(for summary: ProposalSummary, asset: ProposalAsset?) -> HomeVoteCardModel {
+        let row = CabalProposals.pendingVote(summary, asset: asset)
+        let id = summary.id
+        return cards.card(
+            for: row, ballot: summary.myBallot.flatMap(ProposalBallot.init(rawValue:)), environment: environment
+        ) { [environment, toasts, analytics, store] card, outcome in
+            HomeVoteCommit.accepted(card, outcome, environment: environment, toasts: toasts, analytics: analytics)
+            Task { await store.reload([id]) }
+        }
     }
 }

@@ -207,9 +207,9 @@ private actor SampleChatStore {
             message("s8", me, "You", "Leo, you're the last vote.", minutesAgo: 9),
         ]
         if proposalCard {
-            var card = message("s5p", "u-mia", "Mia", "", minutesAgo: 80)
+            var card = message("s5p", "u-mia", "Mia", "put it up 👇 small add before the print", minutesAgo: 80)
             card.proposalId = ChatSession.sampleProposalID
-            card.replyCount = 8
+            card.replyCount = 6
             thread.insert(card, at: 5)
             var gif = message(
                 "s5g", "u-sam", "Sam", GroupChatCopy.gifBody, minutesAgo: 70,
