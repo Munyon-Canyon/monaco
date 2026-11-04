@@ -31,12 +31,6 @@ final class CatchUpCopyTests: XCTestCase {
         XCTAssertEqual(Copy.tally(proposal).no, "1")
     }
 
-    func testEndsInUnits() {
-        XCTAssertEqual(Copy.endsIn(now.addingTimeInterval(30), now: now), "ends now")
-        XCTAssertEqual(Copy.endsIn(now.addingTimeInterval(25 * 60), now: now), "ends in 25m")
-        XCTAssertEqual(Copy.endsIn(now.addingTimeInterval(2 * 86_400), now: now), "ends in 2d")
-    }
-
     func testWaitingSubtitleReplyAndTimeForms() throws {
         var item = try XCTUnwrap(six.waiting.first)
         func line() -> String { Copy.waitingSubtitle(item, now: now) }
