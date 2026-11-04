@@ -1,7 +1,7 @@
 ---
 id: profile/user-profile
 title: Another member's profile
-version: 7
+version: 8
 milestone: M17
 requires: [auth/sign-in]
 actors: [A]
@@ -58,7 +58,7 @@ Starts signed in (auth/sign-in).
 | --- | --- | --- | --- | --- | --- |
 | S3.1 | open, open, then tap | `openCabal(named: cabalName)`, `openCabalTab("Members")`, then the member's row (B's name, "Bartholomez") | | `user-profile-card` shows within 15 s | A member row opens the profile (`UserProfileRoute`) |
 | S3.2 | tap, then scroll to | the Cabals tab (`user-profile-tab-cabals`), then `user-profile-cabal-row-{cabalID}` | | The tab lists a row reading `cabalName` within 15 s, with B's share unless B turned off sharing their performance (Q42) | The profile lists the shared groups (`UserProfileSharedCabalsSlot`) |
-| S3.3 | tap | `user-profile-cabal-row-{cabalID}` | | The cabal screen shows within 15 s, with `cabal-header-name` | A shared group row opens the group |
+| S3.3 | tap | `user-profile-cabal-row-{cabalID}` | | The cabal screen shows within 15 s, with its title (`cabal-inline-title` or `cabal-header-name`) naming the shared cabal | A shared group row opens the group |
 
 ### S4 Report and block
 

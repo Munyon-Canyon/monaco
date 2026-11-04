@@ -2,7 +2,7 @@ import XCTest
 
 enum InviteJourney {
     static let id = "cabals/invite"
-    static let version = 11
+    static let version = 12
 
     static let cabalName = "QA pot"
 
@@ -127,8 +127,8 @@ enum InviteJourney {
             accept.tap()
             waitForToast(app, "You're in.", step: "S1.2")
             XCTAssertTrue(
-                app.element("cabal-header-name").waitForExistence(timeout: 15),
-                "S1.2: the cabal page did not show within 15 s"
+                app.element("chat-view").waitForExistence(timeout: 15),
+                "S1.2: the cabal did not open on its Chat tab within 15 s"
             )
         }
 

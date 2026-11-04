@@ -2,7 +2,7 @@ import XCTest
 
 enum CabalsLeaveJourney {
     static let id = "cabals/leave"
-    static let version = 8
+    static let version = 9
 
     static let screenTimeout: TimeInterval = 15
     static let host = "QA host"
@@ -65,8 +65,11 @@ enum CabalsLeaveJourney {
             app.buttons["cabalLeaveConfirmButton"].firstMatch.tap()
             JoinJourney.waitForToast(app, "You left \(name).", step: "S1.4")
             XCTAssertTrue(
-                app.element("cabal-header-name").waitForNonExistence(timeout: 10),
+                app.element("cabal-header-name").waitForNonExistence(timeout: 10)
+                    && app.element("cabal-inline-title").waitForNonExistence(timeout: 10),
                 "S1.4: the cabal screen is still open")
+            XCTAssertTrue(
+                app.tab("Cabals").waitForExistence(timeout: 10), "S1.4: leaving did not reach the Cabals list")
         }
 
         recorder.step("S1.5", "the Cabals tab no longer has the tile") {

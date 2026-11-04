@@ -2,7 +2,7 @@ import XCTest
 
 enum CabalsBrowseJourney {
     static let id = "cabals/browse"
-    static let version = 10
+    static let version = 11
 
     static let screenTimeout: TimeInterval = 15
 
@@ -93,8 +93,7 @@ enum CabalsBrowseJourney {
         recorder.step("S1.3", "open a tile") {
             tile(app, named: mine(run: run)).tap()
             XCTAssertTrue(
-                JoinJourney.waitForLabel(
-                    app.element("cabal-header-name"), containing: mine(run: run), timeout: screenTimeout),
+                app.waitForCabalTitle(mine(run: run), timeout: screenTimeout),
                 "S1.3: the cabal screen for \(mine(run: run)) did not show"
             )
         }

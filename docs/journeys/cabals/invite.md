@@ -1,7 +1,7 @@
 ---
 id: cabals/invite
 title: Invite a member
-version: 11
+version: 12
 milestone: M10
 requires: [auth/sign-in]
 actors: [A, B]
@@ -36,7 +36,7 @@ The setup runs before every scenario, because S1 uses up the invite it makes and
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
 | S1.1 | A | tap | the Cabals tab | | Exactly one `cabals-invited-<id>` tile shows within 10 s, scrolling the grid if A has many cabals (the grid draws invites first once it holds more than three rows of cabals), naming `QA pot` and reading "Invited". Old app: none, invites are new in #696 |
-| S1.2 | A | tap, then tap | the Invited tile, then `cabal-invite-accept` in the invitation sheet | | The toast "You're in." shows within 10 s, and `cabal-header-name` shows within 15 s. Old app: none, invites are new in #696 |
+| S1.2 | A | tap, then tap | the Invited tile, then `cabal-invite-accept` in the invitation sheet | | The toast "You're in." shows within 10 s, and the cabal opens on its Chat tab (`chat-view` shows) within 15 s. Old app: none, invites are new in #696 |
 | S1.3 | A | tap | the Members tab (`openCabalTab("members")`), then `cabal-members-invite` ("Invite to <cabal>") | | Once the toast goes and the push pre-prompt is answered "Not now" if it shows, the invite sheet shows within 10 s (`cabal-invite-title`). Old app: none |
 | S1.4 | A | tap | `share-card-copy` | | The card has no `cabal-invite-cover`. `cabal-invite-inviter` reads "<A's first name> invited you". `cabal-invite-proposal` reads Buy TSLA · $5 and "voted ·" with yes and no counts of 0, and never `ends in` or `closes in`. `share-card-share` "Share" and `share-card-copy` "Copy link" show, there is no `cabal-invite-settings` gear and no `cabal-invite-handle-row`: a member who is not an admin is not offered Invite by handle. Copy link toasts "Link copied.". The gain row is gone from the sheet. Old app: none |
 | S1.5 | A | wait | `cabal-invite-note` | | Within 10 s its value is exactly "<A's first name>: we vote on TSLA <weekday>. You in?", where the weekday is tomorrow's name in the simulator's time zone (the vote closes in 24 h, so never "today"), and the ticker has no trailing "x". Old app: none |

@@ -2,7 +2,7 @@ import XCTest
 
 enum CabalsEditRulesJourney {
     static let id = "cabals/edit-rules"
-    static let version = 9
+    static let version = 10
 
     static let memberKey = "member-id"
     static let screenTimeout: TimeInterval = 15
@@ -95,8 +95,8 @@ enum CabalsEditRulesJourney {
             save.tap()
             JoinJourney.waitForToast(app, "Cabal updated.", step: "S1.4")
             XCTAssertTrue(
-                JoinJourney.waitForLabel(app.element("cabal-header-name"), containing: name, timeout: 10),
-                "S1.4: the header does not read \(name): \(app.element("cabal-header-name").label)"
+                app.waitForCabalTitle(name, timeout: 10),
+                "S1.4: the cabal title does not read \(name)"
             )
         }
     }

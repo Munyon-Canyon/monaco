@@ -2,7 +2,7 @@ import XCTest
 
 enum CabalsActivityJourney {
     static let id = "cabals/activity"
-    static let version = 9
+    static let version = 10
 
     static let screenTimeout: TimeInterval = 15
 
@@ -108,7 +108,9 @@ enum CabalsActivityJourney {
             app.navigationBars.buttons.element(boundBy: 0).tap()
             XCTAssertTrue(
                 app.tab("Cabals").waitForExistence(timeout: 10), "S1.10: Back from the cabal did not leave it")
-            XCTAssertFalse(app.element("cabal-header-name").exists, "S1.10: a second cabal screen was under the first")
+            for id in ["cabal-header-name", "cabal-inline-title", "chat-view"] {
+                XCTAssertFalse(app.element(id).exists, "S1.10: a second cabal screen (\(id)) was under the first")
+            }
         }
     }
 

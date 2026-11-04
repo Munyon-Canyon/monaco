@@ -2,7 +2,7 @@ import XCTest
 
 enum MoneyActivityJourney {
     static let id = "money/activity"
-    static let version = 4
+    static let version = 5
 
     static let screenTimeout: TimeInterval = 15
     static let depositKey = "deposit-txn"
@@ -95,7 +95,7 @@ enum MoneyActivityJourney {
         recorder.step("S2.3", "open the cabal from the receipt") {
             app.element("account-txn-receipt-cabal").tap()
             XCTAssertTrue(
-                JoinJourney.waitForLabel(app.element("cabal-header-name"), containing: name, timeout: screenTimeout),
+                app.waitForCabalTitle(name, timeout: screenTimeout),
                 "S2.3: the cabal screen for \(name) did not show within \(Int(screenTimeout)) s"
             )
         }

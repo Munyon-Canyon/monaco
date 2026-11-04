@@ -1,7 +1,7 @@
 ---
 id: cabals/activity
 title: Cabal activity
-version: 9
+version: 10
 milestone: M14
 requires: [auth/sign-in]
 actors: [A]
@@ -44,7 +44,7 @@ The rows come from SQL because no route writes `cabal_activity` without a real s
 | S1.7 | A | tap | the back button of the "Transaction" bar | | "Treasury history" shows within 10 s, the receipt is gone, and no sheet, alert, popover or menu is up |
 | S1.8 | A | tap | a "Money added" row on "Treasury history" again | | The "Transaction" receipt shows within 10 s |
 | S1.9 | A | tap | the back button of the "Transaction" bar | | The same as S1.7: the history, no prompt |
-| S1.10 | A | tap, then tap | the back button of the "Treasury history" bar, then of the cabal screen | | `cabal-header-name` shows, then the Cabals tab shows within 10 s and no `cabal-header-name` is left, so there was one cabal screen on the path |
+| S1.10 | A | tap, then tap | the back button of the "Treasury history" bar, then of the cabal screen | | `cabal-header-name` shows, then the Cabals tab shows within 10 s and no `cabal-header-name`, `cabal-inline-title` or `chat-view` is left, so there was one cabal screen on the path |
 
 ### S2 Retry a failed trade
 
