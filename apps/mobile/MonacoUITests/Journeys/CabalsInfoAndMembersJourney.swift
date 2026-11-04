@@ -2,7 +2,7 @@ import XCTest
 
 enum CabalsInfoAndMembersJourney {
     static let id = "cabals/info-and-members"
-    static let version = 4
+    static let version = 5
 
     static let screenTimeout: TimeInterval = 15
 
@@ -101,14 +101,24 @@ enum CabalsInfoAndMembersJourney {
             JoinJourney.waitForToast(app, "Proposed. Your cabal votes on it.", step: "S2.3")
         }
 
-        recorder.step("S2.4", "hold Yes on the open proposal") {
-            let row = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'cabal-open-proposal-'"))
-                .firstMatch
-            XCTAssertTrue(row.waitForExistence(timeout: 15), "S2.4: no open proposal row")
-            row.tap()
-            app.pickAndHold("yes")
+        recorder.step("S2.4", "hold Yes on the open proposal's card") {
+            let yes = app.descendants(matching: .any)
+                .matching(NSPredicate(format: "identifier BEGINSWITH 'cabal-open-proposal-yes-'")).firstMatch
+            XCTAssertTrue(yes.waitForExistence(timeout: 15), "S2.4: no Yes on the open proposal card")
+            let proposalID = String(yes.identifier.dropFirst("cabal-open-proposal-yes-".count))
+            yes.tap()
+            app.holdToCommit(yes)
+            JoinJourney.waitForToast(app, "Voted Yes.", step: "S2.4")
             app.dismissPushPrePromptIfShown(timeout: 8)
-            app.tapBack()
+            let settled = app.element("cabal-open-proposal-vote-settled-\(proposalID)")
+            let deciding = app.element("cabal-open-proposal-vote-deciding-\(proposalID)")
+            let held = FollowAndBoardsJourney.waitUntil(10) {
+                settled.exists || deciding.exists || !app.element("cabal-open-proposal-yes-\(proposalID)").exists
+            }
+            XCTAssertTrue(held, "S2.4: the card still offers Yes after the hold")
+            XCTAssertTrue(
+                app.element("cabal-header-name").exists, "S2.4: holding the card left the cabal page")
+            XCTAssertFalse(app.element("proposal-stat-row").exists, "S2.4: holding the card opened the proposal")
         }
 
         recorder.step("S2.5", "the member shows under Voters") {

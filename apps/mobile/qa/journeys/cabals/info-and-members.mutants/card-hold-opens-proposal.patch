@@ -1,0 +1,19 @@
+journey: cabals/info-and-members
+expect-fail: S2
+
+Holding Yes on the cabal page vote card opens the proposal instead of voting. S2.4 waits for the toast "Voted Yes." on the cabal page, so S2 must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Home/HomeVoteCard.swift b/apps/mobile/Monaco/Features/Home/HomeVoteCard.swift
+index 411fbdbb1..eaa3db107 100644
+--- a/apps/mobile/Monaco/Features/Home/HomeVoteCard.swift
++++ b/apps/mobile/Monaco/Features/Home/HomeVoteCard.swift
+@@ -164,7 +164,7 @@ struct HomeVoteCard: View {
+     }
+ 
+     private func commit(_ side: VoteSide) {
+-        Task { await model.vote(side.ballot) }
++        environment.navigator.open(ProposalRoute(proposalID: model.id), in: tab)
+     }
+ 
+     private func phaseChanged(_ phase: HomeVoteCardModel.Phase) {

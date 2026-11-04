@@ -1,0 +1,18 @@
+journey: cabals/pot
+expect-fail: S1
+
+The Your share fact in the band reads a bot line. S1.3 expects no bot wording in the band, so S1 must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalSliceSlot.swift b/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalSliceSlot.swift
+index c072fdaf8..1fe39ebf8 100644
+--- a/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalSliceSlot.swift
++++ b/apps/mobile/Monaco/Features/Groups/CabalSlots/CabalSliceSlot.swift
+@@ -75,6 +75,6 @@ struct CabalSliceBand: View {
+         let percent =
+             slice.hasPrefix("<")
+             ? "less than \(slice.dropFirst().dropLast()) percent" : "\(slice.dropLast()) percent"
+-        return "Your share, \(share), \(percent) of the treasury"
++        return "Your share, \(share), \(percent) of the treasury, Bot on"
+     }
+ }

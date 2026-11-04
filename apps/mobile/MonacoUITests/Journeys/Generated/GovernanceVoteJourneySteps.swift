@@ -1,6 +1,6 @@
 enum GovernanceVoteJourneySteps {
     static let id = "governance/vote"
-    static let version = 6
+    static let version = 7
 
     static let s1p1 = JourneyStep(
         id: "S1.1",
@@ -92,7 +92,7 @@ enum GovernanceVoteJourneySteps {
     )
     static let s2p2 = JourneyStep(
         id: "S2.2",
-        name: "tap cabal-open-proposal-<proposalID>",
+        name: "tap cabal-open-proposal-open-<proposalID>, the card's header",
         actor: "A",
         seconds: 15,
         copy: []
