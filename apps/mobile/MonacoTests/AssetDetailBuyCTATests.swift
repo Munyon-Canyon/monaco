@@ -4,6 +4,7 @@ import MonacoAPI
 import MonacoCore
 import Observation
 import OpenAPIRuntime
+import SwiftUI
 import Testing
 
 @testable import Monaco
@@ -19,6 +20,17 @@ struct AssetDetailBuyCTATests {
         #expect(AssetDetailBuyCTA.title(tradable: true) == "Propose buy")
         #expect(AssetDetailBuyCTA.sellTitle == "Propose sell")
         #expect(AssetDetailBuyCTA.title(tradable: false) == "Unavailable")
+    }
+
+    @Test func theBuyAndSellCapsulesSitSideBySideAndStackAtTheLargestSizes() {
+        #expect(AssetDetailBuyCTA.layout(canSell: true, dynamicTypeSize: .large) == .pair)
+        #expect(AssetDetailBuyCTA.layout(canSell: false, dynamicTypeSize: .large) == .buyOnly)
+        #expect(AssetDetailBuyCTA.layout(canSell: false, dynamicTypeSize: .accessibility5) == .buyOnly)
+        #expect(AssetDetailBuyCTA.layout(canSell: true, dynamicTypeSize: .xxxLarge) == .stacked)
+        #expect(AssetDetailBuyCTA.layout(canSell: true, dynamicTypeSize: .accessibility5) == .stacked)
+        #expect(AssetDetailBuyCTA.title(tradable: false) == "Unavailable")
+        #expect(!AssetDetailBuyCTA.canBuy(tradable: false, quotable: true))
+        #expect(AssetDetailBuyCTA.layout(canSell: false, dynamicTypeSize: .xxxLarge) == .buyOnly)
     }
 
     @Test func tradableAssetsOpenTheBuyProposalInTheHostTab() {
