@@ -1,6 +1,8 @@
 package fakes_test
 
 import (
+	"bytes"
+	"log/slog"
 	"net/http"
 	"strings"
 	"testing"
@@ -43,8 +45,11 @@ func TestSetBalance_ReadsBackThroughTokenBalance(t *testing.T) {
 		return got
 	}
 
-	if got := balance(unset, usdc); got != money.NewBaseUnits(25_500_000, 6) {
-		t.Fatalf("unset owner balance = %v, want the recorded fixture's 25.5 USDC", got)
+	if got := balance(unset, usdc); got != money.NewBaseUnits(0, 6) {
+		t.Fatalf("unset owner balance = %v, want 0: nobody seeded it", got)
+	}
+	if got := balance(unset, stock); got != money.NewBaseUnits(0, 8) {
+		t.Fatalf("unset owner stock balance = %v, want 0", got)
 	}
 	set := `{"owner":"` + string(funded) + `","mint":"` + string(usdcMint) + `","amount":"25000000","decimals":6}`
 	if got := mustCall(t.Context(), t, control, http.MethodPost, "/_balance", set); got.status != http.StatusNoContent {
@@ -186,5 +191,89 @@ func TestRPC_SeededJourneyMintsAnswerWithEightDecimals(t *testing.T) {
 		if err != nil || got.Mint.Address != mint || got.Mint.Decimals != 8 || got.TokenProgram != chain.SPLProgram {
 			t.Fatalf("MintConfig(%s) = %+v, %v; want an 8 decimal spl-token mint", mint, got, err)
 		}
+	}
+}
+
+func TestRPC_EveryBackendMethodAnswersForUnseededAddresses(t *testing.T) {
+	t.Parallel()
+	const stranger = `"9ixcyg5nNxGCJLtSyJYibP7EgQBw4BfpNLbDe7GQ14eh"`
+	const sig = `"5VERv8NMvzbJMEkV8xnrLkEaWRtSz9CosKDYjCJjBRnbJLgp8uirBgmQpjKhoR4tjF3ZpRzrFmBV6UjKdiSZkQUW"`
+	const usdc = `"` + string(usdcMint) + `"`
+	for method, params := range map[string]string{
+		"getAccountInfo":          stranger + `,{"encoding":"jsonParsed"}`,
+		"getBalance":              stranger,
+		"getBlockHeight":          `{"commitment":"finalized"}`,
+		"getEpochInfo":            `{"commitment":"confirmed"}`,
+		"getLatestBlockhash":      `{"commitment":"confirmed"}`,
+		"getMultipleAccounts":     `[` + stranger + `,` + usdc + `],{"encoding":"jsonParsed"}`,
+		"getSignatureStatuses":    `[` + sig + `]`,
+		"getSignaturesForAddress": stranger + `,{"limit":10}`,
+		"getTokenAccountsByOwner": stranger + `,{"mint":` + usdc + `},{"encoding":"jsonParsed"}`,
+		"getTransaction":          sig + `,{"encoding":"jsonParsed"}`,
+		"isBlockhashValid":        `"7be9CjQttHDBAkNkocfWMgzW5yDB853CYkhN7ZmBJsgF"`,
+	} {
+		t.Run(method, func(t *testing.T) {
+			t.Parallel()
+			got := mustCall(t.Context(), t, inProc(), http.MethodPost, "/rpc",
+				`{"jsonrpc":"2.0","id":1,"method":"`+method+`","params":[`+params+`]}`)
+			if got.status != http.StatusOK || !strings.Contains(got.body, `"result"`) ||
+				strings.Contains(got.body, `"error"`) {
+				t.Fatalf("%s for an unseeded address = %d %q, want a result", method, got.status, got.body)
+			}
+		})
+	}
+}
+
+func TestRPC_AnUnknownMethodFailsLoudly(t *testing.T) {
+	t.Parallel()
+	var logged bytes.Buffer
+	srv := fakes.New()
+	srv.SetLog(slog.New(slog.NewTextHandler(&logged, nil)))
+	client := httpclient.New("fakes", httpclient.WithBaseURL("http://fakes.test"),
+		httpclient.WithTimeout(time.Minute), httpclient.WithTransport(inProcess{srv}))
+	got := mustCall(t.Context(), t, client, http.MethodPost, "/rpc",
+		`{"jsonrpc":"2.0","id":1,"method":"getProgramAccounts","params":[]}`)
+	if got.status != http.StatusNotImplemented || !strings.Contains(got.body, "/rpc/getProgramAccounts") {
+		t.Fatalf("unknown method = %d %q, want 501 naming the route", got.status, got.body)
+	}
+	if !strings.Contains(logged.String(), "/rpc/getProgramAccounts") {
+		t.Fatalf("log = %q, want the fakes log to name the unanswered route", logged.String())
+	}
+}
+
+func TestRPC_AnUnseededOwnerHasNoTokenAccounts(t *testing.T) {
+	t.Parallel()
+	got := mustCall(t.Context(), t, inProc(), http.MethodPost, "/rpc",
+		`{"jsonrpc":"2.0","id":1,"method":"getTokenAccountsByOwner","params":["`+string(unset)+
+			`",{"mint":"`+string(usdcMint)+`"},{"encoding":"jsonParsed"}]}`)
+	if got.status != http.StatusOK || !strings.Contains(got.body, `"value":[]`) {
+		t.Fatalf("getTokenAccountsByOwner for an unseeded owner = %d %q, want an empty value", got.status, got.body)
+	}
+}
+
+func TestSetBalance_ATreasuryHoldsTheStockUnitsItWasSeededWith(t *testing.T) {
+	t.Parallel()
+	transport := inProcess{fakes.New()}
+	control := httpclient.New("fakes", httpclient.WithBaseURL("http://fakes.test"),
+		httpclient.WithTimeout(time.Minute), httpclient.WithTransport(transport))
+	rpc := solana.New(config.Config{
+		Solana:   config.Solana{RPCURL: "http://fakes.test/rpc"},
+		Timeouts: config.Timeouts{RPC: 5 * time.Second},
+	}, clock.Real{}, httpclient.WithTransport(transport))
+	stock := chain.Mint{Address: stockMint, Decimals: 8}
+	if got, err := rpc.TokenBalance(t.Context(), funded, stock); err != nil || got != money.NewBaseUnits(0, 8) {
+		t.Fatalf("before the seed: %v, %v, want 0 units", got, err)
+	}
+	set := `{"owner":"` + string(funded) + `","mint":"` + string(stockMint) + `","amount":"2500000000","decimals":8}`
+	if got := mustCall(t.Context(), t, control, http.MethodPost, "/_balance", set); got.status != http.StatusNoContent {
+		t.Fatalf("POST /_balance = %d %q, want 204", got.status, got.body)
+	}
+	if got, err := rpc.TokenBalance(
+		t.Context(),
+		funded,
+		stock,
+	); err != nil ||
+		got != money.NewBaseUnits(2_500_000_000, 8) {
+		t.Fatalf("after the seed: %v, %v, want 25 shares", got, err)
 	}
 }

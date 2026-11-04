@@ -368,9 +368,9 @@ def check_journeys(journeys, accounts, git_apply_check=None, base_text=None):
             bad(journey.path, "timeout must be a whole number of seconds from 1 to 1800, not %r" % (journey.timeout,))
         if journey.simslim and not (ROOT / "ci" / "profiles" / ("%s.json" % journey.simslim)).is_file():
             bad(journey.path, "simslim names profile %r, which has no ci/profiles/%s.json" % (journey.simslim, journey.simslim))
-        if journey.rpc not in ("", "fake"):
-            bad(journey.path, "rpc is %r: the only value is fake" % journey.rpc)
-        if journey.rpc and journey.funds:
+        if journey.rpc not in ("", "fake", "live"):
+            bad(journey.path, "rpc is %r: the values are fake and live" % journey.rpc)
+        if journey.rpc == "fake" and journey.funds:
             bad(journey.path, "rpc: fake and funds cannot both be set: a journey that moves real USDC reads the chain")
         for required in journey.requires:
             if required not in by_id:
@@ -2694,11 +2694,15 @@ def picked_journeys(args):
     return list(journeys.values()) if args.all else [pick(journeys, name) for name in args.journey]
 
 
+def journey_fake_rpc(journey):
+    return journey.rpc != "live" and not journey.funds
+
+
 def backend_fake_rpc(args):
-    """True when every journey of the run declares `rpc: fake` in its front matter and none moves real USDC: the
-    backend then reads Solana from the recorded fakes, never from the rate-limited public endpoint."""
+    """True unless a journey of the run has `funds` or declares `rpc: live`: the backend then reads Solana from
+    the recorded fakes, never from the rate-limited Helius or public endpoint."""
     picked = picked_journeys(args)
-    return bool(picked) and all(journey.rpc == "fake" and not journey.funds for journey in picked)
+    return bool(picked) and all(journey_fake_rpc(journey) for journey in picked)
 
 
 def backend_trade_engine(args):
@@ -2973,7 +2977,7 @@ def run_mutants(args):
             kept = mutants_runs(mutants) / patch.stem
             clean_derived = DERIVED
             try:
-                with journey_backend(args.slot) as api_base_url:
+                with journey_backend(args.slot, journey_fake_rpc(journey)) as api_base_url:
                     problems = check_preconditions(journey, accounts, api_base_url, channel=args.channel)
                     if problems:
                         return setup_needed(journey, problems)

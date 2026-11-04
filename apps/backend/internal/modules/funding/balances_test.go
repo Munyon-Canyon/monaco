@@ -115,6 +115,9 @@ func TestBalance_RouteMatchesTheContractResponse(t *testing.T) {
 	user := testkit.SeedUser(t, s.DB(), testkit.UserOpts{WithWallet: true})
 	s.Given(
 		scenario.AsSeededUser("member", user.ID),
+		scenario.FakeBalance(fakes.SetBalance{
+			Owner: string(user.Address), Mint: string(testkit.USDCMint), Amount: 25_000_000, Decimals: 6,
+		}),
 		scenario.FakeUpstream(fakes.Step{
 			Route: "/rpc/getTokenAccountsByOwner", Action: fakes.ActionSucceed, Times: 100, Reset: true,
 		}),
@@ -123,8 +126,7 @@ func TestBalance_RouteMatchesTheContractResponse(t *testing.T) {
 	).Then(
 		scenario.ExpectStatus(http.StatusOK),
 		scenario.ExpectJSON("available_micros", "25000000"),
-		scenario.ExpectJSON("on_chain_micros", "25500000"),
-		scenario.ExpectJSON("unspendable_micros", "500000"),
+		scenario.ExpectJSON("on_chain_micros", "25000000"),
 		scenario.ExpectJSON("in_flight_micros", "0"),
 		scenario.ExpectJSON("deposit_address", user.Address),
 	)

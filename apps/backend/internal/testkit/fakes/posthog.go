@@ -84,7 +84,7 @@ func (s *Server) posthogBatch(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	s.posthog = append(s.posthog, captures...)
 	s.mu.Unlock()
-	s.serveFixture(w, []string{posthogFixture})
+	s.serveFixture(r.Context(), w, []string{posthogFixture})
 }
 
 func (s *Server) PostHogCaptures() []PostHogCapture {

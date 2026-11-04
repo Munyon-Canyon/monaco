@@ -49,7 +49,7 @@ actors: [A]                 # one account per actor; every actor shares one simu
 flows: [01]                 # backend flows this journey exercises
 # funds: only for a journey that moves money, see below
 # simslim: only for a journey that needs a category base-slim turns off, see below
-# rpc: fake, only for a journey that must not read the public Solana endpoint, see below
+# rpc: live, only for a journey that must read the real Solana chain, see below
 # timeout: 600, only for a journey whose one run needs more than 300 s, see below
 # preconditions: only for state the run checks before it builds, see Preconditions in the run
 xcuitest: [apps/mobile/MonacoUITests/Journeys/SignInJourney.swift, apps/mobile/MonacoUITests/Journeys/SignInJourneyUITests.swift]
@@ -75,7 +75,7 @@ A step that has no accessibility identifier to target is a gap in the app. Add t
 
 `timeout` caps one run of the journey in seconds (setup scripts, tests and the truth check together), from 1 to 1800. The default is 300, and `--timeout` on the command line wins over both. It ends a hung run; each step's own wait is set in the test.
 
-`rpc: fake` makes `scripts/qa/journey.py` build and start `cmd/fakes` on the slot's port (8099, or 8199 for slot 1) and start the backend with `SOLANA_RPC_URL` pointing at it, when every journey of the run declares it and none has `funds`. The public Solana endpoint answers 429 under load, and a screen that reads a portfolio value then shows a dash. A caller who exports `QA_FAKE_RPC=1` runs `bin/fakes` itself and keeps control.
+Every journey reads Solana from `bin/fakes` (`cmd/fakes`) unless it has `funds` or declares `rpc: live`. `scripts/qa/journey.py` builds and starts the fakes on the slot's port (8099, or 8199 for slot 1) and starts the backend with `SOLANA_RPC_URL` pointing at it. Helius and the public Solana endpoint answer 429 when several lanes run journeys at once, and a screen that reads a portfolio value then fails or shows a dash. A run with one `funds` or `rpc: live` journey reads the real chain for all of its journeys. `rpc: fake` is accepted and means the default. The fake answers every method the backend calls: an owner nobody set with `/_balance` reads 0 USDC, no token accounts and no other token (a journey that needs cash seeds it with `qa_fake_usdc`), and a method it has no answer for gets a 501 and a `fakes: no answer for request` line in `.logs/qa/journeys/fakes-slot<n>.log`. A caller who exports `QA_FAKE_RPC=1` runs `bin/fakes` itself and keeps control.
 
 The setup script and the truth check also get `MONACO_QA_HANDOFF`, the run's hand-off file: a JSON object of strings that the test reads with `JourneyHandoff.read`. A setup script writes a value there that only it can make, such as a dev token, and the truth check reads back what the run left there, such as the dev user's id.
 

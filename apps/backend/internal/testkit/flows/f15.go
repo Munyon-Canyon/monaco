@@ -55,7 +55,15 @@ func SeedWithdrawer(s *scenario.Scenario) testkit.SeededUser {
 		string(member.Address), member.ID.UUID()); err != nil {
 		s.Fatalf("flows: give the member the fake Privy wallet's address: %v", err)
 	}
+	fundWallet(s, member.Address)
 	return member
+}
+
+func fundWallet(s *scenario.Scenario, address chain.SolanaAddress) {
+	s.Helper()
+	scenario.FakeBalance(fakes.SetBalance{
+		Owner: string(address), Mint: string(testkit.USDCMint), Amount: 25_500_000, Decimals: 6,
+	})(s)
 }
 
 func SettledWithdrawal(member testkit.SeededUser) scenario.Step {

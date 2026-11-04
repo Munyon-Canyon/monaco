@@ -59,7 +59,7 @@ updated="$(sql -v id="$user_id" <<<"UPDATE users SET auth_state = 'ONBOARDING_CO
 handle="$(head -1 <<<"$updated")"
 [[ -n "$handle" ]] || fail "dev user $user_id has no handle to keep after the delete"
 call PATCH /v1/me "{\"display_name\":\"QA delete $run\"}" >/dev/null || fail "could not name dev user $user_id"
-# On bin/fakes a wallet never set reads the fixture's 25.50 USDC; this user must hold none.
+# On bin/fakes a wallet never set reads 0 USDC; the explicit zero keeps this user empty if that default changes.
 if [[ "${QA_FAKE_RPC:-}" == 1 ]]; then
   address="$(sql -v id="$user_id" <<<"SELECT address FROM user_wallets WHERE user_id = :'id'")"
   [[ -n "$address" ]] || fail "dev user $user_id has no member wallet"
