@@ -2,6 +2,8 @@
 
 34 screens, dark only, at 2x (786 × 1704 for a phone; the kit board is wider). The system is N3's tokens and native iOS shapes, with N1's layouts where they were picked. Build from these; the rules below are the ones every screen follows.
 
+Lanes build a PR's frame | before | after sheet with `python3 scripts/qa/parity.py sheet --design v5 <frame> --before <png> --after <png>`; `parity.py frames --design v5` lists the frames.
+
 ## Screens
 
 | Frame | What it shows | Base |

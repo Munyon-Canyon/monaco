@@ -4,6 +4,7 @@
 Run: python3 -m unittest scripts/qa/test_parity.py
 """
 
+import importlib.util
 import re
 import sys
 import tempfile
@@ -260,6 +261,94 @@ class SheetTests(FolderCase):
             else:
                 sys.modules["PIL"] = real
         self.assertIn("needs Pillow", str(caught.exception))
+
+
+V5_SCREENS = parity.ROOT / "docs" / "design" / "v5" / "screens"
+
+
+def run_main(*argv):
+    out, err = StringIO(), StringIO()
+    with redirect_stdout(out), redirect_stderr(err):
+        try:
+            code = parity.main(list(argv))
+        except SystemExit as exc:
+            code = exc
+    return code, out.getvalue(), err.getvalue()
+
+
+class V5Tests(unittest.TestCase):
+    def test_frames_design_v5_lists_34_prefixed_names(self):
+        code, out, _ = run_main("frames", "--design", "v5")
+        names = out.splitlines()
+        self.assertEqual(code, 0)
+        self.assertEqual(len(names), 34)
+        self.assertTrue(all(n.startswith("f__") for n in names))
+
+    def test_v5_frames_are_exactly_the_screens_folder(self):
+        self.assertEqual({f for f, _, _ in parity.V5_FRAMES}, {p.stem for p in V5_SCREENS.glob("*.png")})
+
+    def test_v5_is_dark_only_and_the_kit_is_a_board(self):
+        _, out, _ = run_main("frames", "--design", "v5", "--appearance", "light")
+        self.assertEqual(out.strip(), "")
+        kinds = {f: k for f, k, _ in parity.V5_FRAMES}
+        self.assertEqual(kinds["00-kit"], "board")
+        self.assertEqual({k for f, k in kinds.items() if f != "00-kit"}, {"screen"})
+
+    def test_frames_without_design_is_still_f(self):
+        _, out, _ = run_main("frames")
+        self.assertEqual(len(out.splitlines()), len(parity.FRAMES))
+        self.assertTrue(all(n.startswith("f__") for n in out.splitlines()))
+
+
+class FrameSheetTests(unittest.TestCase):
+    def setUp(self):
+        d = tempfile.TemporaryDirectory()
+        self.addCleanup(d.cleanup)
+        self.dir = Path(d.name)
+
+    def test_unknown_frame_returns_2(self):
+        code, _, err = run_main("sheet", "--design", "v5", "01-tokens", "--before", "a", "--after", "b")
+        self.assertEqual(code, 2)
+        self.assertIn("parity: 01-tokens is not a v5 frame", err)
+
+    def test_missing_before_or_after_errors(self):
+        for argv in (["--after", "b"], ["--before", "a"], []):
+            code, _, err = run_main("sheet", "--design", "v5", "02-home-dark", *argv)
+            self.assertIsInstance(code, SystemExit)
+            self.assertIn("needs --before and --after", err)
+
+    def test_whole_sheet_still_needs_shots_and_out(self):
+        code, _, err = run_main("sheet")
+        self.assertIsInstance(code, SystemExit)
+        self.assertIn("needs --shots and --out", err)
+
+    def test_frame_sheet_without_pillow_says_so(self):
+        real = sys.modules.get("PIL")
+        sys.modules["PIL"] = None
+        try:
+            code, _, _ = run_main("sheet", "--design", "v5", "02-home-dark", "--before", "a", "--after", "b")
+        finally:
+            if real is None:
+                del sys.modules["PIL"]
+            else:
+                sys.modules["PIL"] = real
+        self.assertIsInstance(code, SystemExit)
+        self.assertIn("needs Pillow", str(code))
+
+    @unittest.skipUnless(importlib.util.find_spec("PIL"), "Pillow is not installed")
+    def test_frame_sheet_is_three_columns_at_one_height(self):
+        from PIL import Image
+
+        before, after, out = self.dir / "b.png", self.dir / "a.png", self.dir / "sheet.png"
+        Image.new("RGB", (100, 200), "red").save(before)
+        Image.new("RGB", (300, 200), "blue").save(after)
+        ref = Image.open(V5_SCREENS / "02-home-dark.png")
+        ref_width = round(ref.width * parity.SHEET_HEIGHT / ref.height)
+        code, printed, _ = run_main("sheet", "--design", "v5", "02-home-dark", "--before", str(before), "--after", str(after), "--out", str(out))
+        self.assertEqual(code, 0)
+        self.assertEqual(printed.strip(), str(out))
+        size = Image.open(out).size
+        self.assertEqual(size, (ref_width + round(100 * 852 / 200) + round(300 * 852 / 200), 852 + parity.LABEL_STRIP))
 
 
 class LinesTests(unittest.TestCase):
