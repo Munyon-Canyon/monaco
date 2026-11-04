@@ -184,7 +184,7 @@ struct CabalTreasuryPositionRow: View {
 
     private static func color(_ direction: PortfolioSummary.Direction) -> Color {
         switch direction {
-        case .up: MonacoTheme.profit
+        case .up: MonacoTheme.gain
         case .down: MonacoTheme.loss
         case .flat: MonacoTheme.secondaryText
         }
@@ -226,7 +226,7 @@ struct CabalTreasuryCashCard: View {
             .font(MonacoTheme.Typo.title2)
             .foregroundStyle(MonacoTheme.primaryText)
             .frame(width: CabalTreasuryMetrics.cashTile, height: CabalTreasuryMetrics.cashTile)
-            .background(MonacoTheme.surfaceSunken, in: RoundedRectangle(cornerRadius: MonacoTheme.Radius.chip))
+            .background(MonacoTheme.surfaceSunken, in: RoundedRectangle(cornerRadius: MonacoTheme.Radius.inner))
             .accessibilityHidden(true)
     }
 

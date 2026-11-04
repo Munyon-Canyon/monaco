@@ -63,12 +63,12 @@ public struct CabalTreasuryRows: Equatable, Sendable {
     private static func position(_ holding: Components.Schemas.CabalHolding) -> Position {
         let units = Units(holding.units)
         let isPreIpo = AssetKind(raw: holding.kind.rawValue) == .preIpo
-        let shares = units.map { "\($0.display) sh" } ?? "\(holding.units) sh"
+        let shares = units.map { Self.shareCount($0.display) } ?? Self.shareCount(holding.units)
         let detail: String
         if isPreIpo {
             detail = "\(PreIpoCopy.chipLabel) \u{00B7} \(shares)"
         } else if let average = units.flatMap({ $0.average(costMicros: holding.costBasisMicros) }) {
-            detail = "\(shares) \u{00B7} avg \(UsdAmountFormatter.format(micros: average))"
+            detail = "\(shares) \u{00B7} average \(UsdAmountFormatter.format(micros: average))"
         } else {
             detail = shares
         }
@@ -78,6 +78,10 @@ public struct CabalTreasuryRows: Equatable, Sendable {
             name: CatalogAssetNameFormatter.format(holding.displayName, kind: kind), kind: kind, detail: detail,
             value: UsdAmountFormatter.format(micros: holding.valueMicros),
             trailing: isPreIpo ? .estimate(atEstimate) : change(holding))
+    }
+
+    private static func shareCount(_ display: String) -> String {
+        display == "1" ? "1 share" : "\(display) shares"
     }
 
     private static func change(_ holding: Components.Schemas.CabalHolding) -> Trailing {
