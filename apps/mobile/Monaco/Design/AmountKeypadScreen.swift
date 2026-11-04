@@ -90,7 +90,6 @@ struct AmountKeypadScreen<Source: View, Header: View>: View {
                 .padding(.horizontal, MonacoTheme.Space.gutter)
                 .padding(.top, MonacoTheme.Space.s)
             amountRegion
-            hairline
             presetsOrLimit
             AmountKeypad(amountText: $amountText)
                 .disabled(state.isSettled || isWorking)
@@ -192,13 +191,6 @@ struct AmountKeypadScreen<Source: View, Header: View>: View {
             lineView
         }
         .frame(maxWidth: .infinity)
-    }
-
-    private var hairline: some View {
-        Rectangle()
-            .fill(MonacoTheme.hairline)
-            .frame(height: 1 / displayScale)
-            .padding(.horizontal, MonacoTheme.Space.gutter)
     }
 
     @ViewBuilder
@@ -378,7 +370,7 @@ private struct AmountKeypadSettledButton: View {
         .padding(.vertical, MonacoTheme.Space.s)
         .frame(maxWidth: .infinity, minHeight: MonacoButtonMetrics.minimumHeight)
         .background(
-            RoundedRectangle(cornerRadius: MonacoTheme.Radius.button, style: .continuous)
+            Capsule(style: .continuous)
                 .fill(MonacoTheme.primaryButtonFill)
         )
         .monacoPrivate()

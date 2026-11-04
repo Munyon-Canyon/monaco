@@ -60,7 +60,7 @@ private struct AmountKeypadGrid: View {
         face(key)
             .frame(maxWidth: .infinity, minHeight: max(rowHeight, MonacoButtonMetrics.hitTarget))
             .background(
-                RoundedRectangle(cornerRadius: MonacoTheme.Radius.keypadKey, style: .continuous)
+                Capsule(style: .continuous)
                     .fill((pressedKey == key || heldKey == key) && isEnabled ? MonacoTheme.surfaceSunken : Color.clear)
                     .padding(.vertical, AmountKeypadMetrics.pressedInset)
             )
