@@ -27,6 +27,18 @@ final class ChatSessionSampleTests: XCTestCase {
         XCTAssertEqual(sent.timeline.rows.last?.delivery, .sent)
     }
 
+    func testTheProposalCardThreadHasAGifFromSam() async throws {
+        let session = session(ChatSampleScenario(proposalCard: true))
+        await session.open()
+
+        let opened = await state(session)
+        let row = try XCTUnwrap(opened.timeline.rows.first { $0.id == "s5g" })
+        XCTAssertEqual(row.message.author.displayName, "Sam")
+        XCTAssertEqual(row.displayText, "")
+        guard case .gif = row.attachment else { return XCTFail("expected a GIF attachment") }
+        XCTAssertEqual(row.message.reactions.first?.emoji, "🔥")
+    }
+
     func testAnEmptyCabalOpensLoadedWithNoRows() async {
         let session = session(ChatSampleScenario(startEmpty: true))
         await session.open()

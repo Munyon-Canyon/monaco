@@ -169,6 +169,17 @@ private actor SampleChatStore {
             card.proposalId = ChatSession.sampleProposalID
             card.replyCount = 8
             thread.insert(card, at: 5)
+            var gif = message(
+                "s5g", "u-sam", "Sam", GroupChatCopy.gifBody, minutesAgo: 70,
+                reactions: [.init(emoji: "🔥", count: 2, mine: false)])
+            let base = "https://\(SampleGifProvider.host)/sample-gif-4"
+            gif.attachment = .gif(
+                Components.Schemas.GifAttachment(
+                    kind: .gif, id: "sample-gif-4", title: "Sample GIF 4",
+                    still: .init(url: "\(base)/still.png", width: 200, height: 150),
+                    preview: .init(url: "\(base)/preview.gif", width: 200, height: 150),
+                    original: .init(url: "\(base)/original.gif", width: 200, height: 150)))
+            thread.insert(gif, at: 6)
         }
         if busy {
             thread += (1...60).map { index in
