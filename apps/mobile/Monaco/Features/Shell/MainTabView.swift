@@ -18,7 +18,6 @@ struct MainTabView: View {
                         .safeAreaInset(edge: .top, spacing: 0) {
                             if accountRestricted { AccountUnderReviewNotice() }
                         }
-                        .hardBottomScrollEdge()
                         .analyticsScreen(String(describing: tab))
                         .tabRouteDestinations()
                 }
@@ -91,17 +90,6 @@ struct AccountBalanceHost: ViewModifier {
 }
 
 extension View {
-    @ViewBuilder
-    fileprivate func hardBottomScrollEdge() -> some View {
-        if #available(iOS 26, *) {
-            scrollEdgeEffectStyle(.hard, for: .bottom)
-        } else {
-            self
-        }
-    }
-}
-
-extension View {
     func tabRouteDestinations() -> some View {
         navigationDestination(for: AnyAppRoute.self) { route in
             route.destination()
@@ -111,8 +99,13 @@ extension View {
         }
     }
 
+    @ViewBuilder
     fileprivate func systemNavigationBackground() -> some View {
-        toolbarBackground(MonacoTheme.canvas, for: .navigationBar)
-            .toolbarBackground(.visible, for: .navigationBar)
+        if #available(iOS 26, *) {
+            self
+        } else {
+            toolbarBackground(MonacoTheme.canvas, for: .navigationBar)
+                .toolbarBackground(.visible, for: .navigationBar)
+        }
     }
 }
