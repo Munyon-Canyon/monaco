@@ -17,6 +17,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/faultpoint"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/scenario"
 )
 
@@ -149,27 +150,32 @@ func F22eWriteChatProposalMessageProposalNotFound(s *scenario.Scenario) {
 }
 
 func F22eWriteChatProposalMessageCrashBeforeCommit(s *scenario.Scenario) {
-	var w proposalWriter
-	s.Given(append(chatCabal("proposal-crash"), func(s *scenario.Scenario) { w = newProposalWriter(s, true) })...).
-		When(func(s *scenario.Scenario) {
-			if !faultpoint.Enabled {
-				s.Fatalf("flows: this script needs -tags faultpoints")
-			}
-			crashed := func() (p any) {
-				defer func() { p = recover() }()
-				_ = w.handler.Handle(faultpoint.Armed(proposalCtx(s), faultpoint.BeforeCommit), w.event(s))
-				return nil
-			}()
-			if crashed != (faultpoint.Crash{Name: faultpoint.BeforeCommit}) {
-				s.Fatalf("flows: the write returned %v without crashing at before-commit", crashed)
-			}
-			if err := w.handler.Handle(proposalCtx(s), w.event(s)); err != nil {
-				s.Fatalf("flows: the restarted write: %v", err)
-			}
-		}).
+	c := seedF09(s, "100000000")
+	s.Given(f09Member(c), func(s *scenario.Scenario) {
+		f09Route(s, "25000000", fakes.ActionSucceed, "/jupiter/swap/v2/order")
+	}).
+		When(
+			scenario.Post(f09Path(c), f09Buy),
+			scenario.ExpectStatus(http.StatusCreated),
+			scenario.PublishCrashingAt(faultpoint.BeforeCommit),
+		).
 		Then(
-			proposalRowsHold(1),
-			func(s *scenario.Scenario) { proposalsPublished(&w, 1)(s) },
-			scenario.ExpectEvents(events.TypeChatMessagePosted, 0),
+			scenario.Eventually("the proposal row", func(s *scenario.Scenario) bool { return proposalRowsIn(s, c) == 1 }),
+			func(s *scenario.Scenario) {
+				if got := proposalRowsIn(s, c); got != 1 {
+					s.Fatalf("flows: the cabal holds %d proposal rows, want 1", got)
+				}
+			},
 		)
+}
+
+func proposalRowsIn(s *scenario.Scenario, c f09Cabal) int {
+	s.Helper()
+	var got int
+	err := s.DB().QueryRow(s.Context(),
+		`SELECT count(*) FROM cabal_messages WHERE cabal_id = $1::uuid AND kind = 'proposal'`, c.id.String()).Scan(&got)
+	if err != nil {
+		s.Fatalf("flows: count the proposal rows: %v", err)
+	}
+	return got
 }

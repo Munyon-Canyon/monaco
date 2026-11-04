@@ -11,8 +11,6 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
-	"github.com/monaco/monaco/apps/backend/internal/modules/social"
-	"github.com/monaco/monaco/apps/backend/internal/modules/social/adapters"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/domain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/auth"
@@ -22,6 +20,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/faultpoint"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
+	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/marketfake"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/scenario"
 )
@@ -142,46 +141,45 @@ func F22dWriteMemberJoinedMomentOK(s *scenario.Scenario) {
 }
 
 func F22dWriteMemberJoinedMomentInvalidInput(s *scenario.Scenario) {
-	var w momentWriter
-	s.Given(append(chatCabal("moment-invalid"), func(s *scenario.Scenario) { w = newMomentWriter(s) })...).
-		When(func(s *scenario.Scenario) {
-			cmd := momentCommand(s, s.ActorID(), "")
-			_, err := w.handler.Handle(momentCtx(s), cmd)
-			if errs.CodeOf(err) != errs.CodeInvalidInput {
-				s.Fatalf("flows: a moment with no dedupe key returned %v, want invalid_input", err)
+	s.Given(chatCabal("moment-invalid")...).
+		When(
+			scenario.Eventually("the cabal_created row", func(s *scenario.Scenario) bool { return keyedRows(s, "created") == 1 }),
+			func(s *scenario.Scenario) {
+				publishEvent(s, events.CabalMemberJoined{
+					V: 1, CabalID: uuid.MustParse(s.Recall("cabal")), UserID: uuid.Nil, Role: "member", Via: "open",
+				})
+			},
+			scenario.EventuallyLog(observability.BusDispatched, map[string]string{"code": string(errs.CodeInvalidInput)}),
+		).
+		Then(func(s *scenario.Scenario) {
+			if got := keyedRows(s, "joined:"+uuid.Nil.String()+":%"); got != 0 {
+				s.Fatalf("flows: the cabal holds %d rows for the nil user, want 0", got)
 			}
-		}).
-		Then(
-			systemRowsHold(0),
-			func(s *scenario.Scenario) { momentsPublished(&w, 0)(s) },
-			scenario.ExpectEvents(events.TypeChatMessagePosted, 0),
-		)
+		})
 }
 
 func F22dWriteMemberJoinedMomentCrashBeforeCommit(s *scenario.Scenario) {
-	var w momentWriter
-	s.Given(append(chatCabal("moment-crash"), func(s *scenario.Scenario) { w = newMomentWriter(s) })...).
-		When(func(s *scenario.Scenario) {
-			if !faultpoint.Enabled {
-				s.Fatalf("flows: this script needs -tags faultpoints")
-			}
-			cmd := momentCommand(s, s.ActorID(), "member_joined:crash")
-			crashed := func() (p any) {
-				defer func() { p = recover() }()
-				_, _ = w.handler.Handle(faultpoint.Armed(momentCtx(s), faultpoint.BeforeCommit), cmd)
-				return nil
-			}()
-			if crashed != (faultpoint.Crash{Name: faultpoint.BeforeCommit}) {
-				s.Fatalf("flows: the write returned %v without crashing at before-commit", crashed)
-			}
-			if _, err := w.handler.Handle(momentCtx(s), cmd); err != nil {
-				s.Fatalf("flows: the restarted write: %v", err)
-			}
-		}).
+	request := uuid.MustParse("01920000-0000-7000-8000-0000000000c1")
+	var key string
+	s.Given(chatCabal("moment-crash")...).
+		When(
+			scenario.Eventually("the cabal_created row", func(s *scenario.Scenario) bool { return keyedRows(s, "created") == 1 }),
+			func(s *scenario.Scenario) {
+				key = "joined:" + s.ActorID().String() + ":" + request.String()
+				publishEvent(s, events.CabalMemberJoined{
+					V: 1, CabalID: uuid.MustParse(s.Recall("cabal")), UserID: s.ActorID().UUID(),
+					Role: "member", Via: "open", RequestID: request,
+				})
+			},
+			scenario.PublishCrashingAt(faultpoint.BeforeCommit),
+		).
 		Then(
-			systemRowsHold(1),
-			func(s *scenario.Scenario) { momentsPublished(&w, 1)(s) },
-			scenario.ExpectEvents(events.TypeChatMessagePosted, 0),
+			scenario.Eventually("the member_joined row", func(s *scenario.Scenario) bool { return keyedRows(s, key) == 1 }),
+			func(s *scenario.Scenario) {
+				if got := keyedRows(s, key); got != 1 {
+					s.Fatalf("flows: the cabal holds %d rows for %s, want 1", got, key)
+				}
+			},
 		)
 }
 
@@ -214,7 +212,6 @@ func tradeConfirmed(s *scenario.Scenario, mint chain.SolanaAddress, action strin
 	e := events.TradeConfirmed{
 		V: 1, SwapID: uuid.MustParse("01920000-0000-7000-8000-0000000000a1"),
 		CabalID: uuid.MustParse(s.Recall("cabal")), Action: action,
-		Source:     events.TradeSource{Kind: "proposal", ID: uuid.MustParse("01920000-0000-7000-8000-0000000000b1")},
 		USDCMicros: money.MicrosFromUint64(393_500_000), ConfirmedAt: time.Date(2026, 9, 30, 14, 0, 0, 0, time.UTC),
 	}
 	if action == "sell" {
@@ -233,57 +230,64 @@ func pow10(n uint8) uint64 {
 	return v
 }
 
-func applyFilled(s *scenario.Scenario, w momentWriter, e events.TradeConfirmed) error {
-	moments := adapters.ChatMoments{
-		Assets: social.NewAssets(marketfake.NewCatalog(marketfake.AAPLx())), Write: w.handler,
-	}
-	asset, err := moments.FetchFilled(momentCtx(s), e)
-	if err != nil {
-		return err
-	}
-	uow := db.New(s.DB(), ids.Real{}, clock.Real{})
-	return uow.Do(momentCtx(s), func(ctx context.Context, tx db.Tx) error {
-		return moments.ApplyFilled(ctx, tx, e, asset, e.ConfirmedAt)
+func publishEvent(s *scenario.Scenario, e events.Event) {
+	s.Helper()
+	ctx := observability.WithActor(s.Context(), "system:flows")
+	err := db.New(s.DB(), ids.Real{}, clock.Real{}).Do(ctx, func(ctx context.Context, tx db.Tx) error {
+		return tx.Events.Append(ctx, e)
 	})
+	if err != nil {
+		s.Fatalf("flows: append the %s event: %v", e.Type(), err)
+	}
 }
 
 func F22dWriteTradeFilledMomentOK(s *scenario.Scenario) {
-	var w momentWriter
-	s.Given(append(chatCabal("moment-fill"), func(s *scenario.Scenario) { w = newMomentWriter(s) })...).
-		When(func(s *scenario.Scenario) {
-			mint := marketfake.AAPLx().Mint.Address()
-			for _, action := range []string{"buy", "buy", "swap"} {
-				if err := applyFilled(s, w, tradeConfirmed(s, mint, action)); err != nil {
-					s.Fatalf("flows: apply the %s fill: %v", action, err)
+	s.Given(append(chatCabal("moment-fill"), ensureSamplerCatalog())...).
+		When(
+			func(s *scenario.Scenario) {
+				mint := marketfake.AAPLx().Mint.Address()
+				for _, action := range []string{"buy", "buy", "swap"} {
+					publishEvent(s, tradeConfirmed(s, mint, action))
 				}
-			}
-			sell := tradeConfirmed(s, mint, "sell")
-			sell.SwapID = uuid.MustParse("01920000-0000-7000-8000-0000000000a2")
-			sell.Source = events.TradeSource{}
-			if err := applyFilled(s, w, sell); err != nil {
-				s.Fatalf("flows: apply the sell fill: %v", err)
-			}
-		}).
+				sell := tradeConfirmed(s, mint, "sell")
+				sell.SwapID = uuid.MustParse("01920000-0000-7000-8000-0000000000a2")
+				publishEvent(s, sell)
+			},
+			scenario.Eventually("the two trade_filled rows", func(s *scenario.Scenario) bool { return keyedRows(s, "fill:%") >= 2 }),
+		).
 		Then(func(s *scenario.Scenario) {
 			if got := keyedRows(s, "fill:%"); got != 2 {
 				s.Fatalf("flows: the cabal holds %d trade_filled rows, want 2", got)
 			}
-			momentsPublished(&w, 2)(s)
 		})
 }
 
 func F22dWriteTradeFilledMomentAssetNotFound(s *scenario.Scenario) {
-	var w momentWriter
-	s.Given(append(chatCabal("moment-fill-missing"), func(s *scenario.Scenario) { w = newMomentWriter(s) })...).
-		When(func(s *scenario.Scenario) {
-			err := applyFilled(s, w, tradeConfirmed(s, marketfake.TSLAx().Mint.Address(), "buy"))
-			if errs.CodeOf(err) != errs.CodeAssetNotFound {
-				s.Fatalf("flows: a fill of an unlisted asset returned %v, want asset_not_found", err)
-			}
-		}).
+	s.Given(chatCabal("moment-fill-missing")...).
+		When(
+			func(s *scenario.Scenario) {
+				unlisted := chain.SolanaAddress("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA")
+				publishEvent(s, tradeConfirmed(s, unlisted, "buy"))
+			},
+			scenario.EventuallyLog(observability.BusDispatched, map[string]string{"code": string(errs.CodeAssetNotFound)}),
+		).
 		Then(func(s *scenario.Scenario) {
 			if got := keyedRows(s, "fill:%"); got != 0 {
 				s.Fatalf("flows: the cabal holds %d trade_filled rows, want 0", got)
 			}
 		})
+}
+
+func (defined) AloneF22d() []Script {
+	return []Script{F22dWriteMemberJoinedMomentInvalidInput, F22dWriteTradeFilledMomentAssetNotFound}
+}
+
+func (defined) LettersF22d() map[string][]Letter {
+	unlisted := Letter{Subject: events.TypeTradeConfirmed, Code: errs.CodeAssetNotFound}
+	invalidJoin := Letter{Subject: events.TypeCabalMemberJoined, Code: errs.CodeInvalidInput}
+	unbooked := Letter{Subject: events.TypeTradeConfirmed, Code: errs.CodeInvalidInput}
+	return map[string][]Letter{
+		"F22dWriteMemberJoinedMomentInvalidInput": {invalidJoin},
+		"F22dWriteTradeFilledMomentAssetNotFound": {unlisted, unbooked},
+	}
 }

@@ -9,6 +9,7 @@ func TestFlow_associatesOnlyFlowHandlers(t *testing.T) {
 		"treasury.cashout.confirmed": "14", "treasury.cashout.failed": "14", "treasury.cashout.blocked": "14",
 		"trading.engine": "11", "trading.engine.retry": "12", "treasury.trades": "",
 		"funding.bounce": "08", "notify.notify_test_requested": "24",
+		"social.chat_moment.member_joined": "22d", "social.chat.proposal_created": "22e",
 	} {
 		if got := flow(name); got != want {
 			t.Errorf("flow(%q) = %q, want %q", name, got, want)
