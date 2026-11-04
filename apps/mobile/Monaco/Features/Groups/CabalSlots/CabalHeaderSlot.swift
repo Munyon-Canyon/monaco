@@ -145,11 +145,11 @@ private struct CabalIdentityRow: View {
     }
 
     var body: some View {
-        HStack(spacing: MonacoTheme.Space.sm) {
-            CabalMark(
-                groupId: cabal.id, name: cabal.name, size: .row, pictureUrl: cabal.pictureUrl,
-                accessibilityLabel: "Picture of \(cabal.name)")
-            VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
+        VStack(alignment: .leading, spacing: MonacoTheme.Space.sm) {
+            HStack(spacing: MonacoTheme.Space.sm) {
+                CabalMark(
+                    groupId: cabal.id, name: cabal.name, size: .row, pictureUrl: cabal.pictureUrl,
+                    accessibilityLabel: "Picture of \(cabal.name)")
                 Text(cabal.name)
                     .font(MonacoTheme.Typo.title2)
                     .foregroundStyle(MonacoTheme.primaryText)
@@ -164,9 +164,9 @@ private struct CabalIdentityRow: View {
                                 key: CabalHeaderNameBottom.self, value: proxy.frame(in: .global).maxY)
                         }
                     }
-                peopleRow
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            peopleRow
         }
     }
 }
