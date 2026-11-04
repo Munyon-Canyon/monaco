@@ -66,6 +66,10 @@ public struct FirstFundMember: Equatable, Identifiable, Sendable {
         self.crown = crown
     }
 
+    public var firstName: String {
+        name.split(whereSeparator: \.isWhitespace).first.map(String.init) ?? name
+    }
+
     init(_ row: Components.Schemas.CabalMemberRow) {
         id = row.userId
         name = row.displayName.isEmpty ? (row.handle ?? "") : row.displayName
@@ -81,11 +85,13 @@ public struct FirstFundValue: Equatable, Sendable {
     public let potValueMicros: Int64?
     public let vote: FirstFundVote?
     public let members: [FirstFundMember]
+    public let viewerID: String
 
     public init(
         cabal: Components.Schemas.Cabal, settledMicros: Int64, shareBps: Int32?, potValueMicros: Int64?,
-        vote: FirstFundVote?, members: [FirstFundMember]
+        vote: FirstFundVote?, members: [FirstFundMember], viewerID: String = ""
     ) {
+        self.viewerID = viewerID
         self.cabal = cabal
         self.settledMicros = settledMicros
         self.shareBps = shareBps
@@ -95,6 +101,22 @@ public struct FirstFundValue: Equatable, Sendable {
     }
 
     public var memberCount: Int { Int(cabal.memberCount) }
+
+    public var others: [FirstFundMember] { members.filter { $0.id != viewerID } }
+
+    public var othersLine: (names: [String], rest: Int)? {
+        let names = others.prefix(2).map(\.firstName)
+        guard !names.isEmpty else { return nil }
+        return (names, max(memberCount - 1 - names.count, 0))
+    }
+
+    public var othersText: String? {
+        guard let line = othersLine else { return nil }
+        let rest = line.rest
+        let tail = rest == 1 ? "1 other" : "\(rest) others"
+        let named = rest > 0 ? line.names.joined(separator: ", ") : line.names.joined(separator: " and ")
+        return rest > 0 ? "with \(named) and \(tail)" : "with \(named)"
+    }
 
     nonisolated public static func shareText(bps: Int32) -> String {
         let value = Int(max(bps, 0))
@@ -158,7 +180,7 @@ public final class FirstFundModel {
                 cabal: cabalRead, settledMicros: settledMicros, shareBps: potRead?.me?.sliceBps,
                 potValueMicros: potRead?.potValueMicros,
                 vote: voteRead?.first { $0.cabalId == id }.map(FirstFundVote.init),
-                members: Self.strip(pageRead?.items ?? [], viewerID: viewerID)))
+                members: Self.strip(pageRead?.items ?? [], viewerID: viewerID), viewerID: viewerID))
     }
 
     private static func result<T: Sendable>(_ work: @Sendable () async throws -> T) async -> Result<T, any Error> {

@@ -3,7 +3,11 @@ import MonacoCore
 import SwiftUI
 
 enum FirstFundMetrics {
-    static let photo: CGFloat = 56
+    static let photo: CGFloat = 40
+    static let scene: CGFloat = 160
+    static let face: CGFloat = 20
+    static let faceOverlap: CGFloat = 6
+    static let faceLimit = 4
     static let stripItemWidth: CGFloat = 72
     static let crownLift: CGFloat = 10
 }
@@ -19,17 +23,14 @@ enum FirstFundCopy {
     static func line(amountMicros: Int64, cabalName: String, share: String?) -> String {
         let put = "\(FundCabalCopy.amount(micros: amountMicros)) in \(cabalName)"
         guard let share else { return put }
-        return "\(put) \u{00B7} \(share) of the treasury"
+        return "\(put) \u{00B7} \(share)"
     }
 
-    static func stats(_ value: FirstFundValue) -> [StatItem] {
-        var items = [StatItem(label: "You put in", value: FundCabalCopy.amount(micros: value.settledMicros))]
-        if let share = value.shareText { items.append(StatItem(label: "Your share", value: share)) }
-        if let pot = value.potValueMicros {
-            items.append(StatItem(label: "Treasury", value: FundCabalCopy.amount(micros: pot)))
-        }
-        items.append(StatItem(label: "Members", value: "\(value.memberCount)"))
-        return items
+    static func spoken(_ value: FirstFundValue) -> String {
+        var put = "\(FundCabalCopy.amount(micros: value.settledMicros)) in \(value.cabal.name)"
+        if let share = value.shareText { put += ", \(share.replacingOccurrences(of: "%", with: " percent"))" }
+        let with = value.othersText.map { " " + $0.prefix(1).uppercased() + $0.dropFirst() + "." } ?? ""
+        return "\(title) \(put).\(with)"
     }
 
     static func voteTitle(_ vote: FirstFundVote) -> String {
@@ -46,9 +47,11 @@ enum FirstFundCopy {
     }
 
     static func voteStatus(_ vote: FirstFundVote, now: Date = .now) -> String {
-        ProposalVoteCopy.statusLine(
+        ProposalVoteCopy.cardLine(
+            cabalName: nil,
             tally: ProposalTally(yes: vote.yes, no: vote.no, voters: vote.voters, needed: vote.needed),
-            replies: vote.replies, expiresAt: vote.expiresAt, now: now)
+            replies: vote.replies, expiresAt: vote.expiresAt, now: now
+        ).full
     }
 }
 
@@ -124,9 +127,8 @@ struct FirstFundContent: View {
                         .accessibilityIdentifier("first-fund-close")
                     Spacer(minLength: 0)
                 }
-                cover
+                scene
                 card
-                StatGrid(items: FirstFundCopy.stats(value))
                 if let vote = value.vote { firstVote(vote) }
                 members
             }
@@ -144,11 +146,14 @@ struct FirstFundContent: View {
         .monacoCanvas()
     }
 
-    private var cover: some View {
+    private var scene: some View {
         CabalCover(
             cabalId: value.cabal.id, tint: tint, pictureURL: CabalMark.resolvedURL(value.cabal.pictureUrl),
-            style: .heroTall
-        )
+            style: .art
+        ) { EmptyView() }
+        .frame(maxWidth: .infinity)
+        .frame(height: FirstFundMetrics.scene)
+        .clipShape(RoundedRectangle(cornerRadius: MonacoTheme.Radius.card, style: .continuous))
         .accessibilityHidden(true)
     }
 
@@ -165,12 +170,62 @@ struct FirstFundContent: View {
             .font(MonacoTheme.Typo.body)
             .foregroundStyle(MonacoTheme.primaryText)
             .monacoPrivate()
+            if let line = value.othersLine { withRow(line) }
         }
         .padding(MonacoTheme.Space.m)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(tint.soft, in: RoundedRectangle(cornerRadius: MonacoTheme.Radius.card, style: .continuous))
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(FirstFundCopy.spoken(value))
+        .accessibilityAddTraits(.isHeader)
         .accessibilityIdentifier("first-fund-card")
+    }
+
+    private func withRow(_ line: (names: [String], rest: Int)) -> some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: MonacoTheme.Space.s) {
+                faces
+                withText(line)
+            }
+            VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
+                faces
+                withText(line)
+            }
+        }
+        .monacoPrivate()
+    }
+
+    private var faces: some View {
+        HStack(spacing: -FirstFundMetrics.faceOverlap) {
+            ForEach(value.others.prefix(FirstFundMetrics.faceLimit)) { member in
+                MonacoAvatar(
+                    photoURL: member.photoURL, displayName: member.name, size: FirstFundMetrics.face, seed: member.id
+                )
+                .padding(MonacoAvatarRing.width)
+                .background {
+                    Circle().fill(MonacoTheme.canvas)
+                    Circle().fill(tint.soft)
+                }
+            }
+        }
+    }
+
+    private func withText(_ line: (names: [String], rest: Int)) -> some View {
+        let primary = MonacoTheme.primaryText
+        let secondary = MonacoTheme.secondaryText
+        let rest = line.rest == 1 ? "1 other" : "\(line.rest) others"
+        var text = Text("with ").foregroundStyle(secondary)
+        if line.rest > 0 {
+            text = text + Text(line.names.joined(separator: ", ")).bold().foregroundStyle(primary)
+            text = text + Text(" and \(rest)").foregroundStyle(secondary)
+        } else if line.names.count == 2 {
+            text = text + Text(line.names[0]).bold().foregroundStyle(primary)
+            text = text + Text(" and ").foregroundStyle(secondary)
+            text = text + Text(line.names[1]).bold().foregroundStyle(primary)
+        } else {
+            text = text + Text(line.names[0]).bold().foregroundStyle(primary)
+        }
+        return text.font(MonacoTheme.Typo.subhead).fixedSize(horizontal: false, vertical: true)
     }
 
     private func firstVote(_ vote: FirstFundVote) -> some View {
@@ -204,7 +259,7 @@ struct FirstFundContent: View {
                     Button(action: onSeeAll) {
                         Text(FirstFundCopy.seeAll)
                             .font(MonacoTheme.Typo.captionStrong)
-                            .foregroundStyle(MonacoTheme.brand)
+                            .foregroundStyle(MonacoTheme.tint)
                             .lineLimit(1)
                             .frame(minHeight: SectionHeaderMetrics.hitHeight)
                             .contentShape(Rectangle())
@@ -253,7 +308,7 @@ private struct FirstFundMemberCell: View {
                         .accessibilityHidden(true)
                 }
             }
-            Text(member.name)
+            Text(member.firstName)
                 .font(MonacoTheme.Typo.caption)
                 .foregroundStyle(MonacoTheme.secondaryText)
                 .lineLimit(1)

@@ -170,4 +170,41 @@ final class FirstFundModelTests: XCTestCase {
         XCTAssertFalse(FirstFundModel.heldNoShare(sliceBps: 1))
         XCTAssertFalse(FirstFundModel.heldNoShare(sliceBps: 3500))
     }
+
+    private func value(memberCount: Int32, others: [String]) -> FirstFundValue {
+        var cabal = Components.Schemas.Cabal.sample(role: "member")
+        cabal.memberCount = memberCount
+        let people = others.map { FirstFundMember(id: "id-\($0)", name: "\($0) Smith", photoURL: nil, crown: false) }
+        let viewer = FirstFundMember(id: "viewer", name: "Zoe Viewer", photoURL: nil, crown: false)
+        return FirstFundValue(
+            cabal: cabal, settledMicros: 250_000_000, shareBps: 123, potValueMicros: nil, vote: nil,
+            members: [viewer] + people, viewerID: "viewer")
+    }
+
+    func testTheWithLineNamesTwoAndCountsTheRest() async {
+        let nine = value(memberCount: 9, others: ["Christelle", "Logan", "Mia", "Jordan", "Andres"])
+        XCTAssertEqual(nine.othersText, "with Christelle, Logan and 6 others")
+        XCTAssertEqual(nine.othersLine?.rest, 6)
+        XCTAssertEqual(nine.othersLine?.names, ["Christelle", "Logan"])
+        XCTAssertEqual(
+            value(memberCount: 4, others: ["Christelle", "Logan", "Mia"]).othersText,
+            "with Christelle, Logan and 1 other")
+        XCTAssertEqual(
+            value(memberCount: 3, others: ["Christelle", "Logan"]).othersText, "with Christelle and Logan")
+        XCTAssertEqual(value(memberCount: 2, others: ["Christelle"]).othersText, "with Christelle")
+    }
+
+    func testAloneHasNoWithLineAndTheViewerIsNeverNamed() async {
+        let alone = value(memberCount: 1, others: [])
+        XCTAssertNil(alone.othersLine)
+        XCTAssertNil(alone.othersText)
+        XCTAssertFalse(value(memberCount: 3, others: ["Christelle", "Logan"]).others.contains { $0.id == "viewer" })
+        XCTAssertFalse(value(memberCount: 3, others: ["Christelle", "Logan"]).othersText?.contains("Zoe") ?? false)
+    }
+
+    func testTheLoadedValueCarriesTheViewer() async throws {
+        let (model, _) = model(try routes())
+        await model.load()
+        XCTAssertEqual(model.value?.viewerID, zoeID)
+    }
 }
