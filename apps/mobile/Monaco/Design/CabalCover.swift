@@ -36,10 +36,8 @@ struct CabalCover<Overlay: View>: View {
 
     static func cornerRadius(for style: Style) -> CGFloat {
         switch style {
-        case .hero, .heroTall: return MonacoTheme.Radius.identity
-        case .card: return MonacoTheme.Radius.cardTight
-        case .memberCard: return MonacoTheme.Radius.card
-        case .thumb(let size): return MarkGeometry.radius(for: size)
+        case .hero, .heroTall, .card, .memberCard: return MonacoTheme.Radius.card
+        case .thumb(let size): return size * MonacoTheme.Radius.squircleFraction
         }
     }
 

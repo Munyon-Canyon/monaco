@@ -131,7 +131,7 @@ struct CabalsGridSection: View {
                 VStack(spacing: MonacoTheme.Space.xs) {
                     SkeletonBlock(
                         width: CabalsGridMetrics.crest, height: CabalsGridMetrics.crest,
-                        radius: MonacoTheme.Radius.crest)
+                        radius: CabalsGridMetrics.crest * MonacoTheme.Radius.squircleFraction)
                     SkeletonBlock(
                         width: CabalsGridMetrics.crest, height: SkeletonMetrics.lineHeight,
                         radius: SkeletonMetrics.lineRadius)
@@ -218,14 +218,16 @@ struct CabalsGridSection: View {
             environment.navigator.open(CreateCabalRoute(), in: .cabals)
         } label: {
             VStack(spacing: MonacoTheme.Space.xs) {
-                RoundedRectangle(cornerRadius: MonacoTheme.Radius.crest, style: .continuous)
-                    .fill(MonacoTheme.surfaceSunken)
-                    .frame(width: CabalsGridMetrics.crest, height: CabalsGridMetrics.crest)
-                    .overlay {
-                        Image(systemName: MonacoIcon.plus.symbol)
-                            .font(.title3.weight(.medium))
-                            .foregroundStyle(MonacoTheme.accent)
-                    }
+                RoundedRectangle(
+                    cornerRadius: CabalsGridMetrics.crest * MonacoTheme.Radius.squircleFraction, style: .continuous
+                )
+                .fill(MonacoTheme.surfaceSunken)
+                .frame(width: CabalsGridMetrics.crest, height: CabalsGridMetrics.crest)
+                .overlay {
+                    Image(systemName: MonacoIcon.plus.symbol)
+                        .font(.title3.weight(.medium))
+                        .foregroundStyle(MonacoTheme.accent)
+                }
                 label("New cabal", tone: MonacoTheme.secondaryText)
             }
             .frame(maxWidth: .infinity)
@@ -284,7 +286,6 @@ private struct CabalGridTile: View {
             CabalMark(
                 groupId: tile.id, name: tile.name, size: CabalsGridMetrics.crest, pictureUrl: tile.pictureURL
             )
-            .crestVoteRing(votes > 0)
             .cabalCrestBadge(votes)
             .overlay(alignment: .topLeading) {
                 if tile.unreadCount > 0 {

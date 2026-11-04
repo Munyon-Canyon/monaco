@@ -45,7 +45,6 @@ struct CabalContextMenuPreview: View {
             CabalMark(
                 groupId: tile.id, name: tile.name, size: CabalsGridMetrics.crest, pictureUrl: tile.pictureURL
             )
-            .crestVoteRing(votes > 0)
             .cabalCrestBadge(votes)
             VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
                 Text(tile.shortName)

@@ -32,7 +32,6 @@ struct CabalPortfolioRow: View {
 
     @ViewBuilder private var lead: some View {
         let mark = CabalMark(groupId: row.id, name: row.name, size: .row, pictureUrl: row.pictureURL)
-            .crestVoteRing(votes > 0)
         if dynamicTypeSize.isAccessibilitySize {
             VStack(spacing: MonacoTheme.Space.xs) {
                 mark

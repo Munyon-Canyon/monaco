@@ -117,13 +117,11 @@ struct GalleryCrestSamples: View {
                         }
                     }
                 }
-                GalleryCase(caption: "Vote ring and badge, 1 and 12") {
+                GalleryCase(caption: "Badge, 1 and 12") {
                     HStack(spacing: MonacoTheme.Space.l) {
                         CabalMark(groupId: cabal.id, name: cabal.name, size: .row)
-                            .crestVoteRing(true)
                             .crestBadge(1)
                         CabalMark(groupId: GalleryFixtures.cabalNames[1].id, name: "Semis or bust", size: .row)
-                            .crestVoteRing(true)
                             .crestBadge(12)
                     }
                     .padding(MonacoTheme.Space.s)
