@@ -152,18 +152,6 @@ public enum CatchUpCopy {
         ("\(proposal.yes)", "\(proposal.no)")
     }
 
-    public static func endsIn(_ expires: Date, now: Date) -> String {
-        let seconds = expires.timeIntervalSince(now)
-        guard seconds > 60 else { return "ends now" }
-        return "ends in \(span(seconds))"
-    }
-
-    private static func span(_ seconds: TimeInterval) -> String {
-        if seconds < 3600 { return "\(Int(seconds / 60))m" }
-        if seconds < 86400 { return "\(Int(seconds / 3600))h" }
-        return "\(Int(seconds / 86400))d"
-    }
-
     public static func personName(_ item: Item) -> String {
         let name = item.actor?.name ?? ""
         return name.isEmpty ? "Someone" : name
