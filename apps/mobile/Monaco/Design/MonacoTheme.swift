@@ -10,45 +10,45 @@ import UIKit
 enum MonacoTheme {
     // MARK: Surfaces
 
-    static let background = Color.adaptive(light: 0xFFFFFF, dark: 0x000000)
+    static let background = Color(hex: 0x000000)
 
     static let canvas = background
 
-    static let surface = Color.adaptive(light: 0xF2F2F7, dark: 0x1C1C1E)
+    static let surface = Color(hex: 0x1C1C1E)
 
-    static let sheetSurface = Color.adaptive(light: 0xFFFFFF, dark: 0x1C1C1E)
+    static let sheetSurface = Color(hex: 0x1C1C1E)
 
-    static let surfaceSunken = Color.adaptive(light: 0xE5E5EA, dark: 0x2C2C2E)
+    static let surfaceSunken = Color(hex: 0x2C2C2E)
 
     static let cashFill = border
 
-    static let primaryText = Color.adaptive(light: 0x000000, dark: 0xFFFFFF)
+    static let primaryText = Color(hex: 0xFFFFFF)
 
     static let ink = primaryText
 
     static let bodyText = primaryText
 
-    static let secondaryText = Color.adaptive(light: 0x636366, dark: 0xA1A1A6)
+    static let secondaryText = Color(hex: 0xA1A1A6)
 
     static let muted = secondaryText
 
-    static let tertiaryText = Color.adaptive(light: 0xAEAEB2, dark: 0x6E6E73)
+    static let tertiaryText = Color(hex: 0x6E6E73)
 
-    static let disabledLabel = Color.adaptive(light: 0x8E8E93, dark: 0x6E6E73)
+    static let disabledLabel = Color(hex: 0x6E6E73)
 
-    static let border = Color.adaptive(light: 0xC6C6C8, dark: 0x38383A)
+    static let border = Color(hex: 0x38383A)
 
     static let hairline = border
 
     // MARK: Brand
 
-    static let tint = Color.adaptive(light: 0x1E5C3A, dark: 0x4DAE78)
+    static let tint = Color(hex: 0x4DAE78)
 
     static let brand = tint
 
-    static let brandFill = Color.adaptive(light: 0x1E5C3A, dark: 0x1E5C3A)
+    static let brandFill = Color(hex: 0x1E5C3A)
 
-    static let onBrand = Color.adaptive(light: 0xFFFFFF, dark: 0xFFFFFF)
+    static let onBrand = Color(hex: 0xFFFFFF)
 
     static let brandSoft = surfaceSunken
 
@@ -56,7 +56,7 @@ enum MonacoTheme {
 
     static let brandOnWash = tint
 
-    static let warningWash = Color.adaptive(light: 0xF3ECD8, dark: 0x2C2819)
+    static let warningWash = Color(hex: 0x2C2819)
 
     // MARK: Glass and sheets
 
@@ -74,14 +74,14 @@ enum MonacoTheme {
 
     // MARK: Money
 
-    static let profit = Color.adaptive(light: 0x00773A, dark: 0x30F57A)
+    static let profit = Color(hex: 0x30F57A)
 
-    static let loss = Color.adaptive(light: 0xC80014, dark: 0xFF6259)
+    static let loss = Color(hex: 0xFF6259)
 
-    static let profitVivid = Color.adaptive(light: 0x00843D, dark: 0x30F57A)
-    static let onVivid = Color.adaptive(light: 0x0E1512, dark: 0x0E1512)
+    static let profitVivid = Color(hex: 0x30F57A)
+    static let onVivid = Color(hex: 0x0E1512)
 
-    static let lossVivid = Color.adaptive(light: 0xD70015, dark: 0xFF453A)
+    static let lossVivid = Color(hex: 0xFF453A)
 
     static let profitWash = Color.clear
 
@@ -129,24 +129,23 @@ enum MonacoTheme {
 
     // MARK: Covers
 
-    static let onCover = Color.adaptive(light: 0xFFFFFF, dark: 0xFFFFFF)
+    static let onCover = Color(hex: 0xFFFFFF)
 
-    static let onCoverMuted = Color.adaptive(light: 0xC5D1CB, dark: 0xC5D1CB)
+    static let onCoverMuted = Color(hex: 0xC5D1CB)
 
-    static let onCoverGlass = Color.adaptive(light: 0xFFFFFF, lightAlpha: 0.09, dark: 0xFFFFFF, darkAlpha: 0.09)
+    static let onCoverGlass = Color(hex: 0xFFFFFF, alpha: 0.09)
 
-    static let onCoverGlassStroke = Color.adaptive(
-        light: 0xFFFFFF, lightAlpha: 0.14, dark: 0xFFFFFF, darkAlpha: 0.14)
+    static let onCoverGlassStroke = Color(hex: 0xFFFFFF, alpha: 0.14)
 
-    static let coverStroke = Color.adaptive(light: 0xFFFFFF, lightAlpha: 0.07, dark: 0xFFFFFF, darkAlpha: 0.07)
+    static let coverStroke = Color(hex: 0xFFFFFF, alpha: 0.07)
 
-    static let coverOverlay = Color.adaptive(light: 0x00130B, lightAlpha: 0.80, dark: 0x00130B, darkAlpha: 0.80)
+    static let coverOverlay = Color(hex: 0x00130B, alpha: 0.80)
 
-    static let coverOverlayReduced = Color.adaptive(light: 0x00130B, lightAlpha: 0.91, dark: 0x00130B, darkAlpha: 0.91)
+    static let coverOverlayReduced = Color(hex: 0x00130B, alpha: 0.91)
 
-    static let voteNeededFill = Color.adaptive(light: 0xD70015, dark: 0xD70015)
+    static let voteNeededFill = Color(hex: 0xD70015)
 
-    static let voteNeededLabel = Color.adaptive(light: 0xFFFFFF, dark: 0xFFFFFF)
+    static let voteNeededLabel = Color(hex: 0xFFFFFF)
 
     static let discussionTint = tint
 
@@ -154,8 +153,8 @@ enum MonacoTheme {
 
     static let allocationTints: [Color] = [
         tint,
-        Color.adaptive(light: 0x0040DD, dark: 0x0A84FF),
-        Color.adaptive(light: 0x8944AB, dark: 0xBF5AF2),
+        Color(hex: 0x0A84FF),
+        Color(hex: 0xBF5AF2),
         border,
     ]
 
@@ -167,12 +166,12 @@ enum MonacoTheme {
 
     enum Shadow {
         static let floating = ShadowLayer(
-            color: Color.adaptive(light: 0x112E21, lightAlpha: 0.07, dark: 0x000000, darkAlpha: 0.20),
+            color: Color(hex: 0x000000, alpha: 0.20),
             radius: 24,
             y: 8)
 
         static let sheet = ShadowLayer(
-            color: Color.adaptive(light: 0x001A15, lightAlpha: 0.25, dark: 0x000000, darkAlpha: 0.50),
+            color: Color(hex: 0x000000, alpha: 0.50),
             radius: 72,
             y: 22)
     }
@@ -189,19 +188,19 @@ enum MonacoTheme {
 
     static let destructive = loss
 
-    static let onDestructive = Color.adaptive(light: 0xFFFFFF, dark: 0x000000)
+    static let onDestructive = Color(hex: 0x000000)
 
     static let accent = tint
 
-    static let disabled = Color.adaptive(light: 0xCBD2CB, dark: 0x37453D)
+    static let disabled = Color(hex: 0x37453D)
 
     static let success = profit
 
-    static let warning = Color.adaptive(light: 0x866017, dark: 0xE6C477)
+    static let warning = Color(hex: 0xE6C477)
 
     // MARK: Gold
 
-    static let crown = Color.adaptive(light: 0xFFCC00, dark: 0xFFD60A)
+    static let crown = Color(hex: 0xFFD60A)
 
     static let gold = crown
 
@@ -413,21 +412,9 @@ enum MonacoTypeface {
 }
 
 extension Color {
-    /// A single fixed colour from an 0xRRGGBB literal — same in both schemes.
+    /// A fixed colour from an 0xRRGGBB literal.
     init(hex: UInt32, alpha: Double = 1) {
         self.init(uiColor: UIColor(hex: hex, alpha: alpha))
-    }
-
-    nonisolated static func adaptive(
-        light: UInt32, lightAlpha: Double = 1, dark: UInt32, darkAlpha: Double = 1
-    ) -> Color {
-        Color(
-            uiColor: UIColor { traits in
-                traits.userInterfaceStyle == .dark
-                    ? UIColor(hex: dark, alpha: darkAlpha)
-                    : UIColor(hex: light, alpha: lightAlpha)
-            }
-        )
     }
 }
 
