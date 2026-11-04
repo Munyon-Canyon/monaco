@@ -33,6 +33,7 @@ enum CabalTabs: CabalSection {
 
     static func sections(for tab: CabalTab) -> [any CabalSection.Type] {
         switch tab {
+        case .chat: []
         case .treasury: [CabalTreasuryTabSlot.self]
         case .rules: [CabalRulesSlot.self]
         case .members: [CabalMembersSlot.self]
@@ -52,7 +53,7 @@ struct CabalTabBar: View {
 
     var body: some View {
         MonacoUnderlineTabs(
-            CabalTab.allCases, selection: $selection.tab,
+            CabalTab.shown, selection: $selection.tab,
             count: { $0.count(memberCount: memberCount) },
             identifier: { "\(identifierPrefix)-\($0.rawValue)" },
             label: { $0.title }
