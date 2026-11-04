@@ -2694,11 +2694,15 @@ def picked_journeys(args):
     return list(journeys.values()) if args.all else [pick(journeys, name) for name in args.journey]
 
 
+def journey_fake_rpc(journey):
+    return journey.rpc != "live" and not journey.funds
+
+
 def backend_fake_rpc(args):
     """True unless a journey of the run has `funds` or declares `rpc: live`: the backend then reads Solana from
     the recorded fakes, never from the rate-limited Helius or public endpoint."""
     picked = picked_journeys(args)
-    return bool(picked) and all(journey.rpc != "live" and not journey.funds for journey in picked)
+    return bool(picked) and all(journey_fake_rpc(journey) for journey in picked)
 
 
 def backend_trade_engine(args):
@@ -2973,7 +2977,7 @@ def run_mutants(args):
             kept = mutants_runs(mutants) / patch.stem
             clean_derived = DERIVED
             try:
-                with journey_backend(args.slot) as api_base_url:
+                with journey_backend(args.slot, journey_fake_rpc(journey)) as api_base_url:
                     problems = check_preconditions(journey, accounts, api_base_url, channel=args.channel)
                     if problems:
                         return setup_needed(journey, problems)

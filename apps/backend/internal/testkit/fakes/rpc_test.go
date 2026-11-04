@@ -250,3 +250,30 @@ func TestRPC_AnUnseededOwnerHasNoTokenAccounts(t *testing.T) {
 		t.Fatalf("getTokenAccountsByOwner for an unseeded owner = %d %q, want an empty value", got.status, got.body)
 	}
 }
+
+func TestSetBalance_ATreasuryHoldsTheStockUnitsItWasSeededWith(t *testing.T) {
+	t.Parallel()
+	transport := inProcess{fakes.New()}
+	control := httpclient.New("fakes", httpclient.WithBaseURL("http://fakes.test"),
+		httpclient.WithTimeout(time.Minute), httpclient.WithTransport(transport))
+	rpc := solana.New(config.Config{
+		Solana:   config.Solana{RPCURL: "http://fakes.test/rpc"},
+		Timeouts: config.Timeouts{RPC: 5 * time.Second},
+	}, clock.Real{}, httpclient.WithTransport(transport))
+	stock := chain.Mint{Address: stockMint, Decimals: 8}
+	if got, err := rpc.TokenBalance(t.Context(), funded, stock); err != nil || got != money.NewBaseUnits(0, 8) {
+		t.Fatalf("before the seed: %v, %v, want 0 units", got, err)
+	}
+	set := `{"owner":"` + string(funded) + `","mint":"` + string(stockMint) + `","amount":"2500000000","decimals":8}`
+	if got := mustCall(t.Context(), t, control, http.MethodPost, "/_balance", set); got.status != http.StatusNoContent {
+		t.Fatalf("POST /_balance = %d %q, want 204", got.status, got.body)
+	}
+	if got, err := rpc.TokenBalance(
+		t.Context(),
+		funded,
+		stock,
+	); err != nil ||
+		got != money.NewBaseUnits(2_500_000_000, 8) {
+		t.Fatalf("after the seed: %v, %v, want 25 shares", got, err)
+	}
+}

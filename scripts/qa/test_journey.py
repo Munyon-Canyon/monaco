@@ -636,6 +636,21 @@ class FakeRpc(Tree):
             self.assertFalse(journey.backend_fake_rpc(unittest.mock.Mock(**{"all": True, "journey": []})))
 
 
+class FakeRpcSeeds(unittest.TestCase):
+    def test_the_sell_journey_puts_its_treasury_tokens_on_the_fake(self):
+        root = journey.ROOT
+        setup = (root / "apps/mobile/qa/journeys/governance/propose-sell.setup.sh").read_text()
+        seed = (root / "scripts/qa/seed.sh").read_text()
+        self.assertIn('qa_fake_treasury_positions "$CABAL_ID"', setup)
+        self.assertIn("qa_fake_treasury_positions() {", seed)
+        self.assertIn("FROM cabal_positions p", seed)
+
+    def test_a_mutants_pass_follows_the_journeys_rpc_choice(self):
+        self.assertTrue(journey.journey_fake_rpc(unittest.mock.Mock(rpc="", funds={})))
+        self.assertFalse(journey.journey_fake_rpc(unittest.mock.Mock(rpc="live", funds={})))
+        self.assertFalse(journey.journey_fake_rpc(unittest.mock.Mock(rpc="", funds={"A": 1})))
+
+
 class FakeRpcEnvironment(unittest.TestCase):
     def test_the_run_points_at_its_own_fakes_and_puts_the_environment_back(self):
         started, stopped = [], []

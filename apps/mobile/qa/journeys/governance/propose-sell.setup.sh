@@ -66,6 +66,11 @@ qa_sql -v did="$did" >/dev/null \
   <<<"UPDATE users SET auth_state = 'ONBOARDING_COMPLETED', auth_state_changed_at = now() WHERE privy_user_id = :'did' AND auth_state <> 'ONBOARDING_COMPLETED'"
 qa_seed_scenario cabal-with-confirmed-trade A
 seed_closed_proposal "$CABAL_ID"
+# A sell checks that the treasury wallet holds the tokens on chain (cabal_shares_short); the seed only wrote the
+# cabal_positions row, so put the same units on bin/fakes for the treasury address.
+if [[ "${QA_FAKE_RPC:-}" == 1 ]]; then
+  qa_fake_treasury_positions "$CABAL_ID"
+fi
 qa_sql -v cabal="$CABAL_ID" -v name="QA sell $run" >/dev/null \
   <<<"UPDATE cabals SET name = :'name' WHERE id = :'cabal'"
 # The pot refuses a holding whose newest price is older than 5 minutes (price_unavailable), and the

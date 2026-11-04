@@ -18,6 +18,7 @@
 #   qa_seed_scenario <name> [actor ...]   bin/monacoctl dev seed-scenario, each actor owning its scenario letter;
 #                                         exports each seeded id uppercased (CABAL_ID, ASSET_MINT, ...)
 #   qa_add_photo <udid>                   adds apps/mobile/qa/journeys/fixtures/photo.jpg to the simulator's Photos
+#   qa_fake_treasury_positions <cabal id> sets the cabal treasury's on-chain tokens on bin/fakes to its cabal_positions rows
 #   qa_fake_usdc <actor> <usdc>           sets the actor's on-chain USDC on bin/fakes (QA_FAKES_URL), e.g. 25 or 0.5
 #
 # QA_FAKE_RPC=1 exported before sourcing points SOLANA_RPC_URL at bin/fakes, so a backend started from this
@@ -188,6 +189,25 @@ print(int(v))' "$usdc")"; then
     echo "qa_fake_usdc: POST $QA_FAKES/_balance failed: is bin/fakes running there?" >&2
     return 1
   fi
+}
+
+qa_fake_treasury_positions() {
+  local cabal="${1:?usage: qa_fake_treasury_positions <cabal id>}" address rows asset units decimals body
+  address="$(qa_sql -v cabal="$cabal" <<< "SELECT address FROM treasury_wallets WHERE cabal_id = :'cabal'")"
+  if [[ -z "$address" ]]; then
+    echo "qa_fake_treasury_positions: cabal $cabal has no treasury wallet" >&2
+    return 1
+  fi
+  rows="$(qa_sql -v cabal="$cabal" <<< "SELECT p.asset || '|' || p.units::text || '|' || coalesce(a.decimals, 6)
+    FROM cabal_positions p LEFT JOIN assets a ON a.mint = p.asset WHERE p.cabal_id = :'cabal' AND p.units > 0")"
+  while IFS='|' read -r asset units decimals; do
+    [[ -n "$asset" ]] || continue
+    body="$(printf '{"owner":"%s","mint":"%s","amount":"%s","decimals":%s}' "$address" "$asset" "$units" "$decimals")"
+    if ! curl -fsS -X POST "$QA_FAKES/_balance" -H "Content-Type: application/json" -d "$body"; then
+      echo "qa_fake_treasury_positions: POST $QA_FAKES/_balance failed: is bin/fakes running there?" >&2
+      return 1
+    fi
+  done <<< "$rows"
 }
 
 qa_add_photo() {
