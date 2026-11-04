@@ -80,7 +80,7 @@ struct StatGrid: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background {
                 if inCard {
-                    RoundedRectangle(cornerRadius: MonacoTheme.Radius.small, style: .continuous)
+                    RoundedRectangle(cornerRadius: MonacoTheme.Radius.compact, style: .continuous)
                         .fill(MonacoTheme.surface)
                 }
             }

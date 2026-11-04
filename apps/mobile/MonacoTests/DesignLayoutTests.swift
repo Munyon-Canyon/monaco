@@ -61,17 +61,28 @@ struct FTokenTests {
     }
 
     @Test func radiiMatchF() {
-        #expect(MonacoTheme.Radius.card == 12)
-        #expect(MonacoTheme.Radius.cardTight == 12)
+        #expect(MonacoTheme.Radius.card == 26)
+        #expect(MonacoTheme.Radius.cardTight == 26)
         #expect(MonacoTheme.Radius.button == 10)
-        #expect(MonacoTheme.Radius.shareCard == 16)
-        #expect(MonacoTheme.Radius.small == 8)
-        #expect(MonacoTheme.Radius.field == 8)
+        #expect(MonacoTheme.Radius.shareCard == 32)
+        #expect(MonacoTheme.Radius.small == 14)
+        #expect(MonacoTheme.Radius.compact == 20)
+        #expect(MonacoTheme.Radius.inner == 14)
+        #expect(MonacoTheme.Radius.art == 18)
+        #expect(MonacoTheme.Radius.field == 14)
         #expect(MonacoTheme.Radius.tile == 6)
         #expect(MonacoTheme.Radius.keypadKey == 8)
         #expect(MonacoTheme.Radius.crest == 6)
         #expect(MonacoTheme.Radius.logoFraction == 0.15)
         #expect(MonacoTheme.Radius.squircleFraction == 0.225)
+    }
+
+    @Test func innerRadiusIsConcentric() {
+        #expect(MonacoTheme.Radius.inner(of: 26, padding: 12) == 14)
+        #expect(
+            MonacoTheme.Radius.inner(of: MonacoTheme.Radius.card, padding: MonacoTheme.Space.cardPadding)
+                == MonacoTheme.Radius.inner)
+        #expect(MonacoTheme.Radius.inner(of: 10, padding: 12) == 0)
     }
 
     @Test func reactionChipIsSmallOnTheScreenAndBigUnderTheFinger() {

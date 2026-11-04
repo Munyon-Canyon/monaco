@@ -325,24 +325,31 @@ enum MonacoTheme {
 
     enum Radius {
         static let chip: CGFloat = 12
-        static let card: CGFloat = 12
-        static let cardTight: CGFloat = 12
+        static let card: CGFloat = 26
+        static let cardTight: CGFloat = 26
         static let button: CGFloat = 10
-        static let shareCard: CGFloat = 16
-        static let small: CGFloat = 8
+        static let shareCard: CGFloat = 32
+        static let small: CGFloat = 14
+        static let compact: CGFloat = 20
+        static let inner: CGFloat = 14
+        static let art: CGFloat = 18
         static let search: CGFloat = 16
         static let notice: CGFloat = 12
         static let badge: CGFloat = 8
         static let pill: CGFloat = 6
         static let identity: CGFloat = 12
         static let tile: CGFloat = 6
-        static let field: CGFloat = 8
+        static let field: CGFloat = 14
         static let bubble: CGFloat = 17
         static let toast: CGFloat = 15
         static let logoFraction: CGFloat = 0.15
         static let keypadKey: CGFloat = 8
         static let crest: CGFloat = 6
         static let squircleFraction: CGFloat = 0.225
+
+        static func inner(of outer: CGFloat, padding: CGFloat) -> CGFloat {
+            max(outer - padding, 0)
+        }
     }
 
     enum Space {
