@@ -27,6 +27,7 @@ import signal
 import statistics
 import subprocess
 import sys
+import tempfile
 import time
 import urllib.error
 import urllib.request
@@ -46,6 +47,60 @@ COLUMNS = [
     "time", "journey", "version", "scenario", "driver", "build", "run", "result", "expected",
     "truth", "wall_s", "steps_ms", "failed_step", "log",
 ]
+# Appended after the columns older rows have, so those rows still parse.
+PHASE_COLUMNS = [
+    "build_s", "build_queue_s", "boot_s", "boot_queue_s", "backend_s", "setup_s", "switch_s", "truth_s", "uninstall_s",
+]
+COLUMNS += PHASE_COLUMNS
+
+# Seconds spent per phase since the last run_once took them, and what earlier run_once calls took.
+PHASES = {}
+TAKEN = []
+
+
+def add_phase(name, seconds):
+    PHASES[name] = PHASES.get(name, 0.0) + max(seconds, 0.0)
+
+
+@contextlib.contextmanager
+def phase(name):
+    started = time.time()
+    try:
+        yield
+    finally:
+        add_phase(name, time.time() - started)
+
+
+def take_phases():
+    """The phases measured since the last call, as the strings a results.tsv row holds."""
+    taken = dict(PHASES)
+    PHASES.clear()
+    TAKEN.append(taken)
+    return {name: "%.1f" % seconds for name, seconds in taken.items()}
+
+
+def phase_line(values):
+    """One line naming the phases that were measured; None when none were."""
+    parts = ["%s %.1f s" % (name[:-2].replace("_", " "), values[name]) for name in PHASE_COLUMNS if name in values]
+    return "phases: " + ", ".join(parts) if parts else None
+
+
+def print_phase_summary():
+    totals = {}
+    for taken in TAKEN + [PHASES]:
+        for name, seconds in taken.items():
+            totals[name] = totals.get(name, 0.0) + seconds
+    line = phase_line(totals)
+    if line:
+        print(line)
+
+
+def read_lock_waited(path):
+    """Whole seconds xcode-lock.sh appended to the MONACO_LOCK_WAITED file."""
+    try:
+        return sum(int(word) for word in Path(path).read_text().split())
+    except (OSError, ValueError):
+        return 0
 
 
 class JourneyError(Exception):
@@ -702,7 +757,8 @@ def journey_backend(forced_slot=None, fake_rpc=False):
         refuse_busy_ports(listeners(SLOT_PORTS[slot]), SLOT_PORTS[slot])
         base_url = slot_base_url(slot)
         with fake_rpc_environment(slot) if fake_rpc else contextlib.nullcontext():
-            process = start_backend(base_url, slot=slot)
+            with phase("backend_s"):
+                process = start_backend(base_url, slot=slot)
             try:
                 yield base_url
             finally:
@@ -868,7 +924,9 @@ def take_sim_slot(udid):
         ["scripts/qa/xcode-lock.sh", "sim", "sh", "-c", "echo held; exec cat"], cwd=str(ROOT),
         stdin=subprocess.PIPE, stdout=subprocess.PIPE, universal_newlines=True,
         env=dict(os.environ, MONACO_LOCK_HOLD=str(SIM_SLOT_HOLD)))
-    if holder.stdout.readline().strip() != "held":
+    with phase("boot_queue_s"):
+        held = holder.stdout.readline().strip()
+    if held != "held":
         holder.wait()
         raise JourneyError("could not take a simulator slot for %s (xcode-lock.sh sim exited %s)" % (udid, holder.returncode))
     SIM_SLOTS[udid] = holder
@@ -884,7 +942,10 @@ def release_sim_slot(udid):
 
 
 def boot_simulator(udid):
+    queued_before = PHASES.get("boot_queue_s", 0.0)
+    started = time.time()
     take_sim_slot(udid)
+    queued = PHASES.get("boot_queue_s", 0.0) - queued_before
     try:
         sh(["xcrun", "simctl", "boot", udid], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         sh(["xcrun", "simctl", "bootstatus", udid, "-b"], check=True,
@@ -892,6 +953,8 @@ def boot_simulator(udid):
     except BaseException:
         release_sim_slot(udid)
         raise
+    finally:
+        add_phase("boot_s", time.time() - started - queued)
     if udid not in BOOTED:
         BOOTED.append(udid)
 
@@ -926,7 +989,8 @@ def reset_journey_simulator(udid, explicit, fresh):
     if explicit and not fresh:
         return
     boot_simulator(udid)
-    sh(["xcrun", "simctl", "uninstall", udid, BUNDLE_ID], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    with phase("uninstall_s"):
+        sh(["xcrun", "simctl", "uninstall", udid, BUNDLE_ID], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     print("reset app on simulator %s" % udid)
 
 
@@ -996,6 +1060,8 @@ def ensure_build(sim, log, rebuild=False):
     current = build_stamp()
     if not rebuild and build_is_current(current):
         print("reusing build %s" % current[:8])
+        add_phase("build_s", 0.0)
+        add_phase("build_queue_s", 0.0)
         return False
     build(sim, log, current)
     return True
@@ -1007,8 +1073,19 @@ def build(sim, log, current=None):
         stamp_file().unlink()
     sh(["scripts/ensure-ios-privy-config.sh", "generate"], check=True, stdout=subprocess.DEVNULL)
     print("building (log: %s)" % os.path.relpath(str(log), str(ROOT)))
-    with open(str(log), "w") as out:
-        code = sh(xcodebuild(sim, "build-for-testing"), stdout=out, stderr=subprocess.STDOUT).returncode
+    descriptor, waited = tempfile.mkstemp(prefix="journey-lock-waited-")
+    os.close(descriptor)
+    started = time.time()
+    try:
+        with open(str(log), "w") as out:
+            code = sh(xcodebuild(sim, "build-for-testing"), stdout=out, stderr=subprocess.STDOUT,
+                      env=dict(os.environ, MONACO_LOCK_WAITED=waited)).returncode
+        queued = float(read_lock_waited(waited))
+    finally:
+        with contextlib.suppress(OSError):
+            os.unlink(waited)
+    add_phase("build_queue_s", queued)
+    add_phase("build_s", time.time() - started - queued)
     if code != 0:
         raise JourneyError("the build failed, see %s" % log)
     DERIVED.mkdir(parents=True, exist_ok=True)
@@ -1115,6 +1192,11 @@ def split_by_scenario(output):
     return spans
 
 
+def switch_seconds(timings):
+    """Seconds spent in the P1 steps (switching the signed-in actor) among (step, ms, depth) timings."""
+    return sum(ms for step, ms, _ in timings if re.match(r"P1(\.|$)", step)) / 1000.0
+
+
 def session_rows(scenarios, output, test, timed_out):
     """One row per scenario of a session test, each judged by its own steps.
 
@@ -1126,7 +1208,7 @@ def session_rows(scenarios, output, test, timed_out):
     spans = split_by_scenario(body)
     rows, step_lines, stopped = [], [], ""
     for scenario in scenarios:
-        result, seconds, steps_ms, failed_step = "PASS", 0.0, 0, ""
+        result, seconds, steps_ms, failed_step, switched = "PASS", 0.0, 0, "", None
         if stopped:
             result, failed_step = "SKIP", "after %s" % stopped
         elif scenario in spans:
@@ -1134,6 +1216,7 @@ def session_rows(scenarios, output, test, timed_out):
             steps_ms, open_step, timings = parse_steps(part, include_timings=True)
             step_lines.extend("%s\t%s\t%d\t%d\n" % ((scenario,) + timing) for timing in timings)
             seconds = (ms if finished else steps_ms) / 1000.0
+            switched = switch_seconds(timings)
             if not finished:
                 result = "TIMEOUT" if timed_out else "FAIL"
                 failed_step = open_step or (timed_out if timed_out else "outside a step")
@@ -1146,7 +1229,8 @@ def session_rows(scenarios, output, test, timed_out):
         if result != "PASS" and not stopped:
             stopped = "%s %s" % (scenario, result)
         rows.append({"scenario": scenario, "result": result, "wall_s": "%.1f" % seconds,
-                     "steps_ms": steps_ms, "failed_step": failed_step})
+                     "steps_ms": steps_ms, "failed_step": failed_step,
+                     "switch_s": "" if switched is None else "%.1f" % switched})
     return rows, step_lines
 
 
@@ -1242,6 +1326,8 @@ def run_session(journey, scenarios, sim, accounts, channel, run_dir, api_base_ur
     for row in rows:
         row["log"] = os.path.relpath(str(log), str(ROOT))
     (run_dir / "steps.tsv").write_text("".join(step_lines))
+    add_phase("setup_s", spent)
+    add_phase("switch_s", sum(float(row["switch_s"] or 0) for row in rows))
     return rows, "%.1f" % wall, timed_out
 
 
@@ -1257,9 +1343,18 @@ def run_truth(journey, accounts, channel, run_id, handoff, budget=None, api_base
     if api_base_url:
         env["MONACO_API_BASE_URL"] = env["MONACO_QA_API_BASE_URL"] = api_base_url
     try:
-        return "ok" if sh([str(script)], env=env, timeout=budget.left() if budget else None).returncode == 0 else "fail"
+        with phase("truth_s"):
+            return "ok" if sh([str(script)], env=env, timeout=budget.left() if budget else None).returncode == 0 else "fail"
     except BudgetExpired:
         return "timeout"
+
+
+def upgrade_header():
+    """Rows from before the phase columns are a prefix of today's: widen the header so new rows line up."""
+    lines = RESULTS.read_text().split("\n", 1)
+    header = lines[0].split("\t")
+    if header != COLUMNS and header == COLUMNS[:len(header)]:
+        RESULTS.write_text("\t".join(COLUMNS) + "\n" + (lines[1] if len(lines) > 1 else ""))
 
 
 def record(journey, build_name, run_name, rows, summary, expected=None):
@@ -1267,6 +1362,8 @@ def record(journey, build_name, run_name, rows, summary, expected=None):
     OUT.mkdir(parents=True, exist_ok=True)
     new_file = not RESULTS.exists()
     now = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    if not new_file:
+        upgrade_header()
     with open(str(RESULTS), "a") as out:
         if new_file:
             out.write("\t".join(COLUMNS) + "\n")
@@ -1301,6 +1398,7 @@ def run_once(journey, journeys, args, sim, accounts, build_name, run_name, scena
     overall = next((v for v in ("ERROR", "TIMEOUT", "FAIL") if v in verdicts), "PASS")
     summary = {"scenario": "*", "result": overall, "truth": truth, "wall_s": wall,
                "steps_ms": sum(int(row.get("steps_ms") or 0) for row in rows) or ""}
+    summary.update(take_phases())
     record(journey, build_name, run_name, rows, summary, expected)
     for row in rows:
         detail = (" at %s" if row["result"] != "SKIP" else " %s") % row["failed_step"] if row.get("failed_step") else ""
@@ -1549,8 +1647,11 @@ def cmd_run(args):
     with simulator_shutdown(args.keep_sims), journey_backend(args.slot, backend_fake_rpc(args)) as api_base_url:
         prune_qa_cabals(started_at)
         if len(args.journey) == 1:
-            return run_journey(args, api_base_url, args.journey[0], builder)
-        return run_all(args, api_base_url, builder, only=args.journey)
+            code = run_journey(args, api_base_url, args.journey[0], builder)
+        else:
+            code = run_all(args, api_base_url, builder, only=args.journey)
+        print_phase_summary()
+        return code
 
 
 def picked_journeys(args):
@@ -1763,6 +1864,7 @@ def run_mutants(args, api_base_url):
             locks.close()
             for signum, handler in old_handlers.items():
                 signal.signal(signum, handler)
+    print_phase_summary()
     print("caught %d of %d seeded bugs" % (caught, len(patches)))
     return 0 if caught == len(patches) else 1
 
@@ -1795,9 +1897,30 @@ def summarize(rows):
             "flake": (len(clean) - len(passed)) / float(len(clean)) if clean else None,
             "wall_s": median("wall_s"), "steps_s": (median("steps_ms") or 0) / 1000.0 or None,
             "seeded": len(seeded), "caught": len(caught),
+            "phases": {name: median(name) for name in PHASE_COLUMNS},
             "false_passes": len(seeded) - len(caught) + len(truth_misses),
         })
     return table
+
+
+def total_seconds(item):
+    """Median wall seconds plus the median of every phase that was measured; None without a wall time."""
+    if item["wall_s"] is None:
+        return None
+    return item["wall_s"] + sum(value for value in item["phases"].values() if value is not None)
+
+
+def build_lines(rows, limit=10):
+    """One line per run call that built or reused a build, newest last."""
+    lines = []
+    for row in rows:
+        if row["scenario"] != "*" or row.get("build_s") in ("", None):
+            continue
+        if float(row["build_s"]) == 0 and float(row.get("build_queue_s") or 0) == 0:
+            lines.append("%s: reused build" % row["run"])
+        else:
+            lines.append("%s: built in %s s after %s s in the queue" % (row["run"], row["build_s"], row.get("build_queue_s") or "0.0"))
+    return lines[-limit:]
 
 
 def latest_outcomes(rows, known):
@@ -1843,6 +1966,14 @@ def cmd_report(args):
         print("| %s | %d | %d | %s | %s | %s | %s | %d |" % (
             item["journey"], item["runs"], item["errors"], flake, show(item["wall_s"]), show(item["steps_s"]), caught,
             item["false_passes"]))
+    print()
+    print("| Journey | " + " | ".join("Median %s s" % name[:-2].replace("_", " ") for name in PHASE_COLUMNS) + " | Total s |")
+    print("| --- |" + " --- |" * (len(PHASE_COLUMNS) + 1))
+    for item in summarize(rows):
+        print("| %s | %s | %s |" % (item["journey"], " | ".join(show(item["phases"][name]) for name in PHASE_COLUMNS),
+                                    show(total_seconds(item))))
+    for line in build_lines(rows):
+        print(line)
     known = {journey_id: loaded.known for journey_id, loaded in load_journeys().items()}
     print()
     print("| Journey | Last run | Passing | Known failing | Fixed | New failures |")

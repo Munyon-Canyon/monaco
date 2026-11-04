@@ -168,6 +168,17 @@ Each run appends a row to `.logs/qa/journeys/results.tsv`:
 | Flake rate | Failures over all clean runs of the journey that started |
 | Catch rate | Seeded bugs the test failed on, over the seeded bugs it ran |
 | False passes | Seeded bugs not caught, plus clean runs that passed while the ground truth check failed |
+| Build seconds | Time in `build-for-testing`, not counting the wait for a build slot; 0 when the run reused a build |
+| Build queue seconds | Time spent waiting for an Xcode build slot; 0 when the run reused a build |
+| Boot seconds | Time to boot the simulator, not counting the wait for a simulator slot |
+| Boot queue seconds | Time spent waiting for a simulator slot |
+| Backend seconds | Time from starting the backend until `/healthz` answers |
+| Setup seconds | Time in the journey's setup script, summed over its scenarios |
+| Switch seconds | Time in the P1 steps that switch the signed-in actor, summed; also per scenario |
+| Truth seconds | Time in the ground truth check |
+| Uninstall seconds | Time to uninstall the app before the run |
+
+The new columns sit at the end of `results.tsv`, so older rows still parse; `report` skips them in the phase medians. `report` adds a table of the median of each phase and a total (median wall plus the phase medians), and one line per recent run saying `built in <n> s after <n> s in the queue` or `reused build`. `run` and `mutants` print the same phases when they end. The backend, simulator boot and build times belong to the first run of a call that takes them.
 
 `run` builds the app once per checkout. After a build it writes `.logs/qa/journeys/derived-<logins>/build.stamp` (one derived folder per set of logins the run holds, such as `derived-A-B`, so two runs never share one), the sha256 of `HEAD`, the uncommitted diff of `apps/mobile` and `packages/mobile-core`, and their untracked files. The next `run` prints `reusing build <stamp>` and skips `build-for-testing` while the stamp matches and the `.xctestrun` file is still under `derived-<logins>/Build/Products`. `--rebuild` builds anyway, and `--no-build` never builds. `mutants` always builds and deletes the stamp after it reverts a patch.
 

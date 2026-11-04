@@ -2355,5 +2355,160 @@ class OnceBuilder(unittest.TestCase):
         self.assertEqual(self.run_builder(True), [])
 
 
+class Phases(unittest.TestCase):
+    def setUp(self):
+        journey.PHASES.clear()
+        del journey.TAKEN[:]
+        self.addCleanup(journey.PHASES.clear)
+        self.addCleanup(lambda: journey.TAKEN.__delitem__(slice(None)))
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+
+    def row(self, **values):
+        base = dict.fromkeys(journey.COLUMNS, "")
+        base.update({"journey": "j", "driver": "xcuitest", "build": "abc", "expected": "PASS", "truth": "none",
+                     "scenario": "*", "result": "PASS", "run": "r1"})
+        base.update(values)
+        return base
+
+    def test_the_phase_columns_come_last_in_order(self):
+        self.assertEqual(journey.COLUMNS[-9:], [
+            "build_s", "build_queue_s", "boot_s", "boot_queue_s", "backend_s", "setup_s", "switch_s", "truth_s",
+            "uninstall_s"])
+        self.assertEqual(journey.COLUMNS[:14][-2:], ["failed_step", "log"])
+
+    def test_an_old_row_without_the_phase_columns_is_skipped_in_the_medians(self):
+        old = {key: self.row(wall_s="10")[key] for key in journey.COLUMNS[:14]}
+        item = journey.summarize([old])[0]
+        self.assertEqual(item["wall_s"], 10.0)
+        self.assertEqual(set(item["phases"].values()), {None})
+        self.assertEqual(journey.total_seconds(item), 10.0)
+        self.assertEqual(journey.build_lines([old]), [])
+
+    def test_the_report_takes_the_median_of_each_phase_and_adds_them_to_the_wall(self):
+        rows = [self.row(wall_s="10", build_s="30", boot_s="2", switch_s="1"),
+                self.row(wall_s="20", build_s="10", boot_s="4", switch_s="3"),
+                self.row(wall_s="30", build_s="20", boot_s="6", switch_s="5"),
+                self.row(wall_s="", result="FAIL")]
+        item = journey.summarize(rows)[0]
+        self.assertEqual((item["phases"]["build_s"], item["phases"]["boot_s"], item["phases"]["switch_s"]), (20, 4, 3))
+        self.assertIsNone(item["phases"]["truth_s"])
+        self.assertEqual(journey.total_seconds(item), 20 + 20 + 4 + 3)
+        self.assertIsNone(journey.total_seconds({"wall_s": None, "phases": {}}))
+
+    def test_the_report_names_a_built_and_a_reused_build(self):
+        rows = [self.row(run="a", build_s="12.0", build_queue_s="3.0"), self.row(run="b", build_s="0.0", build_queue_s="0.0"),
+                self.row(run="c", build_s="5.0"), self.row(run="d", scenario="S1", build_s="9.0")]
+        self.assertEqual(journey.build_lines(rows), [
+            "a: built in 12.0 s after 3.0 s in the queue", "b: reused build", "c: built in 5.0 s after 0.0 s in the queue"])
+        self.assertEqual(len(journey.build_lines(rows * 8, limit=2)), 2)
+
+    def test_the_report_command_prints_the_phase_table(self):
+        with unittest.mock.patch.object(journey, "RESULTS", Path(self.tmp.name) / "results.tsv"):
+            journey.RESULTS.write_text("\t".join(journey.COLUMNS) + "\n" + "\t".join(
+                self.row(wall_s="10", build_s="2.0", build_queue_s="1.0").get(c, "") for c in journey.COLUMNS) + "\n")
+            with redirect_stdout(StringIO()) as printed:
+                self.assertEqual(journey.cmd_report(types.SimpleNamespace()), 0)
+        self.assertIn("Median build s", printed.getvalue())
+        self.assertIn("r1: built in 2.0 s after 1.0 s in the queue", printed.getvalue())
+
+    def test_the_lock_wait_is_read_from_the_file_the_lock_script_appends_to(self):
+        path = Path(self.tmp.name) / "waited"
+        self.assertEqual(journey.read_lock_waited(path), 0)
+        path.write_text("3\n4\n")
+        self.assertEqual(journey.read_lock_waited(path), 7)
+        path.write_text("x\n")
+        self.assertEqual(journey.read_lock_waited(path), 0)
+
+    def build_with(self, waited, code=0):
+        def fake_sh(args, **kwargs):
+            if "MONACO_LOCK_WAITED" in kwargs.get("env", {}):
+                Path(kwargs["env"]["MONACO_LOCK_WAITED"]).write_text(waited)
+                return types.SimpleNamespace(returncode=code)
+            return types.SimpleNamespace(returncode=0, stdout="")
+        with unittest.mock.patch.object(journey, "sh", fake_sh), \
+                unittest.mock.patch.object(journey, "DERIVED", Path(self.tmp.name) / "derived"), \
+                unittest.mock.patch.object(journey, "xcodebuild", lambda sim, *extra: ["xcodebuild"]), \
+                redirect_stdout(StringIO()):
+            journey.build("sim", Path(self.tmp.name) / "build.log", "stamp")
+
+    def test_the_build_queue_comes_from_the_lock_wait_file_and_leaves_the_build_time(self):
+        self.build_with("2\n")
+        self.assertEqual(journey.PHASES["build_queue_s"], 2.0)
+        self.assertGreaterEqual(journey.PHASES["build_s"], 0.0)
+        self.assertLess(journey.PHASES["build_s"], 2.0)
+
+    def test_a_failed_build_still_records_its_time_and_raises(self):
+        with self.assertRaises(journey.JourneyError):
+            self.build_with("", code=65)
+        self.assertEqual(journey.PHASES["build_queue_s"], 0.0)
+
+    def test_a_reused_build_takes_no_build_time_and_no_queue(self):
+        with unittest.mock.patch.object(journey, "build_stamp", lambda: "abcdef123456"), \
+                unittest.mock.patch.object(journey, "build_is_current", lambda current: True), \
+                redirect_stdout(StringIO()):
+            self.assertFalse(journey.ensure_build("sim", Path("x.log")))
+        self.assertEqual((journey.PHASES["build_s"], journey.PHASES["build_queue_s"]), (0.0, 0.0))
+
+    def test_switch_seconds_sum_the_p1_steps_only(self):
+        timings = [("P1", 1500, 0), ("S1.1", 500, 1), ("P1.2", 250, 1), ("XP1", 9000, 0)]
+        self.assertEqual(journey.switch_seconds(timings), 1.75)
+        self.assertEqual(journey.switch_seconds([]), 0.0)
+
+    def test_a_scenario_row_carries_its_switch_time_and_a_skipped_one_has_none(self):
+        output = "\n".join([
+            "Test Case '-[MonacoUITests.T testJourney]' started.", "JOURNEYSCENARIO\tbegin\tS1",
+            "JOURNEYSTEP\tbegin\t0\tP1", "JOURNEYSTEP\tend\t0\tP1\t1500", "JOURNEYSCENARIO\tend\tS1\t2000",
+            "Test Case '-[MonacoUITests.T testJourney]' failed (2.000 seconds)."])
+        rows, _ = journey.session_rows(["S1", "S2"], output, "MonacoUITests/testJourney", None)
+        self.assertEqual(rows[0]["switch_s"], "1.5")
+        self.assertEqual(rows[1]["switch_s"], "")
+
+    def test_the_timers_add_up_and_the_summary_row_takes_them_once(self):
+        with journey.phase("truth_s"):
+            pass
+        journey.add_phase("truth_s", 1.0)
+        self.assertGreaterEqual(float(journey.take_phases()["truth_s"]), 1.0)
+        self.assertEqual(journey.take_phases(), {})
+        journey.add_phase("setup_s", 2.0)
+        with redirect_stdout(StringIO()) as printed:
+            journey.print_phase_summary()
+        self.assertIn("truth", printed.getvalue())
+        self.assertIn("setup 2.0 s", printed.getvalue())
+
+    def test_no_measurement_prints_nothing(self):
+        self.assertIsNone(journey.phase_line({}))
+        with redirect_stdout(StringIO()) as printed:
+            journey.print_phase_summary()
+        self.assertEqual(printed.getvalue(), "")
+
+    def test_an_old_results_header_is_widened_and_a_current_one_is_left(self):
+        with unittest.mock.patch.object(journey, "RESULTS", Path(self.tmp.name) / "results.tsv"):
+            old = "\t".join(journey.COLUMNS[:14])
+            journey.RESULTS.write_text(old + "\nrow\n")
+            journey.upgrade_header()
+            self.assertEqual(journey.RESULTS.read_text(), "\t".join(journey.COLUMNS) + "\nrow\n")
+            journey.upgrade_header()
+            self.assertEqual(journey.RESULTS.read_text(), "\t".join(journey.COLUMNS) + "\nrow\n")
+            journey.RESULTS.write_text(old)
+            journey.upgrade_header()
+            self.assertEqual(journey.RESULTS.read_text(), "\t".join(journey.COLUMNS) + "\n")
+
+    def test_a_simulator_boot_splits_the_queue_from_the_boot(self):
+        def fake_take(udid):
+            journey.add_phase("boot_queue_s", 5.0)
+        with unittest.mock.patch.object(journey, "take_sim_slot", fake_take), \
+                unittest.mock.patch.object(journey, "sh", lambda *a, **k: types.SimpleNamespace(returncode=0)), \
+                unittest.mock.patch.object(journey, "BOOTED", []):
+            journey.boot_simulator("udid")
+        self.assertEqual(journey.PHASES["boot_queue_s"], 5.0)
+        self.assertLess(journey.PHASES["boot_s"], 1.0)
+        with unittest.mock.patch.object(journey, "take_sim_slot", fake_take), \
+                unittest.mock.patch.object(journey, "release_sim_slot"), \
+                unittest.mock.patch.object(journey, "sh", side_effect=OSError("boom")):
+            with self.assertRaises(OSError):
+                journey.boot_simulator("udid2")
+
+
 if __name__ == "__main__":
     unittest.main()
