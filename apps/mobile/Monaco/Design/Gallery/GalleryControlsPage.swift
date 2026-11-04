@@ -408,7 +408,7 @@ struct GalleryBoardControlSamples: View {
                     .background(MonacoTheme.surfaceSunken, in: Capsule())
                 }
             }
-            GalleryUsageRow(title: "Crest", note: "theme 12: the cover cut square, 6 pt; people stay circles") {
+            GalleryUsageRow(title: "Crest", note: "a 22.5 % squircle; people stay circles") {
                 HStack(spacing: MonacoTheme.Space.sm) {
                     CabalMark(
                         groupId: GalleryFixtures.cabalNames[0].id,
@@ -428,10 +428,6 @@ struct GalleryBoardControlSamples: View {
                     insetsGutter: false)
             }
         }
-    }
-
-    private static let people: [MonacoAvatar.Source] = ["Mia", "Christelle", "Logan", "Sam", "You"].map {
-        MonacoAvatar.Source(id: $0, displayName: $0, photoURL: nil)
     }
 
     private func avatar(_ name: String) -> some View {
