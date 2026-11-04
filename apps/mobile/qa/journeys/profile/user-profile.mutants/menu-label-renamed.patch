@@ -8,7 +8,7 @@ diff --git a/apps/mobile/Monaco/Features/Profile/UserProfileMoreMenu.swift b/app
 --- a/apps/mobile/Monaco/Features/Profile/UserProfileMoreMenu.swift
 +++ b/apps/mobile/Monaco/Features/Profile/UserProfileMoreMenu.swift
 @@ -87,7 +87,7 @@
-                 .background(Circle().fill(MonacoTheme.surfaceSunken))
+                 .monacoToolbarCircle()
                  .contentShape(Circle())
          }
 -        .accessibilityLabel("More")
