@@ -19,6 +19,7 @@ public enum ChatRealtimeEvent: Sendable, Equatable {
     case messageDeleted(id: String)
     case reactionUpdated(messageId: String, reactions: [ChatReactionCount], total: Int32)
     case pollUpdated(messageId: String, options: [ChatPollCount], total: Int)
+    case pinUpdated(messageId: String, pinned: Bool)
     case attached(resumed: Bool)
     case detached
 }
@@ -36,6 +37,7 @@ public enum ChatEventDecoder {
     public static let messageDeleted = "message.deleted"
     public static let reactionUpdated = "reaction.updated"
     public static let pollUpdated = "poll.updated"
+    public static let pinUpdated = "pin.updated"
 
     public static func decode(name: String, data: Data) -> ChatRealtimeEvent? {
         switch name {
@@ -63,6 +65,10 @@ public enum ChatEventDecoder {
         case pollUpdated:
             return decoded(PollUpdated.self, from: data).map {
                 .pollUpdated(messageId: $0.messageId, options: $0.options, total: $0.totalVotes)
+            }
+        case pinUpdated:
+            return decoded(PinUpdated.self, from: data).map {
+                .pinUpdated(messageId: $0.messageId, pinned: $0.pinned)
             }
         default:
             return nil
@@ -138,5 +144,15 @@ private struct PollUpdated: Decodable {
         case messageId = "message_id"
         case options
         case totalVotes = "total_votes"
+    }
+}
+
+private struct PinUpdated: Decodable {
+    let messageId: String
+    let pinned: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case messageId = "message_id"
+        case pinned
     }
 }

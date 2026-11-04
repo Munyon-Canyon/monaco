@@ -3,7 +3,23 @@ import HTTPTypes
 import MonacoAPI
 import MonacoCore
 import MonacoTestSupport
+import OpenAPIRuntime
 import Synchronization
+
+struct PinsAnsweringTransport: ClientTransport {
+    let inner: StubTransport
+
+    func send(_ request: HTTPRequest, body: HTTPBody?, baseURL: URL, operationID: String) async throws -> (
+        HTTPResponse, HTTPBody?
+    ) {
+        guard request.method == .get, request.path?.hasSuffix("/chat/pins") == true else {
+            return try await inner.send(request, body: body, baseURL: baseURL, operationID: operationID)
+        }
+        var response = HTTPResponse(status: .ok)
+        response.headerFields[.contentType] = "application/json"
+        return (response, HTTPBody(#"{"messages":[]}"#))
+    }
+}
 
 final class FakeChatRealtime: ChatRealtime {
     private struct Store {
@@ -75,11 +91,13 @@ extension ChatFixtures {
         realtime: FakeChatRealtime = FakeChatRealtime(),
         keys: [String] = ["key-1", "key-2", "key-3"],
         clock: any Clock<Duration> = ContinuousClock(),
-        blocked: Bool = false
+        blocked: Bool = false,
+        answersPins: Bool = true
     ) -> ChatSession {
         let remaining = Mutex(keys)
         let api = APIClient(
-            serverURL: testServerURL, tokens: StubTokenProvider(token: "token-1"), transport: transport)
+            serverURL: testServerURL, tokens: StubTokenProvider(token: "token-1"),
+            transport: answersPins ? PinsAnsweringTransport(inner: transport) : transport)
         return ChatSession(
             cabalID: cabalID,
             viewerID: viewerID,

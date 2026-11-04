@@ -140,7 +140,7 @@ public actor ThreadSession {
         case .attached(let resumed):
             if !resumed { await loadNewest() }
             return
-        case .seenUpdated, .detached, .momentCreated, .pollUpdated:
+        case .seenUpdated, .detached, .momentCreated, .pollUpdated, .pinUpdated:
             return
         }
         publish()

@@ -1,6 +1,20 @@
 import MonacoAPI
 
 extension ChatSession {
+    public func loadOlder() async {
+        guard let cursor = state.timeline.oldestID, state.timeline.hasOlder, !state.isLoadingOlder else { return }
+        state.isLoadingOlder = true
+        publish()
+        do {
+            let page = try await fetch(before: cursor)
+            state.timeline.mergeOlder(page, pageSize: Self.pageSize)
+        } catch {
+            fail(error, firstLoad: false)
+        }
+        state.isLoadingOlder = false
+        publish()
+    }
+
     func fetch(before: String? = nil, after: String? = nil) async throws -> [ChatMessage] {
         let cabalID = cabalID
         return try await api.read { client in

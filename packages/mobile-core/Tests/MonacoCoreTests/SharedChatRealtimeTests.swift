@@ -109,7 +109,9 @@ final class SharedChatRealtimeTests: XCTestCase {
         let session = ChatSession(
             cabalID: ChatFixtures.cabalID,
             viewerID: ChatFixtures.viewerID,
-            api: APIClient(serverURL: testServerURL, tokens: StubTokenProvider(token: "token-1"), transport: transport),
+            api: APIClient(
+                serverURL: testServerURL, tokens: StubTokenProvider(token: "token-1"),
+                transport: PinsAnsweringTransport(inner: transport)),
             realtime: realtime,
             now: { ChatFixtures.epoch },
             makeKey: { key }

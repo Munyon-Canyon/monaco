@@ -180,7 +180,9 @@ final class ChatMomentTests: XCTestCase {
         let session = ChatSession(
             cabalID: ChatFixtures.cabalID,
             viewerID: ChatFixtures.viewerID,
-            api: APIClient(serverURL: testServerURL, tokens: StubTokenProvider(token: "token-1"), transport: transport),
+            api: APIClient(
+                serverURL: testServerURL, tokens: StubTokenProvider(token: "token-1"),
+                transport: PinsAnsweringTransport(inner: transport)),
             realtime: FakeChatRealtime(),
             now: { ChatFixtures.epoch },
             onArrival: { arrivals.withLock { $0 += 1 } }

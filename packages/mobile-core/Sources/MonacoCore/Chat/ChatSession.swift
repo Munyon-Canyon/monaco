@@ -23,6 +23,7 @@ public actor ChatSession {
     public struct State: Equatable, Sendable {
         public var load: ChatLoad = .idle
         public var timeline: ChatTimeline
+        public let pins: ChatPinsModel
         public var isClosed = false
         public var isLoadingOlder = false
         public var notice: Notice?
@@ -77,7 +78,8 @@ public actor ChatSession {
         self.makeKey = makeKey
         self.blocked = blocked
         self.onArrival = onArrival
-        self.state = State(timeline: ChatTimeline(viewerID: viewerID))
+        let pins = ChatPinsModel(cabalID: cabalID, viewerID: viewerID, api: api, makeKey: makeKey)
+        self.state = State(timeline: ChatTimeline(viewerID: viewerID), pins: pins)
     }
 
     public func states() -> AsyncStream<State> {
@@ -97,20 +99,6 @@ public actor ChatSession {
     }
 
     func newKey() -> String { makeKey() }
-
-    public func loadOlder() async {
-        guard let cursor = state.timeline.oldestID, state.timeline.hasOlder, !state.isLoadingOlder else { return }
-        state.isLoadingOlder = true
-        publish()
-        do {
-            let page = try await fetch(before: cursor)
-            state.timeline.mergeOlder(page, pageSize: Self.pageSize)
-        } catch {
-            fail(error, firstLoad: false)
-        }
-        state.isLoadingOlder = false
-        publish()
-    }
 
     @discardableResult
     public func send(
@@ -176,9 +164,14 @@ public actor ChatSession {
         case .attached(let resumed):
             channelAttached = true
             await applyAttach(resumed: resumed)
+            let pins = state.pins
+            Task { await pins.load() }
         case .seenUpdated(let messageId, let count):
             guard messageId == state.timeline.newestID else { return }
             state.seen = Seen(messageID: messageId, count: count)
+        case .pinUpdated:
+            await state.pins.load()
+            return
         case .detached:
             channelAttached = false
             attachSignal?.yield(false)
