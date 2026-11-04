@@ -1,5 +1,6 @@
 import Foundation
 import MonacoCore
+import SwiftUI
 import Testing
 import UIKit
 
