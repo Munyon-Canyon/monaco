@@ -8,13 +8,11 @@ public struct ProposalStats: Equatable, Sendable {
         public let label: String
         public let value: String
         public let tone: Tone
-        public let hasInfo: Bool
 
-        public init(label: String, value: String, tone: Tone = .plain, hasInfo: Bool = false) {
+        public init(label: String, value: String, tone: Tone = .plain) {
             self.label = label
             self.value = value
             self.tone = tone
-            self.hasInfo = hasInfo
         }
     }
 
@@ -35,8 +33,7 @@ public struct ProposalStats: Equatable, Sendable {
         let isSell = summary.kind == "sell"
         let estimate = asset?.kind == .preIpo ? asset?.estimateMicros : nil
         let priceCell = Cell(
-            label: estimate == nil ? "Price" : "Estimate", value: money(estimate ?? stats.priceMicros),
-            hasInfo: true)
+            label: estimate == nil ? "Price" : "Estimate", value: money(estimate ?? stats.priceMicros))
         let sharesCell =
             estimate.flatMap { estimatedShares(usdcMicros: isSell ? nil : summary.usdcMicros, estimateMicros: $0) }
             ?? Cell(label: "Shares", value: sharesText(stats, exact: stats.sharesExact || isSell))
