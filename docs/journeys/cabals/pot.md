@@ -1,7 +1,7 @@
 ---
 id: cabals/pot
 title: The treasury
-version: 10
+version: 11
 milestone: M12
 requires: [auth/sign-in]
 actors: [A]
@@ -35,7 +35,7 @@ On the F cabal page the pot is the "Treasury" line and the slice is the "Your sh
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S1.1 | A | call | `openCabal(named:)` | `QA slice {QA.run}` | `cabal-header-name` reads `QA slice {QA.run}`, and `cabal-pot-value` shows within 15 s |
+| S1.1 | A | call | system Back until the tab bar shows, then `openCabal(named:)` | `QA slice {QA.run}` | `cabal-header-name` reads `QA slice {QA.run}`, and `cabal-pot-value` shows within 15 s |
 | S1.2 | A | wait | `cabal-pot-value` | | The "Treasury" line reads "$0.00" within 10 s |
 | S1.3 | A | wait | `cabal-share-value` | | `cabal-share-value` reads "Your share", "$0" and "0%" within 10 s, and no bot wording shows anywhere in the band: neither `cabal-share-value` nor `cabal-pot-value` reads "Bot" |
 
@@ -43,7 +43,7 @@ On the F cabal page the pot is the "Treasury" line and the slice is the "Your sh
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S2.1 | A | call | `openCabal(named:)` | `QA slice {QA.run}` | `cabal-header-name` reads `QA slice {QA.run}` within 15 s |
+| S2.1 | A | back out, then call | system Back until the tab bar shows, then `openCabal(named:)` | `QA slice {QA.run}` | `cabal-header-name` reads `QA slice {QA.run}` within 15 s |
 | S2.2 | A | tap | `cabal-share-button` | | F's share screen (`share-screen`, #6572) shows within 15 s |
 | S2.3 | A | tap | Back | | `cabal-header-name` still reads `QA slice {QA.run}` within 5 s |
 | S2.4 | A | tap, then tap | `cabal-share-button`, then `share-copy-image` | | The dock reads "Show $", "Show trades" and "Show code", and `share-send` shows. The toast "Image copied." shows within 5 s and `share-send` still shows beside it |
@@ -53,7 +53,7 @@ On the F cabal page the pot is the "Treasury" line and the slice is the "Your sh
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S3.1 | A | call, then call | `openCabal(named:)`, then `openCabalTab("Treasury")` | `QA slice {QA.run}` | The Treasury tab shows |
+| S3.1 | A | back out, then call, then call | system Back until the tab bar shows, then `openCabal(named:)`, then `openCabalTab("Treasury")` | `QA slice {QA.run}` | The Treasury tab shows |
 | S3.2 | A | scroll to | `cabal-holdings-empty` | | Reads "Fund, then propose the first buy." within 10 s |
 
 ## Ground truth

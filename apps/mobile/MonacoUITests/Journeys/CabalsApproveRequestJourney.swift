@@ -2,7 +2,7 @@ import XCTest
 
 enum CabalsApproveRequestJourney {
     static let id = "cabals/approve-request"
-    static let version = 7
+    static let version = 9
 
     static let screenTimeout: TimeInterval = 15
 
@@ -93,12 +93,13 @@ enum CabalsApproveRequestJourney {
 
     static func creatorApproves(_ app: XCUIApplication, run: String, member: String, recorder: JourneyRecorder) {
         recorder.step("S2.1", "open the cabal and see the seeded request") {
+            app.popToRoot()
             creatorSeesRequest(app, cabal: approveCabal(run: run), member: member, step: "S2.1")
         }
 
         recorder.step("S2.2", "approve it") {
             JoinJourney.decide(app, approve: true, step: "S2.2")
-            JoinJourney.waitForToast(app, "Approved.", step: "S2.2")
+            JoinJourney.waitForToast(app, "\(member) joined \(approveCabal(run: run)).", step: "S2.2")
             XCTAssertTrue(
                 JoinJourney.waitForRequestsGone(app, timeout: 10),
                 "S2.2: the request is still on the Members screen"

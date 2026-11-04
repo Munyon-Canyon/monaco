@@ -1,7 +1,7 @@
 ---
 id: cabals/approve-request
 title: Ask to join, cancel, and the creator's answer
-version: 7
+version: 9
 milestone: M10
 requires: [auth/sign-in]
 actors: [A, B]
@@ -35,7 +35,7 @@ The format of this doc is in [App journeys](../README.md).
 | S1.2 | B | tap | `cabal-join-button` | | The toast "Request sent. You'll be in once the creator says yes." shows within 10 s. `cabal-join-requested` reads "Request pending" next to `cabal-join-cancel` "Cancel request" within 10 s |
 | S1.3 | B | tap | `cabal-join-cancel` | | `cabal-join-button` reads "Request to join" again within 10 s, and there is no `cabal-join-requested` |
 | S1.4 | B | tap | `cabal-join-button` | | `cabal-join-requested` reads "Request pending" within 10 s |
-| S1.5 | A | open, then tap | the cabal through `openCabal(named:)`, the Members tab, then `cabal-members-see-all` | `QA ask {QA.run}` | One `cabal-join-request-row` names B, reads "Asked to join · {age}" and holds `cabal-join-approve` titled "Approve" (its accessibility label adds B's name) within 15 s |
+| S1.5 | A | back out, open, then tap | system Back until the tab bar shows, the cabal through `openCabal(named:)`, the Members tab, then `cabal-members-see-all` | `QA ask {QA.run}` | One `cabal-join-request-row` names B, reads "Asked to join · {age}" and holds `cabal-join-approve` titled "Approve" (its accessibility label adds B's name) within 15 s |
 | S1.6 | A | long press, then tap | the `cabal-join-request-row`, then "Decline" (`cabal-join-deny`) in its menu | | The toast "Declined." shows within 10 s. The request row is gone, and after the back button `cabal-member-count` still reads "1 member" |
 
 ### S2 The creator approves
@@ -43,7 +43,7 @@ The format of this doc is in [App journeys](../README.md).
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
 | S2.1 | A | open, then tap | the cabal through `openCabal(named:)`, the Members tab, then `cabal-members-see-all` | `QA ok {QA.run}` | One `cabal-join-request-row` names B and reads "Asked to join · {age}" within 15 s |
-| S2.2 | A | tap | `cabal-join-approve` in the row | | The toast "Approved." shows within 10 s. The request row is gone, and after the back button `cabal-member-count` reads the other member's first name within 10 s |
+| S2.2 | A | tap | `cabal-join-approve` in the row | | The toast "{B's name} joined QA ok {QA.run}." shows within 10 s. The request row is gone, and after the back button `cabal-member-count` reads the other member's first name within 10 s |
 
 ## Ground truth
 
