@@ -9,6 +9,18 @@ nonisolated final class HomeCabalsSampleUITests: XCTestCase {
         continueAfterFailure = false
     }
 
+    nonisolated override func record(_ issue: XCTIssue) {
+        guard name.contains("testTappingACabalRowOpensTheCabalScreen"), issue.severity == .warning,
+            issue.compactDescription.contains("Modifying state during view update")
+        else {
+            super.record(issue)
+            return
+        }
+        var failing = issue
+        failing.severity = .error
+        super.record(failing)
+    }
+
     @MainActor
     private func launch(_ scenario: String) -> XCUIApplication {
         let app = XCUIApplication()
@@ -92,5 +104,25 @@ nonisolated final class HomeCabalsSampleUITests: XCTestCase {
         XCTAssertTrue(
             reveal(app, "home-cabals-empty").waitForExistence(timeout: 20),
             "no first-use card for no cabals")
+    }
+
+    @MainActor
+    func testTappingACabalRowOpensTheCabalScreen() throws {
+        let app = launch("partlyFunded")
+
+        let row = reveal(app, "cabal-row-\(bigBallers)")
+        XCTAssertTrue(row.waitForExistence(timeout: 20), "no Home card for the cabal")
+        row.tap()
+        attachScreenshot(app, name: "home-cabal-first-frame")
+
+        let deadline = Date().addingTimeInterval(20)
+        let identifiers = ["cabal-opening", "cabal-tabs-pinned", "chat-view"]
+        var opened = false
+        while !opened && Date() < deadline {
+            opened = identifiers.contains { anyElement(app, $0).exists }
+            if !opened { _ = anyElement(app, "chat-view").waitForExistence(timeout: 1) }
+        }
+        XCTAssertTrue(opened, "the cabal screen did not open from the Home card")
+        attachScreenshot(app, name: "home-cabal-opened")
     }
 }

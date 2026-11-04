@@ -22,7 +22,7 @@ struct GroupChatView: View {
             cabal: cabal?.cabal,
             reporter: reporter,
             viewerID: environment.viewer?.userID ?? "",
-            proposals: preparedProposals(),
+            proposals: proposals,
             network: network,
             openProfile: { userID in
                 environment.navigator.open(UserProfileRoute(userID: userID), in: environment.navigator.selectedTab)
@@ -42,7 +42,10 @@ struct GroupChatView: View {
             _ = preparedSession()
             await model.load()
         }
-        .task { await preparedProposals().observe(cabalID: cabalID, hints: environment.hints) }
+        .task {
+            let store = preparedProposals()
+            await store.observe(cabalID: cabalID, hints: environment.hints)
+        }
     }
 
     private func preparedProposals() -> ChatProposalStore {
