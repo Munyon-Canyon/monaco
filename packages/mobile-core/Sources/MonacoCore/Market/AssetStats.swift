@@ -17,7 +17,7 @@ public struct AssetStatCell: Equatable, Sendable {
 public struct AssetStats: Equatable, Sendable {
     public static let dash = "—"
     public static let marketCapLabel = "Market cap"
-    public static let volumeLabel = "Volume · 24h"
+    public static let volumeLabel = "Volume today"
     public static let openLabel = "Open"
     public static let yearLowLabel = "52-week low"
     public static let yearHighLabel = "52-week high"

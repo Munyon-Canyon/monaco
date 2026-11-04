@@ -9,7 +9,7 @@ final class AssetInYourCabalsTests: XCTestCase {
         let facts = AssetHeldRowFacts(try heldRow(pnl: 1_026_666_667, cost: 7_333_333_333))
 
         XCTAssertEqual(facts.title, "AC Capital")
-        XCTAssertEqual(facts.subtitle, "38 sh · 42% of treasury")
+        XCTAssertEqual(facts.subtitle, "38 shares · 42% of the treasury")
         XCTAssertEqual(facts.valueText, "$8,360.00")
         XCTAssertEqual(facts.returnText, "+14.0%")
     }
@@ -17,13 +17,20 @@ final class AssetInYourCabalsTests: XCTestCase {
     func testAFractionalWeightRoundsHalfUpAndUnitsKeepTheirDecimals() throws {
         let facts = AssetHeldRowFacts(try heldRow(units: "2.5000", weightBps: 4180, pnl: 0, cost: 1))
 
-        XCTAssertEqual(facts.subtitle, "2.5 sh · 42% of treasury")
+        XCTAssertEqual(facts.subtitle, "2.5 shares · 42% of the treasury")
         XCTAssertEqual(
-            AssetHeldRowFacts(try heldRow(weightBps: 4149, pnl: 0, cost: 1)).subtitle, "38 sh · 41% of treasury")
+            AssetHeldRowFacts(try heldRow(weightBps: 4149, pnl: 0, cost: 1)).subtitle, "38 shares · 41% of the treasury"
+        )
         XCTAssertEqual(
-            AssetHeldRowFacts(try heldRow(weightBps: 4150, pnl: 0, cost: 1)).subtitle, "38 sh · 42% of treasury")
+            AssetHeldRowFacts(try heldRow(weightBps: 4150, pnl: 0, cost: 1)).subtitle, "38 shares · 42% of the treasury"
+        )
         XCTAssertEqual(
-            AssetHeldRowFacts(try heldRow(weightBps: 40, pnl: 0, cost: 1)).subtitle, "38 sh · <1% of treasury")
+            AssetHeldRowFacts(try heldRow(weightBps: 40, pnl: 0, cost: 1)).subtitle, "38 shares · <1% of the treasury")
+    }
+
+    func testExactlyOneShareIsSingular() throws {
+        XCTAssertEqual(
+            AssetHeldRowFacts(try heldRow(units: "1.0000", pnl: 0, cost: 1)).subtitle, "1 share · 42% of the treasury")
     }
 
     func testANegativeReturnUsesTheTypographicMinus() throws {
@@ -40,7 +47,8 @@ final class AssetInYourCabalsTests: XCTestCase {
         let facts = try XCTUnwrap(AssetOpenProposalRowFacts(proposal(), now: now))
 
         XCTAssertEqual(facts.title, "AC Capital \u{00B7} Buy $400")
-        XCTAssertEqual(facts.subtitle, "5 of 8 voted \u{00B7} 6 replies \u{00B7} ends in 4h")
+        XCTAssertEqual(facts.subtitle, "5 of 8 voted \u{00B7} 6 replies \u{00B7} closes in 4h")
+        XCTAssertFalse(facts.subtitle.contains("ends in"))
         XCTAssertEqual(facts.trailing, "\u{2713} 4 \u{00B7} \u{2715} 1")
         XCTAssertEqual(facts.yes, 4)
         XCTAssertEqual(facts.no, 1)
