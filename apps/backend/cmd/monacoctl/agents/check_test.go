@@ -1471,6 +1471,35 @@ func TestCheck_aFlowsPackageChangeRunsTheSwiftAndReadyRows(t *testing.T) {
 	}
 }
 
+func TestCheck_aJourneyDocChangeChecksTheDocsAndOnlyAToolingChangeRunsTheToolingTests(t *testing.T) {
+	t.Parallel()
+	tooling := func(calls []string) bool {
+		return slices.ContainsFunc(calls, func(c string) bool {
+			return strings.Contains(c, "test_journey.py") || strings.Contains(c, "test_skill_eval.py")
+		})
+	}
+	docs := newCheckHarness(t)
+	docs.commit(t, map[string]string{"docs/journeys/auth/note.md": "notes\n"})
+	code, stdout, stderr := docs.check(t)
+	if code != 0 ||
+		!slices.ContainsFunc(docs.calls, func(c string) bool { return strings.Contains(c, "journey.py check") }) ||
+		tooling(docs.calls) {
+		t.Fatalf(
+			"a doc change runs journey.py check and not the tooling tests: %d %q %q %v",
+			code,
+			stdout,
+			stderr,
+			docs.calls,
+		)
+	}
+	script := newCheckHarness(t)
+	script.commit(t, map[string]string{"scripts/qa/journey.py": "# changed\n"})
+	code, stdout, stderr = script.check(t)
+	if code != 0 || !tooling(script.calls) {
+		t.Fatalf("a scripts/qa change runs the tooling tests: %d %q %q %v", code, stdout, stderr, script.calls)
+	}
+}
+
 func TestTestParallelPerPackage_scalesWithBusySlotsAndPackages(t *testing.T) {
 	t.Parallel()
 	for _, c := range []struct{ cpus, busy, p, want int }{
