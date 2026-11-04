@@ -1904,10 +1904,12 @@ def summarize(rows):
 
 
 def total_seconds(item):
-    """Median wall seconds plus the median of every phase that was measured; None without a wall time."""
+    """Median wall seconds plus the median of every measured phase but switch_s, which sits inside wall time;
+    None without a wall time."""
     if item["wall_s"] is None:
         return None
-    return item["wall_s"] + sum(value for value in item["phases"].values() if value is not None)
+    return item["wall_s"] + sum(value for name, value in item["phases"].items()
+                                if value is not None and name != "switch_s")
 
 
 def build_lines(rows, limit=10):

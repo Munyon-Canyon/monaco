@@ -2393,7 +2393,7 @@ class Phases(unittest.TestCase):
         item = journey.summarize(rows)[0]
         self.assertEqual((item["phases"]["build_s"], item["phases"]["boot_s"], item["phases"]["switch_s"]), (20, 4, 3))
         self.assertIsNone(item["phases"]["truth_s"])
-        self.assertEqual(journey.total_seconds(item), 20 + 20 + 4 + 3)
+        self.assertEqual(journey.total_seconds(item), 20 + 20 + 4)
         self.assertIsNone(journey.total_seconds({"wall_s": None, "phases": {}}))
 
     def test_the_report_names_a_built_and_a_reused_build(self):
