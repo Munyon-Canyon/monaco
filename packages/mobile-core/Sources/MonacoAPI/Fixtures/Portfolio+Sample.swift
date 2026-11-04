@@ -8,6 +8,8 @@ extension Components.Schemas.CabalRef {
         id: "01890a5d-ac96-774b-bcce-b302099a8059", name: "Sunday Investors", pictureUrl: nil)
     public static let sampleACCapital = Self(
         id: "01890a5d-ac96-774b-bcce-b302099a805a", name: "AC Capital", pictureUrl: nil)
+    public static let sampleAcCapitalManagement = Self(
+        id: "01890a5d-ac96-774b-bcce-b302099a8060", name: "Ac Capital Management", pictureUrl: nil)
     public static let sampleTechTitans = Self(
         id: "01890a5d-ac96-774b-bcce-b302099a805b", name: "Tech Titans", pictureUrl: nil)
     public static let sampleDegens = Self(
@@ -72,6 +74,24 @@ extension Components.Schemas.MyPortfolio {
                 cabal: .sampleDegens, valueMicros: 1_872_000_000, shareUnits: 1_872_000_000,
                 netContributedMicros: 1_683_450_000, pnlMicros: 188_550_000, returnBps: 1120, sliceBps: 1616,
                 ownershipBps: 800, role: .member, canVote: true, potValueMicros: 23_400_000_000, memberCount: 6,
+                openVoteCount: 0),
+        ])
+
+    public static let sampleFewCabals = Self(
+        cashMicros: 0, netWorthMicros: 8_620_000, totalValueMicros: 8_620_000, pnlMicros: -376_000,
+        returnBps: -418,
+        computedAt: Date(timeIntervalSince1970: 1_790_996_460),
+        pricesAsOf: Date(timeIntervalSince1970: 1_790_996_400),
+        cabals: [
+            Components.Schemas.PortfolioCabal(
+                cabal: .sampleBigBallers, valueMicros: 7_620_000, shareUnits: 7_620_000,
+                netContributedMicros: 7_996_000, pnlMicros: -376_000, returnBps: -470, sliceBps: 8840,
+                ownershipBps: 6200, role: .member, canVote: true, potValueMicros: 12_380_000, memberCount: 3,
+                openVoteCount: 0),
+            Components.Schemas.PortfolioCabal(
+                cabal: .sampleAcCapitalManagement, valueMicros: 1_000_000, shareUnits: 1_000_000,
+                netContributedMicros: 1_000_000, pnlMicros: 0, returnBps: 0, sliceBps: 1160,
+                ownershipBps: 10000, role: .admin, canVote: true, potValueMicros: 1_000_000, memberCount: 1,
                 openVoteCount: 0),
         ])
 
