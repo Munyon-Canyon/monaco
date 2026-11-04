@@ -330,15 +330,6 @@ extension PushRouterTests {
         #expect(navigator.cabalsPath == expected)
     }
 
-    @Test func aChatPushNeverPushesTheOldChatScreen() async {
-        let (router, navigator) = open(sessionOpen: true)
-
-        await tap(.chat(cabalID: cabal), on: router)
-        await tap(.chatThread(cabalID: cabal, parentID: txn), on: router)
-
-        #expect(!navigator.cabalsPath.contains(AnyAppRoute(ChatRoute(cabalID: cabal))))
-    }
-
     @Test func aCatchUpReplyOrMentionOpensTheCabalOnItsChatTab() {
         let navigator = AppNavigator()
         navigator.selectedTab = .home

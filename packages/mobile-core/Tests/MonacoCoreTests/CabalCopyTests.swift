@@ -95,21 +95,6 @@ final class CabalCopyTests: XCTestCase {
         XCTAssertEqual(CabalCopy.thresholdLine(cabal), "2 of 2 eligible voters")
     }
 
-    func testTheChatPreviewKeepsOnlyALiveMessageWithABody() {
-        var message = Components.Schemas.ChatMessage(
-            id: "m-1", kind: .user, author: .init(id: "u-1", handle: "alex", displayName: " ", photoUrl: nil),
-            body: "gm",
-            createdAt: Date(timeIntervalSince1970: 0), alsoInChannel: false, replyCount: 0, deleted: false,
-            reactions: [], reactionCount: 0)
-        XCTAssertEqual(CabalChatPreviewMessage(message)?.author, "@alex")
-        XCTAssertEqual(CabalChatPreviewMessage(message)?.body, "gm")
-        message.body = nil
-        XCTAssertNil(CabalChatPreviewMessage(message))
-        message.body = "gm"
-        message.deleted = true
-        XCTAssertNil(CabalChatPreviewMessage(message))
-    }
-
     private func myCabal(role: String, pending: Int32) -> Components.Schemas.MyCabal {
         .init(
             id: "c-1", name: "QA pot", pictureUrl: nil, status: "active", role: role, canVote: true, memberCount: 2,

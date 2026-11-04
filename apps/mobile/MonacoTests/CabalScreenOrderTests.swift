@@ -58,9 +58,9 @@ struct CabalScreenOrderTests {
         #expect(Self.names(CabalTabs.sections(for: .voters)) == ["CabalVotersSlot"])
     }
 
-    @Test func theTabSlotsAndTheChatPreviewLeaveTheTopLevel() {
+    @Test func theTabSlotsLeaveTheTopLevel() {
         let top = Self.names(CabalScreen.sections)
-        let moved = CabalTab.allCases.flatMap { Self.names(CabalTabs.sections(for: $0)) } + ["CabalChatPreviewSlot"]
+        let moved = CabalTab.allCases.flatMap { Self.names(CabalTabs.sections(for: $0)) }
         #expect(moved.allSatisfy { !top.contains($0) })
     }
 
