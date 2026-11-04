@@ -23,6 +23,7 @@ enum CabalsTabSampleData {
         case cabalsLoading
         case empty
         case fReady
+        case fFew
         case fUnfunded
         case fMenu
     }
@@ -48,6 +49,7 @@ enum CabalsTabSampleData {
         case .cabalsLoading: SampleAPIScript(mode: .hang)
         case .empty: emptyScript
         case .fReady, .fMenu: fReadyScript
+        case .fFew: fFewScript
         case .fUnfunded: fUnfundedScript
         }
     }
@@ -63,6 +65,15 @@ enum CabalsTabSampleData {
             return moved
         }
         script.invites = [quantKidsInvite]
+        return script
+    }
+
+    @MainActor
+    private static var fFewScript: SampleAPIScript {
+        var script = HomeSampleData.script(.loss, proposals: [])
+        script.portfolio = .sampleFewCabals
+        script.invites = []
+        script.pendingVotes = []
         return script
     }
 

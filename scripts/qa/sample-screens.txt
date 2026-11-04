@@ -818,6 +818,7 @@ f__04b-hold-1-pick                  -MonacoHomeSample fVotePick
 f__04b-hold-2-holding               -MonacoHomeSample fVoteHolding
 f__04b-hold-3-committed             -MonacoHomeSample fVoteCommitted
 f__03-cabals-tab                    -MonacoCabalsTabSample -MonacoCabalsTabSampleScenario fReady
+f__03-cabals-tab-few                -MonacoCabalsTabSample -MonacoCabalsTabSampleScenario fFew
 f__03-cabals-tab-menu               -MonacoCabalsTabSample -MonacoCabalsTabSampleScenario fMenu
 f__03-cabal-treasury                -MonacoGroupDetailSample fTreasury
 f__03-cabal-treasury-light          -MonacoGroupDetailSample fTreasuryLight

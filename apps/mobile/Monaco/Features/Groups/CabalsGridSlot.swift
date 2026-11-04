@@ -9,6 +9,31 @@ enum CabalsGridSlot: CabalsTabSection {
     }
 }
 
+enum CabalsTabActions {
+    @MainActor
+    static func perform(
+        _ kind: CabalMenuAction.Kind, on tile: CabalTile, navigator: AppNavigator, invite: (CabalTile) -> Void
+    ) {
+        Haptics.selection()
+        switch kind {
+        case .vote(let proposalID): navigator.presentVoteHold(proposalID: proposalID, pick: nil)
+        case .openCabal: navigator.open(CabalRoute(id: tile.id), in: .cabals)
+        case .fund: navigator.open(FundRoute(cabalID: tile.id, cabalName: tile.name), in: .cabals)
+        case .propose: navigator.open(ProposeRoute(cabalID: tile.id), in: .cabals)
+        case .invite: invite(tile)
+        case .share: navigator.open(ShareRoute(.stake(cabalID: tile.id)), in: .cabals)
+        }
+    }
+}
+
+extension View {
+    func cabalInviteSheet(_ inviting: Binding<CabalTile?>) -> some View {
+        sheet(item: inviting) { tile in
+            CabalInviteHost(cabalID: tile.id)
+        }
+    }
+}
+
 enum CabalsGridMetrics {
     static let crest: CGFloat = 60
     static let columns = 4
@@ -68,9 +93,7 @@ struct CabalsGridSection: View {
                 Task { await store.tab.load() }
             }
         }
-        .sheet(item: $inviting) { tile in
-            CabalInviteHost(cabalID: tile.id)
-        }
+        .cabalInviteSheet($inviting)
         #if DEBUG
         .fullScreenCover(item: $sampleMenu) { tile in
             CabalContextMenuSampleSheet(
@@ -95,16 +118,7 @@ struct CabalsGridSection: View {
     }
 
     private func perform(_ action: CabalMenuAction, on tile: CabalTile) {
-        Haptics.selection()
-        let navigator = environment.navigator
-        switch action.kind {
-        case .vote(let proposalID): navigator.presentVoteHold(proposalID: proposalID, pick: nil)
-        case .openCabal: navigator.open(CabalRoute(id: tile.id), in: .cabals)
-        case .fund: navigator.open(FundRoute(cabalID: tile.id, cabalName: tile.name), in: .cabals)
-        case .propose: navigator.open(ProposeRoute(cabalID: tile.id), in: .cabals)
-        case .invite: inviting = tile
-        case .share: navigator.open(ShareRoute(.stake(cabalID: tile.id)), in: .cabals)
-        }
+        CabalsTabActions.perform(action.kind, on: tile, navigator: environment.navigator) { inviting = $0 }
     }
 
     private var columnCount: Int {
