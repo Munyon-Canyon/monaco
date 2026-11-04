@@ -50,6 +50,23 @@ final class MemberActivityModelTests: XCTestCase {
         XCTAssertTrue(path?.hasPrefix("/v1/users/u1/activity") == true)
     }
 
+    func testAnotherMembersVoteHidesTheSide() async {
+        let hidden = """
+            {"items":[{"kind":"voted","at":"\(stamp(1200))","title":"Voted","cabal":\(cabal()),"proposal_id":"p1","subject":"Buy NVDA","symbol":"NVDA","usdc_micros":null}],"next_cursor":null}
+            """
+        let (model, _) = make([.json(.ok, hidden)])
+        await model.load()
+        XCTAssertEqual(model.rows.map(\.title), ["Voted on Buy NVDA"])
+        XCTAssertEqual(model.rows.map(\.subtitle), ["AC Capital"])
+    }
+
+    func testAKnownNoVoteReadsVotedNo() async {
+        let owned = page(next: nil).replacingOccurrences(of: "\"choice\":\"yes\"", with: "\"choice\":\"no\"")
+        let (model, _) = make([.json(.ok, owned)])
+        await model.load()
+        XCTAssertEqual(model.rows.first?.title, "Voted No")
+    }
+
     func testLoadMoreSendsTheCursorAndAppends() async {
         let (model, transport) = make([.json(.ok, page(next: "abc")), .json(.ok, page(next: nil))])
         await model.load()
