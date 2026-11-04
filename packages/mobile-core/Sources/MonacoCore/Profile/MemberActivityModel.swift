@@ -133,10 +133,17 @@ public final class MemberActivityModel {
     private static func row(_ activity: Components.Schemas.UserActivity, index: Int, now: Date) -> MemberActivityRow {
         switch activity {
         case .voted(let vote):
-            let side = vote.choice.map { $0 == .yes ? "Voted Yes" : "Voted No" }
+            let title: String
+            let subtitle: String
+            if let choice = vote.choice {
+                title = choice == .yes ? "Voted Yes" : "Voted No"
+                subtitle = "\(vote.subject) · \(vote.cabal.name)"
+            } else {
+                title = "Voted on \(vote.subject)"
+                subtitle = vote.cabal.name
+            }
             return MemberActivityRow(
-                id: "\(index)", glyph: .voted, title: side ?? "Voted",
-                subtitle: "\(vote.subject) · \(vote.cabal.name)", time: time(vote.at, now),
+                id: "\(index)", glyph: .voted, title: title, subtitle: subtitle, time: time(vote.at, now),
                 destination: .proposal(vote.proposalId))
         case .proposed(let proposal):
             return MemberActivityRow(
