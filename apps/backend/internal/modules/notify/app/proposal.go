@@ -2,15 +2,18 @@ package app
 
 import (
 	"context"
+	"log/slog"
 	"slices"
 
 	"github.com/google/uuid"
 
+	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	governanceport "github.com/monaco/monaco/apps/backend/internal/modules/governance/port"
 	"github.com/monaco/monaco/apps/backend/internal/modules/notify/domain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 )
 
 const (
@@ -37,6 +40,15 @@ func (ProposalCreated) Name() string { return "proposal_created" }
 
 func (k ProposalCreated) Recipients(ctx context.Context, e events.ProposalCreated) ([]ids.UserID, error) {
 	if e.Kind == ruleKind {
+		return nil, nil
+	}
+	if _, err := k.Heads.ProposalHead(
+		ctx,
+		ids.ProposalIDFrom(e.ProposalID),
+	); errs.CodeOf(
+		err,
+	) == errs.CodeProposalNotFound {
+		observability.Debug(ctx, observability.NotifyProposalSkipped, slog.String("reason", "proposal_not_found"))
 		return nil, nil
 	}
 	return memberIDs(ctx, k.Cabals, &e.CabalID)

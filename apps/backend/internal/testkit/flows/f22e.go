@@ -2,14 +2,8 @@ package flows
 
 import (
 	"net/http"
-	"time"
 
-	"github.com/google/uuid"
-
-	"github.com/monaco/monaco/apps/backend/internal/errs"
-	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/platform/faultpoint"
-	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/scenario"
 )
@@ -51,28 +45,6 @@ func F22eWriteChatProposalMessageOK(s *scenario.Scenario) {
 		)
 }
 
-func F22eWriteChatProposalMessageProposalNotFound(s *scenario.Scenario) {
-	s.Given(chatCabal("proposal-missing")...).
-		When(
-			func(s *scenario.Scenario) {
-				publishEvent(s, events.ProposalCreated{
-					V: 1, ProposalID: uuid.MustParse("01920000-0000-7000-8000-0000000000d1"),
-					CabalID: uuid.MustParse(s.Recall("cabal")), ProposerID: s.ActorID().UUID(),
-					Kind: "buy", Symbol: "NVDA", ExpiresAt: time.Date(2026, 9, 30, 14, 0, 0, 0, time.UTC),
-				})
-			},
-			scenario.EventuallyLog(observability.BusDispatched, map[string]string{
-				"subject": s.Bus().Subject(events.TypeProposalCreated.Subject()),
-				"code":    string(errs.CodeProposalNotFound),
-			}),
-		).
-		Then(func(s *scenario.Scenario) {
-			if got := proposalRowsIn(s, s.Recall("cabal")); got != 0 {
-				s.Fatalf("flows: the cabal holds %d proposal rows, want 0", got)
-			}
-		})
-}
-
 func F22eWriteChatProposalMessageCrashBeforeCommit(s *scenario.Scenario) {
 	c := seedF09(s, "100000000")
 	s.Given(proposeBuy(c)...).
@@ -91,13 +63,4 @@ func F22eWriteChatProposalMessageCrashBeforeCommit(s *scenario.Scenario) {
 				}
 			},
 		)
-}
-
-func (defined) AloneF22e() []Script {
-	return []Script{F22eWriteChatProposalMessageProposalNotFound}
-}
-
-func (defined) LettersF22e() map[string][]Letter {
-	missing := Letter{Subject: events.TypeProposalCreated, Code: errs.CodeProposalNotFound}
-	return map[string][]Letter{"F22eWriteChatProposalMessageProposalNotFound": {missing, missing}}
 }

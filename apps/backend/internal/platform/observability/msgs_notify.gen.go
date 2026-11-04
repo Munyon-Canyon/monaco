@@ -7,6 +7,7 @@ func init() {
 		NotifyDeviceRegistered,
 		NotifyDeviceUnregistered,
 		NotifyDeviceUnregisterSkipped,
+		NotifyProposalSkipped,
 		NotifyPushResult,
 		NotifyCatchUpSnapshotMissing,
 	)

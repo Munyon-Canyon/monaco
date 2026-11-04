@@ -117,6 +117,7 @@ For a stuck money row, [Money runbook](../how-to/money-runbook.md) maps the sign
 | `notify.device.registered` | `user_id`, `environment` |
 | `notify.device.unregister_skipped` | `user_id` |
 | `notify.device.unregistered` | `user_id`, `environment` |
+| `notify.proposal_skipped` | `reason` |
 | `notify.push.result` | `user_id`, `kind`, `status` |
 | `poller.tick` | `poller`, `scanned`, `changed`, `duration_ms` |
 | `poller.tick.crashed` | `poller`, `code` |

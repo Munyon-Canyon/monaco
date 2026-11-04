@@ -298,9 +298,9 @@ func TestNotify_ProposalCreated_RecipientsFollowThePortOrderAndSkipRules(t *test
 	created := goldenEvent(t, events.TypeProposalCreated).(events.ProposalCreated)
 	created.CabalID = cabalID.UUID()
 
-	createdTo, createdErr := app.ProposalCreated{Cabals: cabals}.Recipients(t.Context(), created)
+	createdTo, createdErr := app.ProposalCreated{Cabals: cabals, Heads: &headBox{}}.Recipients(t.Context(), created)
 	created.Kind = "rule"
-	ruleTo, ruleErr := app.ProposalCreated{Cabals: cabals}.Recipients(t.Context(), created)
+	ruleTo, ruleErr := app.ProposalCreated{Cabals: cabals, Heads: &headBox{}}.Recipients(t.Context(), created)
 
 	if createdErr != nil || ruleErr != nil {
 		t.Fatalf("Recipients = %v and %v, want no error", createdErr, ruleErr)
@@ -577,5 +577,21 @@ func TestNotify_Proposal_ReachesTheMembersAndVotersAndNamesTheAssetOfThePortsItI
 		if p.Title != "Dana proposed Buy PEAR $25" || p.Category != voteCategory {
 			t.Errorf("push %q in category %q, want the port's asset and VOTE", p.Title, p.Category)
 		}
+	}
+}
+
+func TestNotify_ProposalCreated_AMissingProposalAcksWithNoPush(t *testing.T) {
+	t.Parallel()
+	r := newPushRig(t)
+	w := r.proposalWorldOf(t, 4)
+	w.ports.heads.err = errs.New(errs.CodeProposalNotFound, "test.ProposalHead")
+	e := r.createdEvent(t, w.refs, buyKind, "AAPLx")
+	d := r.emit(t, userActor(w.refs.proposer), e)
+
+	err := handleKinds(t, r, r.sender, d, e, w.ports.created(r))
+
+	wantVerdict(t, err, "", errs.VerdictAck)
+	if sent := r.sender.Sent(); len(sent) != 0 {
+		t.Fatalf("sent %+v, want no push for a missing proposal", sent)
 	}
 }
