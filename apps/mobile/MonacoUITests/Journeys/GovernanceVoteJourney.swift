@@ -209,9 +209,9 @@ enum GovernanceVoteJourney {
             app.waitForToastGone()
             app.pickAndHold("yes")
             expectToast(app, S.s1p8.copy[0], undo: false, step: S.s1p8.id)
-            XCTAssertEqual(
-                app.element("monaco-toast-banner").value as? String, S.s1p8.copy[3],
-                "\(S.s1p8.id): the settling vote's toast glyph is not the seal")
+            XCTAssertTrue(
+                app.element("monaco-toast-banner").label.contains(S.s1p8.copy[3]),
+                "\(S.s1p8.id): the settling vote's toast does not say \"\(S.s1p8.copy[3])\"")
             expectLabel(app, "proposal-vote-yes", S.s1p8.copy[1], step: S.s1p8.id)
             XCTAssertTrue(
                 waitForText(app.element("proposal-vote-status"), S.s1p8.copy[2], timeout: S.s1p8.seconds),
