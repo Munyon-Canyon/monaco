@@ -928,3 +928,97 @@ func TestClientIP_givesEachUnitItsOwnStableAddress(t *testing.T) {
 		t.Fatalf("clientIP = %q, want a private address", first)
 	}
 }
+
+func armedWorkerEnv(s *Stack) string {
+	for _, kv := range s.procs[procWorker].cmd.Env {
+		if v, ok := strings.CutPrefix(kv, "MONACO_FAULTPOINT="); ok {
+			return v
+		}
+	}
+	return ""
+}
+
+func TestDriver_aFailedUnitDoesNotLeaveTheStackArmedForTheNextUnit(t *testing.T) {
+	t.Parallel()
+	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusTeapot)
+	}))
+	t.Cleanup(api.Close)
+	o := testOptions(t, "ok")
+	o.Faultpoint = string(faultpoint.AfterPublish)
+	s, err := Up(t.Context(), o)
+	defer func() { _ = s.Down(t.Context()) }()
+	if err != nil {
+		t.Fatal(err)
+	}
+	d, err := newDriver(Env{
+		API: api.URL, TokenKey: "verify-disarm", Logs: &Logs{},
+		Arm: s.armUnit, Disarm: s.disarm, Crash: s.crashUnit,
+	}, testBudget())
+	if err != nil {
+		t.Fatal(err)
+	}
+	unit := func(id string) Unit {
+		return Unit{
+			Flow:    tools.Flow{ID: id, Trigger: "GET /x"},
+			Outcome: "crash:after-publish",
+			Script: func(s *scenario.Scenario) {
+				s.When(scenario.Get("/x"), scenario.ExpectStatus(http.StatusOK))
+			},
+		}
+	}
+	if res := d.run(t.Context(), unit("91")); res.Pass() {
+		t.Fatal("unit 91 passed, want its script to fail")
+	}
+	if err := d.env.Arm(t.Context(), unit("92")); err != nil {
+		t.Fatal(err)
+	}
+	if want := "after-publish@92"; armedWorkerEnv(s) != want || s.armedName != procWorker {
+		t.Fatalf("unit 92 armed %q on %q, want %q on worker", armedWorkerEnv(s), s.armedName, want)
+	}
+}
+
+func TestStack_disarmLeavesACrashedUnitAlone(t *testing.T) {
+	t.Parallel()
+	o := testOptions(t, "ok")
+	o.Faultpoint = string(faultpoint.AfterPublish)
+	s, err := Up(t.Context(), o)
+	defer func() { _ = s.Down(t.Context()) }()
+	if err != nil {
+		t.Fatal(err)
+	}
+	u := Unit{Flow: tools.Flow{ID: "93", Trigger: "GET /x"}}
+	if err := s.armUnit(t.Context(), u); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.crashUnit(t.Context(), u, faultpoint.AfterPublish); err != nil {
+		t.Fatal(err)
+	}
+	proc := s.procs[procWorker].cmd.Process
+	if err := s.disarm(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if s.procs[procWorker].cmd.Process != proc || s.Crashes != 1 || s.armed {
+		t.Fatal("disarm restarted a worker that had already crashed and restarted unarmed")
+	}
+}
+
+func TestDriver_reportsADisarmFailure(t *testing.T) {
+	t.Parallel()
+	env := unservedEnv("")
+	env.Arm = func(context.Context, Unit) error { return errors.New("arm failed") }
+	env.Disarm = func(context.Context) error { return errors.New("worker would not restart unarmed") }
+	d, err := newDriver(env, testBudget())
+	if err != nil {
+		t.Fatal(err)
+	}
+	res := d.run(t.Context(), Unit{Flow: tools.Flow{ID: "94"}})
+	if res.Failure != "arm failed" {
+		t.Fatalf("failure = %q, want the first error kept", res.Failure)
+	}
+	res = &Result{}
+	d.disarm(t.Context(), res)
+	if res.Failure != "worker would not restart unarmed" {
+		t.Fatalf("disarm failure = %q", res.Failure)
+	}
+}

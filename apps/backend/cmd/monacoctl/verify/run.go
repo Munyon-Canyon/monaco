@@ -167,7 +167,7 @@ func run(ctx context.Context, cfg Config, target Target) (err error) {
 		DeadLetter: bus.StreamDeadLetter,
 		NATS:       stack.NATS,
 		Subject:    stack.Bus.Subject,
-		Consumers:  consumers, Logs: stack.Logs, Crash: stack.crashUnit, Arm: stack.armUnit,
+		Consumers:  consumers, Logs: stack.Logs, Crash: stack.crashUnit, Arm: stack.armUnit, Disarm: stack.disarm,
 	}, rep, target.parallel())
 }
 
