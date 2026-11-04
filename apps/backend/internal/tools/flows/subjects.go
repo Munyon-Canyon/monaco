@@ -60,6 +60,7 @@ type subjectBuilder struct {
 type scriptPackage struct {
 	consts   map[string]string
 	builders map[string]*subjectBuilder
+	fileOf   map[string]*ast.File
 	flowFns  []flowFunc
 	fset     *token.FileSet
 }
@@ -90,6 +91,7 @@ func loadScriptPackage(env Env) (*scriptPackage, []Problem) {
 	pkg := &scriptPackage{
 		consts:   map[string]string{},
 		builders: map[string]*subjectBuilder{},
+		fileOf:   map[string]*ast.File{},
 		fset:     token.NewFileSet(),
 	}
 	dir := path.Join(env.BackendDir, scriptsDir)
@@ -126,6 +128,7 @@ func (pkg *scriptPackage) addFile(file string, parsed *ast.File) {
 			if d.Recv != nil || d.Body == nil {
 				continue
 			}
+			pkg.fileOf[d.Name.Name] = parsed
 			pkg.builders[d.Name.Name] = &subjectBuilder{
 				decl:      d,
 				params:    stringParams(d),
