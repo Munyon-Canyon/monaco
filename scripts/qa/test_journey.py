@@ -2963,13 +2963,15 @@ class Dev(unittest.TestCase):
             {"exportedFileName": "old.txt", "suggestedHumanReadableName": "App UI hierarchy_0.txt", "timestamp": 5}]}]
         self.assertEqual(journey.failure_attachments(manifest), ("now.png", "now.txt"))
 
-    def test_the_first_failures_own_capture_wins_over_a_later_ones(self):
+    def test_a_runtime_warnings_earlier_capture_loses_to_the_failure_that_ended_the_test(self):
         manifest = [{"testIdentifier": "T/testJourney", "attachments": [
-            {"exportedFileName": "second.png", "suggestedHumanReadableName": "failure-screenshot_2_B.png", "timestamp": 40},
-            {"exportedFileName": "second.txt", "suggestedHumanReadableName": "failure-hierarchy_3_B.txt", "timestamp": 41},
-            {"exportedFileName": "first.png", "suggestedHumanReadableName": "failure-screenshot_0_A.png", "timestamp": 20},
-            {"exportedFileName": "first.txt", "suggestedHumanReadableName": "failure-hierarchy_1_A.txt", "timestamp": 21}]}]
-        self.assertEqual(journey.failure_attachments(manifest), ("first.png", "first.txt"))
+            {"exportedFileName": "fail.png", "suggestedHumanReadableName": "failure-screenshot_0_B.png", "timestamp": 303.8},
+            {"exportedFileName": "fail.txt", "suggestedHumanReadableName": "failure-hierarchy_1_B.txt", "timestamp": 304.1},
+            {"exportedFileName": "query.txt", "suggestedHumanReadableName": "Debug description for push-pre-prompt.txt",
+             "timestamp": 303.6},
+            {"exportedFileName": "warning.png", "suggestedHumanReadableName": "failure-screenshot_0_A.png", "timestamp": 216.8},
+            {"exportedFileName": "warning.txt", "suggestedHumanReadableName": "failure-hierarchy_1_A.txt", "timestamp": 217.1}]}]
+        self.assertEqual(journey.failure_attachments(manifest), ("fail.png", "fail.txt"))
 
     def test_the_assertion_message_is_the_first_error_line(self):
         log = "x.swift:12: error: -[UITests.A testJourney] : XCTAssertTrue failed - S2.3 missing\nother: error: -[B c] : later"

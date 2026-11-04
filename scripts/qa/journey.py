@@ -1401,8 +1401,9 @@ def failure_message(output):
 def failure_attachments(manifest):
     """(screenshot, hierarchy) file names a failure left, from the manifest.json of `xcresulttool export
     attachments`, which lists attachments newest first. The journey tests' own capture at the moment of the
-    failure (named failure-screenshot and failure-hierarchy) wins, the earliest one, from the first failure;
-    then the newest one marked as belonging to a failure; then the newest one. '' when absent."""
+    failure (named failure-screenshot and failure-hierarchy) wins, the newest one: a runtime warning such as
+    SwiftUI's records an issue and a capture without failing the test, and the failure that ends the test comes
+    last; then the newest one marked as belonging to a failure; then the newest one. '' when absent."""
     screenshots, hierarchies = [], []
     for test in manifest:
         for position, item in enumerate(test.get("attachments", [])):
@@ -1420,7 +1421,7 @@ def failure_attachments(manifest):
             return ""
         best = max(rank for rank, _, _ in items)
         ranked = [(when, name) for rank, when, name in items if rank == best]
-        return (min(ranked) if best == 2 else max(ranked))[1]
+        return max(ranked)[1]
     return pick(screenshots), pick(hierarchies)
 
 
