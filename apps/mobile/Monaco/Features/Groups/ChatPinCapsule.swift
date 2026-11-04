@@ -24,6 +24,7 @@ struct ChatPinCapsule: View {
     let scrollTo: (String) -> Void
     let showList: () -> Void
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var haptic = 0
 
     private var pin: ChatMessage? {
@@ -45,7 +46,7 @@ struct ChatPinCapsule: View {
                             .font(MonacoTheme.Typo.subhead)
                             .foregroundStyle(MonacoTheme.secondaryText)
                         Self.text(line)
-                            .lineLimit(1)
+                            .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
                             .truncationMode(.tail)
                             .frame(maxWidth: .infinity, alignment: .leading)
                         if !counter.isEmpty {
@@ -73,6 +74,7 @@ struct ChatPinCapsule: View {
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("chat-pin-list-button")
             }
+            .fixedSize(horizontal: false, vertical: true)
             .frame(minHeight: ChatPinMetrics.height)
             .monacoGlassCapsule()
             .padding(.horizontal, MonacoTheme.Space.gutter)
