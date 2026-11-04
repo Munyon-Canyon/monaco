@@ -194,53 +194,80 @@ struct MonacoContrastTests {
         ]
     }
 
-    @Test func adaptiveTokensActuallyResolvePerScheme() {
-        // Guards the harness itself: if resolution stopped following the scheme every ratio below
-        // would be measured twice in light mode and the table would prove nothing.
-        let light = WCAGContrast.resolve(MonacoTheme.canvas, .light)
-        let dark = WCAGContrast.resolve(MonacoTheme.canvas, .dark)
-        #expect(WCAGContrast.luminance(light) > WCAGContrast.luminance(dark))
+    @Test func tokensKeepTheirDarkValues() {
+        let expected: [(name: String, color: Color, hex: UInt32, alpha: Double)] = [
+            ("background", MonacoTheme.background, 0x000000, 1),
+            ("surface", MonacoTheme.surface, 0x1C1C1E, 1),
+            ("sheetSurface", MonacoTheme.sheetSurface, 0x1C1C1E, 1),
+            ("surfaceSunken", MonacoTheme.surfaceSunken, 0x2C2C2E, 1),
+            ("primaryText", MonacoTheme.primaryText, 0xFFFFFF, 1),
+            ("secondaryText", MonacoTheme.secondaryText, 0xA1A1A6, 1),
+            ("tertiaryText", MonacoTheme.tertiaryText, 0x6E6E73, 1),
+            ("disabledLabel", MonacoTheme.disabledLabel, 0x6E6E73, 1),
+            ("border", MonacoTheme.border, 0x38383A, 1),
+            ("tint", MonacoTheme.tint, 0x4DAE78, 1),
+            ("brandFill", MonacoTheme.brandFill, 0x1E5C3A, 1),
+            ("onBrand", MonacoTheme.onBrand, 0xFFFFFF, 1),
+            ("warningWash", MonacoTheme.warningWash, 0x2C2819, 1),
+            ("profit", MonacoTheme.profit, 0x30F57A, 1),
+            ("loss", MonacoTheme.loss, 0xFF6259, 1),
+            ("profitVivid", MonacoTheme.profitVivid, 0x30F57A, 1),
+            ("onVivid", MonacoTheme.onVivid, 0x0E1512, 1),
+            ("lossVivid", MonacoTheme.lossVivid, 0xFF453A, 1),
+            ("onCover", MonacoTheme.onCover, 0xFFFFFF, 1),
+            ("onCoverMuted", MonacoTheme.onCoverMuted, 0xC5D1CB, 1),
+            ("onCoverGlass", MonacoTheme.onCoverGlass, 0xFFFFFF, 0.09),
+            ("onCoverGlassStroke", MonacoTheme.onCoverGlassStroke, 0xFFFFFF, 0.14),
+            ("coverStroke", MonacoTheme.coverStroke, 0xFFFFFF, 0.07),
+            ("coverOverlay", MonacoTheme.coverOverlay, 0x00130B, 0.8),
+            ("coverOverlayReduced", MonacoTheme.coverOverlayReduced, 0x00130B, 0.91),
+            ("voteNeededFill", MonacoTheme.voteNeededFill, 0xD70015, 1),
+            ("voteNeededLabel", MonacoTheme.voteNeededLabel, 0xFFFFFF, 1),
+            ("allocationTints[1]", MonacoTheme.allocationTints[1], 0x0A84FF, 1),
+            ("allocationTints[2]", MonacoTheme.allocationTints[2], 0xBF5AF2, 1),
+            ("onDestructive", MonacoTheme.onDestructive, 0x000000, 1),
+            ("disabled", MonacoTheme.disabled, 0x37453D, 1),
+            ("warning", MonacoTheme.warning, 0xE6C477, 1),
+            ("crown", MonacoTheme.crown, 0xFFD60A, 1),
+            ("Shadow.floating.color", MonacoTheme.Shadow.floating.color, 0x000000, 0.2),
+            ("Shadow.sheet.color", MonacoTheme.Shadow.sheet.color, 0x000000, 0.5),
+        ]
+        let tolerance = 0.5 / 255
+        for token in expected {
+            let rgba = WCAGContrast.resolve(token.color, .dark)
+            #expect(abs(rgba.red - Double((token.hex >> 16) & 0xFF) / 255) <= tolerance, "\(token.name) red")
+            #expect(abs(rgba.green - Double((token.hex >> 8) & 0xFF) / 255) <= tolerance, "\(token.name) green")
+            #expect(abs(rgba.blue - Double(token.hex & 0xFF) / 255) <= tolerance, "\(token.name) blue")
+            #expect(abs(rgba.alpha - token.alpha) <= tolerance, "\(token.name) alpha")
+        }
     }
 
     @Test func knownRatioMatchesTheWCAGFormula() {
-        let ratio = WCAGContrast.ratio(.white, on: [.black], .light)
+        let ratio = WCAGContrast.ratio(.white, on: [.black], .dark)
         #expect(abs(ratio - 21) < 0.01)
     }
 
     @Test func textTokensClearAA() {
         for pair in Self.textPairs {
-            for scheme in [UIUserInterfaceStyle.light, .dark] {
-                let ratio = WCAGContrast.ratio(pair.foreground, on: pair.backgrounds, scheme)
-                #expect(
-                    ratio >= pair.minimum,
-                    "\(pair.label) in \(scheme == .light ? "light" : "dark") is \(ratio), below \(pair.minimum)"
-                )
-            }
+            let ratio = WCAGContrast.ratio(pair.foreground, on: pair.backgrounds, .dark)
+            #expect(ratio >= pair.minimum, "\(pair.label) is \(ratio), below \(pair.minimum)")
         }
     }
 
     @Test func glyphTokensClearTheGraphicalMinimum() {
         for pair in Self.glyphPairs {
-            for scheme in [UIUserInterfaceStyle.light, .dark] {
-                let ratio = WCAGContrast.ratio(pair.foreground, on: pair.backgrounds, scheme)
-                #expect(
-                    ratio >= pair.minimum,
-                    "\(pair.label) in \(scheme == .light ? "light" : "dark") is \(ratio), below \(pair.minimum)"
-                )
-            }
+            let ratio = WCAGContrast.ratio(pair.foreground, on: pair.backgrounds, .dark)
+            #expect(ratio >= pair.minimum, "\(pair.label) is \(ratio), below \(pair.minimum)")
         }
     }
 
     @Test func profitAndLossCannotBeConfused() {
-        for scheme in [UIUserInterfaceStyle.light, .dark] {
-            let name = scheme == .light ? "light" : "dark"
-            let hueGap = abs(
-                OKLCh.value(MonacoTheme.profit, scheme).hue - OKLCh.value(MonacoTheme.loss, scheme).hue
-            )
-            #expect(min(hueGap, 360 - hueGap) >= 90, "profit and loss in \(name) are \(hueGap)° apart")
-            let moneyDelta = OKLCh.distance(MonacoTheme.profit, MonacoTheme.loss, scheme)
-            #expect(moneyDelta >= 0.2, "profit vs loss in \(name): ΔE OKLab is \(moneyDelta)")
-        }
+        let hueGap = abs(
+            OKLCh.value(MonacoTheme.profit, .dark).hue - OKLCh.value(MonacoTheme.loss, .dark).hue
+        )
+        #expect(min(hueGap, 360 - hueGap) >= 90, "profit and loss are \(hueGap)° apart")
+        let moneyDelta = OKLCh.distance(MonacoTheme.profit, MonacoTheme.loss, .dark)
+        #expect(moneyDelta >= 0.2, "profit vs loss: ΔE OKLab is \(moneyDelta)")
     }
 
     private static let identityHexes: [UInt32] = [
@@ -254,84 +281,47 @@ struct MonacoContrastTests {
     }
 
     @Test func identityHuesAreTheBoards() {
-        for scheme in [UIUserInterfaceStyle.light, .dark] {
-            #expect(MonacoTheme.CabalTint.allCases.map { Self.hex($0.fill, scheme) } == Self.identityHexes)
-        }
+        #expect(MonacoTheme.CabalTint.allCases.map { Self.hex($0.fill, .dark) } == Self.identityHexes)
     }
 
     @Test func noIdentityHueIsGreen() {
-        for scheme in [UIUserInterfaceStyle.light, .dark] {
-            for tint in MonacoTheme.CabalTint.allCases {
-                var hue = OKLCh.value(tint.fill, scheme).hue
-                if hue < 0 { hue += 360 }
-                #expect(hue < 120 || hue > 170, "\(tint) hue \(hue)° is in the green band")
-            }
+        for tint in MonacoTheme.CabalTint.allCases {
+            var hue = OKLCh.value(tint.fill, .dark).hue
+            if hue < 0 { hue += 360 }
+            #expect(hue < 120 || hue > 170, "\(tint) hue \(hue)° is in the green band")
         }
     }
 
     @Test func noCabalTintReadsAsAMoneyColour() {
-        for scheme in [UIUserInterfaceStyle.light, .dark] {
-            let name = scheme == .light ? "light" : "dark"
-            for tint in MonacoTheme.CabalTint.allCases {
-                let hueGap = abs(OKLCh.value(tint.fill, scheme).hue - OKLCh.value(MonacoTheme.profit, scheme).hue)
-                #expect(
-                    min(hueGap, 360 - hueGap) >= 30,
-                    "\(tint) vs profit in \(name): only \(min(hueGap, 360 - hueGap))° of hue apart"
-                )
-            }
+        for tint in MonacoTheme.CabalTint.allCases {
+            let hueGap = abs(OKLCh.value(tint.fill, .dark).hue - OKLCh.value(MonacoTheme.profit, .dark).hue)
+            #expect(
+                min(hueGap, 360 - hueGap) >= 30,
+                "\(tint) vs profit: only \(min(hueGap, 360 - hueGap))° of hue apart"
+            )
         }
     }
 
     @Test func tintAndProfitStayApart() {
-        for scheme in [UIUserInterfaceStyle.light, .dark] {
-            let delta = OKLCh.distance(MonacoTheme.tint, MonacoTheme.profit, scheme)
-            #expect(delta >= 0.08, "tint vs profit in \(scheme == .light ? "light" : "dark"): ΔE OKLab is \(delta)")
-        }
+        let delta = OKLCh.distance(MonacoTheme.tint, MonacoTheme.profit, .dark)
+        #expect(delta >= 0.08, "tint vs profit: ΔE OKLab is \(delta)")
     }
 
     @Test func theBadgeIsWhiteOnTheBoardsRed() {
-        for scheme in [UIUserInterfaceStyle.light, .dark] {
-            #expect(Self.hex(MonacoTheme.voteNeededFill, scheme) == 0xD70015)
-            #expect(Self.hex(MonacoTheme.voteNeededLabel, scheme) == 0xFFFFFF)
-            #expect(WCAGContrast.ratio(MonacoTheme.voteNeededLabel, on: [MonacoTheme.voteNeededFill], scheme) >= 4.5)
-        }
+        #expect(Self.hex(MonacoTheme.voteNeededFill, .dark) == 0xD70015)
+        #expect(Self.hex(MonacoTheme.voteNeededLabel, .dark) == 0xFFFFFF)
+        #expect(WCAGContrast.ratio(MonacoTheme.voteNeededLabel, on: [MonacoTheme.voteNeededFill], .dark) >= 4.5)
     }
 
     @Test func disabledLabelStaysQuieterThanContent() {
         for surface in Self.surfaces {
-            for scheme in [UIUserInterfaceStyle.light, .dark] {
-                let disabled = WCAGContrast.ratio(MonacoTheme.disabledLabel, on: [surface], scheme)
-                let content = WCAGContrast.ratio(MonacoTheme.secondaryText, on: [surface], scheme)
-                #expect(disabled < 4.5, "disabledLabel is \(disabled): a disabled control reads as live")
-                #expect(disabled >= 2.5, "disabledLabel is \(disabled): unavailable is not the same as invisible")
-                #expect(
-                    content - disabled > 1,
-                    "secondaryText (\(content)) and disabledLabel (\(disabled)) have converged"
-                )
-            }
-        }
-    }
-
-    /// The toast panel inverts the scheme (dark in light, light in dark), so its glyphs have to
-    /// invert with it: a glyph tuned for one panel and left on the other drops to 1.6:1. Aliasing
-    /// them to a paper token is the `primaryButtonFill = brandFill` pattern from #309, so the
-    /// glyphs are their own tokens and this pins that they flip exactly when the panel does.
-    /// Caught structurally, because a ratio check passes right up until the day it does not.
-    @Test func toastGlyphsFlipWithTheToastPanel() {
-        func flips(_ color: Color) -> Bool {
-            let light = WCAGContrast.resolve(color, .light)
-            let dark = WCAGContrast.resolve(color, .dark)
-            return abs(light.red - dark.red) > 0.001
-                || abs(light.green - dark.green) > 0.001
-                || abs(light.blue - dark.blue) > 0.001
-        }
-        for (name, glyph) in [
-            ("toastSuccessGlyph", MonacoTheme.toastSuccessGlyph),
-            ("toastErrorGlyph", MonacoTheme.toastErrorGlyph),
-        ] {
+            let disabled = WCAGContrast.ratio(MonacoTheme.disabledLabel, on: [surface], .dark)
+            let content = WCAGContrast.ratio(MonacoTheme.secondaryText, on: [surface], .dark)
+            #expect(disabled < 4.5, "disabledLabel is \(disabled): a disabled control reads as live")
+            #expect(disabled >= 2.5, "disabledLabel is \(disabled): unavailable is not the same as invisible")
             #expect(
-                flips(glyph) == flips(MonacoTheme.toastFill),
-                "\(name) and toastFill disagree on whether the toast changes with the scheme"
+                content - disabled > 1,
+                "secondaryText (\(content)) and disabledLabel (\(disabled)) have converged"
             )
         }
     }
@@ -339,22 +329,14 @@ struct MonacoContrastTests {
     @Test func theToastIsNotTheBrandFill() {
         // The toast borrowed `primaryButton*`, so an error toast read as a second primary button
         // stacked above the real one. Keep the two apart.
-        for scheme in [UIUserInterfaceStyle.light, .dark] {
-            let toast = WCAGContrast.resolve(MonacoTheme.toastFill, scheme)
-            let button = WCAGContrast.resolve(MonacoTheme.primaryButtonFill, scheme)
-            let delta = abs(WCAGContrast.luminance(toast) - WCAGContrast.luminance(button))
-            #expect(delta > 0.02, "toastFill and primaryButtonFill are nearly the same colour")
-        }
+        let toast = WCAGContrast.resolve(MonacoTheme.toastFill, .dark)
+        let button = WCAGContrast.resolve(MonacoTheme.primaryButtonFill, .dark)
+        let delta = abs(WCAGContrast.luminance(toast) - WCAGContrast.luminance(button))
+        #expect(delta > 0.02, "toastFill and primaryButtonFill are nearly the same colour")
     }
 }
 
 extension MonacoContrastTests {
-    private static let bothSchemes: [UIUserInterfaceStyle] = [.light, .dark]
-
-    private static func schemeName(_ scheme: UIUserInterfaceStyle) -> String {
-        scheme == .light ? "light" : "dark"
-    }
-
     private static let paper: [Color] = [MonacoTheme.canvas, MonacoTheme.surface]
 
     private static var coverBases: [(label: String, layers: [Color])] {
@@ -416,29 +398,25 @@ extension MonacoContrastTests {
     private static func failures(_ pairs: [Pair]) -> [String] {
         var failed: [String] = []
         for pair in pairs {
-            for scheme in bothSchemes {
-                let ratio = WCAGContrast.ratio(pair.foreground, on: pair.backgrounds, scheme)
-                if ratio < pair.minimum {
-                    failed.append("\(pair.label) in \(schemeName(scheme)) is \(ratio), below \(pair.minimum)")
-                }
+            let ratio = WCAGContrast.ratio(pair.foreground, on: pair.backgrounds, .dark)
+            if ratio < pair.minimum {
+                failed.append("\(pair.label) is \(ratio), below \(pair.minimum)")
             }
         }
         return failed
     }
 
-    @Test func v3TextPairsClearAAInBothSchemes() {
+    @Test func v3TextPairsClearAA() {
         #expect(Self.failures(Self.v3TextPairs).isEmpty, "\(Self.failures(Self.v3TextPairs))")
     }
 
-    @Test func v3MarksClearTheGraphicalMinimumInBothSchemes() {
+    @Test func v3MarksClearTheGraphicalMinimum() {
         #expect(Self.failures(Self.v3MarkPairs).isEmpty, "\(Self.failures(Self.v3MarkPairs))")
     }
 
     @Test func hairlineStaysVisibleOnTheCanvas() {
-        for scheme in Self.bothSchemes {
-            let ratio = WCAGContrast.ratio(MonacoTheme.hairline, on: [MonacoTheme.canvas], scheme)
-            #expect(ratio >= 1.1, "hairline in \(Self.schemeName(scheme)) is \(ratio) on canvas")
-        }
+        let ratio = WCAGContrast.ratio(MonacoTheme.hairline, on: [MonacoTheme.canvas], .dark)
+        #expect(ratio >= 1.1, "hairline is \(ratio) on canvas")
     }
 
     @Test func reduceTransparencyDrawsTheMoreOpaqueOverlayOnEveryCover() {
@@ -467,7 +445,7 @@ extension MonacoContrastTests {
         return pairs
     }
 
-    @Test func fMarksClearTheGraphicalMinimumInBothSchemes() {
+    @Test func fMarksClearTheGraphicalMinimum() {
         #expect(Self.failures(Self.fMarkPairs).isEmpty, "\(Self.failures(Self.fMarkPairs))")
     }
 }
