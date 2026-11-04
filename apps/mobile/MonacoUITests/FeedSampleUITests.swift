@@ -135,6 +135,24 @@ nonisolated final class FeedSampleUITests: XCTestCase {
     }
 
     @MainActor
+    func testALongPressOnAPostsReactionRowOpensTheTrayNotThePostMenu() {
+        let app = launch("-feedHarness", "items")
+        XCTAssertTrue(app.buttons["feed-filter"].waitForExistence(timeout: 15), "the feed did not load")
+        let row = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier BEGINSWITH %@", "reaction-row-feed-")).firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 10), "no reaction row on a feed post")
+        row.press(forDuration: 0.6)
+        let tray = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier BEGINSWITH %@", "reaction-tray-")).firstMatch
+        XCTAssertTrue(
+            tray.waitForExistence(timeout: 5),
+            "the long press did not open the reaction tray: \(app.debugDescription)")
+        XCTAssertFalse(app.buttons["feed-report"].exists, "the post menu opened over the tray")
+        XCTAssertFalse(app.buttons["feed-block"].exists, "the post menu opened over the tray")
+        screenshot(app, "feed-reaction-row-long-press")
+    }
+
+    @MainActor
     private func launch(_ arguments: String...) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = arguments
