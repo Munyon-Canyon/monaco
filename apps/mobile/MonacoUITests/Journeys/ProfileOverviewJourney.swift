@@ -26,6 +26,7 @@ enum ProfileOverviewJourney {
     }
 
     static func openProfile(_ app: XCUIApplication, step: String) {
+        app.revealTabBar()
         app.tab("Profile").tap()
         app.popToRoot()
         XCTAssertTrue(
