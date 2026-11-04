@@ -37,6 +37,8 @@ enum ShareSampleCase: String, CaseIterable {
     case stickerPassed
     case screenStake
     case screenPortfolio
+    case pictureCabal
+    case noCabal
 
     static let launchArgument = "-MonacoShareSample"
 
@@ -67,15 +69,19 @@ enum ShareSampleCase: String, CaseIterable {
         case .passedNoLivePrice: ShareSampleData.passed(outcome: .noLivePrice)
         case .vote, .screenVote: ShareSampleData.vote()
         case .stake, .screenStake: ShareSampleData.stake()
-        case .portfolio, .screenPortfolio: ShareSampleData.portfolio()
+        case .portfolio, .screenPortfolio, .noCabal: ShareSampleData.portfolio()
         case .stickerOff, .stickerOn: ShareSampleData.spec(eyes: stickerEyes)
-        case .post, .square: ShareSampleData.spec()
+        case .post, .square, .pictureCabal: ShareSampleData.spec()
         case .pnlOff: ShareSampleData.spec(eyes: ShareEyes(pnlDollars: false))
         case .buySellOff: ShareSampleData.spec(eyes: ShareEyes(buySell: false))
         case .truncated: ShareSampleData.spec(truncated: true)
         case .loading, .failed: nil
         default: ShareSampleData.spec(eyes: screenEyes)
         }
+    }
+
+    var art: ShareCardArt? {
+        self == .pictureCabal ? ShareSampleData.pictureArt : nil
     }
 
     var isSticker: Bool { [.stickerOff, .stickerOn, .stickerPassed].contains(self) }
@@ -232,6 +238,11 @@ enum ShareSampleData {
         }
     }()
 
+    static let pictureArt: ShareCardArt = {
+        let band = UIImage(named: MonacoWorldScene(index: 5).imageName) ?? UIImage()
+        return ShareCardArt(color: SceneColor.color(forPhoto: band), band: band)
+    }()
+
     private static let utc = TimeZone(identifier: "UTC") ?? .gmt
 
     private static func date(_ year: Int, _ month: Int, _ day: Int) -> Date {
@@ -296,7 +307,7 @@ struct ShareSampleHarness: View {
                     .padding(8)
                     .background(ShareCheckerboard())
             } else if let spec = sample.spec {
-                FShareCard(spec: spec, size: sample.cardSize)
+                FShareCard(spec: spec, size: sample.cardSize, art: sample.art)
             }
         }
     }

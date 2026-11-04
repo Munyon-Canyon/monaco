@@ -56,15 +56,15 @@ final class SharePositionBuilderTests: XCTestCase {
         XCTAssertEqual(spec.header.subtitle, "Holding · 4 calls")
         XCTAssertEqual(spec.header.dateText, "Oct 22, 2026")
         XCTAssertEqual(spec.tickerLine.symbol, "NVDA")
-        XCTAssertEqual(spec.tickerLine.detail, "Long · 38 shares")
+        XCTAssertEqual(spec.tickerLine.detail, "Holding 38 shares")
         XCTAssertEqual(spec.figure.main, "+$1,027.90")
         XCTAssertEqual(spec.figure.secondary, "+14.0%")
         XCTAssertEqual(spec.figure.tone, .gain)
-        XCTAssertEqual(spec.stats.map(\.label), ["Size", "Avg. entry", "Current"])
+        XCTAssertEqual(spec.stats.map(\.label), ["Size", "Average cost", "Current"])
         XCTAssertEqual(spec.stats.map(\.value), ["$8,360", "$192.95", "$220.00"])
         XCTAssertEqual(spec.code, "ANDRES")
         XCTAssertEqual(spec.facts, ShareFacts(symbol: "NVDA", firstBoughtAt: Self.date(2026, 6, 3), side: .long))
-        XCTAssertEqual(spec.spoken, "AC Capital, NVDA, long 38 shares, up 1,027 dollars 90, 14 percent")
+        XCTAssertEqual(spec.spoken, "AC Capital, NVDA, holding 38 shares, up 1,027 dollars 90, 14 percent")
     }
 
     func testEveryTradeIsAMarkerAtItsPriceAndDate() {
@@ -121,9 +121,9 @@ final class SharePositionBuilderTests: XCTestCase {
 
         XCTAssertEqual(spec.figure.main, "+14.0%")
         XCTAssertNil(spec.figure.secondary)
-        XCTAssertEqual(spec.stats.map(\.label), ["Shares", "Avg. entry", "Current"])
+        XCTAssertEqual(spec.stats.map(\.label), ["Shares", "Average cost", "Current"])
         XCTAssertEqual(spec.stats.first?.value, "38")
-        XCTAssertEqual(spec.spoken, "AC Capital, NVDA, long 38 shares, up 14 percent")
+        XCTAssertEqual(spec.spoken, "AC Capital, NVDA, holding 38 shares, up 14 percent")
     }
 
     func testBuySellOffDropsMarkersAndCallouts() {
@@ -149,9 +149,9 @@ final class SharePositionBuilderTests: XCTestCase {
         XCTAssertEqual(spec.figure.main, "−$10.00")
         XCTAssertEqual(spec.figure.secondary, "−10.0%")
         XCTAssertEqual(spec.figure.tone, .loss)
-        XCTAssertEqual(spec.tickerLine.detail, "Long · 1 share")
+        XCTAssertEqual(spec.tickerLine.detail, "Holding 1 share")
         XCTAssertEqual(spec.facts.firstBoughtAt, nil)
-        XCTAssertEqual(spec.spoken, "AC Capital, NVDA, long 1 share, down 10 dollars, 10 percent")
+        XCTAssertEqual(spec.spoken, "AC Capital, NVDA, holding 1 share, down 10 dollars, 10 percent")
     }
 
     func testAZeroCostBasisShowsADashAndSaysNoPercent() {
@@ -162,12 +162,12 @@ final class SharePositionBuilderTests: XCTestCase {
 
         let percent = build(position: free, eyes: ShareEyes(pnlDollars: false))
         XCTAssertEqual(percent.figure.main, "\u{2014}")
-        XCTAssertEqual(percent.spoken, "AC Capital, NVDA, long 1 share, return not available")
+        XCTAssertEqual(percent.spoken, "AC Capital, NVDA, holding 1 share, return not available")
 
         let dollars = build(position: free, eyes: ShareEyes(pnlDollars: true))
         XCTAssertEqual(dollars.figure.main, "+$5.00")
         XCTAssertEqual(dollars.figure.secondary, "\u{2014}")
-        XCTAssertEqual(dollars.spoken, "AC Capital, NVDA, long 1 share, up 5 dollars")
+        XCTAssertEqual(dollars.spoken, "AC Capital, NVDA, holding 1 share, up 5 dollars")
         XCTAssertFalse(dollars.spoken.contains("0 percent"))
     }
 }

@@ -120,6 +120,8 @@ share-sample-square           -MonacoShareSample square
 share-sample-pnl-off          -MonacoShareSample pnlOff
 share-sample-buy-sell-off     -MonacoShareSample buySellOff
 share-sample-truncated        -MonacoShareSample truncated
+share-sample-picture-cabal     -MonacoShareSample pictureCabal
+share-sample-no-cabal          -MonacoShareSample noCabal
 share-sample-loading          -MonacoShareSample loading
 share-sample-failed           -MonacoShareSample failed
 share-screen-post             -MonacoShareSample screenPost

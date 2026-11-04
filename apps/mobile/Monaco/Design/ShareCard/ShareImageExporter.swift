@@ -85,6 +85,7 @@ enum ShareImageExporter {
     }
 
     static func warmCache(for spec: ShareCardSpec) async {
+        await ShareCardArtStore.resolve(spec)
         let avatars = avatarURLs(in: spec)
         let logos = [spec.tickerLine.logoURL].compactMap { $0 }
         await withTaskGroup(of: Void.self) { group in
