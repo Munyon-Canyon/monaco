@@ -30,7 +30,9 @@ public enum MarketMapping {
             estimate: summary.estimate.map { MarketEstimate(priceMicros: $0.priceMicros, asOf: $0.asOf) },
             isDelayed: priceMicros != nil
                 && MarketStaleness.isDelayed(
-                    serverStale: summary.stale, priceAsOf: summary.priceAsOf, session: session, now: now)
+                    serverStale: summary.stale, priceAsOf: summary.priceAsOf, session: session, now: now),
+            valuationMicros: summary.valuationMicros,
+            lastRoundOn: summary.lastRoundOn
         )
     }
 

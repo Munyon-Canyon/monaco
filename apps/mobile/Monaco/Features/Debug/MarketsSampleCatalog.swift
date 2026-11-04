@@ -18,9 +18,15 @@ enum MarketsSampleCatalog {
     ]
 
     static let preIpo: [Components.Schemas.AssetSummary] = [
-        preIpoListing("tSpaceX", "SpaceX", 185_000_000, asOf: "2026-10-20", eligible: true),
-        preIpoListing("tOpenAI", "OpenAI", 310_000_000, asOf: "2026-10-20", eligible: true),
-        preIpoListing("tAnthropic", "Anthropic", 96_400_000, asOf: "2026-10-18", eligible: false),
+        preIpoListing(
+            "tSpaceX", "SpaceX", 185_000_000, asOf: "2026-10-20", eligible: true,
+            valuationMicros: "350000000000000000", lastRoundOn: "2026-06-01"),
+        preIpoListing(
+            "tOpenAI", "OpenAI", 310_000_000, asOf: "2026-10-20", eligible: true,
+            valuationMicros: "500000000000000000", lastRoundOn: "2026-03-01"),
+        preIpoListing(
+            "tAnthropic", "Anthropic", 96_400_000, asOf: "2026-10-18", eligible: false,
+            valuationMicros: "183000000000000000"),
         preIpoListing("tStripe", "Stripe", 27_500_000, asOf: "2026-10-14", eligible: true),
         preIpoListing("tDatabricks", "Databricks", 71_800_000, asOf: "2026-10-09", eligible: false),
     ]
@@ -49,7 +55,8 @@ enum MarketsSampleCatalog {
     }
 
     private static func preIpoListing(
-        _ symbol: String, _ name: String, _ estimateMicros: Int64, asOf: String, eligible: Bool
+        _ symbol: String, _ name: String, _ estimateMicros: Int64, asOf: String, eligible: Bool,
+        valuationMicros: String? = nil, lastRoundOn: String? = nil
     ) -> Components.Schemas.AssetSummary {
         Components.Schemas.AssetSummary(
             id: "01890a5d-ac96-774b-bcce-b302099a8070",
@@ -57,7 +64,8 @@ enum MarketsSampleCatalog {
             priceMicros: estimateMicros / 4, priceAsOf: Date(), changeBps: 125,
             sparklineMicros: [estimateMicros / 4 - 1_000_000, estimateMicros / 4], quotable: true,
             session: .init(state: .open, continuous: true, holiday: "", earlyClose: false), tradable: eligible,
-            estimate: .init(priceMicros: estimateMicros, asOf: asOf))
+            estimate: .init(priceMicros: estimateMicros, asOf: asOf),
+            valuationMicros: valuationMicros, lastRoundOn: lastRoundOn)
     }
 
     private static func searchListing(
