@@ -74,7 +74,8 @@ struct GifFailedTileProvider: GifProvider {
         let gif = Gif(
             id: first.id, title: first.title,
             still: GifMedia(url: broken, width: first.still.width, height: first.still.height),
-            preview: first.preview, original: first.original)
+            preview: GifMedia(url: broken, width: first.preview.width, height: first.preview.height),
+            original: first.original)
         return GifPage(
             items: [gif] + page.items.dropFirst(), nextOffset: page.nextOffset, attribution: page.attribution)
     }
