@@ -319,6 +319,7 @@ enum RepoRules {
         FeaturePatternRules.decode,
         FeaturePatternRules.coreSwiftUI,
         TestIsolationRules.mainActorSyncThrows,
+        TestIsolationRules.monacoTestsImportSwiftUI,
     ]
 }
 
@@ -476,6 +477,51 @@ enum TestIsolationRules {
         ],
         requiredLiteral: "@MainActor",
         scan: syncThrowsLines
+    )
+
+    static let swiftUIViewType =
+        #"\b(?:EmptyView|AnyView|Text|VStack|HStack|ZStack|ScrollView|GeometryReader|"#
+        + #"UIHostingController|ImageRenderer|ViewBuilder)\b"#
+    static let stringLiterals = #""{3}[\s\S]*?"{3}|"(?:[^"\\\n]|\\.)*""#
+
+    static func swiftUIViewTypeLines(in text: NSString) throws -> [Int] {
+        let literals = try NSRegularExpression(pattern: stringLiterals)
+        let code = literals.stringByReplacingMatches(
+            in: text as String, range: NSRange(location: 0, length: text.length), withTemplate: "\"\"")
+        let types = try NSRegularExpression(pattern: swiftUIViewType)
+        return types.matches(in: code, range: NSRange(location: 0, length: (code as NSString).length)).map {
+            code.prefix($0.range.location).filter { $0 == "\n" }.count + 1
+        }
+    }
+
+    static let swiftUIImportLine = #"(?m)^[ \t]*(?:@preconcurrency[ \t]+)?import[ \t]+SwiftUI[ \t]*$"#
+
+    static let monacoTestsImportSwiftUI = RepoRule(
+        name: "monacotests-import-swiftui",
+        roots: ["apps/mobile/MonacoTests"],
+        pattern: "",
+        message: "Add import SwiftUI: this MonacoTests file uses a SwiftUI type, "
+            + #"and without the import the Xcode build fails with "cannot find type ... in scope"."#,
+        failing: [
+            "CabalCover<EmptyView>.cornerRadius(for: .heroInset)",
+            "let host = UIHostingController(rootView: view)",
+            "let body = VStack { Text(\"hi\") }",
+        ],
+        passing: [
+            "import SwiftUI",
+            "XCTAssertEqual(row.title, \"Text size\")",
+            "let textStyle = TextStyle.body",
+            "let source = \"\"\"\n    VStack { Text(name) }\n    \"\"\"",
+            "let source = \"Text(name)\"",
+        ],
+        scan: swiftUIViewTypeLines,
+        applies: { path, contents in
+            guard path.hasPrefix("apps/mobile/MonacoTests/"),
+                let importLine = try? NSRegularExpression(pattern: swiftUIImportLine)
+            else { return false }
+            let whole = NSRange(location: 0, length: contents.length)
+            return importLine.firstMatch(in: contents as String, range: whole) == nil
+        }
     )
 
     private static let typeKeyword = #"\b(?:class|extension|struct|actor)\b"#
@@ -730,6 +776,41 @@ final class RepoRulesTests: XCTestCase {
                 XCTAssertEqual(try rule.matches(in: fixture as NSString), 0, "\(rule.name) should pass: \(fixture)")
             }
         }
+    }
+
+    func testAMonacoTestsFileUsingEmptyViewNeedsImportSwiftUI() throws {
+        let rule = try XCTUnwrap(RepoRules.all.first { $0.name == "monacotests-import-swiftui" })
+        let path = "apps/mobile/MonacoTests/CabalHeaderTapsTests.swift"
+        let body = """
+            import MonacoAPI
+            import Testing
+
+            @testable import Monaco
+
+            @MainActor
+            struct CabalHeaderTapsTests {
+                @Test func onlyTheCreatorCanChangeThePicture() {
+                    #expect(CabalHeaderSlot.canChangePicture(.sample(role: "creator")))
+                    #expect(!CabalHeaderSlot.canChangePicture(.sample(role: "member")))
+                    #expect(!CabalHeaderSlot.canChangePicture(.sample(role: nil)))
+                }
+
+                @Test func coverHeightIs136() {
+                    #expect(CabalPageMetrics.coverHeight == 136)
+                }
+
+                @Test func insetCoverUsesCardRadiusAndNoScrim() {
+                    #expect(CabalCover<EmptyView>.cornerRadius(for: .heroInset) == MonacoTheme.Radius.card)
+                    #expect(CabalCover<EmptyView>.overlay(for: .heroInset, reduceTransparency: false) == nil)
+                    #expect(CabalCover<EmptyView>.overlay(for: .heroInset, reduceTransparency: true) == nil)
+                }
+            }
+            """
+        let withoutImport = body as NSString
+        let withImport = ("import SwiftUI\n" + body) as NSString
+        XCTAssertTrue(rule.applies(path, withoutImport))
+        XCTAssertGreaterThan(try rule.matches(in: withoutImport), 0)
+        XCTAssertFalse(rule.applies(path, withImport))
     }
 
     func testTheCopyRuleBansOffVoiceWords() throws {
