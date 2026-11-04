@@ -28,6 +28,7 @@ public struct APIClient: Sendable {
                     accessToken: { try await tokens.accessToken() },
                     freshAccessToken: { try await tokens.freshAccessToken() }),
                 AccountDeletedMiddleware(tokens: tokens),
+                ChatMomentFilterMiddleware(),
                 ProblemMiddleware(),
                 RefreshMiddleware(tokens: tokens),
             ]
