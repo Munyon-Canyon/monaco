@@ -177,13 +177,14 @@ enum FirstFundSampleData {
             proposalID: "01890a5d-ac96-774b-bcce-b302099a8057", kind: "buy", symbol: "NVDAx", assetName: "NVIDIA",
             logoURL: nil, usdcMicros: 400_000_000, tokenAmount: nil, yes: 4, no: 1, voters: 9, needed: 5, replies: 6,
             expiresAt: Date().addingTimeInterval(4 * 3600 + 600))
-        let names = ["Christelle", "Logan", "Mia", "Jordan", "Andres", "Priya"]
+        let names = ["Christelle", "Logan", "Mia", "Jordan", "Andres", "Priya", "Sam", "Kai"]
         return FirstFundValue(
             cabal: cabal, settledMicros: 250_000_000, shareBps: 123, potValueMicros: 20_250_000_000,
             vote: withVote ? vote : nil,
             members: names.enumerated().map {
                 FirstFundMember(id: "sample-\($1.lowercased())", name: $1, photoURL: nil, crown: $0 == 0)
-            })
+            },
+            viewerID: "sample-zoe")
     }
 }
 
