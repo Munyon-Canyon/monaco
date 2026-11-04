@@ -16,6 +16,7 @@ public struct CabalInvitePreview: Equatable, Sendable {
         public let logoURL: String?
         public let yes: Int
         public let no: Int
+        public let expiresAt: Date
     }
 
     public let cabalID: String
@@ -73,6 +74,26 @@ public enum CabalInviteCopy {
         displayName.split(whereSeparator: \.isWhitespace).first.map(String.init) ?? displayName
     }
 
+    public static func note(
+        senderFirstName: String, symbol: String, expiresAt: Date, now: Date, calendar: Calendar
+    ) -> String {
+        "\(senderFirstName): we vote on \(AssetSymbolFormatter.display(symbol)) "
+            + "\(when(expiresAt, now: now, calendar: calendar)). You in?"
+    }
+
+    private static func when(_ expiresAt: Date, now: Date, calendar: Calendar) -> String {
+        let format = DateFormatter()
+        format.calendar = calendar
+        format.timeZone = calendar.timeZone
+        format.locale = Locale(identifier: "en_US_POSIX")
+        let today = calendar.startOfDay(for: now)
+        let day = calendar.startOfDay(for: expiresAt)
+        let days = calendar.dateComponents([.day], from: today, to: day).day ?? 0
+        if days == 0 { return "today" }
+        format.dateFormat = days > 0 && days <= 6 ? "EEEE" : "MMM d"
+        return format.string(from: expiresAt)
+    }
+
     public static func proposalDetail(
         voted: Int, eligible: Int, replies: Int?, expiresAt: Date, now: Date
     ) -> String {
@@ -94,7 +115,7 @@ public enum CabalInviteCopy {
                 voted: Int(source.voted), eligible: Int(source.eligible), replies: source.replies.map(Int.init),
                 expiresAt: source.expiresAt, now: now),
             symbol: source.symbol, assetName: source.assetName, logoURL: source.assetLogoUrl,
-            yes: Int(source.yes), no: Int(source.no))
+            yes: Int(source.yes), no: Int(source.no), expiresAt: source.expiresAt)
     }
 
     static func wholeDollars(micros raw: String) -> String {

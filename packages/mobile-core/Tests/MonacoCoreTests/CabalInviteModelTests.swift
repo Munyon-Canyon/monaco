@@ -28,6 +28,7 @@ final class CabalInviteModelTests: XCTestCase {
         XCTAssertEqual(proposal.detail, "5 of 8 voted \u{00B7} 6 replies \u{00B7} 4h")
         XCTAssertEqual(proposal.yes, 4)
         XCTAssertEqual(proposal.no, 1)
+        XCTAssertEqual(proposal.expiresAt, Self.expiry)
     }
 
     func testNoOpenProposalLeavesNoRow() async throws {
@@ -230,5 +231,65 @@ final class CabalInviteModelTests: XCTestCase {
             await Task.yield()
         }
         return await predicate()
+    }
+
+    private static func calendar(_ zone: String = "UTC") -> Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: zone) ?? .gmt
+        return calendar
+    }
+
+    private static func date(_ iso: String) -> Date {
+        ISO8601DateFormatter().date(from: iso) ?? .distantPast
+    }
+
+    private static func note(
+        _ symbol: String = "NVDA", expires: String, now: String = "2026-11-04T12:00:00Z", zone: String = "UTC"
+    ) -> String {
+        CabalInviteCopy.note(
+            senderFirstName: "Andres", symbol: symbol, expiresAt: date(expires), now: date(now),
+            calendar: calendar(zone))
+    }
+
+    func testTheNoteSaysTodayForTheSameDay() {
+        XCTAssertEqual(
+            Self.note(expires: "2026-11-04T18:00:00Z"), "Andres: we vote on NVDA today. You in?")
+    }
+
+    func testTheNoteNamesTheWeekdayWithinSixDays() {
+        XCTAssertEqual(
+            Self.note(expires: "2026-11-07T18:00:00Z"), "Andres: we vote on NVDA Saturday. You in?")
+    }
+
+    func testTheNoteUsesTheShortDateBeyondSixDays() {
+        XCTAssertEqual(
+            Self.note(expires: "2026-11-14T18:00:00Z"), "Andres: we vote on NVDA Nov 14. You in?")
+    }
+
+    func testTheNoteDropsTheTrailingXFromTheTicker() {
+        XCTAssertEqual(
+            Self.note("NVDAx", expires: "2026-11-04T18:00:00Z"), "Andres: we vote on NVDA today. You in?")
+    }
+
+    func testTheNoteReadsTheDayInTheCalendarsTimeZone() {
+        XCTAssertEqual(
+            Self.note(
+                expires: "2026-11-05T07:00:00Z", now: "2026-11-05T04:00:00Z", zone: "America/Los_Angeles"),
+            "Andres: we vote on NVDA today. You in?")
+    }
+
+    func testASellProposalSeedsTheSameNote() async throws {
+        var source = Components.Schemas.ReferralCabal.sample
+        source.openProposal?.kind = "sell"
+        let (model, _, _) = try make([source])
+        await model.load()
+
+        let proposal = try XCTUnwrap(model.preview?.proposal)
+        XCTAssertTrue(proposal.title.hasPrefix("Sell "))
+        XCTAssertEqual(
+            CabalInviteCopy.note(
+                senderFirstName: "Andres", symbol: proposal.symbol, expiresAt: proposal.expiresAt,
+                now: proposal.expiresAt.addingTimeInterval(-3600), calendar: Self.calendar()),
+            "Andres: we vote on NVDA today. You in?")
     }
 }

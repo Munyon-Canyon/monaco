@@ -22,6 +22,9 @@ struct CabalInviteSheet: View {
     @State private var invite: CabalInviteModel?
     @State private var flip: Double = 0
     @State private var handleRoute: AnyAppRoute?
+    @State private var note = ""
+    @State private var noteSeeded = false
+    @FocusState private var noteFocused: Bool
 
     private var showsQR: Bool { flip >= 90 }
 
@@ -96,14 +99,18 @@ struct CabalInviteSheet: View {
                     .padding(.bottom, MonacoTheme.Space.m)
             }
             .scrollBounceBehavior(.basedOnSize)
+            if invite?.preview?.proposal != nil { CabalInviteNoteField(text: $note, focused: $noteFocused) }
             buttons
         }
-        .monacoPresentationDetents(MonacoSheetDetents.half + (dynamicTypeSize >= .xxxLarge ? [.large] : []))
+        .onChange(of: invite?.preview, initial: true) { _, preview in seedNote(preview) }
+        .monacoPresentationDetents(MonacoSheetDetents.half + (needsLarge ? [.large] : []))
         .monacoSheetBackground()
         .presentationDragIndicator(.visible)
         .presentationContentInteraction(.scrolls)
         .presentationBackgroundInteraction(.disabled)
     }
+
+    private var needsLarge: Bool { dynamicTypeSize >= .xxxLarge || noteFocused }
 
     private var heading: some View {
         let layout =
@@ -252,14 +259,29 @@ struct CabalInviteSheet: View {
 
     private func share() {
         guard let link = invite?.link, let preview = invite?.preview else { return }
-        SystemShare.present(SharePayload(title: cabal.name, url: link, image: Self.cardImage(preview)))
+        SystemShare.present(SharePayload(title: cabal.name, url: link, image: Self.cardImage(preview), message: note))
     }
 
     private func copy() {
         guard let link = invite?.link else { return }
-        UIPasteboard.general.url = link
+        let trimmed = note.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            UIPasteboard.general.url = link
+        } else {
+            UIPasteboard.general.string = "\(trimmed) \(link.absoluteString)"
+        }
         Haptics.selection()
         toasts.current = MonacoToast(message: CabalCopy.linkCopied, isSuccess: true)
+    }
+}
+
+extension CabalInviteSheet {
+    private func seedNote(_ preview: CabalInvitePreview?) {
+        guard !noteSeeded, let preview, let proposal = preview.proposal, let inviter = preview.inviter else { return }
+        note = CabalInviteCopy.note(
+            senderFirstName: CabalInviteCopy.firstName(inviter.displayName), symbol: proposal.symbol,
+            expiresAt: proposal.expiresAt, now: WallClock.now(), calendar: .current)
+        noteSeeded = true
     }
 
     @MainActor static func cardImage(_ preview: CabalInvitePreview) -> UIImage? {
@@ -270,5 +292,35 @@ struct CabalInviteSheet: View {
         let renderer = ImageRenderer(content: card)
         renderer.scale = CabalInviteMetrics.shareScale
         return renderer.uiImage
+    }
+}
+
+private struct CabalInviteNoteField: View {
+    static let limit = 140
+
+    @Binding var text: String
+    var focused: FocusState<Bool>.Binding
+
+    var body: some View {
+        HStack(spacing: MonacoTheme.Space.s) {
+            Image(systemName: "pencil")
+                .font(MonacoTheme.Typo.subhead)
+                .foregroundStyle(MonacoTheme.secondaryText)
+                .accessibilityHidden(true)
+            TextField("Add a note", text: $text)
+                .font(MonacoTheme.Typo.body)
+                .foregroundStyle(MonacoTheme.primaryText)
+                .submitLabel(.done)
+                .focused(focused)
+                .onChange(of: text) { _, value in
+                    let clean = String(value.filter { !$0.isNewline }.prefix(Self.limit))
+                    if clean != value { text = clean }
+                }
+                .accessibilityLabel("Note to send with the link")
+                .accessibilityIdentifier("cabal-invite-note")
+        }
+        .monacoFieldChrome(isFocused: focused.wrappedValue, minHeight: 44, focus: { focused.wrappedValue = true })
+        .padding(.horizontal, MonacoTheme.Space.gutter)
+        .padding(.bottom, MonacoTheme.Space.sm)
     }
 }

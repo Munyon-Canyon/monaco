@@ -7,6 +7,7 @@ struct SharePayload {
     let title: String
     let url: URL
     var image: UIImage?
+    var message: String?
 
     static let fallbackURL = URL(string: "https://monacolabs.xyz") ?? URL(fileURLWithPath: "/")
 }
@@ -75,8 +76,13 @@ final class ShareImageItem: NSObject, UIActivityItemSource {
 @MainActor
 enum SystemShare {
     static func activityItems(for payload: SharePayload) -> [Any] {
-        guard let image = payload.image else { return [ShareLinkItem(payload)] }
-        return [ShareImageItem(image), ShareLinkItem(payload)]
+        var items: [Any] = []
+        if let message = payload.message?.trimmingCharacters(in: .whitespacesAndNewlines), !message.isEmpty {
+            items.append(message)
+        }
+        if let image = payload.image { items.append(ShareImageItem(image)) }
+        items.append(ShareLinkItem(payload))
+        return items
     }
 
     static func present(_ payload: SharePayload) {

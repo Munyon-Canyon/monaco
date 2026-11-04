@@ -41,4 +41,23 @@ struct SystemShareTests {
         let linkItem = try #require(items.first as? ShareLinkItem)
         #expect(linkItem.activityViewController(Self.controller, itemForActivityType: nil) as? URL == Self.url)
     }
+
+    @Test func aMessageIsTheFirstItemAsPlainText() throws {
+        let items = SystemShare.activityItems(
+            for: SharePayload(
+                title: "AC Capital", url: Self.url, image: Self.image(), message: "  Andres: we vote today  "))
+
+        #expect(items.count == 3)
+        #expect(items.first as? String == "Andres: we vote today")
+        #expect(items[1] is ShareImageItem)
+        #expect(items.last is ShareLinkItem)
+    }
+
+    @Test func aBlankMessageAddsNoTextItem() {
+        let items = SystemShare.activityItems(
+            for: SharePayload(title: "AC Capital", url: Self.url, message: " \n "))
+
+        #expect(items.count == 1)
+        #expect(items.contains { $0 is String } == false)
+    }
 }
