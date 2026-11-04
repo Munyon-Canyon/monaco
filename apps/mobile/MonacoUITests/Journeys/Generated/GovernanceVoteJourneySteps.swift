@@ -1,6 +1,6 @@
 enum GovernanceVoteJourneySteps {
     static let id = "governance/vote"
-    static let version = 9
+    static let version = 10
 
     static let s1p1 = JourneyStep(
         id: "S1.1",
@@ -81,7 +81,7 @@ enum GovernanceVoteJourneySteps {
         name: "pick and hold proposal-vote-yes",
         actor: "B",
         seconds: 10,
-        copy: ["Voted Yes. Passed 2–0.", "Voted Yes, 2 votes", "Passed 2–0", "Your vote decided it."]
+        copy: ["Voted Yes. Passed 2–0.", "Passed 2–0", "2 of 3 voted", "Your vote decided it."]
     )
     static let s1p9 = JourneyStep(
         id: "S1.9",

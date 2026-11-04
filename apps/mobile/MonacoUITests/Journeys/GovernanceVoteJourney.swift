@@ -219,10 +219,12 @@ enum GovernanceVoteJourney {
             XCTAssertTrue(
                 app.element("monaco-toast-banner").label.contains(S.s1p8.copy[3]),
                 "\(S.s1p8.id): the settling vote's toast does not say \"\(S.s1p8.copy[3])\"")
-            expectLabel(app, "proposal-vote-yes", S.s1p8.copy[1], step: S.s1p8.id)
             XCTAssertTrue(
-                waitForText(app.element("proposal-vote-status"), S.s1p8.copy[2], timeout: S.s1p8.seconds),
-                "\(S.s1p8.id): the status line does not start with Passed 2–0")
+                waitForText(app.element("proposal-result"), S.s1p8.copy[1], timeout: S.s1p8.seconds),
+                "\(S.s1p8.id): the result card does not say \"\(S.s1p8.copy[1])\"")
+            expectLabel(app, "proposal-result-tally", S.s1p8.copy[2], step: S.s1p8.id)
+            XCTAssertFalse(
+                app.element("proposal-vote-yes").exists, "\(S.s1p8.id): the vote buttons show on a closed proposal")
             XCTAssertFalse(
                 app.buttons["proposal-change-vote"].exists, "\(S.s1p8.id): \"Change\" shows on a settled card")
         }
