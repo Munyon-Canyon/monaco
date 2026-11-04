@@ -38,6 +38,7 @@ struct CabalScreen: View {
     @State private var refresh = ScreenRefresh()
     @State private var nameBottom: CGFloat?
     @State private var barBottom: CGFloat = 0
+    @State private var barWidth: CGFloat = 0
 
     init(cabalID: String, tab: CabalTab = .default, sections: [any CabalSection.Type] = Self.sections) {
         self.context = CabalContext(cabalID: cabalID)
@@ -98,6 +99,11 @@ struct CabalScreen: View {
         } action: {
             barBottom = $0
         }
+        .onGeometryChange(for: CGFloat.self) {
+            $0.size.width
+        } action: {
+            barWidth = $0
+        }
         .environment(\.cabalRetry, CabalRetry(tick: retryTick) { retryTick += 1 })
         .environment(
             \.cabalShare,
@@ -134,7 +140,8 @@ struct CabalScreen: View {
                     CabalFoldedTitle(
                         groupId: loaded.id, name: loaded.name, pictureUrl: loaded.pictureUrl,
                         memberCount: loaded.memberCount, alwaysShown: false,
-                        scrolledShown: CabalHeaderTitle.isShown(nameBottom: nameBottom, barBottom: barBottom))
+                        scrolledShown: CabalHeaderTitle.isShown(nameBottom: nameBottom, barBottom: barBottom),
+                        maxWidth: CabalFoldedTitle.maxWidth(barWidth: barWidth))
                 }
             }
             if let loaded = cabal.cabal, loaded.me == nil {

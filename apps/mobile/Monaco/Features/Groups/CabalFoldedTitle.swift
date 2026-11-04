@@ -8,6 +8,7 @@ struct CabalFoldedTitle: View {
     let memberCount: Int32
     let alwaysShown: Bool
     let scrolledShown: Bool
+    let maxWidth: CGFloat
 
     private var shown: Bool { alwaysShown || scrolledShown }
 
@@ -26,9 +27,10 @@ struct CabalFoldedTitle: View {
                     .font(MonacoTheme.Typo.caption)
                     .foregroundStyle(MonacoTheme.secondaryText)
                     .lineLimit(1)
+                    .truncationMode(.tail)
             }
         }
-        .fixedSize(horizontal: true, vertical: false)
+        .frame(maxWidth: maxWidth)
         .opacity(shown ? 1 : 0)
         .animation(.easeOut(duration: 0.15), value: shown)
         .accessibilityHidden(!shown)
@@ -36,6 +38,16 @@ struct CabalFoldedTitle: View {
         .accessibilityLabel(Self.accessibilityLabel(name: name, memberCount: memberCount))
         .accessibilityAddTraits(.isHeader)
         .accessibilityIdentifier("cabal-inline-title")
+    }
+
+    private static let toolbarButtonWidth: CGFloat = 44
+    private static let trailingButtonCount: CGFloat = 2
+    private static let barSideMargin: CGFloat = 16
+    private static let titleGap: CGFloat = 8
+    private static let sideReserve = trailingButtonCount * toolbarButtonWidth + barSideMargin + titleGap
+
+    static func maxWidth(barWidth: CGFloat) -> CGFloat {
+        max(0, barWidth - 2 * sideReserve)
     }
 
     static func accessibilityLabel(name: String, memberCount: Int32) -> String {
