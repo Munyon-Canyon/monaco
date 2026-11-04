@@ -205,7 +205,7 @@ struct CabalCardRow<Trailing: View>: View {
     let detail: String?
     let isLast: Bool
     @ViewBuilder let trailing: () -> Trailing
-    @ScaledMetric(relativeTo: .body) private var iconWidth: CGFloat = CabalCardRowMetrics.iconWidth
+    @ScaledMetric(relativeTo: .title3) private var iconWidth: CGFloat = CabalCardRowMetrics.iconWidth
 
     var body: some View {
         HStack(spacing: MonacoTheme.Space.m) {
