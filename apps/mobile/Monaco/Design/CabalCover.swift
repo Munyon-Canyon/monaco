@@ -2,7 +2,7 @@ import SwiftUI
 
 struct CabalCover<Overlay: View>: View {
     enum Style: Equatable {
-        case hero, heroTall, card, memberCard
+        case hero, heroTall, card, memberCard, art
         case thumb(CGFloat)
     }
 
@@ -37,12 +37,16 @@ struct CabalCover<Overlay: View>: View {
     static func cornerRadius(for style: Style) -> CGFloat {
         switch style {
         case .hero, .heroTall, .card, .memberCard: return MonacoTheme.Radius.card
+        case .art: return MonacoTheme.Radius.art
         case .thumb(let size): return size * MonacoTheme.Radius.squircleFraction
         }
     }
 
     static func overlay(for style: Style, reduceTransparency: Bool) -> Color? {
-        if case .thumb = style { return nil }
+        switch style {
+        case .thumb, .art: return nil
+        case .hero, .heroTall, .card, .memberCard: break
+        }
         return reduceTransparency ? MonacoTheme.coverOverlayReduced : MonacoTheme.coverOverlay
     }
 
@@ -68,6 +72,8 @@ struct CabalCover<Overlay: View>: View {
             clearBaseWithOverlay.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
         case .thumb(let size):
             Color.clear.frame(width: size, height: size)
+        case .art:
+            Color.clear
         }
     }
 

@@ -7,6 +7,7 @@ struct CabalsTabScreen: View {
         CabalsVoteSlot.self,
         CabalsUpNextSlot.self,
         CabalsGridSlot.self,
+        CabalsTopSlot.self,
         CabalsShareListSlot.self,
     ]
 
@@ -52,6 +53,7 @@ struct CabalsTabScreen: View {
             }
         }
         .task { await start() }
+        .onScreenVisibilityChange { store?.top.setVisible($0) }
         .onAppear {
             guard let store, store.content == nil, !store.hasFailed else { return }
             Task { await store.tab.load() }
@@ -88,17 +90,24 @@ struct CabalsTabScreen: View {
         refresh?.register("cabals-tab") {
             await store.tab.load()
             await store.votes.load()
+            await store.top.load()
         }
         async let votes: Void = loadVotes(store)
         async let hints: Void = store.tab.observe(hints: environment.hints)
+        async let top: Void = loadTop(store)
         await store.tab.load()
         store.syncOrder()
-        _ = await (votes, hints)
+        _ = await (votes, hints, top)
     }
 
     private func loadVotes(_ store: CabalsTabStore) async {
         await store.votes.load()
         await store.votes.observe()
+    }
+
+    private func loadTop(_ store: CabalsTabStore) async {
+        await store.top.load()
+        await store.top.observe()
     }
 
     private func prepared() -> CabalsTabStore {

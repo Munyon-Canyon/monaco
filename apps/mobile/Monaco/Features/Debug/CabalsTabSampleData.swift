@@ -74,7 +74,32 @@ enum CabalsTabSampleData {
         script.portfolio = .sampleFewCabals
         script.invites = []
         script.pendingVotes = []
+        script.callBoard = topCabalsBoard
         return script
+    }
+
+    private static var topCabalsBoard: Components.Schemas.CallBoard {
+        var board = Components.Schemas.CallBoard.empty
+        board.board = .cabals
+        board.top = [
+            topRow(1, "Pilates", pct: 93, right: 13, resolved: 14),
+            topRow(2, "Tech Titans", pct: 89, right: 8, resolved: 9),
+            topRow(3, "Night Shift", pct: 75, right: 6, resolved: 8),
+        ]
+        return board
+    }
+
+    private static func topRow(
+        _ rank: Int32, _ name: String, pct: Int32, right: Int32, resolved: Int32
+    ) -> Components.Schemas.CallBoardRow {
+        Components.Schemas.CallBoardRow(
+            rank: rank,
+            subject: .init(
+                id: "00000000-0000-7000-8000-0000000003\(String(format: "%02d", rank))", kind: .cabal, name: name,
+                handle: nil, pictureUrl: nil),
+            rateBps: pct * 100, ratePct: pct, right: right, resolved: resolved, voted: resolved, eligible: resolved,
+            turnoutBps: 10_000, movement: .init(kind: .same, places: 0), lastCall: nil, isViewer: false,
+            isMine: false)
     }
 
     @MainActor
