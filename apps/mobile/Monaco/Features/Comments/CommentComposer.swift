@@ -66,6 +66,23 @@ extension CommentComposerBar where Restricted == EmptyView {
     }
 }
 
+private struct DockedComposerBar: ViewModifier {
+    @MonacoReduceTransparency private var reduceTransparency
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if #available(iOS 26, *), !reduceTransparency {
+            content
+        } else {
+            content
+                .background(MonacoTheme.canvas.ignoresSafeArea(edges: .bottom))
+                .overlay(alignment: .top) {
+                    MonacoRule()
+                }
+        }
+    }
+}
+
 private struct DockedComposer: View {
     @Bindable var model: CommentsModel
     let menuItems: [ComposerMenuItem]
@@ -99,10 +116,7 @@ private struct DockedComposer: View {
         }
         .padding(.horizontal, MonacoTheme.Space.gutter)
         .padding(.vertical, MonacoTheme.Space.s)
-        .background(MonacoTheme.canvas.ignoresSafeArea(edges: .bottom))
-        .overlay(alignment: .top) {
-            MonacoRule()
-        }
+        .modifier(DockedComposerBar())
         .onChange(of: model.isDockedFocused) { _, wanted in focused = wanted }
         .onChange(of: focused) { _, isFocused in model.isDockedFocused = isFocused }
         .onAppear { focused = model.isDockedFocused }
