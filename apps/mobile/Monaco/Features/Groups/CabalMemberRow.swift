@@ -77,6 +77,7 @@ struct CabalMemberLink: View {
     let subtitle: String
     var chevron = false
     var isLast = false
+    var hint: String?
 
     var body: some View {
         let row = entry.row
@@ -89,6 +90,7 @@ struct CabalMemberLink: View {
             CabalMemberLine(entry: entry, viewerID: viewerID, subtitle: subtitle, chevron: chevron, isLast: isLast)
         }
         .buttonStyle(.monacoRow)
+        .accessibilityHint(hint ?? "")
     }
 }
 
