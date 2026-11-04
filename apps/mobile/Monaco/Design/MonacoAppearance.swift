@@ -165,11 +165,14 @@ extension View {
         titleIdentifier: String? = nil,
         detents: MonacoSheetDetents? = nil,
         showsClose: Bool = false,
-        closeIdentifier: String? = nil
+        closeIdentifier: String? = nil,
+        showsHeading: Bool = true,
+        contentScrolls: Bool = false
     ) -> some View {
         MonacoSheetFrame(
             title: title, titleIdentifier: titleIdentifier, kind: detents, showsClose: showsClose,
-            closeIdentifier: closeIdentifier, scrolls: false, content: self)
+            closeIdentifier: closeIdentifier, scrolls: false, showsHeading: showsHeading,
+            contentScrolls: contentScrolls, content: self)
     }
 
     func monacoFittedSheet(
@@ -338,6 +341,7 @@ private struct MonacoSheetFrame<Content: View>: View {
     let closeIdentifier: String?
     let scrolls: Bool
     var showsHeading = true
+    var contentScrolls = false
     let content: Content
 
     @State private var headingHeight: CGFloat = 0
@@ -365,7 +369,7 @@ private struct MonacoSheetFrame<Content: View>: View {
 
     @ViewBuilder
     private var sheetContent: some View {
-        if MonacoSheetDetents.scrollsContent(declared: scrolls, dynamicTypeSize: dynamicTypeSize) {
+        if !contentScrolls && MonacoSheetDetents.scrollsContent(declared: scrolls, dynamicTypeSize: dynamicTypeSize) {
             ScrollView {
                 content
                     .environment(\.insideMonacoSheet, true)

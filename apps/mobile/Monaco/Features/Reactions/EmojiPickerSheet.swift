@@ -23,7 +23,6 @@ private struct EmojiSection: Identifiable {
 }
 
 private enum PickerMetrics {
-    static let sheetHeight: CGFloat = 426
     static let columns = 8
     static let accessibilityColumns = 4
     static let cell: CGFloat = 44
@@ -52,8 +51,6 @@ struct EmojiPickerSheet: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @ScaledMetric(relativeTo: .title) private var scaledCell = PickerMetrics.cell
     @ScaledMetric(relativeTo: .subheadline) private var scaledHeader = PickerMetrics.headerHeight
-
-    private var isLarge: Bool { dynamicTypeSize >= .xxxLarge }
 
     private var columns: Int {
         dynamicTypeSize.isAccessibilitySize ? PickerMetrics.accessibilityColumns : PickerMetrics.columns
@@ -101,43 +98,18 @@ struct EmojiPickerSheet: View {
             }
         }
         .padding(.top, MonacoTheme.Space.l)
-        .presentationDetents(isLarge ? [.large] : [.height(PickerMetrics.sheetHeight)])
-        .presentationDragIndicator(.visible)
-        .monacoSheetBackground()
-        .presentationContentInteraction(.scrolls)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("emoji-picker")
         .onAppear { recent = frequent.emojis }
+        .monacoSheet(title: "Emoji", detents: .review, showsHeading: false, contentScrolls: true)
+        .presentationContentInteraction(.scrolls)
     }
 
     private var searchField: some View {
-        HStack(spacing: MonacoTheme.Space.s) {
-            Image(monaco: .search).foregroundStyle(MonacoTheme.secondaryText)
-            TextField("Search emoji", text: $query)
-                .font(.body)
-                .foregroundStyle(MonacoTheme.primaryText)
-                .fixedSize(horizontal: false, vertical: true)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-                .submitLabel(.search)
-                .accessibilityIdentifier("emoji-search")
-            if !query.isEmpty {
-                Button {
-                    query = ""
-                } label: {
-                    Image(monaco: .close)
-                        .foregroundStyle(MonacoTheme.secondaryText)
-                        .frame(width: cell, height: cell)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Clear search")
-                .accessibilityIdentifier("emoji-search-clear")
-            }
-        }
-        .padding(.horizontal, MonacoTheme.Space.sm)
-        .frame(minHeight: cell)
-        .background(Capsule().fill(MonacoTheme.border.opacity(0.5)))
+        MonacoSearchField(
+            placeholder: "Search emoji", text: $query, fieldIdentifier: "emoji-search",
+            clearIdentifier: "emoji-search-clear"
+        )
         .padding(.horizontal, MonacoTheme.Space.gutter)
         .padding(.bottom, MonacoTheme.Space.xs)
     }
