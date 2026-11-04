@@ -194,7 +194,7 @@ private struct ChecklistStep<Content: View>: View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
             HStack(spacing: MonacoTheme.Space.s) {
                 Image(systemName: isDone ? "checkmark.circle.fill" : "circle")
-                    .foregroundStyle(isDone ? MonacoTheme.brand : stepColor)
+                    .foregroundStyle(isDone ? MonacoTheme.gain : stepColor)
                     .accessibilityHidden(true)
                 Text(title)
                     .font(MonacoTheme.Typo.section)

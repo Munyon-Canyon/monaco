@@ -24,7 +24,7 @@ struct OutcomeView<Content: View>: View {
 
         var accent: Color {
             switch self {
-            case .done: return MonacoTheme.brand
+            case .done: return MonacoTheme.gain
             case .pending: return MonacoTheme.warning
             case .error: return MonacoTheme.loss
             }

@@ -1,5 +1,6 @@
 import Foundation
 import MonacoCore
+import SwiftUI
 import Testing
 
 @testable import Monaco
@@ -192,5 +193,12 @@ struct PnLSpeechTests {
         #expect(PnLTone(dollarPnl: "-7.6") == .loss)
         #expect(PnLTone(dollarPnl: "\u{2212}7.6") == .loss)
         #expect(PnLTone(dollarPnl: "+48.2") == .profit)
+    }
+}
+
+struct SuccessMarkToneTests {
+    @Test func successMarksDrawInTheGainGreen() {
+        #expect(StatusBadge.Tone.positive.label == MonacoTheme.gain)
+        #expect(OutcomeView<EmptyView>.Tone.done.accent == MonacoTheme.gain)
     }
 }

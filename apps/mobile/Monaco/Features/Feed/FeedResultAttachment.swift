@@ -18,7 +18,7 @@ struct FeedResultAttachment: View {
                 .resizable()
                 .scaledToFit()
                 .frame(width: FeedResultMetrics.seal, height: FeedResultMetrics.seal)
-                .foregroundStyle(MonacoTheme.tint)
+                .foregroundStyle(MonacoTheme.gain)
                 .accessibilityHidden(true)
             Text(ResultCopy.calledIt(sealName))
                 .font(MonacoTheme.Typo.headline)
