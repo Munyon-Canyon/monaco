@@ -82,6 +82,7 @@ public final class HomeVoteCardModel: Identifiable {
     private let hints: any HintSource
     private let now: @Sendable () -> Date
     private let releaseAfter: TimeInterval
+    private let showsReplies: Bool
     private var submission = IdempotentSubmission()
     private var retraction = IdempotentSubmission()
     private var isSubmitting = false
@@ -89,7 +90,8 @@ public final class HomeVoteCardModel: Identifiable {
 
     public init(
         api: APIClient, hints: any HintSource, row: HomePendingVote, now: @escaping @Sendable () -> Date = Date.init,
-        releaseAfter: TimeInterval = HomeVoteCardModel.defaultReleaseAfter
+        releaseAfter: TimeInterval = HomeVoteCardModel.defaultReleaseAfter, myBallot: ProposalBallot? = nil,
+        showsReplies: Bool = true
     ) {
         proposalID = row.id
         self.row = row
@@ -99,6 +101,11 @@ public final class HomeVoteCardModel: Identifiable {
         self.hints = hints
         self.now = now
         self.releaseAfter = releaseAfter
+        self.showsReplies = showsReplies
+        if let myBallot {
+            phase = .committed(
+                CastOutcome(choice: myBallot, status: .open, tally: row.tally, undoUntil: nil, myVote: nil))
+        }
     }
 
     public var isCommitted: Bool {
@@ -277,7 +284,8 @@ extension HomeVoteCardModel {
             return VoteCardLine(full: text, short: text)
         }
         return ProposalVoteCopy.cardLine(
-            cabalName: showsCabal ? row.cabalName : nil, tally: tally, replies: replyCount, expiresAt: row.expiresAt,
+            cabalName: showsCabal ? row.cabalName : nil, tally: tally, replies: showsReplies ? replyCount : nil,
+            expiresAt: row.expiresAt,
             now: now)
     }
 
