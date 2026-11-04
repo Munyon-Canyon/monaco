@@ -168,8 +168,9 @@ private struct FeedVoteCardSlot: View {
     var body: some View {
         HomeVoteCard(model: card, identifierPrefix: "feed", tab: .feed, compact: true)
             .onAppear {
-                card.onCommitted = { [environment, toasts, analytics, weak card] outcome in
-                    guard let card else { return }
+                let model = card
+                model.onCommitted = { [environment, toasts, analytics, weak model] outcome in
+                    guard let card = model else { return }
                     HomeVoteCommit.accepted(
                         card, outcome, environment: environment, toasts: toasts, analytics: analytics)
                 }
