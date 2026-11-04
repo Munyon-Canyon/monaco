@@ -2,6 +2,7 @@ package notify_test
 
 import (
 	"errors"
+	"fmt"
 	"reflect"
 	"slices"
 	"strings"
@@ -12,6 +13,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/modules/cabal"
 	governanceport "github.com/monaco/monaco/apps/backend/internal/modules/governance/port"
+	"github.com/monaco/monaco/apps/backend/internal/modules/identity"
 	"github.com/monaco/monaco/apps/backend/internal/modules/market"
 	"github.com/monaco/monaco/apps/backend/internal/modules/notify"
 	"github.com/monaco/monaco/apps/backend/internal/modules/notify/app"
@@ -143,8 +145,25 @@ func (w resultWorld) run(t *testing.T, r *pushRig, actor string, e events.Event)
 	return d, w.handle(t, r, d, e)
 }
 
+func passedTitle(action string, yes, no int) string {
+	side := "Buy"
+	if action == sellKind {
+		side = "Sell"
+	}
+	return fmt.Sprintf("%s AAPL passed, %d to %d", side, yes, no)
+}
+
 func (w resultWorld) wantPushes(
 	t *testing.T, r *pushRig, d bus.Delivery, title, body, outcome string, to ...ids.UserID,
+) {
+	t.Helper()
+	w.wantPushesBy(t, r, d, title, outcome, func(user ids.UserID) string {
+		return strings.ReplaceAll(body, voted, w.choices[user])
+	}, to...)
+}
+
+func (w resultWorld) wantPushesBy(
+	t *testing.T, r *pushRig, d bus.Delivery, title, outcome string, body func(ids.UserID) string, to ...ids.UserID,
 ) {
 	t.Helper()
 	byToken := func(a, b apns.Push) int { return strings.Compare(a.Token, b.Token) }
@@ -155,7 +174,7 @@ func (w resultWorld) wantPushes(
 		want = append(want, inCabal(apns.Push{
 			UserID: user, Token: w.tokens[user], Environment: apns.Sandbox,
 			CollapseID: "proposal-" + w.refs.proposal.String(), Title: title,
-			Body: strings.ReplaceAll(body, voted, w.choices[user]),
+			Body: body(user),
 			Data: map[string]string{
 				"kind": resultPush, "cabal_id": w.id.String(), "proposal_id": w.refs.proposal.String(),
 				"outcome": outcome,
@@ -191,13 +210,13 @@ func TestNotify_ResultFilled_PushesTheVotersOnlyWithTheFill(t *testing.T) {
 		tokens, usdc uint64
 		body         string
 	}{
-		"a buy":                    {buyKind, metaTokens, metaUSDC, "Bought 0.42 sh at $716.52. You voted {vote}."},
-		"a sell":                   {sellKind, 220_000_000, 1_000_000_000, "Sold 2.2 sh at $454.55. You voted {vote}."},
-		"the fixture's NVDA fill":  {buyKind, 182_000_000, 399_308_000, "Bought 1.82 sh at $219.40. You voted {vote}."},
-		"a whole number of shares": {buyKind, 300_000_000, 1_500_000_000, "Bought 3 sh at $500.00. You voted {vote}."},
-		"a fraction below a cent":  {buyKind, 1_000_000, 4_999, "Bought 0.01 sh at $0.50. You voted {vote}."},
-		"a price over a thousand":  {buyKind, 300_000_000, 3_000_000_000, "Bought 3 sh at $1,000.00. You voted {vote}."},
-		"a fill of no shares":      {buyKind, 0, 4_999, "Bought 0 sh at $0.00. You voted {vote}."},
+		"a buy":                    {buyKind, metaTokens, metaUSDC, "Bought 0.42 shares at $716.52."},
+		"a sell":                   {sellKind, 220_000_000, 1_000_000_000, "Sold 2.2 shares at $454.55."},
+		"the fixture's NVDA fill":  {buyKind, 182_000_000, 399_308_000, "Bought 1.82 shares at $219.40."},
+		"a whole number of shares": {buyKind, 300_000_000, 1_500_000_000, "Bought 3 shares at $500.00."},
+		"a fraction below a cent":  {buyKind, 1_000_000, 4_999, "Bought 0.01 shares at $0.50."},
+		"a price over a thousand":  {buyKind, 300_000_000, 3_000_000_000, "Bought 3 shares at $1,000.00."},
+		"a fill of no shares":      {buyKind, 0, 4_999, "Bought 0 shares at $0.00."},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -207,7 +226,7 @@ func TestNotify_ResultFilled_PushesTheVotersOnlyWithTheFill(t *testing.T) {
 			d, err := w.run(t, r, tradeActor, r.confirmedEvent(t, w, tc.action, tc.tokens, tc.usdc))
 
 			wantVerdict(t, err, "", errs.VerdictAck)
-			w.wantPushes(t, r, d, "AAPL passed 4–1", tc.body, "filled", w.voters()...)
+			w.wantPushes(t, r, d, passedTitle(tc.action, 4, 1), tc.body, "filled", w.voters()...)
 		})
 	}
 }
@@ -219,8 +238,8 @@ func TestNotify_ResultFilled_SizesARobinhoodFillByTheListingDecimals(t *testing.
 		tokens, usdc uint64
 		body         string
 	}{
-		"a buy that filled 0.4 tokens": {buyKind, 400_000_000_000_000_000, 100_000_000, "Bought 0.4 sh at $250.00. You voted {vote}."},
-		"a sell of half a share":       {sellKind, 500_000_000_000_000_000, 125_000_000, "Sold 0.5 sh at $250.00. You voted {vote}."},
+		"a buy that filled 0.4 tokens": {buyKind, 400_000_000_000_000_000, 100_000_000, "Bought 0.4 shares at $250.00."},
+		"a sell of half a share":       {sellKind, 500_000_000_000_000_000, 125_000_000, "Sold 0.5 shares at $250.00."},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -232,7 +251,7 @@ func TestNotify_ResultFilled_SizesARobinhoodFillByTheListingDecimals(t *testing.
 			d, err := w.run(t, r, tradeActor, e)
 
 			wantVerdict(t, err, "", errs.VerdictAck)
-			w.wantPushes(t, r, d, "AAPL passed 2–0", tc.body, "filled", w.voters()...)
+			w.wantPushes(t, r, d, passedTitle(tc.action, 2, 0), tc.body, "filled", w.voters()...)
 		})
 	}
 }
@@ -243,8 +262,8 @@ func TestNotify_ResultFilled_SizesAFillPastUint64ByTheListingDecimals(t *testing
 		action string
 		body   string
 	}{
-		"a buy of 25 tokens":  {buyKind, "Bought 25 sh at $200.00. You voted {vote}."},
-		"a sell of 25 tokens": {sellKind, "Sold 25 sh at $200.00. You voted {vote}."},
+		"a buy of 25 tokens":  {buyKind, "Bought 25 shares at $200.00."},
+		"a sell of 25 tokens": {sellKind, "Sold 25 shares at $200.00."},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -262,7 +281,7 @@ func TestNotify_ResultFilled_SizesAFillPastUint64ByTheListingDecimals(t *testing
 			d, err := w.run(t, r, tradeActor, e)
 
 			wantVerdict(t, err, "", errs.VerdictAck)
-			w.wantPushes(t, r, d, "AAPL passed 2–0", tc.body, "filled", w.voters()...)
+			w.wantPushes(t, r, d, passedTitle(tc.action, 2, 0), tc.body, "filled", w.voters()...)
 		})
 	}
 }
@@ -270,14 +289,16 @@ func TestNotify_ResultFilled_SizesAFillPastUint64ByTheListingDecimals(t *testing
 func TestNotify_ResultFillFailed_PushesTheVotersOnly(t *testing.T) {
 	t.Parallel()
 	for name, tc := range map[string]struct {
-		event func(t *testing.T, r *pushRig, w resultWorld) events.Event
-		body  string
+		event  func(t *testing.T, r *pushRig, w resultWorld) events.Event
+		action string
+		body   string
 	}{
 		"a failed buy": {
 			func(t *testing.T, r *pushRig, w resultWorld) events.Event {
 				t.Helper()
 				return r.failedEvent(t, w, buyKind)
 			},
+			buyKind,
 			"The buy didn't go through. No money moved. You voted {vote}.",
 		},
 		"a failed sell": {
@@ -285,6 +306,7 @@ func TestNotify_ResultFillFailed_PushesTheVotersOnly(t *testing.T) {
 				t.Helper()
 				return r.failedEvent(t, w, sellKind)
 			},
+			sellKind,
 			"The sell didn't go through. No money moved. You voted {vote}.",
 		},
 		"a blocked buy": {
@@ -292,6 +314,7 @@ func TestNotify_ResultFillFailed_PushesTheVotersOnly(t *testing.T) {
 				t.Helper()
 				return r.blockedEvent(t, w, buyKind)
 			},
+			buyKind,
 			"The buy didn't go through. No money moved. You voted {vote}.",
 		},
 		"a blocked sell": {
@@ -299,6 +322,7 @@ func TestNotify_ResultFillFailed_PushesTheVotersOnly(t *testing.T) {
 				t.Helper()
 				return r.blockedEvent(t, w, sellKind)
 			},
+			sellKind,
 			"The sell didn't go through. The shares are still in the pot. You voted {vote}.",
 		},
 	} {
@@ -310,7 +334,7 @@ func TestNotify_ResultFillFailed_PushesTheVotersOnly(t *testing.T) {
 			d, err := w.run(t, r, tradeActor, tc.event(t, r, w))
 
 			wantVerdict(t, err, "", errs.VerdictAck)
-			w.wantPushes(t, r, d, "AAPL passed 4–1", tc.body, "fill_failed", w.voters()...)
+			w.wantPushes(t, r, d, passedTitle(tc.action, 4, 1), tc.body, "fill_failed", w.voters()...)
 		})
 	}
 }
@@ -325,7 +349,7 @@ func TestNotify_ResultFailed_SkipsTheVoterWhoseBallotFailedIt(t *testing.T) {
 	d, err := w.run(t, r, userActor(deciding), w.closedEvent(events.TypeProposalFailed))
 
 	wantVerdict(t, err, "", errs.VerdictAck)
-	w.wantPushes(t, r, d, "TSLA failed 2–2", "No trade. You voted {vote}.", "failed", w.members[:3]...)
+	w.wantPushes(t, r, d, "Sell TSLA failed, 2 to 2", "No trade. You voted {vote}.", "failed", w.members[:3]...)
 }
 
 func TestNotify_ResultExpired_PushesTheVotersAndReadsAPreIPOByItsName(t *testing.T) {
@@ -337,8 +361,8 @@ func TestNotify_ResultExpired_PushesTheVotersAndReadsAPreIPOByItsName(t *testing
 	d, err := w.run(t, r, "system:governance.expiry", w.closedEvent(events.TypeProposalExpired))
 
 	wantVerdict(t, err, "", errs.VerdictAck)
-	w.wantPushes(t, r, d, "SpaceX closed 1–1", "Not enough votes by the close. No trade. You voted {vote}.", "expired",
-		w.voters()...)
+	w.wantPushes(t, r, d, "Buy SpaceX closed, 1 to 1",
+		"Not enough votes by the close. No trade. You voted {vote}.", "expired", w.voters()...)
 }
 
 func TestNotify_ResultExpired_AProposalWithNoBallotsPushesNobody(t *testing.T) {
@@ -471,7 +495,7 @@ func TestNotify_Result_APushNeedsAnAssetItCanFillInOnlyForTheFill(t *testing.T) 
 	d, err := w.run(t, r, tradeActor, failed)
 
 	wantVerdict(t, err, "", errs.VerdictAck)
-	w.wantPushes(t, r, d, "a stock passed 4–1", "The buy didn't go through. No money moved. You voted {vote}.",
+	w.wantPushes(t, r, d, "Buy a stock passed, 4 to 1", "The buy didn't go through. No money moved. You voted {vote}.",
 		"fill_failed", w.voters()...)
 	_, err = w.run(t, r, tradeActor, r.confirmedEvent(t, w, buyKind, metaTokens, metaUSDC))
 	wantVerdict(t, err, errs.CodeAssetNotFound, errs.VerdictTerm)
@@ -480,7 +504,7 @@ func TestNotify_Result_APushNeedsAnAssetItCanFillInOnlyForTheFill(t *testing.T) 
 func TestNotify_Result_PortFailuresReturnAsIsAndWriteNothing(t *testing.T) {
 	t.Parallel()
 	reads := map[string][]string{
-		"confirmed": {"Members", "Cabal", "Ballots", "AssetBySymbol"},
+		"confirmed": {"Members", "Cabal", "Ballots", "AssetBySymbol", "Proposer", "UsersByID"},
 		"failed":    {"Members", "Cabal", "Ballots", "AssetBySymbol"},
 		"blocked":   {"Members", "Cabal", "Ballots", "AssetBySymbol"},
 		"closed":    {"Members", "Cabal", "Ballots", "ProposalHead", "AssetBySymbol"},
@@ -491,6 +515,7 @@ func TestNotify_Result_PortFailuresReturnAsIsAndWriteNothing(t *testing.T) {
 				t.Parallel()
 				r := newPushRig(t)
 				w := r.resultWorldOf(t, 4, 1)
+				w.ports.proposers.set(w.refs.proposal, w.idle)
 				down := errs.New(errs.CodeDBUnavailable, "test."+op)
 				w.ports.fail(op, down)
 				e := map[string]events.Event{
@@ -670,8 +695,12 @@ func TestNotify_Result_ReachesTheVotersOfARealCabalByDefault(t *testing.T) {
 
 	r.wantStates(t, d, map[ids.UserID]string{members[0]: "delivered", members[1]: "delivered", members[2]: "delivered"})
 	for _, p := range r.sender.Sent() {
-		if p.Title != "AAPL passed 2–1" || !strings.HasPrefix(p.Body, "Bought 0.42 sh at $716.52. You voted ") {
-			t.Errorf("push %q / %q, want the real tally and fill", p.Title, p.Body)
+		want := "dana called it."
+		if p.UserID == dana.ID {
+			want = "You called it."
+		}
+		if p.Title != "Buy AAPL passed, 2 to 1" || p.Body != want {
+			t.Errorf("push %q / %q, want the real tally and %q", p.Title, p.Body, want)
 		}
 	}
 }
@@ -723,4 +752,89 @@ func TestNotify_Result_RenderReadsTheBallotsAndTheHeadAgainAndReturnsTheirFailur
 			}
 		}
 	}
+}
+
+func TestNotify_ResultFilled_NamesTheProposerToTheOtherVotersAndTellsTheProposerTheyCalledIt(t *testing.T) {
+	t.Parallel()
+	for name, tc := range map[string]struct {
+		action string
+		tokens uint64
+		usdc   uint64
+		title  string
+	}{
+		"a buy":  {buyKind, 182_000_000, 399_308_000, "Buy AAPL passed, 4 to 1"},
+		"a sell": {sellKind, 220_000_000, 1_000_000_000, "Sell AAPL passed, 4 to 1"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			r := newPushRig(t)
+			w := r.resultWorldOf(t, 4, 1)
+			proposer := w.members[1]
+			w.ports.proposers.set(w.refs.proposal, proposer)
+
+			d, err := w.run(t, r, tradeActor, r.confirmedEvent(t, w, tc.action, tc.tokens, tc.usdc))
+
+			wantVerdict(t, err, "", errs.VerdictAck)
+			w.wantPushesBy(t, r, d, tc.title, "filled", func(user ids.UserID) string {
+				if user == proposer {
+					return "You called it."
+				}
+				return memberNames()[1] + " called it."
+			}, w.voters()...)
+		})
+	}
+}
+
+func TestNotify_ResultFilled_FallsBackToTheFillWhenTheProposerHasNoName(t *testing.T) {
+	t.Parallel()
+	for name, card := range map[string]*identity.UserCard{
+		"a proposer who is gone":    nil,
+		"a proposer who is deleted": {DisplayName: "Bea", Deleted: true},
+		"a proposer with no name":   {DisplayName: ""},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			r := newPushRig(t)
+			w := r.resultWorldOf(t, 4, 1)
+			proposer := w.idle
+			w.ports.proposers.set(w.refs.proposal, proposer)
+			cards := make([]identity.UserCard, 0, len(w.members))
+			for i, member := range w.members {
+				if member == proposer {
+					if card != nil {
+						c := *card
+						c.ID = member
+						cards = append(cards, c)
+					}
+					continue
+				}
+				cards = append(cards, identity.UserCard{ID: member, DisplayName: memberNames()[i]})
+			}
+			w.ports.names = fakes.NewIdentity(cards, nil)
+
+			d, err := w.run(t, r, tradeActor, r.confirmedEvent(t, w, buyKind, metaTokens, metaUSDC))
+
+			wantVerdict(t, err, "", errs.VerdictAck)
+			w.wantPushes(t, r, d, "Buy AAPL passed, 4 to 1", "Bought 0.42 shares at $716.52.", "filled", w.voters()...)
+		})
+	}
+}
+
+func TestNotify_ResultClosed_ReadsTheSideFromTheHeadAndRefusesAKindItCannotPhrase(t *testing.T) {
+	t.Parallel()
+	r := newPushRig(t)
+	w := r.resultWorldOf(t, 2, 1)
+	w.ports.heads.set(w.refs.proposal, governanceport.ProposalHead{Kind: sellKind, Symbol: "AAPLx"})
+
+	d, err := w.run(t, r, "system:governance.expiry", w.closedEvent(events.TypeProposalExpired))
+
+	wantVerdict(t, err, "", errs.VerdictAck)
+	w.wantPushes(t, r, d, "Sell AAPL closed, 2 to 1", "Not enough votes by the close. No trade. You voted {vote}.",
+		"expired", w.voters()...)
+	w.ports.heads.set(w.refs.proposal, governanceport.ProposalHead{Kind: "swap", Symbol: "AAPLx"})
+
+	d, err = w.run(t, r, "system:governance.expiry", w.closedEvent(events.TypeProposalFailed))
+
+	wantVerdict(t, err, errs.CodeInvalidInput, errs.VerdictTerm)
+	r.wantRecorded(t, d, 0)
 }

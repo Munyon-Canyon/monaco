@@ -646,6 +646,10 @@ func (b anyBallots) Ballots(context.Context, ids.ProposalID) ([]governanceport.B
 	}, nil
 }
 
+type anyProposer struct{ id ids.UserID }
+
+func (p anyProposer) Proposer(context.Context, ids.ProposalID) (ids.UserID, error) { return p.id, nil }
+
 type anyHead struct{}
 
 func (anyHead) ProposalHead(context.Context, ids.ProposalID) (governanceport.ProposalHead, error) {
@@ -655,7 +659,11 @@ func (anyHead) ProposalHead(context.Context, ids.ProposalID) (governanceport.Pro
 func copyCases(
 	cabals app.Cabals, users app.Users, assets app.Assets, votes app.VoteStates, to ids.UserID,
 ) map[string]copyCase {
-	results := app.ResultPorts{Cabals: cabals, Assets: assets, Ballots: anyBallots{to}, Heads: anyHead{}}
+	results := app.ResultPorts{
+		Cabals: cabals, Assets: assets, Ballots: anyBallots{to}, Heads: anyHead{},
+		Proposers: anyProposer{id: ids.UserIDFrom(uuid.NewSHA1(uuid.NameSpaceOID, []byte("notify-copy-proposer")))},
+		Users:     users,
+	}
 	return map[string]copyCase{
 		"test":             {events.TypeNotifyTestRequested, renderer[events.NotifyTestRequested](app.Test{})},
 		"deposit_credited": {events.TypeDepositCredited, renderer[events.DepositCredited](app.DepositCredited{})},

@@ -102,8 +102,6 @@ func closesIn(left time.Duration) string {
 	return strconv.Itoa(int(left/time.Hour)/hoursPerDay) + "d"
 }
 
-func tally(yes, no int) string { return fmt.Sprintf("%d–%d", yes, no) }
-
 func cutThesis(thesis string) string {
 	runes := []rune(strings.TrimSpace(thesis))
 	if len(runes) <= maxThesisRunes {
@@ -124,16 +122,18 @@ func createdBody(thesis, dur string) string {
 	return closes
 }
 
-func resultTitle(asset, verb, score string) string {
-	return fmt.Sprintf("%s %s %s", asset, verb, score)
+func resultTitle(side, asset, verb string, yes, no int) string {
+	return fmt.Sprintf("%s %s %s, %d to %d", side, asset, verb, yes, no)
 }
 
-func filledBody(action, units, price, voted string) string {
+func calledItBody(name string) string { return name + " called it." }
+
+func filledBody(action, units, price string) string {
 	verb := "Bought"
 	if action == "sell" {
 		verb = "Sold"
 	}
-	return fmt.Sprintf("%s %s sh at %s. You voted %s.", verb, units, price, voted)
+	return fmt.Sprintf("%s %s shares at %s.", verb, units, price)
 }
 
 func fillFailedBody(action string, blocked bool, voted string) string {

@@ -20,10 +20,42 @@ const (
 )
 
 type ResultPorts struct {
-	Cabals  Cabals
-	Assets  Assets
-	Ballots Ballots
-	Heads   ProposalHeads
+	Cabals    Cabals
+	Assets    Assets
+	Ballots   Ballots
+	Heads     ProposalHeads
+	Proposers Proposers
+	Users     Users
+}
+
+type Proposers interface {
+	Proposer(ctx context.Context, id ids.ProposalID) (ids.UserID, error)
+}
+
+const calledByYou = "You called it."
+
+func (p ResultPorts) filledBody(
+	ctx context.Context, e events.TradeConfirmed, to ids.UserID, fallback string,
+) (string, error) {
+	proposer, err := p.Proposers.Proposer(ctx, ids.ProposalIDFrom(e.Source.ID))
+	if errs.CodeOf(err) == errs.CodeProposalNotFound {
+		return fallback, nil
+	}
+	if err != nil {
+		return "", err
+	}
+	if proposer == to {
+		return calledByYou, nil
+	}
+	cards, err := p.Users.UsersByID(ctx, []ids.UserID{proposer})
+	if err != nil {
+		return "", err
+	}
+	card, ok := cards[proposer]
+	if !ok || card.Deleted || card.DisplayName == "" {
+		return fallback, nil
+	}
+	return calledItBody(card.DisplayName), nil
 }
 
 func resultItemKey(proposal uuid.UUID) string {
@@ -119,7 +151,8 @@ func (k ResultFilled) Recipients(ctx context.Context, e events.TradeConfirmed) (
 }
 
 func (k ResultFilled) Render(ctx context.Context, e events.TradeConfirmed, to ids.UserID) (Message, error) {
-	if _, err := side(e.Action); err != nil {
+	verb, err := side(e.Action)
+	if err != nil {
 		return Message{}, err
 	}
 	asset, found, err := assetOf(ctx, k.Assets, e.Symbol)
@@ -138,11 +171,14 @@ func (k ResultFilled) Render(ctx context.Context, e events.TradeConfirmed, to id
 		filled = e.InAmount
 	}
 	decimals := tokenDecimals(e.TokenDecimals, asset.Decimals)
-	body := filledBody(
-		e.Action, units(filled, decimals), fillPrice(e.USDCMicros, filled, decimals), cast.voted[to],
+	body, err := k.filledBody(
+		ctx, e, to, filledBody(e.Action, units(filled, decimals), fillPrice(e.USDCMicros, filled, decimals)),
 	)
+	if err != nil {
+		return Message{}, err
+	}
 	return k.message(ctx, e.CabalID, e.Source.ID, outcomeFilled,
-		resultTitle(assetLabel(asset), "passed", tally(cast.yes, cast.no)), body)
+		resultTitle(verb, assetLabel(asset), "passed", cast.yes, cast.no), body)
 }
 
 type ResultFillFailed struct{ ResultPorts }
@@ -180,7 +216,8 @@ func (k ResultFillBlocked) Render(ctx context.Context, e events.TradeBlocked, to
 func (p ResultPorts) fillFailed(
 	ctx context.Context, cabalID, proposal uuid.UUID, action, symbol string, blocked bool, to ids.UserID,
 ) (Message, error) {
-	if _, err := side(action); err != nil {
+	verb, err := side(action)
+	if err != nil {
 		return Message{}, err
 	}
 	label, err := labelOf(ctx, p.Assets, symbol)
@@ -192,7 +229,7 @@ func (p ResultPorts) fillFailed(
 		return Message{}, err
 	}
 	return p.message(ctx, cabalID, proposal, outcomeFillFailed,
-		resultTitle(label, "passed", tally(cast.yes, cast.no)), fillFailedBody(action, blocked, cast.voted[to]))
+		resultTitle(verb, label, "passed", cast.yes, cast.no), fillFailedBody(action, blocked, cast.voted[to]))
 }
 
 type ResultFailed struct{ ResultPorts }
@@ -242,6 +279,10 @@ func (p ResultPorts) closed(
 	if err != nil {
 		return Message{}, err
 	}
+	action, err := side(head.Kind)
+	if err != nil {
+		return Message{}, err
+	}
 	return p.message(ctx, cabalID, proposal, outcome,
-		resultTitle(label, verb, tally(cast.yes, cast.no)), body(cast.voted[to]))
+		resultTitle(action, label, verb, cast.yes, cast.no), body(cast.voted[to]))
 }

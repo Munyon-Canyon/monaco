@@ -21,15 +21,16 @@ import (
 )
 
 type Module struct {
-	deps    module.Deps
-	users   app.Users
-	cabals  app.Cabals
-	assets  app.Assets
-	ballots app.Ballots
-	heads   app.ProposalHeads
-	votes   app.VoteStates
-	ledgers rankingport.Ledgers
-	sender  apns.Sender
+	deps      module.Deps
+	users     app.Users
+	cabals    app.Cabals
+	assets    app.Assets
+	ballots   app.Ballots
+	heads     app.ProposalHeads
+	proposers app.Proposers
+	votes     app.VoteStates
+	ledgers   rankingport.Ledgers
+	sender    apns.Sender
 }
 
 type Option func(*Module)
@@ -74,11 +75,12 @@ func New(d module.Deps, opts ...Option) *Module {
 		cabals: cabal.New(d).Queries(),
 		assets: market.New(d).
 			Catalog(),
-		ballots: gov.Ballots(),
-		heads:   gov.ProposalHeads(),
-		votes:   gov.VoteStates(),
-		ledgers: ranking.New(d).Ledgers(),
-		sender:  d.APNs,
+		ballots:   gov.Ballots(),
+		heads:     gov.ProposalHeads(),
+		proposers: gov.Queries(),
+		votes:     gov.VoteStates(),
+		ledgers:   ranking.New(d).Ledgers(),
+		sender:    d.APNs,
 	}
 	for _, opt := range opts {
 		opt(m)
@@ -134,7 +136,10 @@ func (m *Module) pusher() *app.Pusher {
 func (m *Module) Consumers() []bus.Consumer {
 	pusher := m.pusher()
 	socials := social.New(m.deps)
-	results := app.ResultPorts{Cabals: m.cabals, Assets: m.assets, Ballots: m.ballots, Heads: m.heads}
+	results := app.ResultPorts{
+		Cabals: m.cabals, Assets: m.assets, Ballots: m.ballots, Heads: m.heads,
+		Proposers: m.proposers, Users: m.users,
+	}
 	return []bus.Consumer{{Durable: "notify", Handlers: []bus.HandlerSpec{
 		adapters.Push(pusher, app.Test{}),
 		adapters.Push(pusher, app.DepositCredited{}),
