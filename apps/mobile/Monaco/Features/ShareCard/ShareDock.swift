@@ -8,9 +8,9 @@ enum ShareEye: CaseIterable {
 
     var title: String {
         switch self {
-        case .pnl: "P&L $"
-        case .trades: "Buy / Sell"
-        case .code: "Code"
+        case .pnl: "Show $"
+        case .trades: "Show trades"
+        case .code: "Show code"
         }
     }
 
@@ -25,9 +25,9 @@ enum ShareEye: CaseIterable {
     func title(ledger: Bool) -> String {
         guard ledger else { return title }
         return switch self {
-        case .pnl: "Return"
-        case .trades: "Calls"
-        case .code: "Code"
+        case .pnl: "Show return"
+        case .trades: "Show calls"
+        case .code: "Show code"
         }
     }
 
@@ -164,7 +164,7 @@ struct ShareEyeChip: View {
             }
             .font(MonacoTheme.Typo.subheadStrong)
             .foregroundStyle(isOn ? MonacoTheme.primaryText : MonacoTheme.secondaryText)
-            .padding(.horizontal, MonacoTheme.Space.sm)
+            .padding(.horizontal, MonacoTheme.Space.s)
             .padding(.vertical, MonacoTheme.Space.xs)
             .frame(minHeight: MonacoButtonMetrics.compactHeight)
             .background(Capsule().fill(isOn ? MonacoTheme.surfaceSunken : Color.clear))
