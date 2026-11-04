@@ -8,6 +8,8 @@ var SocialChatMomentSkipped = Msg{
 	Name: "social.chat_moment_skipped", Required: []string{"reason"},
 }
 
+var SocialFeedResultSkipped = Msg{Name: "social.feed_result_skipped", Required: []string{"reason"}}
+
 var SocialChatAuthorUnreadable = Msg{
 	Name: "social.chat_author_unreadable", Required: []string{"message_id", "cause"},
 }

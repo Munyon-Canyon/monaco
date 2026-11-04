@@ -399,8 +399,8 @@ func TestSystemReply_ReadFailuresAbortBeforeAnyWrite(t *testing.T) {
 		t.Fatal("confirm with an unknown mint succeeded")
 	}
 	r.tallies.votes = map[ids.ProposalID]app.Tally{}
-	if err := r.fail(t); errs.CodeOf(err) != errs.CodeProposalNotFound {
-		t.Fatalf("fail without a tally = %v, want proposal_not_found", err)
+	if err := r.fail(t); err != nil {
+		t.Fatalf("fail without a tally must be acknowledged, got %v", err)
 	}
 	r.wantReplies(t)
 }

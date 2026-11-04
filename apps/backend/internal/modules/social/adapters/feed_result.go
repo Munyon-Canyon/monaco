@@ -3,6 +3,7 @@ package adapters
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
@@ -17,6 +18,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/faultpoint"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
+	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 )
 
 const ruleProposal = "rule"
@@ -35,7 +37,8 @@ func (h Feed) FetchClosed(ctx context.Context, proposalID uuid.UUID) (ClosedProp
 	}
 	tally, ok := tallies[id]
 	if !ok {
-		return ClosedProposal{}, errs.New(errs.CodeProposalNotFound, op)
+		observability.Debug(ctx, observability.SocialFeedResultSkipped, slog.String("reason", "proposal_not_found"))
+		return ClosedProposal{Skip: true}, nil
 	}
 	return ClosedProposal{Tally: tally, Skip: tally.Kind == ruleProposal}, nil
 }
