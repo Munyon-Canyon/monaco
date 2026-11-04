@@ -256,7 +256,7 @@ enum StockMarkSize: CGFloat {
 }
 
 /// A stock's tile: the company's logo when the catalogue knows one, and the ticker
-/// on a sunken fill when it does not. "USDC" (cash) shows a dollar sign.
+/// on a sunken fill when it does not (a Pre-IPO company, its name as a wordmark). "USDC" shows a dollar sign.
 ///
 /// The ticker tile is the resting state, not a placeholder: it is drawn
 /// immediately, a logo replaces it only once one has been decoded, and a logo that
@@ -266,6 +266,7 @@ enum StockMarkSize: CGFloat {
 struct StockMark: View {
     private enum Content {
         case letter(String)
+        case wordmark(String)
         case symbol(String)
     }
 
@@ -287,13 +288,24 @@ struct StockMark: View {
         let ticker = AssetSymbolFormatter.display(symbol, kind: assetKind)
         if ticker.uppercased() == "USDC" {
             content = .symbol("dollarsign")
-        } else if assetKind == .preIpo, let displayName, let first = displayName.first {
-            content = .letter(String(first).uppercased())
+        } else if assetKind == .preIpo, let word = StockMark.wordmark(displayName) {
+            content = .wordmark(word)
         } else {
             content = .letter(StockMark.tileText(forTicker: ticker))
         }
         self.size = size
         self.logoURL = logoURL
+    }
+
+    static func tileText(symbol: String, displayName: String?, assetKind: AssetKind) -> String {
+        if assetKind == .preIpo, let word = wordmark(displayName) {
+            return word
+        }
+        return tileText(forTicker: AssetSymbolFormatter.display(symbol, kind: assetKind))
+    }
+
+    private static func wordmark(_ displayName: String?) -> String? {
+        displayName?.split(whereSeparator: \.isWhitespace).first.map(String.init)
     }
 
     /// The whole ticker, up to five characters, with a trailing "." or "-" dropped when it is cut.
@@ -393,6 +405,14 @@ struct StockMark: View {
                 .foregroundStyle(MonacoTheme.primaryText)
                 .lineLimit(1)
                 .minimumScaleFactor(0.5)
+                .padding(.horizontal, size * 0.08)
+        case .wordmark(let word):
+            Text(word)
+                .font(.system(size: size * StockMark.textScale(for: word), weight: .semibold))
+                .foregroundStyle(MonacoTheme.primaryText)
+                .lineLimit(1)
+                .minimumScaleFactor(0.5)
+                .truncationMode(.tail)
                 .padding(.horizontal, size * 0.08)
         case .symbol(let name):
             Image(systemName: name)
