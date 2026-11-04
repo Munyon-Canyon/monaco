@@ -161,3 +161,27 @@ private struct MonacoGlassPressStyle: ButtonStyle {
             .animation(.easeOut(duration: 0.2), value: configuration.isPressed)
     }
 }
+
+struct MonacoGlassCapsule: ViewModifier {
+    @MonacoReduceTransparency private var reduceTransparency
+    @Environment(\.displayScale) private var displayScale
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if reduceTransparency {
+            content
+                .background(Capsule().fill(MonacoTheme.surfaceSunken))
+                .overlay(Capsule().strokeBorder(MonacoTheme.hairline, lineWidth: 1 / displayScale))
+        } else if #available(iOS 26, *) {
+            content.glassEffect(.regular, in: .capsule)
+        } else {
+            content
+                .background(Capsule().fill(.regularMaterial))
+                .overlay(Capsule().strokeBorder(MonacoTheme.hairline, lineWidth: 1 / displayScale))
+        }
+    }
+}
+
+extension View {
+    func monacoGlassCapsule() -> some View { modifier(MonacoGlassCapsule()) }
+}

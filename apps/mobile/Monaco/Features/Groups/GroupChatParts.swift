@@ -107,6 +107,7 @@ struct ChatList<Header: View, Content: View>: View {
     let loadOlder: () -> Void
     let refresh: () async -> Void
     var pinsToBottom = false
+    var scrollRequest: ChatScrollRequest?
     @ViewBuilder let header: Header
     @ViewBuilder let content: Content
 
@@ -170,6 +171,10 @@ struct ChatList<Header: View, Content: View>: View {
             }
             .onChange(of: scrollToBottomRequests) { _, _ in
                 withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo(Self.bottomAnchor, anchor: .bottom) }
+            }
+            .onChange(of: scrollRequest) { _, request in
+                guard let request else { return }
+                withAnimation(.easeOut(duration: 0.25)) { proxy.scrollTo(request.messageID, anchor: .center) }
             }
             .onChange(of: rowToKeepInView) { _, rowID in
                 guard let rowID else { return }

@@ -34,6 +34,7 @@ struct GroupChatRowView: View {
     var momentPrice: Int64?
     var followsEventLine = false
     var openMoment: ((ChatMoment) -> Void)?
+    var pinToggle: ChatPinToggle?
 
     @Environment(ToastCenter.self) private var toasts
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -475,6 +476,15 @@ extension GroupChatRowView {
                 }
             },
         ]
+        if let pinToggle {
+            items.append(
+                ChatMessageAction(
+                    id: pinToggle.isPinned ? "unpin" : "pin", title: pinToggle.isPinned ? "Unpin" : "Pin",
+                    icon: pinToggle.isPinned ? .unpin : .pin
+                ) {
+                    afterDismiss = pinToggle.perform
+                })
+        }
         if !row.isMine {
             items.append(
                 ChatMessageAction(id: "report", title: "Report", icon: .report) {

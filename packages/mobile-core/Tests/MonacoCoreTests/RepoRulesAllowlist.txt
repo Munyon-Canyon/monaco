@@ -20,6 +20,7 @@ float-money	packages/mobile-core/Sources/MonacoCore/Funding/AmountText.swift	3
 float-money	packages/mobile-core/Sources/MonacoCore/GroupViewDTO.swift	4
 float-money	packages/mobile-core/Sources/MonacoCore/ProposalFeedFormatters.swift	2
 float-money	packages/mobile-core/Sources/MonacoCore/SparklineSeries.swift	12
+gradient	apps/mobile/Monaco/Features/Groups/ChatPinCapsule.swift	1
 gutter	apps/mobile/Monaco/Features/Auth/SessionGateView.swift	1
 gutter	apps/mobile/Monaco/Features/Comments/CommentComposer.swift	1
 gutter	apps/mobile/Monaco/Features/Groups/CabalsJoinSlot.swift	1

@@ -7,6 +7,11 @@ public struct ChatPinsToast: Equatable, Sendable {
     public let message: String
 }
 
+public struct ChatPinLine: Equatable, Sendable {
+    public let name: String
+    public let text: String
+}
+
 @Observable
 @MainActor
 public final class ChatPinsModel {
@@ -33,7 +38,7 @@ public final class ChatPinsModel {
         self.makeKey = makeKey
     }
 
-    public func load() async {
+    public func load(hiding authors: Set<String> = []) async {
         generation += 1
         let issued = generation
         do {
@@ -42,7 +47,8 @@ public final class ChatPinsModel {
                 try await client.getChatPins(path: .init(id: cabalID)).ok.body.json
             }
             guard issued == generation else { return }
-            settle(Array(page.messages.prefix(Self.maxPins)))
+            let shown = page.messages.filter { !$0.deleted && !authors.contains($0.author.id) }
+            settle(Array(shown.prefix(Self.maxPins)))
         } catch {
             return
         }
@@ -92,6 +98,12 @@ public final class ChatPinsModel {
         }
     }
 
+    public func drop(messageID: String) {
+        guard pins.contains(where: { $0.id == messageID }) else { return }
+        generation += 1
+        settle(pins.filter { $0.id != messageID })
+    }
+
     public func next() {
         guard pins.count > 1 else { return }
         current = (current + 1) % pins.count
@@ -113,6 +125,13 @@ public final class ChatPinsModel {
         let name = message.author.displayName.split(separator: " ").first.map(String.init) ?? "Someone"
         let text = (message.body ?? "").split(whereSeparator: \.isWhitespace).joined(separator: " ")
         return text.isEmpty ? name : "\(name) \(text)"
+    }
+
+    public func capsule(for message: ChatMessage, cabalName: String = "this cabal") -> ChatPinLine {
+        if message.kind == .system { return ChatPinLine(name: "", text: line(for: message, cabalName: cabalName)) }
+        let name = message.author.displayName.split(separator: " ").first.map(String.init) ?? ""
+        let body = message.body ?? ""
+        return ChatPinLine(name: name, text: body.split(whereSeparator: \.isWhitespace).joined(separator: " "))
     }
 
     private func settle(_ next: [ChatMessage]) {

@@ -22,6 +22,8 @@ struct GroupChatThreadView: View {
     var reactions: ReactionsModel?
     var cabalID = ""
     var quiet: ChatQuietContent?
+    var scrollRequest: ChatScrollRequest?
+    var pinToggle: (ChatMessage) -> ChatPinToggle? = { _ in nil }
 
     @Environment(ToastCenter.self) private var toasts
     @Environment(AppEnvironment.self) private var environment: AppEnvironment?
@@ -34,7 +36,7 @@ struct GroupChatThreadView: View {
             rows: rows, hasOlder: hasOlder, isLoadingOlder: isLoadingOlder,
             loadEarlierID: "chat-load-earlier", listID: "chat-thread",
             loadOlder: loadOlder, refresh: refresh,
-            pinsToBottom: quiet?.showsActions == true
+            pinsToBottom: quiet?.showsActions == true, scrollRequest: scrollRequest
         ) {
             ChatQuietGroup(visible: quiet?.showsScene == true) {
                 if let quiet { ChatQuietHeader(content: quiet) }
@@ -51,7 +53,7 @@ struct GroupChatThreadView: View {
                     momentPrice: row.moment?.symbol.flatMap { prices?.price(for: $0) },
                     followsEventLine: Self.followsEventLine(
                         previous: index > 0 ? rows[index - 1].moment : nil, current: row.moment),
-                    openMoment: { openMoment($0) }
+                    openMoment: { openMoment($0) }, pinToggle: pinToggle(row.message)
                 )
                 .id(row.id)
             }

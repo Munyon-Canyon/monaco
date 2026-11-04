@@ -299,6 +299,7 @@ enum MonacoTheme {
         static let subheadStrong = Font.subheadline.weight(.semibold)
         /// 13 medium: timestamps, "Closes in 2d", attribution.
         static let caption = Font.footnote.weight(.medium)
+        static let footnoteStrong = Font.footnote.weight(.semibold)
         /// 15 semibold: the "You" tag, a count capsule, an outcome chip.
         static let captionStrong = Font.subheadline.weight(.semibold)
         /// 15 semibold, tabular: rank numerals in rows and on the podium.

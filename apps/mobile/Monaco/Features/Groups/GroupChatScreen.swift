@@ -26,6 +26,8 @@ struct GroupChatScreen: View {
     @State private var messageToDelete: String?
     @State private var thesis: ChatThesisSource?
     @State private var showsPoll = false
+    @State private var showsPins = false
+    @State private var scrollRequest: ChatScrollRequest?
     @State private var quietFacts = ChatQuietFacts()
     @State private var now = Date()
     @Environment(AppEnvironment.self) private var appEnvironment: AppEnvironment?
@@ -68,6 +70,10 @@ struct GroupChatScreen: View {
         }
         .onChange(of: scenePhase) { _, phase in handle(phase) }
         .onChange(of: chat?.notice) { _, notice in show(notice) }
+        .onChange(of: chat?.pins.toast) { _, toast in
+            if let toast { toasts.current = MonacoToast(message: toast.message) }
+        }
+        .sheet(isPresented: $showsPins) { pinList }
         .onDisappear {
             Task {
                 await reporter?.setScreenVisible(false)
@@ -103,6 +109,50 @@ struct GroupChatScreen: View {
     }
 
     private func thread(_ chat: ChatSession.State) -> some View {
+        let showsPin = !chat.pins.pins.isEmpty && network?.isOnline != false
+        return threadList(chat)
+            .modifier(ChatPinFade(active: showsPin))
+            .overlay(alignment: .top) {
+                if showsPin {
+                    ChatPinCapsule(
+                        pins: chat.pins, cabalName: cabal?.name ?? "", scrollTo: { scroll(to: $0) },
+                        showList: { showsPins = true })
+                }
+            }
+    }
+
+    private func scroll(to messageID: String) {
+        scrollRequest = ChatScrollRequest(messageID: messageID, serial: (scrollRequest?.serial ?? 0) + 1)
+    }
+
+    @ViewBuilder private var pinList: some View {
+        if let pins = chat?.pins {
+            ChatPinListSheet(
+                pins: pins, cabalName: cabal?.name ?? "", canPin: { pinToggle(for: $0) != nil },
+                select: { scroll(to: $0) }, unpin: { message in Task { await unpinWithUndo(message, pins: pins) } })
+        }
+    }
+
+    private func pinToggle(for message: ChatMessage) -> ChatPinToggle? {
+        guard let chat, chat.pins.canPin(message, role: cabal?.me?.role, viewerID: chat.timeline.viewerID) else {
+            return nil
+        }
+        let pins = chat.pins
+        let isPinned = pins.pins.contains { $0.id == message.id }
+        return ChatPinToggle(isPinned: isPinned) {
+            Task { if isPinned { await unpinWithUndo(message, pins: pins) } else { await pins.pin(message) } }
+        }
+    }
+
+    private func unpinWithUndo(_ message: ChatMessage, pins: ChatPinsModel) async {
+        await pins.unpin(message)
+        guard !pins.pins.contains(where: { $0.id == message.id }) else { return }
+        toasts.show(
+            success: "Unpinned",
+            action: MonacoToastAction(title: "Undo") { Task { await pins.pin(message) } })
+    }
+
+    private func threadList(_ chat: ChatSession.State) -> some View {
         GroupChatThreadView(
             rows: chat.timeline.rows,
             members: cabal?.members ?? [],
@@ -121,7 +171,7 @@ struct GroupChatScreen: View {
             loadOlder: { Task { await session?.loadOlder() } },
             refresh: { await session?.reload() },
             reactions: reactionsOverride ?? ownReactions, cabalID: cabalID,
-            quiet: quietContent
+            quiet: quietContent, scrollRequest: scrollRequest, pinToggle: { pinToggle(for: $0) }
         )
     }
 

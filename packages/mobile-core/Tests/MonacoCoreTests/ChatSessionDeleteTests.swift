@@ -129,4 +129,39 @@ final class ChatSessionDeleteTests: XCTestCase {
         for await state in await thread.states() { return state }
         preconditionFailure("states ended")
     }
+
+    @MainActor
+    func testADeletePullsAPinnedMessageOutOfThePinsAtOnce() async throws {
+        let mine = Fixtures.message("m1", author: Fixtures.viewerID, minutes: 1)
+        let base = "/v1/cabals/\(Fixtures.cabalID)"
+        let transport = StubTransport(routes: [
+            "\(base)/messages?moments=true&limit=50": [try Fixtures.page([mine])],
+            "\(base)/messages/m1/pin": [.json(.ok, try Fixtures.json(mine)), Fixtures.noContent],
+            "\(base)/messages/m1": [Fixtures.noContent],
+        ])
+        let session = Fixtures.session(transport, answersPins: false)
+        await session.open()
+        let pins = await Fixtures.state(session).pins
+        await pins.pin(mine)
+        XCTAssertEqual(pins.pins.map(\.id), ["m1"])
+
+        let failure = await session.delete(messageId: "m1")
+
+        XCTAssertNil(failure)
+        XCTAssertEqual(pins.pins, [])
+    }
+
+    @MainActor
+    func testARealtimeDeleteDropsThePin() async throws {
+        let mine = Fixtures.message("m1", author: Fixtures.viewerID, minutes: 1)
+        let transport = StubTransport(scripted: [try Fixtures.page([mine]), .json(.ok, try Fixtures.json(mine))])
+        let session = Fixtures.session(transport, answersPins: false)
+        await session.open()
+        let pins = await Fixtures.state(session).pins
+        await pins.pin(mine)
+
+        await session.apply(.messageDeleted(id: "m1"))
+
+        XCTAssertEqual(pins.pins, [])
+    }
 }
