@@ -149,6 +149,7 @@ struct GifImageView: View {
             .font(MonacoTheme.Typo.subhead)
             .foregroundStyle(MonacoTheme.secondaryText)
             .multilineTextAlignment(.center)
+            .minimumScaleFactor(0.5)
             .padding(MonacoTheme.Space.s)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .contentShape(Rectangle())
