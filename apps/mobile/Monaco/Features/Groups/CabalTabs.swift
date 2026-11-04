@@ -22,7 +22,8 @@ enum CabalPageMetrics {
 }
 
 enum CabalTabsPin {
-    static func isPinned(tabsTop: CGFloat?, barBottom: CGFloat) -> Bool {
+    static func isPinned(tab: CabalTab, tabsTop: CGFloat?, barBottom: CGFloat) -> Bool {
+        if tab == .chat { return true }
         guard let tabsTop else { return false }
         return tabsTop <= barBottom
     }
@@ -50,11 +51,12 @@ struct CabalTabBar: View {
     @Bindable var selection: CabalTabSelection
     let memberCount: Int32?
     var chatHasUnread = false
+    var isReadOnly = false
     var identifierPrefix = "cabal-tab"
 
     var body: some View {
         MonacoUnderlineTabs(
-            CabalTab.shown, selection: $selection.tab,
+            CabalTab.shown(isReadOnly: isReadOnly), selection: $selection.tab,
             count: { $0.count(memberCount: memberCount) },
             dot: { $0 == .chat && chatHasUnread },
             identifier: { "\(identifierPrefix)-\($0.rawValue)" },
@@ -75,23 +77,30 @@ private struct CabalTabsLive: View {
         let selection = shared ?? local
         let cabal = cabalModel?.cabal
         let isActiveMember = cabal.map { $0.me != nil && !CabalClosedModel.isReadOnly($0.status) } ?? false
+        let isReadOnly = cabal.map { CabalClosedModel.isReadOnly($0.status) } ?? false
         let chatHasUnread =
             CabalTab.hostsChat && selection.tab != .chat && isActiveMember && (unread?.hasUnread ?? false)
         VStack(alignment: .leading, spacing: CabalPageMetrics.tabsGap) {
-            CabalTabBar(selection: selection, memberCount: cabal?.memberCount, chatHasUnread: chatHasUnread)
-                .background {
-                    GeometryReader { proxy in
-                        Color.clear.preference(key: CabalTabsTop.self, value: proxy.frame(in: .global).minY)
-                    }
+            CabalTabBar(
+                selection: selection, memberCount: cabal?.memberCount, chatHasUnread: chatHasUnread,
+                isReadOnly: isReadOnly
+            )
+            .background {
+                GeometryReader { proxy in
+                    Color.clear.preference(key: CabalTabsTop.self, value: proxy.frame(in: .global).minY)
                 }
-                .accessibilityElement(children: .contain)
-                .accessibilityIdentifier("cabal-tabs")
+            }
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("cabal-tabs")
             SectionStackLayout(spacing: CabalPageMetrics.spacing) {
                 ForEach(Array(CabalTabs.sections(for: selection.tab).enumerated()), id: \.offset) { _, section in
                     AnyView(section.body(for: context))
                 }
             }
             .id(selection.tab)
+        }
+        .onChange(of: isReadOnly, initial: true) { _, readOnly in
+            if readOnly && selection.tab == .chat { selection.tab = .default }
         }
         .onChange(of: selection.tab) { _, tab in
             if tab == .chat { unread?.markRead() }

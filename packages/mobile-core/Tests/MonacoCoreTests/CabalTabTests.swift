@@ -16,9 +16,11 @@ final class CabalTabTests: XCTestCase {
         XCTAssertEqual(CabalTab.allCases.map(\.title), ["Chat", "Treasury", "Rules", "Members", "Voters"])
     }
 
-    func testChatIsHiddenUntilTheThreadIsHosted() async {
-        XCTAssertFalse(CabalTab.hostsChat)
-        XCTAssertEqual(CabalTab.shown, [.treasury, .rules, .members, .voters])
+    func testChatLeadsTheTabsUnlessTheCabalIsReadOnly() async {
+        XCTAssertTrue(CabalTab.hostsChat)
+        XCTAssertEqual(CabalTab.shown, [.chat, .treasury, .rules, .members, .voters])
+        XCTAssertEqual(CabalTab.shown(isReadOnly: false), CabalTab.shown)
+        XCTAssertEqual(CabalTab.shown(isReadOnly: true), [.treasury, .rules, .members, .voters])
         XCTAssertEqual(CabalTab(rawValue: "chat"), .chat)
     }
 

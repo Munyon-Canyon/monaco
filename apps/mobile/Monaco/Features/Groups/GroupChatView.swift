@@ -5,6 +5,7 @@ import SwiftUI
 
 struct GroupChatView: View {
     let cabalID: String
+    var embedded = false
 
     @Environment(AppEnvironment.self) private var environment
     @State private var session: ChatSession?
@@ -16,6 +17,7 @@ struct GroupChatView: View {
     var body: some View {
         GroupChatScreen(
             cabalID: cabalID,
+            embedded: embedded,
             session: session,
             cabal: cabal?.cabal,
             reporter: reporter,

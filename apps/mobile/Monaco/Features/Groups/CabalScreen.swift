@@ -56,6 +56,8 @@ struct CabalScreen: View {
         let (cabal, pot) = models.prepared(cabalID: context.cabalID, environment: environment)
         let empty = models.preparedEmpty(cabalID: context.cabalID, environment: environment)
         let chart = models.preparedChart(cabalID: context.cabalID, environment: environment)
+        let unread = models.preparedUnread(cabalID: context.cabalID, environment: environment)
+        let showsChat = Self.showsChat(tab: selection.tab, cabal: cabal.cabal)
         Group {
             if SectionStack<CabalContext>.live(sections).isEmpty {
                 NotMigratedView(screen: "Cabal")
@@ -69,6 +71,13 @@ struct CabalScreen: View {
                 .environment(\.cabalPotModel, pot)
                 .environment(refresh)
                 .task(id: retryTick) { await preparedPublicChart().refresh() }
+            } else if showsChat {
+                GroupChatView(cabalID: context.cabalID, embedded: true)
+                    .id(context.cabalID)
+                    .safeAreaInset(edge: .top, spacing: 0) {
+                        pinnedTabs(
+                            memberCount: cabal.cabal?.memberCount, chatHasUnread: false, isReadOnly: false)
+                    }
             } else {
                 SectionStack(context: context, sections: sections, spacing: CabalPageMetrics.spacing)
                     .environment(\.cabalModel, cabal)
@@ -76,6 +85,7 @@ struct CabalScreen: View {
                     .environment(\.cabalEmptyModel, empty)
                     .environment(\.cabalValueChart, chart)
                     .environment(\.cabalTabSelection, selection)
+                    .environment(\.cabalChatUnread, unread)
                     .environment(refresh)
                     .refreshable {
                         retryTick += 1
@@ -86,8 +96,11 @@ struct CabalScreen: View {
         .onPreferenceChange(CabalHeaderNameBottom.self) { nameBottom = $0 }
         .onPreferenceChange(CabalTabsTop.self) { tabsTop = $0 }
         .overlay(alignment: .top) {
-            if cabal.cabal?.me != nil {
-                pinnedHeader(memberCount: cabal.cabal?.memberCount)
+            if cabal.cabal?.me != nil && !showsChat {
+                pinnedHeader(
+                    memberCount: cabal.cabal?.memberCount,
+                    chatHasUnread: selection.tab != .chat && unread.hasUnread,
+                    isReadOnly: cabal.cabal.map { CabalClosedModel.isReadOnly($0.status) } ?? false)
             }
         }
         .cabalMoreActions(
@@ -126,20 +139,29 @@ struct CabalScreen: View {
             async let observedCabal: Void = cabal.observe()
             async let observedPot: Void = pot.observe()
             async let observedEmpty: Void = empty.observe()
-            _ = await (observedCabal, observedPot, observedEmpty, sharedMonthRead)
+            async let observedUnread: Void = {
+                guard isMember else { return }
+                await unread.load()
+                await unread.observe()
+            }()
+            _ = await (observedCabal, observedPot, observedEmpty, sharedMonthRead, observedUnread)
+        }
+        .onChange(of: selection.tab, initial: true) { _, tab in
+            if tab == .chat { unread.markRead() }
         }
         .onScreenVisibilityChange { visible in
             cabal.setVisible(visible)
             pot.setVisible(visible)
             empty.setVisible(visible)
             chart.setVisible(visible)
+            unread.setVisible(visible)
         }
         .toolbar {
             if let loaded = cabal.cabal {
                 ToolbarItem(placement: .principal) {
                     CabalFoldedTitle(
                         groupId: loaded.id, name: loaded.name, pictureUrl: loaded.pictureUrl,
-                        memberCount: loaded.memberCount, alwaysShown: false,
+                        memberCount: loaded.memberCount, alwaysShown: showsChat,
                         scrolledShown: CabalHeaderTitle.isShown(nameBottom: nameBottom, barBottom: barBottom),
                         maxWidth: CabalFoldedTitle.maxWidth(barWidth: barWidth))
                 }
@@ -170,16 +192,25 @@ struct CabalScreen: View {
         }
     }
 
-    private func pinnedHeader(memberCount: Int32?) -> some View {
-        let tabsShown = CabalTabsPin.isPinned(tabsTop: tabsTop, barBottom: barBottom)
+    static func showsChat(tab: CabalTab, cabal: Components.Schemas.Cabal?) -> Bool {
+        guard tab == .chat, let cabal else { return false }
+        return cabal.me != nil && !CabalClosedModel.isReadOnly(cabal.status)
+    }
+
+    private func pinnedTabs(memberCount: Int32?, chatHasUnread: Bool, isReadOnly: Bool) -> some View {
+        CabalTabBar(
+            selection: selection, memberCount: memberCount, chatHasUnread: chatHasUnread,
+            isReadOnly: isReadOnly, identifierPrefix: "cabal-tab-pinned"
+        )
+        .monacoUnderlineTabsPinned()
+        .accessibilityIdentifier("cabal-tabs-pinned")
+    }
+
+    private func pinnedHeader(memberCount: Int32?, chatHasUnread: Bool, isReadOnly: Bool) -> some View {
+        let tabsShown = CabalTabsPin.isPinned(tab: selection.tab, tabsTop: tabsTop, barBottom: barBottom)
         return VStack(spacing: 0) {
             if tabsShown {
-                CabalTabBar(
-                    selection: selection, memberCount: memberCount,
-                    identifierPrefix: "cabal-tab-pinned"
-                )
-                .monacoUnderlineTabsPinned()
-                .accessibilityIdentifier("cabal-tabs-pinned")
+                pinnedTabs(memberCount: memberCount, chatHasUnread: chatHasUnread, isReadOnly: isReadOnly)
             }
         }
     }
@@ -228,6 +259,14 @@ final class CabalScreenModels {
     private var edit: CabalEditModel?
     private var empty: CabalEmptyModel?
     private var chart: ValueChartModel?
+    private var unread: CabalChatUnreadModel?
+
+    func preparedUnread(cabalID: String, environment: AppEnvironment) -> CabalChatUnreadModel {
+        let created =
+            unread ?? CabalChatUnreadModel(cabalID: cabalID, api: environment.api, hints: environment.hints)
+        unread = created
+        return created
+    }
 
     func preparedChart(cabalID: String, environment: AppEnvironment) -> ValueChartModel {
         let created =

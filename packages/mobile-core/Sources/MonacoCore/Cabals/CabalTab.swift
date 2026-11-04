@@ -9,10 +9,12 @@ public enum CabalTab: String, CaseIterable, Hashable, Sendable {
     case voters
 
     public static let `default`: CabalTab = .treasury
-    public static let hostsChat = false
+    public static let hostsChat = true
 
-    public static var shown: [CabalTab] {
-        hostsChat ? allCases : allCases.filter { $0 != .chat }
+    public static var shown: [CabalTab] { shown(isReadOnly: false) }
+
+    public static func shown(isReadOnly: Bool) -> [CabalTab] {
+        hostsChat && !isReadOnly ? allCases : allCases.filter { $0 != .chat }
     }
 
     public var title: String {
