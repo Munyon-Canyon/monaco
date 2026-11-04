@@ -23,7 +23,7 @@ struct CabalSliceBand: View {
         switch model?.state ?? .loading {
         case .idle, .loading:
             fact {
-                Text("$0").moneyFont(.row).skeletonBar(width: 72)
+                Text("$0").moneyFigure(.row).skeletonBar(width: 72)
             }
             .accessibilityIdentifier("cabal-slice-loading")
         case .loaded(let summary):
