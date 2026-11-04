@@ -19,7 +19,8 @@ enum ChatSampleQA {
             closedOnSend: arguments.contains("-MonacoChatSampleClosedOnSend"),
             neverPosts: arguments.contains("-MonacoChatSampleSending"),
             proposalCard: arguments.contains("-MonacoChatSampleProposal"),
-            moments: arguments.contains("-MonacoChatSampleMoments")
+            moments: arguments.contains("-MonacoChatSampleMoments"),
+            poll: arguments.contains("-MonacoChatSamplePoll")
         )
         let acts = arguments.contains(SampleHarnessRegistry.actArgument)
         let offline = arguments.contains("-MonacoChatSampleOffline")

@@ -45,6 +45,7 @@ nonisolated final class ChatComposerMenuSampleUITests: XCTestCase {
         element(app, "chat-composer-plus").tap()
         XCTAssertTrue(app.buttons["chat-menu-gif"].waitForExistence(timeout: 10), "the menu should list GIF")
         XCTAssertTrue(app.buttons["chat-menu-stock"].exists, "the menu should list Stock")
+        XCTAssertTrue(app.buttons["chat-menu-poll"].exists, "the menu should list Poll")
         XCTAssertFalse(app.buttons["chat-menu-thesis"].exists, "the sample has no thesis to share")
         attachScreenshot(app, name: "02-plus-menu")
 

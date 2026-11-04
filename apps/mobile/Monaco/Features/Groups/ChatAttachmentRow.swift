@@ -40,6 +40,7 @@ struct ChatAttachmentRow: View {
         case .gif: .gif
         case .stock: .stock
         case .thesisQuote: .thesis
+        case .poll: .poll
         }
     }
 

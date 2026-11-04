@@ -18,6 +18,7 @@ public struct ChatSampleScenario: Sendable, Equatable {
     public var neverPosts = false
     public var proposalCard = false
     public var moments = false
+    public var poll = false
 
     public init(
         startEmpty: Bool = false,
@@ -30,7 +31,8 @@ public struct ChatSampleScenario: Sendable, Equatable {
         threaded: Bool = false,
         neverPosts: Bool = false,
         proposalCard: Bool = false,
-        moments: Bool = false
+        moments: Bool = false,
+        poll: Bool = false
     ) {
         self.startEmpty = startEmpty
         self.failSends = failSends
@@ -43,6 +45,7 @@ public struct ChatSampleScenario: Sendable, Equatable {
         self.neverPosts = neverPosts
         self.proposalCard = proposalCard
         self.moments = moments
+        self.poll = poll
     }
 }
 
@@ -74,6 +77,8 @@ private struct SampleChatTokens: MonacoAPI.AccessTokenProvider {
 
 private struct SampleChatRefusal: Error {}
 
+private struct SampleChatMissing: Error {}
+
 private actor SampleChatStore {
     let scenario: ChatSampleScenario
     private var messages: [ChatMessage]
@@ -90,7 +95,10 @@ private actor SampleChatStore {
         } else {
             messages =
                 scenario.startEmpty
-                ? [] : Self.thread(busy: scenario.busy, proposalCard: scenario.proposalCard, moments: scenario.moments)
+                ? []
+                : Self.thread(
+                    busy: scenario.busy, proposalCard: scenario.proposalCard, moments: scenario.moments,
+                    poll: scenario.poll)
         }
     }
 
@@ -137,6 +145,35 @@ private actor SampleChatStore {
         return message
     }
 
+    func post(poll input: Components.Schemas.PollAttachmentInput) async throws -> ChatMessage {
+        try await Task.sleep(for: .milliseconds(300))
+        let id = "sent-\(messages.count + 1)"
+        var message = Self.message(id, ChatSession.sampleViewerID, "You", input.question, minutesAgo: 0)
+        message.attachment = .poll(
+            Components.Schemas.PollAttachment(
+                kind: .poll, question: input.question,
+                closesAt: Date(timeIntervalSinceNow: TimeInterval((input.closesInHours ?? 24) * 3_600)),
+                closed: false,
+                options: input.options.enumerated().map { .init(position: $0.offset, label: $0.element, count: 0) },
+                total: 0))
+        messages.append(message)
+        return message
+    }
+
+    func vote(messageID: String, position: Int?) throws -> Components.Schemas.PollState {
+        guard let index = messages.firstIndex(where: { $0.id == messageID }),
+            case .poll(let poll) = messages[index].attachment
+        else { throw SampleChatMissing() }
+        let next = CommentPollModel.applying(position: position, to: poll)
+        messages[index].attachment = .poll(next)
+        let counts = next.options.map { ChatPollCount(position: $0.position, votes: $0.count) }
+        let update = ChatRealtimeEvent.pollUpdated(messageId: messageID, options: counts, total: next.total)
+        for listener in listeners.values { listener.yield(update) }
+        return Components.Schemas.PollState(
+            closesAt: next.closesAt, closed: next.closed, options: next.options, total: next.total,
+            myPosition: next.myPosition)
+    }
+
     func listen(_ continuation: AsyncStream<ChatRealtimeEvent>.Continuation) -> UUID {
         let id = UUID()
         listeners[id] = continuation
@@ -155,7 +192,7 @@ private actor SampleChatStore {
         return message
     }
 
-    private static func thread(busy: Bool, proposalCard: Bool, moments: Bool) -> [ChatMessage] {
+    private static func thread(busy: Bool, proposalCard: Bool, moments: Bool, poll: Bool) -> [ChatMessage] {
         let me = ChatSession.sampleViewerID
         var thread = [
             message("s1", "u-ana", "Ana", "Apple reports Thursday. Anyone want in before?", minutesAgo: 1_210),
@@ -187,6 +224,19 @@ private actor SampleChatStore {
             thread.insert(gif, at: 6)
         }
         if moments { thread = Self.moments() + thread }
+        if poll {
+            var question = message("s6q", "u-ana", "Ana", "Buy Apple before earnings?", minutesAgo: 11)
+            question.attachment = .poll(
+                Components.Schemas.PollAttachment(
+                    kind: .poll, question: "Buy Apple before earnings?",
+                    closesAt: Date(timeIntervalSinceNow: 86_400), closed: false,
+                    options: [
+                        .init(position: 0, label: "Yes", count: 3),
+                        .init(position: 1, label: "Wait for earnings", count: 2),
+                    ],
+                    total: 5))
+            thread.insert(question, at: 6)
+        }
         if busy {
             thread += (1...60).map { index in
                 let body = "Backlog line \(index) about the Apple buy."
@@ -288,9 +338,19 @@ private struct SampleChatTransport: ClientTransport {
                 let decoder = JSONDecoder()
                 decoder.keyDecodingStrategy = .convertFromSnakeCase
                 let draft = try decoder.decode(Draft.self, from: data)
+                if let poll = draft.poll {
+                    return try Self.reply(.created, try await store.post(poll: poll))
+                }
                 let stored = try await store.post(
-                    body: draft.body, parentID: draft.parentId, alsoInChannel: draft.alsoInChannel ?? false)
+                    body: draft.body ?? "", parentID: draft.parentId, alsoInChannel: draft.alsoInChannel ?? false)
                 return try Self.reply(.created, stored)
+            case "voteChatPoll":
+                let data = try await Data(collecting: body ?? "", upTo: 1_024)
+                let vote = try JSONDecoder().decode(Vote.self, from: data)
+                return try Self.reply(
+                    .ok, try await store.vote(messageID: Self.messageID(request), position: vote.position))
+            case "unvoteChatPoll":
+                return try Self.reply(.ok, try await store.vote(messageID: Self.messageID(request), position: nil))
             case "getChatThread":
                 guard let thread = await store.thread() else { return Self.notFound() }
                 return try Self.reply(.ok, Thread(parent: thread.parent, replies: thread.replies))
@@ -306,13 +366,39 @@ private struct SampleChatTransport: ClientTransport {
             return try Self.reply(.ok, Page(messages: page))
         } catch is SampleChatRefusal {
             return Self.refusal()
+        } catch is SampleChatMissing {
+            return Self.notFound()
         }
     }
 
+    private static func messageID(_ request: HTTPRequest) -> String {
+        let parts = (request.path ?? "").split(separator: "?").first.map { $0.split(separator: "/") } ?? []
+        return parts.firstIndex(of: "messages").map { String(parts[$0 + 1]) } ?? ""
+    }
+
     private struct Draft: Decodable {
-        let body: String
+        let body: String?
         let parentId: String?
         let alsoInChannel: Bool?
+        let attachment: Attached?
+
+        var poll: Components.Schemas.PollAttachmentInput? {
+            guard let attachment, attachment.kind == "poll", let question = attachment.question,
+                let options = attachment.options
+            else { return nil }
+            return .init(kind: .poll, question: question, options: options, closesInHours: attachment.closesInHours)
+        }
+    }
+
+    private struct Attached: Decodable {
+        let kind: String
+        let question: String?
+        let options: [String]?
+        let closesInHours: Int?
+    }
+
+    private struct Vote: Decodable {
+        let position: Int
     }
 
     private struct Thread: Encodable {

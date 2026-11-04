@@ -25,6 +25,7 @@ struct GroupChatScreen: View {
     @Environment(ToastCenter.self) private var toasts
     @State private var messageToDelete: String?
     @State private var thesis: ChatThesisSource?
+    @State private var showsPoll = false
     @Environment(AppEnvironment.self) private var appEnvironment: AppEnvironment?
     @Environment(\.stockSearch) private var stockSearch
     @FocusState private var composerFocused: Bool
@@ -50,6 +51,8 @@ struct GroupChatScreen: View {
         }
         .modifier(ChatStandaloneChrome(embedded: embedded, title: titleView, showsDetails: $showsDetails))
         .sheet(isPresented: $showsDetails) { ChatCabalDetailsSheet(cabalID: cabalID) }
+        .modifier(ChatPollSheet(isPresented: $showsPoll) { draft in sendPoll(draft) })
+        .environment(\.pollVoting, session?.pollVoting)
         .task { network?.start() }
         .task(id: sessionID) { await observe() }
         .task(id: sessionID) { await session?.open() }
@@ -147,7 +150,17 @@ struct GroupChatScreen: View {
             thesis: thesis
         ) { body, attachment in
             Task { await session?.send(body: body, attachment: attachment) }
+        } presentPoll: {
+            presentPoll()
         }
+    }
+
+    func presentPoll() {
+        showsPoll = true
+    }
+
+    private func sendPoll(_ draft: ChatAttachmentDraft) {
+        Task { await session?.send(body: nil, attachment: draft) }
     }
 
     private func loadThesis() async {
