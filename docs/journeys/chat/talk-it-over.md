@@ -73,7 +73,7 @@ B has not opened the chat since S3, so the two messages A sends here are all B h
 
 ## Known failures on staging
 
-None known.
+- S1.1: the test's search helper looks for `cabals-filter-field` and `cabals-list`, which the app no longer sets (it sets `cabals-search-field`, `cabals-list-empty`). The helper does not fail the step, so S1.1 still passes. Blocked by #7977.
 
 ## Not covered
 

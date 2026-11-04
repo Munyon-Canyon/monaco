@@ -1,0 +1,17 @@
+# Ids the app builds at run time from a parameter, so no literal in apps/mobile/Monaco spells them out.
+# scripts/qa/journey.py check turns each row into a pattern: <name> stands for any id text, and a journey target
+# that matches a pattern counts as set. A row fails check when its file has no accessibilityIdentifier( call with a
+# computed argument, or when the fixed text of the pattern is not in that file, so a row cannot outlive its code.
+# Columns: pattern, the file that composes it, why.
+pattern	file	why
+<prefix>-vote-<side>	apps/mobile/Monaco/Design/VoteTally.swift	VoteIdentifier.make(prefix, "vote-yes"/"vote-no", suffix): the Yes and No buttons of every vote tally
+<prefix>-vote-status	apps/mobile/Monaco/Design/VoteTally.swift	the tally status line, prefixed per screen
+<prefix>-vote-card	apps/mobile/Monaco/Design/VoteCard.swift	the vote card, prefixed per screen (HomeVoteCard passes home)
+<prefix>-vote-open	apps/mobile/Monaco/Design/VoteCard.swift	the vote card row that opens the proposal
+<prefix>-range-<range>	apps/mobile/Monaco/Design/MonacoRangeChips.swift	one chip per chart range, prefixed per screen
+<identifier>-switch	apps/mobile/Monaco/Features/Settings/SettingsToggleRow.swift	the switch of a settings toggle row
+<identifier>-confirm	apps/mobile/Monaco/Features/Settings/SettingsView.swift	the confirm button of a sign-out dialog
+<identifier>-cancel	apps/mobile/Monaco/Features/Settings/SettingsView.swift	the cancel button of a sign-out dialog
+<identifier>-title	apps/mobile/Monaco/Features/Settings/SettingsView.swift	the title of a sign-out dialog
+markets-chip-<title>	apps/mobile/Monaco/Design/MonacoChipBar.swift	one chip per browse mode; MarketsChips passes the markets-chip prefix
+<identifier>-close	apps/mobile/Monaco/Design/MonacoAppearance.swift	the close button of a MonacoInfoSheet, which passes closeIdentifier "\(identifier)-close" down to the glass sheet chrome

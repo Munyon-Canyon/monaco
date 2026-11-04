@@ -209,6 +209,8 @@ A seeded bug is a patch under `<journey>.mutants/` that breaks one thing the doc
 
 `flows` lists the backend flow ids the journey exercises. `scripts/qa/journey.py check` requires each id to have a backend flow file and requires every seeded bug patch to apply. Regenerate a stale patch with the `ios-journey-qa` skill.
 
+`check` also reads the identifiers. It lists every id the app sets in `apps/mobile/Monaco` and `packages/mobile-core/Sources`: a literal `accessibilityIdentifier("x")` is an exact id, and an interpolated one (`"x-\(id)"`) is the prefix `x-`. Ids built from a parameter at run time are rows of `apps/mobile/qa/journeys/ids-composed.tsv` (pattern, the file that builds it, why); a row whose file builds no id at run time, or whose fixed text is in no app file, fails `check`, so the file cannot rot. Then `check` reads every backticked id in the Target, Input and Expect columns of the step tables (`<…>` and `{…}` placeholders turn the id into a prefix) and every id an `*Journey.swift` passes to `element(_:)`, `buttons[…]`, `staticTexts[…]` or an `identifier BEGINSWITH` predicate. A target the app sets nowhere fails with the doc or test file, the step, the target and the three nearest ids, before any simulator run. A step under "Known failures on staging" with a ticket gives a warning instead. Quoted labels, system controls and ids the text says must be absent ("no `x`", "`x` does not exist") are skipped.
+
 `scripts/qa/journey.py coverage` prints every backend flow with its app status and the journeys that list it. It ends with the backend flow ids that no journey covers.
 
 Stage 0 and CI run the journey checks when mobile code, journey docs, journey QA files, or journey scripts change.

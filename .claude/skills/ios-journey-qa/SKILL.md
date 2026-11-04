@@ -22,7 +22,7 @@ When the journey doc and the app disagree, stop and report the **step id** and b
 ## Build or update a journey's test
 
 1. Read the journey doc and every journey doc it `requires`. Done when you can list each scenario's step ids and each actor.
-2. Resolve every target to an accessibility identifier in `apps/mobile/Monaco`. A target without one gets an identifier in the app, in this change. Done when every step's target is an identifier or a system control's label.
+2. Resolve every target to an accessibility identifier in `apps/mobile/Monaco`. A target without one gets an identifier in the app, in this change. Add an id built from a parameter to `apps/mobile/qa/journeys/ids-composed.tsv`. Done when `scripts/qa/journey.py check` reports no missing target (it reads every doc target and every id in the `*Journey.swift` files against the app's identifiers).
 3. Write the XCUITest from [xcuitest.md](xcuitest.md).
 4. Write one **seeded bug** per scenario under `apps/mobile/qa/journeys/<area>/<journey>.mutants/`: a patch that breaks one promise the journey doc makes, with an `expect-fail: S…` line.
 5. Stamp the steps enum with the doc's id and version: `static let id` and `static let version`. Done when `scripts/qa/journey.py check` exits 0.
