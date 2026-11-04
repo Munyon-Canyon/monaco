@@ -2,9 +2,11 @@ import XCTest
 
 enum SettingsNotificationsJourney {
     static let id = "settings/notifications"
-    static let version = 7
+    static let version = 8
 
     static let title = "Hear how votes end?"
+    static let hostName = "QA push host"
+    static let toastText = "Voted Yes. Passed 2\u{2013}0."
     static let body = "You get the result when a vote closes. That\u{2019}s it."
 
     static func recorder() -> JourneyRecorder {
@@ -50,6 +52,7 @@ enum SettingsNotificationsJourney {
         recorder.step("S2.1", "vote Yes on the open proposal from Home") {
             app.tab("Home").tap()
             app.homeVoteCardPickAndHold(proposalID: proposalID, choice: "yes", timeout: 20)
+            GovernanceVoteJourney.expectToast(app, toastText, undo: false, step: "S2.1")
         }
 
         recorder.step("S2.2", "the sheet waits for the toast, then shows") {
@@ -61,6 +64,16 @@ enum SettingsNotificationsJourney {
             XCTAssertTrue(sheet.waitForExistence(timeout: 15), "S2.2: the pre-prompt did not show after the first vote")
             XCTAssertTrue(app.staticTexts[title].exists, "S2.2: the pre-prompt title is not '\(title)'")
             XCTAssertTrue(app.staticTexts[body].exists, "S2.2: the pre-prompt does not read '\(body)'")
+            let sample = app.element("push-pre-prompt-sample").label
+            XCTAssertTrue(sample.hasPrefix("Example notification"), "S2.2: the sample reads '\(sample)'")
+            XCTAssertTrue(sample.contains("Buy TSLA passed, 2 to 0"), "S2.2: the sample reads '\(sample)'")
+            XCTAssertTrue(
+                sample.contains("\(hostName) called it.") || sample.contains("QA called it."),
+                "S2.2: the sample does not name the proposer: '\(sample)'")
+            XCTAssertFalse(sample.contains("\u{2013}"), "S2.2: the sample has an en dash: '\(sample)'")
+            XCTAssertFalse(sample.contains(" sh "), "S2.2: the sample has ' sh ': '\(sample)'")
+            XCTAssertEqual(
+                app.buttons["push-pre-prompt-quietly"].label, "Deliver quietly", "S2.2: no 'Deliver quietly' button")
             XCTAssertEqual(
                 app.buttons["push-pre-prompt-turn-on"].label, "Turn on notifications",
                 "S2.2: the primary button does not read 'Turn on notifications'")

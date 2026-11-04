@@ -20,6 +20,20 @@ if [[ "$member" != t ]]; then
 fi
 echo "actor B joined '$name'"
 
+query="SELECT EXISTS (SELECT 1 FROM proposals p JOIN cabals c ON c.id = p.cabal_id
+  WHERE c.name = :'name' AND p.status = 'passed')"
+if ! passed="$(printf '%s\n' "$query" | scripts/with-dotenv-local.sh apps/mobile/qa/journeys/psql.sh \
+  -v ON_ERROR_STOP=1 -v name="$name" -tA 2>"$error_file")"; then
+  grep -v -e '^with-dotenv-local:' -e 'injected env' "$error_file" >&2 || true
+  echo "database cannot be reached" >&2
+  exit 2
+fi
+if [[ "$passed" != t ]]; then
+  echo "the proposal in '$name' is not passed"
+  exit 1
+fi
+echo "the proposal in '$name' passed on B's vote"
+
 query="SELECT COALESCE((SELECT enabled FROM notification_preferences p JOIN users u ON u.id = p.user_id
   WHERE u.privy_user_id = :'did' AND p.category = 'decision_requests'), true),
   COALESCE((SELECT enabled FROM notification_preferences p JOIN users u ON u.id = p.user_id
