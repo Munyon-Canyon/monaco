@@ -171,7 +171,10 @@ struct AssetDetailClientView: View {
     }
 
     private func propose(_ kind: ProposeKind) {
-        AssetDetailBuyCTA.open(symbol: symbol, kind: kind, tab: tab) { environment.navigator.open($0, in: $1) }
+        AssetDetailBuyCTA.open(
+            symbol: symbol, kind: kind, tab: tab, catalogName: model?.detail?.name,
+            assetKind: model?.detail?.kind ?? .stock
+        ) { environment.navigator.open($0, in: $1) }
     }
 
     private func start() async {

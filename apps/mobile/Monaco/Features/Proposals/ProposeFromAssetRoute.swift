@@ -6,9 +6,12 @@ nonisolated struct ProposeFromAssetRoute: AppRoute {
     let symbol: String
     let kind: ProposeKind
     var prefill: ProposePrefill? = nil
+    var catalogName: String? = nil
+    var assetKind: AssetKind = .stock
 
     @MainActor func destination() -> some View {
-        ProposeFromAssetScreen(symbol: symbol, kind: kind, prefill: prefill)
+        ProposeFromAssetScreen(
+            symbol: symbol, kind: kind, prefill: prefill, catalogName: catalogName, assetKind: assetKind)
     }
 }
 
@@ -16,6 +19,8 @@ struct ProposeFromAssetScreen: View {
     let symbol: String
     let kind: ProposeKind
     var prefill: ProposePrefill? = nil
+    var catalogName: String? = nil
+    var assetKind: AssetKind = .stock
     @Environment(AppEnvironment.self) private var environment
     @Environment(\.hostMainTab) private var hostMainTab
     @State private var model: ProposeFromAssetModel?
@@ -145,7 +150,11 @@ struct ProposeFromAssetScreen: View {
         case .buy:
             ProposeAmountScreen(
                 service: MonacoCore.LiveProposeService(api: environment.api), cabalID: cabal.id,
-                stock: ProposeStock(symbol: symbol, logoURL: logoURL), bestChains: environment.bestChains,
+                stock: ProposeStock(
+                    symbol: symbol,
+                    name: ProposeStock.displayName(symbol: symbol, catalogName: catalogName, kind: assetKind),
+                    assetKind: assetKind, logoURL: logoURL),
+                bestChains: environment.bestChains,
                 initialAmountMicros: initialAmountMicros, onChangeCabal: changeCabalAction
             )
             .id(cabal.id)
