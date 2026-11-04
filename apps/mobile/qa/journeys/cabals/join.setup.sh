@@ -120,8 +120,8 @@ S1)
   echo "seeded: A created the request cabal 'QA pot $run', closed $closed pending requests"
   ;;
 S2)
-  create_cabal "$token_a" "QA open $run" request >/dev/null
-  echo "seeded: A created the approval cabal 'QA open $run' that S2.1 opens up"
+  create_cabal "$token_a" "QA open $run" open >/dev/null
+  echo "seeded: A created the open cabal 'QA open $run'"
   ;;
 S3)
   create_cabal "$token_a" "QA gate $run" request >/dev/null
