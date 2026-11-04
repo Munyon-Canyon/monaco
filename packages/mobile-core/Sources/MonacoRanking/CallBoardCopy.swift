@@ -38,6 +38,10 @@ public enum CallBoardCopy {
         }
     }
 
+    public static func leadLine(name: String, ahead: Int) -> String? {
+        ahead > 0 ? "\(name), \(ahead) right \(plural(ahead, "call")) ahead." : nil
+    }
+
     public static func turnoutPercent(bps: Int) -> String { "Turnout \((bps + 50) / 100)%" }
 
     public static func name(_ name: String, isMine: Bool) -> String { isMine ? name + yoursSuffix : name }

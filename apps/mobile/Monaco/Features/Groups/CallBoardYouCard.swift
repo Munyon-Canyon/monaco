@@ -89,7 +89,7 @@ struct CallBoardClimbBar: View {
             .frame(height: CallBoardCardMetrics.barHeight)
             .overlay(alignment: .leading) {
                 GeometryReader { proxy in
-                    Capsule().fill(MonacoTheme.profit).frame(width: proxy.size.width * fraction)
+                    Capsule().fill(MonacoTheme.primaryText).frame(width: proxy.size.width * fraction)
                 }
             }
     }
