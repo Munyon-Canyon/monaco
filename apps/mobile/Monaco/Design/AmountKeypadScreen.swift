@@ -85,15 +85,11 @@ struct AmountKeypadScreen<Source: View, Header: View>: View {
     var body: some View {
         VStack(spacing: 0) {
             navRow
-            header
-                .dynamicTypeSize(...DynamicTypeSize.accessibility1)
-                .padding(.horizontal, MonacoTheme.Space.gutter)
-                .padding(.top, MonacoTheme.Space.s)
-            amountRegion
-            presetsOrLimit
-            AmountKeypad(amountText: $amountText)
-                .disabled(state.isSettled || isWorking)
-                .padding(.horizontal, MonacoTheme.Space.gutter)
+            ViewThatFits(in: .vertical) {
+                middle
+                ScrollView { middle }
+                    .scrollBounceBehavior(.basedOnSize)
+            }
             foot
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -107,6 +103,20 @@ struct AmountKeypadScreen<Source: View, Header: View>: View {
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("amount-keypad-screen")
+    }
+
+    private var middle: some View {
+        VStack(spacing: 0) {
+            header
+                .dynamicTypeSize(...DynamicTypeSize.accessibility1)
+                .padding(.horizontal, MonacoTheme.Space.gutter)
+                .padding(.top, MonacoTheme.Space.s)
+            amountRegion
+            presetsOrLimit
+            AmountKeypad(amountText: $amountText)
+                .disabled(state.isSettled || isWorking)
+                .padding(.horizontal, MonacoTheme.Space.gutter)
+        }
     }
 
     private var isWorking: Bool { action?.isWorking == true }
@@ -187,10 +197,7 @@ struct AmountKeypadScreen<Source: View, Header: View>: View {
                 .accessibilityLabel("Amount")
                 .accessibilityValue(AmountText.display(amountText))
                 .accessibilityIdentifier("amount-keypad-amount")
-            ViewThatFits(in: .vertical) {
-                lineView
-                ScrollView { lineView }
-            }
+            lineView
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }

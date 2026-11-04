@@ -171,6 +171,16 @@ struct AmountKeypadScreenTests {
         }
     }
 
+    @Test(.timeLimit(.minutes(1))) func theFeeLineAndSourcePillStayOnScreenAtAccessibility5() async throws {
+        try await Self.shown(.typed, text: "250", size: .accessibility5, tallHeader: true) { nodes, window in
+            let line = try #require(nodes.first { Self.identifier($0) == "amount-keypad-line" })
+            #expect(line.accessibilityFrame.height > 0, "\(line.accessibilityFrame)")
+            let source = try #require(nodes.first { Self.identifier($0) == "amount-keypad-source" })
+            let top = max(window.safeAreaInsets.top, 0)
+            #expect(source.accessibilityFrame.minY >= top, "\(source.accessibilityFrame) top \(top)")
+        }
+    }
+
     @Test func theInfoButtonKeepsAFortyFourPointTargetWithoutGrowingTheLine() async throws {
         try await Self.shown(.typed, text: "250") { nodes, _ in
             let info = try #require(nodes.first { $0.accessibilityLabel == "More about this amount" })
