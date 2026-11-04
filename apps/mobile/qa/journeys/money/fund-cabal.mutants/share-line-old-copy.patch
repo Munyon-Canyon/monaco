@@ -1,0 +1,21 @@
+journey: money/fund-cabal
+expect-fail: S1
+
+FundCabalCopy.shareLine goes back to "From your cash · your share 35% → 36%". S1.3 and S1.5 assert the sentence copy.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/packages/mobile-core/Sources/MonacoCore/Funding/FundCabalCopy.swift b/packages/mobile-core/Sources/MonacoCore/Funding/FundCabalCopy.swift
+index 40411de8a..aabbb0f10 100644
+--- a/packages/mobile-core/Sources/MonacoCore/Funding/FundCabalCopy.swift
++++ b/packages/mobile-core/Sources/MonacoCore/Funding/FundCabalCopy.swift
+@@ -30,8 +30,8 @@ public enum FundCabalCopy {
+     public static let fromCash = "From your cash"
+ 
+     public static func shareLine(now: Int32, after: Int32? = nil) -> String {
+-        guard let after else { return "From your cash. Your share is \(percent(bps: now))." }
+-        return "From your cash. Your share goes from \(percent(bps: now)) to \(percent(bps: after))."
++        guard let after else { return "From your cash · your share \(percent(bps: now))" }
++        return "From your cash · your share \(percent(bps: now)) → \(percent(bps: after))"
+     }
+ 
+     public static func limitLine(availableMicros: Int64, overMicros: Int64) -> String {

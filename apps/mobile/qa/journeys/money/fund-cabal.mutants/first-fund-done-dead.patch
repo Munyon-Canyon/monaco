@@ -1,0 +1,22 @@
+journey: money/fund-cabal
+expect-fail: S2
+
+The welcome's Done does nothing: it neither sets leavesAfterFirstFund nor dismisses. S2.4 waits for the cabal page.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Deposit/FundCabalScreen.swift b/apps/mobile/Monaco/Features/Deposit/FundCabalScreen.swift
+index 78306f2f6..3419fccd1 100644
+--- a/apps/mobile/Monaco/Features/Deposit/FundCabalScreen.swift
++++ b/apps/mobile/Monaco/Features/Deposit/FundCabalScreen.swift
+@@ -56,10 +56,7 @@ struct FundCabalScreen: View {
+         .fullScreenCover(item: $firstFund, onDismiss: leaveAfterFirstFund) { handOff in
+             FirstFundView(
+                 cabalID: handOff.cabalID, settledMicros: handOff.micros,
+-                onDone: {
+-                    leavesAfterFirstFund = true
+-                    firstFund = nil
+-                })
++                onDone: {})
+         }
+     }
+ 
