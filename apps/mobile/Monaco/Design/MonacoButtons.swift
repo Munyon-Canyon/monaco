@@ -55,10 +55,6 @@ private enum MonacoButtonKind {
         }
     }
 
-    var radius: CGFloat {
-        self == .regular ? MonacoTheme.Radius.button : MonacoTheme.Radius.small
-    }
-
     var horizontalPadding: CGFloat {
         switch self {
         case .regular: MonacoButtonMetrics.horizontalPadding
@@ -115,7 +111,7 @@ private struct MonacoButtonChrome: ViewModifier {
                 minHeight: kind.visualHeight
             )
             .background(
-                RoundedRectangle(cornerRadius: kind.radius, style: .continuous)
+                Capsule(style: .continuous)
                     .fill(isEnabled ? fill : MonacoTheme.surfaceSunken)
             )
             .frame(minHeight: MonacoButtonMetrics.hitTarget)
