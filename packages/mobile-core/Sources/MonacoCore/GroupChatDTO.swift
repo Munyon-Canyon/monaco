@@ -69,6 +69,18 @@ public enum GroupChatCopy {
     public static let approved = "Proposal approved"
     public static let deleted = "Message deleted"
     public static let copy = "Copy"
+    public static let quietTitle = "No vote open."
+    public static let quietPropose = "Propose a trade"
+    public static let quietPoll = "Poll"
+    public static let quietPollLine = "Ask the cabal something."
+    public static let quietShareStock = "Share a stock"
+    public static let quietShareStockLine = "Drop a ticker into the chat."
+
+    public static func composerPlaceholder(cabalName: String) -> String {
+        let trimmed = cabalName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return composerPlaceholder }
+        return "Message \(CabalHeaderCopy.shortName(trimmed))"
+    }
 
     public static func title(groupName: String?) -> String {
         let trimmed = groupName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
