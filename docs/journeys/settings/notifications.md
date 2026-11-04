@@ -1,7 +1,7 @@
 ---
 id: settings/notifications
 title: Turn on notifications
-version: 6
+version: 7
 milestone: M9
 requires: [auth/sign-in]
 actors: [B]
@@ -43,7 +43,7 @@ Starts signed in (auth/sign-in), with an open proposal in `cabalName` that B has
 | Step | Action | Target | Input | Expect | Old app |
 | --- | --- | --- | --- | --- | --- |
 | S2.1 | tap, then hold | the Home tab, then `home-vote-yes-<proposalID>` (`pickAndHold("yes")`) | | The vote is cast and a toast shows within 10 s | None, new in spec |
-| S2.2 | wait | `push-pre-prompt` | | While the vote's toast shows, `push-pre-prompt` does not. Within 15 s of the toast closing it shows the title "Hear how votes end?", a sample result push, "Get each result when a vote closes. No more vote reminders after you vote.", `push-pre-prompt-turn-on` ("Turn on notifications") and `push-pre-prompt-not-now` ("Not now") (`push-pre-prompt-title` is shadowed by the sheet's `push-pre-prompt`) | None, new in spec |
+| S2.2 | wait | `push-pre-prompt` | | While the vote's toast shows, `push-pre-prompt` does not. Within 15 s of the toast closing it shows the title "Hear how votes end?", a sample result push, "You get the result when a vote closes. That’s it.", `push-pre-prompt-turn-on` ("Turn on notifications") and `push-pre-prompt-not-now` ("Not now") (`push-pre-prompt-title` is shadowed by the sheet's `push-pre-prompt`) | None, new in spec |
 | S2.3 | tap | `push-pre-prompt-turn-on` | | The iOS alert asking to send notifications shows, the test taps "Allow" on it through springboard (P5), and `push-pre-prompt` closes within 15 s | None, new in spec |
 
 ### S3 Settings reads On and opens iOS settings

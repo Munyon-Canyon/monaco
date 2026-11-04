@@ -90,10 +90,12 @@ struct PushPrePromptSheet: View {
             .fill(MonacoTheme.brandFill)
             .frame(width: 20, height: 20)
             .overlay {
-                Image(systemName: "person.3.fill")
-                    .font(MonacoTheme.Typo.caption)
-                    .imageScale(.small)
+                Image("LaunchMark")
+                    .renderingMode(.template)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
                     .foregroundStyle(.white)
+                    .padding(MonacoTheme.Space.xs)
             }
             .offset(x: MonacoTheme.Space.xs, y: MonacoTheme.Space.xs)
             .accessibilityHidden(true)
