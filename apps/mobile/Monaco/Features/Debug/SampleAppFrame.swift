@@ -156,7 +156,6 @@ enum SampleImage {
 }
 nonisolated struct SampleScreenRoute: AppRoute {
     enum Screen: Hashable, Sendable {
-        case chatThread
         case proposeBuy
         case proposeReview(ProposeKind)
     }
@@ -166,7 +165,6 @@ nonisolated struct SampleScreenRoute: AppRoute {
 
     @MainActor @ViewBuilder func destination() -> some View {
         switch screen {
-        case .chatThread: ChatThreadSampleQA.screen()
         case .proposeBuy: ProposeBuyStockView(cabalID: GroupDetailSampleData.cabalID)
         case .proposeReview(let kind): ProposeReviewSample(kind: kind)
         }
