@@ -69,12 +69,12 @@ final class PreIpoDetailTests: XCTestCase {
 
     func testEligibleVersusResearchOnly() throws {
         let eligible = try XCTUnwrap(PreIpoDetail(detail(), locale: locale))
-        XCTAssertEqual(eligible.eligibility.title, "Proposal eligible")
+        XCTAssertEqual(eligible.eligibility.title, "Can buy")
         XCTAssertEqual(eligible.eligibility.detail, "your cabals can vote to buy")
         XCTAssertTrue(eligible.eligibility.allowsBuy)
 
         let research = try XCTUnwrap(PreIpoDetail(detail(tradable: false), locale: locale))
-        XCTAssertEqual(research.eligibility.title, "Research only")
+        XCTAssertEqual(research.eligibility.title, "Watch only")
         XCTAssertEqual(research.eligibility.detail, "not open to proposals yet")
         XCTAssertFalse(research.eligibility.allowsBuy)
     }
