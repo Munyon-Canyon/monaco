@@ -18,6 +18,7 @@ struct HomeCashRow: View {
     @Environment(\.homeCashEmphasis) private var emphasis
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var showsInfo = false
+    @ScaledMetric(relativeTo: .headline) private var tileSize: CGFloat = HomeCashRowMetrics.tile
 
     var body: some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
@@ -68,7 +69,7 @@ struct HomeCashRow: View {
         Image(systemName: MonacoIcon.card.symbol)
             .font(MonacoTheme.Typo.section)
             .foregroundStyle(MonacoTheme.primaryText)
-            .frame(width: HomeCashRowMetrics.tile, height: HomeCashRowMetrics.tile)
+            .frame(width: tileSize, height: tileSize)
             .accessibilityHidden(true)
     }
 

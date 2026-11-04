@@ -4,7 +4,7 @@ import SwiftUI
 struct HomePortfolioSkeleton: View {
     var body: some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
-            HomeFigureSkeleton()
+            HomeFigureSkeleton(reservesGreeting: true)
             CurveScrubChartFrame { SkeletonBlock(height: nil, radius: MonacoTheme.Radius.cardTight) }
             MonacoRangeChipsSkeleton(ranges: LeaderboardRange.figurePeriods)
                 .padding(.horizontal, MonacoTheme.Space.gutter)
