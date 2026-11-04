@@ -31,13 +31,11 @@ func (h ChatMoments) Created(ctx context.Context, tx db.Tx, e events.CabalCreate
 }
 
 func (h ChatMoments) Joined(ctx context.Context, tx db.Tx, e events.CabalMemberJoined, at time.Time) error {
-	if e.UserID == uuid.Nil {
-		observability.Debug(ctx, observability.SocialChatMomentSkipped, slog.String("reason", "nil_user"))
-		return nil
-	}
 	moment, err := domain.NewMemberJoinedMoment(ids.UserIDFrom(e.UserID))
 	if err != nil {
-		return err
+		observability.Debug(ctx, observability.SocialChatMomentSkipped, slog.String("reason", "nil_user"),
+			slog.Any("cause", err))
+		return nil
 	}
 	join := e.RequestID
 	if join == uuid.Nil {
