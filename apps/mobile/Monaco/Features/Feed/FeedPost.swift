@@ -67,6 +67,17 @@ struct FeedPost<Foot: View>: View {
     }
 
     @ViewBuilder private func post(_ facts: FeedPostFacts) -> some View {
+        if let band = FeedResultBand(item) {
+            VStack(alignment: .leading, spacing: MonacoTheme.Space.sm) {
+                band
+                postRow(facts)
+            }
+        } else {
+            postRow(facts)
+        }
+    }
+
+    @ViewBuilder private func postRow(_ facts: FeedPostFacts) -> some View {
         let content = HStack(alignment: .top, spacing: FeedPostMetrics.gap) {
             FeedPostLead(lead: facts.lead)
             FeedPostBody(
@@ -112,8 +123,18 @@ private struct FeedPostLead: View {
 
     var body: some View {
         switch lead {
-        case .person(let name, let photoURL, let userID):
+        case .person(let name, let photoURL, let userID, let cabal):
             MonacoAvatar(photoURL: photoURL, displayName: name, size: .feed, seed: userID)
+                .overlay(alignment: .bottomTrailing) {
+                    if let cabal {
+                        CabalMark(
+                            groupId: cabal.cabalID ?? cabal.name, name: cabal.name,
+                            size: FeedPostMetrics.badge, pictureUrl: cabal.pictureURL
+                        )
+                        .offset(x: FeedPostMetrics.badge / 4, y: FeedPostMetrics.badge / 4)
+                        .accessibilityHidden(true)
+                    }
+                }
         case .cabal(let name, let pictureURL, let cabalID):
             CabalMark(
                 groupId: cabalID ?? name, name: name, size: FeedPostMetrics.lead, pictureUrl: pictureURL)

@@ -145,9 +145,13 @@ final class FeedPostFactsTests: XCTestCase {
         XCTAssertEqual(facts.attachment, .none)
     }
 
-    func testAResultIsHeadedByTheCabalOrTheMemberItsShapeNames() {
+    func testAResultIsHeadedByItsProposerWithTheCabalBadgeOrTheMember() throws {
         let cabal = FeedPostFacts(Item.results[0], now: now)
-        XCTAssertEqual(cabal.lead, .cabal(name: "Degens", pictureURL: nil, cabalID: Item.results[0].cabalId))
+        XCTAssertEqual(
+            cabal.lead,
+            .person(
+                name: "Christelle", photoURL: nil, userID: try XCTUnwrap(Item.results[0].actorId),
+                cabal: .init(name: "Degens", pictureURL: nil, cabalID: Item.results[0].cabalId)))
         let member = FeedPostFacts(Item.results[1], now: now)
         XCTAssertEqual(member.name, "Logan")
     }

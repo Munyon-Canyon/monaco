@@ -108,7 +108,10 @@ extension FeedPreviewRowFacts {
 
         var factsLead: Lead {
             switch facts.lead {
-            case .person(let name, let photoURL, let userID): .person(name: name, photoURL: photoURL, userID: userID)
+            case .person(_, _, _, let badge?):
+                .cabal(name: badge.name, pictureURL: badge.pictureURL, cabalID: badge.cabalID)
+            case .person(let name, let photoURL, let userID, nil):
+                .person(name: name, photoURL: photoURL, userID: userID)
             case .cabal(let name, let pictureURL, let cabalID):
                 .cabal(name: name, pictureURL: pictureURL, cabalID: cabalID)
             }

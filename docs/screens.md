@@ -504,6 +504,8 @@ F frames: [05-emoji-picker](design/f/screens/05-emoji-picker.png), [05-feed-A-sc
 
 Large title "Feed" with two 44pt glass rounds, then the search field "Search the feed" and a list of compact event cards. Pull to refresh; the last five cards load the next page. #671 built the feed, #702 mute and hide, #711 the post, and the UI v3 redesign the layout below.
 
+**Cabal result post** (`shape == .cabal`: a passed equity buy, or any failed vote). A 72 pt band (`FeedResultBand`: the cabal's picture, else its world scene) sits 12 pt above the post row. The row leads with the proposer's face and the cabal's 16 pt mark as a badge, then "Christelle’s META buy passed, 4 to 1" (a failed vote reads "Logan’s TSLA sale failed, 2 to 2") with the age at the right. The object line shows the cabal name, or "Buying now" / "Selling now", "Half filled" or "Didn’t go through" (the last two in the warning colour). Only a passed buy that filled adds the receipt, "Christelle called it" with the sparkline. With no known proposer the post keeps the cabal crest and "Degens passed it 4–1". Words come from `FeedPostFacts`.
+
 | Part | Shows |
 | --- | --- |
 | Bell | "Activity notifications". Pushes the Activity screen, a "on its way" placeholder until that screen ships. The brand dot for unread activity waits for the API |
