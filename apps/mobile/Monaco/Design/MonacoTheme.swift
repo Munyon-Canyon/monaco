@@ -20,6 +20,8 @@ enum MonacoTheme {
 
     static let surfaceSunken = Color(hex: 0x2C2C2E)
 
+    static let chatBubbleMine = Color(hex: 0x4D4D4D)
+
     static let cashFill = border
 
     static let primaryText = Color(hex: 0xFFFFFF)
