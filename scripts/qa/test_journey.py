@@ -3083,7 +3083,7 @@ class Repo(Tree):
 class Gate(Repo):
     def test_a_version_bump_with_no_block_fails_with_the_command_to_run(self):
         self.assertEqual(self.failures("no proof here"), [
-            "auth/sign-in@3: no evidence block; run scripts/qa/journey.py run auth/sign-in --runs 3, "
+            "auth/sign-in@3: no evidence block; run scripts/qa/journey.py run auth/sign-in, "
             "then mutants, then report --evidence"])
 
     def test_a_block_for_another_version_or_journey_does_not_count(self):
@@ -3098,6 +3098,12 @@ class Gate(Repo):
         failures = self.failures(self.block(passed=2))
         self.assertEqual(len(failures), 1)
         self.assertTrue(failures[0].startswith("auth/sign-in@3: evidence shows 2 of 3 runs"))
+
+    def test_one_passing_run_is_enough_and_one_failed_run_is_not(self):
+        self.assertEqual(self.failures(self.block(passed=1, total=1)), [])
+        failures = self.failures(self.block(passed=0, total=1))
+        self.assertEqual(len(failures), 1)
+        self.assertTrue(failures[0].startswith("auth/sign-in@3: evidence shows 0 of 1 runs"))
 
     def test_a_missed_seeded_bug_fails(self):
         failures = self.failures(self.block(caught=0))
@@ -3235,17 +3241,19 @@ class EvidenceReport(Repo):
     def test_the_block_is_one_line_per_journey_in_the_format_the_gate_reads(self):
         rows = [self.row(run="r%d" % n) for n in range(4)] + self.mutant("FAIL", "m1")
         block = self.report(rows)
-        self.assertEqual(block, "```journey-evidence\nauth/sign-in@3 commit %s runs 3 of 3 PASS seeded caught 1 of 1\n```" % self.head)
+        self.assertEqual(block, "```journey-evidence\nauth/sign-in@3 commit %s runs 1 of 1 PASS seeded caught 1 of 1\n```" % self.head)
         self.assertEqual(self.failures(block), [])
 
-    def test_only_the_last_three_clean_runs_count(self):
+    def test_an_older_failed_run_does_not_count(self):
         rows = [self.row(result="FAIL", run="old")] + [self.row(run="r%d" % n) for n in range(3)]
-        self.assertIn("runs 3 of 3 PASS", self.report(rows + self.mutant("FAIL", "m")))
+        self.assertIn("runs 1 of 1 PASS", self.report(rows + self.mutant("FAIL", "m")))
 
-    def test_fewer_clean_runs_or_a_failed_one_show_in_the_line(self):
-        self.assertIn("runs 2 of 3 PASS", self.report([self.row(run="a"), self.row(run="b")] + self.mutant("FAIL", "m")))
-        rows = [self.row(run="a"), self.row(result="FAIL", run="b"), self.row(run="c")]
-        self.assertIn("runs 2 of 3 PASS", self.report(rows + self.mutant("FAIL", "m")))
+    def test_the_latest_clean_run_is_the_one_the_line_shows(self):
+        failed_last = [self.row(run="a"), self.row(result="FAIL", run="b")]
+        self.assertIn("runs 0 of 1 PASS", self.report(failed_last + self.mutant("FAIL", "m")))
+        passed_last = [self.row(result="FAIL", run="a"), self.row(run="b")]
+        self.assertIn("runs 1 of 1 PASS", self.report(passed_last + self.mutant("FAIL", "m")))
+
 
     def test_the_latest_result_of_each_seeded_bug_counts(self):
         clean = [self.row(run="r%d" % n) for n in range(3)]
@@ -3256,7 +3264,7 @@ class EvidenceReport(Repo):
     def test_rows_of_another_version_or_commit_do_not_count(self):
         clean = [self.row(run="r%d" % n) for n in range(3)]
         stale = [self.row(version="2", run="v"), self.row(build="abcdef0", run="o"), self.row(build="dev", run="d")]
-        self.assertIn("runs 3 of 3 PASS", self.report(stale + clean + self.mutant("FAIL", "m")))
+        self.assertIn("runs 1 of 1 PASS", self.report(stale + clean + self.mutant("FAIL", "m")))
         with self.assertRaises(journey.JourneyError) as raised:
             self.report(stale)
         self.assertIn("commit and rerun", str(raised.exception))
