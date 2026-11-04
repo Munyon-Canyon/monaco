@@ -6,7 +6,7 @@ Two files per journey in `apps/mobile/MonacoUITests/Journeys/`. The target compi
 
 - An `enum` with `static let id` and `static let version` from the journey doc, and one static function per scenario or per actor's part of a scenario.
 - Every step in the journey doc is one `recorder.step("S1.2", "…") { … }` carrying the doc's step id. The runner reads timings and the failing step from these.
-- Waits poll: `waitForExistence(timeout:)` or `app.waitForFirst(of:timeout:)`, with the seconds the journey doc gives.
+- Waits poll: `waitForExistence(timeout:)` or `app.waitForFirst(of:timeout:)`, with the seconds the journey doc gives; prefer `JourneyDiagnostics.wait(for:in:timeout:step:)`, which stops at once on a `-failed` or `-error` identifier (or a system alert) and names it and the nearest on-screen identifiers.
 - Every assertion message starts with the step id and states what was expected.
 - Swift files carry no comments in this repo (`no_comments` in `.swiftlint.yml`): a name, a step label or an assertion message says what a comment would.
 - A step function never launches, relaunches or signs in on its own account. The session does that, so one app session runs the whole journey. A step the doc writes as `relaunch` calls `app.terminate()` and `app.launch()`.
