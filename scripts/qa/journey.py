@@ -291,7 +291,7 @@ def mutant_expectation(patch):
 # ---------------------------------------------------------------- check
 
 
-def check_journeys(journeys, accounts, git_apply_check=None):
+def check_journeys(journeys, accounts, git_apply_check=None, base_text=None):
     """Every way a doc and its XCUITest can disagree. Returns a list of 'path: message'."""
     problems = []
 
@@ -351,6 +351,12 @@ def check_journeys(journeys, accounts, git_apply_check=None):
             bad(journey.path, "no files listed under xcuitest")
         elif not missing:
             combined = "\n".join(f.read_text() for f in files)
+            try:
+                generated = generated_path(journey)
+            except JourneyError:
+                generated = None
+            if generated and generated.is_file():
+                combined += "\n" + generated.read_text()
             # Swift files carry no comments here, so the stamp is the steps enum's constants.
             stamped_journey = re.search(r'static let id = "([\w/-]+)"', combined)
             stamped_version = re.search(r"static let version = (\d+)", combined)
@@ -386,6 +392,9 @@ def check_journeys(journeys, accounts, git_apply_check=None):
     for journey in journeys.values():
         if _has_cycle(journey, by_id):
             bad(journey.path, "requires form a cycle through %s" % journey.id)
+    problems.extend(stale_generated(journeys))
+    if base_text:
+        problems.extend(unbumped_versions(journeys, base_text))
     return problems
 
 
@@ -1707,13 +1716,26 @@ def doc_targets(journey):
     return found
 
 
+STEP_MARK = re.compile(r'"(S\d+\.\d+)|\bS\.s(\d+)p(\d+)')
+
+
+def step_marks(lines):
+    """[(line, step)] for each line naming a step, as "S1.2" or as the generated S.s1p2."""
+    marks = []
+    for number, line in enumerate(lines, 1):
+        found = STEP_MARK.search(line)
+        if found:
+            marks.append((number, found.group(1) or "S%s.%s" % (found.group(2), found.group(3))))
+    return marks
+
+
 def swift_targets(path):
     """[(line, step, target, is_prefix)] for each id a journey test looks up.
 
     The step is the last one named above the line, or the first one below it in a helper above all steps.
     """
     lines = path.read_text().splitlines()
-    steps = [(number, found.group(1)) for number, line in enumerate(lines, 1) for found in [re.search(r'"(S\d+\.\d+)', line)] if found]
+    steps = step_marks(lines)
     result = []
     for number, line in enumerate(lines, 1):
         if SWIFT_ABSENT.search(line):
@@ -1895,7 +1917,7 @@ def doc_quotes(journey):
 def swift_copy(path):
     """[(line, step, text)] for each fixed literal a journey test passes to a copy assertion."""
     lines = path.read_text().splitlines()
-    steps = [(number, found.group(1)) for number, line in enumerate(lines, 1) for found in [re.search(r'"(S\d+\.\d+)', line)] if found]
+    steps = step_marks(lines)
     result = []
     for number, line in enumerate(lines, 1):
         if line.lstrip().startswith("//") or not COPY_HELPER.search(line) or re.search(r"\bfunc\b", line):
@@ -1952,12 +1974,182 @@ def check_copy(journeys):
     return errors, warnings, count
 
 
+# ---------------------------------------------------------------- generated steps
+
+GENERATED_DIR = "apps/mobile/MonacoUITests/Journeys/Generated"
+DEFAULT_STEP_SECONDS = 15
+WITHIN_SECONDS = re.compile(r"\bwithin (\d+(?:\.\d+)?) s\b", re.I)
+NAME_LIMIT = 60
+SWIFT_LINE_LIMIT = 120
+
+
+def step_rows(journey):
+    """[{step, action, target, expect}] for each step row of a doc, in order."""
+    rows, columns = [], []
+    for line in journey.path.read_text().splitlines():
+        if line.startswith("| Step |"):
+            columns = [cell.strip() for cell in line.strip().strip("|").split("|")]
+            continue
+        row = re.match(r"\| (S\d+\.\d+) \|(.*)", line)
+        if not row:
+            continue
+        cells = [row.group(1)] + [cell.strip() for cell in row.group(2).rstrip().rstrip("|").split("|")]
+        named = dict(zip(columns, cells))
+        rows.append({
+            "step": row.group(1),
+            "actor": named.get("Actor") or (journey.actors[0] if journey.actors else "A"),
+            "action": named.get("Action", ""),
+            "target": named.get("Target", ""),
+            "expect": named.get("Expect", ""),
+        })
+    return rows
+
+
+def step_table_text(text):
+    return [line.strip() for line in text.splitlines() if re.match(r"\| S\d+\.\d+ \|", line)]
+
+
+def steps_type(journey):
+    """The X of the doc's first xcuitest file, <X>Journey.swift."""
+    for name in journey.xcuitest:
+        found = re.fullmatch(r"(\w+)Journey\.swift", Path(name).name)
+        if found:
+            return found.group(1)
+    raise JourneyError("%s lists no <Name>Journey.swift under xcuitest, so gen has no type name" % journey.id)
+
+
+def generated_path(journey):
+    return ROOT / GENERATED_DIR / ("%sJourneySteps.swift" % steps_type(journey))
+
+
+def swift_string(text):
+    return '"%s"' % text.replace("\\", "\\\\").replace('"', '\\"')
+
+
+def step_name(row):
+    words = re.sub(r"[`\"]", "", "%s %s" % (row["action"].split(",")[0], row["target"])).split()
+    name = ""
+    for word in words:
+        if len(name) + len(word) + 1 > NAME_LIMIT:
+            break
+        name = (name + " " + word).strip()
+    return name or row["step"]
+
+
+def step_seconds(expect):
+    found = WITHIN_SECONDS.search(expect)
+    if not found:
+        return DEFAULT_STEP_SECONDS
+    value = float(found.group(1))
+    return int(value) if value == int(value) else value
+
+
+def swift_step(row, indent="    "):
+    quotes = QUOTED.findall(row["expect"])
+    name = "s" + row["step"][1:].replace(".", "p")
+    head = "%sstatic let %s = JourneyStep(" % (indent, name)
+    fields = [
+        "id: " + swift_string(row["step"]),
+        "name: " + swift_string(step_name(row)),
+        "actor: " + swift_string(row["actor"]),
+        "seconds: %s" % step_seconds(row["expect"]),
+    ]
+    copy = "copy: [%s]" % ", ".join(swift_string(q) for q in quotes)
+    one = head + ", ".join(fields + [copy]) + ")"
+    if len(one) <= SWIFT_LINE_LIMIT:
+        return one
+    inner = indent + "    "
+    lines = [head] + [inner + field + "," for field in fields]
+    if len(inner + copy) <= SWIFT_LINE_LIMIT:
+        lines.append(inner + copy)
+    else:
+        lines.append(inner + "copy: [")
+        lines.extend(inner + "    " + swift_string(q) + "," for q in quotes)
+        lines.append(inner + "]")
+    lines.append(indent + ")")
+    return "\n".join(lines)
+
+
+def render_steps(journey):
+    """The Swift enum for a doc: its stamp and one JourneyStep per step row."""
+    lines = [
+        "enum %sJourneySteps {" % steps_type(journey),
+        "    static let id = %s" % swift_string(journey.id),
+        "    static let version = %s" % journey.version,
+        "",
+    ]
+    for row in step_rows(journey):
+        lines.append(swift_step(row))
+    lines.append("}")
+    return "\n".join(lines) + "\n"
+
+
+def stale_generated(journeys):
+    """['path: message'] for each generated steps file that gen would write differently."""
+    problems = []
+    for journey in journeys.values():
+        try:
+            path = generated_path(journey)
+        except JourneyError:
+            continue
+        if path.is_file() and path.read_text() != render_steps(journey):
+            problems.append("%s: stale: run `scripts/qa/journey.py gen %s`" % (os.path.relpath(str(path), str(ROOT)), journey.id))
+    return problems
+
+
+def git_base_text(relative):
+    """The file as origin/staging has it, or None when the ref or the file is missing."""
+    result = subprocess.run(["git", "show", "origin/staging:" + relative], cwd=str(ROOT), capture_output=True, text=True)
+    return result.stdout if result.returncode == 0 else None
+
+
+def unbumped_versions(journeys, base_text=git_base_text):
+    """['path: message'] for each doc whose step tables changed against the base with no higher version."""
+    problems = []
+    for journey in journeys.values():
+        relative = os.path.relpath(str(journey.path), str(ROOT))
+        base = base_text(relative)
+        if base is None:
+            continue
+        try:
+            base_meta, _ = parse_front_matter(base)
+        except JourneyError:
+            continue
+        base_version = base_meta.get("version")
+        if not isinstance(base_version, int) or not isinstance(journey.version, int):
+            continue
+        if step_table_text(base) != step_table_text(journey.path.read_text()) and journey.version <= base_version:
+            problems.append("%s: the step tables changed against origin/staging but version is still %s: bump it above %s"
+                            % (relative, journey.version, base_version))
+    return problems
+
+
+def cmd_gen(args):
+    journeys = load_journeys()
+    picked = [pick(journeys, name) for name in args.journey] if args.journey else list(journeys.values())
+    for journey in picked:
+        try:
+            path = generated_path(journey)
+        except JourneyError:
+            if args.journey:
+                raise
+            continue
+        text = render_steps(journey)
+        if not path.is_file() and not args.journey:
+            continue
+        if not path.is_file() or path.read_text() != text:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(text)
+            print("wrote " + os.path.relpath(str(path), str(ROOT)))
+    return 0
+
+
 # ---------------------------------------------------------------- commands
 
 
 def cmd_check(args):
     journeys = load_journeys()
-    problems = check_journeys(journeys, load_accounts(), git_apply_check)
+    problems = check_journeys(journeys, load_accounts(), git_apply_check, git_base_text)
     problems.extend(check_setup_inserts())
     problems.extend(check_setup_monacoctl())
     misses, warnings, targets = check_targets(journeys)
@@ -2393,6 +2585,9 @@ def main(argv=None):
     commands.add_parser("check").set_defaults(run=cmd_check)
     commands.add_parser("coverage").set_defaults(run=cmd_coverage)
     commands.add_parser("list").set_defaults(run=cmd_list)
+    gen = commands.add_parser("gen", help="write the generated steps file of each journey from its doc")
+    gen.set_defaults(run=cmd_gen)
+    gen.add_argument("journey", nargs="*", help="journey id, such as governance/vote; default: every journey with a generated file")
     commands.add_parser("report").set_defaults(run=cmd_report)
     for name, handler in (("run", cmd_run), ("mutants", cmd_mutants)):
         sub = commands.add_parser(name)

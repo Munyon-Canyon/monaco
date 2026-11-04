@@ -1,14 +1,13 @@
 import XCTest
 
-enum GovernanceVoteJourney {
-    static let id = "governance/vote"
-    static let version = 6
+private typealias S = GovernanceVoteJourneySteps
 
+enum GovernanceVoteJourney {
     static let screenTimeout: TimeInterval = 15
     static let checkTimeout: TimeInterval = 10
 
     static func recorder() -> JourneyRecorder {
-        JourneyRecorder(journey: id, version: version)
+        JourneyRecorder(journey: S.id, version: S.version)
     }
 
     static func text(_ scope: XCUIElement, containing value: String) -> XCUIElement {
@@ -100,129 +99,136 @@ enum GovernanceVoteJourney {
     }
 
     static func voteFromHome(_ app: XCUIApplication, proposalID: String, run: String, recorder: JourneyRecorder) {
-        recorder.step("S1.1", "Home lists the proposal under Your vote with neither side highlighted") {
-            openHomeVote(app, proposalID, step: "S1.1")
+        recorder.step(S.s1p1) {
+            openHomeVote(app, proposalID, step: S.s1p1.id)
             XCTAssertTrue(
-                app.element("home-vote-no-\(proposalID)").exists, "S1.1: home-vote-no-\(proposalID) does not show")
-            expectLabel(app, "home-vote-yes-\(proposalID)", "0", step: "S1.1")
-            expectLabel(app, "home-vote-no-\(proposalID)", "0", step: "S1.1")
+                app.element("home-vote-no-\(proposalID)").exists,
+                "\(S.s1p1.id): home-vote-no-\(proposalID) does not show")
+            expectLabel(app, "home-vote-yes-\(proposalID)", S.s1p1.copy[1], step: S.s1p1.id)
+            expectLabel(app, "home-vote-no-\(proposalID)", S.s1p1.copy[1], step: S.s1p1.id)
             XCTAssertFalse(
-                app.element("home-vote-yes-\(proposalID)").isSelected, "S1.1: Yes is highlighted before a pick")
+                app.element("home-vote-yes-\(proposalID)").isSelected, "\(S.s1p1.id): Yes is highlighted before a pick")
         }
 
-        recorder.step("S1.2", "the card's row opens the Proposal screen") {
-            openProposalFromHome(app, proposalID, step: "S1.2")
+        recorder.step(S.s1p2) {
+            openProposalFromHome(app, proposalID, step: S.s1p2.id)
             XCTAssertTrue(
-                waitForText(app, "QA vote \(run)", timeout: checkTimeout),
-                "S1.2: the thesis does not read QA vote \(run)")
-            for cell in ["Price", "Shares", "Of treasury", "Closes"] {
+                waitForText(app, S.s1p2.filled(4, ["QA.run": run]), timeout: checkTimeout),
+                "\(S.s1p2.id): the thesis does not read QA vote \(run)")
+            for cell in S.s1p2.copy.prefix(4) {
                 XCTAssertTrue(
                     waitForText(app.element("proposal-stat-row"), cell, timeout: checkTimeout),
-                    "S1.2: the stat row shows no \(cell)")
+                    "\(S.s1p2.id): the stat row shows no \(cell)")
             }
-            expectTally(app, yes: "Yes, 0 votes", no: "No, 0 votes", step: "S1.2")
+            expectTally(app, yes: S.s1p2.copy[5], no: S.s1p2.copy[6], step: S.s1p2.id)
             XCTAssertTrue(
                 JourneyDiagnostics.wait(for: app.buttons["proposal-remind"], in: app, timeout: checkTimeout),
-                "S1.2: no \"Remind me at close\"")
+                "\(S.s1p2.id): no \"Remind me at close\"")
         }
 
-        recorder.step("S1.3", "a short tap picks Yes and casts nothing") {
+        recorder.step(S.s1p3) {
             app.element("proposal-vote-yes").tap()
             XCTAssertFalse(
                 app.element("monaco-toast-banner").waitForExistence(timeout: 2),
-                "S1.3: a short tap toasted a vote")
-            expectTally(app, yes: "Yes, 0 votes", no: "No, 0 votes", step: "S1.3")
+                "\(S.s1p3.id): a short tap toasted a vote")
+            expectTally(app, yes: S.s1p3.copy[0], no: S.s1p3.copy[1], step: S.s1p3.id)
         }
 
-        recorder.step("S1.4", "pick and hold casts the first vote, then the permission sheet shows") {
+        recorder.step(S.s1p4) {
             app.pickAndHold("yes")
-            expectLabel(app, "proposal-vote-yes", "Voted Yes, 1 vote", step: "S1.4")
-            expectLabel(app, "proposal-vote-status", "1 of 3 voted", step: "S1.4")
-            expectToast(app, "Voted Yes. 1st of 3.", undo: true, step: "S1.4")
-            XCTAssertFalse(app.buttons["proposal-remind"].exists, "S1.4: \"Remind me at close\" still shows")
+            expectLabel(app, "proposal-vote-yes", S.s1p4.copy[0], step: S.s1p4.id)
+            expectLabel(app, "proposal-vote-status", S.s1p4.copy[1], step: S.s1p4.id)
+            expectToast(app, S.s1p4.copy[2], undo: true, step: S.s1p4.id)
+            XCTAssertFalse(app.buttons["proposal-remind"].exists, "\(S.s1p4.id): \"Remind me at close\" still shows")
             XCTAssertFalse(
-                app.element("push-pre-prompt").exists, "S1.4: the permission sheet shows while the toast does")
+                app.element("push-pre-prompt").exists, "\(S.s1p4.id): the permission sheet shows while the toast does")
             XCTAssertTrue(
                 app.element("monaco-toast-banner").waitForNonExistence(timeout: 12),
-                "S1.4: the toast did not close")
+                "\(S.s1p4.id): the toast did not close")
             XCTAssertTrue(
-                waitForText(app, "Hear how votes end?", timeout: checkTimeout),
-                "S1.4: no \"Hear how votes end?\" within \(Int(checkTimeout)) s of the toast closing")
-            XCTAssertTrue(app.answerVotePermissionSheet(turnOn: false), "S1.4: Not now did not dismiss the sheet")
+                waitForText(app, S.s1p4.copy[4], timeout: S.s1p4.seconds),
+                "\(S.s1p4.id): no \"Hear how votes end?\" within \(Int(S.s1p4.seconds)) s of the toast closing")
+            XCTAssertTrue(
+                app.answerVotePermissionSheet(turnOn: false), "\(S.s1p4.id): Not now did not dismiss the sheet")
         }
 
-        recorder.step("S1.5", "Change moves the open ballot, with no Undo") {
+        recorder.step(S.s1p5) {
             XCTAssertTrue(
-                JourneyDiagnostics.wait(for: app.buttons["proposal-change-vote"], in: app, timeout: checkTimeout),
-                "S1.5: no \"Change\" on the open ballot")
+                JourneyDiagnostics.wait(for: app.buttons["proposal-change-vote"], in: app, timeout: S.s1p5.seconds),
+                "\(S.s1p5.id): no \"Change\" on the open ballot")
             app.changeVote(to: "no")
-            expectTally(app, yes: "Yes, 0 votes", no: "No, 1 vote", step: "S1.5")
-            expectToast(app, "Changed to No.", undo: false, step: "S1.5")
+            expectTally(app, yes: S.s1p5.copy[1], no: S.s1p5.copy[2], step: S.s1p5.id)
+            expectToast(app, S.s1p5.copy[3], undo: false, step: S.s1p5.id)
             XCTAssertTrue(
-                JourneyDiagnostics.wait(for: app.buttons["proposal-change-vote"], in: app, timeout: checkTimeout),
-                "S1.5: no \"Change\" after the change")
+                JourneyDiagnostics.wait(for: app.buttons["proposal-change-vote"], in: app, timeout: S.s1p5.seconds),
+                "\(S.s1p5.id): no \"Change\" after the change")
             app.waitForToastGone()
             app.changeVote(to: "yes")
-            expectTally(app, yes: "Yes, 1 vote", no: "No, 0 votes", step: "S1.5")
-            expectToast(app, "Changed to Yes.", undo: false, step: "S1.5")
-            XCTAssertFalse(app.element("push-pre-prompt").exists, "S1.5: the permission sheet showed again")
+            expectTally(app, yes: S.s1p5.copy[5], no: S.s1p5.copy[6], step: S.s1p5.id)
+            expectToast(app, S.s1p5.copy[7], undo: false, step: S.s1p5.id)
+            XCTAssertFalse(app.element("push-pre-prompt").exists, "\(S.s1p5.id): the permission sheet showed again")
         }
     }
 
     static func secondVoterPasses(_ app: XCUIApplication, proposalID: String, recorder: JourneyRecorder) {
-        recorder.step("S1.6", "B opens the proposal and sees A's ballot only as a count") {
-            openHomeVote(app, proposalID, step: "S1.6")
-            openProposalFromHome(app, proposalID, step: "S1.6")
-            expectTally(app, yes: "Yes, 1 vote", no: "No, 0 votes", step: "S1.6")
+        recorder.step(S.s1p6) {
+            openHomeVote(app, proposalID, step: S.s1p6.id)
+            openProposalFromHome(app, proposalID, step: S.s1p6.id)
+            expectTally(app, yes: S.s1p6.copy[0], no: S.s1p6.copy[1], step: S.s1p6.id)
             XCTAssertTrue(
-                waitForText(app, "1 of 3 voted", timeout: screenTimeout), "S1.6: the status line shows no 1 of 3 voted")
-            XCTAssertFalse(app.element("proposal-votes-see-all").exists, "S1.6: a votes list shows on an open proposal")
+                waitForText(app, S.s1p6.copy[2], timeout: S.s1p6.seconds),
+                "\(S.s1p6.id): the status line shows no 1 of 3 voted")
+            XCTAssertFalse(
+                app.element("proposal-votes-see-all").exists, "\(S.s1p6.id): a votes list shows on an open proposal")
         }
 
-        recorder.step("S1.7", "B votes No, then Undo takes the ballot back") {
+        recorder.step(S.s1p7) {
             app.pickAndHold("no")
-            expectLabel(app, "proposal-vote-no", "Voted No, 1 vote", step: "S1.7")
-            expectToast(app, "Voted No. 2nd of 3.", undo: true, step: "S1.7")
-            XCTAssertTrue(app.tapToastAction(timeout: checkTimeout), "S1.7: the toast has no Undo")
-            expectTally(app, yes: "Yes, 1 vote", no: "No, 0 votes", step: "S1.7")
+            expectLabel(app, "proposal-vote-no", S.s1p7.copy[0], step: S.s1p7.id)
+            expectToast(app, S.s1p7.copy[1], undo: true, step: S.s1p7.id)
+            XCTAssertTrue(app.tapToastAction(timeout: S.s1p7.seconds), "\(S.s1p7.id): the toast has no Undo")
+            expectTally(app, yes: S.s1p7.copy[3], no: S.s1p7.copy[4], step: S.s1p7.id)
             XCTAssertTrue(
-                waitForLabel(app.element("monaco-toast-banner"), "Vote undone.", timeout: checkTimeout),
-                "S1.7: the toast does not read \"Vote undone.\"")
+                waitForLabel(app.element("monaco-toast-banner"), S.s1p7.copy[5], timeout: S.s1p7.seconds),
+                "\(S.s1p7.id): the toast does not read \"Vote undone.\"")
             XCTAssertTrue(
-                JourneyDiagnostics.wait(for: app.element("proposal-vote-yes"), in: app, timeout: checkTimeout),
-                "S1.7: the ballot is not idle again")
-            XCTAssertFalse(app.buttons["proposal-change-vote"].exists, "S1.7: \"Change\" shows after Undo")
-            XCTAssertFalse(app.element("push-pre-prompt").exists, "S1.7: the permission sheet showed again")
+                JourneyDiagnostics.wait(for: app.element("proposal-vote-yes"), in: app, timeout: S.s1p7.seconds),
+                "\(S.s1p7.id): the ballot is not idle again")
+            XCTAssertFalse(app.buttons["proposal-change-vote"].exists, "\(S.s1p7.id): \"Change\" shows after Undo")
+            XCTAssertFalse(app.element("push-pre-prompt").exists, "\(S.s1p7.id): the permission sheet showed again")
         }
 
-        recorder.step("S1.8", "B's yes settles the proposal with no Undo and no Change") {
+        recorder.step(S.s1p8) {
             app.waitForToastGone()
             app.pickAndHold("yes")
-            expectToast(app, "Voted Yes. Passed 2–0.", undo: false, step: "S1.8")
-            expectLabel(app, "proposal-vote-yes", "Voted Yes, 2 votes", step: "S1.8")
+            expectToast(app, S.s1p8.copy[0], undo: false, step: S.s1p8.id)
+            expectLabel(app, "proposal-vote-yes", S.s1p8.copy[1], step: S.s1p8.id)
             XCTAssertTrue(
-                waitForText(app.element("proposal-vote-status"), "Passed 2–0", timeout: checkTimeout),
-                "S1.8: the status line does not start with Passed 2–0")
-            XCTAssertFalse(app.buttons["proposal-change-vote"].exists, "S1.8: \"Change\" shows on a settled card")
+                waitForText(app.element("proposal-vote-status"), S.s1p8.copy[2], timeout: S.s1p8.seconds),
+                "\(S.s1p8.id): the status line does not start with Passed 2–0")
+            XCTAssertFalse(
+                app.buttons["proposal-change-vote"].exists, "\(S.s1p8.id): \"Change\" shows on a settled card")
             XCTAssertTrue(
-                waitForText(app.element("proposal-stat-row"), "Passed", timeout: checkTimeout),
-                "S1.8: the stat row's last cell does not read Passed")
+                waitForText(app.element("proposal-stat-row"), S.s1p8.copy[3], timeout: S.s1p8.seconds),
+                "\(S.s1p8.id): the stat row's last cell does not read Passed")
         }
     }
 
     static func firstVoterSeesItSettled(_ app: XCUIApplication, proposalID: String, recorder: JourneyRecorder) {
-        recorder.step("S1.9", "the settled proposal no longer asks A for a vote") {
+        recorder.step(S.s1p9) {
             app.terminate()
             app.launch()
-            openHome(app, step: "S1.9")
+            openHome(app, step: S.s1p9.id)
             XCTAssertTrue(
-                waitForGone(app.element("home-vote-yes-\(proposalID)"), timeout: screenTimeout),
-                "S1.9: home-vote-yes-\(proposalID) still offers a vote \(Int(screenTimeout)) s after settlement")
+                waitForGone(app.element("home-vote-yes-\(proposalID)"), timeout: S.s1p9.seconds),
+                "\(S.s1p9.id): home-vote-yes-\(proposalID) still offers a vote \(Int(S.s1p9.seconds)) s after settlement"
+            )
             let open = app.element("home-vote-open-\(proposalID)")
             if open.waitForExistence(timeout: 3) {
                 open.tap()
-                waitForProposalScreen(app, step: "S1.9")
-                XCTAssertFalse(app.buttons["proposal-change-vote"].exists, "S1.9: \"Change\" shows after settlement")
+                waitForProposalScreen(app, step: S.s1p9.id)
+                XCTAssertFalse(
+                    app.buttons["proposal-change-vote"].exists, "\(S.s1p9.id): \"Change\" shows after settlement")
             }
         }
     }
@@ -232,57 +238,59 @@ extension GovernanceVoteJourney {
     static func voteFromCabalPage(
         _ app: XCUIApplication, cabalName: String, proposalID: String, recorder: JourneyRecorder
     ) {
-        recorder.step("S2.1", "the cabal page shows the open proposal above its tabs") {
+        recorder.step(S.s2p1) {
             app.openCabal(named: cabalName)
             let row = app.element("cabal-open-proposal-\(proposalID)")
             XCTAssertTrue(
-                JourneyDiagnostics.wait(for: row, in: app, timeout: screenTimeout),
-                "S2.1: cabal-open-proposal-\(proposalID) did not show within \(Int(screenTimeout)) s")
+                JourneyDiagnostics.wait(for: row, in: app, timeout: S.s2p1.seconds),
+                "\(S.s2p1.id): cabal-open-proposal-\(proposalID) did not show within \(Int(S.s2p1.seconds)) s")
         }
 
-        recorder.step("S2.2", "the row opens the Proposal screen") {
+        recorder.step(S.s2p2) {
             app.element("cabal-open-proposal-\(proposalID)").tap()
-            waitForProposalScreen(app, step: "S2.2")
+            waitForProposalScreen(app, step: S.s2p2.id)
         }
 
-        recorder.step("S2.3", "pick and hold votes Yes with Undo and Change") {
+        recorder.step(S.s2p3) {
             app.pickAndHold("yes")
-            expectToast(app, "Voted Yes.", undo: true, step: "S2.3")
+            expectToast(app, S.s2p3.copy[0], undo: true, step: S.s2p3.id)
             XCTAssertTrue(
-                JourneyDiagnostics.wait(for: app.buttons["proposal-change-vote"], in: app, timeout: checkTimeout),
-                "S2.3: no \"Change\" on the card")
+                JourneyDiagnostics.wait(for: app.buttons["proposal-change-vote"], in: app, timeout: S.s2p3.seconds),
+                "\(S.s2p3.id): no \"Change\" on the card")
         }
     }
 
     static func allProposals(
         _ app: XCUIApplication, proposalID: String, closedProposalID: String, recorder: JourneyRecorder
     ) {
-        recorder.step("S3.1", "Home's Your vote header opens All proposals") {
-            openHomeVote(app, proposalID, step: "S3.1")
+        recorder.step(S.s3p1) {
+            openHomeVote(app, proposalID, step: S.s3p1.id)
             let all = app.buttons["All proposals"].firstMatch
             XCTAssertTrue(
-                JourneyDiagnostics.wait(for: all, in: app, timeout: screenTimeout), "S3.1: no \"All proposals\"")
+                JourneyDiagnostics.wait(for: all, in: app, timeout: S.s3p1.seconds),
+                "\(S.s3p1.id): no \"All proposals\"")
             all.tap()
             XCTAssertTrue(
-                app.navigationBars["All proposals"].waitForExistence(timeout: screenTimeout),
-                "S3.1: All proposals did not open within \(Int(screenTimeout)) s")
+                app.navigationBars[S.s3p1.copy[0]].waitForExistence(timeout: S.s3p1.seconds),
+                "\(S.s3p1.id): All proposals did not open within \(Int(S.s3p1.seconds)) s")
         }
 
-        recorder.step("S3.2", "All proposals lists the open proposal and the closed one") {
+        recorder.step(S.s3p2) {
             let open = app.descendants(matching: .any).matching(
                 NSPredicate(format: "identifier IN %@", ["proposal-card-\(proposalID)", "proposal-row-\(proposalID)"])
             ).firstMatch
             XCTAssertTrue(
-                JourneyDiagnostics.wait(for: open, in: app, timeout: screenTimeout),
-                "S3.2: the open proposal \(proposalID) is not under Open")
+                JourneyDiagnostics.wait(for: open, in: app, timeout: S.s3p2.seconds),
+                "\(S.s3p2.id): the open proposal \(proposalID) is not under Open")
             app.element("proposals-segment-closed").tap()
             let closed = app.element("proposal-row-\(closedProposalID)")
             XCTAssertTrue(
-                JourneyDiagnostics.wait(for: closed, in: app, timeout: screenTimeout),
-                "S3.2: proposal-row-\(closedProposalID) did not show under Closed")
+                JourneyDiagnostics.wait(for: closed, in: app, timeout: S.s3p2.seconds),
+                "\(S.s3p2.id): proposal-row-\(closedProposalID) did not show under Closed")
             XCTAssertTrue(
-                waitForText(closed, "Expired", timeout: checkTimeout) || waitForText(closed, "Failed", timeout: 1),
-                "S3.2: the closed row shows neither Expired nor Failed")
+                waitForText(closed, S.s3p2.copy[0], timeout: checkTimeout)
+                    || waitForText(closed, S.s3p2.copy[1], timeout: 1),
+                "\(S.s3p2.id): the closed row shows neither Expired nor Failed")
         }
     }
 
@@ -290,28 +298,30 @@ extension GovernanceVoteJourney {
         _ app: XCUIApplication, closedProposalID: String, offProposalID: String, hostName: String, otherName: String,
         recorder: JourneyRecorder
     ) {
-        recorder.step("S4.1", "a closed proposal in a cabal with the rule on shows who voted what") {
-            openClosed(app, closedProposalID, step: "S4.1")
+        recorder.step(S.s4p1) {
+            openClosed(app, closedProposalID, step: S.s4p1.id)
             let sides = app.element("proposal-sides")
             XCTAssertTrue(
-                JourneyDiagnostics.wait(for: sides, in: app, timeout: screenTimeout),
-                "S4.1: the closed proposal shows no proposal-sides")
+                JourneyDiagnostics.wait(for: sides, in: app, timeout: S.s4p1.seconds),
+                "\(S.s4p1.id): the closed proposal shows no proposal-sides")
             XCTAssertTrue(
-                waitForText(app, "✓ 2", timeout: checkTimeout) && waitForText(app, "1 ✕", timeout: checkTimeout),
-                "S4.1: the closed tally does not read ✓ 2 and 1 ✕")
-            for name in ["you", hostName, otherName] {
+                waitForText(app, S.s4p1.copy[0], timeout: checkTimeout)
+                    && waitForText(app, S.s4p1.copy[1], timeout: checkTimeout),
+                "\(S.s4p1.id): the closed tally does not read ✓ 2 and 1 ✕")
+            for name in [S.s4p1.copy[2], hostName, otherName] {
                 XCTAssertTrue(
-                    waitForText(sides, name, timeout: checkTimeout), "S4.1: proposal-sides does not name \(name)")
+                    waitForText(sides, name, timeout: checkTimeout),
+                    "\(S.s4p1.id): proposal-sides does not name \(name)")
             }
         }
 
-        recorder.step("S4.2", "a closed proposal in a cabal with the rule off shows counts and no sides") {
+        recorder.step(S.s4p2) {
             app.popToRoot()
-            openClosed(app, offProposalID, step: "S4.2")
+            openClosed(app, offProposalID, step: S.s4p2.id)
             XCTAssertTrue(
-                JourneyDiagnostics.wait(for: app.element("proposal-result"), in: app, timeout: screenTimeout),
-                "S4.2: the closed proposal shows no result")
-            XCTAssertFalse(app.element("proposal-sides").exists, "S4.2: proposal-sides shows with the rule off")
+                JourneyDiagnostics.wait(for: app.element("proposal-result"), in: app, timeout: S.s4p2.seconds),
+                "\(S.s4p2.id): the closed proposal shows no result")
+            XCTAssertFalse(app.element("proposal-sides").exists, "\(S.s4p2.id): proposal-sides shows with the rule off")
         }
     }
 

@@ -223,6 +223,80 @@ ALTER TABLE widgets ALTER COLUMN weight SET DEFAULT 0;
 """
 
 
+GEN_DOC = DOC.replace("| S1.1 | tap | `a` | | b |", '| S1.1 | tap | `a` | | "Send code" shows within 5 s |').replace(
+    "| S1.2 | type | `c` | x | y |", '| S1.2 | type, then tap | `c` | x | "QA vote {QA.run}" and "Done" |')
+
+
+class Generated(Tree):
+    PATH = "apps/mobile/MonacoUITests/Journeys/Generated/SignInJourneySteps.swift"
+
+    def setUp(self):
+        super().setUp()
+        self.write("docs/journeys/auth/sign-in.md", GEN_DOC)
+
+    def gen(self):
+        with redirect_stdout(StringIO()):
+            return journey.main(["gen", "auth/sign-in"])
+
+    def test_gen_writes_one_value_per_step_row(self):
+        self.assertEqual(self.gen(), 0)
+        text = (journey.ROOT / self.PATH).read_text()
+        self.assertIn("enum SignInJourneySteps {", text)
+        self.assertIn('static let id = "auth/sign-in"', text)
+        self.assertIn("static let version = 2\n", text)
+        self.assertIn(
+            'static let s1p1 = JourneyStep(id: "S1.1", name: "tap a", actor: "A", seconds: 5, copy: ["Send code"])', text)
+        self.assertIn('        seconds: 15,\n        copy: ["QA vote {QA.run}", "Done"]\n', text)
+        self.assertIn('static let s2p1 = JourneyStep(id: "S2.1", name: "relaunch the app", actor: "A", seconds: 15, copy: [])', text)
+        self.assertNotIn("//", text)
+
+    def test_gen_twice_changes_nothing(self):
+        self.gen()
+        first = (journey.ROOT / self.PATH).read_text()
+        out = StringIO()
+        with redirect_stdout(out):
+            journey.main(["gen", "auth/sign-in"])
+        self.assertEqual((journey.ROOT / self.PATH).read_text(), first)
+        self.assertEqual(out.getvalue(), "")
+
+    def test_a_generated_file_that_gen_would_write_differently_is_stale(self):
+        self.assertEqual(self.problems(), [])
+        self.gen()
+        self.assertEqual(self.problems(), [])
+        path = journey.ROOT / self.PATH
+        path.write_text(path.read_text().replace("Send code", "Send a code"))
+        problems = self.problems()
+        self.assertEqual(len(problems), 1)
+        self.assertIn("stale: run `scripts/qa/journey.py gen auth/sign-in`", problems[0])
+
+    def test_the_stamp_is_read_from_the_generated_file(self):
+        self.gen()
+        self.write("ui/SignInJourney.swift", JOURNEY_SWIFT.replace('    static let id = "auth/sign-in"\n    static let version = 2\n', ""))
+        self.assertEqual(self.problems(), [])
+
+
+class VersionBump(Tree):
+    def base(self, text):
+        return lambda relative: text if relative == "docs/journeys/auth/sign-in.md" else None
+
+    def problems_against(self, base):
+        return journey.check_journeys(journey.load_journeys(), journey.load_accounts(environ={}), None, self.base(base))
+
+    def test_a_step_change_without_a_bump_is_named(self):
+        problems = self.problems_against(DOC.replace("| y |", "| z |"))
+        self.assertEqual(len(problems), 1)
+        self.assertIn("docs/journeys/auth/sign-in.md: the step tables changed against origin/staging", problems[0])
+
+    def test_a_step_change_with_a_bump_passes(self):
+        self.assertEqual(self.problems_against(DOC.replace("| y |", "| z |").replace("version: 2", "version: 1")), [])
+
+    def test_prose_changes_need_no_bump(self):
+        self.assertEqual(self.problems_against(DOC.replace("# Sign in\n", "# Sign in\n\nWords.\n", 1)), [])
+
+    def test_a_missing_base_is_skipped(self):
+        self.assertEqual(self.problems_against(None), [])
+
+
 class Targets(Tree):
     """The check that every id a journey names is one the app sets."""
 

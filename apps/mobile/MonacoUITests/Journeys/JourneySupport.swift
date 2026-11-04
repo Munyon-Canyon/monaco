@@ -1,5 +1,19 @@
 import XCTest
 
+struct JourneyStep {
+    let id: String
+    let name: String
+    let actor: String
+    let seconds: TimeInterval
+    let copy: [String]
+
+    func filled(_ index: Int, _ values: [String: String]) -> String {
+        values.reduce(copy[index]) { text, pair in
+            text.replacingOccurrences(of: "{\(pair.key)}", with: pair.value)
+        }
+    }
+}
+
 struct JourneyAccount {
     enum Channel: String {
         case sms
@@ -203,6 +217,10 @@ final class JourneyRecorder {
     init(journey: String, version: Int) {
         self.journey = journey
         self.version = version
+    }
+
+    func step(_ step: JourneyStep, _ body: () throws -> Void) rethrows {
+        try self.step(step.id, step.name, body)
     }
 
     func step(_ id: String, _ name: String, _ body: () throws -> Void) rethrows {
