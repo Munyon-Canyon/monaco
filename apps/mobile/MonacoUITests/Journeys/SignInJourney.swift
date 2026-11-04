@@ -101,6 +101,7 @@ enum SignInJourney {
                 app.launchEnvironment.removeValue(forKey: QASignOutOnLaunch.key)
             }
         }
+        if viaUI { app.revealTabBar() }
         var needsSignOut = false
         recorder.step("P1.detect", "find the login form or the tab bar") {
             needsSignOut = detectLoginNeedingSignOut(app, recorder: recorder)

@@ -13,6 +13,7 @@ enum HomeDashboardJourney {
     }
 
     static func openHome(_ app: XCUIApplication) {
+        app.revealTabBar()
         app.tab("Home").tap()
     }
 
