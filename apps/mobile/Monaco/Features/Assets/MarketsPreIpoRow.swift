@@ -16,8 +16,10 @@ struct MarketsPreIpoRow: View {
 
     private var name: String { AssetDisplayName.format(catalogName: asset.name, kind: asset.kind) }
 
-    private var estimateLine: String {
-        asset.estimate.map { PreIpoRowCopy.estimateLine(asOf: $0.asOf) } ?? asset.ticker
+    private var roundLine: String {
+        PreIpoRowCopy.roundLine(
+            valuationMicros: asset.valuationMicros, lastRoundOn: asset.lastRoundOn,
+            estimateAsOf: asset.estimate?.asOf, ticker: asset.ticker, today: WallClock.now())
     }
 
     var body: some View {
@@ -33,7 +35,7 @@ struct MarketsPreIpoRow: View {
                     .font(MonacoTheme.Typo.rowTitle)
                     .foregroundStyle(MonacoTheme.primaryText)
                     .fixedSize(horizontal: false, vertical: true)
-                Text(estimateLine)
+                Text(roundLine)
                     .font(MonacoTheme.Typo.caption)
                     .foregroundStyle(MonacoTheme.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
