@@ -783,7 +783,7 @@ type ChatMessage struct {
 	// Examples: false
 	AlsoInChannel bool `json:"also_in_channel"`
 
-	// Attachment The message's GIF, stock or thesis quote. Absent when there is none and on a deleted message.
+	// Attachment The message's GIF, stock, poll or thesis quote. Absent when there is none and on a deleted message.
 	//
 	// Examples: {"kind":"thesis_quote","proposal_id":"0b6c5a3e-6d2f-4f7e-9a51-2c8d1e4f7a90","proposer_name":"Ada","text":"Small add to the position."}
 	Attachment *CommentAttachment `json:"attachment,omitempty"`
@@ -2405,6 +2405,18 @@ type DeleteChatMessageParams struct {
 	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
 }
 
+// UnvoteChatPollParams defines parameters for UnvoteChatPoll.
+type UnvoteChatPollParams struct {
+	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
+	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
+}
+
+// VoteChatPollParams defines parameters for VoteChatPoll.
+type VoteChatPollParams struct {
+	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
+	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
+}
+
 // UnreactToChatMessageParams defines parameters for UnreactToChatMessage.
 type UnreactToChatMessageParams struct {
 	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
@@ -2690,6 +2702,9 @@ type ResolveReportJSONRequestBody = externalRef0.ReasonBody
 // PostChatMessageJSONRequestBody defines body for PostChatMessage for application/json ContentType.
 type PostChatMessageJSONRequestBody = PostChatMessageRequest
 
+// VoteChatPollJSONRequestBody defines body for VoteChatPoll for application/json ContentType.
+type VoteChatPollJSONRequestBody = PollVoteRequest
+
 // PutCommentPollVoteJSONRequestBody defines body for PutCommentPollVote for application/json ContentType.
 type PutCommentPollVoteJSONRequestBody = PollVoteRequest
 
@@ -2813,6 +2828,40 @@ func (t *ChatAttachmentInput) MergeChatThesisQuoteAttachmentInput(v ChatThesisQu
 	return err
 }
 
+// AsPollAttachmentInput returns the union data inside the ChatAttachmentInput as a PollAttachmentInput
+func (t ChatAttachmentInput) AsPollAttachmentInput() (PollAttachmentInput, error) {
+	var body PollAttachmentInput
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromPollAttachmentInput overwrites any union data inside the ChatAttachmentInput as the provided PollAttachmentInput
+func (t *ChatAttachmentInput) FromPollAttachmentInput(v PollAttachmentInput) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"kind":"poll"}`))
+	t.union = b
+	return err
+}
+
+// MergePollAttachmentInput performs a merge with any union data inside the ChatAttachmentInput, using the provided PollAttachmentInput
+func (t *ChatAttachmentInput) MergePollAttachmentInput(v PollAttachmentInput) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"kind":"poll"}`))
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
 func (t ChatAttachmentInput) Discriminator() (string, error) {
 	var discriminator struct {
 		Discriminator string `json:"kind"`
@@ -2829,6 +2878,8 @@ func (t ChatAttachmentInput) ValueByDiscriminator() (interface{}, error) {
 	switch discriminator {
 	case "gif":
 		return t.AsGifAttachmentInput()
+	case "poll":
+		return t.AsPollAttachmentInput()
 	case "stock":
 		return t.AsStockAttachmentInput()
 	case "thesis_quote":
@@ -3396,6 +3447,12 @@ type ServerInterface interface {
 	// DeleteChatMessage Delete one of the caller's chat messages.
 	// (DELETE /v1/cabals/{id}/messages/{message_id})
 	DeleteChatMessage(w http.ResponseWriter, r *http.Request, id ChatCabalId, messageId ChatMessageId, params DeleteChatMessageParams)
+	// UnvoteChatPoll Withdraw your vote from a chat poll.
+	// (DELETE /v1/cabals/{id}/messages/{message_id}/poll/vote)
+	UnvoteChatPoll(w http.ResponseWriter, r *http.Request, id ChatCabalId, messageId ChatMessageId, params UnvoteChatPollParams)
+	// VoteChatPoll Vote in a chat poll.
+	// (PUT /v1/cabals/{id}/messages/{message_id}/poll/vote)
+	VoteChatPoll(w http.ResponseWriter, r *http.Request, id ChatCabalId, messageId ChatMessageId, params VoteChatPollParams)
 	// UnreactToChatMessage Remove your emoji reaction from a chat message.
 	// (DELETE /v1/cabals/{id}/messages/{message_id}/reactions/{emoji})
 	UnreactToChatMessage(w http.ResponseWriter, r *http.Request, id ChatCabalId, messageId ChatMessageId, emoji string, params UnreactToChatMessageParams)
@@ -3999,6 +4056,132 @@ func (siw *ServerInterfaceWrapper) DeleteChatMessage(w http.ResponseWriter, r *h
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.DeleteChatMessage(w, r, id, messageId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UnvoteChatPoll operation middleware
+func (siw *ServerInterfaceWrapper) UnvoteChatPoll(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ChatCabalId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "message_id" -------------
+	var messageId ChatMessageId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "message_id", r.PathValue("message_id"), &messageId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "message_id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params UnvoteChatPollParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey externalRef0.IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UnvoteChatPoll(w, r, id, messageId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// VoteChatPoll operation middleware
+func (siw *ServerInterfaceWrapper) VoteChatPoll(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ChatCabalId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "message_id" -------------
+	var messageId ChatMessageId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "message_id", r.PathValue("message_id"), &messageId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "message_id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params VoteChatPollParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey externalRef0.IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.VoteChatPoll(w, r, id, messageId, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -6072,6 +6255,8 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/cabals/{id}/messages", wrapper.GetChatMessages)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/cabals/{id}/messages", wrapper.PostChatMessage)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/cabals/{id}/messages/{message_id}", wrapper.DeleteChatMessage)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/cabals/{id}/messages/{message_id}/poll/vote", wrapper.UnvoteChatPoll)
+	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/v1/cabals/{id}/messages/{message_id}/poll/vote", wrapper.VoteChatPoll)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/cabals/{id}/messages/{message_id}/reactions/{emoji}", wrapper.UnreactToChatMessage)
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/v1/cabals/{id}/messages/{message_id}/reactions/{emoji}", wrapper.ReactToChatMessage)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/cabals/{id}/messages/{message_id}/thread", wrapper.GetChatThread)
@@ -6438,6 +6623,89 @@ type DeleteChatMessagedefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response DeleteChatMessagedefaultApplicationProblemPlusJSONResponse) VisitDeleteChatMessageResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UnvoteChatPollRequestObject struct {
+	Id        ChatCabalId   `json:"id"`
+	MessageId ChatMessageId `json:"message_id"`
+	Params    UnvoteChatPollParams
+}
+
+type UnvoteChatPollResponseObject interface {
+	VisitUnvoteChatPollResponse(w http.ResponseWriter) error
+}
+
+type UnvoteChatPoll200JSONResponse PollState
+
+func (response UnvoteChatPoll200JSONResponse) VisitUnvoteChatPollResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UnvoteChatPolldefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response UnvoteChatPolldefaultApplicationProblemPlusJSONResponse) VisitUnvoteChatPollResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type VoteChatPollRequestObject struct {
+	Id        ChatCabalId   `json:"id"`
+	MessageId ChatMessageId `json:"message_id"`
+	Params    VoteChatPollParams
+	Body      *VoteChatPollJSONRequestBody
+}
+
+type VoteChatPollResponseObject interface {
+	VisitVoteChatPollResponse(w http.ResponseWriter) error
+}
+
+type VoteChatPoll200JSONResponse PollState
+
+func (response VoteChatPoll200JSONResponse) VisitVoteChatPollResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type VoteChatPolldefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response VoteChatPolldefaultApplicationProblemPlusJSONResponse) VisitVoteChatPollResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -7764,6 +8032,12 @@ type StrictServerInterface interface {
 	// DeleteChatMessage Delete one of the caller's chat messages.
 	// (DELETE /v1/cabals/{id}/messages/{message_id})
 	DeleteChatMessage(ctx context.Context, request DeleteChatMessageRequestObject) (DeleteChatMessageResponseObject, error)
+	// UnvoteChatPoll Withdraw your vote from a chat poll.
+	// (DELETE /v1/cabals/{id}/messages/{message_id}/poll/vote)
+	UnvoteChatPoll(ctx context.Context, request UnvoteChatPollRequestObject) (UnvoteChatPollResponseObject, error)
+	// VoteChatPoll Vote in a chat poll.
+	// (PUT /v1/cabals/{id}/messages/{message_id}/poll/vote)
+	VoteChatPoll(ctx context.Context, request VoteChatPollRequestObject) (VoteChatPollResponseObject, error)
 	// UnreactToChatMessage Remove your emoji reaction from a chat message.
 	// (DELETE /v1/cabals/{id}/messages/{message_id}/reactions/{emoji})
 	UnreactToChatMessage(ctx context.Context, request UnreactToChatMessageRequestObject) (UnreactToChatMessageResponseObject, error)
@@ -8168,6 +8442,69 @@ func (sh *strictHandler) DeleteChatMessage(w http.ResponseWriter, r *http.Reques
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(DeleteChatMessageResponseObject); ok {
 		if err := validResponse.VisitDeleteChatMessageResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UnvoteChatPoll operation middleware
+func (sh *strictHandler) UnvoteChatPoll(w http.ResponseWriter, r *http.Request, id ChatCabalId, messageId ChatMessageId, params UnvoteChatPollParams) {
+	var request UnvoteChatPollRequestObject
+
+	request.Id = id
+	request.MessageId = messageId
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UnvoteChatPoll(ctx, request.(UnvoteChatPollRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UnvoteChatPoll")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UnvoteChatPollResponseObject); ok {
+		if err := validResponse.VisitUnvoteChatPollResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// VoteChatPoll operation middleware
+func (sh *strictHandler) VoteChatPoll(w http.ResponseWriter, r *http.Request, id ChatCabalId, messageId ChatMessageId, params VoteChatPollParams) {
+	var request VoteChatPollRequestObject
+
+	request.Id = id
+	request.MessageId = messageId
+	request.Params = params
+
+	var body VoteChatPollJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.VoteChatPoll(ctx, request.(VoteChatPollRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "VoteChatPoll")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(VoteChatPollResponseObject); ok {
+		if err := validResponse.VisitVoteChatPollResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

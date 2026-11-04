@@ -28,6 +28,8 @@ type HTTP struct {
 	DeleteChat              *app.DeleteChatMessageHandler
 	ReactChat               *app.ReactChatMessageHandler
 	UnreactChat             *app.UnreactChatMessageHandler
+	VoteChatPollCmd         *app.VoteChatPollHandler
+	UnvoteChatPollCmd       *app.UnvoteChatPollHandler
 	MarkSeen                *app.MarkChatSeenHandler
 	Token                   *app.RealtimeTokenHandler
 	CreateComment           *app.CreateCommentHandler

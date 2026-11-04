@@ -136,6 +136,16 @@ func storeChatAttachment(
 		return errs.Wrap(err, errs.CodeInternal, "social.PostChatMessage")
 	}
 	posted.Attachment = att
+	if att.Poll != nil {
+		stored, view, positions := newPoll(row.CreatedAt, att)
+		err := q.InsertChatPollOptions(ctx, sqlc.InsertChatPollOptionsParams{
+			MessageID: row.ID, Positions: positions, Labels: att.Poll.Options,
+		})
+		if err != nil {
+			return errs.Wrap(err, errs.CodeInternal, "social.PostChatMessage")
+		}
+		posted.Attachment, posted.Poll = stored, view
+	}
 	if stock.ID != uuid.Nil {
 		posted.Stock = &stock
 	}

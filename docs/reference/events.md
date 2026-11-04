@@ -413,6 +413,18 @@ Subject `events.chat.message_posted`, version 1.
 | `mentioned_user_ids` | `[]uuid.UUID` |
 | `thread_participant_ids` | `[]uuid.UUID` |
 
+## `chat.poll_voted`
+
+Subject `events.chat.poll_voted`, version 1.
+
+| Field | Go type |
+| --- | --- |
+| `v` | `int` |
+| `message_id` | `uuid.UUID` |
+| `cabal_id` | `uuid.UUID` |
+| `user_id` | `uuid.UUID` |
+| `position` | `int` |
+
 ## `chat.reaction_added`
 
 Subject `events.chat.reaction_added`, version 1.

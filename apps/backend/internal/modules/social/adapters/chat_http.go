@@ -186,7 +186,45 @@ func (h HTTP) wireChat(ctx context.Context, viewer ids.UserID, messages []app.Ch
 	if err := app.LoadChatAttachments(ctx, h.Reads, h.Stocks, messages); err != nil {
 		return nil, err
 	}
+	if err := app.LoadChatPolls(ctx, h.Reads, viewer, messages, h.Clock.Now()); err != nil {
+		return nil, err
+	}
 	return wireChat(ctx, h.Users, reactions, messages)
+}
+
+func (h HTTP) VoteChatPoll(
+	ctx context.Context, req api.VoteChatPollRequestObject,
+) (api.VoteChatPollResponseObject, error) {
+	me, err := caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if req.Body == nil {
+		return nil, errs.New(errs.CodeInvalidInput, "social.VoteChatPoll")
+	}
+	state, err := h.VoteChatPollCmd.Handle(ctx, app.VoteChatPoll{
+		CabalID: ids.CabalIDFrom(req.Id), MessageID: req.MessageId, Viewer: me, Position: req.Body.Position,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return api.VoteChatPoll200JSONResponse(wirePollState(state)), nil
+}
+
+func (h HTTP) UnvoteChatPoll(
+	ctx context.Context, req api.UnvoteChatPollRequestObject,
+) (api.UnvoteChatPollResponseObject, error) {
+	me, err := caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	state, err := h.UnvoteChatPollCmd.Handle(ctx, app.UnvoteChatPoll{
+		CabalID: ids.CabalIDFrom(req.Id), MessageID: req.MessageId, Viewer: me,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return api.UnvoteChatPoll200JSONResponse(wirePollState(state)), nil
 }
 
 func (h HTTP) ReactToChatMessage(
@@ -266,7 +304,7 @@ func wireChatWith(
 		if !m.Deleted {
 			body := m.Body
 			if m.Attachment != nil {
-				out[i].Attachment = wireAttachment(m.Attachment, m.Stock, nil)
+				out[i].Attachment = wireAttachment(m.Attachment, m.Stock, m.Poll)
 				if body == "" {
 					body = m.Attachment.Display().String()
 				}

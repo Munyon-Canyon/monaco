@@ -4051,10 +4051,11 @@ paths:
       description: >-
         Stores the message and appends `chat.message_posted`. Only a member can post, otherwise
         not_cabal_member. The body is trimmed and must be 1 to 2000 Unicode scalars, otherwise
-        chat_body_invalid. It is optional when the message has an `attachment` (a GIF, a stock or a
+        chat_body_invalid. It is optional when the message has an `attachment` (a GIF, a stock, a poll or a
         quote of a proposal's thesis, at most one), and a message with neither is chat_body_invalid.
-        A message that is only an attachment reads back with `body` `GIF`, `Shared a stock` or
-        `Quoted the thesis`. A thesis quote of a proposal of another cabal or without a thesis is
+        A message that is only an attachment reads back with `body` `GIF`, `Shared a stock`,
+        `Quoted the thesis` or the poll's question. A poll is validated as on a reply, and its options and
+        counts come back viewer-relative in `attachment`. A thesis quote of a proposal of another cabal or without a thesis is
         invalid_input with `reason=no_thesis`, and a bad range is `reason=invalid_range`. An unknown
         asset is invalid_input with `reason=asset_not_found`. A reply names its `parent_id`, which must be a live top-level message
         in the same cabal: an unknown, deleted or other-cabal parent is chat_parent_not_found and
@@ -4137,6 +4138,59 @@ paths:
       responses:
         "204":
           description: The message is deleted.
+        default:
+          $ref: "#/components/responses/Problem"
+  /v1/cabals/{id}/messages/{message_id}/poll/vote:
+    put:
+      operationId: voteChatPoll
+      tags: [social]
+      x-idempotent: true
+      x-rate-limit: {actor: {rate: 30, per: 1m, burst: 10}, ip: {rate: 60, per: 1m, burst: 60}}
+      summary: Vote in a chat poll.
+      description: >-
+        Records the caller's one vote, or moves it to another option, and returns the poll's counts. Only a member can vote, otherwise not_cabal_member. A message that is unknown, deleted, in another cabal or without a poll is chat_message_not_found. A poll past its `closes_at` is poll_closed. An unknown position is invalid_input with `reason=poll_option`. Appends `chat.poll_voted` and publishes `poll.updated` on `cabal:<id>` after the commit.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/ChatCabalId"
+        - $ref: "#/components/parameters/ChatMessageId"
+      requestBody:
+        description: The option to vote for.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PollVoteRequest"
+            example: {position: 1}
+      responses:
+        "200":
+          description: The poll's counts after the vote.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PollState"
+              example: {closes_at: "2026-10-04T08:00:00Z", closed: false, options: [{position: 0, label: Yes, count: 3}, {position: 1, label: Wait for earnings, count: 2}], total: 5, my_position: 1}
+        default:
+          $ref: "#/components/responses/Problem"
+    delete:
+      operationId: unvoteChatPoll
+      tags: [social]
+      x-idempotent: true
+      x-rate-limit: {actor: {rate: 30, per: 1m, burst: 10}, ip: {rate: 60, per: 1m, burst: 60}}
+      summary: Withdraw your vote from a chat poll.
+      description: >-
+        Removes the caller's vote and returns the poll's counts. Withdrawing a vote the caller does not have changes nothing. The same not_cabal_member, chat_message_not_found and poll_closed rules as voting apply. A change publishes `poll.updated` on `cabal:<id>`.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/ChatCabalId"
+        - $ref: "#/components/parameters/ChatMessageId"
+      responses:
+        "200":
+          description: The poll's counts after the withdrawal.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PollState"
+              example: {closes_at: "2026-10-04T08:00:00Z", closed: false, options: [{position: 0, label: Yes, count: 3}, {position: 1, label: Wait for earnings, count: 1}], total: 4}
         default:
           $ref: "#/components/responses/Problem"
   /v1/cabals/{id}/messages/{message_id}/reactions/{emoji}:
@@ -11181,12 +11235,14 @@ components:
         - $ref: "#/components/schemas/GifAttachmentInput"
         - $ref: "#/components/schemas/StockAttachmentInput"
         - $ref: "#/components/schemas/ChatThesisQuoteAttachmentInput"
+        - $ref: "#/components/schemas/PollAttachmentInput"
       discriminator:
         propertyName: kind
         mapping:
           gif: "#/components/schemas/GifAttachmentInput"
           stock: "#/components/schemas/StockAttachmentInput"
           thesis_quote: "#/components/schemas/ChatThesisQuoteAttachmentInput"
+          poll: "#/components/schemas/PollAttachmentInput"
     ChatAuthor:
       type: object
       description: The author of a chat message. A deleted account has a null handle and an empty name.
@@ -11218,7 +11274,7 @@ components:
         body: {type: [string, "null"], description: "Null on a deleted message. `GIF`, `Shared a stock` or `Quoted the thesis` on a message that is only an attachment.", examples: [gm]}
         attachment:
           $ref: "#/components/schemas/CommentAttachment"
-          description: The message's GIF, stock or thesis quote. Absent when there is none and on a deleted message.
+          description: The message's GIF, stock, poll or thesis quote. Absent when there is none and on a deleted message.
           examples: [{kind: thesis_quote, proposal_id: 0b6c5a3e-6d2f-4f7e-9a51-2c8d1e4f7a90, text: Small add to the position., proposer_name: Ada}]
         created_at: {type: string, format: date-time, description: When the server stored it., examples: ["2026-10-03T12:00:00Z"]}
         parent_id:

@@ -40,6 +40,7 @@ type ChatMessage struct {
 	SeenCount     *int
 	Attachment    *domain.Attachment
 	Stock         *StockCard
+	Poll          *PollView
 }
 
 func requireMember(ctx context.Context, members Members, cabal ids.CabalID, user ids.UserID) error {
