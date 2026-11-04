@@ -930,6 +930,16 @@ type ChatMessage struct {
 	// Examples: null
 	ParentId *openapi_types.UUID `json:"parent_id"`
 
+	// PinnedAt When the message was pinned. Null when it is not pinned.
+	//
+	// Examples: null
+	PinnedAt *time.Time `json:"pinned_at"`
+
+	// PinnedBy Who pinned the message. Null when it is not pinned.
+	//
+	// Examples: null
+	PinnedBy *ChatAuthor `json:"pinned_by"`
+
 	// ProposalId The proposal a proposal card message is about. Null otherwise.
 	//
 	// Examples: null
@@ -966,6 +976,16 @@ type ChatMessageKind string
 // Examples: {"kind":"cabal_created"}
 type ChatMoment struct {
 	union json.RawMessage
+}
+
+// ChatPins The messages pinned in a cabal's chat.
+//
+// Examples: {"messages":[]}
+type ChatPins struct {
+	// Messages Newest pin first, at most 3.
+	//
+	// Examples: []
+	Messages []ChatMessage `json:"messages"`
 }
 
 // ChatSeenBy The members who have seen a message.
@@ -2607,6 +2627,18 @@ type DeleteChatMessageParams struct {
 	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
 }
 
+// UnpinChatMessageParams defines parameters for UnpinChatMessage.
+type UnpinChatMessageParams struct {
+	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
+	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
+}
+
+// PinChatMessageParams defines parameters for PinChatMessage.
+type PinChatMessageParams struct {
+	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
+	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
+}
+
 // UnvoteChatPollParams defines parameters for UnvoteChatPoll.
 type UnvoteChatPollParams struct {
 	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
@@ -3774,6 +3806,9 @@ type ServerInterface interface {
 	// ResolveReport Resolve a report.
 	// (POST /v1/admin/reports/{id}/resolve)
 	ResolveReport(w http.ResponseWriter, r *http.Request, id openapi_types.UUID, params ResolveReportParams)
+	// GetChatPins List a cabal's pinned chat messages.
+	// (GET /v1/cabals/{id}/chat/pins)
+	GetChatPins(w http.ResponseWriter, r *http.Request, id ChatCabalId)
 	// GetChatSeenBy List who has seen a chat message.
 	// (GET /v1/cabals/{id}/chat/seen)
 	GetChatSeenBy(w http.ResponseWriter, r *http.Request, id ChatCabalId, params GetChatSeenByParams)
@@ -3789,6 +3824,12 @@ type ServerInterface interface {
 	// DeleteChatMessage Delete one of the caller's chat messages.
 	// (DELETE /v1/cabals/{id}/messages/{message_id})
 	DeleteChatMessage(w http.ResponseWriter, r *http.Request, id ChatCabalId, messageId ChatMessageId, params DeleteChatMessageParams)
+	// UnpinChatMessage Unpin a chat message.
+	// (DELETE /v1/cabals/{id}/messages/{message_id}/pin)
+	UnpinChatMessage(w http.ResponseWriter, r *http.Request, id ChatCabalId, messageId ChatMessageId, params UnpinChatMessageParams)
+	// PinChatMessage Pin a chat message.
+	// (PUT /v1/cabals/{id}/messages/{message_id}/pin)
+	PinChatMessage(w http.ResponseWriter, r *http.Request, id ChatCabalId, messageId ChatMessageId, params PinChatMessageParams)
 	// UnvoteChatPoll Withdraw your vote from a chat poll.
 	// (DELETE /v1/cabals/{id}/messages/{message_id}/poll/vote)
 	UnvoteChatPoll(w http.ResponseWriter, r *http.Request, id ChatCabalId, messageId ChatMessageId, params UnvoteChatPollParams)
@@ -4126,6 +4167,32 @@ func (siw *ServerInterfaceWrapper) ResolveReport(w http.ResponseWriter, r *http.
 	handler.ServeHTTP(w, r)
 }
 
+// GetChatPins operation middleware
+func (siw *ServerInterfaceWrapper) GetChatPins(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ChatCabalId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetChatPins(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetChatSeenBy operation middleware
 func (siw *ServerInterfaceWrapper) GetChatSeenBy(w http.ResponseWriter, r *http.Request) {
 
@@ -4411,6 +4478,132 @@ func (siw *ServerInterfaceWrapper) DeleteChatMessage(w http.ResponseWriter, r *h
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.DeleteChatMessage(w, r, id, messageId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UnpinChatMessage operation middleware
+func (siw *ServerInterfaceWrapper) UnpinChatMessage(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ChatCabalId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "message_id" -------------
+	var messageId ChatMessageId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "message_id", r.PathValue("message_id"), &messageId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "message_id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params UnpinChatMessageParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey externalRef0.IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UnpinChatMessage(w, r, id, messageId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PinChatMessage operation middleware
+func (siw *ServerInterfaceWrapper) PinChatMessage(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ChatCabalId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "message_id" -------------
+	var messageId ChatMessageId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "message_id", r.PathValue("message_id"), &messageId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "message_id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params PinChatMessageParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey externalRef0.IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PinChatMessage(w, r, id, messageId, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -6618,11 +6811,14 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/admin/comments/{id}", wrapper.RemoveComment)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/admin/reports", wrapper.GetAdminReports)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/admin/reports/{id}/resolve", wrapper.ResolveReport)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/cabals/{id}/chat/pins", wrapper.GetChatPins)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/cabals/{id}/chat/seen", wrapper.GetChatSeenBy)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/cabals/{id}/chat/seen", wrapper.MarkChatSeen)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/cabals/{id}/messages", wrapper.GetChatMessages)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/cabals/{id}/messages", wrapper.PostChatMessage)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/cabals/{id}/messages/{message_id}", wrapper.DeleteChatMessage)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/cabals/{id}/messages/{message_id}/pin", wrapper.UnpinChatMessage)
+	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/v1/cabals/{id}/messages/{message_id}/pin", wrapper.PinChatMessage)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/cabals/{id}/messages/{message_id}/poll/vote", wrapper.UnvoteChatPoll)
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/v1/cabals/{id}/messages/{message_id}/poll/vote", wrapper.VoteChatPoll)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/cabals/{id}/messages/{message_id}/reactions/{emoji}", wrapper.UnreactToChatMessage)
@@ -6795,6 +6991,45 @@ type ResolveReportdefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response ResolveReportdefaultApplicationProblemPlusJSONResponse) VisitResolveReportResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetChatPinsRequestObject struct {
+	Id ChatCabalId `json:"id"`
+}
+
+type GetChatPinsResponseObject interface {
+	VisitGetChatPinsResponse(w http.ResponseWriter) error
+}
+
+type GetChatPins200JSONResponse ChatPins
+
+func (response GetChatPins200JSONResponse) VisitGetChatPinsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetChatPinsdefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response GetChatPinsdefaultApplicationProblemPlusJSONResponse) VisitGetChatPinsResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -6991,6 +7226,88 @@ type DeleteChatMessagedefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response DeleteChatMessagedefaultApplicationProblemPlusJSONResponse) VisitDeleteChatMessageResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UnpinChatMessageRequestObject struct {
+	Id        ChatCabalId   `json:"id"`
+	MessageId ChatMessageId `json:"message_id"`
+	Params    UnpinChatMessageParams
+}
+
+type UnpinChatMessageResponseObject interface {
+	VisitUnpinChatMessageResponse(w http.ResponseWriter) error
+}
+
+type UnpinChatMessage200JSONResponse ChatMessage
+
+func (response UnpinChatMessage200JSONResponse) VisitUnpinChatMessageResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UnpinChatMessagedefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response UnpinChatMessagedefaultApplicationProblemPlusJSONResponse) VisitUnpinChatMessageResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PinChatMessageRequestObject struct {
+	Id        ChatCabalId   `json:"id"`
+	MessageId ChatMessageId `json:"message_id"`
+	Params    PinChatMessageParams
+}
+
+type PinChatMessageResponseObject interface {
+	VisitPinChatMessageResponse(w http.ResponseWriter) error
+}
+
+type PinChatMessage200JSONResponse ChatMessage
+
+func (response PinChatMessage200JSONResponse) VisitPinChatMessageResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PinChatMessagedefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response PinChatMessagedefaultApplicationProblemPlusJSONResponse) VisitPinChatMessageResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -8385,6 +8702,9 @@ type StrictServerInterface interface {
 	// ResolveReport Resolve a report.
 	// (POST /v1/admin/reports/{id}/resolve)
 	ResolveReport(ctx context.Context, request ResolveReportRequestObject) (ResolveReportResponseObject, error)
+	// GetChatPins List a cabal's pinned chat messages.
+	// (GET /v1/cabals/{id}/chat/pins)
+	GetChatPins(ctx context.Context, request GetChatPinsRequestObject) (GetChatPinsResponseObject, error)
 	// GetChatSeenBy List who has seen a chat message.
 	// (GET /v1/cabals/{id}/chat/seen)
 	GetChatSeenBy(ctx context.Context, request GetChatSeenByRequestObject) (GetChatSeenByResponseObject, error)
@@ -8400,6 +8720,12 @@ type StrictServerInterface interface {
 	// DeleteChatMessage Delete one of the caller's chat messages.
 	// (DELETE /v1/cabals/{id}/messages/{message_id})
 	DeleteChatMessage(ctx context.Context, request DeleteChatMessageRequestObject) (DeleteChatMessageResponseObject, error)
+	// UnpinChatMessage Unpin a chat message.
+	// (DELETE /v1/cabals/{id}/messages/{message_id}/pin)
+	UnpinChatMessage(ctx context.Context, request UnpinChatMessageRequestObject) (UnpinChatMessageResponseObject, error)
+	// PinChatMessage Pin a chat message.
+	// (PUT /v1/cabals/{id}/messages/{message_id}/pin)
+	PinChatMessage(ctx context.Context, request PinChatMessageRequestObject) (PinChatMessageResponseObject, error)
 	// UnvoteChatPoll Withdraw your vote from a chat poll.
 	// (DELETE /v1/cabals/{id}/messages/{message_id}/poll/vote)
 	UnvoteChatPoll(ctx context.Context, request UnvoteChatPollRequestObject) (UnvoteChatPollResponseObject, error)
@@ -8674,6 +9000,32 @@ func (sh *strictHandler) ResolveReport(w http.ResponseWriter, r *http.Request, i
 	}
 }
 
+// GetChatPins operation middleware
+func (sh *strictHandler) GetChatPins(w http.ResponseWriter, r *http.Request, id ChatCabalId) {
+	var request GetChatPinsRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetChatPins(ctx, request.(GetChatPinsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetChatPins")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetChatPinsResponseObject); ok {
+		if err := validResponse.VisitGetChatPinsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // GetChatSeenBy operation middleware
 func (sh *strictHandler) GetChatSeenBy(w http.ResponseWriter, r *http.Request, id ChatCabalId, params GetChatSeenByParams) {
 	var request GetChatSeenByRequestObject
@@ -8810,6 +9162,62 @@ func (sh *strictHandler) DeleteChatMessage(w http.ResponseWriter, r *http.Reques
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(DeleteChatMessageResponseObject); ok {
 		if err := validResponse.VisitDeleteChatMessageResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UnpinChatMessage operation middleware
+func (sh *strictHandler) UnpinChatMessage(w http.ResponseWriter, r *http.Request, id ChatCabalId, messageId ChatMessageId, params UnpinChatMessageParams) {
+	var request UnpinChatMessageRequestObject
+
+	request.Id = id
+	request.MessageId = messageId
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UnpinChatMessage(ctx, request.(UnpinChatMessageRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UnpinChatMessage")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UnpinChatMessageResponseObject); ok {
+		if err := validResponse.VisitUnpinChatMessageResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PinChatMessage operation middleware
+func (sh *strictHandler) PinChatMessage(w http.ResponseWriter, r *http.Request, id ChatCabalId, messageId ChatMessageId, params PinChatMessageParams) {
+	var request PinChatMessageRequestObject
+
+	request.Id = id
+	request.MessageId = messageId
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PinChatMessage(ctx, request.(PinChatMessageRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PinChatMessage")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PinChatMessageResponseObject); ok {
+		if err := validResponse.VisitPinChatMessageResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

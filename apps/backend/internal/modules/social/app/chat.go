@@ -43,6 +43,8 @@ type ChatMessage struct {
 	Attachment    *domain.Attachment
 	Stock         *StockCard
 	Poll          *PollView
+	PinnedAt      *time.Time
+	PinnedBy      ids.UserID
 }
 
 func requireMember(ctx context.Context, members Members, cabal ids.CabalID, user ids.UserID) error {

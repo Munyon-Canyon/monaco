@@ -12,7 +12,10 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 )
 
-const ReasonSystemMessage = "system_message"
+const (
+	ReasonSystemMessage = "system_message"
+	ReasonReply         = "reply"
+)
 
 type ChatKind string
 

@@ -26,6 +26,8 @@ type CabalMessage struct {
 	Kind          string
 	Moment        []byte
 	DedupeKey     pgtype.Text
+	PinnedAt      pgtype.Timestamptz
+	PinnedBy      pgtype.UUID
 }
 
 type FeedComment struct {

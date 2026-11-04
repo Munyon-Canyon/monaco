@@ -44,6 +44,8 @@ extension Components.Schemas.ErrorCode {
         case .chatMessageNotOwned: true
         case .chatParentIsReply: true
         case .chatParentNotFound: true
+        case .chatPinForbidden: true
+        case .chatPinLimit: true
         case .clientClosed: true
         case .coinGeckoRateLimited: true
         case .commentMembersOnly: true

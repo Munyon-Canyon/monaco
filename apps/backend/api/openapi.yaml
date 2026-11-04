@@ -3990,6 +3990,25 @@ paths:
           description: The report is resolved.
         default:
           $ref: "#/components/responses/Problem"
+  /v1/cabals/{id}/chat/pins:
+    get:
+      operationId: getChatPins
+      tags: [social]
+      summary: List a cabal's pinned chat messages.
+      description: >-
+        Returns the pinned messages, newest pin first, at most 3. A deleted message is never pinned. Only a member can read, otherwise not_cabal_member. A client re-reads this on a `pin.updated` event.
+      parameters:
+        - $ref: "#/components/parameters/ChatCabalId"
+      responses:
+        "200":
+          description: The pinned messages.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatPins"
+              example: {messages: []}
+        default:
+          $ref: "#/components/responses/Problem"
   /v1/cabals/{id}/chat/seen:
     post:
       operationId: markChatSeen
@@ -4146,6 +4165,51 @@ paths:
       responses:
         "204":
           description: The message is deleted.
+        default:
+          $ref: "#/components/responses/Problem"
+  /v1/cabals/{id}/messages/{message_id}/pin:
+    put:
+      operationId: pinChatMessage
+      tags: [social]
+      x-idempotent: true
+      x-rate-limit: {actor: {rate: 30, per: 1m, burst: 10}, ip: {rate: 60, per: 1m, burst: 60}}
+      summary: Pin a chat message.
+      description: >-
+        Pins a live top-level message and returns it with `pinned_at` and `pinned_by`. A cabal admin can pin any message, and an author can pin their own; a system row is for an admin only. Anyone else gets chat_pin_forbidden. Only a member can pin, otherwise not_cabal_member. A message that is unknown, deleted or in another cabal is chat_message_not_found, and a reply is invalid_input with `reason=reply`. A cabal holds at most 3 pins, and a fourth is chat_pin_limit. Pinning a pinned message changes nothing. A change appends `chat.message_pinned` and publishes `pin.updated` on `cabal:<id>` after the commit.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/ChatCabalId"
+        - $ref: "#/components/parameters/ChatMessageId"
+      responses:
+        "200":
+          description: The message after the pin.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatMessage"
+              example: {id: 01920000-0000-7000-8000-000000000007, kind: user, author: {id: 01890a5d-ac96-774b-bcce-b302099a8058, handle: kai, display_name: Kai, photo_url: null}, body: "5 of 8 to pass", created_at: "2026-10-03T12:00:00Z", parent_id: null, also_in_channel: false, reply_count: 0, last_reply_at: null, proposal_id: null, deleted: false, seen_count: null, reactions: [], reaction_count: 0, pinned_at: "2026-10-03T12:05:00Z", pinned_by: {id: 01890a5d-ac96-774b-bcce-b302099a8058, handle: kai, display_name: Kai, photo_url: null}}
+        default:
+          $ref: "#/components/responses/Problem"
+    delete:
+      operationId: unpinChatMessage
+      tags: [social]
+      x-idempotent: true
+      x-rate-limit: {actor: {rate: 30, per: 1m, burst: 10}, ip: {rate: 60, per: 1m, burst: 60}}
+      summary: Unpin a chat message.
+      description: >-
+        Removes the pin and returns the message. A cabal admin or the member who pinned it can unpin; anyone else gets chat_pin_forbidden. Unpinning a message that is not pinned changes nothing. The same not_cabal_member and chat_message_not_found rules as pinning apply. A change appends `chat.message_unpinned` and publishes `pin.updated` on `cabal:<id>` after the commit.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/ChatCabalId"
+        - $ref: "#/components/parameters/ChatMessageId"
+      responses:
+        "200":
+          description: The message after the unpin.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatMessage"
+              example: {id: 01920000-0000-7000-8000-000000000007, kind: user, author: {id: 01890a5d-ac96-774b-bcce-b302099a8058, handle: kai, display_name: Kai, photo_url: null}, body: "5 of 8 to pass", created_at: "2026-10-03T12:00:00Z", parent_id: null, also_in_channel: false, reply_count: 0, last_reply_at: null, proposal_id: null, deleted: false, seen_count: null, reactions: [], reaction_count: 0, pinned_at: null, pinned_by: null}
         default:
           $ref: "#/components/responses/Problem"
   /v1/cabals/{id}/messages/{message_id}/poll/vote:
@@ -7501,6 +7565,8 @@ components:
         - chat_message_not_owned
         - chat_parent_is_reply
         - chat_parent_not_found
+        - chat_pin_forbidden
+        - chat_pin_limit
         - client_closed
         - coin_gecko_rate_limited
         - comment_members_only
@@ -11522,7 +11588,7 @@ components:
       type: object
       description: One chat message.
       additionalProperties: false
-      required: [id, kind, author, body, created_at, parent_id, also_in_channel, reply_count, last_reply_at, proposal_id, deleted, seen_count, reactions, reaction_count]
+      required: [id, kind, author, body, created_at, parent_id, also_in_channel, reply_count, last_reply_at, proposal_id, deleted, seen_count, reactions, reaction_count, pinned_at, pinned_by]
       properties:
         id: {type: string, format: uuid, description: "The message id.", examples: ["01920000-0000-7000-8000-000000000007"]}
         kind: {type: string, enum: [user, proposal, system], description: "`system` for the cabal's own row, which has the nil UUID as `author.id`, a null `body` and a `moment`. It cannot be deleted or reported by a member: each is invalid_input with `reason=system_message`.", examples: [user]}
@@ -11572,6 +11638,23 @@ components:
           examples: [[{emoji: "😂", count: 3, mine: false}]]
           items: {$ref: "#/components/schemas/Reaction"}
         reaction_count: {type: integer, format: int32, minimum: 0, description: "The number of reactions on the message, over every emoji.", examples: [3]}
+        pinned_at:
+          type: [string, "null"]
+          format: date-time
+          description: When the message was pinned. Null when it is not pinned.
+          examples: [null]
+        pinned_by:
+          type: [object, "null"]
+          description: Who pinned the message. Null when it is not pinned.
+          examples: [null]
+          x-go-type: ChatAuthor
+          additionalProperties: false
+          required: [id, handle, display_name, photo_url]
+          properties:
+            id: {type: string, format: uuid, description: "The user's id.", examples: ["01890a5d-ac96-774b-bcce-b302099a8058"]}
+            handle: {type: [string, "null"], description: Null until onboarding sets one., examples: [kai]}
+            display_name: {type: string, description: Empty when the user has none., examples: [Kai]}
+            photo_url: {type: [string, "null"], description: Null when the user has none., examples: [null]}
     ChatMoment:
       description: What a system row says happened, keyed by `kind`.
       examples:
@@ -11586,6 +11669,21 @@ components:
           cabal_created: "#/components/schemas/CabalCreatedMoment"
           member_joined: "#/components/schemas/MemberJoinedMoment"
           trade_filled: "#/components/schemas/TradeFilledMoment"
+    ChatPins:
+      type: object
+      description: The messages pinned in a cabal's chat.
+      additionalProperties: false
+      required: [messages]
+      examples:
+        - {messages: []}
+      properties:
+        messages:
+          type: array
+          maxItems: 3
+          description: Newest pin first, at most 3.
+          examples: [[]]
+          items:
+            $ref: "#/components/schemas/ChatMessage"
     ChatSeenBy:
       type: object
       description: The members who have seen a message.

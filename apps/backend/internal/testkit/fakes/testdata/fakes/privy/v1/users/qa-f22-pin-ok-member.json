@@ -1,0 +1,1 @@
+{"status":200,"headers":{"Content-Type":"application/json"},"body":{"id":"did:privy:qa-f22-pin-ok-member","linked_accounts":[{"type":"email","address":"qa-f22-pin-ok-member@example.com"}]}}
