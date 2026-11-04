@@ -77,7 +77,7 @@ struct CatchUpCardComment: View {
 
     private var reactionRow: some View {
         ReactionRow(
-            target: target, reactions: shown, showsAdd: false, size: .compact,
+            target: target, reactions: shown, opensTrayOnLongPress: false, size: .compact,
             onToggle: { emoji in toggle(emoji) },
             trailing: {
                 Button(action: onReply) {

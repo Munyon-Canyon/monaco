@@ -179,7 +179,7 @@ struct CommentRow: View {
 
     private var reactionRow: some View {
         ReactionRow(
-            target: .comment(row.id), reactions: shownReactions, showsAdd: false, size: .compact,
+            target: .comment(row.id), reactions: shownReactions, opensTrayOnLongPress: false, size: .compact,
             onToggle: onToggleReaction
         ) {
             if canReply { replyButton }
