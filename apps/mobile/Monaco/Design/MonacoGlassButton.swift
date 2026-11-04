@@ -89,10 +89,31 @@ struct MonacoGlassButton: View {
     }
 
     private var drawsCircle: Bool {
-        guard placement == .toolbar, !reduceTransparency else { return true }
-        if #available(iOS 26, *) { return false }
-        return true
+        placement != .toolbar || toolbarDrawsCircle(reduceTransparency: reduceTransparency)
     }
+}
+
+private func toolbarDrawsCircle(reduceTransparency: Bool) -> Bool {
+    if reduceTransparency { return true }
+    if #available(iOS 26, *) { return false }
+    return true
+}
+
+private struct MonacoToolbarCircle: ViewModifier {
+    @MonacoReduceTransparency private var reduceTransparency
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if toolbarDrawsCircle(reduceTransparency: reduceTransparency) {
+            content.background(Circle().fill(MonacoTheme.surfaceSunken))
+        } else {
+            content
+        }
+    }
+}
+
+extension View {
+    func monacoToolbarCircle() -> some View { modifier(MonacoToolbarCircle()) }
 }
 
 private struct MonacoGlassFill: ViewModifier {

@@ -35,19 +35,13 @@ struct UserProfileScreen: View {
         .environment(model)
         .toolbar {
             if model?.phase == .loaded {
-                ToolbarItem(placement: .topBarTrailing) {
-                    MonacoGlassButton(
-                        icon: .share, accessibilityLabel: "Share profile", style: .quiet, placement: .toolbar
-                    ) {
-                        share()
-                    }
-                    .accessibilityIdentifier("user-profile-share")
-                }
                 if context.userID != environment.viewer?.userID {
-                    if #available(iOS 26.0, *) {
-                        ToolbarSpacer(.fixed, placement: .topBarTrailing)
+                    ToolbarItemGroup(placement: .topBarTrailing) {
+                        shareButton
+                        UserProfileMoreMenu().environment(model)
                     }
-                    ToolbarItem(placement: .topBarTrailing) { UserProfileMoreMenu().environment(model) }
+                } else {
+                    ToolbarItem(placement: .topBarTrailing) { shareButton }
                 }
             }
         }
@@ -61,6 +55,15 @@ struct UserProfileScreen: View {
             }
         }
         .refreshable { await refresh.run() }
+    }
+
+    private var shareButton: some View {
+        MonacoGlassButton(
+            icon: .share, accessibilityLabel: "Share profile", style: .quiet, placement: .toolbar
+        ) {
+            share()
+        }
+        .accessibilityIdentifier("user-profile-share")
     }
 
     private func share() {

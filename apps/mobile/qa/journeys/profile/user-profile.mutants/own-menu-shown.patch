@@ -5,15 +5,15 @@ Your own profile shows the "…" menu. S5.1 needs it hidden, so it must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/apps/mobile/Monaco/Features/Profile/UserProfileScreen.swift b/apps/mobile/Monaco/Features/Profile/UserProfileScreen.swift
-index e68c6741a..d9397dce6 100644
+index 32552a4f2..13bc05485 100644
 --- a/apps/mobile/Monaco/Features/Profile/UserProfileScreen.swift
 +++ b/apps/mobile/Monaco/Features/Profile/UserProfileScreen.swift
-@@ -43,7 +43,7 @@ struct UserProfileScreen: View {
-                     }
-                     .accessibilityIdentifier("user-profile-share")
-                 }
+@@ -35,7 +35,7 @@ struct UserProfileScreen: View {
+         .environment(model)
+         .toolbar {
+             if model?.phase == .loaded {
 -                if context.userID != environment.viewer?.userID {
 +                if true {
-                     if #available(iOS 26.0, *) {
-                         ToolbarSpacer(.fixed, placement: .topBarTrailing)
-                     }
+                     ToolbarItemGroup(placement: .topBarTrailing) {
+                         shareButton
+                         UserProfileMoreMenu().environment(model)
