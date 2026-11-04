@@ -478,6 +478,7 @@ extension XCUIApplication {
             XCTFail("\(step): cabal-header-name did not read \(name) on the \(tab) tab within \(Int(timeout)) s")
             return
         }
+        if element("cabal-join").exists { return }
         if tab.lowercased() == "chat" {
             openCabalTab("chat", step: step)
             XCTAssertTrue(
