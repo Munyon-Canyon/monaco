@@ -71,7 +71,7 @@ None.
 
 ## Not covered
 
-- The toast "Deposit received: $25.00". It shows on whichever screen is open when a deposit lands, and the runner deposits before the run, so a step would wait on a person. `BalanceChangeTests` covers its copy.
+- The toast "$25 landed. It's in your cash.". It shows on whichever screen is open when a deposit lands, and the runner deposits before the run, so a step would wait on a person. `BalanceChangeTests` covers its copy.
 - Tapping the address itself to copy it (`deposit-address-value`). It copies the same way as S1.5.
 - A deposit on Base and its forwarding to Solana, with the "Arriving" line on the balance. It needs a Base transfer from outside Monaco, which the runner can't make, so [Verify multichain money](../../how-to/verify-multichain.md) covers it. `DepositArrivingTests` covers the line.
 - Arbitrum and Ethereum. They show after Base by default, and their screens are Base's with another name. `DepositNetworksTests` covers them.

@@ -41,8 +41,13 @@ final class BalanceChangeTests: XCTestCase {
     }
 
     func testADepositSaysHowMuchArrived() {
-        XCTAssertEqual(BalanceChange.deposited(25_000_000).message, "Deposit received: $25.00")
-        XCTAssertEqual(BalanceChange.deposited(1_234_560_000).message, "Deposit received: $1,234.56")
+        let whole = BalanceChange.deposited(25_000_000)
+        XCTAssertEqual(whole.title, "$25 landed.")
+        XCTAssertEqual(whole.body, "It's in your cash.")
+        XCTAssertEqual(whole.message, "$25 landed. It's in your cash.")
+        let cents = BalanceChange.deposited(1_234_560_000)
+        XCTAssertEqual(cents.title, "$1,234.56 landed.")
+        XCTAssertEqual(cents.message, "$1,234.56 landed. It's in your cash.")
     }
 
     private func balance(_ available: Int64, inFlight: Int64 = 0) -> AccountBalance {
