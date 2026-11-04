@@ -8,14 +8,15 @@ import UIKit
 
 @MainActor
 struct CabalsTabComingSlotsTests {
-    @Test func theFiveSectionsAreLive() {
+    @Test func theSixSectionsAreLive() {
         let sections = CabalsTabScreen.sections
-        #expect(sections.count == 5)
+        #expect(sections.count == 6)
         #expect(sections.allSatisfy { $0.isLive })
         #expect(sections.contains { $0 == CabalsJoinSlot.self })
         #expect(sections.contains { $0 == CabalsVoteSlot.self })
         #expect(sections.contains { $0 == CabalsUpNextSlot.self })
         #expect(sections.contains { $0 == CabalsGridSlot.self })
+        #expect(sections.contains { $0 == CabalsTopSlot.self })
         #expect(sections.contains { $0 == CabalsShareListSlot.self })
     }
 
