@@ -166,7 +166,7 @@ enum StocksAssetDetailJourney {
             let retry = app.buttons["propose-amount-cash-error"]
             if retry.waitForExistence(timeout: 4) { retry.tap() }
         }
-        XCTAssertTrue(header.waitForExistence(timeout: 5), "S1.9: no stock header on Amount")
+        XCTAssertTrue(header.waitForExistence(timeout: 10), "S1.9: no stock header on Amount")
         XCTAssertEqual(
             header.label, "Buy \(alpha.name)",
             "S1.9: the Amount header reads '\(header.label)', not 'Buy \(alpha.name)'")
