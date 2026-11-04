@@ -21,6 +21,12 @@ type WriteChatMoment struct {
 	DedupeKey string
 }
 
+type (
+	WriteCabalCreatedMoment = WriteChatMoment
+	WriteMemberJoinedMoment = WriteChatMoment
+	WriteTradeFilledMoment  = WriteChatMoment
+)
+
 type WriteChatMomentHandler struct {
 	d ChatDeps
 }
@@ -30,6 +36,16 @@ func NewWriteChatMomentHandler(d ChatDeps) *WriteChatMomentHandler {
 }
 
 func (h *WriteChatMomentHandler) Handle(ctx context.Context, cmd WriteChatMoment) (ChatMessage, error) {
+	var written ChatMessage
+	err := h.d.UoW.Do(ctx, func(ctx context.Context, tx db.Tx) error {
+		var err error
+		written, err = h.In(ctx, tx, cmd)
+		return err
+	})
+	return written, err
+}
+
+func (h *WriteChatMomentHandler) In(ctx context.Context, tx db.Tx, cmd WriteChatMoment) (ChatMessage, error) {
 	const op = "social.WriteChatMoment"
 	payload, err := cmd.Moment.JSON()
 	switch {
@@ -39,25 +55,18 @@ func (h *WriteChatMomentHandler) Handle(ctx context.Context, cmd WriteChatMoment
 		return ChatMessage{}, errs.New(errs.CodeInvalidInput, op, slog.String("reason", "incomplete"))
 	}
 	id := h.d.IDs.NewV7()
-	var written ChatMessage
-	err = h.d.UoW.Do(ctx, func(ctx context.Context, tx db.Tx) error {
-		row, err := sqlc.New(tx.Queries()).InsertChatMoment(ctx, sqlc.InsertChatMomentParams{
-			ID: id, CabalID: cmd.CabalID.UUID(), Moment: payload, DedupeKey: cmd.DedupeKey, CreatedAt: cmd.At.UTC(),
-		})
-		if err != nil {
-			return errs.Wrap(err, errs.CodeInternal, op)
-		}
-		written = ChatMessage{
-			ID: row.ID, CabalID: ids.CabalIDFrom(row.CabalID), Kind: domain.ChatKindSystem,
-			Moment: &cmd.Moment, CreatedAt: row.CreatedAt.UTC(),
-		}
-		return nil
+	row, err := sqlc.New(tx.Queries()).InsertChatMoment(ctx, sqlc.InsertChatMomentParams{
+		ID: id, CabalID: cmd.CabalID.UUID(), Moment: payload, DedupeKey: cmd.DedupeKey, CreatedAt: cmd.At.UTC(),
 	})
 	if err != nil {
-		return ChatMessage{}, err
+		return ChatMessage{}, errs.Wrap(err, errs.CodeInternal, op)
+	}
+	written := ChatMessage{
+		ID: row.ID, CabalID: ids.CabalIDFrom(row.CabalID), Kind: domain.ChatKindSystem,
+		Moment: &cmd.Moment, CreatedAt: row.CreatedAt.UTC(),
 	}
 	if written.ID == id {
-		h.d.Publish.moment(ctx, written)
+		tx.AfterCommit(func(ctx context.Context) { h.d.Publish.moment(ctx, written) })
 	}
 	return written, nil
 }

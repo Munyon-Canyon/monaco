@@ -8,7 +8,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/testkit/flows"
 )
 
-func TestFlow22d_WriteChatMoment_CrashBeforeCommit(t *testing.T) {
+func TestFlow22d_WriteMemberJoinedMoment_CrashBeforeCommit(t *testing.T) {
 	t.Parallel()
-	flows.F22dWriteChatMomentCrashBeforeCommit(chatScenario(t))
+	flows.F22dWriteMemberJoinedMomentCrashBeforeCommit(chatScenario(t))
 }

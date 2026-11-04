@@ -405,6 +405,18 @@ func (m *Module) http() adapters.HTTP {
 
 const reportMeter = "github.com/monaco/monaco/apps/backend/internal/modules/social"
 
+func (m *Module) chatMomentsConsumer() bus.Consumer {
+	moments := adapters.ChatMoments{Assets: m.assets, Write: m.WriteChatMoment()}
+	return bus.Consumer{
+		Durable: "social_chat_moments",
+		Handlers: []bus.HandlerSpec{
+			bus.Handle("social.chat_moment.cabal_created", moments.Created),
+			bus.Handle("social.chat_moment.member_joined", moments.Joined),
+			bus.HandleFetched("social.chat_moment.trade_filled", moments.FetchFilled, moments.ApplyFilled),
+		},
+	}
+}
+
 func (m *Module) Consumers() []bus.Consumer {
 	m.gauges.Do(func() {
 		adapters.ExportReportGauges(otel.GetMeterProvider().Meter(reportMeter), m.deps.Pool, m.deps.Clock)
@@ -446,6 +458,7 @@ func (m *Module) Consumers() []bus.Consumer {
 				bus.Handle("social.feed.cabal_banned", feed.CabalBanned),
 			},
 		},
+		m.chatMomentsConsumer(),
 		{
 			Durable: "social_thread",
 			Handlers: []bus.HandlerSpec{

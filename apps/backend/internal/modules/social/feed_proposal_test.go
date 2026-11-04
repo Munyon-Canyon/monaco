@@ -17,6 +17,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/social"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/adapters"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/app"
+	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
@@ -462,7 +463,10 @@ func TestSeed_feedTwoCabalsHoldsAnOpenAndAnExecutedProposal(t *testing.T) {
 			},
 		}}),
 	)
-	testkit.Seed(t, f.pool, "feed-two-cabals", m.Consumers()...)
+	feedConsumers := slices.DeleteFunc(m.Consumers(), func(c bus.Consumer) bool {
+		return c.Durable == "social_chat_moments"
+	})
+	testkit.Seed(t, f.pool, "feed-two-cabals", feedConsumers...)
 	rows, err := f.pool.Query(t.Context(), `SELECT cabal_name, status, title FROM feed_objects WHERE kind = 'proposal'
 		ORDER BY cabal_name`)
 	if err != nil {
