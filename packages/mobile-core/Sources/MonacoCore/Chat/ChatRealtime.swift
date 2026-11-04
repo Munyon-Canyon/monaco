@@ -13,6 +13,7 @@ public struct ChatReactionCount: Sendable, Equatable, Decodable {
 
 public enum ChatRealtimeEvent: Sendable, Equatable {
     case messageCreated(Components.Schemas.ChatMessage)
+    case momentCreated(Components.Schemas.ChatMessage)
     case threadUpdated(id: String, replyCount: Int, lastReplyAt: Date)
     case seenUpdated(messageId: String, count: Int)
     case messageDeleted(id: String)
@@ -28,6 +29,7 @@ public protocol ChatRealtime: Sendable {
 
 public enum ChatEventDecoder {
     public static let messageCreated = "message.created"
+    public static let momentCreated = "moment.created"
     public static let threadUpdated = "thread.updated"
     public static let seenUpdated = "seen.updated"
     public static let messageDeleted = "message.deleted"
@@ -40,6 +42,8 @@ public enum ChatEventDecoder {
                 decoded(Components.Schemas.ChatMessage.self, from: data)
                 ?? withReactionDefaults(data).flatMap { decoded(Components.Schemas.ChatMessage.self, from: $0) }
             return message.map(ChatRealtimeEvent.messageCreated)
+        case momentCreated:
+            return decoded(Components.Schemas.ChatMessage.self, from: data).map(ChatRealtimeEvent.momentCreated)
         case threadUpdated:
             return decoded(ThreadUpdated.self, from: data).map {
                 .threadUpdated(id: $0.messageId, replyCount: $0.replyCount, lastReplyAt: $0.lastReplyAt)

@@ -25,7 +25,7 @@ final class ChatSessionTests: XCTestCase {
         XCTAssertEqual(realtime.subscribed, [Fixtures.cabalID])
         let sent = await transport.sent
         XCTAssertEqual(sent.count, 1)
-        XCTAssertEqual(sent[0].path, "/v1/cabals/\(Fixtures.cabalID)/messages?limit=50")
+        XCTAssertEqual(sent[0].path, "/v1/cabals/\(Fixtures.cabalID)/messages?moments=true&limit=50")
     }
 
     func testAReconnectThatLostContinuityFetchesAfterTheNewestHeldID() async throws {
@@ -40,7 +40,7 @@ final class ChatSessionTests: XCTestCase {
         let state = await Fixtures.state(session)
         XCTAssertEqual(Fixtures.ids(state), ["m1", "m2"])
         let sent = await transport.sent
-        XCTAssertEqual(sent[1].path, "/v1/cabals/\(Fixtures.cabalID)/messages?after=m1&limit=50")
+        XCTAssertEqual(sent[1].path, "/v1/cabals/\(Fixtures.cabalID)/messages?after=m1&moments=true&limit=50")
     }
 
     func testACatchUpAfterAGapStartsAtTheNewestFetchedMessageNotTheViewersOwnSend() async throws {
@@ -62,7 +62,7 @@ final class ChatSessionTests: XCTestCase {
         let state = await Fixtures.state(session)
         XCTAssertEqual(Fixtures.ids(state), ["m1", "m2", "m3"])
         let sent = await transport.sent
-        XCTAssertEqual(sent[2].path, "/v1/cabals/\(Fixtures.cabalID)/messages?after=m1&limit=50")
+        XCTAssertEqual(sent[2].path, "/v1/cabals/\(Fixtures.cabalID)/messages?after=m1&moments=true&limit=50")
     }
 
     func testALiveMessageMovesTheCatchUpCursorForward() async throws {
@@ -77,7 +77,7 @@ final class ChatSessionTests: XCTestCase {
         await session.apply(.attached(resumed: false))
 
         let sent = await transport.sent
-        XCTAssertEqual(sent[1].path, "/v1/cabals/\(Fixtures.cabalID)/messages?after=m2&limit=50")
+        XCTAssertEqual(sent[1].path, "/v1/cabals/\(Fixtures.cabalID)/messages?after=m2&moments=true&limit=50")
     }
 
     func testAResumedAttachFetchesNothing() async throws {
@@ -110,7 +110,7 @@ final class ChatSessionTests: XCTestCase {
         XCTAssertEqual(state.timeline.rows.count, ChatSession.pageSize + 2)
         XCTAssertEqual(state.timeline.newestID, "b001")
         let sent = await transport.sent
-        XCTAssertEqual(sent[2].path, "/v1/cabals/\(Fixtures.cabalID)/messages?after=a049&limit=50")
+        XCTAssertEqual(sent[2].path, "/v1/cabals/\(Fixtures.cabalID)/messages?after=a049&moments=true&limit=50")
     }
 
     func testADeletedMessageWithRepliesBecomesAPlaceholder() async throws {
@@ -196,7 +196,7 @@ final class ChatSessionTests: XCTestCase {
         let state = await Fixtures.state(session)
         XCTAssertEqual(Fixtures.ids(state), ["m1", "m2"])
         let sent = await transport.sent
-        XCTAssertEqual(sent[1].path, "/v1/cabals/\(Fixtures.cabalID)/messages?after=m1&limit=50")
+        XCTAssertEqual(sent[1].path, "/v1/cabals/\(Fixtures.cabalID)/messages?after=m1&moments=true&limit=50")
     }
 
     func testARefusedHistoryReadClosesTheChatWithoutFailingTheLoad() async throws {
@@ -267,7 +267,7 @@ final class ChatSessionTests: XCTestCase {
         XCTAssertEqual(state.timeline.oldestID, "old")
         XCTAssertFalse(state.timeline.hasOlder)
         let sent = await transport.sent
-        XCTAssertEqual(sent[1].path, "/v1/cabals/\(Fixtures.cabalID)/messages?before=n000&limit=50")
+        XCTAssertEqual(sent[1].path, "/v1/cabals/\(Fixtures.cabalID)/messages?before=n000&moments=true&limit=50")
     }
 
     func testAFailedLoadOlderKeepsTheMessagesAndRaisesANotice() async throws {

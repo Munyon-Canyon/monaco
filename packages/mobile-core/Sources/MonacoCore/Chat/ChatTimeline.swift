@@ -11,6 +11,7 @@ public struct ChatRow: Identifiable, Equatable, Sendable {
     }
 
     public let message: ChatMessage
+    public let moment: ChatMoment?
     public let pendingAttachment: ChatAttachmentDraft?
     public let parentBody: String?
     public let delivery: Delivery
@@ -20,6 +21,7 @@ public struct ChatRow: Identifiable, Equatable, Sendable {
     public let endsRun: Bool
 
     public var id: String { message.id }
+    public var kind: ChatMessage.KindPayload { message.kind }
     public var attachment: Components.Schemas.CommentAttachment? { message.attachment }
 
     public var displayText: String {
@@ -286,7 +288,7 @@ public struct ChatTimeline: Equatable, Sendable {
 
     private mutating func rebuildRows() {
         let local = unsent.map { Self.message(for: $0, viewerID: viewerID) }
-        let all = messages + local
+        let all = (messages + local).filter { $0.kind != .system || ChatMoment(message: $0, viewerID: viewerID) != nil }
         let calendar = Calendar.current
         rows = all.indices.map { index in
             let message = all[index]
@@ -294,15 +296,21 @@ public struct ChatTimeline: Equatable, Sendable {
             let next = index + 1 < all.count ? all[index + 1] : nil
             let startsDay = previous.map { !calendar.isDate($0.createdAt, inSameDayAs: message.createdAt) } ?? true
             let nextStartsDay = next.map { !calendar.isDate(message.createdAt, inSameDayAs: $0.createdAt) } ?? false
+            let moment = ChatMoment(message: message, viewerID: viewerID)
+            let isolated = moment != nil
+            let previousIsolated = previous.map { ChatMoment(message: $0, viewerID: viewerID) != nil } ?? false
+            let nextIsolated = next.map { ChatMoment(message: $0, viewerID: viewerID) != nil } ?? false
             return ChatRow(
                 message: message,
+                moment: moment,
                 pendingAttachment: unsent.first { $0.key == message.id }?.attachment,
                 parentBody: message.parentId.flatMap { id in messages.first { $0.id == id }?.body },
                 delivery: delivery(of: message),
                 isMine: message.author.id == viewerID,
                 startsDay: startsDay,
-                startsRun: startsDay || previous?.author.id != message.author.id,
-                endsRun: next == nil || nextStartsDay || next?.author.id != message.author.id
+                startsRun: startsDay || isolated || previousIsolated || previous?.author.id != message.author.id,
+                endsRun: next == nil || nextStartsDay || isolated || nextIsolated
+                    || next?.author.id != message.author.id
             )
         }
     }
