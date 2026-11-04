@@ -2456,7 +2456,7 @@ class MutantRunSetup(unittest.TestCase):
                                        spec=None), patch
 
     def mutant_env(self, funds, scenarios=("S1",), expect=("S1",), rows=None, free=50 * 10 ** 9, calls=None,
-                   order=None, patches=1):
+                   order=None, patches=1, setup_error=None, problems=None):
         fake, patch = self.fake_journey(funds)
         if patches > 1:
             stems = ["bug%d" % n for n in range(patches)]
@@ -2476,6 +2476,9 @@ class MutantRunSetup(unittest.TestCase):
 
         def run_once(*args, **kwargs):
             trail.append("run_once")
+            if setup_error and len(seen) == setup_error[0]:
+                seen.append(None)
+                raise journey.JourneyError(setup_error[1])
             seen.append(journey.actor_environment({}, "sms", "R"))
             if calls is not None:
                 calls.append(args[7])
@@ -2493,7 +2496,7 @@ class MutantRunSetup(unittest.TestCase):
                                 ("build_mutants", lambda *a: trail.append("build") or {"build_s": {}, "peak": 0}),
                                 ("journey_backend", backend),
                                 ("mutant_expectation", lambda p: list(expect)), ("run_once", run_once),
-                                ("check_preconditions", lambda *a, **k: []),
+                                ("check_preconditions", problems or (lambda *a, **k: [])),
                                 ("stamp_file", lambda: unittest.mock.Mock()), ("build_label", lambda *a: "b"),
                                 ("stamp", lambda: "T")):
                 stack.enter_context(unittest.mock.patch.object(journey, name, value))
@@ -2504,7 +2507,7 @@ class MutantRunSetup(unittest.TestCase):
             args = unittest.mock.Mock(journey="money/withdraw", only=[] if patches > 1 else ["bug"], sim="", runs=1,
                                       slot=None)
             self.code = journey.run_mutants(args)
-        return seen[0]
+        return seen[0] if seen else None
 
     def test_mutants_pass_the_refund_address_the_run_path_passes(self):
         env = self.mutant_env({"A": 5})
@@ -2534,6 +2537,32 @@ class MutantRunSetup(unittest.TestCase):
         with redirect_stdout(StringIO()) as printed:
             self.mutant_env({"A": 5}, rows=missed)
         self.assertIn("MISSED", printed.getvalue())
+        self.assertEqual(self.code, 1)
+
+    def test_a_failed_setup_marks_that_bug_not_run_and_the_pass_goes_on(self):
+        order, recorded = [], []
+        with unittest.mock.patch.object(journey, "record", lambda *a, **k: recorded.append(a)), \
+                redirect_stdout(StringIO()) as printed:
+            self.mutant_env({"A": 5}, order=order, patches=3,
+                            setup_error=(1, "apps/x.setup.sh could not set up S2, see log\nsecond line"))
+        out = printed.getvalue()
+        self.assertEqual(order.count("run_once"), 3)
+        self.assertIn("not run: setup apps/x.setup.sh could not set up S2, see log", out)
+        self.assertNotIn("second line", out)
+        self.assertIn("caught 2 of 3 seeded bugs (1 not run: setup)", out)
+        self.assertEqual(self.code, 1)
+        self.assertEqual([a[2] for a in recorded], ["T-money-withdraw-bug1-notrun"])
+        self.assertTrue(recorded[0][3][0]["failed_step"].startswith("not run: setup "))
+
+    def test_a_failed_precondition_marks_that_bug_not_run_and_the_pass_goes_on(self):
+        order = []
+        answers = iter([[], ["login C holds a cabal"], []])
+        with unittest.mock.patch.object(journey, "record", lambda *a, **k: None), \
+                redirect_stdout(StringIO()) as printed:
+            self.mutant_env({"A": 5}, order=order, patches=3, problems=lambda *a, **k: next(answers))
+        self.assertEqual(order.count("run_once"), 2)
+        self.assertIn("not run: setup login C holds a cabal", printed.getvalue())
+        self.assertIn("(1 not run: setup)", printed.getvalue())
         self.assertEqual(self.code, 1)
 
     def test_no_clean_rebuild_follows_the_batch_and_the_clean_stamp_stays(self):

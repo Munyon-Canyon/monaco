@@ -2957,7 +2957,7 @@ def run_mutants(args):
         logins = held_logins(journey, accounts)
         use_derived_data(logins)
         sim = resolve_simulator(args.sim, logins, journey.simslim)
-        caught = 0
+        caught = not_run_count = 0
         plan = []
         for patch in patches:
             expected_fail = mutant_expectation(patch)
@@ -2976,23 +2976,39 @@ def run_mutants(args):
             print("seeded bug %s: %s must fail" % (patch.stem, ", ".join(expected_fail)))
             kept = mutants_runs(mutants) / patch.stem
             clean_derived = DERIVED
+            not_run = None
+            rows = []
             try:
                 with journey_backend(args.slot, journey_fake_rpc(journey)) as api_base_url:
                     problems = check_preconditions(journey, accounts, api_base_url, channel=args.channel)
                     if problems:
-                        return setup_needed(journey, problems)
-                    check_simulator_api_environment(sim, api_base_url)
-                    reset_journey_simulator(sim, bool(args.sim), False)
-                    DERIVED = kept
-                    add_phase("build_s", built["build_s"].get(patch.stem, 0.0))
-                    run_name = "%s-%s-%s" % (stamp(), journey.id.replace("/", "-"), patch.stem)
-                    rows, _ = run_once(journey, journeys, args, sim, accounts, build_label(patch.stem), run_name,
-                                       scenarios_through(journey.scenarios, expected_fail), api_base_url,
-                                       expected=dict({s: "FAIL" for s in expected_fail}, **{"*": "FAIL"}))
+                        for problem in problems:
+                            print("SETUP %s: %s" % (journey.id, problem))
+                        not_run = problems[0]
+                    else:
+                        check_simulator_api_environment(sim, api_base_url)
+                        reset_journey_simulator(sim, bool(args.sim), False)
+                        DERIVED = kept
+                        add_phase("build_s", built["build_s"].get(patch.stem, 0.0))
+                        run_name = "%s-%s-%s" % (stamp(), journey.id.replace("/", "-"), patch.stem)
+                        rows, _ = run_once(journey, journeys, args, sim, accounts, build_label(patch.stem), run_name,
+                                           scenarios_through(journey.scenarios, expected_fail), api_base_url,
+                                           expected=dict({s: "FAIL" for s in expected_fail}, **{"*": "FAIL"}))
+            except JourneyError as error:
+                not_run = str(error)
             finally:
                 DERIVED = clean_derived
                 shutil.rmtree(str(kept), ignore_errors=True)
-            if mutant_caught(rows):
+            if not_run is not None:
+                reason = (not_run.splitlines() or [""])[0]
+                verdict = "not run: setup %s" % reason
+                not_run_count += 1
+                print("  %s" % verdict)
+                record(journey, build_label(patch.stem), "%s-%s-%s-notrun" % (stamp(), journey.id.replace("/", "-"), patch.stem),
+                       [{"scenario": expected_fail[0], "result": "SETUP", "failed_step": verdict}],
+                       {"scenario": "*", "result": "SETUP", "failed_step": verdict},
+                       expected=dict({s: "FAIL" for s in expected_fail}, **{"*": "FAIL"}))
+            elif mutant_caught(rows):
                 caught += 1
                 print("  caught")
             elif setup_failed(rows):
@@ -3008,8 +3024,8 @@ def run_mutants(args):
             signal.signal(signum, handler)
     print("mutants folder peak %.1f GB (%s)" % (peak / 1e9, os.path.relpath(str(mutants_runs(mutants)), str(ROOT))))
     print_phase_summary()
-    print("caught %d of %d seeded bugs" % (caught, len(patches)))
-    return 0 if caught == len(patches) else 1
+    print("caught %d of %d seeded bugs (%d not run: setup)" % (caught, len(patches), not_run_count))
+    return 0 if caught == len(patches) and not not_run_count else 1
 
 
 def summarize(rows):
