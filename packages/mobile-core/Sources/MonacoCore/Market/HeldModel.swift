@@ -23,8 +23,9 @@ public struct HeldRowFacts: Equatable, Sendable, Identifiable {
         symbol = holding.symbol
         kind = AssetKind(raw: holding.kind.rawValue)
         title = holding.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
-        subtitle =
-            "\(row.cabal.name) · \(Self.shares(holding.units)) sh" + (isPreIpo ? " · Pre-IPO" : "")
+        let shareCount = Self.shares(holding.units)
+        let unit = shareCount == "1" ? "share" : "shares"
+        subtitle = "\(row.cabal.name) · \(shareCount) \(unit)" + (isPreIpo ? " · Pre-IPO" : "")
         logoURL = row.logoUrl.flatMap(URL.init(string:))
         valueMicros = holding.valueMicros
         valueNote = isPreIpo ? PreIpoCopy.heldAtEstimate : nil

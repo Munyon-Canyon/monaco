@@ -27,9 +27,9 @@ final class HeldModelTests: XCTestCase {
         let rows = try XCTUnwrap(loaded(model)).rows
         XCTAssertEqual(rows.map(\.symbol), ["NVDAx", "AAPLx", "METAx", "tSpaceX", "AMZNx", "TSLAx"])
         XCTAssertEqual(rows[0].title, "NVIDIA")
-        XCTAssertEqual(rows[0].subtitle, "AC Capital · 38 sh")
-        XCTAssertEqual(rows[2].subtitle, "Degens · 4 sh")
-        XCTAssertEqual(rows[5].subtitle, "Tech Titans · 2.2 sh")
+        XCTAssertEqual(rows[0].subtitle, "AC Capital · 38 shares")
+        XCTAssertEqual(rows[2].subtitle, "Degens · 4 shares")
+        XCTAssertEqual(rows[5].subtitle, "Tech Titans · 2.2 shares")
         XCTAssertEqual(rows[0].valueText, "$8,360.00")
     }
 
@@ -50,7 +50,7 @@ final class HeldModelTests: XCTestCase {
         await model.load()
 
         let row = try XCTUnwrap(loaded(model)).rows[3]
-        XCTAssertEqual(row.subtitle, "AC Capital · 12 sh · Pre-IPO")
+        XCTAssertEqual(row.subtitle, "AC Capital · 12 shares · Pre-IPO")
         XCTAssertEqual(row.valueNote, "at estimate")
         XCTAssertNil(row.returnText)
     }
@@ -63,6 +63,16 @@ final class HeldModelTests: XCTestCase {
         await model.load()
 
         XCTAssertNil(try XCTUnwrap(loaded(model)).rows[0].returnText)
+    }
+
+    func testASingleShareReadsSingular() async throws {
+        var list = Components.Schemas.HeldList.sampleAndres
+        list.holdings[0].holding.units = "1.000"
+        let model = makeModel(StubTransport(scripted: [.json(.ok, Self.json(list))]))
+
+        await model.load()
+
+        XCTAssertEqual(try XCTUnwrap(loaded(model)).rows[0].subtitle, "AC Capital · 1 share")
     }
 
     func testOneCabalReadsSingular() async throws {
