@@ -4,6 +4,7 @@ import SwiftUI
 
 extension EnvironmentValues {
     @Entry var cabalTabSelection: CabalTabSelection? = nil
+    @Entry var cabalChatUnread: CabalChatUnreadModel? = nil
 }
 
 struct CabalTabsTop: PreferenceKey {
@@ -49,12 +50,14 @@ enum CabalTabs: CabalSection {
 struct CabalTabBar: View {
     @Bindable var selection: CabalTabSelection
     let memberCount: Int32?
+    var chatHasUnread = false
     var identifierPrefix = "cabal-tab"
 
     var body: some View {
         MonacoUnderlineTabs(
             CabalTab.shown, selection: $selection.tab,
             count: { $0.count(memberCount: memberCount) },
+            dot: { $0 == .chat && chatHasUnread },
             identifier: { "\(identifierPrefix)-\($0.rawValue)" },
             label: { $0.title }
         )
@@ -66,12 +69,17 @@ private struct CabalTabsLive: View {
 
     @Environment(\.cabalTabSelection) private var shared
     @Environment(\.cabalModel) private var cabalModel
+    @Environment(\.cabalChatUnread) private var unread
     @State private var local = CabalTabSelection()
 
     var body: some View {
         let selection = shared ?? local
+        let cabal = cabalModel?.cabal
+        let isActiveMember = cabal.map { $0.me != nil && !CabalClosedModel.isReadOnly($0.status) } ?? false
+        let chatHasUnread =
+            CabalTab.hostsChat && selection.tab != .chat && isActiveMember && (unread?.hasUnread ?? false)
         VStack(alignment: .leading, spacing: CabalPageMetrics.tabsGap) {
-            CabalTabBar(selection: selection, memberCount: cabalModel?.cabal?.memberCount)
+            CabalTabBar(selection: selection, memberCount: cabal?.memberCount, chatHasUnread: chatHasUnread)
                 .background {
                     GeometryReader { proxy in
                         Color.clear.preference(key: CabalTabsTop.self, value: proxy.frame(in: .global).minY)
@@ -85,6 +93,9 @@ private struct CabalTabsLive: View {
                 }
             }
             .id(selection.tab)
+        }
+        .onChange(of: selection.tab) { _, tab in
+            if tab == .chat { unread?.markRead() }
         }
     }
 }
