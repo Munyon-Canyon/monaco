@@ -408,6 +408,7 @@ struct ChatGifChip: View {
     var body: some View {
         Text(GroupChatCopy.gifChip)
             .font(MonacoTheme.Typo.captionStrong)
+            .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
             .foregroundStyle(MonacoTheme.primaryText)
             .frame(width: Self.width, height: Self.height)
             .overlay(
