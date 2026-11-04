@@ -1,6 +1,7 @@
 package social_test
 
 import (
+	"context"
 	"reflect"
 	"strings"
 	"sync"
@@ -13,6 +14,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/domain"
+	api "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/socialapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/testkit"
 )
@@ -483,4 +485,86 @@ func pinTarget(t *testing.T, f chatPinner, id uuid.UUID) {
 func pinAnother(t *testing.T, f chatPinner, _ uuid.UUID) {
 	t.Helper()
 	f.mustPin(t, f.member(0), f.mustSend(t, f.member(0), "other", nil).ID)
+}
+
+type pinRoute func(t *testing.T, f chatRoutes, ctx context.Context, message uuid.UUID) error
+
+func pinRoutes() map[string]pinRoute {
+	return map[string]pinRoute{
+		"pin": func(t *testing.T, f chatRoutes, ctx context.Context, message uuid.UUID) error {
+			t.Helper()
+			_, err := f.routes.PinChatMessage(ctx, api.PinChatMessageRequestObject{
+				Id: f.cabal.ID.UUID(), MessageId: message,
+			})
+			return err
+		},
+		"unpin": func(t *testing.T, f chatRoutes, ctx context.Context, message uuid.UUID) error {
+			t.Helper()
+			_, err := f.routes.UnpinChatMessage(ctx, api.UnpinChatMessageRequestObject{
+				Id: f.cabal.ID.UUID(), MessageId: message,
+			})
+			return err
+		},
+		"list": func(t *testing.T, f chatRoutes, ctx context.Context, _ uuid.UUID) error {
+			t.Helper()
+			_, err := f.routes.GetChatPins(ctx, api.GetChatPinsRequestObject{Id: f.cabal.ID.UUID()})
+			return err
+		},
+	}
+}
+
+func TestChatPinRoutes_requireASignedInUser(t *testing.T) {
+	t.Parallel()
+	f := newChatRoutes(t)
+	for _, run := range pinRoutes() {
+		wantCode(t, run(t, f, t.Context(), uuid.Nil), errs.CodeUnauthorized)
+	}
+}
+
+func TestChatPinRoutes_returnTheirCommandErrors(t *testing.T) {
+	t.Parallel()
+	f := newChatRoutes(t)
+	m := f.mustPost(t, f.member(0), api.PostChatMessageRequest{Body: ptr("rules")})
+	for _, run := range pinRoutes() {
+		wantCode(t, run(t, f, asUser(t.Context(), f.outsider), m.Id), errs.CodeNotCabalMember)
+	}
+	wantCode(t, pinRoutes()["pin"](t, f, asUser(t.Context(), f.member(0)), f.deps.IDs.NewV7()),
+		errs.CodeChatMessageNotFound)
+	wantCode(t, pinRoutes()["unpin"](t, f, asUser(t.Context(), f.member(0)), f.deps.IDs.NewV7()),
+		errs.CodeChatMessageNotFound)
+}
+
+func TestChatPinRoutes_failWhenTheUsersLookupFails(t *testing.T) {
+	t.Parallel()
+	f := newChatRoutes(t)
+	m := f.mustPost(t, f.member(0), api.PostChatMessageRequest{Body: ptr("rules")})
+	admin := asUser(t.Context(), f.member(0))
+	routes := pinRoutes()
+	if err := routes["pin"](t, f, admin, m.Id); err != nil {
+		t.Fatal(err)
+	}
+	f.users.Fail("UsersByID", errs.New(errs.CodeUpstreamUnavailable, "test"))
+	for _, name := range []string{"pin", "list", "unpin"} {
+		wantCode(t, routes[name](t, f, admin, m.Id), errs.CodeUpstreamUnavailable)
+	}
+}
+
+func TestChatPinRoutes_pinListAndUnpinAMessage(t *testing.T) {
+	t.Parallel()
+	f := newChatRoutes(t)
+	m := f.mustPost(t, f.member(0), api.PostChatMessageRequest{Body: ptr("rules")})
+	admin := asUser(t.Context(), f.member(0))
+	cabal := f.cabal.ID.UUID()
+	pinned, err := f.routes.PinChatMessage(admin, api.PinChatMessageRequestObject{Id: cabal, MessageId: m.Id})
+	if got, ok := pinned.(api.PinChatMessage200JSONResponse); err != nil || !ok || got.PinnedBy == nil {
+		t.Fatalf("pin = %#v, %v, want the message pinned", pinned, err)
+	}
+	listed, err := f.routes.GetChatPins(admin, api.GetChatPinsRequestObject{Id: cabal})
+	if page, ok := listed.(api.GetChatPins200JSONResponse); err != nil || !ok || len(page.Messages) != 1 {
+		t.Fatalf("pins = %#v, %v, want the one pin", listed, err)
+	}
+	unpinned, err := f.routes.UnpinChatMessage(admin, api.UnpinChatMessageRequestObject{Id: cabal, MessageId: m.Id})
+	if got, ok := unpinned.(api.UnpinChatMessage200JSONResponse); err != nil || !ok || got.PinnedAt != nil {
+		t.Fatalf("unpin = %#v, %v, want the message unpinned", unpinned, err)
+	}
 }
