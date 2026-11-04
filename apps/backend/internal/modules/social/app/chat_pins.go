@@ -66,7 +66,7 @@ func (h *PinChatMessageHandler) Handle(ctx context.Context, cmd PinChatMessage) 
 			}
 			changed = true
 		}
-		message, err = storedChatMessage(ctx, q, cmd.CabalID, cmd.MessageID, op)
+		message, err = storedChatMessage(ctx, q, cmd.CabalID, cmd.MessageID, cmd.Caller, op)
 		return err
 	})
 	if err != nil {
@@ -125,7 +125,7 @@ func (h *UnpinChatMessageHandler) Handle(ctx context.Context, cmd UnpinChatMessa
 			}
 			changed = true
 		}
-		message, err = storedChatMessage(ctx, q, cmd.CabalID, cmd.MessageID, op)
+		message, err = storedChatMessage(ctx, q, cmd.CabalID, cmd.MessageID, cmd.Caller, op)
 		return err
 	})
 	if err != nil {
@@ -148,7 +148,30 @@ func ListChatPins(
 	if err != nil {
 		return nil, errs.Wrap(err, errs.CodeInternal, op)
 	}
-	return storedMessages(rows), nil
+	q := sqlc.New(reads)
+	out := storedMessages(rows)
+	for i := range out {
+		if out[i], err = maskBlocked(ctx, q, viewer, out[i], op); err != nil {
+			return nil, err
+		}
+	}
+	return out, nil
+}
+
+func maskBlocked(
+	ctx context.Context, q *sqlc.Queries, viewer ids.UserID, m ChatMessage, op string,
+) (ChatMessage, error) {
+	if m.AuthorID.UUID() == uuid.Nil {
+		return m, nil
+	}
+	blocked, err := q.IsBlocked(ctx, sqlc.IsBlockedParams{Blocker: viewer.UUID(), Blocked: m.AuthorID.UUID()})
+	if err != nil {
+		return ChatMessage{}, errs.Wrap(err, errs.CodeInternal, op)
+	}
+	if blocked {
+		m.Deleted, m.Body = true, ""
+	}
+	return m, nil
 }
 
 func chatAdmin(ctx context.Context, members ChatMembers, cabal ids.CabalID, user ids.UserID) (bool, error) {
@@ -179,11 +202,11 @@ func lockPinnable(
 }
 
 func storedChatMessage(
-	ctx context.Context, q *sqlc.Queries, cabal ids.CabalID, id uuid.UUID, op string,
+	ctx context.Context, q *sqlc.Queries, cabal ids.CabalID, id uuid.UUID, viewer ids.UserID, op string,
 ) (ChatMessage, error) {
 	row, err := q.GetChatMessage(ctx, sqlc.GetChatMessageParams{ID: id, CabalID: cabal.UUID()})
 	if err != nil {
 		return ChatMessage{}, errs.Wrap(err, errs.CodeInternal, op)
 	}
-	return storedMessage(row), nil
+	return maskBlocked(ctx, q, viewer, storedMessage(row), op)
 }
