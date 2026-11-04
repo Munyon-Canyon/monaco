@@ -15,4 +15,8 @@ public enum HomeVariant: Equatable, Sendable {
 
     public var showsMoneyStrip: Bool { self != .empty }
     public var showsProposals: Bool { self == .invested }
+
+    public func showsProposals(openVotes: Int) -> Bool {
+        openVotes > 0 || showsProposals
+    }
 }
