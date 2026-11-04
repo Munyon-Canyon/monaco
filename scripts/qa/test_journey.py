@@ -2868,5 +2868,69 @@ class Phases(unittest.TestCase):
                 journey.boot_simulator("udid2")
 
 
+class Dev(unittest.TestCase):
+    def row(self, **values):
+        base = dict.fromkeys(journey.COLUMNS + journey.PHASE_COLUMNS, "")
+        base.update({"journey": "auth/sign-in", "driver": "xcuitest", "build": "abc", "expected": "PASS", "truth": "none",
+                     "scenario": "*", "result": "PASS", "wall_s": "10", "build_s": "5", "run": "r"})
+        base.update(values)
+        return base
+
+    def test_a_dev_row_changes_no_count_and_no_latest_outcome(self):
+        clean = [self.row(run="r1"), self.row(run="r1", scenario="S1")]
+        dev = [self.row(run="r2", build="dev", result="FAIL", wall_s="500"),
+               self.row(run="r2", build="dev", scenario="S1", result="FAIL", failed_step="S1.2")]
+        self.assertEqual(journey.summarize(clean + dev), journey.summarize(clean))
+        self.assertEqual(journey.latest_outcomes(clean + dev, {}), journey.latest_outcomes(clean, {}))
+        self.assertEqual(journey.build_lines(clean + dev), journey.build_lines(clean))
+        self.assertEqual(journey.summarize(dev), [])
+        self.assertEqual(journey.latest_outcomes(dev, {}), [])
+
+    def test_changed_paths_names_what_was_added_removed_or_edited(self):
+        before = {"a": (1, 1), "b": (1, 1), "c": (1, 1)}
+        after = {"a": (1, 1), "b": (2, 1), "d": (1, 1)}
+        self.assertEqual(journey.changed_paths(before, after), ["b", "c", "d"])
+
+    def test_only_the_ui_test_bundle_changing_is_a_test_only_edit(self):
+        tests = "apps/mobile/MonacoUITests/ui/A.swift"
+        self.assertTrue(journey.only_tests_changed([tests]))
+        self.assertFalse(journey.only_tests_changed([tests, "apps/mobile/Monaco/App.swift"]))
+        self.assertFalse(journey.only_tests_changed([]))
+
+    def test_the_snapshot_sees_an_edit_to_a_source_and_skips_build_folders(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / "apps" / "mobile" / ".build").mkdir(parents=True)
+            (root / "apps" / "mobile" / "A.swift").write_text("a")
+            (root / "apps" / "mobile" / ".build" / "x.o").write_text("x")
+            before = journey.source_snapshot(root, ("apps/mobile", "packages/mobile-core"))
+            self.assertEqual(list(before), ["apps/mobile/A.swift"])
+            (root / "apps" / "mobile" / "A.swift").write_text("ab")
+            after = journey.source_snapshot(root, ("apps/mobile", "packages/mobile-core"))
+            self.assertEqual(journey.changed_paths(before, after), ["apps/mobile/A.swift"])
+
+    def test_the_failure_screenshot_and_hierarchy_come_from_the_manifest(self):
+        manifest = [{"testIdentifier": "T/testJourney", "attachments": [
+            {"exportedFileName": "early.png", "suggestedHumanReadableName": "Screenshot_1.png"},
+            {"exportedFileName": "shot.jpeg", "suggestedHumanReadableName": "Screenshot_2.jpeg", "isAssociatedWithFailure": True},
+            {"exportedFileName": "tree.txt", "suggestedHumanReadableName": "App UI hierarchy_3.txt", "isAssociatedWithFailure": True},
+            {"exportedFileName": "other.png", "suggestedHumanReadableName": "Screenshot_4.png"}]}]
+        self.assertEqual(journey.failure_attachments(manifest), ("shot.jpeg", "tree.txt"))
+        self.assertEqual(journey.failure_attachments([]), ("", ""))
+
+    def test_the_assertion_message_is_the_first_error_line(self):
+        log = "x.swift:12: error: -[UITests.A testJourney] : XCTAssertTrue failed - S2.3 missing\nother: error: -[B c] : later"
+        self.assertEqual(journey.failure_message(log), "XCTAssertTrue failed - S2.3 missing")
+        self.assertEqual(journey.failure_message("all good"), "")
+
+    def test_a_failed_export_is_reported_and_does_not_raise(self):
+        rows = [{"scenario": "S2", "result": "FAIL", "failed_step": "S2.3"}]
+        with tempfile.TemporaryDirectory() as folder, redirect_stdout(StringIO()) as out, \
+                unittest.mock.patch.object(journey, "sh", return_value=types.SimpleNamespace(returncode=1)):
+            journey.export_evidence(Path(folder), rows, "")
+        self.assertIn("failed at S2.3", out.getvalue())
+        self.assertIn("could not export", out.getvalue())
+
+
 if __name__ == "__main__":
     unittest.main()

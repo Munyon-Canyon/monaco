@@ -179,6 +179,8 @@ scripts/qa/journey.py report                                  # the table across
 
 Rerun several failing journeys with one `run` call, not one call each: every call starts its own backend. A test of an existing build launches from its `.xctestrun`, which skips the project load (about 6 s to the first test instead of 10 to 29 s) and holds no Xcode build slot.
 
+To iterate on one journey, use `scripts/qa/journey.py dev <journey> [--scenario S2] [--actor A] [--watch]`. It starts one backend, resets the simulator once, then keeps the backend, the simulator and the installed app up until Ctrl-C. Each iteration rebuilds only when the build stamp changed (it says so when only `apps/mobile/MonacoUITests/` changed, so Xcode recompiles just the test bundle), runs the journey through the named scenario, prints the phase timings and waits for Enter (with `--watch`, for an edit to the doc, the journey's Swift files or the app sources). `--actor` is passed to the test as `MONACO_QA_ACTOR`. Its rows carry the build label `dev`, so `report` never counts them: `run --runs 3` and `mutants` stay the proof. When a scenario fails, `run` and `dev` print the failed step and its assertion message and export the screenshot and accessibility hierarchy from the run's `result.xcresult` to `.logs/qa/journeys/<run>/<step>.png` and `<step>-hierarchy.txt`.
+
 Each run appends a row to `.logs/qa/journeys/results.tsv`:
 
 | Measure | Meaning |
