@@ -8,6 +8,8 @@ struct ProposalHero: View {
     let members: [ProposalMember]
     let paused: Bool
     var subtitle: String?
+    let facts: ProposalFacts?
+    var onInfo: () -> Void = {}
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
@@ -25,6 +27,7 @@ struct ProposalHero: View {
     static let avatarSize: CGFloat = 32
     static let chipHeight: CGFloat = 28
     static let chipMark: CGFloat = 16
+    static let infoGlyph: CGFloat = 16
 
     static func firstName(of name: String?) -> String? {
         name?.split(whereSeparator: \.isWhitespace).first.map(String.init)
@@ -127,29 +130,32 @@ struct ProposalHero: View {
     }
 
     @ViewBuilder private var heroRow: some View {
-        if dynamicTypeSize.isAccessibilitySize {
-            VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
-                mark
-                VStack(alignment: .leading, spacing: 0) {
-                    title
-                    subline
-                }
-                amount
-            }
-            .accessibilityElement(children: .combine)
-        } else {
-            HStack(alignment: .center, spacing: MonacoTheme.Space.sm) {
-                mark
-                VStack(alignment: .leading, spacing: 0) {
-                    HStack(alignment: .firstTextBaseline, spacing: MonacoTheme.Space.s) {
+        VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
+                    mark
+                    VStack(alignment: .leading, spacing: 0) {
                         title
-                        Spacer(minLength: MonacoTheme.Space.s)
-                        amount
+                        subline
                     }
-                    subline
+                    amount
                 }
+                .accessibilityElement(children: .combine)
+            } else {
+                HStack(alignment: .center, spacing: MonacoTheme.Space.sm) {
+                    mark
+                    VStack(alignment: .leading, spacing: 0) {
+                        HStack(alignment: .firstTextBaseline, spacing: MonacoTheme.Space.s) {
+                            title
+                            Spacer(minLength: MonacoTheme.Space.s)
+                            amount
+                        }
+                        subline
+                    }
+                }
+                .accessibilityElement(children: .combine)
             }
-            .accessibilityElement(children: .combine)
+            if let facts { factsRow(facts) }
         }
     }
 
@@ -192,16 +198,18 @@ struct ProposalHero: View {
 
     @ViewBuilder private var subline: some View {
         let isAccessibility = dynamicTypeSize.isAccessibilitySize
-        let line = Text(subtitle ?? ruleChange?.title ?? summary.assetName(asset: asset))
-            .font(MonacoTheme.Typo.subhead)
-            .foregroundStyle(MonacoTheme.secondaryText)
-            .lineLimit(isAccessibility ? nil : 1)
-            .minimumScaleFactor(isAccessibility ? 1 : 0.75)
-            .fixedSize(horizontal: false, vertical: isAccessibility)
-        if subtitle != nil {
-            line.accessibilityIdentifier("proposal-hero-subtitle")
-        } else {
-            line
+        if let text = subtitle ?? ruleChange?.title {
+            let line = Text(text)
+                .font(MonacoTheme.Typo.subhead)
+                .foregroundStyle(MonacoTheme.secondaryText)
+                .lineLimit(isAccessibility ? nil : 1)
+                .minimumScaleFactor(isAccessibility ? 1 : 0.75)
+                .fixedSize(horizontal: false, vertical: isAccessibility)
+            if subtitle != nil {
+                line.accessibilityIdentifier("proposal-hero-subtitle")
+            } else {
+                line
+            }
         }
     }
 
@@ -210,5 +218,78 @@ struct ProposalHero: View {
             return summary.quoteOutAmount > 0 ? TokenAmount.int64(summary.quoteOutAmount) : nil
         }
         return summary.usdcMicros
+    }
+}
+
+extension ProposalHero {
+    @ViewBuilder private func factsRow(_ facts: ProposalFacts) -> some View {
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                stackedFacts(facts)
+            } else {
+                ViewThatFits(in: .horizontal) {
+                    HStack(alignment: .firstTextBaseline, spacing: MonacoTheme.Space.s) {
+                        estimateLine(facts)
+                        Spacer(minLength: MonacoTheme.Space.s)
+                        treasuryLine(facts)
+                    }
+                    stackedFacts(facts)
+                }
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(facts.spoken)
+        .accessibilityAction(named: Self.infoLabel(facts.info)) { onInfo() }
+        .accessibilityIdentifier("proposal-facts")
+    }
+
+    private func stackedFacts(_ facts: ProposalFacts) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            estimateLine(facts)
+            treasuryLine(facts)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    @ViewBuilder private func estimateLine(_ facts: ProposalFacts) -> some View {
+        if let estimate = facts.estimate {
+            HStack(alignment: .firstTextBaseline, spacing: MonacoTheme.Space.xs) {
+                Text(estimate)
+                    .font(MonacoTheme.Typo.subhead)
+                    .foregroundStyle(MonacoTheme.secondaryText)
+                    .monospacedDigit()
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("proposal-facts-estimate")
+                if facts.info != nil {
+                    Button(action: onInfo) {
+                        Image(systemName: MonacoIcon.info.symbol)
+                            .font(MonacoTheme.Typo.subhead)
+                            .foregroundStyle(MonacoTheme.secondaryText)
+                            .frame(width: MonacoButtonMetrics.hitTarget, height: MonacoButtonMetrics.hitTarget)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .padding(-(MonacoButtonMetrics.hitTarget - Self.infoGlyph) / 2)
+                    .accessibilityLabel(Self.infoLabel(facts.info))
+                    .accessibilityIdentifier("proposal-facts-info")
+                }
+            }
+        }
+    }
+
+    @ViewBuilder private func treasuryLine(_ facts: ProposalFacts) -> some View {
+        if let treasury = facts.treasury {
+            Text(treasury)
+                .font(MonacoTheme.Typo.subhead)
+                .foregroundStyle(MonacoTheme.secondaryText)
+                .monospacedDigit()
+                .lineLimit(1)
+                .fixedSize()
+                .accessibilityIdentifier("proposal-facts-treasury")
+        }
+    }
+
+    static func infoLabel(_ info: ProposalFacts.Info?) -> String {
+        info == .estimate ? "About the estimate" : "About price"
     }
 }

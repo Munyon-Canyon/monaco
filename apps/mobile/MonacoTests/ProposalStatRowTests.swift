@@ -15,14 +15,17 @@ struct ProposalStatRowTests {
         return calendar
     }
 
-    private static func stats(_ fixture: Components.Schemas.ProposalDetail) -> ProposalStats {
+    private static func model(_ fixture: Components.Schemas.ProposalDetail) -> ProposalDetailModel {
         let api = APIClient(
             serverURL: testServerURL, tokens: StubTokenProvider(token: "token"),
             transport: StubTransport(.failure(URLError(.notConnectedToInternet))))
-        let model = ProposalDetailModel(
+        return ProposalDetailModel(
             sample: fixture, members: [], asset: .nvda, repository: ProposalsRepository(api: api),
             hints: FakeHintSource(), now: { now }, calendar: utc)
-        return model.stats ?? ProposalStats(cells: [])
+    }
+
+    private static func stats(_ fixture: Components.Schemas.ProposalDetail) -> ProposalStats {
+        model(fixture).stats ?? ProposalStats(cells: [])
     }
 
     private static let open = stats(.openNVDA(now: now))
@@ -33,18 +36,6 @@ struct ProposalStatRowTests {
         #expect(StatMetrics.columns(requested: 4, dynamicTypeSize: .accessibility3) == 1)
     }
 
-    @Test func eachCellReadsAsLabelCommaValueAtEverySize() async throws {
-        for size in [DynamicTypeSize.large, .xxLarge, .accessibility3] {
-            let labels = try await RenderedView.labels(ProposalStatRow(stats: Self.open), size: size) {
-                $0.contains("Closes, 1:53 PM")
-            }
-            for expected in ["Price, $220.00", "Shares, ≈ 1.82", "Of treasury, 2%", "Closes, 1:53 PM"] {
-                #expect(labels.contains(expected), "\(size): \(labels)")
-            }
-            #expect(labels.contains("About Price"), "\(size): \(labels)")
-        }
-    }
-
     @Test func aFarOutCloseKeepsItsDayAndTimeWholeAndSpeaksWithPlainSpaces() {
         let cells = [ProposalStats.Cell(label: "Closes", value: "Fri 5:41 PM")]
         let items = ProposalStatRow.items(ProposalStats(cells: cells), showsInfo: false, onInfo: {})
@@ -52,20 +43,32 @@ struct ProposalStatRowTests {
         #expect(items.first?.spokenValue == "Fri 5:41 PM")
     }
 
-    @Test func aCellWithAnInfoActionReadsLabelCommaValueThenItsButton() async throws {
-        let labels = try await RenderedView.labels(ProposalStatRow(stats: Self.open), size: .large) {
-            $0.contains("About Price")
+    private static let spoken = "About 1.82 shares at $220.00. 2 percent of treasury."
+
+    @Test func theOpenHeroReadsItsFactsAsOneLineAtEverySize() async throws {
+        let model = Self.model(.openNVDA(now: Self.now))
+        let detail = try #require(model.value)
+        let summary = try #require(model.summary)
+        let facts = ProposalFacts.make(detail: detail, asset: model.asset)
+        #expect(facts?.spoken == Self.spoken)
+        for size in [DynamicTypeSize.large, .accessibility3] {
+            let hero = NavigationStack {
+                ProposalHero(summary: summary, asset: model.asset, members: [], paused: false, facts: facts)
+            }
+            let labels = try await RenderedView.labels(hero, size: size) { $0.contains(Self.spoken) }
+            #expect(labels.contains(Self.spoken), "\(size): \(labels)")
         }
-        let cell = try #require(labels.firstIndex(of: "Price, $220.00"))
-        let button = try #require(labels.firstIndex(of: "About Price"))
-        #expect(cell < button, "\(labels)")
     }
 
-    @Test func theInfoGlyphStaysOffUntilTheMarketStatsSheetFlipsIt() {
-        let hidden = ProposalStatRow.items(Self.open, showsInfo: false, onInfo: {})
-        #expect(hidden.allSatisfy { $0.info == nil })
-        let shown = ProposalStatRow.items(Self.open, showsInfo: true, onInfo: {})
-        #expect(shown.map { $0.info != nil } == [true, false, false, false])
+    @Test func aFilledProposalHasNoFactsSoTheSlotDrawsTheGrid() throws {
+        let model = Self.model(.filledNVDA(now: Self.now))
+        let detail = try #require(model.value)
+        #expect(ProposalFacts.make(detail: detail, asset: model.asset) == nil)
+    }
+
+    @Test func theInfoLabelNamesWhatTheSheetExplains() {
+        #expect(ProposalHero.infoLabel(.price) == "About price")
+        #expect(ProposalHero.infoLabel(.estimate) == "About the estimate")
     }
 
     @Test func aFilledProposalColoursSinceInTheGainTone() {
