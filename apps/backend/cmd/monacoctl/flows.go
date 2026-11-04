@@ -227,6 +227,7 @@ func flowsCheck(
 	problems = append(problems, flows.CheckAppModels(app, parsed, env)...)
 	problems = append(problems, flows.CheckNoAggregate(env.Repo, parsed)...)
 	problems = append(problems, flows.CheckSharedSubjects(parsed, env)...)
+	problems = append(problems, flows.CheckStackScriptsUseTheBus(parsed, env)...)
 	if integration == nil {
 		problems = append(problems, flows.CheckIntegrationDeclared(app, parsed, env.Repo)...)
 		if verified := appVerifiedIDs(app); len(verified) > 0 {
