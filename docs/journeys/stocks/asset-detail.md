@@ -1,7 +1,7 @@
 ---
 id: stocks/asset-detail
 title: Look at a stock
-version: 15
+version: 16
 rpc: fake
 milestone: M11
 requires: [auth/sign-in, stocks/browse]
@@ -43,7 +43,7 @@ Starts signed in (auth/sign-in).
 | S1.6 | tap | "All" in `asset-chart-ranges` | | Within 10 s, "All" is selected |
 | S1.7 | scroll to | `asset-detail-propose-buy` | | `asset-detail-propose-buy` reads "Propose buy" and is enabled, and there is no `asset-detail-propose-sell` (no cabal of A's holds `JRNYAx`, P4), so Propose buy stands alone |
 | S1.8 | tap | `asset-detail-propose-buy` | | Within 10 s, the cabal picker shows as a half sheet titled "Choose a cabal", `propose-pick-cabal-question` asks "Which cabal should buy JRNYA?", and at least two cabal rows follow |
-| S1.9 | tap | the first cabal row | | Within 10 s, `propose-amount-screen` shows with no navigation title and the header `propose-amount-operation` reading "Buy Journey Alpha". A backs out without proposing. Old app: the picker opened the amount screen. screens.md: Propose from a stock (#613) |
+| S1.9 | tap | the first cabal row | | Within 10 s, `propose-amount-screen` shows with no navigation title and the header `propose-amount-operation` reading "Buy Journey Alpha". A taps the close X `amount-keypad-close` and, within 10 s, `asset-detail-root` shows again; A taps back to Markets and, within 10 s, the tab bar `tab-assets` shows; nothing is proposed. Old app: the picker opened the amount screen. screens.md: Propose from a stock (#613) |
 
 ### S2 Market stats and the 52-week bar
 
