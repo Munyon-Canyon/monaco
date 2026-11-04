@@ -270,7 +270,10 @@ func contractCases() []contractCase {
 		{"Status is active or banned", checkStatus},
 		{"TreasuryWallet returns the wallet of that cabal", checkTreasuryWallet},
 		{"TreasuryWallets lists every cabal's wallet by cabal id", checkTreasuryWallets},
-		{"CabalsOf lists a user's cabals by join time and then cabal id", checkCabalsOf},
+		{
+			"CabalsOf lists a user's cabals by join time and then cabal id, leaving out a banned cabal with no share",
+			checkCabalsOf,
+		},
 		{"InvitePreview names the first four members other than the inviter", checkInvitePreview},
 		{"InvitePreview flags a non-member inviter and a banned cabal", checkInvitePreviewFlags},
 		{"InvitePreview on an unknown cabal is not found", checkInvitePreviewUnknown},
@@ -448,7 +451,7 @@ func checkTreasuryWallets(e contractEnv) {
 }
 
 func checkCabalsOf(e contractEnv) {
-	wantByUser := map[int][]string{0: {"a", "b"}, 3: {"d", "e"}, 4: {"b", "d"}, 5: {"c"}}
+	wantByUser := map[int][]string{0: {"a"}, 3: {"d", "e"}, 4: {"d"}, 5: {"c"}}
 	for user, keys := range wantByUser {
 		want := make([]ids.CabalID, len(keys))
 		for i, key := range keys {

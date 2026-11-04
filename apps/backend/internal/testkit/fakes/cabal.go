@@ -268,9 +268,13 @@ func (f *Cabal) CabalsOf(_ context.Context, user ids.UserID) ([]ids.CabalID, err
 	defer f.mu.Unlock()
 	cabals := []ids.CabalID{}
 	for _, m := range f.members {
-		if m.Member.UserID == user {
-			cabals = append(cabals, m.CabalID)
+		if m.Member.UserID != user {
+			continue
 		}
+		if i := f.index(m.CabalID); i >= 0 && f.cabals[i].View.Status == cabal.StatusBanned {
+			continue
+		}
+		cabals = append(cabals, m.CabalID)
 	}
 	return cabals, nil
 }
