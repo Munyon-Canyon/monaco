@@ -52,6 +52,7 @@ public struct CallBoardRowValue: Equatable, Sendable, Identifiable {
     public let isViewer: Bool
     public let isMine: Bool
     public let rate: String
+    public let rightCount: Int
     public let record: String
     public let cardStat: String
     public let turnout: String
@@ -81,6 +82,7 @@ public struct CallBoardRowValue: Equatable, Sendable, Identifiable {
         self.isViewer = isViewer
         self.isMine = isMine
         rate = CallBoardCopy.rate(pct)
+        rightCount = Int(right)
         record = CallBoardCopy.record(right: Int(right), resolved: Int(resolved))
         cardStat = CallBoardCopy.cardStat(rate: CallBoardCopy.rate(pct), right: Int(right), resolved: Int(resolved))
         turnout =
@@ -175,6 +177,13 @@ public struct CallBoardScreen: Equatable, Sendable {
     public func showsDocked(viewerRowVisible: Bool) -> Bool {
         guard card != nil else { return false }
         return viewerListed ? !viewerRowVisible : true
+    }
+
+    public var leadLine: String? {
+        guard tab != .cabals, top.count >= 2 else { return nil }
+        return CallBoardCopy.leadLine(
+            name: String(top[0].name.split(separator: " ").first ?? ""),
+            ahead: top[0].rightCount - top[1].rightCount)
     }
 
     public var isEmpty: Bool {

@@ -232,7 +232,7 @@ struct CallBoardBody: View {
                 CallBoardUnrankedCardView(card: unranked)
             }
             if !screen.top.isEmpty {
-                CallBoardSectionTitle(text: screen.podiumTitle, afterCard: followsCard)
+                CallBoardSectionTitle(text: screen.podiumTitle, afterCard: followsCard, trailing: screen.leadLine)
                 CallBoardPodium(rows: screen.top)
             }
             if !screen.around.isEmpty {
@@ -273,15 +273,49 @@ struct CallBoardSectionTitle: View {
     var count: Int?
     var identifier: String?
     var afterCard = false
+    var trailing: String?
+    @Environment(\.dynamicTypeSize) private var typeSize
 
-    var body: some View {
+    private var title: some View {
         (Text(text).foregroundStyle(MonacoTheme.primaryText)
             + Text(count.map { " \($0)" } ?? "").foregroundStyle(MonacoTheme.secondaryText))
             .font(MonacoTheme.Typo.section)
+            .accessibilityAddTraits(.isHeader)
+    }
+
+    private func line(_ trailing: String) -> some View {
+        Text(trailing).font(MonacoTheme.Typo.subhead).foregroundStyle(MonacoTheme.secondaryText)
+    }
+
+    @ViewBuilder private var content: some View {
+        if let trailing {
+            let stacked = VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
+                title
+                line(trailing).fixedSize(horizontal: false, vertical: true)
+            }
+            if typeSize.isAccessibilitySize {
+                stacked
+            } else {
+                ViewThatFits(in: .horizontal) {
+                    HStack(alignment: .firstTextBaseline, spacing: MonacoTheme.Space.s) {
+                        title
+                        Spacer(minLength: MonacoTheme.Space.s)
+                        line(trailing).lineLimit(1)
+                    }
+                    stacked
+                }
+            }
+        } else {
+            title
+        }
+    }
+
+    var body: some View {
+        content
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, MonacoTheme.Space.gutter)
             .padding(.top, afterCard ? MonacoTheme.Space.m : MonacoTheme.Space.l)
             .padding(.bottom, MonacoTheme.Space.s)
-            .accessibilityAddTraits(.isHeader)
             .accessibilityIdentifier(identifier ?? "leaderboard-section")
     }
 }

@@ -276,3 +276,33 @@ final class CallBoardCopyTests: XCTestCase {
         XCTAssertEqual(CallBoardCopy.infoLines[2], "Five resolved votes to rank.")
     }
 }
+
+extension CallBoardCopyTests {
+    func testLeadLinePinsZeroOneAndManyRightCallsAhead() {
+        XCTAssertNil(CallBoardCopy.leadLine(name: "Christelle", ahead: 0))
+        XCTAssertNil(CallBoardCopy.leadLine(name: "Christelle", ahead: -1))
+        XCTAssertEqual(CallBoardCopy.leadLine(name: "Christelle", ahead: 1), "Christelle, 1 right call ahead.")
+        XCTAssertEqual(CallBoardCopy.leadLine(name: "Christelle", ahead: 2), "Christelle, 2 right calls ahead.")
+    }
+
+    func testLeadLineGatingByTabAndLeaderGap() {
+        XCTAssertEqual(screen(.friendsMonth).leadLine, "Christelle, 2 right calls ahead.")
+        XCTAssertNil(screen(.cabalsMonth).leadLine)
+
+        var one = Components.Schemas.CallBoard.friendsMonth
+        one.top[0].right = one.top[1].right + 1
+        XCTAssertEqual(screen(one).leadLine, "Christelle, 1 right call ahead.")
+
+        var people = one
+        people.filter = .all
+        XCTAssertEqual(screen(people).leadLine, "Christelle, 1 right call ahead.")
+
+        var level = Components.Schemas.CallBoard.friendsMonth
+        level.top[0].right = level.top[1].right
+        XCTAssertNil(screen(level).leadLine)
+
+        var single = Components.Schemas.CallBoard.friendsMonth
+        single.top = Array(single.top.prefix(1))
+        XCTAssertNil(screen(single).leadLine)
+    }
+}
