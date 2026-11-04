@@ -3,7 +3,7 @@ import XCTest
 
 @MainActor
 final class GifPlaybackBudgetTests: XCTestCase {
-    func testReleasingASlotLetsAWaitingTileClaimIt() {
+    func testReleasingASlotLetsAWaitingTileClaimIt() async {
         let budget = GifPlaybackBudget(limit: 1)
         XCTAssertTrue(budget.claim("a"))
         XCTAssertFalse(budget.claim("b"))
@@ -15,14 +15,14 @@ final class GifPlaybackBudgetTests: XCTestCase {
         XCTAssertTrue(budget.claim("b"))
     }
 
-    func testClaimingAHeldIdTakesNoSecondSlot() {
+    func testClaimingAHeldIdTakesNoSecondSlot() async {
         let budget = GifPlaybackBudget(limit: 1)
         XCTAssertTrue(budget.claim("a"))
         XCTAssertTrue(budget.claim("a"))
         XCTAssertFalse(budget.claim("b"))
     }
 
-    func testReleasingAnIdWithoutASlotLeavesRevisionUnchanged() {
+    func testReleasingAnIdWithoutASlotLeavesRevisionUnchanged() async {
         let budget = GifPlaybackBudget(limit: 1)
         let before = budget.revision
 
