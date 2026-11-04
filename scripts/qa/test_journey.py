@@ -11,6 +11,7 @@ import multiprocessing
 import os
 import shutil
 import signal
+import socket
 import subprocess
 import sys
 import tempfile
@@ -907,7 +908,7 @@ class JourneyTradeEngine(unittest.TestCase):
                 raise RuntimeError("stop")
 
             with unittest.mock.patch.dict(os.environ, environ, clear=True), \
-                    unittest.mock.patch.object(journey, "apply_event_streams", lambda log: None), \
+                    unittest.mock.patch.object(journey, "apply_event_streams", lambda log, url=None: None), \
                     unittest.mock.patch.object(journey.subprocess, "Popen", popen), \
                     unittest.mock.patch.object(journey, "OUT", Path(tempfile.mkdtemp())):
                 with self.assertRaises(RuntimeError):
@@ -922,7 +923,7 @@ class JourneyTradeEngine(unittest.TestCase):
             raise RuntimeError("stop")
 
         with unittest.mock.patch.dict(os.environ, {"MONACO_FUND_PAGE_PORT": "5173"}, clear=True), \
-                unittest.mock.patch.object(journey, "apply_event_streams", lambda log: None), \
+                unittest.mock.patch.object(journey, "apply_event_streams", lambda log, url=None: None), \
                 unittest.mock.patch.object(journey.subprocess, "Popen", popen), \
                 unittest.mock.patch.object(journey, "OUT", Path(tempfile.mkdtemp())):
             with self.assertRaises(RuntimeError):
@@ -945,7 +946,7 @@ class JourneyTradeEngine(unittest.TestCase):
                 seen.append(kwargs["env"])
                 raise RuntimeError("stop")
 
-            with unittest.mock.patch.object(journey, "apply_event_streams", lambda log: None), \
+            with unittest.mock.patch.object(journey, "apply_event_streams", lambda log, url=None: None), \
                     unittest.mock.patch.object(journey.subprocess, "Popen", popen), \
                     unittest.mock.patch.object(journey, "OUT", Path(tempfile.mkdtemp())):
                 with self.assertRaises(RuntimeError):
@@ -1007,19 +1008,50 @@ class Slots(unittest.TestCase):
         with unittest.mock.patch.object(journey.subprocess, "Popen", lambda *a, **k: popen.append(k["env"]) or
                                         type("P", (), {"poll": lambda self: None})()), \
                 unittest.mock.patch.object(journey, "OUT", Path(tempfile.mkdtemp())), \
-                unittest.mock.patch.object(journey, "apply_event_streams", lambda log: None), \
+                unittest.mock.patch.object(journey, "apply_event_streams", lambda log, url=None: None), \
                 unittest.mock.patch.object(journey, "backend_is_running", lambda url: True):
             journey.start_backend("http://127.0.0.1:8180", slot=1)
         self.assertEqual(popen[0]["MONACO_HTTP_ADDR"], ":8180")
         self.assertEqual(popen[0]["MONACO_WORKER_HEALTH_ADDR"], ":8181")
         self.assertRegex(popen[0]["MONACO_LOG_DIR"], r"backend-slot1-\d{8}T\d{6}Z$")
 
+    def test_each_slot_backend_gets_its_own_nats(self):
+        popen, applied = [], []
+        with unittest.mock.patch.object(journey.subprocess, "Popen", lambda *a, **k: popen.append(k["env"]) or
+                                        type("P", (), {"poll": lambda self: None})()), \
+                unittest.mock.patch.object(journey, "OUT", Path(tempfile.mkdtemp())), \
+                unittest.mock.patch.object(journey, "apply_event_streams", lambda log, url=None: applied.append(url)), \
+                unittest.mock.patch.object(journey, "backend_is_running", lambda url: True), \
+                unittest.mock.patch.dict(os.environ, {"NATS_URL": "nats://127.0.0.1:4222"}):
+            for slot in (0, 1):
+                journey.start_backend(journey.slot_base_url(slot), slot=slot)
+        urls = [env["NATS_URL"] for env in popen]
+        self.assertEqual(urls, ["nats://127.0.0.1:4232", "nats://127.0.0.1:4233"])
+        self.assertEqual(applied, urls)
+
+    def test_a_slot_nats_container_is_removed_on_stop(self):
+        calls = []
+
+        def run(args, **kwargs):
+            calls.append(args)
+            return types.SimpleNamespace(returncode=0)
+
+        with unittest.mock.patch.object(journey, "sh", run), \
+                unittest.mock.patch.object(journey, "listeners", lambda ports=None: []), \
+                unittest.mock.patch.object(journey.socket, "create_connection", lambda *a, **k: socket.socket()):
+            with journey.slot_nats(1) as url:
+                self.assertEqual(url, "nats://127.0.0.1:4233")
+                self.assertEqual(calls[-1][:5], ["docker", "run", "-d", "--name", "monaco-qa-nats-slot1"])
+                self.assertIn("127.0.0.1:4233:4222", calls[-1])
+            self.assertEqual(calls[-1], ["docker", "rm", "-f", "monaco-qa-nats-slot1"])
+            self.assertEqual(calls[0], ["docker", "rm", "-f", "monaco-qa-nats-slot1"])
+
     def test_a_slot_backend_leaves_price_history_off(self):
         popen = []
         with unittest.mock.patch.object(journey.subprocess, "Popen", lambda *a, **k: popen.append(k["env"]) or
                                         type("P", (), {"poll": lambda self: None})()), \
                 unittest.mock.patch.object(journey, "OUT", Path(tempfile.mkdtemp())), \
-                unittest.mock.patch.object(journey, "apply_event_streams", lambda log: None), \
+                unittest.mock.patch.object(journey, "apply_event_streams", lambda log, url=None: None), \
                 unittest.mock.patch.object(journey, "backend_is_running", lambda url: True), \
                 unittest.mock.patch.dict(os.environ, {"MARKET_HISTORY_ENABLED": "true"}):
             for slot in (0, 1):
@@ -1859,7 +1891,7 @@ class RemappedSetup(Output):
     def test_each_slot_writes_its_own_backend_log(self):
         logs = []
         with tempfile.TemporaryDirectory() as out, unittest.mock.patch.object(journey, "OUT", Path(out)), \
-                unittest.mock.patch.object(journey, "apply_event_streams", lambda log: logs.append(log.name)), \
+                unittest.mock.patch.object(journey, "apply_event_streams", lambda log, url=None: logs.append(log.name)), \
                 unittest.mock.patch.object(journey.subprocess, "Popen", self.refuse_boot), \
                 redirect_stdout(StringIO()):
             for slot in (0, 1):
@@ -2005,7 +2037,7 @@ class BusApply(unittest.TestCase):
             with self.assertRaises(StopIteration):
                 journey.start_backend("http://127.0.0.1:8080")
         self.assertEqual(order[-2:], ["scripts/with-dotenv-local.sh bin/monacoctl bus apply", "BOOT just run backend"])
-        self.assertLess(order.index("docker compose up -d --wait postgres nats"), len(order) - 2)
+        self.assertLess(order.index("docker compose up -d --wait postgres"), len(order) - 2)
 
     def test_a_failed_bus_apply_stops_the_run_before_boot(self):
         booted = []
@@ -2680,7 +2712,7 @@ class StartBackend(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as out, unittest.mock.patch.object(journey, "OUT", Path(out)), \
                 unittest.mock.patch.dict(os.environ, environ, clear=True), \
-                unittest.mock.patch.object(journey, "apply_event_streams", lambda log: None), \
+                unittest.mock.patch.object(journey, "apply_event_streams", lambda log, url=None: None), \
                 unittest.mock.patch.object(journey.subprocess, "Popen", popen), redirect_stdout(StringIO()):
             with self.assertRaises(StopIteration):
                 journey.start_backend("http://127.0.0.1:8080")
