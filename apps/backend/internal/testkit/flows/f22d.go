@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
@@ -167,4 +168,13 @@ func F22dWriteTradeFilledMomentOK(s *scenario.Scenario) {
 				s.Fatalf("flows: the cabal holds %d trade_filled rows, want 2", got)
 			}
 		})
+}
+
+func (defined) AloneF22d() []Script {
+	return []Script{F22dWriteTradeFilledMomentOK}
+}
+
+func (defined) LettersF22d() map[string][]Letter {
+	unbooked := Letter{Subject: events.TypeTradeConfirmed, Code: errs.CodeInvalidInput}
+	return map[string][]Letter{"F22dWriteTradeFilledMomentOK": {unbooked}}
 }
