@@ -123,12 +123,14 @@ private struct CabalIdentityRow: View {
             if !faces.isEmpty {
                 MonacoFaceStack(members: faces, total: faces.count)
             }
-            Text(peopleText)
-                .lineLimit(1)
-                .truncationMode(.tail)
-            Text(CabalHeaderCopy.separator + sinceText)
-                .lineLimit(1)
-                .layoutPriority(1)
+            HStack(spacing: 0) {
+                Text(peopleText)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                Text(CabalHeaderCopy.separator + sinceText)
+                    .lineLimit(1)
+                    .layoutPriority(1)
+            }
         }
         .font(MonacoTheme.Typo.subhead)
         .foregroundStyle(MonacoTheme.secondaryText)
