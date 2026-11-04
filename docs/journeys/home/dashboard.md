@@ -43,7 +43,7 @@ The format of this doc is in [App journeys](../README.md).
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S2.1 | C | tap | the Home tab | | `home-cabals-empty` shows "No cabals yet" and "A cabal is a few friends, one treasury and a vote on every trade." with a "Start a cabal" button within 15 s (screens.md `HomeFirstUseSlot`; old app: `HomeView` empty state) |
+| S2.1 | C | tap | the Home tab | | `home-cabals-empty` shows "There is no place like Monaco." and "Trade with your friends." with a "Start a cabal" button within 15 s (screens.md `HomeFirstUseSlot`; old app: `HomeView` empty state) |
 | S2.2 | C | tap | "Start a cabal" | | The create cabal screen shows `create-group-name` within 10 s (screens.md `HomeFirstUseSlot`; old app: `HomeView` "Browse cabals") |
 
 ## Ground truth
