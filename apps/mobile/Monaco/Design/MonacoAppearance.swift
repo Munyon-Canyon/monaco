@@ -454,3 +454,14 @@ private struct MonacoSheetChrome: ViewModifier {
             .presentationBackgroundInteraction(.disabled)
     }
 }
+
+extension ToolbarContent {
+    @ToolbarContentBuilder
+    func withoutGlass() -> some ToolbarContent {
+        if #available(iOS 26.0, *) {
+            sharedBackgroundVisibility(.hidden)
+        } else {
+            self
+        }
+    }
+}
