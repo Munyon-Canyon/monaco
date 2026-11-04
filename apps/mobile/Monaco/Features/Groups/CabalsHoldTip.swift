@@ -8,9 +8,23 @@ enum CabalsHoldTipMetrics {
 }
 
 struct CabalsHoldTip: View {
-    @AppStorage("cabals.holdTip.dismissed") private var dismissed = false
+    static let dismissedKey = "cabals.holdTip.dismissed"
+
+    private static let resetOnLaunch: Void = {
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-MonacoResetHoldTip") {
+            UserDefaults.standard.removeObject(forKey: dismissedKey)
+        }
+        #endif
+    }()
+
+    @AppStorage(CabalsHoldTip.dismissedKey) private var dismissed = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    init() {
+        Self.resetOnLaunch
+    }
 
     var body: some View {
         if !dismissed {
