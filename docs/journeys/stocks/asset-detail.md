@@ -53,7 +53,7 @@ Starts signed in (auth/sign-in).
 | --- | --- | --- | --- | --- |
 | S2.1 | tap, type, then tap | the Markets tab `tab-assets`, then `monaco-search-field`, then `assets-row-JRNYAx` | `JRNYA` | Within 15 s, `asset-detail-root` shows |
 | S2.2 | scroll to | `asset-stats` | | Within 10 s, `asset-stats` shows the Market stats grid: open, previous close, day high and low, and 52-week high and low, leaving out a cell the candles cannot give, then a "24h volume" cell when the seeded asset has a volume reading from the last 36 hours. Old app: the Stats card. screens.md: "Market stats" (open, previous close, day high and low, 52-week high and low, 24h volume). The grid has no market cap or supply cell |
-| S2.3 | tap | `asset-stats-info-button` | | Within 10 s, `market-stats-sheet` shows "Market stats" and "Monaco prices trade around the clock, so they can differ a little from the stock market's.", and no text in it contains "Solana", "Base" or "Robinhood Chain". Closing it with `market-stats-sheet-close` shows `asset-stats` again within 5 s |
+| S2.3 | tap | `asset-stats-info-button` | | Within 10 s, the sheet title `market-stats-sheet-title` reads "Market stats", and the sheet `asset-stats-info` shows "Monaco prices trade around the clock, so they can differ a little from the stock market's.", and no text in it contains "Solana", "Base" or "Robinhood Chain". Closing it with `market-stats-sheet-close` shows `asset-stats` again within 5 s |
 
 ### S3 A Pre-IPO token
 
