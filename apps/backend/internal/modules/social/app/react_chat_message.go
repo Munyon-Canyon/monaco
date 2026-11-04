@@ -44,6 +44,9 @@ func (h *ReactChatMessageHandler) Handle(ctx context.Context, cmd ReactChatMessa
 		if err != nil {
 			return err
 		}
+		if err := refuseBlockedAuthor(ctx, tx, cmd.Viewer, author, op); err != nil {
+			return err
+		}
 		_, err = q.AddChatReaction(ctx, sqlc.AddChatReactionParams{
 			MessageID: cmd.MessageID, CabalID: cmd.CabalID.UUID(), UserID: cmd.Viewer.UUID(),
 			Emoji: emoji.String(), CreatedAt: h.d.Clock.Now().UTC(),
@@ -133,6 +136,17 @@ func liveChatAuthor(ctx context.Context, q *sqlc.Queries, cmd ReactChatMessage, 
 		return uuid.Nil, errs.Wrap(err, errs.CodeInternal, op)
 	}
 	return author, nil
+}
+
+func refuseBlockedAuthor(ctx context.Context, tx db.Tx, viewer ids.UserID, author uuid.UUID, op string) error {
+	blocked, err := blockedEitherWay(ctx, tx, viewer, ids.UserIDFrom(author))
+	if err != nil {
+		return err
+	}
+	if blocked {
+		return errs.New(errs.CodeChatMessageNotFound, op, slog.String("reason", "blocked"))
+	}
+	return nil
 }
 
 func (d ChatDeps) settleReaction(ctx context.Context, cmd ReactChatMessage, changed bool) (ReactionSummary, error) {
