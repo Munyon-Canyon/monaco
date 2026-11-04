@@ -135,6 +135,18 @@ extension Components.Schemas.CallBoard {
         return board
     }()
 
+    public static let peopleMonthLong: Self = {
+        var board = peopleMonth
+        board.totalRanked = 24
+        board.around = .init(
+            rows: [kai, andres, rosa, nora, diego, maya]
+                + (13...22).map {
+                    row(Int32($0), "Member \($0)", Int32(60 - ($0 - 13)), right: 3, resolved: 5, voted: 5, eligible: 6)
+                },
+            afterCursor: nil)
+        return board
+    }()
+
     public static let peopleMonthLeadChangeNoCall: Self = {
         var board = peopleMonthLeadChange
         board.leadChange?.id = "00000000-0000-7000-8000-00000000c002"
