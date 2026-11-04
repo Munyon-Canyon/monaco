@@ -36,6 +36,6 @@ func (k CabalAccessRequestedAdmins) Render(
 	if err != nil {
 		return Message{}, err
 	}
-	msg.Body += " through " + via.Name + "'s link"
+	msg.Body = "They used " + via.Name + "'s link. " + msg.Body
 	return msg, nil
 }

@@ -86,13 +86,13 @@ func (r *pushRig) wantRows(t *testing.T, want map[string]int) {
 	}
 }
 
-func followPush(to, from ids.UserID, who string) apns.Push {
+func followPush(to, from ids.UserID, who, body string) apns.Push {
 	return apns.Push{
 		UserID: to, Token: token('a'), Environment: apns.Sandbox, CollapseID: "follow-" + from.String(),
-		Title: "New follower", Body: who + " followed you",
+		Title: who + " follows you now.", Body: body,
 		Data: map[string]string{
 			"kind": "new_follower", "user_id": from.String(),
-			"sender_kind": "person", "sender_id": from.String(), "sender_name": strings.SplitN(who, " (", 2)[0],
+			"sender_kind": "person", "sender_id": from.String(), "sender_name": who,
 		},
 		ThreadID: "user-" + from.String(), InterruptionLevel: "active", Sound: "default",
 	}
@@ -129,7 +129,7 @@ func TestNotify_NewFollower_CapThenDigest(t *testing.T) {
 
 	singles := make([]apns.Push, 3)
 	for i := range singles {
-		singles[i] = followPush(followee, followers[i], names[i]+" (@"+strings.ToLower(names[i])+")")
+		singles[i] = followPush(followee, followers[i], names[i], "@"+strings.ToLower(names[i]))
 	}
 	if sent := r.sender.Sent(); !reflect.DeepEqual(sent, singles) {
 		t.Fatalf("sent %+v after five follows, want only the first three: %+v", sent, singles)
@@ -159,7 +159,7 @@ func TestNotify_NewFollower_CapThenDigest(t *testing.T) {
 	r.clock.Set(utc(2, 2, 0))
 	d, e := r.followed(t, followee, followers[5])
 	wantVerdict(t, r.handleFollow(t, d, e), "", errs.VerdictAck)
-	nextDay := followPush(followee, followers[5], "Gus (@gus)")
+	nextDay := followPush(followee, followers[5], "Gus", "@gus")
 	if sent := r.sender.Sent(); len(sent) != 5 || !reflect.DeepEqual(sent[4], nextDay) {
 		t.Fatalf("sent %+v, want the next day's first follow to push on its own: %+v", sent, nextDay)
 	}
@@ -210,7 +210,7 @@ func TestNotify_NewFollower_ReachesOnlyTheFolloweeThroughTheModule(t *testing.T)
 
 	d := r.dispatchTo(t, notify.New(deps, notify.WithSender(r.sender)), userActor(follower), e)
 
-	want := followPush(followee, follower, "Bea (@bea)")
+	want := followPush(followee, follower, "Bea", "@bea")
 	if sent := r.sender.Sent(); !reflect.DeepEqual(sent, []apns.Push{want}) {
 		t.Fatalf("sent %+v, want only %+v", sent, want)
 	}
@@ -244,15 +244,16 @@ func TestNotify_NewFollower_NamesTheFollowerOrSomeone(t *testing.T) {
 	follower := ids.UserIDFrom(uuid.NewSHA1(uuid.NameSpaceOID, []byte("notify-follower")))
 	e := events.FollowCreated{V: 1, FollowerID: follower.UUID()}
 	for name, tc := range map[string]struct {
-		cards      map[ids.UserID]identity.UserCard
-		want, name string
+		cards             map[ids.UserID]identity.UserCard
+		title, body, name string
 	}{
-		"a name and a handle":             {followerCard(follower, "Dana", "dana", false), "Dana (@dana) followed you", "Dana"},
-		"a handle that is the whole name": {followerCard(follower, "dana", "dana", false), "@dana followed you", "dana"},
-		"a name and no handle":            {followerCard(follower, "Dana", "", false), "Dana followed you", "Dana"},
-		"no name and no handle":           {followerCard(follower, "", "", false), "Someone followed you", "Someone"},
-		"a deleted user that kept a name": {followerCard(follower, "Dana", "dana", true), "Someone followed you", "Someone"},
-		"a user the port does not know":   {nil, "Someone followed you", "Someone"},
+		"a name and a handle":             {followerCard(follower, "Dana", "dana", false), "Dana follows you now.", "@dana", "Dana"},
+		"a handle that is the whole name": {followerCard(follower, "dana", "dana", false), "dana follows you now.", "@dana", "dana"},
+		"a name and no handle":            {followerCard(follower, "Dana", "", false), "Dana follows you now.", "View their profile.", "Dana"},
+		"no name and a handle":            {followerCard(follower, "", "dana", false), "Someone follows you now.", "@dana", "Someone"},
+		"no name and no handle":           {followerCard(follower, "", "", false), "Someone follows you now.", "View their profile.", "Someone"},
+		"a deleted user that kept a name": {followerCard(follower, "Dana", "dana", true), "Someone follows you now.", "View their profile.", "Someone"},
+		"a user the port does not know":   {nil, "Someone follows you now.", "View their profile.", "Someone"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -260,7 +261,7 @@ func TestNotify_NewFollower_NamesTheFollowerOrSomeone(t *testing.T) {
 			msg, err := app.NewFollower{Users: users{cards: tc.cards}}.Render(t.Context(), e, ids.UserID{})
 
 			want := app.Message{
-				Title: "New follower", Body: tc.want, CollapseID: "follow-" + follower.String(),
+				Title: tc.title, Body: tc.body, CollapseID: "follow-" + follower.String(),
 				Data: map[string]string{"kind": "new_follower", "user_id": follower.String()},
 				Presentation: app.Presentation{
 					ThreadID: "user-" + follower.String(), InterruptionLevel: "active",

@@ -20,8 +20,8 @@ func (DepositCredited) Recipients(_ context.Context, e events.DepositCredited) (
 
 func (k DepositCredited) Render(_ context.Context, e events.DepositCredited, _ ids.UserID) (Message, error) {
 	return Message{
-		Title:        "Deposit received",
-		Body:         usd(e.AmountMicros) + " is in your account balance.",
+		Title:        dollars(e.AmountMicros) + " landed.",
+		Body:         "It's in your cash.",
 		Data:         map[string]string{"kind": k.Name()},
 		CollapseID:   "deposit-" + e.DepositID.String(),
 		Presentation: ForAccount(),

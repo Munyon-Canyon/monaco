@@ -29,7 +29,7 @@ func TestNotify_DepositCredited_Depositor(t *testing.T) {
 
 	want := apns.Push{
 		UserID: depositor, Token: token('a'), Environment: apns.Sandbox, CollapseID: "deposit-" + e.DepositID.String(),
-		Title: "Deposit received", Body: "$25.00 is in your account balance.",
+		Title: "$25 landed.", Body: "It's in your cash.",
 		Data: map[string]string{"kind": "deposit_credited"}, ThreadID: "account", InterruptionLevel: "active",
 		Sound: "default",
 	}
@@ -41,22 +41,22 @@ func TestNotify_DepositCredited_Depositor(t *testing.T) {
 	r.wantRecorded(t, d, 1)
 }
 
-func TestNotify_DepositCredited_BodyShowsTruncatedDollars(t *testing.T) {
+func TestNotify_DepositCredited_TitleShowsTruncatedDollars(t *testing.T) {
 	t.Parallel()
 	for micros, want := range map[uint64]string{
-		25_000_000:     "$25.00 is in your account balance.",
-		27_500_000:     "$27.50 is in your account balance.",
-		25_009_999:     "$25.00 is in your account balance.",
-		10_000:         "$0.01 is in your account balance.",
-		12_000_000_000: "$12,000.00 is in your account balance.",
-		999_990_000:    "$999.99 is in your account balance.",
-		1_234_560_000:  "$1,234.56 is in your account balance.",
-		math.MaxUint64: "$18,446,744,073,709.55 is in your account balance.",
+		25_000_000:     "$25 landed.",
+		27_500_000:     "$27.50 landed.",
+		25_009_999:     "$25 landed.",
+		10_000:         "$0.01 landed.",
+		12_000_000_000: "$12,000 landed.",
+		999_990_000:    "$999.99 landed.",
+		1_234_560_000:  "$1,234.56 landed.",
+		math.MaxUint64: "$18,446,744,073,709.55 landed.",
 	} {
 		e := events.DepositCredited{V: 1, AmountMicros: money.MicrosFromUint64(micros)}
 		msg, err := app.DepositCredited{}.Render(t.Context(), e, ids.UserID{})
-		if err != nil || msg.Body != want {
-			t.Errorf("%d micros: body %q, %v, want %q", micros, msg.Body, err, want)
+		if err != nil || msg.Title != want {
+			t.Errorf("%d micros: title %q, %v, want %q", micros, msg.Title, err, want)
 		}
 	}
 }
@@ -93,7 +93,7 @@ func TestNotify_DepositCredited_OneCentPushes(t *testing.T) {
 	wantVerdict(t, handleKinds(t, r, r.sender, d, e, app.DepositCredited{}), "", errs.VerdictAck)
 
 	sent := r.sender.Sent()
-	if len(sent) != 1 || sent[0].Body != "$0.01 is in your account balance." {
+	if len(sent) != 1 || sent[0].Title != "$0.01 landed." {
 		t.Fatalf("sent %+v, want one push saying $0.01", sent)
 	}
 	r.wantStates(t, d, map[ids.UserID]string{depositor: "delivered"})

@@ -48,8 +48,8 @@ func (k CabalAccessRequested) Render(
 		return Message{}, err
 	}
 	return Message{
-		Title:        "New request to join",
-		Body:         requester.Name + " wants to join " + view.Name,
+		Title:        requester.Name + " wants into " + view.Name + ".",
+		Body:         "Approve or skip.",
 		Data:         map[string]string{"kind": k.Name(), "cabal_id": e.CabalID.String()},
 		CollapseID:   "access-" + e.RequestID.String(),
 		Presentation: ForCabal(view, requester),
