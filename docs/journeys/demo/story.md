@@ -91,7 +91,7 @@ Beat 21.
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
 | S7.1 | A | open, then tap | `QA story {QA.run}`, then `cabal-treasury-cash-out` | | The title "Cash out" and the 25% / 50% / All keys show within 10 s (beat 21 "Cash out any time"; old app: `CashOutView`; screens.md Cash out) |
-| S7.2 | A | tap, then tap | "25%", then `cash-out-submit` | | A toast starting "Cashing out" within 15 s (screens.md Cash out: "Cashing out $50.03. The final amount is known when it settles") |
+| S7.2 | A | tap, then tap | "25%", then `cash-out-submit` | | A toast starting "Cashing out" within 15 s (screens.md Cash out: “Cashing out $50.03. The final amount is known when it settles”) |
 
 ### S8 See who's up
 
@@ -108,8 +108,13 @@ Beat 22.
 
 ## Known failures on staging
 
-None known.
-
+- S1.2: "Create your profile" is no longer app copy. Blocked by #7977.
+- S1.3: "Start a cabal / Set the rules" is no longer app copy. Blocked by #7977.
+- S3.1: "Browse real stocks" is no longer app copy. Blocked by #7977.
+- S3.3: "Pre-IPO too" is no longer app copy. Blocked by #7977.
+- S4.4: "Majority wins, the cabal buys" is no longer app copy. Blocked by #7977.
+- S5.2: "In. Told you" is no longer app copy. Blocked by #7977.
+- S8.1: "See who's up" is no longer app copy. Blocked by #7977.
 ## Not covered
 
 - Priya, the third friend (beats 7, 8 and 12 as Priya). A run has two actors, A and B.

@@ -53,6 +53,8 @@ Starts on the renamed cabal.
 ## Known failures on staging
 
 - Votes to pass, Vote window and Max per trade have no control on the Rules tab: the rows are read-only text, and only the Show who voted what switch starts a proposal (`CabalRulesTab.swift`). The `cabal-rule-proposal-threshold`, `-window` and `-max-trade` pickers are in the sheet but nothing on the page opens them. The ticket's "propose the change from the Rules tab" for those three is not drivable until HC (#6523 / #6498) adds a tap target; S2 covers the switch.
+- S1.2: "Counts are live for every member." is no longer app copy; "Rules change by proposal;" is no longer app copy. Blocked by #7976.
+- S2.5: "on since" is no longer app copy. Blocked by #7976.
 
 ## Not covered
 

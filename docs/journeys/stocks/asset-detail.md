@@ -91,6 +91,7 @@ Looking at a stock writes nothing, and S1.9 backs out of Amount. After a run, `a
 | Step | Why | Blocking ticket |
 | --- | --- | --- |
 | S5.2, S5.3 | No path seeds a holding of `JRNYAx` for A (P4), so "In your cabals" is hidden and Propose a sell does not show | #2136 |
+- S2.2: "24h volume" is no longer app copy. Blocked by #6198.
 
 ## Not covered
 

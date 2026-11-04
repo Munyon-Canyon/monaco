@@ -69,6 +69,7 @@ The format of this doc is in [App journeys](../README.md).
 ## Known failures on staging
 
 - S1.1, S1.2 and S2.1: the app dropped the "+" reaction chip (`reaction-add-feed-<item id>`) and opens the tray from a long press of the foot row, `reaction-row-feed-<item id>` (#8078). The doc and test still tap the "+". Blocked by #7979.
+- S3.2: "Members of QA public {QA.run} reply here" is no longer app copy. Blocked by #7979.
 
 ## Not covered
 

@@ -318,6 +318,63 @@ class Targets(Tree):
         self.assertIn("ui/SignInJourney.swift:6 (after step S1.1 in auth/sign-in): target login-gone is set nowhere", errors[0])
 
 
+class Copy(Tree):
+    """The check that the app can show each quote a journey doc makes and that tests quote their doc."""
+
+    APP = "apps/mobile/Monaco/Copy.swift"
+    DRIVER = "ui/SignInJourney.swift"
+
+    def setUp(self):
+        super().setUp()
+        self.write(self.APP, 'Text("Welcome back")\nText("Voted \\(side). \\(ordinal) of \\(count).")\n')
+
+    def doc(self, expect, known=""):
+        row = "| S1.1 | tap | `a` | | %s |\n" % expect
+        self.write("docs/journeys/auth/sign-in.md", DOC.replace("| S1.1 | tap | `a` | | b |\n", row) + known)
+
+    def run_copy(self):
+        return journey.check_copy(journey.load_journeys())
+
+    def test_an_exact_app_string_passes(self):
+        self.doc('"Welcome back"')
+        self.assertEqual(self.run_copy(), ([], [], 1))
+
+    def test_an_interpolated_literal_matches_by_its_fixed_parts(self):
+        self.doc('"Voted Yes. 1st of 3."')
+        self.assertEqual(self.run_copy()[0], [])
+        self.doc('"Declined. 1st of 3."')
+        self.assertEqual(len(self.run_copy()[0]), 1)
+
+    def test_a_placeholder_matches_anything(self):
+        self.doc('"Welcome {QA.run}"')
+        self.assertEqual(self.run_copy()[0], [])
+
+    def test_a_miss_names_the_doc_step_and_nearest_string(self):
+        self.doc('"Welcome bak"')
+        error = self.run_copy()[0][0]
+        self.assertEqual(error, 'docs/journeys/auth/sign-in.md S1.1: "Welcome bak" is not app copy (closest: "Welcome back", Copy.swift:1)')
+
+    def test_a_runtime_copy_row_makes_a_quote_producible(self):
+        self.doc('"QA vote {QA.run}"')
+        self.assertEqual(len(self.run_copy()[0]), 1)
+        self.write("qa/copy-runtime.tsv", "copy\tsource\twhy\nQA vote {QA.run}\tsetup.sh\ta seeded title\n")
+        self.assertEqual(self.run_copy()[0], [])
+
+    def test_a_step_under_known_failures_is_a_warning(self):
+        self.doc('"Gone"', "\n## Known failures on staging\n\n- S1.1: gone. Blocked by #77.\n")
+        errors, warnings, _ = self.run_copy()
+        self.assertEqual(errors, [])
+        self.assertEqual(len(warnings), 1)
+        self.assertIn("#77", warnings[0])
+
+    def test_a_test_literal_missing_from_its_doc_step_is_an_error(self):
+        self.doc('"Welcome back"')
+        self.write(self.DRIVER, JOURNEY_SWIFT + 'expectToast(app, "Welcome back")\nexpectToast(app, "Welcome home")\n')
+        errors = self.run_copy()[0]
+        self.assertEqual(len(errors), 1)
+        self.assertEqual(errors[0], 'ui/SignInJourney.swift:7 S1.1: "Welcome home" is not in docs/journeys/auth/sign-in.md S1.1')
+
+
 class SetupInserts(Tree):
     def setUp(self):
         super().setUp()

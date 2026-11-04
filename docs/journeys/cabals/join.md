@@ -73,6 +73,8 @@ After S1, B is a member of both seeded cabals, and B's request to `QA pot {QA.ru
 - S2.1: the Rules tab's `cabal-rules-join` row is read-only and `CabalRuleProposalModel` has no join-policy change yet, so the step cannot propose "Who can join · Open". Owning tickets: #6498 and #6510.
 
 The ticket names the request row `members-request-<id>`. The app builds `cabal-join-request-row`, `cabal-join-approve` and `cabal-join-deny` (Decline sits in the row's long-press menu), and the journey follows the app. The request rows list in Members · all (`cabal-members-see-all`).
+- S1.4: "No cabal called" is no longer app copy. Blocked by #6198.
+- S1.7: "Asked to join" is no longer app copy. Blocked by #6198.
 
 ## Not covered
 

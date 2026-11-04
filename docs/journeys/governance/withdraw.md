@@ -45,3 +45,7 @@ The format of this doc is in [App journeys](../README.md).
 
 - The confirm's "Withdraw" button has no identifier, so the test finds it by label. "Withdraw proposal" is `proposal-withdraw`.
 - A withdraw refused because a vote already closed the proposal. The flow layer covers it (flow 13, `ProposalClosed`).
+
+## Known failures on staging
+
+- S1.2: "Why buy" is no longer app copy. Blocked by #6198.

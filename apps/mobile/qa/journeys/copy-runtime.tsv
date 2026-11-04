@@ -1,0 +1,19 @@
+copy	source	why
+# Copy that no Swift literal in apps/mobile/Monaco or packages/mobile-core spells out, so a journey doc may quote it.
+# scripts/qa/journey.py check reads each row as a pattern: {...} stands for any text and the whole quote must match.
+# A quote that matches no app literal and no row here fails check.
+QA vote {QA.run}	apps/mobile/qa/journeys/governance/vote.setup.sh	a proposal title the setup script seeds with the run id
+QA ask {QA.run}	apps/mobile/qa/journeys/governance/comments.setup.sh	a comment the setup script seeds with the run id
+started QA feed {QA.run}	apps/mobile/qa/journeys/feed/browse.truth.sh	a feed line the backend builds from the seeded cabal name
+started QA own {QA.run}	apps/mobile/qa/journeys/feed/browse.truth.sh	a feed line the backend builds from the seeded cabal name
+Alfred	apps/mobile/qa/journeys/accounts.tsv	the display name of a seeded Privy test login
+Alfred {QA.run}	apps/mobile/qa/journeys/profile/edit.truth.sh	a display name the journey types, with the run id
+Bartholomez	apps/mobile/qa/journeys/accounts.tsv	the display name of a seeded Privy test login
+@qa_b	apps/mobile/qa/journeys/accounts.tsv	the handle of a seeded Privy test login
+@qa_cayman	apps/mobile/qa/journeys/accounts.tsv	the handle of a seeded Privy test login
+Journey Alpha	stocks/browse.catalogue.sql	a seeded stock name
+Journey Private	stocks/browse.catalogue.sql	a seeded stock name
+Journey Zulu	stocks/browse.catalogue.sql	a seeded stock name
+JRNYA	stocks/browse.catalogue.sql	a seeded stock symbol
+Buy Journey Alpha	stocks/browse.catalogue.sql	a button label built from a seeded stock name
+Add Journey Alpha	stocks/browse.catalogue.sql	a button label built from a seeded stock name

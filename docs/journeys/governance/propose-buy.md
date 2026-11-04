@@ -90,6 +90,12 @@ With two voters and "Majority", a buy needs both yes votes.
 - S2.5 cannot type the thesis `Journey buy {QA.run}`: F's Propose flow has no thesis field (`propose-review-thesis` is a text row, and `ProposeAmountScreen` only seeds a thesis). The step checks the row shows, and the ground truth no longer matches the reason. Follow-up against the PV ticket (#6573).
 - The ticket names `cabal-position-GOOGL`; the app's Positions row is `cabal-holding-GOOGL`, which S4.1 uses.
 - The status line has no step for the tracker (`proposal-tracker`), which F replaced.
+- S2.1: the test checks "Proposal sent", which the doc step does not quote. Blocked by #7983.
+- S2.6: the test checks "Buy · market order", which the doc step does not quote; the test checks "Shares", which the doc step does not quote; the test checks "Price", which the doc step does not quote; the test checks "Of treasury", which the doc step does not quote; the test checks "To pass", which the doc step does not quote; the test checks "filled at $", which the doc step does not quote; the test checks "Needs your vote", which the doc step does not quote. Blocked by #7983.
+- S4.2: the test checks "Cash out $", which the doc step does not quote; the test checks "Cashing out $", which the doc step does not quote; the test checks "Cashed out $", which the doc step does not quote. Blocked by #7983.
+- S5.1: "Cashing out $" is no longer app copy; "Cashed out $" is no longer app copy. Blocked by #7983.
+- S5.3: "Withdrawing $" is no longer app copy. Blocked by #7983.
+- S5.6: the test checks "Withdrawal complete: $", which the doc step does not quote. Blocked by #7983.
 
 ## Not covered
 

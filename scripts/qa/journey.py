@@ -1769,6 +1769,189 @@ def check_targets(journeys):
     return errors, warnings, count
 
 
+# ---------------------------------------------------------------- expected copy
+
+COPY_HELPER = re.compile(
+    r"waitForText|waitForLabel|waitForToast|expectToast|expectText|expectLabel|staticTexts\[|label\s+(?:CONTAINS|BEGINSWITH)")
+COPY_BREAK = re.compile(PLACEHOLDER.pattern + r"|[→≈]|[$£€]?\d[\d,.]*%?|…")
+STEP_PREFIX = re.compile(r"^S\d+\.\d+\b")
+PREDICATE_TEXT = re.compile(r"(?:CONTAINS|BEGINSWITH)\s+'([^']*)'")
+PREDICATE_WORD = re.compile(r"\b(?:CONTAINS|BEGINSWITH)\b")
+QUOTED = re.compile(r'"([^"]+)"')
+
+
+HOLE = r"(?:[^.!?]|[.,](?=\d))*?"
+
+
+def plain(text):
+    """Text as shown: Swift unicode escapes resolved and curly quotes straightened."""
+    text = re.sub(r"\\u\{([0-9a-fA-F]+)\}", lambda m: chr(int(m.group(1), 16)), text)
+    return text.replace("\u2019", "'").replace("\u2018", "'").replace("\u201c", '"').replace("\u201d", '"')
+
+
+class AppCopy:
+    """Every string the app can show: whole literals, and the ordered fixed parts of interpolated ones."""
+
+    def __init__(self):
+        self.whole = []      # (text, file, line)
+        self.parts = []      # (parts, file, line)
+        self.blob = ""
+
+    def add(self, literal, where):
+        literal = plain(literal)
+        if "\\(" not in literal:
+            if literal.strip():
+                self.whole.append((literal, where))
+            return
+        parts, depth, current, i = [], 0, "", 0
+        while i < len(literal):
+            if literal.startswith("\\(", i):
+                depth, i = depth + 1, i + 2
+                if depth == 1:
+                    parts.append(current)
+                    current = ""
+                continue
+            char = literal[i]
+            if depth:
+                depth += {"(": 1, ")": -1}.get(char, 0)
+            else:
+                current += char
+            i += 1
+        parts.append(current)
+        if sum(len(part) for part in parts) >= 5:
+            self.parts.append((parts, where))
+
+    def finish(self):
+        self.blob = "\n".join(text for text, _ in self.whole).lower()
+        self.regexes = [(re.compile(HOLE.join(re.escape(p) for p in parts), re.I), len(parts[0].strip()) >= 3, where)
+                        for parts, where in self.parts]
+
+    def produces(self, quote):
+        quote = plain(quote)
+        segments = [s.strip().lower() for s in COPY_BREAK.split(quote) if re.search(r"[^\W\d_]|[^\x00-\x7f]", s)]
+        if not segments:
+            return True
+        if re.search("[^\n]*".join(re.escape(s) for s in segments), self.blob):
+            return True
+        return any((regex.search(quote) if anchored else regex.match(quote)) for regex, anchored, _ in self.regexes)
+
+    def nearest(self, quote):
+        import difflib
+        texts = {}
+        for text, where in self.whole:
+            texts.setdefault(text, where)
+        matcher, best, found = difflib.SequenceMatcher(None, autojunk=False), 0.0, ""
+        matcher.set_seq2(quote)
+        for text in texts:
+            matcher.set_seq1(text)
+            if matcher.real_quick_ratio() > best and matcher.quick_ratio() > best:
+                ratio = matcher.ratio()
+                if ratio > best:
+                    best, found = ratio, text
+        return (found, texts[found]) if found else ("", "")
+
+
+def load_app_copy():
+    copy = AppCopy()
+    for source in ID_SOURCES:
+        for path in sorted((ROOT / source).rglob("*.swift")):
+            name = os.path.basename(str(path))
+            if "/Gallery/" in str(path) or "Sample" in name:
+                continue
+            for number, line in enumerate(path.read_text().splitlines(), 1):
+                if line.lstrip().startswith("//"):
+                    continue
+                for literal in STRING_LITERAL.findall(line):
+                    copy.add(literal, "%s:%d" % (name, number))
+    copy.finish()
+    return copy
+
+
+def load_runtime_copy():
+    """[regex] for each row of copy-runtime.tsv: copy that only the backend or a setup makes."""
+    path = QA / "copy-runtime.tsv"
+    if not path.is_file():
+        return []
+    rows = [line.split("\t") for line in path.read_text().splitlines() if line.strip() and not line.startswith("#")]
+    return [re.compile(".*".join(re.escape(p) for p in PLACEHOLDER.split(row[0])), re.S) for row in rows[1:] if row[0]]
+
+
+def doc_quotes(journey):
+    """[(step, quote)] for each double-quoted span in the Expect cell of a step row."""
+    found, columns = [], []
+    for line in journey.path.read_text().splitlines():
+        if line.startswith("| Step |"):
+            columns = [cell.strip() for cell in line.strip().strip("|").split("|")]
+            continue
+        row = re.match(r"\| (S\d+\.\d+) \|(.*)", line)
+        if not row:
+            continue
+        cells = [row.group(1)] + row.group(2).rstrip().rstrip("|").split("|")
+        text = "|".join(cell for name, cell in zip(columns, cells) if name == "Expect")
+        found.extend((row.group(1), quote) for quote in QUOTED.findall(text))
+    return found
+
+
+def swift_copy(path):
+    """[(line, step, text)] for each fixed literal a journey test passes to a copy assertion."""
+    lines = path.read_text().splitlines()
+    steps = [(number, found.group(1)) for number, line in enumerate(lines, 1) for found in [re.search(r'"(S\d+\.\d+)', line)] if found]
+    result = []
+    for number, line in enumerate(lines, 1):
+        if line.lstrip().startswith("//") or not COPY_HELPER.search(line) or re.search(r"\bfunc\b", line):
+            continue
+        for literal in STRING_LITERAL.findall(line) + PREDICATE_TEXT.findall(line):
+            literal = plain(literal)
+            if "\\(" in literal or not literal.strip() or STEP_PREFIX.match(literal) or ID_SHAPE.match(literal) or "%@" in literal:
+                continue
+            if PREDICATE_WORD.search(literal):
+                continue
+            before = [step for at, step in steps if at <= number]
+            result.append((number, before[-1] if before else (steps[0][1] if steps else None), literal))
+    return result
+
+
+def quote_regex(quote):
+    return re.compile(".*".join(re.escape(part) for part in PLACEHOLDER.split(quote)), re.S)
+
+
+def check_copy(journeys):
+    """(errors, warnings, count): doc quotes the app cannot show, and test copy the doc does not quote."""
+    copy, runtime = load_app_copy(), load_runtime_copy()
+    errors, warnings, count = [], [], 0
+
+    def report(journey, step, message):
+        tickets = journey.known.get(step)
+        if tickets:
+            warnings.append("%s [known failure %s]" % (message, " ".join(tickets)))
+        else:
+            errors.append(message)
+
+    for journey in journeys.values():
+        doc = os.path.relpath(str(journey.path), str(ROOT))
+        quotes = doc_quotes(journey)
+        for step, quote in quotes:
+            count += 1
+            if copy.produces(quote) or any(regex.fullmatch(quote) for regex in runtime):
+                continue
+            nearest, where = copy.nearest(quote)
+            report(journey, step, '%s %s: "%s" is not app copy (closest: "%s", %s)' % (doc, step, quote, nearest, where))
+        seen = set()
+        for path in journey.driver_files():
+            if not path.is_file():
+                continue
+            name = os.path.relpath(str(path), str(ROOT))
+            for number, step, text in swift_copy(path):
+                count += 1
+                if (name, step, text) in seen:
+                    continue
+                seen.add((name, step, text))
+                if any(text in quote or quote_regex(quote).fullmatch(text) for at, quote in quotes if at == step):
+                    continue
+                report(journey, step, '%s:%d %s: "%s" is not in %s %s' % (name, number, step, text, doc, step))
+    return errors, warnings, count
+
+
 # ---------------------------------------------------------------- commands
 
 
@@ -1779,14 +1962,17 @@ def cmd_check(args):
     problems.extend(check_setup_monacoctl())
     misses, warnings, targets = check_targets(journeys)
     problems.extend(misses)
+    copy_misses, copy_warnings, quotes = check_copy(journeys)
+    problems.extend(copy_misses)
+    warnings.extend(copy_warnings)
     for warning in warnings:
         print("warning: " + warning)
     for problem in problems:
         print(problem)
     if problems:
         return 1
-    print("%d journey%s checked: docs and tests agree; %d identifier targets checked" % (
-        len(journeys), "" if len(journeys) == 1 else "s", targets))
+    print("%d journey%s checked: docs and tests agree; %d identifier targets and %d copy strings checked" % (
+        len(journeys), "" if len(journeys) == 1 else "s", targets, quotes))
     return 0
 
 

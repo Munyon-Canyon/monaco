@@ -67,7 +67,7 @@ The format of this doc is in [App journeys](../README.md).
 
 ## Known failures on staging
 
-None.
+- S1.1: the test checks "Address copied.", which the doc step does not quote. Blocked by #6198.
 
 ## Not covered
 

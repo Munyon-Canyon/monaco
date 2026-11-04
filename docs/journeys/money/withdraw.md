@@ -67,8 +67,8 @@ S2 never sends on Base: `{QA.base_address}` is `0x000000000000000000000000000000
 
 ## Known failures on staging
 
-None known.
-
+- S1.1: the test checks " fee · arrives in about ", which the doc step does not quote. Blocked by #6198.
+- S1.4: "✓ $… to" is no longer app copy. Blocked by #6198.
 ## Not covered
 
 - The over-the-balance line "You can send $… · $… over". `WithdrawFormTests` covers the copy.

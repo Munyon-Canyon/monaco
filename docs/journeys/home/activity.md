@@ -43,6 +43,8 @@ Clearing writes one row. `apps/mobile/qa/journeys/home/activity.truth.sh` reads 
 ## Known failures on staging
 
 - S1.1 names the screen by its navigation title and `catch-up-subline`. The app sets no `catch-up-root` identifier, so a step cannot target one.
+- S1.1: "3 to catch up" is no longer app copy. Blocked by #7987.
+- S1.3: "2 to catch up" is no longer app copy. Blocked by #7987.
 
 ## Not covered
 

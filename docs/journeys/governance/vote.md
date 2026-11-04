@@ -74,6 +74,9 @@ The setup seeds the proposal, so this journey does not depend on the propose scr
 
 - S4.1 and S4.2 depend on #6433's `show_sides` rule and #6506's closed result card, which the setup seeds through `cabals.show_sides`.
 - S2.1 finds a member's cabal by the `cabals-tile-<id>` icon and its label, not the `cabals-grid-<id>` identifier the ticket names, which the app does not set; `openCabal(named:)` falls back to the cabal search when no tile matches.
+- S1.5: "No, 1 vote" is no longer app copy; "Yes, 1 vote" is no longer app copy. Blocked by #7975.
+- S1.6: "Yes, 1 vote" is no longer app copy. Blocked by #7975.
+- S1.7: "Yes, 1 vote" is no longer app copy. Blocked by #7975.
 
 ## Not covered
 
