@@ -53,12 +53,6 @@ struct InvitePasteView: View {
     let onPaste: (URL) -> Void
     let onSkip: () -> Void
 
-    @Environment(\.colorScheme) private var colorScheme
-
-    private var pasteTint: Color {
-        colorScheme == .dark ? MonacoTheme.surfaceSunken : MonacoTheme.brandFill
-    }
-
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
@@ -82,14 +76,12 @@ struct InvitePasteView: View {
                         guard let url = urls.first else { return }
                         Task { @MainActor in onPaste(url) }
                     }
-                    .tint(pasteTint)
+                    .tint(MonacoTheme.surfaceSunken)
                     .labelStyle(.titleOnly)
                     .buttonBorderShape(.capsule)
                     .controlSize(.large)
                     .background {
-                        if colorScheme == .dark {
-                            Capsule().strokeBorder(MonacoTheme.secondaryText, lineWidth: 1).padding(-1)
-                        }
+                        Capsule().strokeBorder(MonacoTheme.secondaryText, lineWidth: 1).padding(-1)
                     }
                     .accessibilityLabel("Paste invite")
                     .accessibilityIdentifier("invite-paste-button")

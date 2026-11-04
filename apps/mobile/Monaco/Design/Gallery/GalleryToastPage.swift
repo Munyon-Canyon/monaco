@@ -11,11 +11,9 @@ struct GalleryToastPage: View {
         GalleryPage(title: "Toast") {
             GalleryGroup(title: "Capsules") {
                 VStack(alignment: .leading, spacing: MonacoTheme.Space.m) {
-                    ForEach(ColorScheme.allCases, id: \.self) { scheme in
-                        capsules.environment(\.colorScheme, scheme)
-                            .padding(MonacoTheme.Space.m)
-                            .background(MonacoTheme.canvas)
-                    }
+                    capsules.environment(\.colorScheme, .dark)
+                        .padding(MonacoTheme.Space.m)
+                        .background(MonacoTheme.canvas)
                 }
             }
             liveToasts

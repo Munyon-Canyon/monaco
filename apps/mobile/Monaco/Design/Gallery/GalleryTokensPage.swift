@@ -93,53 +93,48 @@ struct GalleryColourRole: Identifiable {
     let name: String
     let color: Color
     let dark: String
-    let light: String
     var id: String { name }
 
     static let board: [GalleryColourRole] = [
-        GalleryColourRole(name: "canvas", color: MonacoTheme.canvas, dark: "", light: ""),
-        GalleryColourRole(name: "cell", color: MonacoTheme.surface, dark: "", light: ""),
-        GalleryColourRole(name: "fill", color: MonacoTheme.surfaceSunken, dark: "", light: ""),
-        GalleryColourRole(name: "separator", color: MonacoTheme.hairline, dark: "", light: ""),
+        GalleryColourRole(name: "canvas", color: MonacoTheme.canvas, dark: ""),
+        GalleryColourRole(name: "cell", color: MonacoTheme.surface, dark: ""),
+        GalleryColourRole(name: "fill", color: MonacoTheme.surfaceSunken, dark: ""),
+        GalleryColourRole(name: "separator", color: MonacoTheme.hairline, dark: ""),
         GalleryColourRole(
             name: "label", color: MonacoTheme.primaryText,
-            dark: "21.0:1 · 17.0:1 on cell", light: "21.0:1 · 18.8:1 on cell"),
+            dark: "21.0:1 · 17.0:1 on cell"),
         GalleryColourRole(
             name: "secondary", color: MonacoTheme.secondaryText,
-            dark: "8.2:1 · 6.6:1 on cell", light: "5.2:1 · 4.7:1 on cell"),
-        GalleryColourRole(name: "tertiary", color: MonacoTheme.tertiaryText, dark: "glyphs only", light: "glyphs only"),
+            dark: "8.2:1 · 6.6:1 on cell"),
+        GalleryColourRole(name: "tertiary", color: MonacoTheme.tertiaryText, dark: "glyphs only"),
         GalleryColourRole(
             name: "tint", color: MonacoTheme.tint,
-            dark: "7.6:1 · 6.2:1 on cell", light: "7.9:1 · 7.1:1 on cell"),
+            dark: "7.6:1 · 6.2:1 on cell"),
         GalleryColourRole(
             name: "brand", color: MonacoTheme.brandFill,
-            dark: "white text 7.9:1", light: "white text 7.9:1"),
+            dark: "white text 7.9:1"),
         GalleryColourRole(
             name: "gain", color: MonacoTheme.profit,
-            dark: "14.5:1 · 11.7:1 on cell", light: "4.8:1 · 4.3:1 on cell"),
+            dark: "14.5:1 · 11.7:1 on cell"),
         GalleryColourRole(
             name: "loss", color: MonacoTheme.lossVivid,
-            dark: "6.2:1 · 5.0:1 on cell", light: "5.4:1 · 4.8:1 on cell"),
-        GalleryColourRole(name: "crown", color: MonacoTheme.crown, dark: "", light: ""),
+            dark: "6.2:1 · 5.0:1 on cell"),
+        GalleryColourRole(name: "crown", color: MonacoTheme.crown, dark: ""),
     ]
 }
 
 struct GalleryColourBoard: View {
     var body: some View {
-        GalleryGroup(title: "Dark and light, ratio on canvas, on cell") {
+        GalleryGroup(title: "Ratio on canvas, on cell") {
             VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
                 ForEach(GalleryColourRole.board) { role in
                     HStack(spacing: MonacoTheme.Space.sm) {
-                        HStack(spacing: MonacoTheme.Space.sm) {
-                            GallerySwatch(color: role.color, scheme: .dark)
-                            GallerySwatch(color: role.color, scheme: .light)
-                        }
+                        GallerySwatch(color: role.color, scheme: .dark)
                         VStack(alignment: .leading, spacing: 0) {
                             Text(role.name)
                                 .font(MonacoTheme.Typo.captionStrong)
                                 .foregroundStyle(MonacoTheme.ink)
                             GalleryCaption("dark \(GalleryHex.string(role.color, in: .dark)) \(role.dark)")
-                            GalleryCaption("light \(GalleryHex.string(role.color, in: .light)) \(role.light)")
                         }
                         Spacer(minLength: 0)
                     }
@@ -206,15 +201,12 @@ struct GalleryTokenRow: View {
     }
 
     private var hexLine: String {
-        "light \(GalleryHex.string(token.color, in: .light))  dark \(GalleryHex.string(token.color, in: .dark))"
+        GalleryHex.string(token.color, in: .dark)
     }
 
     var body: some View {
         layout {
-            HStack(spacing: MonacoTheme.Space.sm) {
-                GallerySwatch(color: token.color, scheme: .light)
-                GallerySwatch(color: token.color, scheme: .dark)
-            }
+            GallerySwatch(color: token.color, scheme: .dark)
             VStack(alignment: .leading, spacing: 0) {
                 Text(token.name)
                     .font(MonacoTheme.Typo.captionStrong)

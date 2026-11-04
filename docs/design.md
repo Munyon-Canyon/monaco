@@ -1,6 +1,6 @@
 # Monaco design language (iOS)
 
-The look in one sentence: **Apple native, dark first: a black (or white) canvas, system colours, one forest-green tint, a neon gain and a bright loss; dense flat lists; money is the biggest thing on every screen.**
+The look in one sentence: **Apple native, dark only: a black canvas, system colours, one forest-green tint, a neon gain and a bright loss; dense flat lists; money is the biggest thing on every screen.**
 
 This is design option F, "Native", which the founder chose on 10-26. The [F package](design/f/README.md) holds the frames, the gallery, the [notes](design/f/notes.md) with the build map and fixture table, and the [kit](design/f/kit.md). This page is the rule set; the package is the picture.
 
@@ -42,33 +42,35 @@ Each one is a check you run on a screenshot. Frames: [`01-tokens-controls`](desi
 
 Tokens live in `apps/mobile/Monaco/Design/MonacoTheme.swift`; feature code uses the role names, never a hex value. Values come from [`01-tokens`](design/f/screens/01-tokens.png). #6432 owns the colour code and the final names; if they differ, #6432 updates this table in its PR.
 
-| Role | Token | Dark (default) | Light | Used for |
-| --- | --- | --- | --- | --- |
-| Canvas | `background` | `#000000` | `#FFFFFF` | every screen; light is pure white, never off-white |
-| Cell | `surface` | `#1C1C1E` | `#F2F2F7` | the one-object card, fields, keypad keys |
-| Fill | `surfaceSunken` | `#2C2C2E` | `#E5E5EA` | search field, skeletons, other people's bubbles |
-| Separator | `hairline` | `#38383A` | `#C6C6C8` | the inset row rule |
-| Label | `primaryText` | `#FFFFFF` | `#000000` | titles, figures, row titles |
-| Secondary | `secondaryText` | `#A1A1A6` | `#636366` † | sub-lines, captions, cents, resting range labels |
-| Tertiary | `tertiaryText` | `#6E6E73` | `#AEAEB2` | glyphs only, never text |
-| Tint | `tint`, `link` | `#FFFFFF` | `#1E5C3A` | navigates or is selected: links, "See all", carets, the selected tab |
-| Brand | `brandFill`, `action`, `switchOn` | `#1E5C3A` | `#1E5C3A` | the one prominent button (white `onAction` text, 7.9:1); a switch that is on |
-| Chip on | `chipOn`, `onChipOn` | `#FFFFFF`, `#000000` | | a selected filter chip: white fill, black label (21:1) |
-| Gain | `profit`, `gain` | `#30F57A` | `#00773A` † | gains, Yes |
-| Loss | `loss` | `#FF6259` † | `#C80014` † | losses, No, danger |
-| Crown | `crown` | `#FFD60A` | `#FFCC00` | #1 only |
+| Role | Token | Value | Used for |
+| --- | --- | --- | --- |
+| Canvas | `background` | `#000000` | every screen |
+| Cell | `surface` | `#1C1C1E` | the one-object card, fields, keypad keys |
+| Fill | `surfaceSunken` | `#2C2C2E` | search field, skeletons, other people's bubbles |
+| Separator | `hairline` | `#38383A` | the inset row rule |
+| Label | `primaryText` | `#FFFFFF` | titles, figures, row titles |
+| Secondary | `secondaryText` | `#A1A1A6` | sub-lines, captions, cents, resting range labels |
+| Tertiary | `tertiaryText` | `#6E6E73` | glyphs only, never text |
+| Tint | `tint`, `link` | `#FFFFFF` | navigates or is selected: links, "See all", carets, the selected tab |
+| Brand | `brandFill`, `action`, `switchOn` | `#1E5C3A` | the one prominent button (white `onAction` text, 7.9:1); a switch that is on |
+| Chip on | `chipOn`, `onChipOn` | `#FFFFFF`, `#000000` | a selected filter chip: white fill, black label (21:1) |
+| Gain | `profit`, `gain` | `#30F57A` | gains, Yes |
+| Loss | `loss` | `#FF6259` † | losses, No, danger |
+| Crown | `crown` | `#FFD60A` | #1 only |
 
-Identity hues, the same in both appearances: indigo `#5E5CE6`, orange `#FF9F0A`, teal `#40C8E0`, pink `#FF375F`, purple `#BF5AF2`, brown `#AC8E68`, blue `#0A84FF`, cyan `#64D2FF`. They colour a person or a cabal without a picture, picked by a stable hash of the id; never green. Default avatars and cabal crests are never Monaco green.
+The app is dark only (founder, 11-03); a light appearance is not built or tested.
 
-The identity hues' label (`onFill`) is `#FFFFFF` on indigo and `#000000` on the other seven †. The vote-needed badge is a red count: `voteNeededFill` `#D70015` † in both appearances with a `#FFFFFF` label. Chart strokes `profitVivid` and `lossVivid` keep the board's values (`#00843D` / `#30F57A`, `#D70015` / `#FF453A`). `onDestructive` is `#FFFFFF` in light and `#000000` in dark. The allocation bar's blue and purple are `#0040DD` † and `#8944AB` † in light and the board's `#0A84FF` and `#BF5AF2` in dark.
+Identity hues: indigo `#5E5CE6`, orange `#FF9F0A`, teal `#40C8E0`, pink `#FF375F`, purple `#BF5AF2`, brown `#AC8E68`, blue `#0A84FF`, cyan `#64D2FF`. They colour a person or a cabal without a picture, picked by a stable hash of the id; never green. Default avatars and cabal crests are never Monaco green.
 
-† marks a value corrected one step from the board so the pair clears AA (founder, 10-27: Q23). The board's `secondaryText` `#6C6C70` is 4.16:1 on a fill; `#636366` gives 5.99 / 5.37 / 4.77 on canvas / cell / fill. The board's light gain `#00843D` is 4.31 on a cell and 3.83 on a fill; `#00773A` gives 5.68 / 5.09 / 4.52. The light loss `#D70015` is 4.29 on a fill and the dark `#FF453A` is 4.09; `#C80014` gives 6.06 / 5.43 / 4.83 and `#FF6259` gives 7.14 / 5.79 / 4.74. White on the board's badge red `#FF3B30` is 3.55:1 under the 15 pt semibold count; `#D70015` (the board's own light loss red) gives 5.38:1. White fails 4.5:1 on seven of the eight hues (1.72 to 3.65), so seven take black: orange 10.22, teal 10.56, pink 5.96, purple 5.96, brown 6.82, blue 5.76, cyan 12.20, and indigo takes white at 5.06. The light allocation blue and purple were 2.14 and 2.07 against the cash track; the corrections give 4.43 and 3.54 there.
+The identity hues' label (`onFill`) is `#FFFFFF` on indigo and `#000000` on the other seven †. The vote-needed badge is a red count: `voteNeededFill` `#D70015` † with a `#FFFFFF` label. Chart strokes `profitVivid` and `lossVivid` keep the board's values (`#00843D` / `#30F57A`, `#D70015` / `#FF453A`). `onDestructive` is `#000000`. The allocation bar's blue and purple are the board's `#0A84FF` and `#BF5AF2`.
+
+† marks a value corrected one step from the board so the pair clears AA (founder, 10-27: Q23). The board's dark loss `#FF453A` is 4.09; `#FF6259` gives 7.14 / 5.79 / 4.74 on canvas / cell / fill. White on the board's badge red `#FF3B30` is 3.55:1 under the 15 pt semibold count; `#D70015` gives 5.38:1. White fails 4.5:1 on seven of the eight hues (1.72 to 3.65), so seven take black: orange 10.22, teal 10.56, pink 5.96, purple 5.96, brown 6.82, blue 5.76, cyan 12.20, and indigo takes white at 5.06.
 
 The contrast contract, shared by #6432 and #6585 and asserted by `DesignContrastTests`:
 
 | Role | Bar | Pairs |
 | --- | --- | --- |
-| Text, any size or weight | 4.5:1 on canvas, cell and fill, light and dark | `primaryText`, `secondaryText`, `tint`, `profit`, `loss` (`destructive`), `warning`; `onBrand` on `brandFill`; `onDestructive` on `destructive`; `voteNeededLabel` on `voteNeededFill`; `onFill` on each of the eight hues; `toastLabel` on `toastFill` |
+| Text, any size or weight | 4.5:1 on canvas, cell and fill | `primaryText`, `secondaryText`, `tint`, `profit`, `loss` (`destructive`), `warning`; `onBrand` on `brandFill`; `onDestructive` on `destructive`; `voteNeededLabel` on `voteNeededFill`; `onFill` on each of the eight hues; `toastLabel` on `toastFill` |
 | Meaningful non-text marks | 3:1 against what they sit on | the chart line (`profitVivid`, `lossVivid`) and the flat line (`secondaryText`); the `AllocationBar` segments against canvas and their cash track; toast glyphs at 4.5 |
 | Decorative, exempt | none | `tertiaryText`: glyphs only, a glyph that carries meaning uses `secondaryText`. `crown`: the rank and its accessibility label say it. The identity hue as a fill against the canvas, and its stroke: the cabal's name sits beside every crest |
 | Inactive, held quiet | [2.5, 4.5) on the three surfaces and at least 1 below `secondaryText` | `disabledLabel` |
@@ -163,8 +165,8 @@ The founder made these decisions and they are final. Tickets apply them and do n
 
 1. **F Native is the app.** One Apple-native foundation: system colours and materials, large titles, flat lists, native rows, sheets at the half detent, the system tab bar, SF Symbols.
 2. **Two phases.** Phase 1 (launch) is every in-app screen plus notifications whose Yes / No open the hold sheet. Phase 2 (later) is widgets, StandBy, Live Activities and the Dynamic Island, the Follow control, Spotlight, Siri, seasons and streaks. Phase 2 frames are reference and are never built in this milestone. Frames the designer did not choose are not in the repo and are never built.
-3. **Dark first.** Dark is the default and the priority. Light is pure white (`#FFFFFF`) with colour as accent.
-4. **Colour:** black (or white) canvas, one forest-green tint used sparingly, a separate neon gain green and bright loss red, a crown gold.
+3. **Dark only.** The app is dark only; a light appearance is not built.
+4. **Colour:** black canvas, one forest-green tint used sparingly, a separate neon gain green and bright loss red, a crown gold.
 5. **No gradients anywhere.** The chart fill is a flat 10% tint. Only the tab bar carries a shadow.
 6. **Squarer and denser** (10-23): cards 12, buttons 10, share card 16, small controls 8. Lists sit flat on the canvas. Two lines per row, one trailing fact.
 7. **Type:** SF Pro only. Home's figure is 32 (founder's choice, 10-26). The keypad keeps the 44 money hero.
@@ -197,7 +199,7 @@ These take F's tokens and shared controls (#6440 to #6470, #6432) with no screen
 - Captions and groups: `docs/design/f/index.html`, opened from a checkout.
 - What each frame becomes, and who builds it: the build map in [notes.md](design/f/notes.md).
 - Also drawn in the package: [`04-composer-menu`](design/f/screens/04-composer-menu.png) (the ⊕ menu), [`05-feed-A`](design/f/screens/05-feed-A.png) (the Feed post at its final sizes), and [`01-tokens-later`](design/f/screens/01-tokens-later.png) (phase 2 only: Follow, the streak row, the season row; never built here).
-- **Parity** means the Launch frame's order, tokens, controls, copy and states match, in Dark and in Light, with real data, real photos and real crests in place of the fixtures. Later frames are never parity targets in this milestone.
+- **Parity** means the Launch frame's order, tokens, controls, copy and states match, in Dark, with real data, real photos and real crests in place of the fixtures. Later frames are never parity targets in this milestone.
 - **The four kit frames** (`01-tokens`, `01-tokens-type`, `01-tokens-controls`, `01-chart-variants`) are spec boards drawn on a wide canvas; the app draws the same content as the DEBUG design gallery on a phone. Tokens, radii, spacing, type roles and the chart style already equal the frames' values. A review of the gallery against a frame therefore does not count these as differences: the gallery's tab chips (its page switcher), its centred inline title, sections below the first screen, and extra samples the gallery keeps (Deposit, See all, quiet chart, sparkline row). The chart variants draw the end dot and the range labels between each chart and its caption, and the Figure sample is `primaryText`, as in the frames.
 
 ## Composition rules
