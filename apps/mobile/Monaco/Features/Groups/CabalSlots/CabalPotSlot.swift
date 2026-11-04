@@ -113,7 +113,6 @@ struct CabalPotBand: View {
         facts
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, MonacoTheme.Space.gutter)
-            .padding(.top, CabalPageMetrics.treasuryLead)
     }
 
     private var facts: some View {
