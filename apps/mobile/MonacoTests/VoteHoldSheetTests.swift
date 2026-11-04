@@ -1,7 +1,9 @@
-import MonacoCore
+import Foundation
+import MonacoAPI
 import Testing
 
 @testable import Monaco
+@testable import MonacoCore
 
 @Suite(.serialized)
 @MainActor
@@ -38,5 +40,16 @@ struct VoteHoldSheetTests {
         #expect(title(12_990_000).hasSuffix("\u{00B7} $12.99"))
         #expect(title(12_000_000).hasSuffix("\u{00B7} $12"))
         #expect(title(12_500_000).hasSuffix("\u{00B7} $12.50"))
+    }
+
+    @Test func theCardLineReadsTheCabalTheVotedCountTheRepliesAndTheTimeLeft() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        var proposal = Components.Schemas.Proposal.sample()
+        proposal.cabalName = "AC Capital"
+        proposal.expiresAt = now.addingTimeInterval(4 * 3_600)
+        let summary = ProposalSummary(proposal, canVote: true)
+        let tally = ProposalTally(yes: 4, no: 1, voters: 8, needed: 5)
+        let line = VoteHoldSheet.line(summary, tally: tally, replies: 6, now: now)
+        #expect(line.short == "AC Capital \u{00B7} 5 of 8 voted \u{00B7} 6 replies \u{00B7} 4h")
     }
 }
