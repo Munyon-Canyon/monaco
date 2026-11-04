@@ -15,7 +15,7 @@ struct WithdrawScreenTests {
     ]
     private static let presetIDs = ["+$1", "+$10", "+$20", "Max"].map { "amount-keypad-preset-\($0)" }
     private static let keyIDs = (0...9).map { "amount-keypad-\($0)" } + ["amount-keypad-dot", "amount-keypad-delete"]
-    private static let fieldIDs = ["withdraw-address-field", "withdraw-paste"]
+    private static let fieldIDs = ["withdraw-paste"]
     private static let networkIDs = ["solana", "base"].map { "withdraw-network-\($0)" }
 
     private static func identifiers(of state: WithdrawSampleState, until id: String) async throws -> Set<String> {
@@ -40,9 +40,25 @@ struct WithdrawScreenTests {
 
     @Test(.timeLimit(.minutes(1))) func theScanButtonAlwaysShows() async throws {
         for state in [WithdrawSampleState.empty, .typed, .needsAddress] {
-            let ids = try await Self.identifiers(of: state, until: "withdraw-address-field")
+            let ids = try await Self.identifiers(of: state, until: "withdraw-paste")
             #expect(ids.contains("withdraw-scan"), "\(state)")
         }
+    }
+
+    @Test(.timeLimit(.minutes(1))) func aValidUnfocusedAddressDrawsTheRestingRow() async throws {
+        let ids = try await Self.identifiers(of: .resting, until: "withdraw-address-resting")
+        #expect(ids.contains("withdraw-address-resting") && !ids.contains("withdraw-address-field"), "\(ids)")
+        #expect(ids.contains("withdraw-paste") && ids.contains("withdraw-scan"))
+        let empty = try await Self.identifiers(of: .needsAddress, until: "withdraw-address-field")
+        #expect(empty.contains("withdraw-address-field") && !empty.contains("withdraw-address-resting"))
+        let invalid = try await Self.identifiers(of: .invalidAddress, until: "withdraw-address-field")
+        #expect(!invalid.contains("withdraw-address-resting"))
+    }
+
+    @Test func theRestingLineNamesTheLastFourCharacters() {
+        let tail = String(WithdrawSampleState.solanaAddress.suffix(4))
+        #expect(WithdrawCopy.addressEnding(WithdrawSampleState.solanaAddress) == "Address ending \(tail)")
+        #expect(WithdrawCopy.addressEnding(" ab ") == "Address ending ab")
     }
 
     @Test func aRejectedScanChangesNeitherTheAddressNorTheNetwork() {
