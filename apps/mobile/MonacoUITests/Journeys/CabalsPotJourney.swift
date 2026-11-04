@@ -2,7 +2,7 @@ import XCTest
 
 enum CabalsPotJourney {
     static let id = "cabals/pot"
-    static let version = 10
+    static let version = 11
 
     static let screenTimeout: TimeInterval = 15
 
@@ -49,6 +49,7 @@ enum CabalsPotJourney {
 
     static func shareGain(_ app: XCUIApplication, run: String, recorder: JourneyRecorder) {
         recorder.step("S2.1", "open the cabal") {
+            app.popToRoot()
             app.openCabal(named: cabal(run: run))
         }
 
