@@ -28,6 +28,7 @@ type ChatDeps struct {
 	IDs     ids.Generator
 	Clock   clock.Clock
 	Publish ChatPublisher
+	Reads   sqlc.DBTX
 }
 
 type PostChatMessageHandler struct {

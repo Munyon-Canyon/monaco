@@ -1,0 +1,2 @@
+id	flow	module	trigger	command	events	consumers	outcomes	status	doc
+22a	React to a chat message	social	PUT /v1/cabals/{id}/messages/{message_id}/reactions/{emoji};DELETE /v1/cabals/{id}/messages/{message_id}/reactions/{emoji}	ReactChatMessage;UnreactChatMessage	chat.reaction_added;chat.reaction_removed		ok;InvalidInput;NotCabalMember;ChatMessageNotFound;Unauthorized;crash:before-commit	built	docs/architecture/chat.md#reactions

@@ -316,7 +316,7 @@ func (m *Module) Mount(r api.Mount) { socialapi.Mount(m.http(), r) }
 func (m *Module) http() adapters.HTTP {
 	chat := app.ChatDeps{
 		UoW: m.deps.UoW, Members: m.members, Users: m.users, IDs: m.deps.IDs, Clock: m.deps.Clock,
-		Publish: app.NewChatPublisher(m.realtime, adapters.ChatWire(m.users)),
+		Publish: app.NewChatPublisher(m.realtime, adapters.ChatWire(m.users)), Reads: m.deps.Pool,
 	}
 	comments := app.CommentDeps{
 		UoW: m.deps.UoW, Reads: m.deps.Pool, Members: m.members, Users: m.users, IDs: m.deps.IDs,
@@ -345,6 +345,8 @@ func (m *Module) http() adapters.HTTP {
 		Unmute:                  app.NewUnmuteHandler(m.deps.UoW),
 		PostChat:                app.NewPostChatMessageHandler(chat),
 		DeleteChat:              app.NewDeleteChatMessageHandler(chat),
+		ReactChat:               app.NewReactChatMessageHandler(chat),
+		UnreactChat:             app.NewUnreactChatMessageHandler(chat),
 		MarkSeen:                app.NewMarkChatSeenHandler(chat),
 		Token:                   app.NewRealtimeTokenHandler(m.members, m.realtime),
 		CreateComment:           app.NewCreateCommentHandler(comments),

@@ -4133,6 +4133,61 @@ paths:
           description: The message is deleted.
         default:
           $ref: "#/components/responses/Problem"
+  /v1/cabals/{id}/messages/{message_id}/reactions/{emoji}:
+    put:
+      operationId: reactToChatMessage
+      tags: [social]
+      x-idempotent: true
+      x-rate-limit: {actor: {rate: 30, per: 1m, burst: 10}, ip: {rate: 60, per: 1m, burst: 60}}
+      summary: React to a chat message with an emoji.
+      description: >-
+        Adds the caller's reaction with one emoji to a top-level message or a reply and returns the message's reactions. Reacting with an emoji the caller already used changes nothing. A caller holds at most 10 distinct emoji on a message, and an 11th is invalid_input with `reason=reaction_limit`. An emoji that is not exactly one emoji is invalid_input with `field=emoji`. Only a member can react, otherwise not_cabal_member. A message that is unknown, deleted or in another cabal is chat_message_not_found. A change publishes `reaction.updated` on `cabal:<id>`.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/ChatCabalId"
+        - $ref: "#/components/parameters/ChatMessageId"
+        - name: emoji
+          in: path
+          required: true
+          description: "The emoji to add, percent-encoded."
+          schema: {type: string, minLength: 1, maxLength: 32, examples: ["😂"]}
+      responses:
+        "200":
+          description: The message's reactions after the change.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReactionSummary"
+              example: {reactions: [{emoji: "😂", count: 3, mine: true}], total: 3}
+        default:
+          $ref: "#/components/responses/Problem"
+    delete:
+      operationId: unreactToChatMessage
+      tags: [social]
+      x-idempotent: true
+      x-rate-limit: {actor: {rate: 30, per: 1m, burst: 10}, ip: {rate: 60, per: 1m, burst: 60}}
+      summary: Remove your emoji reaction from a chat message.
+      description: >-
+        Removes the caller's reaction with that emoji, and only theirs, then returns the message's reactions. Removing a reaction the caller does not have changes nothing. An emoji that is not exactly one emoji is invalid_input with `field=emoji`. Only a member can remove, otherwise not_cabal_member. A message that is unknown, deleted or in another cabal is chat_message_not_found. A change publishes `reaction.updated` on `cabal:<id>`.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/ChatCabalId"
+        - $ref: "#/components/parameters/ChatMessageId"
+        - name: emoji
+          in: path
+          required: true
+          description: "The emoji to remove, percent-encoded."
+          schema: {type: string, minLength: 1, maxLength: 32, examples: ["😂"]}
+      responses:
+        "200":
+          description: The message's reactions after the change.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReactionSummary"
+              example: {reactions: [{emoji: "😂", count: 3, mine: true}], total: 3}
+        default:
+          $ref: "#/components/responses/Problem"
   /v1/cabals/{id}/messages/{message_id}/thread:
     get:
       operationId: getChatThread
@@ -11353,7 +11408,7 @@ components:
       type: object
       description: One chat message.
       additionalProperties: false
-      required: [id, author, body, created_at, parent_id, also_in_channel, reply_count, last_reply_at, proposal_id, deleted, seen_count]
+      required: [id, author, body, created_at, parent_id, also_in_channel, reply_count, last_reply_at, proposal_id, deleted, seen_count, reactions, reaction_count]
       properties:
         id: {type: string, format: uuid, description: "The message id.", examples: ["01920000-0000-7000-8000-000000000007"]}
         author:
@@ -11384,6 +11439,16 @@ components:
             How many other members have seen the message. Set only on the newest channel message
             of a channel read without `before`, and null everywhere else.
           examples: [null]
+        reactions:
+          type: array
+          maxItems: 20
+          description: >-
+            The emoji on the message, most used first and then earliest, with how many members reacted and
+            whether the caller did. At most 20; `reaction_count` still counts every reaction. Empty on a
+            deleted message.
+          examples: [[{emoji: "😂", count: 3, mine: false}]]
+          items: {$ref: "#/components/schemas/Reaction"}
+        reaction_count: {type: integer, format: int32, minimum: 0, description: "The number of reactions on the message, over every emoji.", examples: [3]}
     ChatSeenBy:
       type: object
       description: The members who have seen a message.

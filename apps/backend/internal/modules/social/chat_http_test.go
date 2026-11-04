@@ -13,6 +13,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/modules/social"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/adapters"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/app"
+	baseapi "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
 	api "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/socialapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
@@ -135,6 +136,7 @@ func TestChatRoutes_postRendersTheStoredMessageWithItsAuthor(t *testing.T) {
 			Id: f.member(0).UUID(), Handle: ptr("kai"), DisplayName: "Kai",
 			PhotoUrl: ptr("https://cdn.example.com/kai.jpg"),
 		},
+		Reactions: []baseapi.Reaction{},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("posted = %+v, want %+v", got, want)

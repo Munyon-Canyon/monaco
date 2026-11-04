@@ -53,7 +53,7 @@ func newChatFixture(t *testing.T) chatFixture {
 	rt := &testkit.FakeRealtime{}
 	deps := app.ChatDeps{
 		UoW: uow, Members: cabal.New(module.Deps{Pool: pool}).Queries(), IDs: g, Clock: clk,
-		Publish: app.NewChatPublisher(rt, plainWire),
+		Publish: app.NewChatPublisher(rt, plainWire), Reads: pool,
 	}
 	f := chatFixture{
 		now: now, pool: pool, clock: clk, rt: rt,
@@ -523,7 +523,7 @@ func TestChatCommands_failWithInternalWhenTheStoreFails(t *testing.T) {
 		},
 		{
 			"reply when the parent lock fails",
-			`DROP TABLE cabal_messages`,
+			`DROP TABLE cabal_messages CASCADE`,
 			func(t *testing.T, f chatFixture, parent app.ChatMessage) error {
 				t.Helper()
 				_, err := f.send(t, f.member(1), "reply", &domain.Reply{Parent: parent.ID})
@@ -532,7 +532,7 @@ func TestChatCommands_failWithInternalWhenTheStoreFails(t *testing.T) {
 		},
 		{
 			"delete when the lock fails",
-			`DROP TABLE cabal_messages`,
+			`DROP TABLE cabal_messages CASCADE`,
 			func(t *testing.T, f chatFixture, parent app.ChatMessage) error {
 				t.Helper()
 				return f.del.Handle(f.as(t, f.member(0)), app.DeleteChatMessage{

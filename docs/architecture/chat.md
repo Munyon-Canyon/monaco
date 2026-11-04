@@ -173,6 +173,17 @@ The "seen by" sheet uses the same `WHERE` and selects user ids; names come from 
 
 **Unread badge** (default 2026-09-27). The cabal row shows an unread count: channel messages with `created_at` after the caller's `last_seen_at`. The server computes it. The cabal list belongs to the `cabal` module, which gets the count from `social`'s query port, so the list is still one `GET` ([Thin client](backend-platform.md#thin-client)).
 
+### Reactions
+
+Any member reacts to a live chat message, top level or reply, with one emoji, the way iOS Messages draws a tapback: the emoji sits on the corner of the message with a count. Routes are `PUT` and `DELETE /v1/cabals/{id}/messages/{message_id}/reactions/{emoji}` (flow 22a), and each returns the message's `ReactionSummary`. The `ReactChatMessage` and `UnreactChatMessage` commands mirror the comment reactions of [feed.md](feed.md#reactions): one emoji parsed by `ParseEmoji`, at most 10 distinct emoji per member per message (an 11th is `invalid_input` with `reason=reaction_limit`), and a repeat of either call changes nothing.
+
+- **Rows.** `chat_message_reactions (message_id, user_id, emoji)` is the key, with `cabal_id` repeated so the foreign key to `cabal_messages (cabal_id, id)` makes a message of another cabal impossible. A deleted account cascades its rows away.
+- **Checks.** The caller must be a member (`not_cabal_member`). The message must be live and in the cabal, otherwise `chat_message_not_found`, and the command holds a `FOR SHARE` lock on the row so a concurrent delete cannot slip a reaction in.
+- **Events.** A real change appends `chat.reaction_added` or `chat.reaction_removed` in the same transaction, carrying the message, cabal, reactor, emoji and the message author. No notification consumes them.
+- **Wire.** Every `ChatMessage` the channel, thread and post routes return has `reactions` (at most 20, most used first and then earliest, `mine` for the caller) and `reaction_count`, read for the whole page by one query. A deleted message has none.
+- **Realtime.** After the commit the command publishes `reaction.updated` on `cabal:<id>` with `{message_id, reactions: [{emoji, count}], total}`. It has no `mine` because the channel is shared, so the client keeps its own. A failed publish is logged as degraded and does not fail the request.
+- **Leaving.** The `social_chat_seen_cleanup` durable also deletes the leaver's reactions in that cabal on `cabal.member_left`, so a left member's reactions stop counting.
+
 ## Alternatives considered
 
 | Alternative | Why not |

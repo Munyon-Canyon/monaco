@@ -15,7 +15,7 @@ final class ChatEventDecoderTests: XCTestCase {
             #"""
             {"id":"m1","author":{"id":"u1","handle":null,"display_name":"Kai","photo_url":null},
              "body":"gm","created_at":"2026-10-03T12:00:00.123456Z","parent_id":null,"also_in_channel":false,
-             "reply_count":0,"last_reply_at":null,"proposal_id":null,"deleted":false}
+             "reply_count":0,"last_reply_at":null,"proposal_id":null,"deleted":false,"reactions":[],"reaction_count":0}
             """#.utf8)
 
         guard case .messageCreated(let message) = ChatEventDecoder.decode(name: "message.created", data: data) else {

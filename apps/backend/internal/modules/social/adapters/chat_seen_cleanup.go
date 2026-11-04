@@ -13,7 +13,11 @@ import (
 type ChatSeenCleanup struct{}
 
 func (ChatSeenCleanup) Handle(ctx context.Context, tx db.Tx, e events.CabalMemberLeft, _ time.Time) error {
-	err := sqlc.New(tx.Queries()).DeleteChatSeen(ctx, sqlc.DeleteChatSeenParams{CabalID: e.CabalID, UserID: e.UserID})
+	q := sqlc.New(tx.Queries())
+	if err := q.DeleteChatSeen(ctx, sqlc.DeleteChatSeenParams{CabalID: e.CabalID, UserID: e.UserID}); err != nil {
+		return errs.Wrap(err, errs.CodeInternal, "social.ChatSeenCleanup")
+	}
+	err := q.DeleteChatReactionsOf(ctx, sqlc.DeleteChatReactionsOfParams{CabalID: e.CabalID, UserID: e.UserID})
 	if err != nil {
 		return errs.Wrap(err, errs.CodeInternal, "social.ChatSeenCleanup")
 	}

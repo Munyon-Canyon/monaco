@@ -26,3 +26,38 @@ func (ChatMessagePosted) Type() Type { return TypeChatMessagePosted }
 func (ChatMessagePosted) AggregateType() string { return "chat_message" }
 
 func (e ChatMessagePosted) AggregateID() uuid.UUID { return e.MessageID }
+
+const (
+	TypeChatReactionAdded   Type = "chat.reaction_added"
+	TypeChatReactionRemoved Type = "chat.reaction_removed"
+)
+
+type ChatReactionAdded struct {
+	V         int        `json:"v"`
+	MessageID uuid.UUID  `json:"message_id"`
+	CabalID   uuid.UUID  `json:"cabal_id"`
+	UserID    uuid.UUID  `json:"user_id"    pii:"true"`
+	Emoji     string     `json:"emoji"`
+	AuthorID  *uuid.UUID `json:"author_id"  pii:"true"`
+}
+
+func (ChatReactionAdded) Type() Type { return TypeChatReactionAdded }
+
+func (ChatReactionAdded) AggregateType() string { return "chat_message" }
+
+func (e ChatReactionAdded) AggregateID() uuid.UUID { return e.MessageID }
+
+type ChatReactionRemoved struct {
+	V         int        `json:"v"`
+	MessageID uuid.UUID  `json:"message_id"`
+	CabalID   uuid.UUID  `json:"cabal_id"`
+	UserID    uuid.UUID  `json:"user_id"    pii:"true"`
+	Emoji     string     `json:"emoji"`
+	AuthorID  *uuid.UUID `json:"author_id"  pii:"true"`
+}
+
+func (ChatReactionRemoved) Type() Type { return TypeChatReactionRemoved }
+
+func (ChatReactionRemoved) AggregateType() string { return "chat_message" }
+
+func (e ChatReactionRemoved) AggregateID() uuid.UUID { return e.MessageID }

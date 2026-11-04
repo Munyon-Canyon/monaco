@@ -12,10 +12,11 @@ import (
 )
 
 const (
-	EventMessageCreated = "message.created"
-	EventThreadUpdated  = "thread.updated"
-	EventMessageDeleted = "message.deleted"
-	EventSeenUpdated    = "seen.updated"
+	EventMessageCreated  = "message.created"
+	EventThreadUpdated   = "thread.updated"
+	EventMessageDeleted  = "message.deleted"
+	EventSeenUpdated     = "seen.updated"
+	EventReactionUpdated = "reaction.updated"
 )
 
 type ChatWire func(ctx context.Context, m ChatMessage) (any, error)
@@ -33,6 +34,17 @@ type MessageDeleted struct {
 type SeenUpdated struct {
 	MessageID uuid.UUID `json:"message_id"`
 	Count     int       `json:"count"`
+}
+
+type ReactionCount struct {
+	Emoji string `json:"emoji"`
+	Count int32  `json:"count"`
+}
+
+type ReactionUpdated struct {
+	MessageID uuid.UUID       `json:"message_id"`
+	Reactions []ReactionCount `json:"reactions"`
+	Total     int32           `json:"total"`
 }
 
 type ChatPublisher struct {
@@ -64,6 +76,15 @@ func (p ChatPublisher) deleted(ctx context.Context, cabal ids.CabalID, id uuid.U
 	if thread != nil {
 		p.send(ctx, cabal, id, EventThreadUpdated, thread)
 	}
+}
+
+func (p ChatPublisher) reactionUpdated(ctx context.Context, cabal ids.CabalID, id uuid.UUID, s ReactionSummary) {
+	ctx = context.WithoutCancel(ctx)
+	counts := make([]ReactionCount, len(s.Reactions))
+	for i, r := range s.Reactions {
+		counts[i] = ReactionCount{Emoji: r.Emoji.String(), Count: r.Count}
+	}
+	p.send(ctx, cabal, id, EventReactionUpdated, ReactionUpdated{MessageID: id, Reactions: counts, Total: s.Total})
 }
 
 func (p ChatPublisher) send(ctx context.Context, cabal ids.CabalID, id uuid.UUID, event string, data any) {

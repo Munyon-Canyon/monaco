@@ -5,9 +5,12 @@ import (
 	"log/slog"
 	"slices"
 
+	"github.com/google/uuid"
+
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/domain"
+	baseapi "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api"
 	api "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/socialapi"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
@@ -28,11 +31,11 @@ func (h HTTP) PostChatMessage(
 	if err != nil {
 		return nil, err
 	}
-	wire, err := h.wireChat(ctx, []app.ChatMessage{posted})
+	wire, err := h.wireChat(ctx, me, []app.ChatMessage{posted})
 	if err != nil {
 		observability.Degraded(ctx, observability.SocialChatAuthorUnreadable,
 			slog.String("message_id", posted.ID.String()), slog.String("cause", err.Error()))
-		wire = wireChatWith(nil, []app.ChatMessage{posted})
+		wire = wireChatWith(nil, nil, []app.ChatMessage{posted})
 	}
 	return api.PostChatMessage201JSONResponse(wire[0]), nil
 }
@@ -52,7 +55,7 @@ func (h HTTP) GetChatMessages(
 	if err != nil {
 		return nil, err
 	}
-	wire, err := h.wireChat(ctx, messages)
+	wire, err := h.wireChat(ctx, me, messages)
 	if err != nil {
 		return nil, err
 	}
@@ -73,7 +76,7 @@ func (h HTTP) GetChatThread(
 	if err != nil {
 		return nil, err
 	}
-	wire, err := h.wireChat(ctx, append([]app.ChatMessage{thread.Parent}, thread.Replies...))
+	wire, err := h.wireChat(ctx, me, append([]app.ChatMessage{thread.Parent}, thread.Replies...))
 	if err != nil {
 		return nil, err
 	}
@@ -163,13 +166,53 @@ func limitOr(limit *int) int {
 	return *limit
 }
 
-func (h HTTP) wireChat(ctx context.Context, messages []app.ChatMessage) ([]api.ChatMessage, error) {
-	return wireChat(ctx, h.Users, messages)
+func (h HTTP) wireChat(ctx context.Context, viewer ids.UserID, messages []app.ChatMessage) ([]api.ChatMessage, error) {
+	messageIDs := make([]uuid.UUID, len(messages))
+	for i, m := range messages {
+		messageIDs[i] = m.ID
+	}
+	reactions, err := app.ChatReactions(ctx, h.Reads, viewer, messageIDs)
+	if err != nil {
+		return nil, err
+	}
+	return wireChat(ctx, h.Users, reactions, messages)
+}
+
+func (h HTTP) ReactToChatMessage(
+	ctx context.Context, req api.ReactToChatMessageRequestObject,
+) (api.ReactToChatMessageResponseObject, error) {
+	me, err := caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	summary, err := h.ReactChat.Handle(ctx, app.ReactChatMessage{
+		CabalID: ids.CabalIDFrom(req.Id), MessageID: req.MessageId, Viewer: me, Emoji: req.Emoji,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return api.ReactToChatMessage200JSONResponse(wireReactionSummary(summary)), nil
+}
+
+func (h HTTP) UnreactToChatMessage(
+	ctx context.Context, req api.UnreactToChatMessageRequestObject,
+) (api.UnreactToChatMessageResponseObject, error) {
+	me, err := caller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	summary, err := h.UnreactChat.Handle(ctx, app.UnreactChatMessage{
+		CabalID: ids.CabalIDFrom(req.Id), MessageID: req.MessageId, Viewer: me, Emoji: req.Emoji,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return api.UnreactToChatMessage200JSONResponse(wireReactionSummary(summary)), nil
 }
 
 func ChatWire(users app.Users) app.ChatWire {
 	return func(ctx context.Context, m app.ChatMessage) (any, error) {
-		wire, err := wireChat(ctx, users, []app.ChatMessage{m})
+		wire, err := wireChat(ctx, users, nil, []app.ChatMessage{m})
 		if err != nil {
 			return nil, err
 		}
@@ -177,7 +220,9 @@ func ChatWire(users app.Users) app.ChatWire {
 	}
 }
 
-func wireChat(ctx context.Context, users app.Users, messages []app.ChatMessage) ([]api.ChatMessage, error) {
+func wireChat(
+	ctx context.Context, users app.Users, reactions map[uuid.UUID]app.ReactionSummary, messages []app.ChatMessage,
+) ([]api.ChatMessage, error) {
 	authors := make([]ids.UserID, 0, len(messages))
 	for _, m := range messages {
 		if !slices.Contains(authors, m.AuthorID) {
@@ -188,10 +233,12 @@ func wireChat(ctx context.Context, users app.Users, messages []app.ChatMessage) 
 	if err != nil {
 		return nil, errs.Wrap(err, errs.CodeOf(err), "social.wireChat")
 	}
-	return wireChatWith(cards, messages), nil
+	return wireChatWith(cards, reactions, messages), nil
 }
 
-func wireChatWith(cards map[ids.UserID]app.UserCard, messages []app.ChatMessage) []api.ChatMessage {
+func wireChatWith(
+	cards map[ids.UserID]app.UserCard, reactions map[uuid.UUID]app.ReactionSummary, messages []app.ChatMessage,
+) []api.ChatMessage {
 	out := make([]api.ChatMessage, len(messages))
 	for i, m := range messages {
 		author := api.ChatAuthor{Id: m.AuthorID.UUID()}
@@ -203,9 +250,12 @@ func wireChatWith(cards map[ids.UserID]app.UserCard, messages []app.ChatMessage)
 			Id: m.ID, Author: author, CreatedAt: m.CreatedAt, ParentId: optionalWireID(m.ParentID),
 			AlsoInChannel: m.AlsoInChannel, ReplyCount: int(m.ReplyCount), LastReplyAt: m.LastReplyAt,
 			ProposalId: optionalWireID(m.ProposalID), Deleted: m.Deleted, SeenCount: m.SeenCount,
+			Reactions: []baseapi.Reaction{},
 		}
 		if !m.Deleted {
 			out[i].Body = &m.Body
+			summary := reactions[m.ID]
+			out[i].Reactions, out[i].ReactionCount = wireReactions(summary.Reactions), summary.Total
 		}
 	}
 	return out
