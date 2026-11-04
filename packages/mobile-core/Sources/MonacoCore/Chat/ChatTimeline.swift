@@ -271,7 +271,9 @@ public struct ChatTimeline: Equatable, Sendable {
             parentId: send.parentID,
             alsoInChannel: send.alsoInChannel,
             replyCount: 0,
-            deleted: false
+            deleted: false,
+            reactions: [],
+            reactionCount: 0
         )
     }
 

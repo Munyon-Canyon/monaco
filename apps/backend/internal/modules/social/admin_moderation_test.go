@@ -216,7 +216,7 @@ func TestAdminChatAndReportCommands_failWithInternalWhenTheStoreFails(t *testing
 		run     func(t *testing.T, f chatFixture, top, reply uuid.UUID) error
 	}{
 		"remove when the lock fails": {
-			`DROP TABLE cabal_messages`,
+			`DROP TABLE cabal_messages CASCADE`,
 			func(t *testing.T, f chatFixture, top, _ uuid.UUID) error {
 				t.Helper()
 				return app.NewRemoveChatMessageHandler(f.deps).Handle(asAdmin(t),

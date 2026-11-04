@@ -720,7 +720,8 @@ nonisolated extension SampleAPIProtocol {
             id: "sample-message",
             author: .init(id: "sample-author", handle: "alex", displayName: "Alex", photoUrl: nil),
             body: "What\u{2019}s everyone watching this week?",
-            createdAt: Date(timeIntervalSinceNow: -720), alsoInChannel: false, replyCount: 0, deleted: false)
+            createdAt: Date(timeIntervalSinceNow: -720), alsoInChannel: false, replyCount: 0, deleted: false,
+            reactions: [], reactionCount: 0)
     }
 }
 #endif

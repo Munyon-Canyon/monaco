@@ -778,6 +778,16 @@ type ChatMessage struct {
 	// Examples: null
 	ProposalId *openapi_types.UUID `json:"proposal_id"`
 
+	// ReactionCount The number of reactions on the message, over every emoji.
+	//
+	// Examples: 3
+	ReactionCount int32 `json:"reaction_count"`
+
+	// Reactions The emoji on the message, most used first and then earliest, with how many members reacted and whether the caller did. At most 20; `reaction_count` still counts every reaction. Empty on a deleted message.
+	//
+	// Examples: [{"count":3,"emoji":"😂","mine":false}]
+	Reactions []externalRef0.Reaction `json:"reactions"`
+
 	// ReplyCount The replies to a top-level message. 0 on a reply.
 	//
 	// Examples: 0
@@ -2299,6 +2309,18 @@ type DeleteChatMessageParams struct {
 	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
 }
 
+// UnreactToChatMessageParams defines parameters for UnreactToChatMessage.
+type UnreactToChatMessageParams struct {
+	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
+	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
+}
+
+// ReactToChatMessageParams defines parameters for ReactToChatMessage.
+type ReactToChatMessageParams struct {
+	// IdempotencyKey A key the app generates once per user action. The server stores the first response under it and replays that response for any retry with the same key and body.
+	IdempotencyKey externalRef0.IdempotencyKey `json:"Idempotency-Key"`
+}
+
 // GetChatThreadParams defines parameters for GetChatThread.
 type GetChatThreadParams struct {
 	// Before A reply id. Returns the replies older than it.
@@ -3141,6 +3163,12 @@ type ServerInterface interface {
 	// DeleteChatMessage Delete one of the caller's chat messages.
 	// (DELETE /v1/cabals/{id}/messages/{message_id})
 	DeleteChatMessage(w http.ResponseWriter, r *http.Request, id ChatCabalId, messageId ChatMessageId, params DeleteChatMessageParams)
+	// UnreactToChatMessage Remove your emoji reaction from a chat message.
+	// (DELETE /v1/cabals/{id}/messages/{message_id}/reactions/{emoji})
+	UnreactToChatMessage(w http.ResponseWriter, r *http.Request, id ChatCabalId, messageId ChatMessageId, emoji string, params UnreactToChatMessageParams)
+	// ReactToChatMessage React to a chat message with an emoji.
+	// (PUT /v1/cabals/{id}/messages/{message_id}/reactions/{emoji})
+	ReactToChatMessage(w http.ResponseWriter, r *http.Request, id ChatCabalId, messageId ChatMessageId, emoji string, params ReactToChatMessageParams)
 	// GetChatThread Read a chat thread.
 	// (GET /v1/cabals/{id}/messages/{message_id}/thread)
 	GetChatThread(w http.ResponseWriter, r *http.Request, id ChatCabalId, messageId ChatMessageId, params GetChatThreadParams)
@@ -3738,6 +3766,150 @@ func (siw *ServerInterfaceWrapper) DeleteChatMessage(w http.ResponseWriter, r *h
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.DeleteChatMessage(w, r, id, messageId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UnreactToChatMessage operation middleware
+func (siw *ServerInterfaceWrapper) UnreactToChatMessage(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ChatCabalId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "message_id" -------------
+	var messageId ChatMessageId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "message_id", r.PathValue("message_id"), &messageId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "message_id", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "emoji" -------------
+	var emoji string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "emoji", r.PathValue("emoji"), &emoji, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "emoji", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params UnreactToChatMessageParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey externalRef0.IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UnreactToChatMessage(w, r, id, messageId, emoji, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ReactToChatMessage operation middleware
+func (siw *ServerInterfaceWrapper) ReactToChatMessage(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id ChatCabalId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "message_id" -------------
+	var messageId ChatMessageId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "message_id", r.PathValue("message_id"), &messageId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "message_id", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "emoji" -------------
+	var emoji string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "emoji", r.PathValue("emoji"), &emoji, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "emoji", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ReactToChatMessageParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "Idempotency-Key" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Idempotency-Key")]; found {
+		var IdempotencyKey externalRef0.IdempotencyKey
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Idempotency-Key", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Idempotency-Key", valueList[0], &IdempotencyKey, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Idempotency-Key", Err: err})
+			return
+		}
+
+		params.IdempotencyKey = IdempotencyKey
+
+	} else {
+		err := fmt.Errorf("Header parameter Idempotency-Key is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "Idempotency-Key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ReactToChatMessage(w, r, id, messageId, emoji, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -5667,6 +5839,8 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/cabals/{id}/messages", wrapper.GetChatMessages)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/v1/cabals/{id}/messages", wrapper.PostChatMessage)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/cabals/{id}/messages/{message_id}", wrapper.DeleteChatMessage)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/cabals/{id}/messages/{message_id}/reactions/{emoji}", wrapper.UnreactToChatMessage)
+	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/v1/cabals/{id}/messages/{message_id}/reactions/{emoji}", wrapper.ReactToChatMessage)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/cabals/{id}/messages/{message_id}/thread", wrapper.GetChatThread)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/v1/feed", wrapper.GetFeed)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/v1/feed/comments/{comment_id}", wrapper.DeleteFeedComment)
@@ -6031,6 +6205,90 @@ type DeleteChatMessagedefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response DeleteChatMessagedefaultApplicationProblemPlusJSONResponse) VisitDeleteChatMessageResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UnreactToChatMessageRequestObject struct {
+	Id        ChatCabalId   `json:"id"`
+	MessageId ChatMessageId `json:"message_id"`
+	Emoji     string        `json:"emoji"`
+	Params    UnreactToChatMessageParams
+}
+
+type UnreactToChatMessageResponseObject interface {
+	VisitUnreactToChatMessageResponse(w http.ResponseWriter) error
+}
+
+type UnreactToChatMessage200JSONResponse ReactionSummary
+
+func (response UnreactToChatMessage200JSONResponse) VisitUnreactToChatMessageResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UnreactToChatMessagedefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response UnreactToChatMessagedefaultApplicationProblemPlusJSONResponse) VisitUnreactToChatMessageResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ReactToChatMessageRequestObject struct {
+	Id        ChatCabalId   `json:"id"`
+	MessageId ChatMessageId `json:"message_id"`
+	Emoji     string        `json:"emoji"`
+	Params    ReactToChatMessageParams
+}
+
+type ReactToChatMessageResponseObject interface {
+	VisitReactToChatMessageResponse(w http.ResponseWriter) error
+}
+
+type ReactToChatMessage200JSONResponse ReactionSummary
+
+func (response ReactToChatMessage200JSONResponse) VisitReactToChatMessageResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ReactToChatMessagedefaultApplicationProblemPlusJSONResponse struct {
+	Body       externalRef0.Problem
+	StatusCode int
+}
+
+func (response ReactToChatMessagedefaultApplicationProblemPlusJSONResponse) VisitReactToChatMessageResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -7273,6 +7531,12 @@ type StrictServerInterface interface {
 	// DeleteChatMessage Delete one of the caller's chat messages.
 	// (DELETE /v1/cabals/{id}/messages/{message_id})
 	DeleteChatMessage(ctx context.Context, request DeleteChatMessageRequestObject) (DeleteChatMessageResponseObject, error)
+	// UnreactToChatMessage Remove your emoji reaction from a chat message.
+	// (DELETE /v1/cabals/{id}/messages/{message_id}/reactions/{emoji})
+	UnreactToChatMessage(ctx context.Context, request UnreactToChatMessageRequestObject) (UnreactToChatMessageResponseObject, error)
+	// ReactToChatMessage React to a chat message with an emoji.
+	// (PUT /v1/cabals/{id}/messages/{message_id}/reactions/{emoji})
+	ReactToChatMessage(ctx context.Context, request ReactToChatMessageRequestObject) (ReactToChatMessageResponseObject, error)
 	// GetChatThread Read a chat thread.
 	// (GET /v1/cabals/{id}/messages/{message_id}/thread)
 	GetChatThread(ctx context.Context, request GetChatThreadRequestObject) (GetChatThreadResponseObject, error)
@@ -7671,6 +7935,64 @@ func (sh *strictHandler) DeleteChatMessage(w http.ResponseWriter, r *http.Reques
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(DeleteChatMessageResponseObject); ok {
 		if err := validResponse.VisitDeleteChatMessageResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UnreactToChatMessage operation middleware
+func (sh *strictHandler) UnreactToChatMessage(w http.ResponseWriter, r *http.Request, id ChatCabalId, messageId ChatMessageId, emoji string, params UnreactToChatMessageParams) {
+	var request UnreactToChatMessageRequestObject
+
+	request.Id = id
+	request.MessageId = messageId
+	request.Emoji = emoji
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UnreactToChatMessage(ctx, request.(UnreactToChatMessageRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UnreactToChatMessage")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UnreactToChatMessageResponseObject); ok {
+		if err := validResponse.VisitUnreactToChatMessageResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ReactToChatMessage operation middleware
+func (sh *strictHandler) ReactToChatMessage(w http.ResponseWriter, r *http.Request, id ChatCabalId, messageId ChatMessageId, emoji string, params ReactToChatMessageParams) {
+	var request ReactToChatMessageRequestObject
+
+	request.Id = id
+	request.MessageId = messageId
+	request.Emoji = emoji
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ReactToChatMessage(ctx, request.(ReactToChatMessageRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ReactToChatMessage")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ReactToChatMessageResponseObject); ok {
+		if err := validResponse.VisitReactToChatMessageResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

@@ -187,7 +187,9 @@ private actor SampleChatStore {
             createdAt: Date(timeIntervalSinceNow: -TimeInterval(minutesAgo * 60)),
             alsoInChannel: false,
             replyCount: 0,
-            deleted: false
+            deleted: false,
+            reactions: [],
+            reactionCount: 0
         )
     }
 }

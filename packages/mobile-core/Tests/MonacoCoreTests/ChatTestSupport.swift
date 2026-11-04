@@ -27,7 +27,9 @@ enum ChatFixtures {
             alsoInChannel: alsoInChannel,
             replyCount: replyCount,
             deleted: false,
-            seenCount: seenCount
+            seenCount: seenCount,
+            reactions: [],
+            reactionCount: 0
         )
     }
 

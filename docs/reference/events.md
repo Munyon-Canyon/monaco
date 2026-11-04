@@ -413,6 +413,32 @@ Subject `events.chat.message_posted`, version 1.
 | `mentioned_user_ids` | `[]uuid.UUID` |
 | `thread_participant_ids` | `[]uuid.UUID` |
 
+## `chat.reaction_added`
+
+Subject `events.chat.reaction_added`, version 1.
+
+| Field | Go type |
+| --- | --- |
+| `v` | `int` |
+| `message_id` | `uuid.UUID` |
+| `cabal_id` | `uuid.UUID` |
+| `user_id` | `uuid.UUID` |
+| `emoji` | `string` |
+| `author_id` | `*uuid.UUID` |
+
+## `chat.reaction_removed`
+
+Subject `events.chat.reaction_removed`, version 1.
+
+| Field | Go type |
+| --- | --- |
+| `v` | `int` |
+| `message_id` | `uuid.UUID` |
+| `cabal_id` | `uuid.UUID` |
+| `user_id` | `uuid.UUID` |
+| `emoji` | `string` |
+| `author_id` | `*uuid.UUID` |
+
 ## `comment.created`
 
 Subject `events.comment.created`, version 1.
