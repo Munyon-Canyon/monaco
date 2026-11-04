@@ -104,11 +104,11 @@ struct AppNavigatorTests {
     @Test func aPushForACabalAlreadyInThePathGivesCabalThenTarget() {
         let navigator = AppNavigator()
         navigator.open(CabalRoute(id: "c-1"), in: .cabals)
-        navigator.open(cabalID: "c-1", then: ChatRoute(cabalID: "c-1"), in: .cabals)
-        navigator.open(cabalID: "c-1", then: ChatRoute(cabalID: "c-1"), in: .cabals)
+        navigator.open(cabalID: "c-1", then: FundRoute(cabalID: "c-1"), in: .cabals)
+        navigator.open(cabalID: "c-1", then: FundRoute(cabalID: "c-1"), in: .cabals)
 
         #expect(
-            navigator.cabalsPath == [AnyAppRoute(CabalRoute(id: "c-1")), AnyAppRoute(ChatRoute(cabalID: "c-1"))])
+            navigator.cabalsPath == [AnyAppRoute(CabalRoute(id: "c-1")), AnyAppRoute(FundRoute(cabalID: "c-1"))])
     }
 
     @Test func tappingTheTabThatIsShowingPopsItToItsRoot() {

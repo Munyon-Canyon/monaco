@@ -56,11 +56,6 @@ struct ScreenMapOrderTests {
         #expect(view is FundCabalScreen)
     }
 
-    @Test func theChatRouteRendersItsScreen() {
-        let view: Any = ChatRoute(cabalID: "c").destination()
-        #expect(view is GroupChatView)
-    }
-
     @Test func theActivityRouteRendersItsScreen() {
         let view: Any = AccountActivityRoute().destination()
         #expect(view is AccountActivityView)

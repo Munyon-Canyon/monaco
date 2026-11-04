@@ -5,7 +5,7 @@ import Testing
 @MainActor
 struct AppNavigatorTransactionTests {
     private func cabal(_ id: String) -> AnyAppRoute { AnyAppRoute(CabalRoute(id: id)) }
-    private func chat(_ id: String) -> AnyAppRoute { AnyAppRoute(ChatRoute(cabalID: id)) }
+    private func fund(_ id: String) -> AnyAppRoute { AnyAppRoute(FundRoute(cabalID: id)) }
     private func txn(_ cabalID: String, _ id: String) -> AnyAppRoute {
         AnyAppRoute(TransactionRoute(cabalID: cabalID, transactionID: id))
     }
@@ -21,7 +21,7 @@ struct AppNavigatorTransactionTests {
 
     @Test func screensAboveTheCabalAreDropped() {
         let navigator = AppNavigator()
-        navigator.cabalsPath = [cabal("c1"), chat("c1")]
+        navigator.cabalsPath = [cabal("c1"), fund("c1")]
 
         navigator.openTransaction(cabalID: "c1", transactionID: "t1", in: .cabals)
 
@@ -49,11 +49,11 @@ struct AppNavigatorTransactionTests {
 
     @Test func theTopmostCopyOfACabalOnThePathTwiceIsReused() {
         let navigator = AppNavigator()
-        navigator.cabalsPath = [cabal("c1"), chat("c1"), cabal("c1")]
+        navigator.cabalsPath = [cabal("c1"), fund("c1"), cabal("c1")]
 
         navigator.openTransaction(cabalID: "c1", transactionID: "t1", in: .cabals)
 
-        #expect(navigator.cabalsPath == [cabal("c1"), chat("c1"), cabal("c1"), txn("c1", "t1")])
+        #expect(navigator.cabalsPath == [cabal("c1"), fund("c1"), cabal("c1"), txn("c1", "t1")])
     }
 
     @Test func aMissingCabalIsPushedFirst() {
@@ -79,7 +79,7 @@ struct AppNavigatorTransactionTests {
 
     @Test func backFromTheTransactionLeavesTheCabalAsTheTopScreen() {
         let navigator = AppNavigator()
-        navigator.cabalsPath = [cabal("c1"), chat("c1")]
+        navigator.cabalsPath = [cabal("c1"), fund("c1")]
         navigator.openTransaction(cabalID: "c1", transactionID: "t1", in: .cabals)
 
         navigator.cabalsPath.removeLast()
