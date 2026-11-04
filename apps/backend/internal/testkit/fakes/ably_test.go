@@ -128,6 +128,36 @@ func TestAblyPublish_aScriptOnTheMessagesRouteFailsEveryChannelThenRecovers(t *t
 	}
 }
 
+func TestAblyPublish_aContainsScriptFailsOnlyThePublishWhoseBodyHoldsIt(t *testing.T) {
+	t.Parallel()
+	srv, base := ablyServer(t)
+	step, err := json.Marshal(fakes.Step{
+		Route: fakes.AblyMessagesRun, Contains: `"name":"message.created"`,
+		Action: fakes.ActionFail, Status: http.StatusInternalServerError, Times: 1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	req, err := http.NewRequestWithContext(
+		t.Context(), http.MethodPost, base+"/_script", strings.NewReader(string(step)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = resp.Body.Close()
+	other, _ := ablyPost(t, base, ablyChannel, `{"name":"moment.created","data":"y"}`, true)
+	hit, _ := ablyPost(t, base, ablyChannel, `{"name":"message.created","data":"y"}`, true)
+	again, _ := ablyPost(t, base, ablyChannel, `{"name":"message.created","data":"y"}`, true)
+	if other != http.StatusCreated || hit != http.StatusInternalServerError || again != http.StatusCreated ||
+		len(srv.AblyPublishes()) != 2 {
+		t.Fatalf("statuses = %d, %d, %d with %d published, want 201, 500, 201 and two published",
+			other, hit, again, len(srv.AblyPublishes()))
+	}
+}
+
 func ablyControl(t *testing.T, base, body string) int {
 	t.Helper()
 	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, base+"/_ably", strings.NewReader(body))
