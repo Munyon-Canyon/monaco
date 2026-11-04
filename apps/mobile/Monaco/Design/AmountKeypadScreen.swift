@@ -85,15 +85,11 @@ struct AmountKeypadScreen<Source: View, Header: View>: View {
     var body: some View {
         VStack(spacing: 0) {
             navRow
-            header
-                .dynamicTypeSize(...DynamicTypeSize.accessibility1)
-                .padding(.horizontal, MonacoTheme.Space.gutter)
-                .padding(.top, MonacoTheme.Space.s)
-            amountRegion
-            presetsOrLimit
-            AmountKeypad(amountText: $amountText)
-                .disabled(state.isSettled || isWorking)
-                .padding(.horizontal, MonacoTheme.Space.gutter)
+            ViewThatFits(in: .vertical) {
+                middle
+                ScrollView { middle }
+                    .scrollBounceBehavior(.basedOnSize)
+            }
             foot
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -107,6 +103,20 @@ struct AmountKeypadScreen<Source: View, Header: View>: View {
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("amount-keypad-screen")
+    }
+
+    private var middle: some View {
+        VStack(spacing: 0) {
+            header
+                .dynamicTypeSize(...DynamicTypeSize.accessibility1)
+                .padding(.horizontal, MonacoTheme.Space.gutter)
+                .padding(.top, MonacoTheme.Space.s)
+            amountRegion
+            presetsOrLimit
+            AmountKeypad(amountText: $amountText)
+                .disabled(state.isSettled || isWorking)
+                .padding(.horizontal, MonacoTheme.Space.gutter)
+        }
     }
 
     private var isWorking: Bool { action?.isWorking == true }
@@ -167,11 +177,9 @@ struct AmountKeypadScreen<Source: View, Header: View>: View {
     }
 
     private var amountRegion: some View {
-        ViewThatFits(in: .vertical) {
-            amountBlock.frame(maxHeight: .infinity)
-            ScrollView { amountBlock }
-        }
-        .padding(.horizontal, MonacoTheme.Space.gutter)
+        amountBlock
+            .layoutPriority(1)
+            .padding(.horizontal, MonacoTheme.Space.gutter)
     }
 
     private var amountBlock: some View {
@@ -183,6 +191,7 @@ struct AmountKeypadScreen<Source: View, Header: View>: View {
                 .minimumScaleFactor(0.5)
                 .contentTransition(reduceMotion ? .identity : .numericText())
                 .animation(reduceMotion ? nil : .snappy(duration: 0.2), value: amountText)
+                .modifier(AmountHeroFloor())
                 .dynamicTypeSize(...DynamicTypeSize.accessibility2)
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel("Amount")
@@ -190,7 +199,7 @@ struct AmountKeypadScreen<Source: View, Header: View>: View {
                 .accessibilityIdentifier("amount-keypad-amount")
             lineView
         }
-        .frame(maxWidth: .infinity)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     @ViewBuilder
@@ -441,5 +450,13 @@ enum AmountKeypadSourceLayout {
         wraps(at: size)
             ? AnyLayout(VStackLayout(spacing: MonacoTheme.Space.xs))
             : AnyLayout(HStackLayout(spacing: MonacoTheme.Space.s))
+    }
+}
+
+private struct AmountHeroFloor: ViewModifier {
+    @ScaledMetric(relativeTo: .largeTitle) private var heroLine = MoneyStyle.hero.baseSize * 1.2
+
+    func body(content: Content) -> some View {
+        content.frame(minHeight: heroLine)
     }
 }
