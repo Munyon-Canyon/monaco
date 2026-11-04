@@ -52,13 +52,130 @@ enum JourneyRun {
     }
 }
 
+enum JourneyWait: Equatable {
+    case found
+    case deadEnd(id: String, label: String?, after: TimeInterval)
+    case timedOut(nearest: [String], title: String?)
+}
+
 enum JourneyDiagnostics {
-    static func wait(for element: XCUIElement, in app: XCUIApplication, timeout: TimeInterval) -> Bool {
-        let found = element.waitForExistence(timeout: timeout)
-        if !found {
-            attach(app)
+    static let pollInterval: TimeInterval = 0.2
+    static let alertInterval: TimeInterval = 1
+
+    @discardableResult
+    static func wait(
+        for element: XCUIElement, in app: XCUIApplication, timeout: TimeInterval,
+        step: String = "journey", allowing: [String] = [], failOnMiss: Bool = true
+    ) -> Bool {
+        let result = waitResult(for: element, in: app, timeout: timeout, allowing: allowing)
+        if result == .found { return true }
+        let message = message(for: result, step: step, target: targetName(element), timeout: timeout)
+        print(message)
+        attach(app)
+        XCTContext.runActivity(named: message) { _ in }
+        if failOnMiss { XCTFail(message) }
+        return false
+    }
+
+    static func waitResult(
+        for element: XCUIElement, in app: XCUIApplication, timeout: TimeInterval, allowing: [String] = []
+    ) -> JourneyWait {
+        let start = Date()
+        let deadline = start.addingTimeInterval(timeout)
+        let alert = XCUIApplication(bundleIdentifier: "com.apple.springboard").alerts.firstMatch
+        var lastAlertCheck = Date.distantPast
+        var seen: [String] = []
+        var title: String?
+        repeat {
+            if element.exists { return .found }
+            if let snapshot = try? app.snapshot() {
+                var ids: [String] = []
+                var labels: [String: String] = [:]
+                var bar: String?
+                collect(snapshot, ids: &ids, labels: &labels, bar: &bar)
+                seen = ids
+                title = bar
+                if let id = deadEndID(in: ids, allowing: allowing) {
+                    return .deadEnd(id: id, label: labels[id], after: Date().timeIntervalSince(start))
+                }
+            }
+            if Date().timeIntervalSince(lastAlertCheck) >= alertInterval {
+                lastAlertCheck = Date()
+                if alert.exists, !allowing.contains("system-alert") {
+                    return .deadEnd(id: "system-alert", label: alert.label, after: Date().timeIntervalSince(start))
+                }
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(pollInterval))
+        } while Date() < deadline
+        if element.exists { return .found }
+        return .timedOut(nearest: Array(seen), title: title)
+    }
+
+    private static func collect(
+        _ snapshot: XCUIElementSnapshot, ids: inout [String], labels: inout [String: String], bar: inout String?
+    ) {
+        if !snapshot.identifier.isEmpty {
+            ids.append(snapshot.identifier)
+            if !snapshot.label.isEmpty { labels[snapshot.identifier] = snapshot.label }
         }
-        return found
+        if bar == nil, snapshot.elementType == .navigationBar {
+            bar = snapshot.identifier.isEmpty ? (snapshot.label.isEmpty ? nil : snapshot.label) : snapshot.identifier
+        }
+        for child in snapshot.children {
+            collect(child, ids: &ids, labels: &labels, bar: &bar)
+        }
+    }
+
+    static func targetName(_ element: XCUIElement) -> String {
+        element.identifier.isEmpty ? "element \(element.debugDescription.prefix(60))" : element.identifier
+    }
+
+    static func deadEndID(in ids: [String], allowing: [String]) -> String? {
+        ids.first { id in
+            (id.hasSuffix("-failed") || id.hasSuffix("-error")) && !allowing.contains(id)
+        }
+    }
+
+    static func levenshtein(_ a: String, _ b: String) -> Int {
+        let a = Array(a)
+        let b = Array(b)
+        if a.isEmpty { return b.count }
+        if b.isEmpty { return a.count }
+        var previous = Array(0...b.count)
+        for i in 1...a.count {
+            var row = [i]
+            for j in 1...b.count {
+                row.append(min(previous[j] + 1, row[j - 1] + 1, previous[j - 1] + (a[i - 1] == b[j - 1] ? 0 : 1)))
+            }
+            previous = row
+        }
+        return previous[b.count]
+    }
+
+    static func nearest(_ ids: [String], to target: String, limit: Int = 10) -> [String] {
+        var unique: [String] = []
+        for id in ids where !unique.contains(id) { unique.append(id) }
+        let ranked = unique.enumerated().sorted {
+            let l = levenshtein($0.element, target)
+            let r = levenshtein($1.element, target)
+            return l == r ? $0.offset < $1.offset : l < r
+        }
+        return ranked.prefix(limit).map(\.element)
+    }
+
+    static func message(for result: JourneyWait, step: String, target: String, timeout: TimeInterval) -> String {
+        switch result {
+        case .found:
+            return "\(step): \(target) showed"
+        case .deadEnd(let id, let label, let after):
+            let shown = label.map { " (\"\($0)\")" } ?? ""
+            return
+                "\(step): waited for \(target) but the screen shows \(id)\(shown) after \(String(format: "%.1f", after)) s"
+        case .timedOut(let ids, let title):
+            let near = nearest(ids, to: target).joined(separator: ", ")
+            let name = title.map { " (title \"\($0)\")" } ?? ""
+            return "\(step): \(target) did not show within \(Int(timeout)) s; on screen: \(near) …\(name)"
+        }
     }
 
     static func attach(_ app: XCUIApplication, logLines: Int = 50) {
@@ -266,56 +383,64 @@ extension XCUIApplication {
         element.press(forDuration: duration)
     }
 
-    func pickAndHold(_ choice: String, timeout: TimeInterval = 10) {
+    func pickAndHold(_ choice: String, timeout: TimeInterval = 10, step: String = "journey") {
         let button = element("proposal-vote-\(choice)")
         XCTAssertTrue(
-            JourneyDiagnostics.wait(for: button, in: self, timeout: timeout),
+            JourneyDiagnostics.wait(for: button, in: self, timeout: timeout, step: step),
             "proposal-vote-\(choice) did not show within \(Int(timeout)) s")
         button.tap()
         holdToCommit(button)
     }
 
-    func changeVote(to choice: String, timeout: TimeInterval = 10) {
+    func changeVote(to choice: String, timeout: TimeInterval = 10, step: String = "journey") {
         let change = element("proposal-change-vote")
         XCTAssertTrue(
-            JourneyDiagnostics.wait(for: change, in: self, timeout: timeout),
+            JourneyDiagnostics.wait(for: change, in: self, timeout: timeout, step: step),
             "proposal-change-vote did not show within \(Int(timeout)) s")
         change.tap()
-        pickAndHold(choice, timeout: timeout)
+        pickAndHold(choice, timeout: timeout, step: step)
     }
 
-    func homeVoteCardPickAndHold(proposalID: String, choice: String, timeout: TimeInterval = 10) {
+    func homeVoteCardPickAndHold(
+        proposalID: String, choice: String, timeout: TimeInterval = 10, step: String = "journey"
+    ) {
         let button = element("home-vote-\(choice)-\(proposalID)")
         XCTAssertTrue(
-            JourneyDiagnostics.wait(for: button, in: self, timeout: timeout),
+            JourneyDiagnostics.wait(for: button, in: self, timeout: timeout, step: step),
             "home-vote-\(choice)-\(proposalID) did not show within \(Int(timeout)) s")
         button.tap()
         holdToCommit(button)
     }
 
-    func toastText(timeout: TimeInterval = 10) -> String? {
+    func toastText(timeout: TimeInterval = 10, step: String = "journey") -> String? {
         let banner = element("monaco-toast-banner")
-        guard JourneyDiagnostics.wait(for: banner, in: self, timeout: timeout) else { return nil }
+        guard JourneyDiagnostics.wait(for: banner, in: self, timeout: timeout, step: step, failOnMiss: false) else {
+            return nil
+        }
         return banner.label
     }
 
     @discardableResult
-    func tapToastAction(timeout: TimeInterval = 10) -> Bool {
+    func tapToastAction(timeout: TimeInterval = 10, step: String = "journey") -> Bool {
         let action = element("monaco-toast-action")
-        guard JourneyDiagnostics.wait(for: action, in: self, timeout: timeout) else { return false }
+        guard JourneyDiagnostics.wait(for: action, in: self, timeout: timeout, step: step, failOnMiss: false) else {
+            return false
+        }
         action.tap()
         return true
     }
 
     @discardableResult
-    func answerVotePermissionSheet(turnOn: Bool, timeout: TimeInterval = 10) -> Bool {
+    func answerVotePermissionSheet(turnOn: Bool, timeout: TimeInterval = 10, step: String = "journey") -> Bool {
         let sheet = element("push-pre-prompt")
-        guard JourneyDiagnostics.wait(for: sheet, in: self, timeout: timeout) else { return false }
+        guard JourneyDiagnostics.wait(for: sheet, in: self, timeout: timeout, step: step, failOnMiss: false) else {
+            return false
+        }
         buttons[turnOn ? "push-pre-prompt-turn-on" : "push-pre-prompt-not-now"].firstMatch.tap()
         return sheet.waitForNonExistence(timeout: 5)
     }
 
-    func openCabal(named name: String, timeout: TimeInterval = 15) {
+    func openCabal(named name: String, timeout: TimeInterval = 15, step: String = "journey") {
         tab("Cabals").tap()
         let tile = buttons.matching(
             NSPredicate(format: "identifier BEGINSWITH 'cabals-tile-' AND label CONTAINS %@", name)
@@ -331,7 +456,7 @@ extension XCUIApplication {
         let ready = XCTNSPredicateExpectation(predicate: shown, object: header)
         XCTAssertEqual(
             XCTWaiter().wait(for: [ready], timeout: timeout), .completed,
-            "cabal-header-name did not read \(name) within \(Int(timeout)) s")
+            "\(step): cabal-header-name did not read \(name) within \(Int(timeout)) s")
     }
 
     func isAboveTabBar(_ element: XCUIElement) -> Bool {
@@ -349,7 +474,7 @@ extension XCUIApplication {
         return tile.exists && tile.isHittable && isAboveTabBar(tile)
     }
 
-    func openCabalTab(_ name: String, timeout: TimeInterval = 10) {
+    func openCabalTab(_ name: String, timeout: TimeInterval = 10, step: String = "journey") {
         let tab = element("cabal-tab-\(name.lowercased())")
         var swipes = 0
         while !tab.waitForExistence(timeout: 2) && swipes < 4 {
@@ -357,7 +482,7 @@ extension XCUIApplication {
             swipes += 1
         }
         XCTAssertTrue(
-            JourneyDiagnostics.wait(for: tab, in: self, timeout: timeout),
+            JourneyDiagnostics.wait(for: tab, in: self, timeout: timeout, step: step),
             "cabal-tab-\(name.lowercased()) did not show within \(Int(timeout)) s")
         tab.tap()
     }
