@@ -133,11 +133,10 @@ func TestCabal_isMemberIsTrueOnlyForAMemberOfThatCabal(t *testing.T) {
 func TestCabal_cabalsOfOrdersByJoinTimeThenCabalIDAndWalletsByCabalID(t *testing.T) {
 	t.Parallel()
 	w := newCabalWorld(t)
-	want := []ids.CabalID{w.alpha.View.ID, w.omega.View.ID}
-	slices.SortFunc(want, compareCabalIDs)
+	want := []ids.CabalID{w.alpha.View.ID}
 	got, err := w.fake.CabalsOf(t.Context(), w.guest)
 	if err != nil || !slices.Equal(got, want) {
-		t.Fatalf("CabalsOf(guest) = %v, %v, want both joined together by cabal id %v", got, err, want)
+		t.Fatalf("CabalsOf(guest) = %v, %v, want only the active cabal, not the banned one %v", got, err, want)
 	}
 	if none, err := w.fake.CabalsOf(t.Context(), ids.UserID{}); err != nil || none == nil || len(none) != 0 {
 		t.Fatalf("CabalsOf(nobody) = %v, %v, want an empty list", none, err)
@@ -269,7 +268,7 @@ func TestCabal_isSafeForConcurrentUse(t *testing.T) {
 			view, viewErr := w.fake.Cabal(t.Context(), w.alpha.View.ID)
 			mine, mineErr := w.fake.CabalsOf(t.Context(), w.guest)
 			w.fake.FailOnce("Status", nil)
-			if viewErr != nil || mineErr != nil || view.MemberCount != 2 || len(mine) != 2 {
+			if viewErr != nil || mineErr != nil || view.MemberCount != 2 || len(mine) != 1 {
 				t.Errorf("worker saw %+v %v and %v %v", view, viewErr, mine, mineErr)
 			}
 		})
