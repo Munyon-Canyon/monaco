@@ -3,16 +3,15 @@ expect-fail: S1
 
 The Proposal screen's vote section toasts "Voted" instead of the voter's place in the vote ("Voted Yes. 1st of 3."). S1.4 waits for that toast, so it must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
-
 diff --git a/apps/mobile/Monaco/Features/Proposals/ProposalVoteSection.swift b/apps/mobile/Monaco/Features/Proposals/ProposalVoteSection.swift
-index ebe5cb715..ae5f48833 100644
+index 843d1933c..1ca74bc22 100644
 --- a/apps/mobile/Monaco/Features/Proposals/ProposalVoteSection.swift
 +++ b/apps/mobile/Monaco/Features/Proposals/ProposalVoteSection.swift
-@@ -233,7 +233,7 @@ struct ProposalVoteSection: View {
+@@ -238,7 +238,7 @@ struct ProposalVoteSection: View {
              toast.offersUndo
              ? MonacoToastAction(title: "Undo", expiresAt: outcome.undoUntil) { undo() }
              : nil
--        toasts.show(success: toast.message, action: action)
+-        toasts.show(vote: toast, action: action)
 +        toasts.show(success: "Voted", action: action)
          guard let prompt = environment?.pushPrePrompt else { return }
          let sample = PushSample.afterVote(
