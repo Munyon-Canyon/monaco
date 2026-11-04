@@ -61,7 +61,7 @@ func TestFlow07_FundCabal_PrivyUnavailable(t *testing.T) {
 
 func flow07Scenario(t *testing.T, extra ...scenario.Option) *scenario.Scenario {
 	t.Helper()
-	upstreams := fakes.NewFunded()
+	upstreams := fakes.New()
 	srv := httptest.NewServer(upstreams)
 	t.Cleanup(srv.Close)
 	cfg := config.Config{

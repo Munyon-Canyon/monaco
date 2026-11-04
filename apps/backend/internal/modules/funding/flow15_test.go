@@ -77,7 +77,7 @@ func TestFlow15_Withdraw_StepUpMismatch(t *testing.T) {
 
 func flow15Scenario(t *testing.T, extra ...scenario.Option) *scenario.Scenario {
 	t.Helper()
-	upstreams := fakes.NewFunded()
+	upstreams := fakes.New()
 	srv := httptest.NewServer(upstreams)
 	t.Cleanup(srv.Close)
 	cfg := config.Config{

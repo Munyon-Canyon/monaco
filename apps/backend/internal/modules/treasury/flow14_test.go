@@ -35,7 +35,7 @@ func flow14Timeout(t *testing.T) time.Duration {
 
 func flow14(t *testing.T, extra ...scenario.Option) *scenario.Scenario {
 	t.Helper()
-	upstreams := fakes.NewFunded()
+	upstreams := fakes.New()
 	srv := httptest.NewServer(upstreams)
 	t.Cleanup(srv.Close)
 	cfg := config.Config{
