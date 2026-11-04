@@ -13,7 +13,7 @@ index 843d1933c..7d6984760 100644
      private func undo() {
          Task {
 -            if await model.undo() {
-+            if await Task { true }.value {
++            if await (Task { true }).value {
                  analytics.step(.vote(.voteUndone))
                  toasts.show(success: ProposalVoteCopy.undone)
              } else if let message = model.undoRefusal?.message ?? model.errorMessage {
