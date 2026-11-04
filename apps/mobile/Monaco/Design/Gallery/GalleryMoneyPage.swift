@@ -82,12 +82,12 @@ private struct GalleryKeypadSample: Identifiable {
     let balance: String
     let hasHeader: Bool
 
-    private static let fundLine = AmountKeypadLine(text: "From your cash · your share 35% → 36%", info: {})
+    private static let fundLine = AmountKeypadLine(text: FundCabalCopy.shareLine(now: 3500, after: 3600), info: {})
 
     static let all: [GalleryKeypadSample] = [
         GalleryKeypadSample(
             id: "Empty", text: "", state: .empty,
-            line: AmountKeypadLine(text: "From your cash · your share 35%", info: {}),
+            line: AmountKeypadLine(text: FundCabalCopy.shareLine(now: 3500), info: {}),
             sourceName: "AC Capital", balance: "Cash $500.00", hasHeader: false),
         GalleryKeypadSample(
             id: "Typed", text: "250", state: .typed, line: fundLine,
@@ -95,7 +95,7 @@ private struct GalleryKeypadSample: Identifiable {
         GalleryKeypadSample(
             id: "Invalid", text: "650",
             state: .invalid(limitLine: "$500.00 available · $150.00 over", slot: "Up to $500.00"),
-            line: AmountKeypadLine(text: "From your cash · your share 35% → 41%", info: {}),
+            line: AmountKeypadLine(text: FundCabalCopy.shareLine(now: 3500, after: 4100), info: {}),
             sourceName: "AC Capital", balance: "Cash $500.00", hasHeader: false),
         GalleryKeypadSample(
             id: "Settled", text: "250", state: .settled(line: "Added just now · your share is now 36%"),
