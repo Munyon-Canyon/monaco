@@ -110,6 +110,7 @@ public final class CabalMembersModel {
     public func observe() async {
         await refresher.observe([
             hints.hints(matching: .cabal(id: cabal.id, what: "members")),
+            hints.hints(matching: .cabal(id: cabal.id, what: "updated")),
             hints.hints(matching: .cabal(id: cabal.id, what: "access_requests")),
         ])
     }

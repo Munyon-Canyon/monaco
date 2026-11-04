@@ -175,17 +175,21 @@ final class CabalMembersModelTests: XCTestCase {
         model.setVisible(true)
         let observing = Task { await model.observe() }
         defer { observing.cancel() }
-        _ = await waitUntil { await hints.subscriberCount == 2 }
+        _ = await waitUntil { await hints.subscriberCount == 3 }
         let base = await transport.sent.count
 
         await hints.send(.changed(.cabal(Self.cabalID), what: "members", id: "x"))
         let reloaded = await waitUntil { await transport.sent.count == base + 1 }
         XCTAssertTrue(reloaded)
 
+        await hints.send(.changed(.cabal(Self.cabalID), what: "updated", id: "x"))
+        let ruleReloaded = await waitUntil { await transport.sent.count == base + 2 }
+        XCTAssertTrue(ruleReloaded)
+
         await hints.send(.changed(.cabal("other"), what: "members", id: "x"))
         for _ in 0..<50 { await Task.yield() }
         let after = await transport.sent.count
-        XCTAssertEqual(after, base + 1)
+        XCTAssertEqual(after, base + 2)
     }
 
     private func adminTransport() throws -> StubTransport {

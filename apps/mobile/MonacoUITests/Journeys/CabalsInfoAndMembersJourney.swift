@@ -123,6 +123,12 @@ enum CabalsInfoAndMembersJourney {
 
         recorder.step("S2.5", "the member shows under Voters") {
             app.openCabalTab("Voters")
+            if !app.element("cabal-voters").waitForExistence(timeout: 3) {
+                app.element("cabal-tab-members").swipeLeft()
+                app.openCabalTab("Voters")
+            }
+            XCTAssertTrue(
+                app.element("cabal-voters").waitForExistence(timeout: 10), "S2.5: the Voters tab did not open")
             let after = app.element("cabal-member-\(seed.memberID)")
             XCTAssertTrue(after.waitForExistence(timeout: 20), "S2.5: no row for \(seed.memberName)")
             let moved = NSPredicate(format: "NOT (label CONTAINS 'Holds a share')")
