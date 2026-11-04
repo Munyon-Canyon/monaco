@@ -79,7 +79,7 @@ struct CabalsGridSection: View {
                 }
                 .padding(.horizontal, MonacoTheme.Space.gutter)
                 if content.showsReorderHint {
-                    hint
+                    CabalsHoldTip()
                 }
             } else if store.content == nil, !store.hasFailed {
                 loadingTiles
@@ -158,15 +158,6 @@ struct CabalsGridSection: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Loading your cabals")
         .accessibilityIdentifier("cabals-list-loading")
-    }
-
-    private var hint: some View {
-        Label(CabalsTabCopy.reorderHint, systemImage: "hand.point.up")
-            .font(MonacoTheme.Typo.caption)
-            .foregroundStyle(MonacoTheme.secondaryText)
-            .padding(.horizontal, MonacoTheme.Space.gutter)
-            .padding(.top, MonacoTheme.Space.m)
-            .accessibilityIdentifier("cabals-reorder-hint")
     }
 
     private func cell(_ tile: CabalTile) -> some View {
