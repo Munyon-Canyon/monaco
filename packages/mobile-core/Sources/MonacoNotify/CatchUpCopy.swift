@@ -77,8 +77,12 @@ public enum CatchUpCopy {
         return head + separator + when + "."
     }
 
+    public static func subLine(count: Int, hasVotes: Bool) -> String {
+        hasVotes ? "\(count) to catch up. Votes first." : "\(count) to catch up."
+    }
+
     public static func subLine(count: Int) -> String {
-        "\(count) to catch up · what you can still change comes first"
+        subLine(count: count, hasVotes: true)
     }
 
     public static func joinedToast(_ cabalName: String) -> String {
@@ -124,9 +128,24 @@ public enum CatchUpCopy {
 
     public static func waitingSubtitle(_ item: Item, now: Date) -> String {
         guard let proposal = item.proposal else { return item.cabal?.name ?? "" }
-        let ends = endsIn(proposal.expiresAt, now: now)
-        return [item.cabal?.name, "\(proposal.voted) of \(proposal.eligible) voted", ends]
-            .compactMap { $0 }.joined(separator: " · ")
+        var parts: [String] = []
+        if let name = item.cabal?.name, !name.isEmpty { parts.append(name) }
+        parts.append("\(proposal.voted) of \(proposal.eligible) voted")
+        if proposal.replyCount > 0 {
+            parts.append(proposal.replyCount == 1 ? "1 reply" : "\(proposal.replyCount) replies")
+        }
+        parts.append(closesIn(proposal.expiresAt, now: now))
+        return parts.joined(separator: " · ")
+    }
+
+    private static func closesIn(_ expiresAt: Date, now: Date) -> String {
+        let remaining = Int(expiresAt.timeIntervalSince(now))
+        if remaining <= 0 { return "voting closed" }
+        let days = remaining / 86_400
+        let hours = remaining / 3600
+        if days >= 2 { return "\(days)d" }
+        if hours > 0 { return "\(hours)h" }
+        return "\(max(remaining / 60, 1))m"
     }
 
     public static func tally(_ proposal: Components.Schemas.CatchUpProposal) -> (yes: String, no: String) {
@@ -200,11 +219,10 @@ public enum CatchUpCopy {
         guard let proposal = item.proposal else { return item.cabal?.name ?? "" }
         var parts: [String] = [item.cabal?.name].compactMap { $0 }
         switch proposal.yourChoice {
-        case .yes: parts.append("you voted Yes")
-        case .no: parts.append("you voted No")
+        case .yes: parts.append("you said yes")
+        case .no: parts.append("you said no")
         case nil: break
         }
-        if proposal.outcome == .filled, proposal.filled == true { parts.append("filled") }
         return parts.joined(separator: " · ")
     }
 
@@ -227,4 +245,24 @@ public enum CatchUpCopy {
         let month = calendar.shortMonthSymbols[(parts.month ?? 1) - 1]
         return "\(month) \(parts.day ?? 1)"
     }
+
+    public static func leading(_ item: Item) -> CatchUpLeading {
+        switch item.kind {
+        case .reply, .mention, .invite:
+            .person(id: item.actor?.id ?? "", name: personName(item), photoURL: item.actor?.photoUrl)
+        case .waitingVote, .result:
+            .asset(
+                symbol: item.proposal.map(symbol) ?? "", logoURL: item.proposal?.assetLogoUrl,
+                seed: item.proposal?.id ?? "")
+        }
+    }
+
+    public static func badge(_ item: Item) -> Components.Schemas.CatchUpCabal? {
+        item.cabal
+    }
+}
+
+public enum CatchUpLeading: Equatable, Sendable {
+    case person(id: String, name: String, photoURL: String?)
+    case asset(symbol: String, logoURL: String?, seed: String)
 }
