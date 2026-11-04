@@ -524,12 +524,16 @@ extension XCUIApplication {
     }
 
     func openCabalTab(_ name: String, timeout: TimeInterval = 10, step: String = "journey") {
-        let tab = element("cabal-tab-\(name.lowercased())")
+        let plain = element("cabal-tab-\(name.lowercased())")
+        let candidates = [plain, element("cabal-tab-pinned-\(name.lowercased())")]
+        var found = waitForFirst(of: candidates, timeout: 2)
         var swipes = 0
-        while !tab.waitForExistence(timeout: 2) && swipes < 4 {
+        while found == nil && swipes < 4 {
             swipeDown()
             swipes += 1
+            found = waitForFirst(of: candidates, timeout: 2)
         }
+        let tab = found.map { candidates[$0] } ?? plain
         XCTAssertTrue(
             JourneyDiagnostics.wait(for: tab, in: self, timeout: timeout, step: step),
             "cabal-tab-\(name.lowercased()) did not show within \(Int(timeout)) s")
