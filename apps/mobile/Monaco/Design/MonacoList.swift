@@ -416,6 +416,7 @@ struct MonacoRowSkeleton: View {
     enum MarkShape {
         case tile
         case circle
+        case squircle(size: CGFloat)
         case none
     }
 
@@ -461,6 +462,8 @@ struct MonacoRowSkeleton: View {
         switch markShape {
         case .tile: SkeletonBlock(width: size, height: size, radius: MonacoTheme.Radius.tile)
         case .circle: SkeletonBlock(width: size, height: size, radius: size / 2)
+        case .squircle(let side):
+            SkeletonBlock(width: side, height: side, radius: MarkGeometry.tileRadius(for: side))
         case .none: EmptyView()
         }
     }

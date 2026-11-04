@@ -46,7 +46,7 @@ struct MarketsSearch: View {
     @ViewBuilder private var noRows: some View {
         switch model.phase {
         case .idle, .loading:
-            MonacoRowSkeleton(rows: 4, markShape: .circle, hasTrailing: false)
+            MonacoRowSkeleton(rows: 4, markShape: .squircle(size: MarketsRowMetrics.logo), hasTrailing: false)
         case .failed:
             MonacoErrorRow(thing: "stocks", identifier: "assets-failed") { Task { await model.load() } }
         case .loaded:
