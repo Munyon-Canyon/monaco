@@ -13,16 +13,16 @@ enum UserProfileSampleState {
             UserProfileContentData(
                 userID: "sample-christelle", title: "Christelle", crown: true,
                 handleLine: "@christelle \u{00B7} #1 this month", bio: "Weeble refugee. I vote no a lot.",
-                pnl: "+12.4%", rightCalls: "12 of 13", followers: 48, following: 21, cabals: 3, inCommon: 2)
+                pnl: "+12.4%", rightCalls: "12 of 13", followers: 48, following: 21, cabals: 3, shared: .sampleBoth)
         case .unranked:
             UserProfileContentData(
                 userID: "sample-noor", title: "Noor", handleLine: "@noor \u{00B7} joined Oct 2026",
-                rightCalls: "2 of 3", followers: 2, following: 3, cabals: 1, inCommon: 1)
+                rightCalls: "2 of 3", followers: 2, following: 3, cabals: 1)
         case .hiddenPerformance, .privateProfile:
             UserProfileContentData(
                 userID: "sample-mia", title: "Mia Chen", handleLine: "@mia \u{00B7} #8 this month",
                 bio: "Curious about good ideas and better questions.", pnl: "Private", rightCalls: "7 of 9",
-                followers: 12, following: 8, cabals: 3, inCommon: 2, performanceHidden: true)
+                followers: 12, following: 8, cabals: 3, shared: .sampleBoth, performanceHidden: true)
         case .blocked:
             UserProfileContentData(
                 userID: "sample-mia", title: "Mia Chen", handleLine: "@mia \u{00B7} #8 this month", followers: 12,
@@ -35,7 +35,7 @@ enum UserProfileSampleState {
             UserProfileContentData(
                 userID: "sample-mia", title: "Mia Chen", handleLine: "@mia \u{00B7} #8 this month",
                 bio: "Curious about good ideas and better questions.", pnl: "+8.2%", rightCalls: "7 of 9",
-                followers: 12, following: 8, cabals: 3, inCommon: 2, followedByMe: self == .following)
+                followers: 12, following: 8, cabals: 3, shared: .sampleBoth, followedByMe: self == .following)
         }
     }
 
@@ -48,15 +48,23 @@ enum UserProfileSampleState {
     var opensOnCabals: Bool { self == .christelleCabals }
 }
 
+extension UserProfileSharedData {
+    static let sampleBoth = UserProfileSharedData(
+        marks: Components.Schemas.UserCabals.sample.cabals.filter(\.shared).map {
+            Mark(id: $0.cabal.id, name: $0.cabal.name, pictureURL: $0.cabal.pictureUrl)
+        },
+        text: "Both in AC Capital and Degens")
+}
+
 struct UserProfileSampleScreen: View {
     let state: UserProfileSampleState
     @State private var selection = UserProfileTabsSlot.defaultSelection
 
     private static let activityRows: [MemberActivityRow] = [
-        ("Voted", "Buy NVDA \u{00B7} AC Capital", "20m", MemberActivityRow.Glyph.voted),
+        ("Voted on Buy NVDA", "AC Capital", "20m", MemberActivityRow.Glyph.voted),
         ("Proposed Buy META", "Degens \u{00B7} passed 4\u{2013}1", "5h", .proposed),
         ("\u{201C}Concentration is a feature\u{201D}", "on Buy NVDA $1,500 \u{00B7} AC Capital", "3d", .replied),
-        ("Voted", "Buy SpaceX \u{00B7} Big Ballers", "4d", .voted),
+        ("Voted on Buy SpaceX", "Big Ballers", "4d", .voted),
         ("Topped the board", "September \u{00B7} 11 of 12 right", "3w", .toppedBoard),
     ].enumerated().map { index, item in
         MemberActivityRow(

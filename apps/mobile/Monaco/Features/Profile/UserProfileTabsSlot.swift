@@ -98,7 +98,7 @@ private struct UserProfileTabsLive: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(ScreenRefresh.self) private var refresh: ScreenRefresh?
     @Environment(UserProfileModel.self) private var profile: UserProfileModel?
-    @State private var cabals: UserCabalsModel?
+    @Environment(UserCabalsModel.self) private var cabals: UserCabalsModel?
     @State private var activity: MemberActivityModel?
     @State private var selection = UserProfileTabsSlot.defaultSelection
 
@@ -117,17 +117,10 @@ private struct UserProfileTabsLive: View {
                 loadMore: { Task { await activity?.loadMore() } }
             )
             .task(id: userID) {
-                let cabalsModel = UserCabalsModel(userID: userID, api: environment.api)
                 let activityModel = MemberActivityModel(userID: userID, api: environment.api)
-                cabals = cabalsModel
                 activity = activityModel
-                refresh?.register("user-profile-tabs") {
-                    await cabalsModel.load()
-                    await activityModel.load()
-                }
-                async let loadedCabals: Void = cabalsModel.load()
-                async let loadedActivity: Void = activityModel.load()
-                _ = await (loadedCabals, loadedActivity)
+                refresh?.register("user-profile-tabs") { await activityModel.load() }
+                await activityModel.load()
             }
         }
     }
