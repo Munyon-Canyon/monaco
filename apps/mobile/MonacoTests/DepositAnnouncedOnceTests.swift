@@ -25,7 +25,7 @@ struct DepositAnnouncedOnceTests {
         await app.turns(2_000)
 
         #expect(app.toastCount.shown == 1)
-        #expect(app.toasts.current?.message == "Deposit received: $25.00")
+        #expect(app.toasts.current?.message == "$25 landed. It's in your cash.")
     }
 
     @Test(.timeLimit(.minutes(1)))

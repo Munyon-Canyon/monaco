@@ -390,8 +390,8 @@ struct DepositContent: View {
 
     private func received(_ micros: Int64) -> some View {
         MoneyOutcome(
-            tone: .done, title: "Deposit received",
-            message: "\(UsdAmountFormatter.format(micros: micros)) is now available in your account.",
+            tone: .done, title: BalanceChange.deposited(micros).title,
+            message: BalanceChange.deposited(micros).body,
             rows: [
                 MoneyKeyRow(label: "Asset", value: .words("USDC")),
                 MoneyKeyRow(label: "Network", value: .words(network.displayName)),

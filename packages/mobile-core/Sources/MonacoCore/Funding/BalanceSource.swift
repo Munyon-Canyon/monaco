@@ -52,11 +52,19 @@ public enum BalanceChange: Equatable, Sendable {
 
     public static let minimumDepositMicros: Int64 = 10_000
 
-    public var message: String {
+    public var title: String {
         switch self {
-        case .deposited(let micros): "Deposit received: \(UsdAmountFormatter.format(micros: micros))"
+        case .deposited(let micros): "\(CashOutNotice.dollars(micros)) landed."
         }
     }
+
+    public var body: String {
+        switch self {
+        case .deposited: "It's in your cash."
+        }
+    }
+
+    public var message: String { "\(title) \(body)" }
 
     public static func detect(previous: AccountBalance?, current: AccountBalance) -> BalanceChange? {
         guard let previous, current.inFlightMicros == previous.inFlightMicros,

@@ -109,7 +109,7 @@ Rules:
 
 ## Notifications
 
-One rule, reconciling the two notification defaults of 2026-09-27. A new follower sends one push ("X followed you") until the followee hits a daily cap. Follows past the cap batch into one push a day ("5 people followed you"). The cap value is a `notify` tuning knob ([notifications.md](notifications.md)).
+One rule, reconciling the two notification defaults of 2026-09-27. A new follower sends one push ("X follows you now.") until the followee hits a daily cap. Follows past the cap batch into one push a day ("5 more people followed you"). The cap value is a `notify` tuning knob ([notifications.md](notifications.md)).
 
 Unfollows never notify. `follow.removed` only feeds analytics.
 
