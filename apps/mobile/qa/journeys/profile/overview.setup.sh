@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
 # journey.py runs this before each scenario. It completes actor A's onboarding (P2) and hands the test a
-# cabal A holds (P3), handing the test its id and name, and whether the backend gives A a month standing (P4).
+# cabal where A holds shares (P3), handing the test its id and name, and whether the backend gives A a month standing (P4).
 set -euo pipefail
+
+cd "$(git rev-parse --show-toplevel)"
+# shellcheck disable=SC1091
+source scripts/qa/seed.sh
 
 scenario="${1:?usage: overview.setup.sh <scenario>}"
 fail() {
@@ -46,6 +50,8 @@ held="$(curl -fsS "$api/v1/me/portfolio" -H "Authorization: Bearer $token" |
 cabals = json.load(sys.stdin)["cabals"]
 cabals.sort(key=lambda item: (item["share_units"] > 0, item["value_micros"]), reverse=True)
 for item in cabals:
+    if item["share_units"] <= 0:
+        continue
     request = urllib.request.Request(
         os.environ["API"] + "/v1/cabals/" + item["cabal"]["id"],
         headers={"Authorization": "Bearer " + os.environ["TOKEN"]})
@@ -57,14 +63,10 @@ if [[ -n "$held" ]]; then
   cabal_id="${held%%|*}"
   name="${held#*|}"
 else
-  cabal_id="$(sql -v uid="$user_id" -v name="$name" <<<"SELECT c.id FROM cabals c
-    JOIN cabal_members m ON m.cabal_id = c.id WHERE m.user_id = :'uid' AND c.name = :'name' LIMIT 1")"
-  if [[ -z "$cabal_id" ]]; then
-    cabal_id="$(curl -fsS -X POST "$api/v1/cabals" -H "Authorization: Bearer $token" \
-      -H 'Content-Type: application/json' -H "Idempotency-Key: $(uuidgen | tr '[:upper:]' '[:lower:]')" \
-      -d "{\"name\":\"$name\",\"join_mode\":\"request\",\"voter_mode\":\"all\",\"threshold\":\"majority\",\"proposal_expiry_seconds\":86400}" |
-      python3 -c 'import json, sys; print(json.load(sys.stdin)["id"])')" || fail "could not create '$name' as actor A"
-  fi
+  # A holds no shares: load the journey catalogue (stocks/browse seeds JRNYAx), then fund a cabal and buy through the product path on the fakes.
+  apps/mobile/qa/journeys/stocks/browse.setup.sh "$scenario"
+  qa_api_ready
+  cabal_id="$(qa_fake_holding A JRNYAx 25 "$name")" || fail "could not seed a funded cabal '$name' as actor A"
 fi
 standing="$(curl -fsS "$api/v1/users/$user_id" -H "Authorization: Bearer $token" |
   python3 -c 'import json, sys; print("1" if json.load(sys.stdin).get("standing") else "0")')" ||

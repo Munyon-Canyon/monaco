@@ -1,8 +1,8 @@
 ---
 id: profile/overview
 title: Your profile
-version: 15
-rpc: fake
+version: 16
+rpc: fake-trade
 milestone: M9
 requires: [auth/sign-in]
 actors: [A]
@@ -24,7 +24,7 @@ The format of this doc is in [App journeys](../README.md). The Old app column na
 | --- | --- |
 | P1 | Everything [auth/sign-in](../auth/sign-in.md) needs |
 | P2 | Before each scenario, `apps/mobile/qa/journeys/profile/overview.setup.sh` sets A's `auth_state` to `ONBOARDING_COMPLETED`, so the onboarding nudge stays out of the way |
-| P3 | Before each scenario, the setup script reads A's portfolio (`GET /v1/me/portfolio`), which lists every cabal A is a member of, and hands the test the cabal where A holds shares and the stake is worth the most (a cabal A holds no shares in reads a dash instead of a dollar share, so S7.2 would fail on it), with its id as `cabalID` and its name as `cabalName`. When A holds none, it creates a cabal named `QA overview {QA.run}` and hands that over, and S1.3 fails because the app lists no unfunded cabal |
+| P3 | Before each scenario, the setup script reads A's portfolio (`GET /v1/me/portfolio`), which lists every cabal A is a member of, and hands the test the cabal where A holds shares and the stake is worth the most (a cabal A holds no shares in reads a dash instead of a dollar share, so S7.2 would fail on it), with its id as `cabalID` and its name as `cabalName`. When A holds no shares anywhere, it seeds one with `qa_fake_holding A JRNYAx 25 "QA overview {QA.run}"` on the fakes: a cabal, a fund sweep from A's fake USDC, a buy of half, A votes yes, and the setup waits for the executed buy. It hands that cabal over |
 | P4 | Before each scenario, the setup script reads A's profile (`GET /v1/users/{id}`), the call the screen makes, and hands the test `hasStanding`: `1` when the backend returns a `standing` for A, `0` when it does not. The backend drops it for an account with no resolved call in the current month, which is every account on the first days of a month |
 
 ## Scenarios
