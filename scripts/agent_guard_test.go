@@ -361,9 +361,9 @@ func TestAgentGuard_runsRulesOverShellHeredocsAndDashC(t *testing.T) {
 	t.Parallel()
 	worktree := filepath.Join(t.TempDir(), ".worktrees", "lane")
 	for cmd, want := range map[string]string{
-		"bash <<'EOF'\ngit rebase main\nEOF":                "gt restack",
+		"bash <<'EOF'\ngit rebase main\nEOF":                "git merge origin/staging",
 		"sh <<EOF\npkill -f foo\nEOF":                       "reaches every lane's processes",
-		"env -i /bin/bash -e <<'EOF'\ngit rebase main\nEOF": "gt restack",
+		"env -i /bin/bash -e <<'EOF'\ngit rebase main\nEOF": "git merge origin/staging",
 		"bash -c 'killall go'":                              "reaches every lane's processes",
 	} {
 		assertBlocked(t, guard(t, worktree, cmd), cmd, want)
@@ -401,11 +401,11 @@ func TestAgentGuard_blocksRawRebaseAndMergeInAWorktreeAndAtTheRoot(t *testing.T)
 	t.Parallel()
 	worktree := filepath.Join(t.TempDir(), ".worktrees", "lane")
 	for _, cmd := range []string{"git rebase origin/main", "git merge origin/main", "cd " + worktree + " && git rebase"} {
-		assertBlocked(t, guard(t, worktree, cmd), cmd, "gt restack")
+		assertBlocked(t, guard(t, worktree, cmd), cmd, "git merge origin/staging")
 	}
 	root := t.TempDir()
 	git(t, root, "init", "-q")
-	assertBlocked(t, guard(t, root, "git rebase --onto main"), "git rebase --onto main", "gt restack")
+	assertBlocked(t, guard(t, root, "git rebase --onto main"), "git rebase --onto main", "git merge origin/staging")
 	assertAllowed(t, guard(t, worktree, "gt sync --no-interactive --no-restack"), "gt sync --no-restack")
 	assertAllowed(t, guard(t, worktree, "gt restack"), "gt restack")
 	assertAllowed(t, guard(t, root, "gt restack"), "gt restack")
@@ -419,6 +419,7 @@ func TestAgentGuard_allowsRebaseControlAndRemoteOnlyRebase(t *testing.T) {
 	git(t, work, "remote", "add", "upstream", work)
 	allowed := []string{
 		"git rebase --continue", "git rebase --abort", "git rebase --skip", "git rebase --quit", "git merge --abort",
+		"git merge --continue",
 		"git rebase origin/staging", "git rebase upstream/main", "git rebase --autostash origin/staging",
 		"git rebase --onto origin/staging origin/old", "git rebase --onto=origin/staging origin/old",
 		"git -C " + work + " rebase origin/staging",
@@ -431,12 +432,66 @@ func TestAgentGuard_allowsRebaseControlAndRemoteOnlyRebase(t *testing.T) {
 		"git rebase staging", "git rebase main", "git rebase", "git rebase --root", "git rebase --root origin/staging",
 		"git rebase origin/staging ticket", "git rebase --onto staging origin/old", "git rebase --onto origin/staging old",
 		"git rebase nope/staging", "git rebase origin/", "git rebase --exec true origin/staging",
-		"git rebase --continue origin/staging", "git merge origin/staging", "git merge", "git merge --continue",
-		"git merge --abort --no-edit",
+		"git rebase --continue origin/staging", "git merge", "git merge --abort --no-edit",
 	}
 	for _, cmd := range blocked {
 		assertBlocked(t, guard(t, work, cmd), cmd, "remote-tracking ref")
 	}
+}
+
+func TestAgentGuard_allowsMergingTheTrunkIntoALaneBranch(t *testing.T) {
+	t.Parallel()
+	work, _ := pushRepo(t)
+	git(t, work, "remote", "add", "upstream", work)
+	allowed := []string{
+		"git merge origin/staging", "git merge --no-edit origin/staging", "git merge --abort", "git merge --continue",
+		"git merge --no-ff -m 'chore: catch up' origin/staging", "git merge --message=catch-up -q origin/staging",
+		"git merge upstream/staging", "git -C " + work + " merge --quiet origin/staging",
+	}
+	for _, cmd := range allowed {
+		assertAllowed(t, guard(t, work, cmd), cmd)
+	}
+	refused := []string{
+		"git merge staging", "git merge origin/some-lane", "git merge origin/main", "git merge nope/staging",
+		"git merge --squash origin/staging", "git merge --ff-only origin/staging", "git merge -X ours origin/staging",
+		"git merge -s ours origin/staging", "git merge --strategy=ours origin/staging",
+		"git merge origin/staging origin/some-lane", "git merge -m", "git merge --no-verify origin/staging",
+		"git merge -e origin/staging",
+	}
+	for _, cmd := range refused {
+		assertBlocked(t, guard(t, work, cmd), cmd, "git merge origin/staging")
+	}
+}
+
+func TestAgentGuard_refusesATrunkMergeOnTheTrunkOrADetachedHead(t *testing.T) {
+	t.Parallel()
+	work, _ := pushRepo(t)
+	git(t, work, "checkout", "-q", "-b", "staging")
+	assertBlocked(t, guard(t, work, "git merge origin/staging"), "merge while on staging", "not staging, main")
+	git(t, work, "checkout", "-q", "-b", "main")
+	assertBlocked(t, guard(t, work, "git merge origin/staging"), "merge while on main", "not staging, main")
+	git(t, work, "checkout", "-q", "--detach")
+	assertBlocked(t, guard(t, work, "git merge origin/staging"), "merge on a detached HEAD", "detached HEAD")
+}
+
+func TestAgentGuard_plainPushAfterMergingTheTrunkPasses(t *testing.T) {
+	t.Parallel()
+	work, remote := pushRepo(t)
+	git(t, work, "push", "-q", "origin", "ticket:staging")
+	commitFile(t, work, "mine.txt", "feat: mine")
+	git(t, work, "push", "-q", "origin", "ticket")
+	other := filepath.Join(t.TempDir(), "other")
+	git(t, filepath.Dir(other), "clone", "-q", "-b", "staging", remote, other)
+	commitFile(t, other, "trunk.txt", "fix: landed on the trunk")
+	git(t, other, "push", "-q", "origin", "staging")
+
+	git(t, work, "fetch", "-q", "origin")
+	assertAllowed(t, guard(t, work, "git merge --no-edit origin/staging"), "git merge --no-edit origin/staging")
+	git(t, work, "-c", "user.email=a@example.com", "-c", "user.name=a", "merge", "-q", "--no-edit", "origin/staging")
+	assertAllowed(t, guard(t, work, "git push"), "plain push after merging the trunk")
+	assertAllowed(t, guard(t, work, "git push origin ticket"), "named push after merging the trunk")
+	git(t, work, "push", "-q", "origin", "ticket")
+	assertBlocked(t, guard(t, work, "git push --force origin ticket"), "force push", "--force/-f is not allowed")
 }
 
 func TestAgentGuard_gtSyncLeavesOtherStacksUnrestacked(t *testing.T) {
