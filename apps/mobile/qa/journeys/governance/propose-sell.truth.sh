@@ -15,7 +15,7 @@ fi
 
 got="$(qa_sql -F ' ' -v name="$name" -v a="$a" <<<"SELECT count(*), max(p.kind), regexp_replace(max(p.symbol), 'x$', '')
   FROM proposals p JOIN cabals c ON c.id = p.cabal_id JOIN users u ON u.id = p.proposer_id
-  WHERE c.name = :'name' AND u.privy_user_id = :'a'")"
+  WHERE c.name = :'name' AND u.privy_user_id = :'a' AND p.status <> 'expired'")"
 want="1 sell AAPL"
 if [[ "$got" != "$want" ]]; then
   echo "A's proposal in $name: got '$got', want '$want'"
