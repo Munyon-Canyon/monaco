@@ -1020,3 +1020,67 @@ func TestPrivyWalletURL_followsPrivyBaseURLUnlessWalletBaseURLIsSet(t *testing.T
 		t.Fatalf("WalletURL() with a wallet base = %q, want PRIVY_WALLET_BASE_URL", got)
 	}
 }
+
+func TestLocalDevAcceptsTheDevDatabaseAndAJourneySlotsOwnAndNothingElse(t *testing.T) {
+	t.Parallel()
+	for name, want := range map[string]bool{
+		"monaco":                 true,
+		"monaco_qa_slot0":        true,
+		"monaco_qa_slot12":       true,
+		"monaco_qa_slot":         false,
+		"monaco_qa_slot1_prod":   false,
+		"monaco_qa_slot1x":       false,
+		"monaco_qa_slot-1":       false,
+		"monaco_qa_slot1\n":      false,
+		"monaco_staging":         false,
+		"prod_monaco_qa_slot0":   false,
+		"monaco_qa_slot0_backup": false,
+		"Monaco":                 false,
+		"postgres":               false,
+	} {
+		cfg, err := config.Load([]string{
+			"MONACO_ENV=local", "NATS_URL=nats://localhost:4222",
+			"DATABASE_URL=postgres://monaco@localhost:54322/" + name,
+		})
+		if err != nil {
+			t.Fatalf("%q: %v", name, err)
+		}
+		if got := cfg.LocalDev(); got != want {
+			t.Errorf("%q: LocalDev() = %v, want %v", name, got, want)
+		}
+	}
+}
+
+func TestLocalDevRefusesAHostedDatabaseEvenWithASlotName(t *testing.T) {
+	t.Parallel()
+	for _, host := range []string{"db.example.com", "10.0.0.5", "localhost.example.com"} {
+		cfg, err := config.Load([]string{
+			"MONACO_ENV=local", "NATS_URL=nats://localhost:4222",
+			"DATABASE_URL=postgres://monaco@" + host + ":5432/monaco_qa_slot0",
+		})
+		if err != nil {
+			t.Fatalf("%s: %v", host, err)
+		}
+		if cfg.LocalDev() {
+			t.Errorf("%s: LocalDev() = true", host)
+		}
+	}
+}
+
+func TestStubTradeEngineIsRefusedInStagingAndProductionWhateverTheDatabase(t *testing.T) {
+	t.Parallel()
+	for _, env := range []string{"staging", "production"} {
+		for _, url := range []string{
+			"postgres://monaco@db.example.com:5432/monaco",
+			"postgres://monaco@localhost:54322/monaco",
+			"postgres://monaco@localhost:54322/monaco_qa_slot0",
+		} {
+			_, err := config.Load([]string{
+				"MONACO_ENV=" + env, "NATS_URL=nats://localhost:4222", "TRADE_ENGINE=stub", "DATABASE_URL=" + url,
+			})
+			if err == nil || !strings.Contains(err.Error(), "invalid TRADE_ENGINE (stub runs only in local dev)") {
+				t.Errorf("%s on %s: err = %v, want the stub refusal", env, url, err)
+			}
+		}
+	}
+}

@@ -23,12 +23,14 @@ const (
 
 func (e Env) Deployed() bool { return e == EnvStaging || e == EnvProduction }
 
+var localDevDatabase = regexp.MustCompile(`^monaco(_qa_slot[0-9]+)?$`)
+
 func (c Config) LocalDev() bool {
 	if c.Env != EnvLocal {
 		return false
 	}
 	u, err := url.Parse(c.DB.URL)
-	if err != nil || strings.TrimPrefix(u.Path, "/") != "monaco" {
+	if err != nil || !localDevDatabase.MatchString(strings.TrimPrefix(u.Path, "/")) {
 		return false
 	}
 	return slices.Contains([]string{"localhost", "127.0.0.1", "::1"}, u.Hostname())
