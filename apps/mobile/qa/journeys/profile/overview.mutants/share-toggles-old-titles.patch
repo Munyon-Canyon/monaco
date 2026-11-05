@@ -1,19 +1,19 @@
 journey: profile/overview
 expect-fail: S5
 
-The ledger share toggles read "Return", "Calls" and "Code" again. S5.1 reads "Show return", "Show calls" and "Show code", so it must fail.
+The portfolio share toggles read "Return", "Calls" and "Code" again. S5.1 reads "Show $", "Show trades" and "Show code", so it must fail.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/apps/mobile/Monaco/Features/ShareCard/ShareDock.swift b/apps/mobile/Monaco/Features/ShareCard/ShareDock.swift
-index cfd34442c..ce1aa272e 100644
+index cfd34442c..beb58ad14 100644
 --- a/apps/mobile/Monaco/Features/ShareCard/ShareDock.swift
 +++ b/apps/mobile/Monaco/Features/ShareCard/ShareDock.swift
-@@ -25,9 +25,9 @@ enum ShareEye: CaseIterable {
-     func title(ledger: Bool) -> String {
-         guard ledger else { return title }
-         return switch self {
--        case .pnl: "Show return"
--        case .trades: "Show calls"
+@@ -8,9 +8,9 @@ enum ShareEye: CaseIterable {
+ 
+     var title: String {
+         switch self {
+-        case .pnl: "Show $"
+-        case .trades: "Show trades"
 -        case .code: "Show code"
 +        case .pnl: "Return"
 +        case .trades: "Calls"

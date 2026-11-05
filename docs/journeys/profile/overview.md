@@ -74,7 +74,7 @@ Starts signed in (auth/sign-in).
 
 | Step | Action | Target | Input | Expect | Old app |
 | --- | --- | --- | --- | --- | --- |
-| S5.1 | tap | the Profile tab, then `profile-share-button` | | Within 15 s the share screen (`share-screen`) shows, pushed over Profile (screens.md: the share round in the title bar). Within 15 s `share-send` (“Share”) and `share-copy-image` (“Copy image”) both show and are enabled, side by side at the default text size (equal `frame.minY`, the second starting right of the first). A's own profile shares the ledger card, so the toggles `ledger-share-toggle-return`, `ledger-share-toggle-calls` and `ledger-share-toggle-code` read “Show return”, “Show calls” and “Show code” | New in the spec |
+| S5.1 | tap | the Profile tab, then `profile-share-button` | | Within 15 s the share screen (`share-screen`) shows, pushed over Profile (screens.md: the share round in the title bar). Within 15 s `share-send` (“Share”) and `share-copy-image` (“Copy image”) both show and are enabled, side by side at the default text size (equal `frame.minY`, the second starting right of the first). Profile shares the portfolio card, so the toggles `share-eye-pnl`, `share-eye-trades` and `share-eye-code` read “Show $”, “Show trades” and “Show code” | New in the spec |
 | S5.3 | tap | `share-copy-image` | | Within 10 s the toast reads "Image copied.", and no toast reads "Couldn’t make the image. Try again." The test waits for the toast to go before S5.2 | New in the spec |
 | S5.2 | tap | the Back button | | The share screen closes and `profile-card` still shows within 5 s | New in the spec |
 

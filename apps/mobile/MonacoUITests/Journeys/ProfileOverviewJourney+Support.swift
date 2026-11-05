@@ -50,8 +50,7 @@ extension ProfileOverviewJourney {
         XCTAssertEqual(send.frame.minY, copy.frame.minY, accuracy: 1, "S5.1: Share and Copy image are not on one row")
         XCTAssertGreaterThan(copy.frame.minX, send.frame.maxX - 1, "S5.1: Copy image does not start right of Share")
         let toggles = [
-            ("ledger-share-toggle-return", "Show return"), ("ledger-share-toggle-calls", "Show calls"),
-            ("ledger-share-toggle-code", "Show code"),
+            ("share-eye-pnl", "Show $"), ("share-eye-trades", "Show trades"), ("share-eye-code", "Show code"),
         ]
         for (id, title) in toggles {
             let toggle = app.element(id)
