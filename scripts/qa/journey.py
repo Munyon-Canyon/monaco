@@ -3085,7 +3085,9 @@ def run_mutants(args):
             raise JourneyError("%s has no seeded bugs under %s.mutants/" % (journey.id, journey.id))
         if sh(["git", "diff", "--quiet", "--", "apps/mobile/Monaco", "packages/mobile-core"]).returncode != 0:
             raise JourneyError("the app sources have uncommitted changes: commit or set them aside before seeding bugs")
-        accounts = locks.enter_context(actor_logins(journey, load_accounts(), api_base_url))
+        # The batch claims its logins before any pass takes a slot, so it holds them under no slot's name; the
+        # per-checkout lock still keeps this checkout's other runs off them.
+        accounts = locks.enter_context(actor_logins(journey, load_accounts()))
         funding_refund(journey, accounts)
         logins = held_logins(journey, accounts)
         use_derived_data(logins)

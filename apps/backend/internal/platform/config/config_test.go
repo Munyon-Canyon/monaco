@@ -1018,5 +1018,28 @@ func TestPrivyWalletURL_followsPrivyBaseURLUnlessWalletBaseURLIsSet(t *testing.T
 	both := config.Privy{BaseURL: "https://api.privy.io", WalletBaseURL: "http://fakes/privy"}
 	if got := both.WalletURL(); got != "http://fakes/privy" {
 		t.Fatalf("WalletURL() with a wallet base = %q, want PRIVY_WALLET_BASE_URL", got)
+
+func TestLocalDevAcceptsTheDevDatabaseAndAJourneySlotsOwn(t *testing.T) {
+	t.Parallel()
+
+	for url, want := range map[string]bool{
+		"postgres://monaco@localhost:54322/monaco":                 true,
+		"postgres://monaco@localhost:54322/monaco_qa_slot0":        true,
+		"postgres://monaco@127.0.0.1:54322/monaco_qa_slot12":       true,
+		"postgres://monaco@localhost:54322/monaco_qa_slot":         false,
+		"postgres://monaco@localhost:54322/monaco_staging":         false,
+		"postgres://monaco@db.example.com:5432/monaco_qa_slot0":    false,
+		"postgres://monaco@localhost:54322/prod_monaco_qa_slot0":   false,
+		"postgres://monaco@localhost:54322/monaco_qa_slot0_backup": false,
+	} {
+		cfg, err := config.Load(
+			append([]string{"MONACO_ENV=local", "NATS_URL=nats://localhost:4222"}, "DATABASE_URL="+url),
+		)
+		if err != nil {
+			t.Fatalf("%s: %v", url, err)
+		}
+		if got := cfg.LocalDev(); got != want {
+			t.Errorf("%s: LocalDev() = %v, want %v", url, got, want)
+		}
 	}
 }
