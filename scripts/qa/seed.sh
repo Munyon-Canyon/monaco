@@ -24,7 +24,8 @@
 #   qa_fake_usdc <actor> <usdc>           sets the actor's on-chain USDC on bin/fakes (QA_FAKES_URL), e.g. 25 or 0.5
 #   qa_fake_holding <actor> <symbol> <usdc> <cabal name>
 #                                         rpc: fake-trade: creates a cabal, funds it from the actor's fake USDC, then proposes
-#                                         and votes a buy of <symbol> through the API; prints the cabal id when the position is confirmed
+#                                         and votes a buy of half of <usdc> of <symbol> through the API (it buys half, leaving cash
+#                                         for the fee headroom the proposal check reserves); prints the cabal id when the position is confirmed
 #
 # QA_FAKE_RPC=1 exported before sourcing points SOLANA_RPC_URL at bin/fakes, so a backend started from this
 # shell (just run backend, journey.py) reads balances that qa_fake_usdc sets instead of mainnet.
@@ -256,7 +257,9 @@ _qa_json() {
 }
 
 # qa_fake_holding gets a holding the way a member does, never by writing money tables. A buy proposal checks the
-# ledger's cash, not the chain, so the cabal is funded with the fund sweep first. Prints the cabal id only.
+# ledger's cash, not the chain, so the cabal is funded with the fund sweep first. It buys half, leaving cash for the
+# fee headroom the proposal check reserves (cashCovers needs the trade plus the mint's transfer-fee headroom).
+# Prints the cabal id only.
 qa_fake_holding() {
   local actor="${1:?usage: qa_fake_holding <actor> <symbol> <usdc> <cabal name>}" symbol="${2:?symbol}" usdc="${3:?usdc}"
   local name="${4:?cabal name}" cabal micros transfer state proposal mint units n
@@ -294,7 +297,7 @@ print(int(v))' "$usdc")"; then
     return 1
   fi
   proposal="$(qa_api "$actor" POST "/v1/cabals/$cabal/proposals" \
-    "$(printf '{"kind":"buy","symbol":"%s","usdc_micros":%s}' "$symbol" "$micros")" | _qa_json id)" || return 1
+    "$(printf '{"kind":"buy","symbol":"%s","usdc_micros":%s}' "$symbol" "$((micros / 2))")" | _qa_json id)" || return 1
   qa_api "$actor" POST "/v1/proposals/$proposal/votes" '{"choice":"yes"}' >/dev/null || return 1
   for ((n = 0; n < 30; n++)); do
     units="$(qa_sql -v cabal="$cabal" -v mint="$mint" \
