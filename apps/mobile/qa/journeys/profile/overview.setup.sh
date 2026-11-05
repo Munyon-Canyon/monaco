@@ -64,7 +64,7 @@ if [[ -n "$held" ]]; then
   name="${held#*|}"
 else
   # A holds no shares: load the journey catalogue (stocks/browse seeds JRNYAx), then fund a cabal and buy through the product path on the fakes.
-  apps/mobile/qa/journeys/stocks/browse.setup.sh "$scenario"
+  apps/mobile/qa/journeys/stocks/browse.setup.sh "overview-$scenario"
   qa_api_ready
   cabal_id="$(qa_fake_holding A JRNYAx 25 "$name")" || fail "could not seed a funded cabal '$name' as actor A"
 fi
