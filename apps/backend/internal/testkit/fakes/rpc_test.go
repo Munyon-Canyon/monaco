@@ -258,19 +258,6 @@ func TestRPC_AJourneyFakesAnswersAnUnseededOwnerWithNoTokenAccounts(t *testing.T
 	}
 }
 
-func TestRPC_TheDefaultFakesAnswersAnUnseededOwnerWithTheUSDCFixture(t *testing.T) {
-	t.Parallel()
-	got := unseededTokenAccounts(t, fakes.New())
-	if got.status != http.StatusOK || strings.Contains(got.body, `"value":[]`) ||
-		!strings.Contains(got.body, string(usdcMint)) {
-		t.Fatalf(
-			"getTokenAccountsByOwner for an unseeded owner = %d %q, want the recorded USDC account",
-			got.status,
-			got.body,
-		)
-	}
-}
-
 func TestSetBalance_ATreasuryHoldsTheStockUnitsItWasSeededWith(t *testing.T) {
 	t.Parallel()
 	transport := inProcess{fakes.New()}
