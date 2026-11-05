@@ -3149,6 +3149,7 @@ def run_mutants(args):
                         not_run = problems[0]
                     else:
                         check_simulator_api_environment(sim, api_base_url)
+                        prepare_logins(journey, accounts, api_base_url)
                         reset_journey_simulator(sim, bool(args.sim), False)
                         DERIVED = kept
                         add_phase("build_s", built["build_s"].get(patch.stem, 0.0))
