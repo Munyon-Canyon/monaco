@@ -29,6 +29,13 @@ CROSS JOIN (
 WHERE a.symbol = 'JRNYAx'
 ON CONFLICT (mint, ts) DO UPDATE SET price_micros = excluded.price_micros, source = excluded.source
 SQL
+if [[ "$scenario" == S5 ]]; then
+  # S5 needs a cabal of A's that holds JRNYAx: fund it and buy through the product path on the fakes (rpc: fake-trade).
+  qa_api_ready
+  cabal="$(qa_fake_holding A JRNYAx 25 "QA holds JRNYAx ${MONACO_QA_RUN:?journey.py sets MONACO_QA_RUN}")"
+  echo "seeded: cabal $cabal holds JRNYAx"
+  exit 0
+fi
 [[ "$scenario" == S1 ]] || exit 0
 
 run="${MONACO_QA_RUN:?journey.py sets MONACO_QA_RUN}"

@@ -2,7 +2,7 @@ import XCTest
 
 enum StocksAssetDetailJourney {
     static let id = "stocks/asset-detail"
-    static let version = 18
+    static let version = 19
 
     static let alpha = StocksBrowseJourney.alpha
     static let preIpo = StocksBrowseJourney.preIpo
@@ -248,8 +248,13 @@ enum StocksAssetDetailJourney {
             app.scrollIntoReach(sell)
             sell.tap()
             XCTAssertTrue(
-                app.navigationBars["Propose sell"].waitForExistence(timeout: 10),
-                "S5.3: Propose sell did not open the propose screen")
+                app.element("propose-amount-screen").waitForExistence(timeout: 10),
+                "S5.3: Propose a sell did not open the Amount screen")
+            let header = app.element("propose-amount-operation")
+            XCTAssertTrue(header.waitForExistence(timeout: 10), "S5.3: no stock header on Amount")
+            XCTAssertEqual(
+                header.label, "Sell \(alpha.name)",
+                "S5.3: the Amount header reads '\(header.label)', not 'Sell \(alpha.name)'")
         }
     }
 

@@ -4,10 +4,15 @@
 # runs it too.
 set -euo pipefail
 
+# QA_ALLOWED_CABAL_NAME: a cabal whose proposals asset-detail's S5 setup made on purpose, left out of the count.
+allowed_name="${QA_ALLOWED_CABAL_NAME:-}"
+allowed_name="${allowed_name//\'/\'\'}"
+
 query="SELECT
   (SELECT string_agg(symbol || '=' || display_name || '=' || kind, ',' ORDER BY symbol) FROM assets
      WHERE symbol IN ('JRNYAx', 'JRNYPx', 'JRNYQx', 'JRNYZx')),
-  (SELECT count(*) FROM proposals WHERE symbol IN ('JRNYAx', 'JRNYPx', 'JRNYQx', 'JRNYZx'))"
+  (SELECT count(*) FROM proposals WHERE symbol IN ('JRNYAx', 'JRNYPx', 'JRNYQx', 'JRNYZx')
+     AND cabal_id NOT IN (SELECT id FROM cabals WHERE name = '$allowed_name'))"
 cleanup="DELETE FROM pre_ipo_rounds WHERE company_key = 'qa-journey-private';
 DELETE FROM pre_ipo_profiles WHERE company_key = 'qa-journey-private';
 DELETE FROM price_points WHERE source = 'qa-journey';

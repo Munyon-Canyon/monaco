@@ -1194,6 +1194,17 @@ class Slots(unittest.TestCase):
                 self.assertEqual(journey.slot_database_url(url, 1), url)
             self.assertEqual(os.environ["DATABASE_URL"], self.DEV_URL)
 
+    def test_a_fake_trade_run_gets_its_own_database_on_the_same_slot(self):
+        plain = journey.slot_database_url(self.DEV_URL, 1)
+        with unittest.mock.patch.dict(os.environ, {"QA_FAKE_TRADE": "1", "DATABASE_URL": self.DEV_URL}):
+            trade = journey.slot_database_url(self.DEV_URL, 1)
+            self.assertEqual(journey.slot_database_name(1), "monaco_qa_slot1_trade")
+            with journey.slot_database_environment(1) as url:
+                self.assertEqual(url, trade)
+        self.assertEqual(journey.slot_database_name(1), "monaco_qa_slot1")
+        self.assertNotEqual(plain, trade)
+        self.assertIn("/monaco_qa_slot1_trade?", trade)
+
     def test_the_slot_databases_differ_from_each_other_and_from_the_dev_database(self):
         urls = {self.DEV_URL, journey.slot_database_url(self.DEV_URL, 0), journey.slot_database_url(self.DEV_URL, 1)}
         self.assertEqual(len(urls), 3)

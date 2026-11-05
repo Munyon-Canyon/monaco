@@ -25,7 +25,12 @@ type swapHarness struct {
 
 func newSwapHarness(t *testing.T) swapHarness {
 	t.Helper()
-	transport := inProcess{fakes.New()}
+	return newSwapHarnessOn(t, fakes.New())
+}
+
+func newSwapHarnessOn(t *testing.T, srv *fakes.Server) swapHarness {
+	t.Helper()
+	transport := inProcess{srv}
 	return swapHarness{
 		t: t,
 		jup: jupiter.New(config.Config{
@@ -133,6 +138,25 @@ func TestJupiter_aWalletRegisteredAtAnotherAddressGetsAnOrderThere(t *testing.T)
 	h.post("/_wallet", `{"id":"treasury-c","address":"`+string(funded)+`"}`)
 	if o := h.order(funded, 25_000_000); o.RequestID == "req-buy-aaplx-1" {
 		t.Fatalf("order at a registered address = %+v, want a fresh order", o)
+	}
+}
+
+func TestJupiter_orderIDsCarryTheBootOnlyWhenOneIsSet(t *testing.T) {
+	t.Parallel()
+	first := func(srv *fakes.Server) string {
+		h := newSwapHarnessOn(t, srv)
+		h.post("/_wallet", `{"id":"treasury-c","address":"`+string(funded)+`"}`)
+		return h.order(funded, 25_000_000).RequestID
+	}
+	if got := first(fakes.New()); got != "req-1" {
+		t.Fatalf("first order id with no boot = %q, want req-1: recorded flows expect the counted id", got)
+	}
+	one, two := first(fakes.New().ForJourneys()), first(fakes.New().ForJourneys())
+	if one == two {
+		t.Fatalf(
+			"two fakes boots both issued order id %q, want ids that survive a restart over a persisted database",
+			one,
+		)
 	}
 }
 

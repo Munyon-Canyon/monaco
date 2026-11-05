@@ -90,7 +90,7 @@ func (s *Server) jupiterOrder(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	s.orderCount++
 	n := s.orderCount
-	reply.RequestID = "req-" + strconv.FormatUint(n, 10)
+	reply.RequestID = "req-" + s.bootPart() + strconv.FormatUint(n, 10)
 	s.orders[reply.RequestID] = swapOrder{taker: taker, outMint: reply.OutputMint, in: reply.InAmount, out: out}
 	tx := unsignedTx(signers, n)
 	s.blockhashes[blockhashOf(tx)] = true
