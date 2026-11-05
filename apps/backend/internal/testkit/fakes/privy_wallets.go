@@ -103,9 +103,9 @@ func (s *Server) privyCreateWallet(w http.ResponseWriter, r *http.Request) {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	id := "wallet-" + strconv.Itoa(len(s.wallets)+1)
+	id := "wallet-" + s.boot + "-" + strconv.Itoa(len(s.wallets)+1)
 	if key := r.Header.Get("privy-idempotency-key"); key != "" {
-		sum := sha256.Sum256([]byte(key))
+		sum := sha256.Sum256([]byte(s.boot + key))
 		id = "wallet-" + hex.EncodeToString(sum[:6])
 	}
 	if existing, ok := s.wallets[id]; ok {
@@ -180,4 +180,13 @@ func authorized(r *http.Request, body map[string]any) bool {
 func writeJSON(w http.ResponseWriter, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(v)
+}
+
+func (s *Server) mountPrivyControl() {
+	s.mux.HandleFunc("POST /_wallet", s.setWallet)
+	s.mux.HandleFunc("GET /_privy_authorization_key", s.privyAuthorizationKey)
+}
+
+func (s *Server) privyAuthorizationKey(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, map[string]string{"key": PrivyAuthorizationKeyConfig(), "key_id": PrivyAuthorizationKeyID})
 }

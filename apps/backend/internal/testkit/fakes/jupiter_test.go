@@ -107,6 +107,44 @@ func TestJupiter_anOrderForAHeldWalletExecutesUnderItsOwnSignature(t *testing.T)
 	}
 }
 
+func TestJupiter_aWalletRegisteredWithItsAddressIsAKnownTakerAtThatAddress(t *testing.T) {
+	t.Parallel()
+	h := newSwapHarness(t)
+	taker := fakes.PrivyWalletAddress("treasury-b")
+	h.post("/_wallet", `{"id":"treasury-b","address":"`+string(taker)+`"}`)
+	o := h.order(taker, 25_000_000)
+	if o.RequestID == "req-buy-aaplx-1" {
+		t.Fatalf("order for an address-registered taker = %+v, want a fresh order, not the fixture", o)
+	}
+	signed, signature := signAs(t, "treasury-b", o.Transaction)
+	got, err := h.jup.Execute(t.Context(), o.RequestID, signed)
+	if err != nil || got.Status != jupiter.StatusSuccess || got.Signature != string(signature) {
+		t.Fatalf("Execute = %+v, %v, want Success under %s", got, err, signature)
+	}
+	other := h.order(funded, 25_000_000)
+	if other.RequestID != "req-buy-aaplx-1" {
+		t.Fatalf("order for an unregistered address = %+v, want the recorded fixture", other)
+	}
+}
+
+func TestJupiter_aWalletRegisteredAtAnotherAddressGetsAnOrderThere(t *testing.T) {
+	t.Parallel()
+	h := newSwapHarness(t)
+	h.post("/_wallet", `{"id":"treasury-c","address":"`+string(funded)+`"}`)
+	if o := h.order(funded, 25_000_000); o.RequestID == "req-buy-aaplx-1" {
+		t.Fatalf("order at a registered address = %+v, want a fresh order", o)
+	}
+}
+
+func TestPrivyAuthorizationKey_isServedForABackendThatSignsAgainstTheFakes(t *testing.T) {
+	t.Parallel()
+	got := mustCall(t.Context(), t, inProc(), http.MethodGet, "/_privy_authorization_key", "")
+	want := `{"key":"` + fakes.PrivyAuthorizationKeyConfig() + `","key_id":"` + fakes.PrivyAuthorizationKeyID + `"}` + "\n"
+	if got.status != http.StatusOK || got.body != want {
+		t.Fatalf("GET /_privy_authorization_key = %d %q, want %q", got.status, got.body, want)
+	}
+}
+
 func TestJupiter_aScriptedOwnerFailsOrPendsWithoutTouchingOthers(t *testing.T) {
 	t.Parallel()
 	h := newSwapHarness(t)
@@ -159,6 +197,7 @@ func TestSetSwapAndWallet_RejectBadInput(t *testing.T) {
 		{"/_swap", `{"owner":"` + string(funded) + `","status":"Failed","extra":1}`},
 		{"/_wallet", `{"id":""}`},
 		{"/_wallet", `{"wallet":"x"}`},
+		{"/_wallet", `{"id":"w","address":"not-base58!"}`},
 	} {
 		got := mustCall(t.Context(), t, inProc(), http.MethodPost, tc.path, tc.body)
 		if got.status != http.StatusBadRequest {

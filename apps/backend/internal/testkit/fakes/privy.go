@@ -169,7 +169,7 @@ func (s *Server) privyCreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.nextUser++
-	id := "did:privy:fake-" + strconv.Itoa(s.nextUser)
+	id := "did:privy:fake-" + s.boot + "-" + strconv.Itoa(s.nextUser)
 	s.createdUsers[id] = privyCreatedUser{ID: id, Email: req.LinkedAccounts[0].Address, CreatedAt: time.Now()}
 	s.mu.Unlock()
 	writeJSON(w, map[string]string{"id": id})

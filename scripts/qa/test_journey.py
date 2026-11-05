@@ -603,6 +603,22 @@ class FakeRpc(Tree):
         self.assertEqual(self.problems(), [])
         self.assertTrue(journey.backend_fake_rpc(self.args()))
 
+    def test_rpc_fake_trade_passes_asks_for_the_fakes_and_for_fake_trading(self):
+        self.declare("fake-trade")
+        self.assertEqual(self.problems(), [])
+        self.assertTrue(journey.backend_fake_rpc(self.args()))
+        self.assertTrue(journey.backend_fake_trade(self.args()))
+
+    def test_rpc_fake_and_a_plain_journey_do_not_ask_for_fake_trading(self):
+        self.assertFalse(journey.backend_fake_trade(self.args()))
+        self.declare("fake")
+        self.assertFalse(journey.backend_fake_trade(self.args()))
+
+    def test_rpc_fake_trade_with_funds_is_refused(self):
+        self.write("docs/journeys/auth/sign-in.md",
+                   DOC.replace("actors: [A]\n", "actors: [A]\nrpc: fake-trade\nfunds:\n  A: 2\n"))
+        self.assertIn("rpc: fake-trade and funds cannot both be set", self.problems()[0])
+
     def test_rpc_live_passes_and_keeps_the_real_endpoint(self):
         self.declare("live")
         self.assertEqual(self.problems(), [])
@@ -610,7 +626,7 @@ class FakeRpc(Tree):
 
     def test_another_rpc_value_is_named(self):
         self.declare("mainnet")
-        self.assertIn("rpc is 'mainnet': the values are fake and live", self.problems()[0])
+        self.assertIn("rpc is 'mainnet': the values are fake, fake-trade and live", self.problems()[0])
 
     def test_rpc_fake_with_funds_is_refused(self):
         self.write("docs/journeys/auth/sign-in.md",
@@ -664,6 +680,14 @@ class FakeRpcEnvironment(unittest.TestCase):
             self.assertNotIn("QA_FAKE_RPC", os.environ)
             self.assertEqual(os.environ["QA_FAKES_URL"], "http://old")
         self.assertEqual((started, stopped), ([1], ["proc"]))
+
+    def test_fake_trade_is_set_for_the_run_and_put_back(self):
+        with unittest.mock.patch.dict(os.environ, {}, clear=True), \
+                unittest.mock.patch.object(journey, "start_fakes", lambda slot: "proc"), \
+                unittest.mock.patch.object(journey, "stop_backend", lambda process: None):
+            with journey.fake_rpc_environment(0, True):
+                self.assertEqual(os.environ["QA_FAKE_TRADE"], "1")
+            self.assertNotIn("QA_FAKE_TRADE", os.environ)
 
     def test_a_caller_with_its_own_fakes_keeps_control(self):
         with unittest.mock.patch.dict(os.environ, {"QA_FAKE_RPC": "1"}, clear=True), \
@@ -2464,7 +2488,7 @@ class MutantRunSetup(unittest.TestCase):
         trail = order if order is not None else []
 
         @contextlib.contextmanager
-        def backend(slot=None, fake_rpc=False):
+        def backend(slot=None, fake_rpc=False, fake_trade=False):
             trail.append("take_slot")
             try:
                 yield "http://x"
@@ -2911,6 +2935,51 @@ class StartBackend(unittest.TestCase):
         self.assertEqual(env["SOLANA_RPC_URL"], "http://127.0.0.1:8099/rpc/")
         env = self.env_of_started_backend({"QA_FAKE_RPC": "1", "QA_FAKES_URL": "http://127.0.0.1:9000"})
         self.assertEqual(env["SOLANA_RPC_URL"], "http://127.0.0.1:9000/rpc/")
+
+    def test_fake_trade_points_jupiter_and_privy_wallets_at_the_fakes_and_leaves_privy_auth(self):
+        reply = unittest.mock.MagicMock()
+        reply.__enter__.return_value = StringIO('{"key": "wallet-auth:fixture", "key_id": "k"}')
+        seen = []
+
+        def urlopen(url, timeout=None):
+            seen.append(url)
+            return reply
+
+        with unittest.mock.patch.object(journey.urllib.request, "urlopen", urlopen):
+            env = self.env_of_started_backend({
+                "QA_FAKE_RPC": "1", "QA_FAKE_TRADE": "1", "QA_FAKES_URL": "http://127.0.0.1:9000",
+                "PRIVY_BASE_URL": "https://api.privy.io", "MONACO_JUPITER_SWAP_BASE_URL": "https://api.jup.ag"})
+        self.assertEqual(seen, ["http://127.0.0.1:9000/_privy_authorization_key"])
+        self.assertEqual(env["MONACO_JUPITER_SWAP_BASE_URL"], "http://127.0.0.1:9000/jupiter/swap/v2")
+        self.assertEqual(env["MONACO_JUPITER_PRICE_BASE_URL"], "http://127.0.0.1:9000/jupiter/price/v3")
+        self.assertEqual(env["PRIVY_WALLET_BASE_URL"], "http://127.0.0.1:9000/privy")
+        self.assertEqual(env["PRIVY_AUTHORIZATION_PRIVATE_KEY"], "wallet-auth:fixture")
+        self.assertEqual(env["PRIVY_BASE_URL"], "https://api.privy.io")
+        self.assertEqual(env["TRADE_ENGINE"], "live")
+
+    def test_fake_trade_refuses_to_start_when_a_trading_url_is_not_on_the_fakes(self):
+        fakes = "http://127.0.0.1:9000"
+        good = {name: fakes + "/x" for name in journey.FAKE_TRADE_URLS}
+        journey.require_fakes_only(good, fakes)
+        for name in journey.FAKE_TRADE_URLS:
+            for env in (dict(good, **{name: "https://real.example"}), {k: v for k, v in good.items() if k != name}):
+                with self.assertRaisesRegex(journey.JourneyError, name):
+                    journey.require_fakes_only(env, fakes)
+
+    def test_fake_trade_without_the_fake_rpc_starts_nothing(self):
+        reply = unittest.mock.MagicMock()
+        reply.__enter__.return_value = StringIO('{"key": "k"}')
+        popen = unittest.mock.Mock()
+        with unittest.mock.patch.object(journey.urllib.request, "urlopen", lambda url, timeout=None: reply), \
+                unittest.mock.patch.object(journey.subprocess, "Popen", popen):
+            with self.assertRaisesRegex(journey.JourneyError, "SOLANA_RPC_URL"):
+                self.env_of_started_backend({"QA_FAKE_TRADE": "1", "SOLANA_RPC_URL": "https://mainnet"})
+        popen.assert_not_called()
+
+    def test_fake_rpc_alone_leaves_jupiter_and_privy_wallets_live(self):
+        env = self.env_of_started_backend({"QA_FAKE_RPC": "1", "MONACO_JUPITER_SWAP_BASE_URL": "https://api.jup.ag"})
+        self.assertEqual(env["MONACO_JUPITER_SWAP_BASE_URL"], "https://api.jup.ag")
+        self.assertNotIn("PRIVY_WALLET_BASE_URL", env)
 
     def test_without_fake_rpc_the_backend_keeps_its_rpc(self):
         env = self.env_of_started_backend({"SOLANA_RPC_URL": "https://mainnet"})

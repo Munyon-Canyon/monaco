@@ -250,3 +250,7 @@ None.
 **Deferred.** Pre-IPO transfer-fee handling (decided 2026-09-27).
 
 Log: [log/trade-execution.md](log/trade-execution.md).
+
+## Privy wallet base URL
+
+`PRIVY_WALLET_BASE_URL` is optional and local only. When unset, every Privy call goes to `PRIVY_BASE_URL`, which is the production behaviour. When set, the Privy client sends all wallet calls (`/v1/wallets`, `/v1/wallet_automations`: list, create, sign, transfer, actions) to it and signs their authorization over that base, while user lookup and auth keep `PRIVY_BASE_URL`. `scripts/qa/journey.py` sets it, with the Jupiter base URLs and `TRADE_ENGINE=live`, for a journey that declares `rpc: fake-trade` (`docs/journeys/README.md`). `config.Load` refuses to boot in staging or production when it is set, or when the live trade engine runs against a Privy API other than `https://api.privy.io`.

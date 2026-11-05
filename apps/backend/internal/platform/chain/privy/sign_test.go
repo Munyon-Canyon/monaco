@@ -99,3 +99,57 @@ func TestCanonical_sortsKeysWithoutEscaping(t *testing.T) {
 		t.Fatalf("Canonical = %s", got)
 	}
 }
+
+func TestWalletClient_usesPrivyBaseURLWhenNoWalletBaseURLIsSet(t *testing.T) {
+	t.Parallel()
+	c, u, _ := overFakes(t)
+	if _, err := c.SignTransaction(t.Context(), "wallet-member", unsignedFor(walletPub("wallet-member"))); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.ListUserWallets(t.Context(), "did:privy:member-with-wallet"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.GetUser(t.Context(), "did:privy:member-with-wallet"); err != nil {
+		t.Fatal(err)
+	}
+	for _, req := range u.requests() {
+		if req.host != "privy.test" {
+			t.Fatalf("%s %s went to %q, want PRIVY_BASE_URL's host privy.test", req.method, req.path, req.host)
+		}
+	}
+}
+
+func TestWalletClient_sendsWalletCallsToWalletBaseURLAndKeepsUsersOnPrivyBaseURL(t *testing.T) {
+	t.Parallel()
+	cfg := testConfig()
+	cfg.Privy.WalletBaseURL = "http://wallets.test/privy"
+	u := &upstream{handler: fakes.New()}
+	c := clientWith(cfg, u, clock.Real{})
+	if _, err := c.SignTransaction(t.Context(), "wallet-member", unsignedFor(walletPub("wallet-member"))); err != nil {
+		t.Fatalf("SignTransaction: %v", err)
+	}
+	if _, err := c.ListUserWallets(t.Context(), "did:privy:member-with-wallet"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.GetUser(t.Context(), "did:privy:member-with-wallet"); err != nil {
+		t.Fatal(err)
+	}
+	reqs := u.requests()
+	hosts := make([]string, 0, len(reqs))
+	for _, req := range reqs {
+		hosts = append(hosts, req.host+req.path)
+	}
+	want := []string{
+		"wallets.test/privy/v1/wallets/wallet-member/rpc",
+		"wallets.test/privy/v1/wallets",
+		"privy.test/privy/v1/users/did:privy:member-with-wallet",
+	}
+	if len(hosts) != len(want) {
+		t.Fatalf("requests = %v, want %v", hosts, want)
+	}
+	for i := range want {
+		if hosts[i] != want[i] {
+			t.Fatalf("requests = %v, want %v", hosts, want)
+		}
+	}
+}

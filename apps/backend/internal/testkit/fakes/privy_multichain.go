@@ -75,7 +75,7 @@ func (s *Server) privyCreateAnyWallet(w http.ResponseWriter, r *http.Request) {
 		privyError(w, http.StatusBadRequest, "invalid wallet request")
 		return
 	}
-	sum := sha256.Sum256([]byte(key))
+	sum := sha256.Sum256([]byte(s.boot + key))
 	id := "wallet-evm-" + hex.EncodeToString(sum[:6])
 	s.mu.Lock()
 	defer s.mu.Unlock()
