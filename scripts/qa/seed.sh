@@ -20,6 +20,7 @@
 #   qa_add_photo <udid>                   adds apps/mobile/qa/journeys/fixtures/photo.jpg to the simulator's Photos
 #   qa_fake_treasury_positions <cabal id> sets the cabal treasury's on-chain tokens on bin/fakes to its cabal_positions rows
 #   qa_fake_trade_wallet <cabal id>       registers the cabal treasury's Privy wallet id and address on bin/fakes (rpc: fake-trade)
+#   qa_fake_member_wallet <actor>         re-registers the actor's stored member wallet id and address on bin/fakes (they forget wallets on restart)
 #   qa_fake_swap <cabal id> <status>      sets the next swap outcome (success, failed or pending) for that treasury on bin/fakes
 #   qa_fake_usdc <actor> <usdc>           sets the actor's on-chain USDC on bin/fakes (QA_FAKES_URL), e.g. 25 or 0.5
 #   qa_fake_holding <actor> <symbol> <usdc> <cabal name>
@@ -226,14 +227,30 @@ _qa_treasury() {
   printf '%s\n' "$row"
 }
 
-qa_fake_trade_wallet() {
-  local cabal="${1:?usage: qa_fake_trade_wallet <cabal id>}" row body
-  row="$(_qa_treasury "$cabal")" || return 1
-  body="$(printf '{"id":"%s","address":"%s"}' "${row%%|*}" "${row#*|}")"
+_qa_register_wallet() {
+  local caller="$1" id="$2" address="$3" body
+  body="$(printf '{"id":"%s","address":"%s"}' "$id" "$address")"
   if ! curl -fsS -X POST "$QA_FAKES/_wallet" -H "Content-Type: application/json" -d "$body"; then
-    echo "qa_fake_trade_wallet: POST $QA_FAKES/_wallet failed: is bin/fakes running there?" >&2
+    echo "$caller: POST $QA_FAKES/_wallet failed: is bin/fakes running there?" >&2
     return 1
   fi
+}
+
+qa_fake_trade_wallet() {
+  local cabal="${1:?usage: qa_fake_trade_wallet <cabal id>}" row
+  row="$(_qa_treasury "$cabal")" || return 1
+  _qa_register_wallet qa_fake_trade_wallet "${row%%|*}" "${row#*|}"
+}
+
+qa_fake_member_wallet() {
+  local actor="${1:?usage: qa_fake_member_wallet <actor>}" id row
+  id="$(qa_user_id "$actor")" || return 1
+  row="$(qa_sql -v id="$id" <<< "SELECT privy_wallet_id, address FROM user_wallets WHERE user_id = :'id'")"
+  if [[ -z "$row" ]]; then
+    echo "actor $actor has no member wallet: sign in as $actor once first" >&2
+    return 1
+  fi
+  _qa_register_wallet qa_fake_member_wallet "${row%%|*}" "${row#*|}"
 }
 
 qa_fake_swap() {
@@ -278,6 +295,7 @@ print(int(v))' "$usdc")"; then
   cabal="$(qa_api "$actor" POST /v1/cabals "$(printf '{"name":"%s","join_mode":"request","voter_mode":"all","threshold":"majority","proposal_expiry_seconds":86400}' "$name")" |
     _qa_json id)" || return 1
   qa_fake_trade_wallet "$cabal" >&2 || return 1
+  qa_fake_member_wallet "$actor" >&2 || return 1
   qa_fake_usdc "$actor" "$usdc" >&2 || return 1
   qa_fake_swap "$cabal" success >&2 || return 1
   transfer="$(qa_api "$actor" POST "/v1/cabals/$cabal/fund" "$(printf '{"amount_micros":"%s"}' "$micros")" |
