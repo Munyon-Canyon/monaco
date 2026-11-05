@@ -2,7 +2,7 @@ import XCTest
 
 enum HomeDashboardJourney {
     static let id = "home/dashboard"
-    static let version = 11
+    static let version = 12
 
     static func recorder() -> JourneyRecorder {
         JourneyRecorder(journey: id, version: version)
@@ -37,9 +37,10 @@ enum HomeDashboardJourney {
             assertWelcomeAbove(total, app)
             XCTAssertTrue(app.element("home-wordmark").exists, "S1.1: no wordmark")
             XCTAssertTrue(app.element("home-notifications-button").exists, "S1.1: no bell")
-            XCTAssertTrue(
-                app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'past month'")).firstMatch.exists,
-                "S1.1: no '· past month' line under the figure")
+            let chip = app.element("home-portfolio-chip")
+            if chip.waitForExistence(timeout: 5) {
+                XCTAssertTrue(chip.label.hasSuffix("past month"), "S1.1: return line '\(chip.label)' lacks past month")
+            }
         }
 
         recorder.step("S1.2", "the cash row with Cash, USDC and Deposit") {
