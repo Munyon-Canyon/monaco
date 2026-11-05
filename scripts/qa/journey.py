@@ -743,7 +743,9 @@ def slot_nats(slot):
 
 
 def slot_database_name(slot):
-    return "monaco_qa_slot%d" % slot
+    """A fake-trade run (QA_FAKE_TRADE=1, set by fake_rpc_environment) has its own database: a plain journey makes
+    the actors' wallets on real Privy, and the fakes cannot sign for those."""
+    return "monaco_qa_slot%d%s" % (slot, "_trade" if os.environ.get("QA_FAKE_TRADE") == "1" else "")
 
 
 def slot_database_url(url, slot):
