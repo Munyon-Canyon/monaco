@@ -324,6 +324,7 @@ func Load(environ []string) (Config, error) {
 	}
 	bad.checkAPNs(cfg)
 	bad.checkTrade(cfg)
+	bad.checkPrivyWallet(cfg)
 	bad.checkFund(cfg)
 	bad.missing = append(bad.missing, missingIn(cfg)...)
 	for k := range vars {

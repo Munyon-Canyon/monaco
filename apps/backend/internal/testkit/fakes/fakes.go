@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"cmp"
 	"context"
+	"crypto/rand"
 	"embed"
+	"encoding/hex"
 	"encoding/json"
 	"io"
 	"io/fs"
@@ -91,6 +93,7 @@ type Server struct {
 	blockhashes  map[string]bool
 	unexecuted   map[string]bool
 	nextUser     int
+	boot         string
 	multichain   privyMultichain
 }
 
@@ -113,6 +116,7 @@ func newFrom(fsys fs.FS, root string) *Server {
 		blockhashes:  map[string]bool{},
 		unexecuted:   map[string]bool{},
 		upstreams:    upstreamsIn(fsys, root),
+		boot:         bootID(),
 	}
 	s.mux.HandleFunc("POST /_script", s.script)
 	s.mux.HandleFunc("POST /_balance", s.setBalance)
@@ -416,4 +420,10 @@ func loadFixtures(fsys fs.FS, root string) map[string]fixture {
 		panic(err)
 	}
 	return out
+}
+
+func bootID() string {
+	raw := make([]byte, 4)
+	_, _ = rand.Read(raw)
+	return hex.EncodeToString(raw)
 }

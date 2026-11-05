@@ -23,7 +23,7 @@ func TestCreateUser_postsOneEmailAccount(t *testing.T) {
 	t.Parallel()
 	c, u, _ := overFakes(t)
 	id, err := c.CreateUser(t.Context(), "dev-ab@example.com")
-	if err != nil || id != "did:privy:fake-1" {
+	if err != nil || !strings.HasPrefix(string(id), "did:privy:fake-") || !strings.HasSuffix(string(id), "-1") {
 		t.Fatalf("CreateUser = %q, %v", id, err)
 	}
 	req := u.requests()[0]
@@ -32,7 +32,7 @@ func TestCreateUser_postsOneEmailAccount(t *testing.T) {
 		t.Fatalf("request = %s %s body %s", req.method, req.path, req.body)
 	}
 	again, err := c.CreateUser(t.Context(), "dev-cd@example.com")
-	if err != nil || again != "did:privy:fake-2" {
+	if err != nil || !strings.HasSuffix(string(again), "-2") {
 		t.Fatalf("second CreateUser = %q, %v", again, err)
 	}
 	got, err := c.GetUser(t.Context(), id)
@@ -297,7 +297,8 @@ func TestListUsers_overTheFakesListsWhatWasCreated(t *testing.T) {
 		}
 	}
 	got, err := c.ListUsers(t.Context())
-	if err != nil || len(got) != 2 || got[0].Email != "dev-ab@example.com" || got[1].ID != "did:privy:fake-2" {
+	if err != nil || len(got) != 2 || got[0].Email != "dev-ab@example.com" ||
+		!strings.HasSuffix(string(got[1].ID), "-2") {
 		t.Fatalf("ListUsers = %+v, %v", got, err)
 	}
 }

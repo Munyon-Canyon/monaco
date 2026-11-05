@@ -2928,6 +2928,25 @@ class StartBackend(unittest.TestCase):
         self.assertEqual(env["PRIVY_BASE_URL"], "https://api.privy.io")
         self.assertEqual(env["TRADE_ENGINE"], "live")
 
+    def test_fake_trade_refuses_to_start_when_a_trading_url_is_not_on_the_fakes(self):
+        fakes = "http://127.0.0.1:9000"
+        good = {name: fakes + "/x" for name in journey.FAKE_TRADE_URLS}
+        journey.require_fakes_only(good, fakes)
+        for name in journey.FAKE_TRADE_URLS:
+            for env in (dict(good, **{name: "https://real.example"}), {k: v for k, v in good.items() if k != name}):
+                with self.assertRaisesRegex(journey.JourneyError, name):
+                    journey.require_fakes_only(env, fakes)
+
+    def test_fake_trade_without_the_fake_rpc_starts_nothing(self):
+        reply = unittest.mock.MagicMock()
+        reply.__enter__.return_value = StringIO('{"key": "k"}')
+        popen = unittest.mock.Mock()
+        with unittest.mock.patch.object(journey.urllib.request, "urlopen", lambda url, timeout=None: reply), \
+                unittest.mock.patch.object(journey.subprocess, "Popen", popen):
+            with self.assertRaisesRegex(journey.JourneyError, "SOLANA_RPC_URL"):
+                self.env_of_started_backend({"QA_FAKE_TRADE": "1", "SOLANA_RPC_URL": "https://mainnet"})
+        popen.assert_not_called()
+
     def test_fake_rpc_alone_leaves_jupiter_and_privy_wallets_live(self):
         env = self.env_of_started_backend({"QA_FAKE_RPC": "1", "MONACO_JUPITER_SWAP_BASE_URL": "https://api.jup.ag"})
         self.assertEqual(env["MONACO_JUPITER_SWAP_BASE_URL"], "https://api.jup.ag")

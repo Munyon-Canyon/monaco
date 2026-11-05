@@ -295,8 +295,7 @@ func TestLoadReadsEveryKey(t *testing.T) {
 		"PRIVY_AUTHORIZATION_PRIVATE_KEY=wallet-auth:key",
 		"PRIVY_AUTHORIZATION_KEY_ID=quorum-id",
 		"PRIVY_WEBHOOK_SECRET=whsec_x",
-		"PRIVY_BASE_URL=http://fakes/privy",
-		"PRIVY_WALLET_BASE_URL=http://fakes/privy-wallets",
+		"PRIVY_BASE_URL=https://api.privy.io/proxy",
 		"SOLANA_RPC_URL=http://fakes/rpc",
 		"SOLANA_USDC_MINT=mint",
 		"EVM_RPC_URL_BASE=http://fakes/base",
@@ -405,7 +404,7 @@ func TestLoadReadsEveryKey(t *testing.T) {
 		Privy: config.Privy{
 			AppID: "app-id", AppSecret: "app-secret", VerificationKey: "verification-pem",
 			AuthorizationPrivateKey: "wallet-auth:key", AuthorizationKeyID: "quorum-id",
-			WebhookSecret: "whsec_x", BaseURL: "http://fakes/privy", WalletBaseURL: "http://fakes/privy-wallets",
+			WebhookSecret: "whsec_x", BaseURL: "https://api.privy.io/proxy",
 		},
 		Solana: config.Solana{RPCURL: "http://fakes/rpc", USDCMint: "mint"},
 		EVM: config.EVM{

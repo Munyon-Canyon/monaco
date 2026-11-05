@@ -755,7 +755,9 @@ def start_backend(base_url, timeout=300, trade_engine="stub", slot=0):
     if env.get("QA_FAKE_RPC") == "1":
         env["SOLANA_RPC_URL"] = env.get("QA_FAKES_URL", "http://127.0.0.1:8099") + "/rpc/"
     if env.get("QA_FAKE_TRADE") == "1":
-        env.update(fake_trade_environment(env.get("QA_FAKES_URL", "http://127.0.0.1:8099")))
+        fakes_url = env.get("QA_FAKES_URL", "http://127.0.0.1:8099")
+        env.update(fake_trade_environment(fakes_url))
+        require_fakes_only(env, fakes_url)
     env.setdefault("TRADE_ENGINE", trade_engine)
     with open(str(log), "a") as out:
         process = subprocess.Popen(["just", "run", "backend"], cwd=str(ROOT), env=env, stdout=out,
@@ -807,6 +809,19 @@ def stop_backend(process, grace=10, run=None, kill=os.kill, killpg=os.killpg, sl
         killpg(process.pid, signal.SIGKILL)
     with contextlib.suppress(subprocess.TimeoutExpired):
         process.wait(timeout=5)
+
+
+FAKE_TRADE_URLS = ("SOLANA_RPC_URL", "MONACO_JUPITER_SWAP_BASE_URL", "MONACO_JUPITER_PRICE_BASE_URL",
+                   "PRIVY_WALLET_BASE_URL")
+
+
+def require_fakes_only(env, fakes_url):
+    """Fails closed: a backend with the live trade engine starts only when every URL it trades through is the
+    fakes'. A real one would spend real USDC or call real Privy wallets."""
+    for name in FAKE_TRADE_URLS:
+        if not str(env.get(name, "")).startswith(fakes_url):
+            raise JourneyError("%s is not on the fakes (%s): refusing to start a live-trade-engine backend that "
+                               "could trade for real" % (name, fakes_url))
 
 
 def fake_trade_environment(fakes_url):
