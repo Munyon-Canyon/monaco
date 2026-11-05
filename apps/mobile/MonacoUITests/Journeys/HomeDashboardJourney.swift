@@ -2,7 +2,7 @@ import XCTest
 
 enum HomeDashboardJourney {
     static let id = "home/dashboard"
-    static let version = 12
+    static let version = 13
 
     static func recorder() -> JourneyRecorder {
         JourneyRecorder(journey: id, version: version)
@@ -38,9 +38,8 @@ enum HomeDashboardJourney {
             XCTAssertTrue(app.element("home-wordmark").exists, "S1.1: no wordmark")
             XCTAssertTrue(app.element("home-notifications-button").exists, "S1.1: no bell")
             let chip = app.element("home-portfolio-chip")
-            if chip.waitForExistence(timeout: 5) {
-                XCTAssertTrue(chip.label.hasSuffix("past month"), "S1.1: return line '\(chip.label)' lacks past month")
-            }
+            XCTAssertTrue(chip.waitForExistence(timeout: 15), "S1.1: no home-portfolio-chip return line within 15 s")
+            XCTAssertTrue(chip.label.hasSuffix("past month"), "S1.1: return line '\(chip.label)' lacks past month")
         }
 
         recorder.step("S1.2", "the cash row with Cash, USDC and Deposit") {

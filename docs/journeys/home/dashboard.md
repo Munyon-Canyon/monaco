@@ -1,7 +1,8 @@
 ---
 id: home/dashboard
 title: The Home dashboard
-version: 12
+version: 13
+rpc: fake-trade
 milestone: M16
 requires: [auth/sign-in]
 actors: [A, C]
@@ -25,7 +26,7 @@ The format of this doc is in [App journeys](../README.md).
 | --- | --- |
 | P1 | Actors A and C have signed in once (`auth/sign-in`), and their `privy_user_id` is in `apps/mobile/qa/journeys/accounts.tsv` |
 | P2 | The dev database is migrated (`just migrate db`). `scripts/qa/journey.py run` starts the backend with `just run backend` |
-| P3 | `apps/mobile/qa/journeys/home/dashboard.setup.sh` ran right before the scenario. It marks the actor as done with onboarding and sets their display name. For S1, the setup reads A's portfolio (`GET /v1/me/portfolio`) and hands the test A's largest funded cabal's id and name. When A holds none, A creates `QA home {QA.run}` through the API and the setup hands that over. Your cabals lists every cabal A belongs to, so the unfunded cabal shows as "Not funded". For S2, C leaves every cabal C belongs to through the API, so C has none |
+| P3 | `apps/mobile/qa/journeys/home/dashboard.setup.sh` ran right before the scenario. It marks the actor as done with onboarding and sets their display name. For S1, the setup reads A's portfolio (`GET /v1/me/portfolio`) and hands the test A's largest funded cabal's id and name. When A holds none, the setup seeds the journey catalogue and gets a holding through the product path on the fakes with `qa_fake_holding A JRNYAx 25 "QA home {QA.run}"` (`rpc: fake-trade`; it never writes `cabal_positions`), and hands that cabal over. For S2, C leaves every cabal C belongs to through the API, so C has none |
 
 ## Scenarios
 
@@ -33,7 +34,7 @@ The format of this doc is in [App journeys](../README.md).
 
 | Step | Actor | Action | Target | Input | Expect |
 | --- | --- | --- | --- | --- | --- |
-| S1.1 | A | tap | the Home tab | | `home-wordmark` and `home-notifications-button` (the bell) show, `home-welcome` reads "Welcome, Alfred" (A's first name from `accounts.tsv`, which the setup writes as A's display name) above `home-portfolio-total`, which shows a dollar total, and, when A's return line `home-portfolio-chip` shows, its spoken label ends "past month" within 15 s (F `02-home-dark`, #6496, #7871) |
+| S1.1 | A | tap | the Home tab | | `home-wordmark` and `home-notifications-button` (the bell) show, `home-welcome` reads "Welcome, Alfred" (A's first name from `accounts.tsv`, which the setup writes as A's display name) above `home-portfolio-total`, which shows a dollar total, and A's return line `home-portfolio-chip` shows and its spoken label ends "past month" within 15 s (F `02-home-dark`, #6496, #7871) |
 | S1.2 | A | read | the money strip | | `home-cash-row` reads "Cash" and "USDC" with no APY text and no `home-apy-info` button, and a dollar amount (`platform-balance-value`), and `home-add-money-link` reads "Deposit", within 10 s (F `02-home-dark`, founder decision Q19) |
 | S1.3 | A | scroll to | "Your cabals" | | The header "Your cabals" and `cabal-row-<id>` for `cabalName` show within 15 s, whether or not A has funded it, each row reading the share in dollars or "Not funded", with no sideways rail (F `02-home-dark`) |
 | S1.4 | A | pull down | the Home screen | | After the refresh, "Your cabals" and the card for `cabalName` are still there within 15 s (screens.md Home: “Pull to refresh.”; old app: `HomeView` `.refreshable`) |

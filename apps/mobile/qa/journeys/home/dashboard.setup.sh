@@ -40,12 +40,12 @@ if cabals:
       cabal="${held%%|*}"
       name="${held#*|}"
     else
-      cabal="$(qa_api A POST /v1/cabals \
-        "{\"name\":\"$name\",\"join_mode\":\"request\",\"voter_mode\":\"all\",\"threshold\":\"majority\",\"proposal_expiry_seconds\":86400}" |
-        python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')"
+      # A holds no cabal: seed the journey catalogue, then buy JRNYAx through the product path on the fakes (rpc: fake-trade).
+      "$(git rev-parse --show-toplevel)/apps/mobile/qa/journeys/stocks/browse.setup.sh" home-dashboard >&2
+      cabal="$(qa_fake_holding A JRNYAx 25 "$name")"
     fi
     hand_off cabalID "$cabal" cabalName "$name"
-    echo "seeded: A's cabal is '$name'"
+    echo "seeded: A's cabal '$name' holds JRNYAx"
     ;;
   S2)
     ready_actor C

@@ -1,0 +1,21 @@
+journey: home/dashboard
+expect-fail: S1
+
+The return line speaks only its amount, without the range. S1.1 expects `home-portfolio-chip`'s label to end "past month", so it must fail.
+scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
+
+diff --git a/apps/mobile/Monaco/Features/Home/HomeFigureSlot.swift b/apps/mobile/Monaco/Features/Home/HomeFigureSlot.swift
+index 6a8f660ab..f25febb87 100644
+--- a/apps/mobile/Monaco/Features/Home/HomeFigureSlot.swift
++++ b/apps/mobile/Monaco/Features/Home/HomeFigureSlot.swift
+@@ -119,9 +119,7 @@ struct HomeFigureView: View {
+                 .accessibility, Rectangle().inset(by: -HomeFigureMetrics.lineReach)
+             )
+             .accessibilityElement(children: .ignore)
+-            .accessibilityLabel(
+-                HomeFigureCopy.spoken(netWorthMicros: netWorth, pnlMicros: pnl, returnBps: bps, range: range)
+-            )
++            .accessibilityLabel(copy.amount)
+             .accessibilityIdentifier("home-portfolio-chip")
+         }
+     }
