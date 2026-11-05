@@ -10,8 +10,9 @@ diff --git a/apps/mobile/Monaco/Features/Profile/ProfileCardSlot.swift b/apps/mo
 @@ -160,7 +160,7 @@
          case .failed:
              figureText("—", color: MonacoTheme.primaryText)
-         case .loaded(let summary):
+-        case .loaded(let summary):
 -            figureText(summary.stats.inCabals, color: MonacoTheme.primaryText)
++        case .loaded:
 +            figureText("unavailable", color: MonacoTheme.primaryText)
          }
      }
