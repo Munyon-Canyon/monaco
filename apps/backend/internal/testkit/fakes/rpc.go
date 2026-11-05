@@ -134,6 +134,9 @@ func (s *Server) tokenAccounts(w http.ResponseWriter, r *http.Request, keys []st
 	balance, ok := held[filter.Mint]
 	s.mu.Unlock()
 	if !set {
+		if s.unseeded == unseededFixture {
+			return s.fixtureTokenAccounts(w, call.ID, keys, owner, filter.Mint)
+		}
 		if s.fixtureTokenAccounts(w, call.ID, ownerKeys(keys), owner, filter.Mint) {
 			return true
 		}

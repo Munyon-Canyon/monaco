@@ -95,9 +95,22 @@ type Server struct {
 	nextUser     int
 	boot         string
 	multichain   privyMultichain
+	unseeded     unseededAnswer
 }
 
 func New() *Server { return newFrom(fixtures, "testdata/fakes") }
+
+type unseededAnswer int
+
+const (
+	unseededFixture unseededAnswer = iota
+	unseededEmpty
+)
+
+func (s *Server) AnswerUnseededOwnersEmpty() *Server {
+	s.unseeded = unseededEmpty
+	return s
+}
 
 func newFrom(fsys fs.FS, root string) *Server {
 	s := &Server{

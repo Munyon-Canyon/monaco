@@ -27,7 +27,7 @@ const (
 
 func TestSetBalance_ReadsBackThroughTokenBalance(t *testing.T) {
 	t.Parallel()
-	transport := inProcess{fakes.New()}
+	transport := inProcess{fakes.New().AnswerUnseededOwnersEmpty()}
 	control := httpclient.New("fakes", httpclient.WithBaseURL("http://fakes.test"),
 		httpclient.WithTimeout(time.Minute), httpclient.WithTransport(transport))
 	rpc := solana.New(config.Config{
@@ -241,13 +241,33 @@ func TestRPC_AnUnknownMethodFailsLoudly(t *testing.T) {
 	}
 }
 
-func TestRPC_AnUnseededOwnerHasNoTokenAccounts(t *testing.T) {
-	t.Parallel()
-	got := mustCall(t.Context(), t, inProc(), http.MethodPost, "/rpc",
+func unseededTokenAccounts(t *testing.T, srv *fakes.Server) reply {
+	t.Helper()
+	client := httpclient.New("fakes", httpclient.WithBaseURL("http://fakes.test"), httpclient.WithTimeout(time.Hour),
+		httpclient.WithTransport(inProcess{srv}))
+	return mustCall(t.Context(), t, client, http.MethodPost, "/rpc",
 		`{"jsonrpc":"2.0","id":1,"method":"getTokenAccountsByOwner","params":["`+string(unset)+
 			`",{"mint":"`+string(usdcMint)+`"},{"encoding":"jsonParsed"}]}`)
+}
+
+func TestRPC_AJourneyFakesAnswersAnUnseededOwnerWithNoTokenAccounts(t *testing.T) {
+	t.Parallel()
+	got := unseededTokenAccounts(t, fakes.New().AnswerUnseededOwnersEmpty())
 	if got.status != http.StatusOK || !strings.Contains(got.body, `"value":[]`) {
 		t.Fatalf("getTokenAccountsByOwner for an unseeded owner = %d %q, want an empty value", got.status, got.body)
+	}
+}
+
+func TestRPC_TheDefaultFakesAnswersAnUnseededOwnerWithTheUSDCFixture(t *testing.T) {
+	t.Parallel()
+	got := unseededTokenAccounts(t, fakes.New())
+	if got.status != http.StatusOK || strings.Contains(got.body, `"value":[]`) ||
+		!strings.Contains(got.body, string(usdcMint)) {
+		t.Fatalf(
+			"getTokenAccountsByOwner for an unseeded owner = %d %q, want the recorded USDC account",
+			got.status,
+			got.body,
+		)
 	}
 }
 
