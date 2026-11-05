@@ -1,13 +1,14 @@
 journey: stocks/asset-detail
 expect-fail: S1
 
-The cabal picker is skipped whenever A has a cabal, so Propose buy opens Amount for the first one. S1.8 expects the picker.
+The cabal picker is skipped whenever A has a cabal: Propose buy opens Amount for the first one, and the picker sheet never opens over it. S1.8 expects the picker.
 scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 
 diff --git a/apps/mobile/Monaco/Features/Proposals/ProposeFromAssetRoute.swift b/apps/mobile/Monaco/Features/Proposals/ProposeFromAssetRoute.swift
+index 7dd4c4b3c..bb5aa8d54 100644
 --- a/apps/mobile/Monaco/Features/Proposals/ProposeFromAssetRoute.swift
 +++ b/apps/mobile/Monaco/Features/Proposals/ProposeFromAssetRoute.swift
-@@ -33,7 +33,7 @@ struct ProposeFromAssetScreen: View {
+@@ -43,7 +43,7 @@ struct ProposeFromAssetScreen: View {
              case .loaded(let cabals):
                  if cabals.isEmpty {
                      framed { emptyState }
@@ -16,3 +17,12 @@ diff --git a/apps/mobile/Monaco/Features/Proposals/ProposeFromAssetRoute.swift b
                      amount(cabals[0])
                  } else if let pickedCabal {
                      amount(pickedCabal)
+@@ -53,7 +53,7 @@ struct ProposeFromAssetScreen: View {
+             }
+         }
+         .onChange(of: model?.destination == .pick) { _, picking in
+-            if picking, pickedCabal == nil { showsPicker = true }
++            if picking, pickedCabal != nil { showsPicker = true }
+         }
+         .sheet(isPresented: $showsPicker, onDismiss: pickerDismissed) {
+             if case .loaded(let cabals) = model?.state { picker(cabals) }
