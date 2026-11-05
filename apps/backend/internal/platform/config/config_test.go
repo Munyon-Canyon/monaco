@@ -296,6 +296,7 @@ func TestLoadReadsEveryKey(t *testing.T) {
 		"PRIVY_AUTHORIZATION_KEY_ID=quorum-id",
 		"PRIVY_WEBHOOK_SECRET=whsec_x",
 		"PRIVY_BASE_URL=http://fakes/privy",
+		"PRIVY_WALLET_BASE_URL=http://fakes/privy-wallets",
 		"SOLANA_RPC_URL=http://fakes/rpc",
 		"SOLANA_USDC_MINT=mint",
 		"EVM_RPC_URL_BASE=http://fakes/base",
@@ -404,7 +405,7 @@ func TestLoadReadsEveryKey(t *testing.T) {
 		Privy: config.Privy{
 			AppID: "app-id", AppSecret: "app-secret", VerificationKey: "verification-pem",
 			AuthorizationPrivateKey: "wallet-auth:key", AuthorizationKeyID: "quorum-id",
-			WebhookSecret: "whsec_x", BaseURL: "http://fakes/privy",
+			WebhookSecret: "whsec_x", BaseURL: "http://fakes/privy", WalletBaseURL: "http://fakes/privy-wallets",
 		},
 		Solana: config.Solana{RPCURL: "http://fakes/rpc", USDCMint: "mint"},
 		EVM: config.EVM{
@@ -797,6 +798,7 @@ func TestRedactedHidesSecretsAndShowsTheRest(t *testing.T) {
 		{"PRIVY_VERIFICATION_KEY", ""},
 		{"PRIVY_AUTHORIZATION_KEY_ID", ""},
 		{"PRIVY_BASE_URL", "https://api.privy.io"},
+		{"PRIVY_WALLET_BASE_URL", ""},
 		{"SOLANA_USDC_MINT", "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"},
 		{"MONACO_FAULTPOINT", ""},
 		{"MONACO_BUS_ACK_WAIT", ""},
@@ -1006,5 +1008,16 @@ func TestAppStoreURL_placeholdersStillBootAndTurnTheGateOff(t *testing.T) {
 		if cfg.App.StoreURLProblem() == "" {
 			t.Errorf("APP_STORE_URL=%q: no problem reported", u)
 		}
+	}
+}
+
+func TestPrivyWalletURL_followsPrivyBaseURLUnlessWalletBaseURLIsSet(t *testing.T) {
+	t.Parallel()
+	if got := (config.Privy{BaseURL: "https://api.privy.io"}).WalletURL(); got != "https://api.privy.io" {
+		t.Fatalf("WalletURL() with no wallet base = %q, want PRIVY_BASE_URL", got)
+	}
+	both := config.Privy{BaseURL: "https://api.privy.io", WalletBaseURL: "http://fakes/privy"}
+	if got := both.WalletURL(); got != "http://fakes/privy" {
+		t.Fatalf("WalletURL() with a wallet base = %q, want PRIVY_WALLET_BASE_URL", got)
 	}
 }

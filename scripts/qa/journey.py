@@ -368,10 +368,11 @@ def check_journeys(journeys, accounts, git_apply_check=None, base_text=None):
             bad(journey.path, "timeout must be a whole number of seconds from 1 to 1800, not %r" % (journey.timeout,))
         if journey.simslim and not (ROOT / "ci" / "profiles" / ("%s.json" % journey.simslim)).is_file():
             bad(journey.path, "simslim names profile %r, which has no ci/profiles/%s.json" % (journey.simslim, journey.simslim))
-        if journey.rpc not in ("", "fake", "live"):
-            bad(journey.path, "rpc is %r: the values are fake and live" % journey.rpc)
-        if journey.rpc == "fake" and journey.funds:
-            bad(journey.path, "rpc: fake and funds cannot both be set: a journey that moves real USDC reads the chain")
+        if journey.rpc not in ("", "fake", "fake-trade", "live"):
+            bad(journey.path, "rpc is %r: the values are fake, fake-trade and live" % journey.rpc)
+        if journey.rpc in ("fake", "fake-trade") and journey.funds:
+            bad(journey.path, "rpc: %s and funds cannot both be set: a journey that moves real USDC reads the chain"
+                % journey.rpc)
         for required in journey.requires:
             if required not in by_id:
                 bad(journey.path, "requires %r, which is not a journey doc" % required)
@@ -753,6 +754,8 @@ def start_backend(base_url, timeout=300, trade_engine="stub", slot=0):
     env["MARKET_HISTORY_ENABLED"] = "false"
     if env.get("QA_FAKE_RPC") == "1":
         env["SOLANA_RPC_URL"] = env.get("QA_FAKES_URL", "http://127.0.0.1:8099") + "/rpc/"
+    if env.get("QA_FAKE_TRADE") == "1":
+        env.update(fake_trade_environment(env.get("QA_FAKES_URL", "http://127.0.0.1:8099")))
     env.setdefault("TRADE_ENGINE", trade_engine)
     with open(str(log), "a") as out:
         process = subprocess.Popen(["just", "run", "backend"], cwd=str(ROOT), env=env, stdout=out,
@@ -806,6 +809,21 @@ def stop_backend(process, grace=10, run=None, kill=os.kill, killpg=os.killpg, sl
         process.wait(timeout=5)
 
 
+def fake_trade_environment(fakes_url):
+    """The backend variables of an `rpc: fake-trade` run: the live trade engine, with Jupiter, wallet signing and
+    wallet creation going to the fakes at fakes_url, signed with the fakes' own authorization key. Privy auth and
+    user lookup stay on PRIVY_BASE_URL."""
+    with urllib.request.urlopen(fakes_url + "/_privy_authorization_key", timeout=10) as reply:
+        key = json.load(reply)["key"]
+    return {
+        "MONACO_JUPITER_SWAP_BASE_URL": fakes_url + "/jupiter/swap/v2",
+        "MONACO_JUPITER_PRICE_BASE_URL": fakes_url + "/jupiter/price/v3",
+        "PRIVY_WALLET_BASE_URL": fakes_url + "/privy",
+        "PRIVY_AUTHORIZATION_PRIVATE_KEY": key,
+        "TRADE_ENGINE": "live",
+    }
+
+
 def start_fakes(slot):
     """The recorded fake Solana RPC (cmd/fakes) for this slot, built and listening: the process, or an error."""
     port = FAKES_PORTS[slot]
@@ -830,16 +848,17 @@ def start_fakes(slot):
 
 
 @contextlib.contextmanager
-def fake_rpc_environment(slot):
+def fake_rpc_environment(slot, trade=False):
     """Points this run's backend and setup scripts at a fake RPC of its own (QA_FAKE_RPC, QA_FAKES_URL), unless the
     caller already exported QA_FAKE_RPC and runs its own bin/fakes. The public Solana endpoint rate-limits (429)."""
-    if "QA_FAKE_RPC" in os.environ:
-        yield
-        return
-    process = start_fakes(slot)
-    saved = {key: os.environ.get(key) for key in ("QA_FAKE_RPC", "QA_FAKES_URL")}
-    os.environ["QA_FAKE_RPC"] = "1"
-    os.environ["QA_FAKES_URL"] = "http://127.0.0.1:%d" % FAKES_PORTS[slot]
+    saved = {key: os.environ.get(key) for key in ("QA_FAKE_RPC", "QA_FAKES_URL", "QA_FAKE_TRADE")}
+    own = "QA_FAKE_RPC" not in os.environ
+    process = start_fakes(slot) if own else None
+    if own:
+        os.environ["QA_FAKE_RPC"] = "1"
+        os.environ["QA_FAKES_URL"] = "http://127.0.0.1:%d" % FAKES_PORTS[slot]
+    if trade:
+        os.environ["QA_FAKE_TRADE"] = "1"
     try:
         yield
     finally:
@@ -848,11 +867,12 @@ def fake_rpc_environment(slot):
                 os.environ.pop(key, None)
             else:
                 os.environ[key] = value
-        stop_backend(process)
+        if process is not None:
+            stop_backend(process)
 
 
 @contextlib.contextmanager
-def journey_backend(forced_slot=None, fake_rpc=False):
+def journey_backend(forced_slot=None, fake_rpc=False, fake_trade=False):
     """The api a run talks to. MONACO_API_BASE_URL names one that is already up; otherwise the run
     takes a slot's lock, refuses ports another process holds, and starts and stops its own backend. That backend
     runs the trade engine as a stub (TRADE_ENGINE=stub, local dev only) unless TRADE_ENGINE is set, which a run
@@ -865,7 +885,7 @@ def journey_backend(forced_slot=None, fake_rpc=False):
         print("journey slot %d: api :%d, worker :%d" % ((slot,) + SLOT_PORTS[slot]), flush=True)
         refuse_busy_ports(listeners(SLOT_PORTS[slot]), SLOT_PORTS[slot])
         base_url = slot_base_url(slot)
-        with fake_rpc_environment(slot) if fake_rpc else contextlib.nullcontext(), slot_nats(slot):
+        with fake_rpc_environment(slot, fake_trade) if fake_rpc else contextlib.nullcontext(), slot_nats(slot):
             with phase("backend_s"):
                 process = start_backend(base_url, slot=slot)
             try:
@@ -2582,7 +2602,8 @@ def cmd_run(args):
         print(warning, file=sys.stderr)
     builder = once_builder(args)
     os.environ.setdefault("TRADE_ENGINE", backend_trade_engine(args))
-    with simulator_shutdown(args.keep_sims), journey_backend(args.slot, backend_fake_rpc(args)) as api_base_url:
+    with simulator_shutdown(args.keep_sims), journey_backend(
+            args.slot, backend_fake_rpc(args), backend_fake_trade(args)) as api_base_url:
         if len(args.journey) == 1:
             code = run_journey(args, api_base_url, args.journey[0], builder)
         else:
@@ -2641,7 +2662,8 @@ def cmd_dev(args):
         raise JourneyError("%s has no scenario %s" % (journey.id, args.scenario))
     scenarios = journey.scenarios[:journey.scenarios.index(args.scenario or journey.scenarios[-1]) + 1]
     try:
-        with simulator_shutdown(args.keep_sims), journey_backend(args.slot, backend_fake_rpc(args)) as api_base_url:
+        with simulator_shutdown(args.keep_sims), journey_backend(
+            args.slot, backend_fake_rpc(args), backend_fake_trade(args)) as api_base_url:
             with actor_logins(journey, load_accounts()) as accounts:
                 return dev_loop(args, api_base_url, journeys, journey, scenarios, accounts)
     except KeyboardInterrupt:
@@ -2696,6 +2718,16 @@ def picked_journeys(args):
 
 def journey_fake_rpc(journey):
     return journey.rpc != "live" and not journey.funds
+
+
+def journey_fake_trade(journey):
+    return journey.rpc == "fake-trade" and not journey.funds
+
+
+def backend_fake_trade(args):
+    """True when a journey of the run declares `rpc: fake-trade`: the backend then also executes trades against the
+    fakes (Jupiter, Privy wallet signing) while Privy auth stays live."""
+    return any(journey_fake_trade(journey) for journey in picked_journeys(args))
 
 
 def backend_fake_rpc(args):
@@ -2977,7 +3009,8 @@ def run_mutants(args):
             kept = mutants_runs(mutants) / patch.stem
             clean_derived = DERIVED
             try:
-                with journey_backend(args.slot, journey_fake_rpc(journey)) as api_base_url:
+                with journey_backend(
+                        args.slot, journey_fake_rpc(journey), journey_fake_trade(journey)) as api_base_url:
                     problems = check_preconditions(journey, accounts, api_base_url, channel=args.channel)
                     if problems:
                         return setup_needed(journey, problems)

@@ -31,6 +31,7 @@ type UserID string
 
 type Client struct {
 	api       *httpclient.Client
+	wallets   *httpclient.Client
 	cfg       config.Privy
 	clock     clock.Clock
 	verifyKey *ecdsa.PublicKey
@@ -44,12 +45,16 @@ func New(cfg config.Config, clk clock.Clock, opts ...httpclient.Option) (*Client
 		return nil, errs.New(errs.CodeInvalidInput, "privy.New",
 			slog.String("reason", "PRIVY_VERIFICATION_KEY missing or not an ECDSA public key"))
 	}
-	return &Client{
-		api: httpclient.New("privy", append([]httpclient.Option{
-			httpclient.WithBaseURL(cfg.Privy.BaseURL),
+	newAPI := func(baseURL string) *httpclient.Client {
+		return httpclient.New("privy", append([]httpclient.Option{
+			httpclient.WithBaseURL(baseURL),
 			httpclient.WithTimeout(cfg.Timeouts.Privy),
 			httpclient.WithRetry(3, 250*time.Millisecond, 2*time.Second),
-		}, opts...)...),
+		}, opts...)...)
+	}
+	return &Client{
+		api:       newAPI(cfg.Privy.BaseURL),
+		wallets:   newAPI(cfg.Privy.WalletURL()),
 		cfg:       cfg.Privy,
 		clock:     clk,
 		verifyKey: verifyKey,
@@ -92,6 +97,10 @@ type call struct {
 	headers map[string]string
 }
 
+func walletPath(path string) bool {
+	return strings.HasPrefix(path, "/v1/wallet")
+}
+
 func (c *Client) do(ctx context.Context, in call, into any) error {
 	var body io.Reader
 	if in.body != nil {
@@ -105,7 +114,11 @@ func (c *Client) do(ctx context.Context, in call, into any) error {
 	for k, v := range in.headers {
 		req.Header.Set(k, v)
 	}
-	resp, err := c.api.Do(ctx, req)
+	api := c.api
+	if walletPath(in.path) {
+		api = c.wallets
+	}
+	resp, err := api.Do(ctx, req)
 	if err != nil {
 		if errors.Is(ctx.Err(), context.Canceled) {
 			return errs.Wrap(err, errs.CodeClientClosed, in.op)

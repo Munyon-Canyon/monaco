@@ -19,6 +19,8 @@
 #                                         exports each seeded id uppercased (CABAL_ID, ASSET_MINT, ...)
 #   qa_add_photo <udid>                   adds apps/mobile/qa/journeys/fixtures/photo.jpg to the simulator's Photos
 #   qa_fake_treasury_positions <cabal id> sets the cabal treasury's on-chain tokens on bin/fakes to its cabal_positions rows
+#   qa_fake_trade_wallet <cabal id>       registers the cabal treasury's Privy wallet id and address on bin/fakes (rpc: fake-trade)
+#   qa_fake_swap <cabal id> <status>      sets the next swap outcome (success, failed or pending) for that treasury on bin/fakes
 #   qa_fake_usdc <actor> <usdc>           sets the actor's on-chain USDC on bin/fakes (QA_FAKES_URL), e.g. 25 or 0.5
 #
 # QA_FAKE_RPC=1 exported before sourcing points SOLANA_RPC_URL at bin/fakes, so a backend started from this
@@ -208,6 +210,42 @@ qa_fake_treasury_positions() {
       return 1
     fi
   done <<< "$rows"
+}
+
+_qa_treasury() {
+  local cabal="$1" row
+  row="$(qa_sql -v cabal="$cabal" <<< "SELECT privy_wallet_id || '|' || address FROM treasury_wallets WHERE cabal_id = :'cabal'")"
+  if [[ -z "$row" ]]; then
+    echo "cabal $cabal has no treasury wallet" >&2
+    return 1
+  fi
+  printf '%s\n' "$row"
+}
+
+qa_fake_trade_wallet() {
+  local cabal="${1:?usage: qa_fake_trade_wallet <cabal id>}" row body
+  row="$(_qa_treasury "$cabal")" || return 1
+  body="$(printf '{"id":"%s","address":"%s"}' "${row%%|*}" "${row#*|}")"
+  if ! curl -fsS -X POST "$QA_FAKES/_wallet" -H "Content-Type: application/json" -d "$body"; then
+    echo "qa_fake_trade_wallet: POST $QA_FAKES/_wallet failed: is bin/fakes running there?" >&2
+    return 1
+  fi
+}
+
+qa_fake_swap() {
+  local cabal="${1:?usage: qa_fake_swap <cabal id> success|failed|pending}" outcome="${2:-}" row body
+  case "$outcome" in
+    success) outcome=Success ;;
+    failed) outcome=Failed ;;
+    pending) outcome=Pending ;;
+    *) echo "usage: qa_fake_swap <cabal id> success|failed|pending" >&2; return 1 ;;
+  esac
+  row="$(_qa_treasury "$cabal")" || return 1
+  body="$(printf '{"owner":"%s","status":"%s"}' "${row#*|}" "$outcome")"
+  if ! curl -fsS -X POST "$QA_FAKES/_swap" -H "Content-Type: application/json" -d "$body"; then
+    echo "qa_fake_swap: POST $QA_FAKES/_swap failed: is bin/fakes running there?" >&2
+    return 1
+  fi
 }
 
 qa_add_photo() {

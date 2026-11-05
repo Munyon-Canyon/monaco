@@ -25,6 +25,7 @@ const (
 
 type sent struct {
 	method string
+	host   string
 	path   string
 	query  string
 	header http.Header
@@ -48,7 +49,12 @@ func (u *upstream) RoundTrip(r *http.Request) (*http.Response, error) {
 	}
 	u.mu.Lock()
 	u.sent = append(u.sent, sent{
-		method: r.Method, path: r.URL.Path, query: r.URL.RawQuery, header: r.Header.Clone(), body: string(body),
+		method: r.Method,
+		host:   r.URL.Host,
+		path:   r.URL.Path,
+		query:  r.URL.RawQuery,
+		header: r.Header.Clone(),
+		body:   string(body),
 	})
 	u.mu.Unlock()
 	if u.transport != nil {

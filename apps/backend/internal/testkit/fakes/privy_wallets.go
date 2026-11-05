@@ -181,3 +181,12 @@ func writeJSON(w http.ResponseWriter, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(v)
 }
+
+func (s *Server) mountPrivyControl() {
+	s.mux.HandleFunc("POST /_wallet", s.setWallet)
+	s.mux.HandleFunc("GET /_privy_authorization_key", s.privyAuthorizationKey)
+}
+
+func (s *Server) privyAuthorizationKey(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, map[string]string{"key": PrivyAuthorizationKeyConfig(), "key_id": PrivyAuthorizationKeyID})
+}

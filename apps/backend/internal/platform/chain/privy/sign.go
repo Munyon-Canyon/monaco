@@ -49,7 +49,13 @@ func (c *Client) signedPost(op, path string, body any, idemKey string) call {
 	if idemKey != "" {
 		headers[idempotencyHeader] = idemKey
 	}
-	sig := AuthorizationSignature(c.authKey, method, strings.TrimRight(c.cfg.BaseURL, "/")+path, generic(body), headers)
+	sig := AuthorizationSignature(
+		c.authKey,
+		method,
+		strings.TrimRight(c.cfg.WalletURL(), "/")+path,
+		generic(body),
+		headers,
+	)
 	out := call{op: op, method: method, path: path, body: body, headers: map[string]string{authorizationHeader: sig}}
 	if idemKey != "" {
 		out.headers[idempotencyHeader] = idemKey

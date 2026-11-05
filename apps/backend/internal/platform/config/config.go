@@ -228,6 +228,13 @@ type Funding struct {
 	EVMForwardInterval        time.Duration
 }
 
+func (p Privy) WalletURL() string {
+	if p.WalletBaseURL != "" {
+		return p.WalletBaseURL
+	}
+	return p.BaseURL
+}
+
 type Privy struct {
 	AppID                   string
 	AppSecret               string
@@ -236,6 +243,7 @@ type Privy struct {
 	AuthorizationKeyID      string
 	WebhookSecret           string
 	BaseURL                 string
+	WalletBaseURL           string
 }
 
 type Solana struct {
@@ -557,6 +565,7 @@ func platformFields() []field {
 		text("PRIVY_AUTHORIZATION_KEY_ID", "", func(c *Config) *string { return &c.Privy.AuthorizationKeyID }),
 		text("PRIVY_WEBHOOK_SECRET", "", func(c *Config) *string { return &c.Privy.WebhookSecret }).secret(),
 		text("PRIVY_BASE_URL", "https://api.privy.io", func(c *Config) *string { return &c.Privy.BaseURL }),
+		text("PRIVY_WALLET_BASE_URL", "", func(c *Config) *string { return &c.Privy.WalletBaseURL }),
 		text("SOLANA_RPC_URL", "https://api.mainnet-beta.solana.com",
 			func(c *Config) *string { return &c.Solana.RPCURL }).secret(),
 		text("SOLANA_USDC_MINT", "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",

@@ -33,7 +33,8 @@ type SetSwap struct {
 }
 
 type SetWallet struct {
-	ID string `json:"id"`
+	ID      string `json:"id"`
+	Address string `json:"address,omitempty"`
 }
 
 type swapOrder struct {
@@ -276,10 +277,16 @@ func (s *Server) setWallet(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fieldError("id").Error(), http.StatusBadRequest)
 		return
 	}
-	s.mu.Lock()
-	s.wallets[sw.ID] = privyWallet{
-		ID: sw.ID, ChainType: "solana", Address: string(PrivyWalletAddress(sw.ID)),
+	address := string(PrivyWalletAddress(sw.ID))
+	if sw.Address != "" {
+		if _, err := chain.ParseAddress(sw.Address); err != nil {
+			http.Error(w, fieldError("address").Error(), http.StatusBadRequest)
+			return
+		}
+		address = sw.Address
 	}
+	s.mu.Lock()
+	s.wallets[sw.ID] = privyWallet{ID: sw.ID, ChainType: "solana", Address: address}
 	s.mu.Unlock()
 	w.WriteHeader(http.StatusNoContent)
 }
