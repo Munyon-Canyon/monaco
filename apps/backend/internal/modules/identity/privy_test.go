@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -198,7 +199,8 @@ func TestPrivyUsers_createsAnEmailUser(t *testing.T) {
 	c, u, _ := overPrivyFakes(t)
 	users := privyadapter.Users{Client: c}
 	id, err := users.Create(t.Context(), "dev-ab@example.com")
-	if err != nil || id != "did:privy:fake-1" || u.requests()[0] != "POST /privy/v1/users" {
+	issued := strings.HasPrefix(string(id), "did:privy:fake-") && strings.HasSuffix(string(id), "-1")
+	if err != nil || !issued || u.requests()[0] != "POST /privy/v1/users" {
 		t.Fatalf("Create = %q, %v, requests %v", id, err, u.requests())
 	}
 	if _, err := users.Create(t.Context(), ""); errs.CodeOf(err) != errs.CodeInvalidInput {
