@@ -100,7 +100,7 @@ enum CabalsBrowseJourney {
 
         recorder.step("S1.4", "search for the request cabal") {
             app.waitForToastGone()
-            app.tab("Cabals").tap()
+            app.tapBack()
             CabalsDiscoverJourney.openFind(app, step: "S1.4")
             JoinJourney.search(app, for: ask(run: run), step: "S1.4")
             assertResult(app, named: ask(run: run), reads: "1 member", step: "S1.4")
