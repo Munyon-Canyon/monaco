@@ -22,6 +22,9 @@
 #   qa_fake_trade_wallet <cabal id>       registers the cabal treasury's Privy wallet id and address on bin/fakes (rpc: fake-trade)
 #   qa_fake_swap <cabal id> <status>      sets the next swap outcome (success, failed or pending) for that treasury on bin/fakes
 #   qa_fake_usdc <actor> <usdc>           sets the actor's on-chain USDC on bin/fakes (QA_FAKES_URL), e.g. 25 or 0.5
+#   qa_fake_holding <actor> <symbol> <usdc> <cabal name>
+#                                         rpc: fake-trade: creates a cabal, funds it from the actor's fake USDC, then proposes
+#                                         and votes a buy of <symbol> through the API; prints the cabal id when the position is confirmed
 #
 # QA_FAKE_RPC=1 exported before sourcing points SOLANA_RPC_URL at bin/fakes, so a backend started from this
 # shell (just run backend, journey.py) reads balances that qa_fake_usdc sets instead of mainnet.
@@ -246,6 +249,65 @@ qa_fake_swap() {
     echo "qa_fake_swap: POST $QA_FAKES/_swap failed: is bin/fakes running there?" >&2
     return 1
   fi
+}
+
+_qa_json() {
+  python3 -c 'import json,sys; print(json.load(sys.stdin)[sys.argv[1]])' "$1"
+}
+
+# qa_fake_holding gets a holding the way a member does, never by writing money tables. A buy proposal checks the
+# ledger's cash, not the chain, so the cabal is funded with the fund sweep first. Prints the cabal id only.
+qa_fake_holding() {
+  local actor="${1:?usage: qa_fake_holding <actor> <symbol> <usdc> <cabal name>}" symbol="${2:?symbol}" usdc="${3:?usdc}"
+  local name="${4:?cabal name}" cabal micros transfer state proposal mint units n
+  if ! micros="$(python3 -c 'import decimal,sys; v = decimal.Decimal(sys.argv[1]) * 10**6
+assert v >= 1000000 and v == v.to_integral_value(), "usdc must be at least 1 with at most 6 decimals"
+print(int(v))' "$usdc")"; then
+    echo "qa_fake_holding: bad amount $usdc" >&2
+    return 1
+  fi
+  mint="$(qa_sql -v sym="$symbol" <<< "SELECT mint FROM assets WHERE symbol = :'sym'")"
+  if [[ -z "$mint" ]]; then
+    echo "qa_fake_holding: no asset $symbol in the catalogue" >&2
+    return 1
+  fi
+  cabal="$(qa_api "$actor" POST /v1/cabals "$(printf '{"name":"%s","join_mode":"request","voter_mode":"all","threshold":"majority","proposal_expiry_seconds":86400}' "$name")" |
+    _qa_json id)" || return 1
+  qa_fake_trade_wallet "$cabal" >&2 || return 1
+  qa_fake_usdc "$actor" "$usdc" >&2 || return 1
+  qa_fake_swap "$cabal" success >&2 || return 1
+  transfer="$(qa_api "$actor" POST "/v1/cabals/$cabal/fund" "$(printf '{"amount_micros":"%s"}' "$micros")" |
+    _qa_json transfer_id)" || return 1
+  for ((n = 0; n < 30; n++)); do
+    state="$(qa_api "$actor" GET "/v1/fund-transfers/$transfer" | _qa_json status)" || return 1
+    case "$state" in
+      settled) break ;;
+      failed)
+        echo "qa_fake_holding: fund transfer $transfer failed" >&2
+        return 1
+        ;;
+    esac
+    sleep 2
+  done
+  if [[ "$state" != settled ]]; then
+    echo "qa_fake_holding: fund transfer $transfer is still '$state' after 60 s" >&2
+    return 1
+  fi
+  proposal="$(qa_api "$actor" POST "/v1/cabals/$cabal/proposals" \
+    "$(printf '{"kind":"buy","symbol":"%s","usdc_micros":%s}' "$symbol" "$micros")" | _qa_json id)" || return 1
+  qa_api "$actor" POST "/v1/proposals/$proposal/votes" '{"choice":"yes"}' >/dev/null || return 1
+  for ((n = 0; n < 30; n++)); do
+    units="$(qa_sql -v cabal="$cabal" -v mint="$mint" \
+      <<< "SELECT units FROM cabal_positions WHERE cabal_id = :'cabal' AND asset = :'mint' AND units > 0")"
+    [[ -z "$units" ]] || break
+    sleep 2
+  done
+  if [[ -z "$units" ]]; then
+    echo "qa_fake_holding: no $symbol position in cabal $cabal after 60 s: the buy did not execute" >&2
+    return 1
+  fi
+  qa_fake_treasury_positions "$cabal" >&2 || return 1
+  echo "$cabal"
 }
 
 qa_add_photo() {
