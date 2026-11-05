@@ -257,7 +257,8 @@ _qa_json() {
 }
 
 # qa_fake_holding gets a holding the way a member does, never by writing money tables. A buy proposal checks the
-# ledger's cash, not the chain, so the cabal is funded with the fund sweep first. It buys half, leaving cash for the
+# ledger's cash and the treasury's on-chain USDC (the lower of the two), so the cabal is funded with the fund sweep first.
+# The fakes land the sweep but do not apply transfers, so the setup mirrors the ledger onto the fake chain before it proposes. It buys half, leaving cash for the
 # fee headroom the proposal check reserves (cashCovers needs the trade plus the mint's transfer-fee headroom).
 # Prints the cabal id only.
 qa_fake_holding() {
@@ -296,6 +297,7 @@ print(int(v))' "$usdc")"; then
     echo "qa_fake_holding: fund transfer $transfer is still '$state' after 60 s" >&2
     return 1
   fi
+  qa_fake_treasury_positions "$cabal" >&2 || return 1
   proposal="$(qa_api "$actor" POST "/v1/cabals/$cabal/proposals" \
     "$(printf '{"kind":"buy","symbol":"%s","usdc_micros":%s}' "$symbol" "$((micros / 2))")" | _qa_json id)" || return 1
   qa_api "$actor" POST "/v1/proposals/$proposal/votes" '{"choice":"yes"}' >/dev/null || return 1
