@@ -214,7 +214,7 @@ qa_fake_treasury_positions() {
 
 _qa_treasury() {
   local cabal="$1" row
-  row="$(qa_sql -v cabal="$cabal" <<< "SELECT privy_wallet_id || '|' || address FROM treasury_wallets WHERE cabal_id = :'cabal'")"
+  row="$(qa_sql -v cabal="$cabal" <<< "SELECT privy_wallet_id, address FROM treasury_wallets WHERE cabal_id = :'cabal'")"
   if [[ -z "$row" ]]; then
     echo "cabal $cabal has no treasury wallet" >&2
     return 1
