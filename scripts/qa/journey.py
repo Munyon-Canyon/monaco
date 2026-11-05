@@ -763,9 +763,27 @@ def ensure_slot_database(url, slot, out):
                stdout=subprocess.PIPE, stderr=out)
     if found.returncode != 0:
         raise JourneyError("could not look for database %s" % name)
-    if found.stdout.strip() != "1" and sh([psql, "-c", 'CREATE DATABASE "%s"' % name], env=env, stdout=out,
-                                          stderr=subprocess.STDOUT).returncode != 0:
+    if found.stdout.strip() == "1":
+        return False
+    if sh([psql, "-c", 'CREATE DATABASE "%s"' % name], env=env, stdout=out, stderr=subprocess.STDOUT).returncode != 0:
         raise JourneyError("could not create database %s" % name)
+    return True
+
+
+IDENTITY_TABLES = ("users", "user_wallets")
+
+
+def refuse_copied_identity(url, slot, out):
+    """A slot database starts with no member and no wallet: sign-in provisions a wallet only when none is stored, and
+    under fake RPC that wallet is one the fakes can sign for. A row copied from the dev database would bring a real
+    Privy wallet along."""
+    count = " + ".join("(SELECT count(*) FROM %s)" % table for table in IDENTITY_TABLES)
+    found = sh(["apps/mobile/qa/journeys/psql.sh", "-tAc", "SELECT %s" % count],
+               env=dict(backend_environment(), DATABASE_URL=slot_database_url(url, slot)),
+               stdout=subprocess.PIPE, stderr=out)
+    if found.returncode != 0 or found.stdout.strip() != "0":
+        raise JourneyError("the new database %s holds identity rows (%s): it must start with none" % (
+            slot_database_name(slot), found.stdout.strip() or "unreadable"))
 
 
 def apply_event_streams(log, nats_url=None, dev_database_url=None, slot=0):
@@ -783,14 +801,15 @@ def apply_event_streams(log, nats_url=None, dev_database_url=None, slot=0):
         for step in (["just", "build", "backend"], ["docker", "compose", "up", "-d", "--wait", "postgres"]):
             if sh(step, env=env, stdout=out, stderr=subprocess.STDOUT).returncode != 0:
                 raise JourneyError("%s failed, see %s" % (" ".join(step[:3]), log))
-        if dev_database_url:
-            ensure_slot_database(dev_database_url, slot, out)
+        created = dev_database_url and ensure_slot_database(dev_database_url, slot, out)
         steps = [["scripts/with-dotenv-local.sh", "bin/monacoctl", "bus", "apply"]]
         if dev_database_url:
             steps.insert(0, ["scripts/with-dotenv-local.sh", "bin/monacoctl", "migrate", "apply"])
         for step in steps:
             if sh(step, env=env, stdout=out, stderr=subprocess.STDOUT).returncode != 0:
                 raise JourneyError("%s failed, see %s" % (" ".join(step[:4]), log))
+            if created and step[3] == "apply" and step[2] == "migrate":
+                refuse_copied_identity(dev_database_url, slot, out)
 
 
 def start_backend(base_url, timeout=300, trade_engine="stub", slot=0):

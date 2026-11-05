@@ -1159,6 +1159,33 @@ class Slots(unittest.TestCase):
             self.assertEqual([c[0][-1] for c in created], ['CREATE DATABASE "monaco_qa_slot0"'] * creates)
             self.assertTrue(all("/postgres?" in url for _, url in calls))
 
+    def test_a_new_slot_database_is_created_empty_and_checked_for_identity_rows(self):
+        calls = []
+
+        def run(args, **kwargs):
+            calls.append(args)
+            query = args[-1]
+            out = "" if "pg_database" in query else "0" if query.startswith("SELECT (SELECT count") else ""
+            return types.SimpleNamespace(returncode=0, stdout=out)
+
+        with tempfile.TemporaryDirectory() as out, unittest.mock.patch.object(journey, "sh", run):
+            journey.apply_event_streams(Path(out) / "log", "nats://x", self.DEV_URL, 0)
+        text = [" ".join(c) for c in calls]
+        self.assertTrue(any('CREATE DATABASE "monaco_qa_slot0"' in c for c in text))
+        self.assertFalse(any("TEMPLATE" in c.upper() or "pg_dump" in c or "pg_restore" in c for c in text))
+        check = next(c for c in text if "FROM users" in c)
+        self.assertIn("FROM user_wallets", check)
+        self.assertLess(text.index(next(c for c in text if c.endswith("migrate apply"))), text.index(check))
+
+    def test_a_new_slot_database_with_identity_rows_stops_the_run(self):
+        def run(args, **kwargs):
+            query = args[-1]
+            return types.SimpleNamespace(returncode=0, stdout="2" if query.startswith("SELECT (SELECT count") else "")
+
+        with tempfile.TemporaryDirectory() as out, unittest.mock.patch.object(journey, "sh", run):
+            with self.assertRaisesRegex(journey.JourneyError, "holds identity rows"):
+                journey.apply_event_streams(Path(out) / "log", "nats://x", self.DEV_URL, 0)
+
     def test_the_run_environment_points_every_consumer_at_the_slot_database(self):
         with unittest.mock.patch.dict(os.environ, {"DATABASE_URL": self.DEV_URL}):
             with journey.slot_database_environment(1) as url:
