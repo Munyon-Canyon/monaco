@@ -6,6 +6,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"os/exec"
 	"strings"
 	"testing"
@@ -148,5 +149,27 @@ func TestServe_returnsAtOnceWhenTheListenerIsUnusable(t *testing.T) {
 	_ = ln.Close()
 	if err := serve(t.Context(), ln); !errors.Is(err, net.ErrClosed) {
 		t.Fatalf("serve = %v, want net.ErrClosed", err)
+	}
+}
+
+func firstUserID(t *testing.T) string {
+	t.Helper()
+	srv := httptest.NewServer(handler())
+	defer srv.Close()
+	_, body := do(t.Context(), t, http.MethodPost, srv.URL+"/privy/v1/users",
+		`{"linked_accounts":[{"type":"email","address":"a@example.test"}]}`)
+	return body
+}
+
+func TestHandler_journeyModeIssuesBootUniqueIDsAndTheDefaultIssuesTheRecordedOnes(t *testing.T) {
+	if body := firstUserID(t); !strings.Contains(body, `"did:privy:fake-1"`) {
+		t.Fatalf("default fakes first user = %q, want did:privy:fake-1", body)
+	}
+	t.Setenv("FAKES_JOURNEY", "1")
+	if body := firstUserID(
+		t,
+	); strings.Contains(body, `"did:privy:fake-1"`) ||
+		!strings.Contains(body, "did:privy:fake-") {
+		t.Fatalf("journey fakes first user = %q, want a boot-prefixed id", body)
 	}
 }

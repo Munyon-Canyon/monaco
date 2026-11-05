@@ -32,7 +32,7 @@ func TestFakes_twoBootsNeverIssueTheSameUserOrWalletID(t *testing.T) {
 	user := `{"linked_accounts":[{"type":"email","address":"a@example.test"}]}`
 	wallet := `{"chain_type":"solana","owner_id":"u"}`
 	evm := `{"chain_type":"ethereum","owner_id":"u"}`
-	one, two := fakes.New(), fakes.New()
+	one, two := fakes.New().ForJourneys(), fakes.New().ForJourneys()
 	for _, c := range []struct {
 		name, path, body string
 		header           []string
@@ -47,5 +47,21 @@ func TestFakes_twoBootsNeverIssueTheSameUserOrWalletID(t *testing.T) {
 		if a == b {
 			t.Fatalf("%s: two fakes boots both issued %q", c.name, a)
 		}
+	}
+}
+
+func TestFakes_theDefaultFakesIssueTheIDsTheFlowFixturesWereRecordedAgainst(t *testing.T) {
+	t.Parallel()
+	srv := fakes.New()
+	if got := issuedID(
+		t,
+		srv,
+		"/privy/v1/users",
+		`{"linked_accounts":[{"type":"email","address":"a@example.test"}]}`,
+	); got != "did:privy:fake-1" {
+		t.Fatalf("first user = %q, want did:privy:fake-1: the flows' owner fixtures are keyed by the default ids", got)
+	}
+	if got := issuedID(t, srv, "/privy/v1/wallets", `{"chain_type":"solana","owner_id":"u"}`); got != "wallet-1" {
+		t.Fatalf("first wallet = %q, want wallet-1: the flows' owner fixtures are keyed by the default ids", got)
 	}
 }

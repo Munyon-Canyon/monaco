@@ -58,7 +58,11 @@ func run(ctx context.Context, environ []string) error {
 func handler() http.Handler {
 	mux := http.NewServeMux()
 	multichain.New().Mount(mux)
-	mux.Handle("/", fakes.New())
+	srv := fakes.New()
+	if os.Getenv("FAKES_JOURNEY") == "1" {
+		srv.ForJourneys()
+	}
+	mux.Handle("/", srv)
 	return mux
 }
 

@@ -95,9 +95,30 @@ type Server struct {
 	nextUser     int
 	boot         string
 	multichain   privyMultichain
+	unseeded     unseededAnswer
 }
 
 func New() *Server { return newFrom(fixtures, "testdata/fakes") }
+
+type unseededAnswer int
+
+const (
+	unseededFixture unseededAnswer = iota
+	unseededEmpty
+)
+
+func (s *Server) ForJourneys() *Server {
+	s.unseeded = unseededEmpty
+	s.boot = bootID()
+	return s
+}
+
+func (s *Server) bootPart() string {
+	if s.boot == "" {
+		return ""
+	}
+	return s.boot + "-"
+}
 
 func newFrom(fsys fs.FS, root string) *Server {
 	s := &Server{
@@ -116,7 +137,6 @@ func newFrom(fsys fs.FS, root string) *Server {
 		blockhashes:  map[string]bool{},
 		unexecuted:   map[string]bool{},
 		upstreams:    upstreamsIn(fsys, root),
-		boot:         bootID(),
 	}
 	s.mux.HandleFunc("POST /_script", s.script)
 	s.mux.HandleFunc("POST /_balance", s.setBalance)
