@@ -16,3 +16,10 @@ test("the share links name the live domain, and the image they name is in the bu
 test("no meta tag still names the lapsed domain", () => {
   assert.doesNotMatch(html, /<meta[^>]*trymonaco\.xyz/);
 });
+
+test("the waitlist asks only for an email and an optional Twitter handle", () => {
+  const form = html.match(/<form data-waitlist[\s\S]*?<\/form>/)[0];
+  const fields = [...form.matchAll(/<input name="([a-z]+)"/g)].map((m) => m[1]);
+  assert.deepEqual(fields, ["email", "twitter", "company"]); // company is the honeypot
+  assert.match(html, /JSON\.stringify\(\{ email: email\.value\.trim\(\), twitter: handle\(tw\.value\), company: trap\.value, source:/);
+});

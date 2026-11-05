@@ -18,10 +18,6 @@ test("the page carries the marker once, under the status line at the foot of the
   assert.match(page, /<p class="st mono"[^>]*><\/p>\s*<!--eligibility-->\s*<\/form>/);
 });
 
-test("the line steps aside while the cabal question is open", () => {
-  assert.match(page, /\.bar\[data-step="2"\] ~ \.elig \{ display: none; \}/);
-});
-
 test("a line replaces the marker with one paragraph, trimmed", () => {
   const html = withEligibility(page, `  ${LINE}\n`);
   assert.ok(!html.includes(MARKER));

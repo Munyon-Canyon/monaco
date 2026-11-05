@@ -11,7 +11,7 @@ const MAX_EMAIL = 254;
 const TWITTER = /^[A-Za-z0-9_]{1,15}$/;
 const MAX_SOURCE = 64;
 const BAD_TWITTER = "Enter a valid Twitter handle, like @monaco, or leave it blank.";
-// Season 1. Keep in sync with index.html and waitlist_cabal_check in migrations/000030 (test/cabals.test.js checks).
+// Season 1. The page no longer asks; kept for callers that still send one. Keep in sync with waitlist_cabal_check in migrations/000030 (test/cabals.test.js checks).
 export const CABALS = ["cavemen", "pilates", "cadena", "degens", "undecided"];
 const BAD_CABAL = "Pick one of the cabals, or undecided.";
 const DEFAULT_ORIGINS = ["https://monacolabs.xyz", "https://www.monacolabs.xyz"];
