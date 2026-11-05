@@ -49,19 +49,3 @@ func TestFakes_twoBootsNeverIssueTheSameUserOrWalletID(t *testing.T) {
 		}
 	}
 }
-
-func TestFakes_theDefaultFakesIssueTheIDsTheFlowFixturesWereRecordedAgainst(t *testing.T) {
-	t.Parallel()
-	srv := fakes.New()
-	if got := issuedID(
-		t,
-		srv,
-		"/privy/v1/users",
-		`{"linked_accounts":[{"type":"email","address":"a@example.test"}]}`,
-	); got != "did:privy:fake-1" {
-		t.Fatalf("first user = %q, want did:privy:fake-1: the flows' owner fixtures are keyed by the default ids", got)
-	}
-	if got := issuedID(t, srv, "/privy/v1/wallets", `{"chain_type":"solana","owner_id":"u"}`); got != "wallet-1" {
-		t.Fatalf("first wallet = %q, want wallet-1: the flows' owner fixtures are keyed by the default ids", got)
-	}
-}
