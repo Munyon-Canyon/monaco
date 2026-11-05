@@ -2,7 +2,7 @@ import XCTest
 
 enum ProfileOverviewJourney {
     static let id = "profile/overview"
-    static let version = 15
+    static let version = 17
 
     static let signOutTitle = "Sign out of Monaco?"
     static let signOutMessage =
@@ -61,7 +61,7 @@ enum ProfileOverviewJourney {
                 "S1.2: the card still names a profit-and-loss column")
             XCTAssertTrue(
                 app.element("profile-stat-cabals").label.contains("cabal"), "S1.2: no 'cabal' or 'cabals' count")
-            if (try? JourneyHandoff.read("hasStanding")) == "1" { standingLine(app) }
+            standingLine(app)
         }
 
         recorder.step("S1.3", "find the cabal under Your cabals") {

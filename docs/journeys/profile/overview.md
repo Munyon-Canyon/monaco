@@ -1,8 +1,8 @@
 ---
 id: profile/overview
 title: Your profile
-version: 15
-rpc: fake
+version: 17
+rpc: fake-trade
 milestone: M9
 requires: [auth/sign-in]
 actors: [A]
@@ -24,8 +24,8 @@ The format of this doc is in [App journeys](../README.md). The Old app column na
 | --- | --- |
 | P1 | Everything [auth/sign-in](../auth/sign-in.md) needs |
 | P2 | Before each scenario, `apps/mobile/qa/journeys/profile/overview.setup.sh` sets A's `auth_state` to `ONBOARDING_COMPLETED`, so the onboarding nudge stays out of the way |
-| P3 | Before each scenario, the setup script reads A's portfolio (`GET /v1/me/portfolio`), which lists every cabal A is a member of, and hands the test the cabal where A holds shares and the stake is worth the most (a cabal A holds no shares in reads a dash instead of a dollar share, so S7.2 would fail on it), with its id as `cabalID` and its name as `cabalName`. When A holds none, it creates a cabal named `QA overview {QA.run}` and hands that over, and S1.3 fails because the app lists no unfunded cabal |
-| P4 | Before each scenario, the setup script reads A's profile (`GET /v1/users/{id}`), the call the screen makes, and hands the test `hasStanding`: `1` when the backend returns a `standing` for A, `0` when it does not. The backend drops it for an account with no resolved call in the current month, which is every account on the first days of a month |
+| P3 | Before each scenario, the setup script reads A's portfolio (`GET /v1/me/portfolio`), which lists every cabal A is a member of, and hands the test the cabal where A holds shares and the stake is worth the most (a cabal A holds no shares in reads a dash instead of a dollar share, so S7.2 would fail on it), with its id as `cabalID` and its name as `cabalName`. When A holds no shares anywhere, it seeds one with `qa_fake_holding A JRNYAx 25 "QA overview {QA.run}"` on the fakes: a cabal, a fund sweep from A's fake USDC, a buy of half, A votes yes, and the setup waits for the executed buy. It hands that cabal over |
+| P4 | Before each scenario, the setup script gives A a resolved call this month, so `GET /v1/users/{id}`, the call the screen makes, returns a `standing` (the backend drops it for an account with no resolved call in the current month). A call made through the product cannot resolve inside a run, because `resolve_at` is 24 h after the decision, so the script follows [ranking/leaderboards](../ranking/leaderboards.md): it seeds `F19aResolveCallsOK`, moves one seeded voter's `call_voters` rows to A, triggers a call-board rebuild and waits up to 20 s for it, then fails if the backend still returns no standing. Slot databases persist across runs, so it is idempotent: it seeds only when A has no resolved call this month (`call_voters` joined to `calls` with `state = 'resolved'` and `resolved_at` in the current month), so a rerun stacks no calls, moves no rows already A's, and S1.2 reads the same standing every run |
 
 ## Scenarios
 
@@ -36,7 +36,7 @@ Starts signed in (auth/sign-in).
 | Step | Action | Target | Input | Expect | Old app |
 | --- | --- | --- | --- | --- | --- |
 | S1.1 | tap | the Profile tab | | Within 15 s, `profile-card` shows with `profile-display-name` and `profile-handle` reading "@" and the handle, then "joined" with a month and year | `profile-root`, then `profile-card` |
-| S1.2 | wait | `profile-stat-cabals` | | Within 15 s, the card shows "Positions" (`profile-positions`) and "This month" (`profile-pnl-1m`), with no profit-and-loss label on the card, and the counts line ends with "cabal" or "cabals" by count (`profile-stat-cabals`, 1 or more). When `hasStanding` is `1`, `profile-standing` reads the ranked line, matching `^\d+ of \d+ right this month · \d+(st|nd|rd|th) of \d+$` with no "%" and no "#", or the unranked line containing "resolved this month". When it is `0`, the step does not look for it | The count badge on "Your cabals" (`cabalRows.count`) |
+| S1.2 | wait | `profile-stat-cabals` | | Within 15 s, the card shows "Positions" (`profile-positions`) and "This month" (`profile-pnl-1m`), with no profit-and-loss label on the card, and the counts line ends with "cabal" or "cabals" by count (`profile-stat-cabals`, 1 or more). `profile-standing` is always present and reads the ranked line, matching `^\d+ of \d+ right this month · \d+(st|nd|rd|th) of \d+$` with no "%" and no "#", or the unranked line containing "resolved this month" | | The count badge on "Your cabals" (`cabalRows.count`) |
 | S1.3 | tap, then scroll to | the Cabals tab (`profile-tab-cabals`), then `profile-cabal-row-{cabalID}` | | The tab lists the row for `cabalName` with its ownership share ("%") and, when A is an admin there, "admin". The row never reads "voter" | `ProfileCabalsSection` rows |
 | S1.4 | find | `profile-settings-row` | | The round button in the title bar reads "Settings" | None, new in spec ("Settings" row) |
 | S1.5 | read | `profile-cash-row`, `profile-add-money-link` | | The cash row reads "Cash" and "USDC", with no APY text and no `profile-apy-info` button. `profile-add-money-link` reads "Deposit" above the tab bar | None, new in spec |
@@ -74,7 +74,7 @@ Starts signed in (auth/sign-in).
 
 | Step | Action | Target | Input | Expect | Old app |
 | --- | --- | --- | --- | --- | --- |
-| S5.1 | tap | the Profile tab, then `profile-share-button` | | Within 15 s the share screen (`share-screen`) shows, pushed over Profile (screens.md: the share round in the title bar). Within 15 s `share-send` (“Share”) and `share-copy-image` (“Copy image”) both show and are enabled, side by side at the default text size (equal `frame.minY`, the second starting right of the first). A's own profile shares the ledger card, so the toggles `ledger-share-toggle-return`, `ledger-share-toggle-calls` and `ledger-share-toggle-code` read “Show return”, “Show calls” and “Show code” | New in the spec |
+| S5.1 | tap | the Profile tab, then `profile-share-button` | | Within 15 s the share screen (`share-screen`) shows, pushed over Profile (screens.md: the share round in the title bar). Within 15 s `share-send` (“Share”) and `share-copy-image` (“Copy image”) both show and are enabled, side by side at the default text size (equal `frame.minY`, the second starting right of the first). Profile shares the portfolio card, so the toggles `share-eye-pnl`, `share-eye-trades` and `share-eye-code` read “Show $”, “Show trades” and “Show code” | New in the spec |
 | S5.3 | tap | `share-copy-image` | | Within 10 s the toast reads "Image copied.", and no toast reads "Couldn’t make the image. Try again." The test waits for the toast to go before S5.2 | New in the spec |
 | S5.2 | tap | the Back button | | The share screen closes and `profile-card` still shows within 5 s | New in the spec |
 
