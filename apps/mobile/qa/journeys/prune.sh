@@ -46,12 +46,19 @@ for actor in A B C; do
 done
 started="${JOURNEY_RUN_STARTED:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}"
 
+# Only the run ids that name an active QA cabal are looked up: every run leaves its lock file behind, and testing
+# thousands of them one lockf at a time took 13 s per run (2026-11-04).
+ids="$("$here/psql.sh" -v ON_ERROR_STOP=1 -tA << 'SQL'
+SELECT DISTINCT right(name, 6) FROM cabals
+WHERE status = 'active' AND name LIKE 'QA %' AND name ~ ' [ABCDEFGHJKMNPQRSTUVWXYZ23456789]{6}$';
+SQL
+)"
+
 live=""
 lock_dir="${MONACO_QA_LOCK_DIR:-/tmp}"
-for lock in "$lock_dir"/monaco-qa-run-*.lock; do
+for id in $ids; do
+  lock="$lock_dir/monaco-qa-run-$id.lock"
   [[ -e "$lock" ]] || continue
-  id="${lock##*monaco-qa-run-}"
-  id="${id%.lock}"
   # lockf fails at once when a run holds the lock, so a failure means live. -k keeps the file.
   if [[ -x /usr/bin/lockf ]]; then
     /usr/bin/lockf -k -t 0 "$lock" true 2> /dev/null || live="${live:+$live,}$id"

@@ -1397,13 +1397,15 @@ class PruneQACabals(unittest.TestCase):
 
     SCRIPT = journey.QA / "prune.sh"
 
-    def run_script(self, url, psql_output="", lock_dir=None):
+    def run_script(self, url, psql_output="", lock_dir=None, run_ids=""):
         folder = tempfile.TemporaryDirectory()
         self.addCleanup(folder.cleanup)
         bin_dir = Path(folder.name)
         log = bin_dir / "calls"
         tool = bin_dir / "psql"
-        tool.write_text("#!/bin/bash\necho \"psql $*\" >> %s\n/bin/cat >> %s\nprintf '%%s' '%s'\n" % (log, log, psql_output))
+        tool.write_text("#!/bin/bash\necho \"psql $*\" >> %s\nquery=\"$(/bin/cat)\"\necho \"$query\" >> %s\n"
+                        "if [[ \"$query\" == *'SELECT DISTINCT right'* ]]; then printf '%%s' '%s'; "
+                        "else printf '%%s' '%s'; fi\n" % (log, log, run_ids, psql_output))
         tool.chmod(0o755)
         env = {"PATH": "%s:/usr/bin:/bin" % bin_dir, "DATABASE_URL": url,
                "JOURNEY_RUN_STARTED": "2026-10-30T12:00:00Z", "MONACO_QA_LOCK_DIR": lock_dir or folder.name}
@@ -1434,12 +1436,24 @@ class PruneQACabals(unittest.TestCase):
             with unittest.mock.patch.dict(os.environ, {"MONACO_QA_LOCK_DIR": locks}):
                 with journey.run_lock("HELD22"):
                     Path(journey.run_lock_path("DEAD22")).write_text("")
-                    done, calls = self.run_script("postgres://monaco:monaco@localhost:54322/monaco", lock_dir=locks)
+                    done, calls = self.run_script("postgres://monaco:monaco@localhost:54322/monaco", lock_dir=locks,
+                                                  run_ids="HELD22\nDEAD22\n")
                     self.assertIn("-v live={HELD22}", calls)
-                done, calls = self.run_script("postgres://monaco:monaco@localhost:54322/monaco", lock_dir=locks)
+                done, calls = self.run_script("postgres://monaco:monaco@localhost:54322/monaco", lock_dir=locks,
+                                              run_ids="HELD22\nDEAD22\n")
                 self.assertIn("-v live={}", calls)
         self.assertIn("right(c.name, 6) = ANY", calls)
         self.assertIn("created_at < :'started'::timestamptz - interval '1 hour'", calls)
+
+    def test_only_the_run_ids_of_active_qa_cabals_are_looked_up(self):
+        with tempfile.TemporaryDirectory() as locks:
+            with unittest.mock.patch.dict(os.environ, {"MONACO_QA_LOCK_DIR": locks}):
+                with journey.run_lock("HELD22"), journey.run_lock("OTHER2"):
+                    done, calls = self.run_script("postgres://monaco:monaco@localhost:54322/monaco", lock_dir=locks,
+                                                  run_ids="HELD22\n")
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertIn("-v live={HELD22}", calls)
+        self.assertIn("SELECT DISTINCT right(name, 6) FROM cabals", calls)
 
     def test_a_failed_prune_warns_and_does_not_raise(self):
         def runner(args, **kwargs):
@@ -1461,7 +1475,8 @@ class PruneQACabals(unittest.TestCase):
         done, calls = self.run_script("postgres://monaco:monaco@[::1]:54322/monaco",
                                       "skipped|id1|QA rich\nclosed|id2|QA old\nleft|id3|QA other\n")
         self.assertEqual(done.returncode, 0, done.stderr)
-        self.assertEqual(calls.count("psql "), 1)
+        self.assertEqual(calls.count("psql "), 2)
+        self.assertEqual(calls.count("BEGIN;"), 1)
         for text in ("BEGIN;", "COMMIT;", "fund_transfers", "cabal_positions", "p.units > 0",
                      "SET status = 'banned'", "DELETE FROM cabal_members", "LIKE 'QA %'", "interval '1 hour'",
                      "started=2026-10-30T12:00:00Z", "DELETE FROM rate_limit_buckets", ":actor:user:"):
@@ -1552,7 +1567,13 @@ class Simulators(Tree):
         registry = Path(self.tmp.name, "monaco-lane-sims.tsv").read_text()
         self.assertEqual(registry, "lane\tagent-7\tMonaco Journeys agent-7\n")
 
+    def boot_nothing(self):
+        booting = unittest.mock.patch.object(journey, "boot_simulator", lambda udid: None)
+        booting.start()
+        self.addCleanup(booting.stop)
+
     def test_a_new_simulator_is_slimmed_and_an_existing_one_is_checked(self):
+        self.boot_nothing()
         calls = []
         journey.sh = self.stub_for(calls)
         journey.resolve_simulator()
@@ -1564,7 +1585,18 @@ class Simulators(Tree):
         ensure = [c[1:] for c in calls if c[0].endswith("simslim-ensure.sh")]
         self.assertEqual(ensure, [["check", "have"]])
 
+    def test_an_existing_simulator_is_booted_before_simslim_checks_it(self):
+        self.boot_nothing()
+        order = []
+        stub = self.stub_for([])
+        journey.sh = lambda args, **kw: order.append(os.path.basename(args[0])) or stub(args, **kw)
+        journey.boot_simulator = lambda udid: order.append("boot " + udid)
+        self.devices["other"] = [{"udid": "have", "name": "Monaco Journeys", "isAvailable": True}]
+        journey.resolve_simulator()
+        self.assertLess(order.index("boot have"), order.index("simslim-ensure.sh"))
+
     def ensure_envs(self, **kwargs):
+        self.boot_nothing()
         envs = []
         stub = self.stub_for([])
         def capture(args, **kw):
@@ -2076,12 +2108,43 @@ class RemappedSetup(Output):
             seen.append((args, kwargs["env"]))
             return type("R", (), {"stdout": "ready\n", "returncode": 0})()
 
-        with unittest.mock.patch.object(journey, "sh", stub), redirect_stdout(StringIO()):
+        dev = "postgres://monaco:monaco@127.0.0.1:54322/monaco"
+        with unittest.mock.patch.object(journey, "sh", stub), redirect_stdout(StringIO()), \
+                unittest.mock.patch.dict(os.environ, {"DATABASE_URL": dev}), journey.slot_database_environment(1):
             journey.prepare_logins(loaded, self.accounts(), "http://127.0.0.1:8180")
         self.assertEqual([args for args, _ in seen], [["scripts/qa/ready-login.sh", "A"]])
         env = seen[0][1]
         self.assertEqual(env["MONACO_API_BASE_URL"], "http://127.0.0.1:8180")
+        self.assertEqual(env["DATABASE_URL"], journey.slot_database_url(dev, 1))
         self.assertIn("accounts-", env["QA_ACCOUNTS_FILE"])
+
+    def test_every_listed_actor_is_prepared_on_its_login_before_the_first_setup(self):
+        # home/dashboard's shape: its setup seeds C, who first acts in S2, so the run never signs C in before it.
+        loaded = types.SimpleNamespace(id="home/dashboard", actors=["A", "C"], funds={}, simslim="")
+        own = journey.load_accounts(environ={})
+        accounts = journey.logins_for(own, {"A": "C", "C": "A"})
+        events = []
+
+        def stub(args, **kwargs):
+            rows = dict(line.split("\t", 1) for line in Path(kwargs["env"]["QA_ACCOUNTS_FILE"]).read_text().splitlines())
+            events.append((args[-1], rows[args[-1]].split("\t")[-1]))
+            return type("R", (), {"stdout": "ready\n", "returncode": 0})()
+
+        def run_once(*args, **kwargs):
+            events.append("setup")
+            return [], "PASS"
+
+        cli = types.SimpleNamespace(sim="", channel="sms", runs=1, fresh=False)
+        with unittest.mock.patch.object(journey, "sh", stub), \
+                unittest.mock.patch.object(journey, "check_preconditions", lambda *a, **k: []), \
+                unittest.mock.patch.object(journey, "resolve_simulator", lambda *a, **k: "sim"), \
+                unittest.mock.patch.object(journey, "check_simulator_api_environment", lambda *a: None), \
+                unittest.mock.patch.object(journey, "reset_journey_simulator", lambda *a: None), \
+                unittest.mock.patch.object(journey, "build_label", lambda: "b"), \
+                unittest.mock.patch.object(journey, "run_once", run_once), redirect_stdout(StringIO()):
+            journey.run_journey_as(cli, "http://127.0.0.1:8280", {}, loaded, ["S1", "S2"], accounts, lambda sim: None)
+        self.assertEqual(events[:2], [("A", own["C"]["privy_user_id"]), ("C", own["A"]["privy_user_id"])])
+        self.assertEqual(events[2:], ["setup"])
 
     def test_a_failed_preparation_stops_the_run(self):
         loaded = journey.load_journeys()["auth/sign-in"]
@@ -2169,10 +2232,34 @@ qa_api() {
         done, calls = self.run_script("ready_login A", row="qa_cayman_cmu6gs|AWAITING_PHONE")
         self.assertEqual((done.returncode, calls), (0, []), done.stderr)
 
-    def test_a_login_with_no_users_row_waits_for_its_first_sign_in(self):
-        done, calls = self.run_script("ready_login A", row="")
-        self.assertEqual((done.returncode, calls), (0, []), done.stderr)
-        self.assertIn("signs in once first", done.stdout)
+    def test_a_login_with_no_users_row_signs_in_once_and_is_then_prepared(self):
+        body = 'qa_first_sign_in() { echo "signin $1" >> "$CALLS"; ROW="|CREATED"; }; ready_login A'
+        done, calls = self.run_script(body, row="", taken=())
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertEqual(calls, ["signin A", 'api A PUT /v1/me/handle {"handle":"qa_cayman"}',
+                                 'api A POST /v1/me/onboarding/skip {"step":"phone"}'])
+        self.assertIn("had no users row: signed in once", done.stdout)
+
+    def test_a_sign_in_that_leaves_no_users_row_fails(self):
+        done, calls = self.run_script('qa_first_sign_in() { :; }; ready_login A', row="")
+        self.assertNotEqual(done.returncode, 0)
+        self.assertIn("still has no users row", done.stderr)
+
+    def test_the_first_sign_in_is_privys_code_login_then_the_backend_session(self):
+        body = """_qa_account() { case "$2" in phone) echo 5555558215;; code) echo 123456;; esac; }
+qa_privy_ids() { printf 'PRIVY_APP_ID=app1\\nPRIVY_APP_CLIENT_ID=client1\\n'; }
+curl() { echo "curl $*" >> "$CALLS"; [[ "$*" == *authenticate* ]] && echo '{"token":"tok1"}'; return 0; }
+QA_API=http://127.0.0.1:8280
+qa_first_sign_in C"""
+        done, calls = self.run_script(body)
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertEqual(len(calls), 3, calls)
+        self.assertIn("passwordless_sms/init", calls[0])
+        self.assertIn('{"phoneNumber":"+1 5555558215"}', calls[0])
+        self.assertIn("privy-app-id: app1", calls[0])
+        self.assertIn("privy-client-id: client1", calls[0])
+        self.assertIn('"code":"123456"', calls[1])
+        self.assertIn("http://127.0.0.1:8280/v1/auth/session -H Authorization: Bearer tok1", calls[2])
 
 
 class StopBackend(unittest.TestCase):
@@ -2189,7 +2276,7 @@ class StopBackend(unittest.TestCase):
             calls.append(args)
             return remaining.pop(0) if len(remaining) > 1 else remaining[0]
 
-        process = type("P", (), {"pid": own, "wait": lambda self, timeout=None: None})()
+        process = type("P", (), {"pid": own, "wait": lambda self, timeout=None: None, "poll": lambda self: None})()
         journey.stop_backend(process, grace=1, run=run, kill=lambda pid, sig: signals.append((pid, sig)),
                              killpg=lambda pgid, sig: groups.append((pgid, sig)), sleep=sleeps.append)
         return calls, signals, groups, sleeps
@@ -2223,6 +2310,13 @@ class StopBackend(unittest.TestCase):
         self.assertEqual(signals, [(102, signal.SIGTERM)])
         self.assertEqual(groups, [(100, signal.SIGKILL)])
         self.assertEqual(len(sleeps), 5)
+
+    def test_a_killed_leader_is_reaped_so_the_stop_does_not_wait_out_the_grace(self):
+        process = subprocess.Popen(["sleep", "30"], start_new_session=True)
+        started = time.monotonic()
+        journey.stop_backend(process, grace=10)
+        self.assertLess(time.monotonic() - started, 3)
+        self.assertIsNotNone(process.returncode)
 
 
 class BusApply(unittest.TestCase):
