@@ -27,7 +27,7 @@ const (
 
 func TestSetBalance_ReadsBackThroughTokenBalance(t *testing.T) {
 	t.Parallel()
-	transport := inProcess{fakes.New().AnswerUnseededOwnersEmpty()}
+	transport := inProcess{fakes.New().ForJourneys()}
 	control := httpclient.New("fakes", httpclient.WithBaseURL("http://fakes.test"),
 		httpclient.WithTimeout(time.Minute), httpclient.WithTransport(transport))
 	rpc := solana.New(config.Config{
@@ -252,7 +252,7 @@ func unseededTokenAccounts(t *testing.T, srv *fakes.Server) reply {
 
 func TestRPC_AJourneyFakesAnswersAnUnseededOwnerWithNoTokenAccounts(t *testing.T) {
 	t.Parallel()
-	got := unseededTokenAccounts(t, fakes.New().AnswerUnseededOwnersEmpty())
+	got := unseededTokenAccounts(t, fakes.New().ForJourneys())
 	if got.status != http.StatusOK || !strings.Contains(got.body, `"value":[]`) {
 		t.Fatalf("getTokenAccountsByOwner for an unseeded owner = %d %q, want an empty value", got.status, got.body)
 	}

@@ -59,8 +59,8 @@ func handler() http.Handler {
 	mux := http.NewServeMux()
 	multichain.New().Mount(mux)
 	srv := fakes.New()
-	if os.Getenv("FAKES_UNSEEDED_EMPTY") == "1" {
-		srv.AnswerUnseededOwnersEmpty()
+	if os.Getenv("FAKES_JOURNEY") == "1" {
+		srv.ForJourneys()
 	}
 	mux.Handle("/", srv)
 	return mux

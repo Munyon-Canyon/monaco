@@ -103,7 +103,7 @@ func (s *Server) privyCreateWallet(w http.ResponseWriter, r *http.Request) {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	id := "wallet-" + s.boot + "-" + strconv.Itoa(len(s.wallets)+1)
+	id := "wallet-" + s.bootPart() + strconv.Itoa(len(s.wallets)+1)
 	if key := r.Header.Get("privy-idempotency-key"); key != "" {
 		sum := sha256.Sum256([]byte(s.boot + key))
 		id = "wallet-" + hex.EncodeToString(sum[:6])

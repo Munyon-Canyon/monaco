@@ -847,7 +847,7 @@ def start_fakes(slot):
     binary, log = OUT / ("fakes-slot%d" % slot), OUT / ("fakes-slot%d.log" % slot)
     print("starting the fake RPC on :%d (log: %s)" % (port, os.path.relpath(str(log), str(ROOT))))
     sh(["go", "-C", "apps/backend", "build", "-o", str(binary), "./cmd/fakes"], check=True)
-    env = dict(os.environ, FAKES_ADDR="127.0.0.1:%d" % port, FAKES_UNSEEDED_EMPTY="1")
+    env = dict(os.environ, FAKES_ADDR="127.0.0.1:%d" % port, FAKES_JOURNEY="1")
     with open(str(log), "w") as out:
         process = subprocess.Popen([str(binary)], cwd=str(ROOT), env=env, stdout=out, stderr=subprocess.STDOUT,
                                    start_new_session=True)
