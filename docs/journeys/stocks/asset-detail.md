@@ -82,7 +82,7 @@ Starts signed in (auth/sign-in), with a cabal of A's holding `JRNYAx` (P4).
 | --- | --- | --- | --- | --- |
 | S5.1 | tap, type, then tap | the Markets tab `tab-assets`, then `monaco-search-field`, then `assets-row-JRNYAx` | `JRNYA` | Within 15 s, `asset-detail-root` shows |
 | S5.2 | scroll to | `asset-in-your-cabals` | | Within 10 s, `asset-in-your-cabals` ("In your cabals") shows one `asset-held-<cabal id>` row per cabal that holds it, reading "<n> shares · <p>% of the treasury". Old app: the position card. screens.md: "Cabals holding <TICKER>" with one row per cabal of the viewer's that holds it |
-| S5.3 | scroll to, then tap | `asset-detail-propose-sell` | | Within 10 s, the propose screen opens with "Propose sell". Old app: Propose sell from the position card. screens.md: a sell action when a cabal holds it |
+| S5.3 | scroll to, then tap | `asset-detail-propose-sell` | | Within 10 s, `propose-amount-screen` shows with no navigation title and the header `propose-amount-operation` reads "Sell Journey Alpha". Old app: Propose sell from the position card. screens.md: a sell action when a cabal holds it |
 
 ## Ground truth
 
