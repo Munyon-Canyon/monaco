@@ -885,6 +885,8 @@ def stop_backend(process, grace=10, run=None, kill=os.kill, killpg=os.killpg, sl
             with contextlib.suppress(ProcessLookupError):
                 kill(pid, signal.SIGTERM)
     for _ in range(int(grace / 0.2)):
+        # The leader is this process's child: until it is reaped, its zombie keeps the group listed.
+        process.poll()
         if not [pid for pid, _ in backend_group(process.pid, run)]:
             break
         sleep(0.2)
@@ -1138,6 +1140,9 @@ def resolve_simulator(override="", logins=None, profile=""):
     name = journey_simulator_name(logins)
     udid = named_simulator(devices, name)
     if udid:
+        # `simslim verify` reads a booted simulator only: on a shut down one it fails, and the repair boots the
+        # simulator, slims it again and shuts it down, 5 s every run before the run boots it once more.
+        boot_simulator(udid)
         simslim_ensure("check", udid, profile)
         return udid
     device_type, runtime = simulator_template(devices)
