@@ -2740,6 +2740,7 @@ class MutantRunSetup(unittest.TestCase):
                                 ("use_derived_data", lambda l: None), ("resolve_simulator", lambda s, l, p: "sim"),
                                 ("check_simulator_api_environment", lambda s, u: None),
                                 ("reset_journey_simulator", lambda *a: None),
+                                ("prepare_logins", lambda j, a, u: trail.append("prepare_logins:" + u)),
                                 ("build_mutants", lambda *a: trail.append("build") or {"build_s": {}, "peak": 0}),
                                 ("journey_backend", backend),
                                 ("mutant_expectation", lambda p: list(expect)), ("run_once", run_once),
@@ -2763,8 +2764,14 @@ class MutantRunSetup(unittest.TestCase):
     def test_builds_hold_no_slot_and_each_patch_takes_and_releases_one(self):
         order = []
         self.mutant_env({"A": 5}, order=order, patches=2)
-        self.assertEqual(order, ["build", "take_slot", "run_once", "release_slot",
-                                 "take_slot", "run_once", "release_slot"])
+        self.assertEqual(order, ["build", "take_slot", "prepare_logins:http://x", "run_once", "release_slot",
+                                 "take_slot", "prepare_logins:http://x", "run_once", "release_slot"])
+
+    def test_each_pass_prepares_its_logins_on_its_own_backend_before_the_run(self):
+        order = []
+        self.mutant_env({"A": 5}, order=order)
+        self.assertEqual(order[order.index("take_slot"):],
+                         ["take_slot", "prepare_logins:http://x", "run_once", "release_slot"])
 
     def test_a_run_stops_after_the_last_scenario_the_patch_names(self):
         calls = []
