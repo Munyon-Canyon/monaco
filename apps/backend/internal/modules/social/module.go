@@ -348,6 +348,7 @@ func (m *Module) http() adapters.HTTP {
 		UoW: m.deps.UoW, Reads: m.deps.Pool, Members: m.members, Users: m.users, IDs: m.deps.IDs,
 		Clock: m.deps.Clock, Hints: m.deps.Bus, Stocks: m.stocks, Chat: chat.Publish,
 	}
+	chat.Comments = app.NewCreateCommentHandler(comments)
 	likes := app.LikeDeps{
 		UoW: m.deps.UoW, Reads: m.deps.Pool, Members: m.members, Clock: m.deps.Clock, Hints: m.deps.Bus,
 		Chat: chat.Publish,

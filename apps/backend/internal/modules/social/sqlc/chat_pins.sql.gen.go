@@ -24,7 +24,7 @@ func (q *Queries) CountChatPins(ctx context.Context, cabalID uuid.UUID) (int32, 
 }
 
 const listChatPins = `-- name: ListChatPins :many
-SELECT id, cabal_id, author_id, body, created_at, parent_id, also_in_channel, reply_count, last_reply_at, proposal_id, deleted_at, kind, moment, dedupe_key, pinned_at, pinned_by
+SELECT id, cabal_id, author_id, body, created_at, parent_id, also_in_channel, reply_count, last_reply_at, proposal_id, deleted_at, kind, moment, dedupe_key, pinned_at, pinned_by, comment_id
 FROM cabal_messages
 WHERE cabal_id = $1 AND pinned_at IS NOT NULL AND deleted_at IS NULL
 ORDER BY pinned_at DESC, id DESC
@@ -57,6 +57,7 @@ func (q *Queries) ListChatPins(ctx context.Context, cabalID uuid.UUID) ([]CabalM
 			&i.DedupeKey,
 			&i.PinnedAt,
 			&i.PinnedBy,
+			&i.CommentID,
 		); err != nil {
 			return nil, err
 		}

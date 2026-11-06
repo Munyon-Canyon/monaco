@@ -846,8 +846,15 @@ paths:
         asset is invalid_input with `reason=asset_not_found`. A reply names its `parent_id`, which must be a live top-level message
         in the same cabal: an unknown, deleted or other-cabal parent is chat_parent_not_found and
         a parent that is itself a reply is chat_parent_is_reply. `also_in_channel` shows the reply
-        in the channel too and needs a `parent_id`, otherwise invalid_input. A replay returns the
-        first response.
+        in the channel too and needs a `parent_id`, otherwise invalid_input. A reply to a
+        proposal card is stored as the proposal's feed comment, as `POST /v1/proposals/{id}/comments`
+        stores it, and comes back with `comment_id` set and `parent_id` the card: the body keeps the
+        comment's 1 to 1000 scalars (longer is invalid_input with `reason=comment_too_long`), the
+        attachment follows the comment rules, and a proposal with no feed item yet is
+        feed_item_pending, which is retryable. With `also_in_channel` it also writes one channel copy
+        that carries the same `comment_id` and shares the comment's reactions; the copy is not counted
+        in the card's `reply_count` and goes when its comment is deleted or removed. A replay returns
+        the first response.
       parameters:
         - $ref: "#/components/parameters/IdempotencyKey"
         - $ref: "#/components/parameters/ChatCabalId"

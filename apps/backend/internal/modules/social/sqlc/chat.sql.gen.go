@@ -148,7 +148,7 @@ func (q *Queries) GetChatCursor(ctx context.Context, arg GetChatCursorParams) (G
 }
 
 const getChatMessage = `-- name: GetChatMessage :one
-SELECT id, cabal_id, author_id, body, created_at, parent_id, also_in_channel, reply_count, last_reply_at, proposal_id, deleted_at, kind, moment, dedupe_key, pinned_at, pinned_by
+SELECT id, cabal_id, author_id, body, created_at, parent_id, also_in_channel, reply_count, last_reply_at, proposal_id, deleted_at, kind, moment, dedupe_key, pinned_at, pinned_by, comment_id
 FROM cabal_messages
 WHERE id = $1 AND cabal_id = $2
 `
@@ -178,6 +178,7 @@ func (q *Queries) GetChatMessage(ctx context.Context, arg GetChatMessageParams) 
 		&i.DedupeKey,
 		&i.PinnedAt,
 		&i.PinnedBy,
+		&i.CommentID,
 	)
 	return i, err
 }
@@ -255,6 +256,60 @@ func (q *Queries) GetProposalCommentCursor(ctx context.Context, arg GetProposalC
 	row := q.db.QueryRow(ctx, getProposalCommentCursor, arg.ID, arg.FeedObjectID)
 	var i GetProposalCommentCursorRow
 	err := row.Scan(&i.CreatedAt, &i.ID)
+	return i, err
+}
+
+const insertChatCommentCopy = `-- name: InsertChatCommentCopy :one
+INSERT INTO cabal_messages (id, cabal_id, author_id, body, created_at, parent_id, also_in_channel, comment_id)
+VALUES (
+  $1, $2, $3::uuid, NULLIF($4::text, ''), $5,
+  $6::uuid, true, $7::uuid
+)
+RETURNING id, cabal_id, author_id, body, created_at, parent_id, also_in_channel, comment_id
+`
+
+type InsertChatCommentCopyParams struct {
+	ID        uuid.UUID
+	CabalID   uuid.UUID
+	AuthorID  uuid.UUID
+	Body      string
+	CreatedAt time.Time
+	ParentID  uuid.UUID
+	CommentID uuid.UUID
+}
+
+type InsertChatCommentCopyRow struct {
+	ID            uuid.UUID
+	CabalID       uuid.UUID
+	AuthorID      pgtype.UUID
+	Body          pgtype.Text
+	CreatedAt     time.Time
+	ParentID      pgtype.UUID
+	AlsoInChannel bool
+	CommentID     pgtype.UUID
+}
+
+func (q *Queries) InsertChatCommentCopy(ctx context.Context, arg InsertChatCommentCopyParams) (InsertChatCommentCopyRow, error) {
+	row := q.db.QueryRow(ctx, insertChatCommentCopy,
+		arg.ID,
+		arg.CabalID,
+		arg.AuthorID,
+		arg.Body,
+		arg.CreatedAt,
+		arg.ParentID,
+		arg.CommentID,
+	)
+	var i InsertChatCommentCopyRow
+	err := row.Scan(
+		&i.ID,
+		&i.CabalID,
+		&i.AuthorID,
+		&i.Body,
+		&i.CreatedAt,
+		&i.ParentID,
+		&i.AlsoInChannel,
+		&i.CommentID,
+	)
 	return i, err
 }
 
@@ -386,7 +441,7 @@ func (q *Queries) InsertChatProposal(ctx context.Context, arg InsertChatProposal
 }
 
 const listChatChannel = `-- name: ListChatChannel :many
-SELECT id, cabal_id, author_id, body, created_at, parent_id, also_in_channel, reply_count, last_reply_at, proposal_id, deleted_at, kind, moment, pinned_at, pinned_by,
+SELECT id, cabal_id, author_id, body, created_at, parent_id, also_in_channel, reply_count, last_reply_at, proposal_id, deleted_at, kind, moment, pinned_at, pinned_by, comment_id,
   blocked_author.hit AS blocked
 FROM cabal_messages
 CROSS JOIN LATERAL (
@@ -437,6 +492,7 @@ type ListChatChannelRow struct {
 	Moment        []byte
 	PinnedAt      pgtype.Timestamptz
 	PinnedBy      pgtype.UUID
+	CommentID     pgtype.UUID
 	Blocked       bool
 }
 
@@ -473,6 +529,7 @@ func (q *Queries) ListChatChannel(ctx context.Context, arg ListChatChannelParams
 			&i.Moment,
 			&i.PinnedAt,
 			&i.PinnedBy,
+			&i.CommentID,
 			&i.Blocked,
 		); err != nil {
 			return nil, err
@@ -486,7 +543,7 @@ func (q *Queries) ListChatChannel(ctx context.Context, arg ListChatChannelParams
 }
 
 const listChatChannelAfter = `-- name: ListChatChannelAfter :many
-SELECT id, cabal_id, author_id, body, created_at, parent_id, also_in_channel, reply_count, last_reply_at, proposal_id, deleted_at, kind, moment, pinned_at, pinned_by,
+SELECT id, cabal_id, author_id, body, created_at, parent_id, also_in_channel, reply_count, last_reply_at, proposal_id, deleted_at, kind, moment, pinned_at, pinned_by, comment_id,
   blocked_author.hit AS blocked
 FROM cabal_messages
 CROSS JOIN LATERAL (
@@ -533,6 +590,7 @@ type ListChatChannelAfterRow struct {
 	Moment        []byte
 	PinnedAt      pgtype.Timestamptz
 	PinnedBy      pgtype.UUID
+	CommentID     pgtype.UUID
 	Blocked       bool
 }
 
@@ -568,6 +626,7 @@ func (q *Queries) ListChatChannelAfter(ctx context.Context, arg ListChatChannelA
 			&i.Moment,
 			&i.PinnedAt,
 			&i.PinnedBy,
+			&i.CommentID,
 			&i.Blocked,
 		); err != nil {
 			return nil, err
@@ -581,7 +640,7 @@ func (q *Queries) ListChatChannelAfter(ctx context.Context, arg ListChatChannelA
 }
 
 const listChatReplies = `-- name: ListChatReplies :many
-SELECT id, cabal_id, author_id, body, created_at, parent_id, also_in_channel, reply_count, last_reply_at, proposal_id, deleted_at, kind, moment, dedupe_key, pinned_at, pinned_by
+SELECT id, cabal_id, author_id, body, created_at, parent_id, also_in_channel, reply_count, last_reply_at, proposal_id, deleted_at, kind, moment, dedupe_key, pinned_at, pinned_by, comment_id
 FROM cabal_messages
 WHERE parent_id = $1::uuid
   AND deleted_at IS NULL
@@ -639,6 +698,7 @@ func (q *Queries) ListChatReplies(ctx context.Context, arg ListChatRepliesParams
 			&i.DedupeKey,
 			&i.PinnedAt,
 			&i.PinnedBy,
+			&i.CommentID,
 		); err != nil {
 			return nil, err
 		}
@@ -908,6 +968,43 @@ func (q *Queries) ProposalChatReplyStats(ctx context.Context, proposalIds []uuid
 	return items, nil
 }
 
+const proposalThreadParticipants = `-- name: ProposalThreadParticipants :many
+SELECT DISTINCT p.author_id
+FROM (
+  SELECT m.author_id FROM cabal_messages m WHERE m.id = $1 AND m.deleted_at IS NULL
+  UNION ALL
+  SELECT c.author_id FROM feed_comments c
+  WHERE c.feed_object_id = $2 AND c.author_kind = 'user' AND c.deleted_at IS NULL
+) AS p
+WHERE p.author_id IS NOT NULL
+ORDER BY p.author_id
+`
+
+type ProposalThreadParticipantsParams struct {
+	CardID       uuid.UUID
+	FeedObjectID uuid.UUID
+}
+
+func (q *Queries) ProposalThreadParticipants(ctx context.Context, arg ProposalThreadParticipantsParams) ([]pgtype.UUID, error) {
+	rows, err := q.db.Query(ctx, proposalThreadParticipants, arg.CardID, arg.FeedObjectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []pgtype.UUID
+	for rows.Next() {
+		var author_id pgtype.UUID
+		if err := rows.Scan(&author_id); err != nil {
+			return nil, err
+		}
+		items = append(items, author_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const seedChatSeen = `-- name: SeedChatSeen :exec
 INSERT INTO chat_seen (cabal_id, user_id, last_seen_at)
 VALUES (
@@ -931,6 +1028,43 @@ type SeedChatSeenParams struct {
 func (q *Queries) SeedChatSeen(ctx context.Context, arg SeedChatSeenParams) error {
 	_, err := q.db.Exec(ctx, seedChatSeen, arg.CabalID, arg.UserID, arg.JoinedAt)
 	return err
+}
+
+const softDeleteChatCopyOfComment = `-- name: SoftDeleteChatCopyOfComment :many
+UPDATE cabal_messages
+SET deleted_at = $1::timestamptz, pinned_at = NULL, pinned_by = NULL
+WHERE comment_id = $2::uuid AND deleted_at IS NULL
+RETURNING id, cabal_id
+`
+
+type SoftDeleteChatCopyOfCommentParams struct {
+	At        time.Time
+	CommentID uuid.UUID
+}
+
+type SoftDeleteChatCopyOfCommentRow struct {
+	ID      uuid.UUID
+	CabalID uuid.UUID
+}
+
+func (q *Queries) SoftDeleteChatCopyOfComment(ctx context.Context, arg SoftDeleteChatCopyOfCommentParams) ([]SoftDeleteChatCopyOfCommentRow, error) {
+	rows, err := q.db.Query(ctx, softDeleteChatCopyOfComment, arg.At, arg.CommentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SoftDeleteChatCopyOfCommentRow
+	for rows.Next() {
+		var i SoftDeleteChatCopyOfCommentRow
+		if err := rows.Scan(&i.ID, &i.CabalID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const softDeleteChatMessage = `-- name: SoftDeleteChatMessage :execrows

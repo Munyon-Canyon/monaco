@@ -12,6 +12,31 @@ VALUES (
 )
 RETURNING id, cabal_id, author_id, body, created_at, parent_id, also_in_channel;
 
+-- name: InsertChatCommentCopy :one
+INSERT INTO cabal_messages (id, cabal_id, author_id, body, created_at, parent_id, also_in_channel, comment_id)
+VALUES (
+  sqlc.arg(id), sqlc.arg(cabal_id), sqlc.arg(author_id)::uuid, NULLIF(sqlc.arg(body)::text, ''), sqlc.arg(created_at),
+  sqlc.arg(parent_id)::uuid, true, sqlc.arg(comment_id)::uuid
+)
+RETURNING id, cabal_id, author_id, body, created_at, parent_id, also_in_channel, comment_id;
+
+-- name: SoftDeleteChatCopyOfComment :many
+UPDATE cabal_messages
+SET deleted_at = sqlc.arg(at)::timestamptz, pinned_at = NULL, pinned_by = NULL
+WHERE comment_id = sqlc.arg(comment_id)::uuid AND deleted_at IS NULL
+RETURNING id, cabal_id;
+
+-- name: ProposalThreadParticipants :many
+SELECT DISTINCT p.author_id
+FROM (
+  SELECT m.author_id FROM cabal_messages m WHERE m.id = sqlc.arg(card_id) AND m.deleted_at IS NULL
+  UNION ALL
+  SELECT c.author_id FROM feed_comments c
+  WHERE c.feed_object_id = sqlc.arg(feed_object_id) AND c.author_kind = 'user' AND c.deleted_at IS NULL
+) AS p
+WHERE p.author_id IS NOT NULL
+ORDER BY p.author_id;
+
 -- name: InsertChatMoment :one
 INSERT INTO cabal_messages (id, cabal_id, kind, moment, dedupe_key, created_at)
 VALUES (sqlc.arg(id), sqlc.arg(cabal_id), 'system', sqlc.arg(moment)::jsonb, sqlc.arg(dedupe_key)::text, sqlc.arg(created_at))
@@ -50,7 +75,7 @@ FROM cabal_messages
 WHERE id = sqlc.arg(id) AND cabal_id = sqlc.arg(cabal_id);
 
 -- name: ListChatChannel :many
-SELECT id, cabal_id, author_id, body, created_at, parent_id, also_in_channel, reply_count, last_reply_at, proposal_id, deleted_at, kind, moment, pinned_at, pinned_by,
+SELECT id, cabal_id, author_id, body, created_at, parent_id, also_in_channel, reply_count, last_reply_at, proposal_id, deleted_at, kind, moment, pinned_at, pinned_by, comment_id,
   blocked_author.hit AS blocked
 FROM cabal_messages
 CROSS JOIN LATERAL (
@@ -75,7 +100,7 @@ ORDER BY created_at DESC, id DESC
 LIMIT sqlc.arg(row_limit)::int;
 
 -- name: ListChatChannelAfter :many
-SELECT id, cabal_id, author_id, body, created_at, parent_id, also_in_channel, reply_count, last_reply_at, proposal_id, deleted_at, kind, moment, pinned_at, pinned_by,
+SELECT id, cabal_id, author_id, body, created_at, parent_id, also_in_channel, reply_count, last_reply_at, proposal_id, deleted_at, kind, moment, pinned_at, pinned_by, comment_id,
   blocked_author.hit AS blocked
 FROM cabal_messages
 CROSS JOIN LATERAL (
@@ -97,12 +122,12 @@ ORDER BY created_at, id
 LIMIT sqlc.arg(row_limit)::int;
 
 -- name: GetChatMessage :one
-SELECT id, cabal_id, author_id, body, created_at, parent_id, also_in_channel, reply_count, last_reply_at, proposal_id, deleted_at, kind, moment, dedupe_key, pinned_at, pinned_by
+SELECT id, cabal_id, author_id, body, created_at, parent_id, also_in_channel, reply_count, last_reply_at, proposal_id, deleted_at, kind, moment, dedupe_key, pinned_at, pinned_by, comment_id
 FROM cabal_messages
 WHERE id = sqlc.arg(id) AND cabal_id = sqlc.arg(cabal_id);
 
 -- name: ListChatReplies :many
-SELECT id, cabal_id, author_id, body, created_at, parent_id, also_in_channel, reply_count, last_reply_at, proposal_id, deleted_at, kind, moment, dedupe_key, pinned_at, pinned_by
+SELECT id, cabal_id, author_id, body, created_at, parent_id, also_in_channel, reply_count, last_reply_at, proposal_id, deleted_at, kind, moment, dedupe_key, pinned_at, pinned_by, comment_id
 FROM cabal_messages
 WHERE parent_id = sqlc.arg(parent_id)::uuid
   AND deleted_at IS NULL

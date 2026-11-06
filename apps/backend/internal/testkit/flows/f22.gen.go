@@ -5,6 +5,7 @@ package flows
 func (defined) ScriptsF22() map[string]Script {
 	return map[string]Script{
 		"F22PostChatMessageOK":                    F22PostChatMessageOK,
+		"F22PostChatMessageFeedItemPending":       F22PostChatMessageFeedItemPending,
 		"F22PostChatMessageNotCabalMember":        F22PostChatMessageNotCabalMember,
 		"F22PostChatMessageChatParentNotFound":    F22PostChatMessageChatParentNotFound,
 		"F22PostChatMessageChatParentIsReply":     F22PostChatMessageChatParentIsReply,

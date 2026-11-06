@@ -104,7 +104,18 @@ func NewCreateCommentHandler(d CommentDeps) *CreateCommentHandler {
 	return &CreateCommentHandler{d: d}
 }
 
+type CommentStored struct {
+	Comment Comment
+	Reached []uuid.UUID
+}
+
+type AlsoStore func(ctx context.Context, tx db.Tx, stored CommentStored) error
+
 func (h *CreateCommentHandler) Handle(ctx context.Context, cmd CreateComment) (Comment, error) {
+	return h.HandleWith(ctx, cmd, nil)
+}
+
+func (h *CreateCommentHandler) HandleWith(ctx context.Context, cmd CreateComment, also AlsoStore) (Comment, error) {
 	const op = "social.CreateComment"
 	item, thread, err := ResolveThread(ctx, sqlc.New(h.d.Reads), cmd.FeedObjectID)
 	if err != nil {
@@ -137,8 +148,9 @@ func (h *CreateCommentHandler) Handle(ctx context.Context, cmd CreateComment) (C
 	}
 	var created Comment
 	err = h.d.UoW.Do(ctx, func(ctx context.Context, tx db.Tx) error {
+		var mentioned []uuid.UUID
 		var err error
-		created, err = h.store(ctx, tx, postedOn{item: item, thread: thread, rule: rule}, cmd, reply)
+		created, mentioned, err = h.store(ctx, tx, postedOn{item: item, thread: thread, rule: rule}, cmd, reply)
 		if err != nil {
 			return err
 		}
@@ -149,7 +161,11 @@ func (h *CreateCommentHandler) Handle(ctx context.Context, cmd CreateComment) (C
 			posted := created
 			tx.AfterCommit(func(ctx context.Context) { h.d.Chat.commentCreated(ctx, h.d.Reads, posted) })
 		}
-		return nil
+		if also == nil {
+			return nil
+		}
+		reached := append([]uuid.UUID{thread.ActorID.Bytes}, mentioned...)
+		return also(ctx, tx, CommentStored{Comment: created, Reached: reached})
 	})
 	if err != nil {
 		return Comment{}, err
@@ -167,12 +183,12 @@ type postedOn struct {
 
 func (h *CreateCommentHandler) store(
 	ctx context.Context, tx db.Tx, at postedOn, cmd CreateComment, reply replyDraft,
-) (Comment, error) {
+) (Comment, []uuid.UUID, error) {
 	const op = "social.CreateComment"
 	q := sqlc.New(tx.Queries())
 	target, place, err := loadParent(ctx, q, cmd, at.thread.ActorID.Bytes)
 	if err != nil {
-		return Comment{}, err
+		return Comment{}, nil, err
 	}
 	body := ""
 	if cmd.Input.Body != nil {
@@ -184,13 +200,13 @@ func (h *CreateCommentHandler) store(
 		Body: body, CreatedAt: h.d.Clock.Now().UTC(),
 	})
 	if err != nil {
-		return Comment{}, errs.Wrap(err, errs.CodeInternal, op)
+		return Comment{}, nil, errs.Wrap(err, errs.CodeInternal, op)
 	}
 	if _, err := q.BumpCommentCount(ctx, sqlc.BumpCommentCountParams{Delta: 1, ID: cmd.FeedObjectID}); err != nil {
-		return Comment{}, errs.Wrap(err, errs.CodeInternal, op)
+		return Comment{}, nil, errs.Wrap(err, errs.CodeInternal, op)
 	}
 	if err := reply.insert(ctx, q, h.d.IDs.NewV7(), row, cmd.Input.Text().String()); err != nil {
-		return Comment{}, errs.Wrap(err, errs.CodeInternal, op)
+		return Comment{}, nil, errs.Wrap(err, errs.CodeInternal, op)
 	}
 	created := commentOf(row)
 	if att := cmd.Input.Attachment; att != nil {
@@ -202,11 +218,11 @@ func (h *CreateCommentHandler) store(
 			CreatedAt:    row.CreatedAt,
 		})
 		if err != nil {
-			return Comment{}, errs.Wrap(err, errs.CodeInternal, op)
+			return Comment{}, nil, errs.Wrap(err, errs.CodeInternal, op)
 		}
 		created.Attachment, created.Poll, err = storePoll(ctx, q, row, att)
 		if err != nil {
-			return Comment{}, err
+			return Comment{}, nil, err
 		}
 	}
 	hint := FeedHint
@@ -216,7 +232,7 @@ func (h *CreateCommentHandler) store(
 	tx.AfterCommit(func(ctx context.Context) { h.d.Hints.PublishHint(ctx, hint, nil) })
 	mentioned, err := h.resolveCommentMentions(ctx, tx, at, cmd.Author, cmd.Input.Text().String())
 	if err != nil {
-		return Comment{}, err
+		return Comment{}, nil, err
 	}
 	if target.ID != uuid.Nil {
 		created.ReplyTo = quoteOf(
@@ -226,7 +242,7 @@ func (h *CreateCommentHandler) store(
 	}
 	event := createdEvent(at, row, target, cmd.Input)
 	event.MentionedUserIDs = mentioned
-	return created, tx.Events.Append(ctx, event)
+	return created, mentioned, tx.Events.Append(ctx, event)
 }
 
 type replyDraft struct {
