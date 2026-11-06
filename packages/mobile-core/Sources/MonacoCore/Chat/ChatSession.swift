@@ -135,8 +135,9 @@ public actor ChatSession {
 
     private func applyToTimeline(_ event: ChatRealtimeEvent) -> Bool {
         switch event {
-        case .threadUpdated(let id, let replyCount, let lastReplyAt):
-            state.timeline.applyThread(id: id, replyCount: replyCount, lastReplyAt: lastReplyAt)
+        case .threadUpdated(let id, let replyCount, let lastReplyAt, let lastRepliers):
+            state.timeline.applyThread(
+                id: id, replyCount: replyCount, lastReplyAt: lastReplyAt, lastRepliers: lastRepliers)
         case .messageDeleted(let id):
             state.timeline.markDeleted(id: id)
         case .reactionUpdated(let id, let counts, let total):
@@ -149,7 +150,8 @@ public actor ChatSession {
         return true
     }
 
-    func apply(_ event: ChatRealtimeEvent) async {
+    func apply(_ received: ChatRealtimeEvent) async {
+        let event = await unblocked(received)
         if case .messageCreated(let message) = event, await isBlocked(message) { return }
         if case .messageDeleted(let id) = event { await state.pins.drop(messageID: id) }
         for thread in attached.values { await thread.apply(event) }

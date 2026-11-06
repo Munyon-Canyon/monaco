@@ -105,7 +105,7 @@ public final class ChatPinsModel {
     }
 
     public func canPin(_ message: ChatMessage, role: String?, viewerID: String) -> Bool {
-        guard !message.deleted, message.parentId == nil else { return false }
+        guard !message.deleted, message.parentId == nil, !message.isCommentBacked else { return false }
         if CabalInviteCopy.isAdmin(role: role) { return true }
         return message.kind != .system && message.author.id == viewerID
     }

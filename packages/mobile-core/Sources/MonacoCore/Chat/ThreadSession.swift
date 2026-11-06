@@ -120,10 +120,9 @@ public actor ThreadSession {
         switch event {
         case .messageCreated(let message):
             guard state.timeline.insertLive(message) else { return }
-        case .threadUpdated(let id, let replyCount, let lastReplyAt):
+        case .threadUpdated(let id, let replyCount, let lastReplyAt, let lastRepliers):
             guard id == parentID else { return }
-            state.parent?.replyCount = replyCount
-            state.parent?.lastReplyAt = lastReplyAt
+            applyParent(replyCount: replyCount, lastReplyAt: lastReplyAt, lastRepliers: lastRepliers)
         case .messageDeleted(let id):
             guard id != parentID else {
                 state.parent?.deleted = true
@@ -162,25 +161,27 @@ public actor ThreadSession {
         if state.timeline.messages.count != before { publish() }
     }
 
-    func hide(id: String) -> ChatMessage? {
-        let previous: ChatMessage?
-        if id == parentID {
-            previous = state.parent
+    func hide(id: String) -> [ChatMessage] {
+        var previous: [ChatMessage] = []
+        if id == parentID, let parent = state.parent {
+            previous.append(parent)
             state.parent?.deleted = true
             state.parent?.body = nil
         } else {
-            previous = state.timeline.message(id: id)
+            previous = state.timeline.messages(matching: id)
             state.timeline.markDeleted(id: id)
         }
-        if previous != nil { publish() }
+        if !previous.isEmpty { publish() }
         return previous
     }
 
-    func restore(_ message: ChatMessage) {
-        if message.id == parentID {
-            state.parent = message
-        } else {
-            state.timeline.restore(message)
+    func restore(_ messages: [ChatMessage]) {
+        for message in messages {
+            if message.id == parentID {
+                state.parent = message
+            } else {
+                state.timeline.restore(message)
+            }
         }
         publish()
     }
@@ -267,5 +268,17 @@ public actor ThreadSession {
 
     private func removeSubscriber(_ id: UUID) {
         subscribers[id] = nil
+    }
+}
+
+extension ThreadSession {
+    func commentID(of id: String) -> String? {
+        state.timeline.message(id: id)?.commentID
+    }
+
+    private func applyParent(replyCount: Int, lastReplyAt: Date, lastRepliers: [Components.Schemas.ChatAuthor]?) {
+        state.parent?.replyCount = replyCount
+        state.parent?.lastReplyAt = lastReplyAt
+        if let lastRepliers { state.parent?.lastRepliers = lastRepliers }
     }
 }
