@@ -319,6 +319,7 @@ chat-poll                     -MonacoChatSampleQA -MonacoChatSamplePoll
 chat-pins                     -MonacoChatSampleQA -MonacoChatSamplePins
 chat-pin-vote                 -MonacoChatSampleQA -MonacoChatSampleOpenVote
 chat-pin-vote-closed          -MonacoChatSampleQA -MonacoChatSampleOpenVoteClosed
+chat-pins-sheet-votes         -MonacoChatSampleQA -MonacoChatSampleOpenVote -MonacoChatSamplePinsSheet
 chat-empty                    -MonacoChatSampleQA -MonacoChatSampleEmpty
 chat-offline                  -MonacoChatSampleQA -MonacoChatSampleOffline
 chat-moments                  -MonacoChatSampleQA -MonacoChatSampleMoments

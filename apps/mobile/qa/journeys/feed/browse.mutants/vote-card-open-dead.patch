@@ -12,8 +12,8 @@ index 411fbdbb1..0dd6d0a59 100644
              yes: tally.yes, no: tally.no, eligible: tally.voters,
              identifierPrefix: identifierPrefix, identifierSuffix: model.id, showsChevron: !compact,
              ruleIcon: inCabal ? .eye : .thesis,
--            onOpen: { environment.navigator.open(ProposalRoute(proposalID: model.id), in: tab) }
-+            onOpen: { if identifierPrefix != "feed" { environment.navigator.open(ProposalRoute(proposalID: model.id), in: tab) } }
+-            onOpen: { openProposal() }
++            onOpen: { if identifierPrefix != "feed" { openProposal() } }
          ) {
              if let outcome = model.outcome, outcome.settled, collapsed {
                  settledLine(outcome)

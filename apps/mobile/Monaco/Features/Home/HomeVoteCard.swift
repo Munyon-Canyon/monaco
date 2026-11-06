@@ -9,6 +9,7 @@ struct HomeVoteCard: View {
     var compact = false
     var inCabal = false
     var canVote = true
+    var open: (() -> Void)?
     @Environment(AppEnvironment.self) private var environment
     @Environment(ToastCenter.self) private var toasts
     @State private var holding = false
@@ -18,7 +19,7 @@ struct HomeVoteCard: View {
 
     init(
         model: HomeVoteCardModel, identifierPrefix: String = "home", tab: MainTab = .home, compact: Bool = false,
-        inCabal: Bool = false, canVote: Bool = true
+        inCabal: Bool = false, canVote: Bool = true, open: (() -> Void)? = nil
     ) {
         self.model = model
         self.identifierPrefix = identifierPrefix
@@ -26,6 +27,7 @@ struct HomeVoteCard: View {
         self.compact = compact
         self.inCabal = inCabal
         self.canVote = canVote
+        self.open = open
         _collapsed = State(initialValue: Self.hasCollapsed(model, now: .now))
     }
 
@@ -54,7 +56,7 @@ struct HomeVoteCard: View {
             yes: tally.yes, no: tally.no, eligible: tally.voters,
             identifierPrefix: identifierPrefix, identifierSuffix: model.id, showsChevron: !compact,
             ruleIcon: inCabal ? .eye : .thesis,
-            onOpen: { environment.navigator.open(ProposalRoute(proposalID: model.id), in: tab) }
+            onOpen: { openProposal() }
         ) {
             if let outcome = model.outcome, outcome.settled, collapsed {
                 settledLine(outcome)
@@ -67,6 +69,14 @@ struct HomeVoteCard: View {
         .task(id: model.isSettled) { await collapseWhenDue() }
         .onChange(of: model.isSettled) { _, settled in if !settled { collapsed = false } }
         .onChange(of: model.phase) { _, new in phaseChanged(new) }
+    }
+
+    private func openProposal() {
+        if let open {
+            open()
+        } else {
+            environment.navigator.open(ProposalRoute(proposalID: model.id), in: tab)
+        }
     }
 
     private func collapseWhenDue() async {
