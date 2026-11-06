@@ -212,7 +212,7 @@ final class ChatCommentBackedTests: XCTestCase {
         let transport = StubTransport(scripted: [])
         let api = APIClient(
             serverURL: testServerURL, tokens: StubTokenProvider(token: "token-1"), transport: transport)
-        let pins = await ChatPinsModel(cabalID: Fixtures.cabalID, viewerID: Fixtures.viewerID, api: api)
+        let pins = ChatPinsModel(cabalID: Fixtures.cabalID, viewerID: Fixtures.viewerID, api: api)
         let top = Fixtures.message("m1", author: Fixtures.viewerID, minutes: 1)
         var backed = top
         backed.commentId = commentID
