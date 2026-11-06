@@ -103,7 +103,7 @@ extension PreIpoDetail.Profile {
             dateLabel: PreIpoCopy.estimateStepLabel(estimateDay),
             priceLabel: PreIpoDates.wholeDollars(payload.estimate.priceMicros),
             spokenLabel:
-                "\(dates.monthDayWide(estimateDate)) secondary estimate, \(PreIpoDates.spoken(payload.estimate.priceMicros))"
+                "\(dates.monthDayWide(estimateDate)) Pre-IPO estimate, \(PreIpoDates.spoken(payload.estimate.priceMicros))"
         )
         var ledger: [PreIpoCopy.LedgerLine] = []
         if let last = payload.lastRound, let lastDate = dates.parse(last.on) {
