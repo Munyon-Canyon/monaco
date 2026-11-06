@@ -222,9 +222,20 @@ private actor SampleChatStore {
         ]
         if proposalCard {
             var card = message("s5p", "u-mia", "Mia", "put it up 👇 small add before the print", minutesAgo: 80)
+            card.kind = .proposal
             card.proposalId = ChatSession.sampleProposalID
             card.replyCount = 6
+            card.lastReplyAt = Date(timeIntervalSinceNow: -60)
+            card.lastRepliers = [
+                .init(id: "u-sam", handle: nil, displayName: "Sam", photoUrl: nil),
+                .init(id: "u-kai", handle: nil, displayName: "Kai", photoUrl: nil),
+                .init(id: "u-logan", handle: nil, displayName: "Logan", photoUrl: nil),
+            ]
             thread.insert(card, at: 5)
+            var reply = message("s5r", "u-kai", "Kai", "Yes from me, the print is the catalyst.", minutesAgo: 2)
+            reply.parentId = card.id
+            reply.alsoInChannel = true
+            thread.append(reply)
             var gif = message(
                 "s5g", "u-sam", "Sam", GroupChatCopy.gifBody, minutesAgo: 70,
                 reactions: [.init(emoji: "🔥", count: 2, mine: false)])

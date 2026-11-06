@@ -6,33 +6,56 @@ import XCTest
 final class ChatThreadCopyTests: XCTestCase {
     private let now = ChatFixtures.epoch
 
-    func testOneReplyReadsSingular() {
-        let text = ChatThreadCopy.summary(
-            replyCount: 1, lastReplyAt: now.addingTimeInterval(-120), now: now)
-        XCTAssertEqual(text, "1 reply · last reply 2m ago")
+    func testTheThreadLineReadsCountAgeAndNames() {
+        let text = ChatThreadCopy.lineSpoken(
+            replyCount: 6, lastReplyAt: now.addingTimeInterval(-60), names: ["Sam", "Kai", "Logan"], now: now)
+        XCTAssertEqual(text, "6 replies, last 1 minute ago, from Sam, Kai and Logan. Opens the thread.")
     }
 
-    func testManyRepliesReadPlural() {
-        let text = ChatThreadCopy.summary(
-            replyCount: 12, lastReplyAt: now.addingTimeInterval(-3 * 3600), now: now)
-        XCTAssertEqual(text, "12 replies · last reply 3h ago")
+    func testTheThreadLineSkipsWhatItDoesNotKnow() {
+        XCTAssertEqual(
+            ChatThreadCopy.lineSpoken(replyCount: 1, lastReplyAt: nil, names: [], now: now),
+            "1 reply. Opens the thread.")
+        XCTAssertEqual(
+            ChatThreadCopy.lineSpoken(
+                replyCount: 2, lastReplyAt: now.addingTimeInterval(-20), names: ["Sam"], now: now),
+            "2 replies, last just now, from Sam. Opens the thread.")
     }
 
-    func testAReplyUnderAMinuteAgoReadsJustNow() {
-        let text = ChatThreadCopy.summary(replyCount: 1, lastReplyAt: now.addingTimeInterval(-20), now: now)
-        XCTAssertEqual(text, "1 reply · last reply just now")
-    }
-
-    func testAReplyOlderThanADayNamesTheDate() {
+    func testTheSpokenAgeUsesWords() {
         let calendar = Calendar(identifier: .gregorian)
-        let text = ChatThreadCopy.summary(
-            replyCount: 2, lastReplyAt: now.addingTimeInterval(-3 * 86_400), now: now, calendar: calendar)
-        XCTAssertTrue(text.hasPrefix("2 replies · last reply on "), text)
-        XCTAssertFalse(text.hasSuffix("ago"))
+        XCTAssertEqual(
+            ChatThreadCopy.spokenAge(of: now.addingTimeInterval(-7_200), now: now, calendar: calendar), "2 hours ago")
+        XCTAssertEqual(
+            ChatThreadCopy.spokenAge(of: now.addingTimeInterval(-3_600), now: now, calendar: calendar), "1 hour ago")
+        XCTAssertEqual(
+            ChatThreadCopy.spokenAge(of: now.addingTimeInterval(-300), now: now, calendar: calendar), "5 minutes ago")
+        XCTAssertTrue(
+            ChatThreadCopy.spokenAge(of: now.addingTimeInterval(-3 * 86_400), now: now, calendar: calendar).hasPrefix(
+                "on "))
     }
 
-    func testNoLastReplyShowsOnlyTheCount() {
-        XCTAssertEqual(ChatThreadCopy.summary(replyCount: 3, lastReplyAt: nil, now: now), "3 replies")
+    func testTheLineAgeIsTheShortLabel() {
+        XCTAssertEqual(ChatThreadCopy.lineAge(of: now.addingTimeInterval(-60), now: now), "1m")
+        XCTAssertNil(ChatThreadCopy.lineAge(of: nil, now: now))
+    }
+
+    func testNamesJoinWithAnd() {
+        XCTAssertEqual(ChatThreadCopy.spokenNames(["Sam", "Kai", "Logan"]), "Sam, Kai and Logan")
+        XCTAssertEqual(ChatThreadCopy.spokenNames(["Sam", "Kai"]), "Sam and Kai")
+        XCTAssertEqual(ChatThreadCopy.spokenNames(["Sam", ""]), "Sam")
+        XCTAssertEqual(ChatThreadCopy.spokenNames([]), "")
+    }
+
+    func testAProposalReplyHeaderNamesTheCard() {
+        XCTAssertEqual(
+            ChatThreadCopy.proposalHeader(headline: "Buy NVDA \u{00B7} $400"), "replied to Buy NVDA \u{00B7} $400")
+        XCTAssertEqual(ChatThreadCopy.proposalHeader(headline: nil), "replied to a proposal")
+        XCTAssertEqual(ChatThreadCopy.proposalHeader(headline: "  "), "replied to a proposal")
+    }
+
+    func testTheChannelToggleReadsAlsoSendToChat() {
+        XCTAssertEqual(ChatThreadCopy.alsoInChannel, "Also send to chat")
     }
 
     func testTheHeaderQuotesTheFirst60CharactersOfTheParent() {

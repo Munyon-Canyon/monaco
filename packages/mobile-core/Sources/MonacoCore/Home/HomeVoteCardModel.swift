@@ -277,12 +277,14 @@ public final class HomeVoteCardModel: Identifiable {
 extension HomeVoteCardModel {
     public static func ruleTitle(_ rule: String?) -> String { ProposalRuleCopy.title(rule) }
 
-    public var headline: String {
-        if row.isRule { return "Rule change \u{00B7} \(Self.ruleTitle(row.rule))" }
+    public var headline: String { Self.headline(of: row) }
+
+    public static func headline(of row: HomePendingVote) -> String {
+        if row.isRule { return "Rule change \u{00B7} \(ruleTitle(row.rule))" }
         let ticker = AssetSymbolFormatter.display(row.symbol ?? "")
         let amount: String? =
             row.isSell
-            ? row.tokenAmount.map { Self.shares($0, decimals: row.tokenDecimals) }
+            ? row.tokenAmount.map { shares($0, decimals: row.tokenDecimals) }
             : row.usdcMicros.map(CabalHeaderCopy.compactDollars)
         let name = "\(row.isSell ? "Sell" : "Buy") \(ticker)"
         return [name, amount].compactMap { $0 }.joined(separator: " \u{00B7} ")

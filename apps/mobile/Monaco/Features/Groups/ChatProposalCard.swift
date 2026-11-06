@@ -92,7 +92,8 @@ struct ChatProposalCard<Name: View, Thesis: View, Face: View, Replies: View>: Vi
         let row = CabalProposals.pendingVote(summary, asset: asset)
         let id = summary.id
         return cards.card(
-            for: row, ballot: summary.myBallot.flatMap(ProposalBallot.init(rawValue:)), environment: environment
+            for: row, ballot: summary.myBallot.flatMap(ProposalBallot.init(rawValue:)), environment: environment,
+            showsReplies: false
         ) { [environment, toasts, analytics, store] card, outcome in
             HomeVoteCommit.accepted(card, outcome, environment: environment, toasts: toasts, analytics: analytics)
             Task { await store.reload([id]) }
