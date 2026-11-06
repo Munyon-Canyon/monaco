@@ -14,6 +14,17 @@ public enum ChatThreadCopy {
     public static let loadFailure = "Couldn't load this thread."
     public static let headerPrefix = "Replied to a thread"
     public static let snippetLength = 60
+    public static let proposalButton = "Proposal"
+    public static let quoteDeleted = "Reply deleted"
+
+    public static func composerPlaceholder(proposer: String?) -> String {
+        let first = proposer?.split(separator: " ").first.map(String.init) ?? ""
+        return first.isEmpty ? composerPlaceholder : "Reply to \(first)"
+    }
+
+    public static func quoteSpoken(name: String, excerpt: String) -> String {
+        "Replying to \(name): \(excerpt)"
+    }
 
     public static func header(parentBody: String?) -> String {
         guard let snippet = parentBody?.trimmingCharacters(in: .whitespacesAndNewlines), !snippet.isEmpty else {

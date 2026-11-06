@@ -11,23 +11,39 @@ struct ChatThreadView: View {
     @State private var chat: ChatSession?
     @State private var channelParent: ChatMessage?
     @State private var cabal: CabalModel?
+    @State private var proposals: ChatProposalStore?
 
     var body: some View {
         ChatThreadScreen(
             thread: thread,
             loadingParent: channelParent,
+            cabalName: cabal?.cabal?.name ?? "",
             members: cabal?.cabal?.members ?? [],
             viewerID: environment.viewer?.userID ?? "",
+            proposals: proposals,
             deleteMessage: { id in await chat?.delete(messageId: id) },
             openProfile: { userID in
                 environment.navigator.open(UserProfileRoute(userID: userID), in: environment.navigator.selectedTab)
+            },
+            openProposal: { proposalID in
+                environment.navigator.open(
+                    ProposalRoute(proposalID: proposalID), in: environment.navigator.selectedTab)
             }
         )
         .task {
+            let store = preparedProposals()
             let model = preparedCabal()
             _ = await preparedThread()
             await model.load()
+            await store.observe(cabalID: cabalID, hints: environment.hints)
         }
+    }
+
+    private func preparedProposals() -> ChatProposalStore {
+        if let proposals { return proposals }
+        let created = ChatProposalStore(api: environment.api)
+        proposals = created
+        return created
     }
 
     private func preparedCabal() -> CabalModel {
@@ -71,10 +87,13 @@ enum ChatThreadMetrics {
 struct ChatThreadScreen: View {
     let thread: ThreadSession?
     var loadingParent: ChatMessage?
+    var cabalName = ""
     var members: [Components.Schemas.CabalMember] = []
     var viewerID = ""
+    var proposals: ChatProposalStore?
     let deleteMessage: (String) async -> APIError?
     let openProfile: (String) -> Void
+    var openProposal: ((String) -> Void)?
 
     @State private var state: ThreadSession.State?
     @State private var messageToDelete: String?
@@ -85,15 +104,28 @@ struct ChatThreadScreen: View {
 
     private var sessionID: ObjectIdentifier? { thread.map(ObjectIdentifier.init) }
 
+    private var proposalID: String? { ChatThreadHead.proposalID(of: state?.parent ?? loadingParent) }
+
+    private var proposerName: String? {
+        (state?.parent ?? loadingParent)?.author.displayName
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             content
             bottomBar
         }
         .background(MonacoTheme.background)
-        .navigationTitle(ChatThreadCopy.title)
-        .navigationBarTitleDisplayMode(.inline)
+        .modifier(ChatThreadTitle(subtitle: cabalName))
         .toolbar(.hidden, for: .tabBar)
+        .toolbar {
+            if let proposalID, let openProposal {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(ChatThreadCopy.proposalButton) { openProposal(proposalID) }
+                        .accessibilityIdentifier("chat-thread-open-proposal")
+                }
+            }
+        }
         .task(id: sessionID) { await observe() }
         .task(id: sessionID) { await thread?.open() }
         .onChange(of: scenePhase) { _, phase in handle(phase) }
@@ -109,6 +141,8 @@ struct ChatThreadScreen: View {
             ChatThreadList(
                 parent: parent,
                 members: members,
+                proposals: proposals,
+                openProposal: openProposal,
                 rows: state.timeline.rows,
                 hasOlder: state.timeline.hasOlder,
                 isLoadingOlder: state.isLoadingOlder,
@@ -126,8 +160,11 @@ struct ChatThreadScreen: View {
             EmptyState(title: GroupChatCopy.closed, isOnlyContent: true)
         } else if let loadingParent {
             VStack(alignment: .leading, spacing: 0) {
-                ChatThreadParent(parent: loadingParent, members: members, openProfile: openProfile)
-                    .padding(.horizontal, MonacoTheme.Space.gutter)
+                ChatThreadHead(
+                    parent: loadingParent, members: members, proposals: proposals, now: Date(),
+                    openProfile: openProfile, openProposal: openProposal
+                )
+                .padding(.horizontal, MonacoTheme.Space.gutter)
                 ChatSkeleton(bottomAligned: false)
             }
         } else {
@@ -149,7 +186,7 @@ struct ChatThreadScreen: View {
                     .overlay(alignment: .bottom) { MonacoRule() }
                     .accessibilityIdentifier("chat-thread-also-in-channel")
                 ChatComposerBar(
-                    focus: $composerFocused, placeholder: ChatThreadCopy.composerPlaceholder,
+                    focus: $composerFocused, placeholder: composerPlaceholder,
                     members: members, viewerID: viewerID
                 ) { body in
                     let alsoInChannel = alsoInChannel
@@ -165,6 +202,12 @@ struct ChatThreadScreen: View {
                 .padding(.vertical, MonacoTheme.Space.m)
                 .accessibilityIdentifier("chat-thread-parent-deleted")
         }
+    }
+
+    private var composerPlaceholder: String {
+        proposalID == nil
+            ? ChatThreadCopy.composerPlaceholder
+            : ChatThreadCopy.composerPlaceholder(proposer: proposerName)
     }
 
     private func observe() async {
@@ -199,6 +242,8 @@ struct ChatThreadScreen: View {
 struct ChatThreadList: View {
     let parent: ChatMessage
     let members: [Components.Schemas.CabalMember]
+    var proposals: ChatProposalStore?
+    var openProposal: ((String) -> Void)?
     let rows: [ChatRow]
     let hasOlder: Bool
     let isLoadingOlder: Bool
@@ -212,31 +257,104 @@ struct ChatThreadList: View {
 
     @State private var now = Date()
 
+    static func quotedRowID(commentID: String, in messages: [ChatMessage]) -> String? {
+        messages.first { $0.commentId == commentID }?.id
+    }
+
     var body: some View {
-        ChatList(
-            rows: rows, hasOlder: hasOlder, isLoadingOlder: isLoadingOlder,
-            loadEarlierID: "chat-thread-load-earlier", listID: "chat-thread-list",
-            loadOlder: loadOlder, refresh: refresh
-        ) {
+        ScrollViewReader { proxy in
+            ChatList(
+                rows: rows, hasOlder: hasOlder, isLoadingOlder: isLoadingOlder,
+                loadEarlierID: "chat-thread-load-earlier", listID: "chat-thread-list",
+                loadOlder: loadOlder, refresh: refresh
+            ) {
+                ChatThreadHead(
+                    parent: parent, members: members, proposals: proposals, now: now,
+                    openProfile: openProfile, openProposal: openProposal)
+            } content: {
+                if rows.isEmpty {
+                    Text(ChatThreadCopy.noReplies)
+                        .font(MonacoTheme.Typo.subhead)
+                        .foregroundStyle(MonacoTheme.secondaryText)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, MonacoTheme.Space.l)
+                        .accessibilityIdentifier("chat-thread-empty")
+                }
+                ForEach(rows) { row in
+                    GroupChatRowView(
+                        row: row, now: now, members: members, openProfile: openProfile, retry: retry,
+                        discard: discard, replyHere: replyHere, requestDelete: requestDelete,
+                        jumpToQuote: { commentID in jump(to: commentID, proxy: proxy) }
+                    )
+                    .id(row.id)
+                }
+            }
+            .onChange(of: rows) { now = Date() }
+        }
+    }
+
+    private func jump(to commentID: String, proxy: ScrollViewProxy) {
+        guard let id = Self.quotedRowID(commentID: commentID, in: rows.map(\.message)) else { return }
+        withAnimation(.easeOut(duration: 0.25)) { proxy.scrollTo(id, anchor: .center) }
+    }
+}
+
+struct ChatThreadHead: View {
+    let parent: ChatMessage
+    let members: [Components.Schemas.CabalMember]
+    var proposals: ChatProposalStore?
+    let now: Date
+    let openProfile: (String) -> Void
+    var openProposal: ((String) -> Void)?
+
+    static func proposalID(of parent: ChatMessage?) -> String? {
+        guard let parent, !parent.deleted else { return nil }
+        return parent.proposalId
+    }
+
+    var body: some View {
+        if let proposalID = Self.proposalID(of: parent), let proposals {
+            ChatThreadProposalHead(
+                parent: parent, proposalID: proposalID, store: proposals, members: members, now: now,
+                openProfile: openProfile, openProposal: { openProposal?($0) })
+        } else {
             ChatThreadParent(parent: parent, members: members, openProfile: openProfile)
-        } content: {
-            if rows.isEmpty {
-                Text(ChatThreadCopy.noReplies)
+        }
+    }
+}
+
+struct ChatThreadTitle: ViewModifier {
+    let subtitle: String
+
+    @ViewBuilder func body(content: Content) -> some View {
+        if #available(iOS 26, *) {
+            content
+                .navigationTitle(ChatThreadCopy.title)
+                .navigationSubtitle(subtitle)
+                .navigationBarTitleDisplayMode(.inline)
+        } else {
+            content
+                .navigationTitle(ChatThreadCopy.title)
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .principal) { stacked }
+                }
+        }
+    }
+
+    private var stacked: some View {
+        VStack(spacing: 0) {
+            Text(ChatThreadCopy.title)
+                .font(MonacoTheme.Typo.section)
+                .foregroundStyle(MonacoTheme.primaryText)
+            if !subtitle.isEmpty {
+                Text(subtitle)
                     .font(MonacoTheme.Typo.subhead)
                     .foregroundStyle(MonacoTheme.secondaryText)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, MonacoTheme.Space.l)
-                    .accessibilityIdentifier("chat-thread-empty")
-            }
-            ForEach(rows) { row in
-                GroupChatRowView(
-                    row: row, now: now, members: members, openProfile: openProfile, retry: retry,
-                    discard: discard, replyHere: replyHere, requestDelete: requestDelete
-                )
-                .id(row.id)
             }
         }
-        .onChange(of: rows) { now = Date() }
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isHeader)
     }
 }
 

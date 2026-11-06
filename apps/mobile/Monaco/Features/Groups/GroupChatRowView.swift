@@ -34,6 +34,7 @@ struct GroupChatRowView: View {
     var momentPrice: Int64?
     var followsEventLine = false
     var openMoment: ((ChatMoment) -> Void)?
+    var jumpToQuote: ((String) -> Void)?
 
     @Environment(ToastCenter.self) private var toasts
     @Environment(\.chatPinControls) private var pinControls
@@ -98,6 +99,10 @@ struct GroupChatRowView: View {
             threadHeader.padding(.leading, columnInset)
             if Self.showsAuthorName(startsRun: row.startsRun, isMine: row.isMine) {
                 authorLine.padding(.leading, columnInset + ChatBubbleMetrics.nameInset)
+            }
+            if let quote = message.replyTo, !message.deleted {
+                ChatReplyQuote(quote: quote, rowID: row.id, jump: jumpToQuote)
+                    .padding(.leading, columnInset + ChatBubbleMetrics.nameInset)
             }
             HStack(alignment: .bottom, spacing: MonacoTheme.Space.s) {
                 if !row.isMine { avatarColumn }

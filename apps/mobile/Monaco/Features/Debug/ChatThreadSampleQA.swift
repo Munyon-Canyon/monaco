@@ -8,9 +8,46 @@ enum ChatThreadSampleQA {
         arguments.contains("-MonacoChatThreadSampleQA")
     }
 
-    @MainActor static func screen(arguments: [String]) -> some View {
-        ChatThreadSampleHost(
-            session: ChatSession.sample(ChatSampleScenario(threaded: true)) { Date() }, arguments: arguments)
+    static func opensProposal(_ arguments: [String]) -> Bool {
+        arguments.contains("-MonacoChatThreadSampleProposal")
+    }
+
+    @MainActor @ViewBuilder static func screen(arguments: [String]) -> some View {
+        if opensProposal(arguments) {
+            ChatThreadSampleProposalHost(
+                session: ChatSession.sample(ChatSampleScenario(proposalThread: true)) { Date() },
+                arguments: arguments)
+        } else {
+            ChatThreadSampleHost(
+                session: ChatSession.sample(ChatSampleScenario(threaded: true)) { Date() }, arguments: arguments)
+        }
+    }
+}
+
+private struct ChatThreadSampleProposalHost: View {
+    let session: ChatSession
+    let arguments: [String]
+
+    @State private var thread: ThreadSession?
+    @State private var proposals = ChatProposalStore { id in
+        var proposal = Components.Schemas.Proposal.sample()
+        proposal.id = id
+        proposal.symbol = "NVDAx"
+        proposal.usdcMicros = 400_000_000
+        proposal.tally = .init(yes: 4, no: 1, voters: 8, needed: 5)
+        proposal.canVote = true
+        proposal.replyCount = 6
+        proposal.expiresAt = Date().addingTimeInterval(4 * 3_600)
+        return ChatProposalFacts(summary: ProposalSummary(proposal), asset: nil)
+    }
+
+    var body: some View {
+        ChatThreadScreen(
+            thread: thread, cabalName: "AC Capital", proposals: proposals,
+            deleteMessage: { _ in nil }, openProfile: { _ in }, openProposal: { _ in }
+        )
+        .task { thread = await session.thread(parentId: ChatSession.sampleThreadRootID) }
+        .onAppear { SampleHarnessRegistry.markDrawn(arguments) }
     }
 }
 
