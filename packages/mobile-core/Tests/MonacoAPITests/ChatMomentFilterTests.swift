@@ -43,6 +43,13 @@ final class ChatMomentFilterTests: XCTestCase {
         XCTAssertEqual(out, body)
     }
 
+    func testASettledVoteMomentIsKept() async throws {
+        let settled = #"{"id":"e","kind":"system","moment":{"kind":"proposal_settled"}}"#
+        let body = #"{"messages":[\#(settled),\#(Self.user)]}"#
+        let out = try await run(body: body)
+        XCTAssertEqual(out, body)
+    }
+
     func testAThreadReadDropsUnknownReplies() async throws {
         let body = #"{"parent":\#(Self.user),"replies":[\#(Self.unknown),\#(Self.user)]}"#
         let out = try await run(path: "/v1/cabals/c1/messages/m1/thread", body: body)
