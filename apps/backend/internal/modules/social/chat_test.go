@@ -69,6 +69,7 @@ func newChatFixture(t *testing.T) chatFixture {
 	}
 	f.users = fakes.NewIdentity(cards, nil)
 	deps.Users = f.users
+	deps.Publish = deps.Publish.WithRepliers(f.users, pool)
 	f.deps = deps
 	f.post, f.del = app.NewPostChatMessageHandler(deps), app.NewDeleteChatMessageHandler(deps)
 	return f
@@ -142,7 +143,7 @@ func TestPostChatMessage_storesTheMessageAndAppendsAnIDsOnlyEvent(t *testing.T) 
 		Body:      "gm frens",
 		CreatedAt: f.now,
 	}
-	if got != want {
+	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("posted = %+v, want %+v", got, want)
 	}
 	var (

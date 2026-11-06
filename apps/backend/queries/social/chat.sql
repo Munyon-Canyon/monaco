@@ -242,6 +242,37 @@ WHERE (id = sqlc.arg(parent_id) OR parent_id = sqlc.arg(parent_id))
   AND deleted_at IS NULL
 ORDER BY author_id;
 
+-- name: ListLastRepliers :many
+WITH replies AS (
+  SELECT t.id AS message_id, r.author_id, r.created_at, r.id
+  FROM unnest(sqlc.arg(message_ids)::uuid[]) AS t(id)
+  JOIN cabal_messages p ON p.id = t.id AND p.proposal_id IS NULL AND p.deleted_at IS NULL
+  JOIN cabal_messages r ON r.parent_id = p.id AND r.deleted_at IS NULL AND r.kind = 'user'
+  UNION ALL
+  SELECT t.id AS message_id, c.author_id, c.created_at, c.id
+  FROM unnest(sqlc.arg(message_ids)::uuid[]) AS t(id)
+  JOIN cabal_messages p
+    ON p.id = t.id AND p.kind = 'proposal' AND p.proposal_id IS NOT NULL AND p.deleted_at IS NULL
+  JOIN feed_objects o ON o.ref_type = 'proposals' AND o.kind = 'proposal' AND o.ref_id = p.proposal_id
+  JOIN feed_comments c ON c.feed_object_id = o.id AND c.deleted_at IS NULL AND c.author_kind = 'user'
+), newest AS (
+  SELECT DISTINCT ON (r.message_id, r.author_id) r.message_id, r.author_id, r.created_at, r.id
+  FROM replies r
+  WHERE r.author_id IS NOT NULL
+    AND NOT EXISTS (
+      SELECT 1 FROM user_blocks b WHERE b.blocker_id = sqlc.arg(viewer)::uuid AND b.blocked_id = r.author_id
+    )
+  ORDER BY r.message_id, r.author_id, r.created_at DESC, r.id DESC
+), ranked AS (
+  SELECT n.message_id, n.author_id,
+    row_number() OVER (PARTITION BY n.message_id ORDER BY n.created_at DESC, n.id DESC) AS place
+  FROM newest n
+)
+SELECT ranked.message_id::uuid AS message_id, ranked.author_id::uuid AS author_id
+FROM ranked
+WHERE ranked.place <= 3
+ORDER BY ranked.message_id, ranked.place;
+
 -- name: GetChatMessageByID :one
 SELECT id, cabal_id, kind FROM cabal_messages WHERE id = sqlc.arg(id);
 

@@ -920,6 +920,11 @@ type ChatMessage struct {
 	// Examples: user
 	Kind ChatMessageKind `json:"kind"`
 
+	// LastRepliers Who replied last, newest reply first, one entry per person at their newest reply. At most 3. Left out are deleted replies, Monaco's own notes and authors the caller has blocked. On a proposal card the people are the authors of the proposal's comments. Empty with no replies, on a reply and on a deleted message.
+	//
+	// Examples: [{"display_name":"Kai","handle":"kai","id":"01890a5d-ac96-774b-bcce-b302099a8058","photo_url":null}]
+	LastRepliers []ChatAuthor `json:"last_repliers"`
+
 	// LastReplyAt When the newest reply was posted. Null with no replies.
 	//
 	// Examples: null

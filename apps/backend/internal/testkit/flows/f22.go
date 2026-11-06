@@ -1,6 +1,7 @@
 package flows
 
 import (
+	"encoding/json"
 	"net/http"
 	"slices"
 	"strconv"
@@ -141,6 +142,43 @@ func proposalReplyHolds(comments, copies int) scenario.Step {
 	}
 }
 
+func parentLastRepliers(want int) scenario.Step {
+	return scenario.ExpectField("parent", func(s *scenario.Scenario, raw json.RawMessage) {
+		s.Helper()
+		var parent struct {
+			LastRepliers []struct {
+				ID string `json:"id"`
+			} `json:"last_repliers"`
+		}
+		if err := json.Unmarshal(raw, &parent); err != nil {
+			s.Fatalf("read the parent's last_repliers: %v", err)
+		}
+		rows, err := s.DB().Query(s.Context(), `SELECT author_id::text FROM (
+				SELECT DISTINCT ON (author_id) author_id, created_at, id FROM cabal_messages
+				WHERE parent_id = $1::uuid AND deleted_at IS NULL ORDER BY author_id, created_at DESC, id DESC
+			) newest ORDER BY created_at DESC, id DESC LIMIT 3`, s.Recall("parent"))
+		if err != nil {
+			s.Fatalf("read the repliers: %v", err)
+		}
+		defer rows.Close()
+		var wantIDs []string
+		gotIDs := make([]string, 0, len(parent.LastRepliers))
+		for rows.Next() {
+			var id string
+			if err := rows.Scan(&id); err != nil {
+				s.Fatalf("scan a replier: %v", err)
+			}
+			wantIDs = append(wantIDs, id)
+		}
+		for _, r := range parent.LastRepliers {
+			gotIDs = append(gotIDs, r.ID)
+		}
+		if len(wantIDs) != want || !slices.Equal(gotIDs, wantIDs) {
+			s.Fatalf("parent last_repliers = %v, want the %d newest distinct repliers %v", gotIDs, want, wantIDs)
+		}
+	})
+}
+
 func F22PostChatMessageOK(s *scenario.Scenario) {
 	s.Given(append(chatThread("post-ok"), seedProposalCard(true))...).
 		When(
@@ -165,17 +203,23 @@ func F22PostChatMessageOK(s *scenario.Scenario) {
 			scenario.ExpectRemembered("id", "loud"),
 			scenario.Get("/v1/proposals/"+proposalRefID+"/comments"),
 			scenario.ExpectStatus(http.StatusOK),
+			scenario.SignIn(chatCreatorOf("post-ok")),
+			replyTo("parent", "second", false),
+			scenario.ExpectStatus(http.StatusCreated),
+			scenario.Get(chatParentPath+"/thread"),
+			scenario.ExpectStatus(http.StatusOK),
+			parentLastRepliers(2),
 		).
 		Then(
-			chatRows(4),
-			replyCount("parent", 1),
+			chatRows(5),
+			replyCount("parent", 2),
 			proposalReplyHolds(2, 1),
-			scenario.ExpectEvents(events.TypeChatMessagePosted, 3),
+			scenario.ExpectEvents(events.TypeChatMessagePosted, 4),
 			scenario.ExpectEventPayload(events.TypeChatMessagePosted, map[string]any{"also_in_channel": true}),
-			scenario.EventuallyPublished(events.TypeChatMessagePosted, 3),
+			scenario.EventuallyPublished(events.TypeChatMessagePosted, 4),
 			scenario.ExpectEvents(events.TypeCommentCreated, 2),
-			scenario.ExpectAblyPublished(app.EventMessageCreated, "cabal", 5),
-			scenario.ExpectAblyPublished(app.EventThreadUpdated, "cabal", 3),
+			scenario.ExpectAblyPublished(app.EventMessageCreated, "cabal", 6),
+			scenario.ExpectAblyPublished(app.EventThreadUpdated, "cabal", 4),
 		)
 }
 

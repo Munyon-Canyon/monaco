@@ -20,7 +20,7 @@ struct ChatAttachmentRowTests {
             createdAt: Date(timeIntervalSinceNow: -60),
             alsoInChannel: false,
             replyCount: 0,
-            deleted: deleted,
+            lastRepliers: [], deleted: deleted,
             reactions: [],
             reactionCount: 0
         )

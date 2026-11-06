@@ -79,6 +79,7 @@ public enum ChatEventDecoder {
         guard var object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { return nil }
         object["reactions"] = object["reactions"] ?? []
         object["reaction_count"] = object["reaction_count"] ?? 0
+        object["last_repliers"] = object["last_repliers"] ?? []
         return try? JSONSerialization.data(withJSONObject: object)
     }
 

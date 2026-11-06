@@ -30,7 +30,7 @@ final class ChatMomentTests: XCTestCase {
             moment: moment,
             body: nil,
             createdAt: ChatFixtures.epoch.addingTimeInterval(minutes * 60),
-            alsoInChannel: false, replyCount: 0, deleted: false, reactions: [], reactionCount: 0)
+            alsoInChannel: false, replyCount: 0, lastRepliers: [], deleted: false, reactions: [], reactionCount: 0)
     }
 
     private static func member(_ id: String, _ name: String) -> Components.Schemas.ChatMoment {

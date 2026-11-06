@@ -28,10 +28,18 @@ const (
 
 type ChatWire func(ctx context.Context, m ChatMessage) (any, error)
 
+type ThreadReplier struct {
+	ID          uuid.UUID `json:"id"`
+	Handle      *string   `json:"handle"`
+	DisplayName string    `json:"display_name"`
+	PhotoURL    *string   `json:"photo_url"`
+}
+
 type ThreadUpdated struct {
-	MessageID   uuid.UUID `json:"message_id"`
-	ReplyCount  int32     `json:"reply_count"`
-	LastReplyAt time.Time `json:"last_reply_at,omitzero"`
+	MessageID    uuid.UUID       `json:"message_id"`
+	ReplyCount   int32           `json:"reply_count"`
+	LastReplyAt  time.Time       `json:"last_reply_at,omitzero"`
+	LastRepliers []ThreadReplier `json:"last_repliers"`
 }
 
 type MessageDeleted struct {
@@ -73,10 +81,52 @@ type PinUpdated struct {
 type ChatPublisher struct {
 	realtime Realtime
 	wire     ChatWire
+	users    Users
+	reads    sqlc.DBTX
 }
 
 func NewChatPublisher(realtime Realtime, wire ChatWire) ChatPublisher {
 	return ChatPublisher{realtime: realtime, wire: wire}
+}
+
+func (p ChatPublisher) WithRepliers(users Users, reads sqlc.DBTX) ChatPublisher {
+	p.users, p.reads = users, reads
+	return p
+}
+
+func (p ChatPublisher) threadPayload(ctx context.Context, t *ThreadUpdated) *ThreadUpdated {
+	t.LastRepliers = []ThreadReplier{}
+	if p.reads == nil || p.users == nil {
+		return t
+	}
+	found, err := lastRepliers(ctx, sqlc.New(p.reads), ids.UserID{}, []uuid.UUID{t.MessageID})
+	if err != nil || len(found[t.MessageID]) == 0 {
+		if err != nil {
+			failedPublish(ctx, t.MessageID, EventThreadUpdated, err)
+		}
+		return t
+	}
+	cards, err := p.users.UsersByID(ctx, found[t.MessageID])
+	if err != nil {
+		failedPublish(ctx, t.MessageID, EventThreadUpdated, err)
+		return t
+	}
+	for _, id := range found[t.MessageID] {
+		replier := ThreadReplier{ID: id.UUID()}
+		if card, ok := cards[id]; ok && !card.Deleted {
+			replier.Handle, replier.PhotoURL = textOrNil(card.Handle), textOrNil(card.PhotoURL)
+			replier.DisplayName = card.DisplayName
+		}
+		t.LastRepliers = append(t.LastRepliers, replier)
+	}
+	return t
+}
+
+func textOrNil(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
 }
 
 func CabalChannel(cabal ids.CabalID) string { return "cabal:" + cabal.String() }
@@ -89,7 +139,7 @@ func (p ChatPublisher) created(ctx context.Context, m ChatMessage, thread *Threa
 		p.send(ctx, m.CabalID, m.ID, EventMessageCreated, payload)
 	}
 	if thread != nil {
-		p.send(ctx, m.CabalID, m.ID, EventThreadUpdated, thread)
+		p.send(ctx, m.CabalID, m.ID, EventThreadUpdated, p.threadPayload(ctx, thread))
 	}
 }
 
@@ -107,7 +157,7 @@ func (p ChatPublisher) deleted(ctx context.Context, cabal ids.CabalID, id uuid.U
 	ctx = context.WithoutCancel(ctx)
 	p.send(ctx, cabal, id, EventMessageDeleted, MessageDeleted{ID: id})
 	if thread != nil {
-		p.send(ctx, cabal, id, EventThreadUpdated, thread)
+		p.send(ctx, cabal, id, EventThreadUpdated, p.threadPayload(ctx, thread))
 	}
 }
 

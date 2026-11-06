@@ -136,7 +136,7 @@ func TestChatRoutes_postRendersTheStoredMessageWithItsAuthor(t *testing.T) {
 			Id: f.member(0).UUID(), Handle: ptr("kai"), DisplayName: "Kai",
 			PhotoUrl: ptr("https://cdn.example.com/kai.jpg"),
 		},
-		Reactions: []baseapi.Reaction{},
+		Reactions: []baseapi.Reaction{}, LastRepliers: []api.ChatAuthor{},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("posted = %+v, want %+v", got, want)

@@ -710,6 +710,68 @@ func (q *Queries) ListChatReplies(ctx context.Context, arg ListChatRepliesParams
 	return items, nil
 }
 
+const listLastRepliers = `-- name: ListLastRepliers :many
+WITH replies AS (
+  SELECT t.id AS message_id, r.author_id, r.created_at, r.id
+  FROM unnest($1::uuid[]) AS t(id)
+  JOIN cabal_messages p ON p.id = t.id AND p.proposal_id IS NULL AND p.deleted_at IS NULL
+  JOIN cabal_messages r ON r.parent_id = p.id AND r.deleted_at IS NULL AND r.kind = 'user'
+  UNION ALL
+  SELECT t.id AS message_id, c.author_id, c.created_at, c.id
+  FROM unnest($1::uuid[]) AS t(id)
+  JOIN cabal_messages p
+    ON p.id = t.id AND p.kind = 'proposal' AND p.proposal_id IS NOT NULL AND p.deleted_at IS NULL
+  JOIN feed_objects o ON o.ref_type = 'proposals' AND o.kind = 'proposal' AND o.ref_id = p.proposal_id
+  JOIN feed_comments c ON c.feed_object_id = o.id AND c.deleted_at IS NULL AND c.author_kind = 'user'
+), newest AS (
+  SELECT DISTINCT ON (r.message_id, r.author_id) r.message_id, r.author_id, r.created_at, r.id
+  FROM replies r
+  WHERE r.author_id IS NOT NULL
+    AND NOT EXISTS (
+      SELECT 1 FROM user_blocks b WHERE b.blocker_id = $2::uuid AND b.blocked_id = r.author_id
+    )
+  ORDER BY r.message_id, r.author_id, r.created_at DESC, r.id DESC
+), ranked AS (
+  SELECT n.message_id, n.author_id,
+    row_number() OVER (PARTITION BY n.message_id ORDER BY n.created_at DESC, n.id DESC) AS place
+  FROM newest n
+)
+SELECT ranked.message_id::uuid AS message_id, ranked.author_id::uuid AS author_id
+FROM ranked
+WHERE ranked.place <= 3
+ORDER BY ranked.message_id, ranked.place
+`
+
+type ListLastRepliersParams struct {
+	MessageIds []uuid.UUID
+	Viewer     uuid.UUID
+}
+
+type ListLastRepliersRow struct {
+	MessageID uuid.UUID
+	AuthorID  uuid.UUID
+}
+
+func (q *Queries) ListLastRepliers(ctx context.Context, arg ListLastRepliersParams) ([]ListLastRepliersRow, error) {
+	rows, err := q.db.Query(ctx, listLastRepliers, arg.MessageIds, arg.Viewer)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListLastRepliersRow
+	for rows.Next() {
+		var i ListLastRepliersRow
+		if err := rows.Scan(&i.MessageID, &i.AuthorID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listProposalChatReplies = `-- name: ListProposalChatReplies :many
 SELECT c.id, c.feed_object_id, c.author_id, c.parent_comment_id, c.reply_to_user_id, c.reply_to_comment_id, c.body,
   c.created_at,

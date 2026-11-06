@@ -13,7 +13,7 @@ final class ChatQuietStateTests: XCTestCase {
             id: id, kind: kind,
             author: .init(id: ChatFixtures.otherID, handle: nil, displayName: "Kai", photoUrl: nil),
             body: "text", createdAt: now.addingTimeInterval(-ago), parentId: nil, alsoInChannel: false,
-            replyCount: 0, deleted: false, seenCount: nil, reactions: [], reactionCount: 0)
+            replyCount: 0, lastRepliers: [], deleted: false, seenCount: nil, reactions: [], reactionCount: 0)
     }
 
     private func kind(_ messages: [ChatMessage], open: Int = 0) -> ChatQuietState.Kind {
