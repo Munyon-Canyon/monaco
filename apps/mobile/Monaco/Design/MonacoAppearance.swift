@@ -167,12 +167,13 @@ extension View {
         showsClose: Bool = false,
         closeIdentifier: String? = nil,
         showsHeading: Bool = true,
-        contentScrolls: Bool = false
+        contentScrolls: Bool = false,
+        expanded: Binding<Bool>? = nil
     ) -> some View {
         MonacoSheetFrame(
             title: title, titleIdentifier: titleIdentifier, kind: detents, showsClose: showsClose,
             closeIdentifier: closeIdentifier, scrolls: false, showsHeading: showsHeading,
-            contentScrolls: contentScrolls, content: self)
+            contentScrolls: contentScrolls, expanded: expanded, content: self)
     }
 
     func monacoFittedSheet(
@@ -242,7 +243,7 @@ extension View {
 }
 
 enum MonacoSheetDetents {
-    case review, votes, result, fitted, tall
+    case review, reviewWriting, votes, result, fitted, tall
 
     static let halfFraction: CGFloat = 0.5
     static let tallFraction: CGFloat = 0.72
@@ -263,6 +264,14 @@ enum MonacoSheetDetents {
         dynamicTypeSize >= .xxxLarge && detents.contains(.large) ? .large : (detents.first ?? .medium)
     }
 
+    static func selected(
+        expanded: Bool, chosen: PresentationDetent?, in detents: [PresentationDetent],
+        dynamicTypeSize: DynamicTypeSize
+    ) -> PresentationDetent {
+        if expanded && detents.contains(.large) { return .large }
+        return chosen ?? preferred(in: detents, dynamicTypeSize: dynamicTypeSize)
+    }
+
     @MainActor
     func detents(
         fittedHeight: CGFloat, screenHeight: CGFloat = MonacoSheetDetents.screenHeight,
@@ -272,6 +281,8 @@ enum MonacoSheetDetents {
         switch self {
         case .review, .votes:
             base = Self.half
+        case .reviewWriting:
+            base = Self.half + [.large]
         case .tall:
             base = [.fraction(Self.tallFraction)]
         case .result, .fitted:
@@ -281,7 +292,7 @@ enum MonacoSheetDetents {
                 base = Self.half
             }
         }
-        return dynamicTypeSize >= .xxxLarge ? base + [.large] : base
+        return dynamicTypeSize >= .xxxLarge && !base.contains(.large) ? base + [.large] : base
     }
 }
 
@@ -344,6 +355,7 @@ private struct MonacoSheetFrame<Content: View>: View {
     let scrolls: Bool
     var showsHeading = true
     var contentScrolls = false
+    var expanded: Binding<Bool>?
     let content: Content
 
     @State private var headingHeight: CGFloat = 0
@@ -366,7 +378,7 @@ private struct MonacoSheetFrame<Content: View>: View {
             sheetContent
         }
         .monacoSheetChrome()
-        .monacoPresentationDetents(available)
+        .monacoPresentationDetents(available, expanded: expanded)
     }
 
     @ViewBuilder
@@ -397,6 +409,7 @@ private struct MonacoSheetFrame<Content: View>: View {
 
 private struct MonacoDetentSelection: ViewModifier {
     let detents: [PresentationDetent]
+    var expanded: Binding<Bool>?
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var chosen: PresentationDetent?
@@ -406,19 +419,29 @@ private struct MonacoDetentSelection: ViewModifier {
             .presentationDetents(
                 Set(detents),
                 selection: Binding(
-                    get: { chosen ?? MonacoSheetDetents.preferred(in: detents, dynamicTypeSize: dynamicTypeSize) },
-                    set: { chosen = $0 }
+                    get: {
+                        MonacoSheetDetents.selected(
+                            expanded: expanded?.wrappedValue ?? false, chosen: chosen, in: detents,
+                            dynamicTypeSize: dynamicTypeSize)
+                    },
+                    set: {
+                        chosen = $0
+                        if $0 != .large, expanded?.wrappedValue == true { expanded?.wrappedValue = false }
+                    }
                 )
             )
             .onChange(of: dynamicTypeSize) {
+                chosen = nil
+            }
+            .onChange(of: expanded?.wrappedValue ?? false) {
                 chosen = nil
             }
     }
 }
 
 extension View {
-    func monacoPresentationDetents(_ detents: [PresentationDetent]) -> some View {
-        modifier(MonacoDetentSelection(detents: detents))
+    func monacoPresentationDetents(_ detents: [PresentationDetent], expanded: Binding<Bool>? = nil) -> some View {
+        modifier(MonacoDetentSelection(detents: detents, expanded: expanded))
     }
 
     fileprivate func monacoSheetChrome() -> some View {

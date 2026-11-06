@@ -7,12 +7,12 @@ scripts/qa/journey.py mutants applies this, runs the test, and reverts it.
 diff --git a/apps/mobile/Monaco/Features/Proposals/ProposeReviewScreen.swift b/apps/mobile/Monaco/Features/Proposals/ProposeReviewScreen.swift
 --- a/apps/mobile/Monaco/Features/Proposals/ProposeReviewScreen.swift
 +++ b/apps/mobile/Monaco/Features/Proposals/ProposeReviewScreen.swift
-@@ -128,7 +128,7 @@ struct ProposeReviewScreen: View {
-                         lines: model.preIpoLedger, eligibility: .eligible, showsEligibility: false,
-                         identifier: "propose-review-preipo-ledger")
-                 } else {
--                    factsLine(model)
-+                    EmptyView()
+@@ -126,7 +126,7 @@
+                             lines: model.preIpoLedger, eligibility: .eligible, showsEligibility: false,
+                             identifier: "propose-review-preipo-ledger")
+                     } else {
+-                        factsLine(model)
++                        EmptyView()
+                     }
                  }
              }
-             .padding(.horizontal, MonacoTheme.Space.gutter)

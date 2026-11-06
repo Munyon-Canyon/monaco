@@ -37,6 +37,9 @@ enum ProposeSampleScenario: String, CaseIterable {
     case reviewNvidia
     case reviewNvidiaTwoCabals
     case reviewSpaceX
+    case reviewThesisEmpty
+    case reviewThesisTyping
+    case reviewThesisPreIpo
 
     static let launchArgument = "-MonacoProposeSample"
 
@@ -52,8 +55,8 @@ enum ProposeSampleScenario: String, CaseIterable {
         case .pickCabal: script.cabalCount = 2
         case .noCabal: script.cabalCount = 0
         case .buyListPaused: script.includesPausedStock = true
-        case .reviewNvidia, .reviewNvidiaTwoCabals: script.show(.nvda)
-        case .reviewSpaceX: script.show(.spaceX)
+        case .reviewNvidia, .reviewNvidiaTwoCabals, .reviewThesisEmpty, .reviewThesisTyping: script.show(.nvda)
+        case .reviewSpaceX, .reviewThesisPreIpo: script.show(.spaceX)
         default: break
         }
         return script
@@ -83,7 +86,7 @@ enum ProposeSampleScenario: String, CaseIterable {
         case .review: SampleScreenRoute(screen: .proposeReview(.buy), arguments: [])
         case .sellReview: SampleScreenRoute(screen: .proposeReview(.sell), arguments: [])
         case .reviewLongThesis, .reviewSubmitting, .reviewSent, .reviewError, .reviewNvidia, .reviewNvidiaTwoCabals,
-            .reviewSpaceX:
+            .reviewSpaceX, .reviewThesisEmpty, .reviewThesisTyping, .reviewThesisPreIpo:
             ProposeSampleRoute(scenario: self)
         }
     }
@@ -200,21 +203,24 @@ struct ProposeReviewSample: View {
                     service: service, cabalID: GroupDetailSampleData.cabalID, draft: draft,
                     preview: preview, trade: trade,
                     buyName: buyName, logoURL: ProposeSampleLogo.url, memory: memory,
-                    sendsOnAppear: sends, onChangeCabal: showsChangeCabal ? {} : nil)
+                    sendsOnAppear: sends, focusesThesis: scenario == .reviewThesisTyping,
+                    onChangeCabal: showsChangeCabal ? {} : nil)
             }
     }
 
     @ViewBuilder private var backdrop: some View {
         switch scenario {
-        case .reviewNvidia, .reviewNvidiaTwoCabals, .reviewSpaceX: AssetRoute(symbol: symbol).destination()
+        case .reviewNvidia, .reviewNvidiaTwoCabals, .reviewSpaceX, .reviewThesisEmpty, .reviewThesisTyping,
+            .reviewThesisPreIpo:
+            AssetRoute(symbol: symbol).destination()
         default: Color.clear.monacoCanvas()
         }
     }
 
     private var symbol: String {
         switch scenario {
-        case .reviewNvidia, .reviewNvidiaTwoCabals: "NVDAx"
-        case .reviewSpaceX: "tSpaceX"
+        case .reviewNvidia, .reviewNvidiaTwoCabals, .reviewThesisEmpty, .reviewThesisTyping: "NVDAx"
+        case .reviewSpaceX, .reviewThesisPreIpo: "tSpaceX"
         default: "GOOGLx"
         }
     }
@@ -222,19 +228,19 @@ struct ProposeReviewSample: View {
     private var buyName: String? {
         guard kind == .buy else { return nil }
         switch scenario {
-        case .reviewNvidia, .reviewNvidiaTwoCabals: return "NVIDIA"
-        case .reviewSpaceX: return "SpaceX"
+        case .reviewNvidia, .reviewNvidiaTwoCabals, .reviewThesisEmpty, .reviewThesisTyping: return "NVIDIA"
+        case .reviewSpaceX, .reviewThesisPreIpo: return "SpaceX"
         default: return "Alphabet"
         }
     }
 
     private var preview: MonacoCore.ProposePreview {
         switch scenario {
-        case .reviewNvidia, .reviewNvidiaTwoCabals:
+        case .reviewNvidia, .reviewNvidiaTwoCabals, .reviewThesisEmpty, .reviewThesisTyping:
             MonacoCore.ProposePreview(
                 .init(
                     quoteOutAmount: 182_000_000, potValueMicros: 20_000_000_000, spendableCashMicros: 5_100_000_000))
-        case .reviewSpaceX:
+        case .reviewSpaceX, .reviewThesisPreIpo:
             MonacoCore.ProposePreview(
                 .init(
                     quoteOutAmount: 270_000_000, potValueMicros: 20_000_000_000, spendableCashMicros: 5_100_000_000))
@@ -254,7 +260,10 @@ struct ProposeReviewSample: View {
     }
 
     private var showsChangeCabal: Bool {
-        [.reviewNvidia, .reviewNvidiaTwoCabals, .reviewSpaceX, .reviewSubmitting].contains(scenario)
+        [
+            .reviewNvidia, .reviewNvidiaTwoCabals, .reviewSpaceX, .reviewSubmitting, .reviewThesisEmpty,
+            .reviewThesisTyping, .reviewThesisPreIpo,
+        ].contains(scenario)
     }
 
     private var sends: Bool { [.reviewSubmitting, .reviewSent, .reviewError].contains(scenario) }
@@ -264,24 +273,25 @@ struct ProposeReviewSample: View {
     }
 
     private var trade: MonacoCore.ProposeTrade {
-        kind == .buy
-            ? .buy(symbol: symbol, kind: scenario == .reviewSpaceX ? .preIpo : .stock, tokenDecimals: 8)
-            : .sell(holding)
+        let preIpo = [ProposeSampleScenario.reviewSpaceX, .reviewThesisPreIpo].contains(scenario)
+        return kind == .buy ? .buy(symbol: symbol, kind: preIpo ? .preIpo : .stock, tokenDecimals: 8) : .sell(holding)
     }
 
     private var thesis: String {
         switch scenario {
         case .reviewLongThesis:
             String(repeating: "Earnings next week and the cloud business keeps compounding. ", count: 4)
-        case .reviewNvidia, .reviewNvidiaTwoCabals, .reviewSpaceX: ""
+        case .reviewNvidia, .reviewNvidiaTwoCabals, .reviewSpaceX, .reviewThesisEmpty, .reviewThesisPreIpo: ""
+        case .reviewThesisTyping:
+            "Small add to the position. Earnings next week; I want more before, and we can add on a dip."
         default: "Earnings next week."
         }
     }
 
     private var buyMicros: Int64 {
         switch scenario {
-        case .reviewNvidia, .reviewNvidiaTwoCabals: 400_000_000
-        case .reviewSpaceX: 500_000_000
+        case .reviewNvidia, .reviewNvidiaTwoCabals, .reviewThesisEmpty, .reviewThesisTyping: 400_000_000
+        case .reviewSpaceX, .reviewThesisPreIpo: 500_000_000
         default: 25_000_000
         }
     }

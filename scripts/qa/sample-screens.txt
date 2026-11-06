@@ -502,6 +502,9 @@ propose-review-error           -MonacoProposeSample reviewError
 propose-review-nvidia          -MonacoProposeSample reviewNvidia
 propose-review-nvidia-two      -MonacoProposeSample reviewNvidiaTwoCabals
 propose-review-spacex          -MonacoProposeSample reviewSpaceX
+propose-review-thesis-empty    -MonacoProposeSample reviewThesisEmpty
+propose-review-thesis-typing   -MonacoProposeSample reviewThesisTyping
+propose-review-thesis-preipo   -MonacoProposeSample reviewThesisPreIpo
 propose-review-expanded        -MonacoProposeSample review -UIPreferredContentSizeCategoryName UICTContentSizeCategoryAccessibilityL
 propose-chooser-large-text     -MonacoProposeSample chooser -UIPreferredContentSizeCategoryName UICTContentSizeCategoryAccessibilityXXXL
 propose-amount-large-text      -MonacoProposeSample amount -UIPreferredContentSizeCategoryName UICTContentSizeCategoryAccessibilityXXXL
