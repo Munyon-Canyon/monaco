@@ -274,6 +274,7 @@ actor ReviewService: ProposeService {
     private var held: CheckedContinuation<Void, Never>?
     private(set) var submissions: [IdempotentSubmission] = []
     private(set) var networks: [Components.Schemas.Network?] = []
+    private(set) var drafts: [ProposalDraft] = []
     private(set) var previewNetworks: [Components.Schemas.Network?] = []
     private let chainQuoteOut: Int64
     private let chainCode: String?
@@ -323,9 +324,10 @@ actor ReviewService: ProposeService {
     }
 
     func propose(
-        cabalID _: String, draft _: ProposalDraft, network: Components.Schemas.Network?,
+        cabalID _: String, draft: ProposalDraft, network: Components.Schemas.Network?,
         submission: IdempotentSubmission
     ) async throws -> String {
+        drafts.append(draft)
         submissions.append(submission)
         networks.append(network)
         if holdsFirst {

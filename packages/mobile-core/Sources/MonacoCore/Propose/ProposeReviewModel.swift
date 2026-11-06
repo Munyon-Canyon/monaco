@@ -20,6 +20,7 @@ public final class ProposeReviewModel {
     public private(set) var chain: ProposeChain = .best
     public private(set) var chainPreview: ChainPreview?
     public private(set) var preIpo: PreIpoDetail.Profile?
+    public private(set) var thesis: String
 
     public let cabal: ProposeCabalInfo
     private let service: ProposeService
@@ -43,6 +44,7 @@ public final class ProposeReviewModel {
         self.cabalID = cabalID
         self.cabal = cabal
         self.draft = draft
+        thesis = ProposeReasonRules.limited(draft.thesis)
         self.preview = preview
         self.trade = trade
         self.submission = submission
@@ -119,6 +121,8 @@ public final class ProposeReviewModel {
         if case .loading = chainPreview.state { return false }
         return chainProblem == nil
     }
+
+    public func setThesis(_ text: String) { thesis = ProposeReasonRules.limited(text) }
 
     public func setPreIpo(_ profile: PreIpoDetail.Profile?) { preIpo = profile }
 
@@ -207,11 +211,7 @@ public final class ProposeReviewModel {
     }
 
     public var reason: String? {
-        let text: String
-        switch draft {
-        case .buy(_, _, let thesis), .sell(_, _, let thesis): text = thesis
-        }
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed = thesis.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
     }
 
@@ -247,7 +247,7 @@ public final class ProposeReviewModel {
         defer { isSending = false }
         do {
             proposalID = try await service.propose(
-                cabalID: cabalID, draft: draft, network: chain.network, submission: submission)
+                cabalID: cabalID, draft: draft.with(thesis: thesis), network: chain.network, submission: submission)
         } catch {
             errorMessage = ToastCopy.message(for: APIError(error))
         }

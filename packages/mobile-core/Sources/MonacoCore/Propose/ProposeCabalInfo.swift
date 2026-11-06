@@ -8,10 +8,22 @@ public struct ProposeCabalInfo: Equatable, Sendable {
     public let votingWindowShort: String
     public let voterCount: Int
     public let neededToPass: Int
+    public let faces: [String: Face]
+
+    public struct Face: Equatable, Sendable {
+        public let name: String
+        public let photoURL: String?
+
+        public init(name: String, photoURL: String? = nil) {
+            self.name = name
+            self.photoURL = photoURL
+        }
+    }
 
     public init(
         name: String, voters: String, votingWindow: String = "", votesToPass: String = "",
-        votingWindowShort: String = "", voterCount: Int = 0, neededToPass: Int = 0
+        votingWindowShort: String = "", voterCount: Int = 0, neededToPass: Int = 0,
+        faces: [String: Face] = [:]
     ) {
         self.name = name
         self.voters = voters
@@ -20,6 +32,7 @@ public struct ProposeCabalInfo: Equatable, Sendable {
         self.votingWindowShort = votingWindowShort
         self.voterCount = voterCount
         self.neededToPass = neededToPass
+        self.faces = faces
     }
 
     static func shortWindow(seconds: Int32) -> String {
@@ -37,6 +50,9 @@ public struct ProposeCabalInfo: Equatable, Sendable {
         votesToPass = CabalThreshold(rawValue: cabal.rules.threshold)?.label ?? cabal.rules.threshold
         votingWindowShort = Self.shortWindow(seconds: cabal.rules.proposalExpirySeconds)
         voterCount = voting.count
+        faces = Dictionary(
+            cabal.members.map { ($0.userId, Face(name: $0.displayName, photoURL: $0.photoUrl)) },
+            uniquingKeysWith: { first, _ in first })
         let unanimous = CabalThreshold(rawValue: cabal.rules.threshold) == .unanimous
         neededToPass = unanimous ? voting.count : voting.count / 2 + 1
         if voting.count == cabal.members.count, voting.count > 1 {

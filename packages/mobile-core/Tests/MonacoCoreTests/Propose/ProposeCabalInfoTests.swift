@@ -62,6 +62,22 @@ final class ProposeCabalInfoTests: XCTestCase {
             info,
             ProposeCabalInfo(
                 name: "QA pot", voters: "All 3 members", votingWindow: "1 day", votesToPass: "Everyone agrees",
-                votingWindowShort: "24 hours", voterCount: 3, neededToPass: 3))
+                votingWindowShort: "24 hours", voterCount: 3, neededToPass: 3,
+                faces: ProposeCabalInfo(.sampleWithMembers(role: "member")).faces))
+    }
+
+    func testFacesHoldEveryMembersNameAndPhotoFromTheOneRead() {
+        var cabal = Components.Schemas.Cabal.sampleWithMembers(role: "creator")
+        cabal.members[1].photoUrl = "https://example.com/jordan.jpg"
+        cabal.members[2].canVote = false
+
+        let faces = ProposeCabalInfo(cabal).faces
+
+        XCTAssertEqual(faces.count, cabal.members.count)
+        for member in cabal.members {
+            XCTAssertEqual(faces[member.userId]?.name, member.displayName)
+        }
+        XCTAssertEqual(faces[cabal.members[1].userId]?.photoURL, "https://example.com/jordan.jpg")
+        XCTAssertNil(faces[cabal.members[0].userId]?.photoURL)
     }
 }

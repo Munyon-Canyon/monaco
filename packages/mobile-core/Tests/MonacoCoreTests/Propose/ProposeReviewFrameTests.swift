@@ -68,13 +68,34 @@ final class ProposeReviewFrameTests: XCTestCase {
 
         XCTAssertEqual(model.assetLine, "Buy ≈ 2.70 sh at the estimate")
         XCTAssertEqual(model.cabalLine, "$5,100 cash · 6 hours to vote · 5 of 8 to pass")
-        XCTAssertFalse(model.showsThesis)
+        XCTAssertTrue(model.showsThesis)
         XCTAssertEqual(
             model.preIpoLedger,
             [
                 PreIpoCopy.LedgerLine(label: "Last round · Jun ’26", value: "$165.00"),
                 PreIpoCopy.LedgerLine(label: "Secondary estimate · Oct 20", value: "$185.00"),
             ])
+    }
+
+    func testThePromptNamesTheAssetAndIsOptional() {
+        let apple = ProposeHoldingTests.holding(name: "Apple", units: "1.2034", tokenAmount: 120_345_678)
+
+        XCTAssertEqual(frameModel().thesisPrompt, "Why NVDA?")
+        XCTAssertEqual(frameModel(kind: .preIpo).thesisPrompt, "Why NVDA?")
+        XCTAssertEqual(makeSellModel(apple, selling: 60_172_839).thesisPrompt, "Why AAPL?")
+        XCTAssertEqual(frameModel().thesisOptionalLabel, "Optional")
+    }
+
+    func testTheFoldedLineIsTheTradeOnOneLine() {
+        let apple = ProposeHoldingTests.holding(name: "Apple", units: "1.2034", tokenAmount: 120_345_678)
+
+        XCTAssertEqual(frameModel().foldedTradeLine, "Buy NVDA · $400")
+        XCTAssertEqual(makeSellModel(apple, selling: 60_172_839).foldedTradeLine, "Sell AAPL · 0.6017 shares")
+    }
+
+    func testEveryProposalShowsTheThesisBox() {
+        XCTAssertTrue(frameModel(kind: .preIpo).showsThesis)
+        XCTAssertTrue(frameModel().showsThesis)
     }
 
     func testMissingQuoteAndPotShowDashes() {
