@@ -10,6 +10,7 @@ struct GroupChatScreen: View {
     var reporter: ChatSeenReporter?
     var viewerID = ""
     var proposals: ChatProposalStore?
+    var openVotes: ChatOpenVotesModel?
     var network: NetworkPathModel?
     var gifs: (any GifProvider)?
     let openProfile: (String) -> Void
@@ -24,7 +25,7 @@ struct GroupChatScreen: View {
     @State private var chat: ChatSession.State?
     @Environment(ToastCenter.self) private var toasts
     @State private var messageToDelete: String?
-    @State private var thesis: ChatThesisSource?
+    @State private var visibleCards: Set<String> = []
     @State private var showsPoll = false
     @State private var quietFacts = ChatQuietFacts()
     @State private var now = Date()
@@ -34,9 +35,18 @@ struct GroupChatScreen: View {
     @Environment(\.scenePhase) private var scenePhase
 
     private var sessionID: ObjectIdentifier? { session.map(ObjectIdentifier.init) }
+    private var openVotesID: ObjectIdentifier? { openVotes.map(ObjectIdentifier.init) }
     private var reporterID: ObjectIdentifier? { reporter.map(ObjectIdentifier.init) }
     private var closedWithoutMessages: Bool {
         chat?.isClosed == true && chat?.timeline.hasLoadedNewest != true
+    }
+
+    private var thesis: ChatThesisSource? {
+        openVotes.flatMap { ChatThesisSource.newest(in: $0.votes) }
+    }
+
+    private var proposalCardIDs: Set<String> {
+        Set(chat?.timeline.rows.compactMap(\.message.proposalId) ?? [])
     }
 
     private var title: String { GroupChatCopy.title(groupName: cabal?.name) }
@@ -58,7 +68,11 @@ struct GroupChatScreen: View {
         .task { network?.start() }
         .task(id: sessionID) { await observe() }
         .task(id: sessionID) { await session?.open() }
-        .task(id: cabalID) { await loadThesis() }
+        .task(id: openVotesID) { await openVotes?.load() }
+        .task(id: openVotesID) { await openVotes?.observe(hints: environment.hints) }
+        .onChange(of: proposalCardIDs) { old, new in
+            if !new.subtracting(old).isEmpty { Task { await openVotes?.reload() } }
+        }
         .task(id: quietKind == .fresh) { await loadQuietFacts() }
         .onChange(of: chat?.timeline.rows) { now = Date() }
         .task(id: reporterID) { await reporter?.setScreenVisible(true) }
@@ -110,6 +124,13 @@ struct GroupChatScreen: View {
                         pins: chat.pins, cabalName: cabal?.name ?? "", viewerID: viewerID,
                         controls: ChatPinControls(pins: chat.pins, role: cabal?.me?.role, viewerID: viewerID),
                         isShown: network?.isOnline != false,
+                        openVotes: openVotes, visibleCards: visibleCards, proposals: proposals,
+                        goToVote: { proposalID in
+                            switch ChatPinVoteTarget.resolve(proposalID: proposalID, rows: chat.timeline.rows) {
+                            case .scroll(let id): withAnimation { proxy.scrollTo(id, anchor: .center) }
+                            case .proposal(let id): openProposal(id)
+                            }
+                        },
                         scrollTo: { id in withAnimation { proxy.scrollTo(id, anchor: .center) } }))
         }
     }
@@ -133,7 +154,10 @@ struct GroupChatScreen: View {
             loadOlder: { Task { await session?.loadOlder() } },
             refresh: { await session?.reload() },
             reactions: reactionsOverride ?? ownReactions, cabalID: cabalID,
-            quiet: quietContent
+            quiet: quietContent,
+            cardVisibility: { id, isVisible in
+                if isVisible { visibleCards.insert(id) } else { visibleCards.remove(id) }
+            }
         )
     }
 
@@ -201,13 +225,6 @@ struct GroupChatScreen: View {
 
     private func sendPoll(_ draft: ChatAttachmentDraft) {
         Task { await session?.send(body: nil, attachment: draft) }
-    }
-
-    private func loadThesis() async {
-        guard let appEnvironment else { return }
-        let page = try? await ProposalsRepository(api: appEnvironment.api).list(
-            cabalID: cabalID, filter: .open, cursor: nil)
-        thesis = ChatThesisSource.newest(in: page?.items ?? [])
     }
 
     private func observe() async {

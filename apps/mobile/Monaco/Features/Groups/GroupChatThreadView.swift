@@ -22,6 +22,7 @@ struct GroupChatThreadView: View {
     var reactions: ReactionsModel?
     var cabalID = ""
     var quiet: ChatQuietContent?
+    var cardVisibility: (String, Bool) -> Void = { _, _ in }
 
     @Environment(ToastCenter.self) private var toasts
     @Environment(AppEnvironment.self) private var environment: AppEnvironment?
@@ -54,6 +55,7 @@ struct GroupChatThreadView: View {
                     openMoment: { openMoment($0) }
                 )
                 .id(row.id)
+                .modifier(ChatCardVisibility(proposalID: row.message.proposalId, report: cardVisibility))
             }
             ChatQuietGroup(visible: quiet?.showsActions == true) {
                 if let quiet { ChatQuietActions(content: quiet) }
@@ -85,6 +87,21 @@ struct GroupChatThreadView: View {
         case .proposal(let id): environment.navigator.open(ProposalRoute(proposalID: id), in: tab)
         case .holding(let symbol):
             environment.navigator.open(CabalHoldingRoute(cabalID: cabalID, symbol: symbol), in: tab)
+        }
+    }
+}
+
+private struct ChatCardVisibility: ViewModifier {
+    let proposalID: String?
+    let report: (String, Bool) -> Void
+
+    @ViewBuilder func body(content: Content) -> some View {
+        if let proposalID {
+            content
+                .onScrollVisibilityChange(threshold: 0.2) { report(proposalID, $0) }
+                .onDisappear { report(proposalID, false) }
+        } else {
+            content
         }
     }
 }
