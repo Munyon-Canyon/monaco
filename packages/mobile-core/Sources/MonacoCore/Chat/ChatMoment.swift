@@ -215,20 +215,21 @@ public enum ChatMoment: Equatable, Sendable {
 
     private static func shares(usdcMicros: Int64, priceMicros: Int64) -> String? {
         guard usdcMicros > 0, priceMicros > 0 else { return nil }
-        var rounded = Decimal()
-        var quotient = Decimal(usdcMicros) / Decimal(priceMicros)
-        NSDecimalRound(&rounded, &quotient, 2, .plain)
-        return sharesFormatter.string(from: rounded as NSDecimalNumber)
+        let hundredths = (usdcMicros * 100 + priceMicros / 2) / priceMicros
+        let whole = wholeFormatter.string(from: NSNumber(value: hundredths / 100)) ?? "\(hundredths / 100)"
+        let cents = hundredths % 100
+        if cents == 0 { return whole }
+        let fraction = cents % 10 == 0 ? "\(cents / 10)" : (cents < 10 ? "0\(cents)" : "\(cents)")
+        return "\(whole).\(fraction)"
     }
 
-    private static let sharesFormatter: NumberFormatter = {
+    private static let wholeFormatter: NumberFormatter = {
         let formatter = NumberFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.numberStyle = .decimal
         formatter.usesGroupingSeparator = true
         formatter.groupingSeparator = ","
-        formatter.minimumFractionDigits = 0
-        formatter.maximumFractionDigits = 2
+        formatter.maximumFractionDigits = 0
         return formatter
     }()
 

@@ -351,7 +351,7 @@ extension ChatMomentTests {
         XCTAssertEqual(try lines(Self.settled(usdcMicros: 0)).detail, "Buy NVDA")
     }
 
-    func testTheRowOpensTheProposal() throws {
+    func testTheRowOpensTheProposal() async throws {
         let fill = try XCTUnwrap(ChatMoment(message: Self.system("s", Self.voteFill()), viewerID: ""))
         XCTAssertEqual(fill.proposalID, "proposal-1")
         let settled = try XCTUnwrap(ChatMoment(message: Self.system("s", Self.settled()), viewerID: ""))
@@ -361,13 +361,13 @@ extension ChatMomentTests {
         XCTAssertNil(ChatMoment(message: Self.system("s", Self.fill()), viewerID: "")?.proposalID)
     }
 
-    func testTheViewerIsMarkedAsTheProposer() throws {
+    func testTheViewerIsMarkedAsTheProposer() async throws {
         let moment = ChatMoment(message: Self.system("s", Self.settled()), viewerID: ChatFixtures.otherID)
         guard case .proposalSettled(let settled) = moment else { return XCTFail("not settled") }
         XCTAssertTrue(settled.proposerIsMe)
     }
 
-    func testEachVoteMomentHasASpokenLabel() throws {
+    func testEachVoteMomentHasASpokenLabel() async throws {
         func spoken(_ moment: Components.Schemas.ChatMoment) throws -> String? {
             try XCTUnwrap(ChatMoment(message: Self.system("s", moment), viewerID: "")).voteSpokenLabel
         }
