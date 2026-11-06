@@ -4,7 +4,7 @@ import OpenAPIRuntime
 
 struct ChatMomentFilterMiddleware: ClientMiddleware {
     private static let maxBodyBytes = 8 * 1024 * 1024
-    private static let knownKinds: Set<String> = ["cabal_created", "member_joined", "trade_filled"]
+    private static let knownKinds: Set<String> = ["cabal_created", "member_joined", "trade_filled", "proposal_settled"]
 
     func intercept(
         _ request: HTTPRequest,

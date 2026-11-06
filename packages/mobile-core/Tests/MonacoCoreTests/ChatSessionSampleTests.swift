@@ -45,8 +45,8 @@ final class ChatSessionSampleTests: XCTestCase {
 
         let opened = await state(session)
         let moments = opened.timeline.rows.compactMap(\.moment)
-        XCTAssertEqual(moments.count, 3)
-        XCTAssertEqual(moments.compactMap(\.symbol), ["NVDAx"])
+        XCTAssertEqual(moments.count, 5)
+        XCTAssertEqual(moments.compactMap(\.symbol), ["NVDAx", "NVDAx"])
         XCTAssertEqual(opened.timeline.rows.first { $0.id == "mo3" }?.message.reactions.first?.emoji, "🔥")
     }
 

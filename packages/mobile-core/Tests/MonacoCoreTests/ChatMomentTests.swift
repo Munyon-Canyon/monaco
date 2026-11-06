@@ -269,3 +269,126 @@ final class ChatMomentTests: XCTestCase {
         return .json(.ok, String(decoding: body, as: UTF8.self))
     }
 }
+
+@MainActor
+extension ChatMomentTests {
+    private static let mia = Components.Schemas.ChatAuthor(
+        id: ChatFixtures.otherID, handle: nil, displayName: "Mia Chen", photoUrl: nil)
+
+    private static func voteFill(
+        _ side: Components.Schemas.TradeFilledMoment.SidePayload = .buy, yes: Int? = 5, no: Int? = 1,
+        proposer: Components.Schemas.ChatAuthor? = mia
+    ) -> Components.Schemas.ChatMoment {
+        .tradeFilled(
+            .init(
+                kind: .tradeFilled, side: side, symbol: "NVDAx", assetId: "asset-1", priceMicros: 219_400_000,
+                usdcMicros: 400_000_000, filledAt: filledAt, swapId: "swap-1", proposalId: "proposal-1",
+                yes: yes, no: no, proposer: proposer))
+    }
+
+    private static func settled(
+        _ outcome: Components.Schemas.ProposalSettledMoment.OutcomePayload = .failed,
+        side: Components.Schemas.ProposalSettledMoment.SidePayload = .buy, yes: Int = 2, no: Int = 4,
+        usdcMicros: Int64 = 400_000_000, tokenAmount: Int64? = nil
+    ) -> Components.Schemas.ChatMoment {
+        .proposalSettled(
+            .init(
+                kind: .proposalSettled, outcome: outcome, proposalId: "proposal-2", side: side, symbol: "NVDAx",
+                usdcMicros: usdcMicros, tokenAmount: tokenAmount, yes: yes, no: no, voters: 6, proposer: mia))
+    }
+
+    func testAPassedVoteFillReadsTheTallyTheSharesAndWhoCalledIt() async throws {
+        let result = try lines(Self.voteFill(), price: 230_000_000)
+        XCTAssertEqual(result.title, "Passed 5 to 1 · bought 1.82 NVDA")
+        XCTAssertEqual(result.detail, "at $219.40 · Mia called it")
+        XCTAssertNil(result.change)
+        XCTAssertNil(result.direction)
+    }
+
+    func testTheViewerWhoProposedItReadsYouCalledIt() async throws {
+        let result = try lines(Self.voteFill(proposer: Self.mia), viewer: ChatFixtures.otherID)
+        XCTAssertEqual(result.detail, "at $219.40 · You called it")
+    }
+
+    func testAPassedSellReadsSold() async throws {
+        let result = try lines(Self.voteFill(.sell, yes: 4, no: 2))
+        XCTAssertEqual(result.title, "Passed 4 to 2 · sold 1.82 NVDA")
+    }
+
+    func testAVoteFillWithoutAProposerDropsTheCalledIt() async throws {
+        let result = try lines(Self.voteFill(proposer: nil))
+        XCTAssertEqual(result.detail, "at $219.40")
+    }
+
+    func testAFillWithoutATallyReadsAsBefore() async throws {
+        let result = try lines(Self.voteFill(yes: nil, no: nil), price: 220_000_000)
+        XCTAssertEqual(result.title, "Bought NVDA at $219.40")
+        XCTAssertEqual(result.detail, "Filled Sep 30 · now $220.00")
+        let moment = try XCTUnwrap(
+            ChatMoment(message: Self.system("s", Self.voteFill(yes: nil, no: nil)), viewerID: ""))
+        XCTAssertNil(moment.voteSpokenLabel)
+    }
+
+    func testAFailedVoteReadsNothingBoughtAndTheProposalHeadline() async throws {
+        let result = try lines(Self.settled())
+        XCTAssertEqual(result.title, "Failed 2 to 4 · nothing bought")
+        XCTAssertEqual(result.detail, "Buy NVDA · $400")
+    }
+
+    func testAFailedSellReadsNothingSold() async throws {
+        let result = try lines(Self.settled(side: .sell, tokenAmount: 1_500_000))
+        XCTAssertEqual(result.title, "Failed 2 to 4 · nothing sold")
+        XCTAssertEqual(result.detail, "Sell NVDA · $400")
+    }
+
+    func testAnExpiredVoteReadsNotEnoughVotes() async throws {
+        let result = try lines(Self.settled(.expired, yes: 1, no: 0))
+        XCTAssertEqual(result.title, "Closed 1 to 0 · not enough votes")
+        XCTAssertEqual(result.detail, "Buy NVDA · $400")
+    }
+
+    func testAVoteWithNoRecordedAmountShowsOnlyTheName() async throws {
+        XCTAssertEqual(try lines(Self.settled(usdcMicros: 0)).detail, "Buy NVDA")
+    }
+
+    func testTheRowOpensTheProposal() async throws {
+        let fill = try XCTUnwrap(ChatMoment(message: Self.system("s", Self.voteFill()), viewerID: ""))
+        XCTAssertEqual(fill.proposalID, "proposal-1")
+        let settled = try XCTUnwrap(ChatMoment(message: Self.system("s", Self.settled()), viewerID: ""))
+        XCTAssertEqual(settled.proposalID, "proposal-2")
+        XCTAssertNil(settled.symbol)
+        XCTAssertNil(ChatMoment.cabalCreated.proposalID)
+        XCTAssertNil(ChatMoment(message: Self.system("s", Self.fill()), viewerID: "")?.proposalID)
+    }
+
+    func testTheViewerIsMarkedAsTheProposer() async throws {
+        let moment = ChatMoment(message: Self.system("s", Self.settled()), viewerID: ChatFixtures.otherID)
+        guard case .proposalSettled(let settled) = moment else { return XCTFail("not settled") }
+        XCTAssertTrue(settled.proposerIsMe)
+    }
+
+    func testEachVoteMomentHasASpokenLabel() async throws {
+        func spoken(_ moment: Components.Schemas.ChatMoment) throws -> String? {
+            try XCTUnwrap(ChatMoment(message: Self.system("s", moment), viewerID: "")).voteSpokenLabel
+        }
+        XCTAssertEqual(
+            try spoken(Self.voteFill()),
+            "Vote passed, 5 to 1. Bought 1.82 NVDA at 219 dollars 40. Mia called it. Opens the vote.")
+        XCTAssertEqual(
+            try spoken(Self.settled()),
+            "Vote failed, 2 to 4. Nothing bought. Buy NVDA, $400. Opens the vote.")
+        XCTAssertEqual(
+            try spoken(Self.settled(.expired, side: .sell, yes: 1, no: 0)),
+            "Vote closed, 1 to 0. Not enough votes. Nothing sold. Sell NVDA, $400. Opens the vote.")
+        XCTAssertNil(ChatMoment.cabalCreated.voteSpokenLabel)
+    }
+
+    func testASettledMomentDecodesAndRidesTheTimeline() async throws {
+        let message = Self.system("s1", Self.settled())
+        let data = Data(try ChatFixtures.json(message).utf8)
+        XCTAssertEqual(ChatEventDecoder.decode(name: "moment.created", data: data), .momentCreated(message))
+        var timeline = ChatTimeline(viewerID: ChatFixtures.viewerID)
+        timeline.mergeNewest([message], pageSize: 50)
+        XCTAssertEqual(timeline.rows.map(\.id), ["s1"])
+    }
+}

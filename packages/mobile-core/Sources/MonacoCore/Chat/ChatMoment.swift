@@ -21,6 +21,35 @@ public enum ChatMoment: Equatable, Sendable {
         public let fillPriceMicros: Int64
         public let filledAt: Date
         public let proposalID: String?
+        public let usdcMicros: Int64
+        public let yes: Int?
+        public let no: Int?
+        public let proposer: Components.Schemas.ChatAuthor?
+        public let proposerIsMe: Bool
+
+        public var tally: (yes: Int, no: Int)? {
+            guard let yes, let no else { return nil }
+            return (yes, no)
+        }
+    }
+
+    public enum SettledOutcome: Equatable, Sendable {
+        case failed
+        case expired
+    }
+
+    public struct Settled: Equatable, Sendable {
+        public let outcome: SettledOutcome
+        public let proposalID: String
+        public let side: Side
+        public let symbol: String
+        public let usdcMicros: Int64
+        public let tokenAmount: Int64?
+        public let yes: Int
+        public let no: Int
+        public let voters: Int
+        public let proposer: Components.Schemas.ChatAuthor?
+        public let proposerIsMe: Bool
     }
 
     public struct Lines: Equatable, Sendable {
@@ -39,6 +68,7 @@ public enum ChatMoment: Equatable, Sendable {
     case cabalCreated
     case memberJoined(member: Components.Schemas.ChatAuthor, isMe: Bool)
     case tradeFilled(Trade)
+    case proposalSettled(Settled)
 
     public init?(message: ChatMessage, viewerID: String) {
         guard message.kind == .system, let moment = message.moment else { return nil }
@@ -55,16 +85,42 @@ public enum ChatMoment: Equatable, Sendable {
                     assetID: fill.assetId,
                     fillPriceMicros: fill.priceMicros,
                     filledAt: fill.filledAt,
-                    proposalID: fill.proposalId
+                    proposalID: fill.proposalId,
+                    usdcMicros: fill.usdcMicros,
+                    yes: fill.yes,
+                    no: fill.no,
+                    proposer: fill.proposer,
+                    proposerIsMe: fill.proposer?.id == viewerID
                 ))
-        case .proposalSettled:
-            return nil
+        case .proposalSettled(let settled):
+            self = .proposalSettled(
+                Settled(
+                    outcome: settled.outcome == .failed ? .failed : .expired,
+                    proposalID: settled.proposalId,
+                    side: settled.side == .buy ? .buy : .sell,
+                    symbol: settled.symbol,
+                    usdcMicros: settled.usdcMicros,
+                    tokenAmount: settled.tokenAmount,
+                    yes: settled.yes,
+                    no: settled.no,
+                    voters: settled.voters,
+                    proposer: settled.proposer,
+                    proposerIsMe: settled.proposer.id == viewerID
+                ))
         }
     }
 
     public var symbol: String? {
         guard case .tradeFilled(let trade) = self else { return nil }
         return trade.symbol
+    }
+
+    public var proposalID: String? {
+        switch self {
+        case .tradeFilled(let trade): trade.proposalID
+        case .proposalSettled(let settled): settled.proposalID
+        case .cabalCreated, .memberJoined: nil
+        }
     }
 
     public func lines(
@@ -81,14 +137,108 @@ public enum ChatMoment: Equatable, Sendable {
             let who = isMe ? "You" : Self.firstName(of: member)
             return Lines(title: "\(who) joined \(cabalName)", detail: nil, change: nil, direction: nil)
         case .tradeFilled(let trade):
+            if let tally = trade.tally { return Self.lines(for: trade, tally: tally) }
             return Self.lines(
                 for: trade, currentPriceMicros: currentPriceMicros, now: now, calendar: calendar, locale: locale)
+        case .proposalSettled(let settled):
+            return Self.lines(for: settled)
+        }
+    }
+
+    public var voteSpokenLabel: String? {
+        switch self {
+        case .tradeFilled(let trade):
+            guard let tally = trade.tally else { return nil }
+            let price = Self.spokenDollars(trade.fillPriceMicros)
+            let bought = Self.fillClause(trade)
+            var sentences = ["Vote passed, \(tally.yes) to \(tally.no)", "\(bought.sentenceCased) at \(price)"]
+            if let called = Self.calledIt(proposer: trade.proposer, isMe: trade.proposerIsMe) {
+                sentences.append(called)
+            }
+            return sentences.joined(separator: ". ") + ". Opens the vote."
+        case .proposalSettled(let settled):
+            let nothing = settled.side == .buy ? "Nothing bought" : "Nothing sold"
+            let head =
+                settled.outcome == .failed
+                ? "Vote failed, \(settled.yes) to \(settled.no). \(nothing)"
+                : "Vote closed, \(settled.yes) to \(settled.no). Not enough votes. \(nothing)"
+            let spokenHeadline = Self.headline(of: settled).replacingOccurrences(of: " \u{00B7} ", with: ", ")
+            return "\(head). \(spokenHeadline). Opens the vote."
+        case .cabalCreated, .memberJoined:
+            return nil
         }
     }
 
     private static func firstName(of member: Components.Schemas.ChatAuthor) -> String {
         let name = member.displayName.split(separator: " ").first.map(String.init)
         return name ?? "Someone"
+    }
+
+    private static func lines(for trade: Trade, tally: (yes: Int, no: Int)) -> Lines {
+        let price = "at \(UsdAmountFormatter.format(micros: trade.fillPriceMicros))"
+        let detail = [price, calledIt(proposer: trade.proposer, isMe: trade.proposerIsMe)]
+            .compactMap { $0 }.joined(separator: " \u{00B7} ")
+        return Lines(
+            title: "Passed \(tally.yes) to \(tally.no) \u{00B7} \(fillClause(trade))",
+            detail: detail, change: nil, direction: nil)
+    }
+
+    private static func lines(for settled: Settled) -> Lines {
+        let nothing = settled.side == .buy ? "nothing bought" : "nothing sold"
+        let title =
+            settled.outcome == .failed
+            ? "Failed \(settled.yes) to \(settled.no) \u{00B7} \(nothing)"
+            : "Closed \(settled.yes) to \(settled.no) \u{00B7} not enough votes"
+        return Lines(title: title, detail: headline(of: settled), change: nil, direction: nil)
+    }
+
+    private static func headline(of settled: Settled) -> String {
+        let ticker = AssetSymbolFormatter.display(settled.symbol)
+        let name = "\(settled.side == .buy ? "Buy" : "Sell") \(ticker)"
+        guard settled.usdcMicros > 0 else { return name }
+        return "\(name) \u{00B7} \(CabalHeaderCopy.compactDollars(settled.usdcMicros))"
+    }
+
+    private static func calledIt(proposer: Components.Schemas.ChatAuthor?, isMe: Bool) -> String? {
+        guard let proposer else { return nil }
+        return ResultCopy.calledIt(isMe ? "You" : firstName(of: proposer))
+    }
+
+    private static func fillClause(_ trade: Trade) -> String {
+        let verb = trade.side == .buy ? "bought" : "sold"
+        let ticker = AssetSymbolFormatter.display(trade.symbol)
+        guard let shares = shares(usdcMicros: trade.usdcMicros, priceMicros: trade.fillPriceMicros) else {
+            return "\(verb) \(ticker)"
+        }
+        return "\(verb) \(shares) \(ticker)"
+    }
+
+    private static func shares(usdcMicros: Int64, priceMicros: Int64) -> String? {
+        guard usdcMicros > 0, priceMicros > 0 else { return nil }
+        let hundredths = (usdcMicros * 100 + priceMicros / 2) / priceMicros
+        let whole = wholeFormatter.string(from: NSNumber(value: hundredths / 100)) ?? "\(hundredths / 100)"
+        let cents = hundredths % 100
+        if cents == 0 { return whole }
+        let fraction = cents % 10 == 0 ? "\(cents / 10)" : (cents < 10 ? "0\(cents)" : "\(cents)")
+        return "\(whole).\(fraction)"
+    }
+
+    private static let wholeFormatter: NumberFormatter = {
+        let formatter = NumberFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.numberStyle = .decimal
+        formatter.usesGroupingSeparator = true
+        formatter.groupingSeparator = ","
+        formatter.maximumFractionDigits = 0
+        return formatter
+    }()
+
+    private static func spokenDollars(_ micros: Int64) -> String {
+        let cents = (micros + 5_000) / 10_000
+        let dollars = cents / 100
+        let remainder = cents % 100
+        let unit = dollars == 1 ? "dollar" : "dollars"
+        return remainder == 0 ? "\(dollars) \(unit)" : "\(dollars) \(unit) \(remainder)"
     }
 
     private static func lines(
@@ -163,4 +313,8 @@ public final class ChatMomentPrices {
             }
         }
     }
+}
+
+extension String {
+    fileprivate var sentenceCased: String { prefix(1).uppercased() + dropFirst() }
 }

@@ -302,7 +302,24 @@ private actor SampleChatStore {
             minutesAgo: 60 * 24 * 33)
         fill.reactions = [.init(emoji: "🔥", count: 2, mine: false)]
         fill.reactionCount = 2
-        return [created, joined, fill]
+        let mia = Components.Schemas.ChatAuthor(id: "u-mia", handle: nil, displayName: "Mia", photoUrl: nil)
+        let passed = system(
+            "mo4",
+            .tradeFilled(
+                .init(
+                    kind: .tradeFilled, side: .buy, symbol: "NVDAx", assetId: "sample-nvda", priceMicros: 219_400_000,
+                    usdcMicros: 400_000_000, filledAt: Date(timeIntervalSinceNow: -2 * 86_400),
+                    swapId: "sample-swap-2", proposalId: "sample-proposal-2", yes: 5, no: 1, proposer: mia)),
+            minutesAgo: 60 * 24 * 2)
+        let failed = system(
+            "mo5",
+            .proposalSettled(
+                .init(
+                    kind: .proposalSettled, outcome: .failed, proposalId: "sample-proposal-3", side: .buy,
+                    symbol: "NVDAx", usdcMicros: 400_000_000, tokenAmount: nil, yes: 2, no: 4, voters: 6,
+                    proposer: mia)),
+            minutesAgo: 60 * 24)
+        return [created, joined, fill, passed, failed]
     }
 
     private static func system(

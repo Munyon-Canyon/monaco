@@ -24,15 +24,17 @@ struct ChatMomentRow: View {
     var body: some View {
         switch moment {
         case .tradeFilled(let trade):
-            pill(trade)
+            pill(symbol: trade.symbol)
+        case .proposalSettled(let settled):
+            pill(symbol: settled.symbol)
         case .cabalCreated, .memberJoined:
             eventLine
         }
     }
 
-    private func pill(_ trade: ChatMoment.Trade) -> some View {
+    private func pill(symbol: String) -> some View {
         HStack(spacing: MonacoTheme.Space.sm) {
-            StockMark(symbol: trade.symbol, size: ChatMomentMetrics.logoSize)
+            StockMark(symbol: symbol, size: ChatMomentMetrics.logoSize)
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 0) {
                 Text(lines.title)
@@ -98,8 +100,10 @@ struct ChatMomentRow: View {
     static func identifier(rowID: String) -> String { "chat-moment-\(rowID)" }
 
     static func isEventLine(_ moment: ChatMoment) -> Bool {
-        if case .tradeFilled = moment { return false }
-        return true
+        switch moment {
+        case .tradeFilled, .proposalSettled: false
+        case .cabalCreated, .memberJoined: true
+        }
     }
 
     enum Destination: Equatable {
@@ -108,6 +112,7 @@ struct ChatMomentRow: View {
     }
 
     static func destination(of moment: ChatMoment) -> Destination? {
+        if case .proposalSettled(let settled) = moment { return .proposal(settled.proposalID) }
         guard case .tradeFilled(let trade) = moment else { return nil }
         if let proposalID = trade.proposalID { return .proposal(proposalID) }
         return .holding(symbol: trade.symbol)
@@ -121,6 +126,7 @@ struct ChatMomentRow: View {
         for moment: ChatMoment, lines: ChatMoment.Lines, now: Date, calendar: Calendar = .current,
         locale: Locale = .current
     ) -> String {
+        if let vote = moment.voteSpokenLabel { return vote }
         guard case .tradeFilled(let trade) = moment else { return lines.title }
         var parts = [lines.title, "Filled \(spokenDate(trade.filledAt, now: now, calendar: calendar, locale: locale))"]
         if let detail = lines.detail, let now = detail.range(of: " · now ") {
