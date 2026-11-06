@@ -665,3 +665,32 @@ func TestProposalThread_aReactionSummaryFailureIsLoggedAfterTheCommit(t *testing
 		t.Fatalf("logs = %s, want %s naming %s", out, publishFailedLog, app.EventReactionUpdated)
 	}
 }
+
+func TestProposalThread_pinAndUnpinFailWithInternalWhenTheCountsFail(t *testing.T) {
+	t.Parallel()
+	f := newProposalThread(t)
+	admin := asUser(t.Context(), f.cabal.Creator.ID)
+	pin := api.PinChatMessageRequestObject{Id: f.cabal.ID.UUID(), MessageId: f.card}
+	unpin := api.UnpinChatMessageRequestObject{Id: f.cabal.ID.UUID(), MessageId: f.card}
+	if _, err := f.routes.PinChatMessage(admin, pin); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.pool.Exec(t.Context(), `ALTER TABLE feed_comments RENAME COLUMN deleted_at TO gone_at`); err != nil {
+		t.Fatal(err)
+	}
+	_, err := f.routes.UnpinChatMessage(admin, unpin)
+	wantCode(t, err, errs.CodeInternal)
+	_, err = f.routes.PinChatMessage(admin, pin)
+	wantCode(t, err, errs.CodeInternal)
+}
+
+func TestProposalThread_aThreadFailsWithInternalWhenAPollCannotBeRead(t *testing.T) {
+	t.Parallel()
+	f := newProposalThread(t)
+	f.post(t, f.member(0), pollRequest("Trim to 40%?", []string{"Yes", "Wait"}, ptr(24)))
+	if _, err := f.pool.Exec(t.Context(), `ALTER TABLE comment_poll_options RENAME TO options_gone`); err != nil {
+		t.Fatal(err)
+	}
+	_, err := f.thread(t, f.member(1), f.card, api.GetChatThreadParams{Limit: ptr(50)})
+	wantCode(t, err, errs.CodeInternal)
+}
