@@ -6,12 +6,14 @@ enum HomeCashRowMetrics {
     static let skeletonWidth: CGFloat = 96
     static let tile: CGFloat = 32
     static let infoTarget: CGFloat = 44
+    static let partColumn: CGFloat = 56
 }
 
 struct HomeCashRow: View {
     let display: HomeBalanceDisplay
     var status: String?
     var arrivingMicros: Int64 = 0
+    var embedded = false
     var retry: (() -> Void)?
 
     @Environment(\.depositNavigator) private var depositNavigator
@@ -22,16 +24,22 @@ struct HomeCashRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
-            MonacoCard(style: .tight) { row }
-                .accessibilityElement(children: .contain)
-                .accessibilityIdentifier("home-cash-row")
+            if embedded {
+                row
+                    .accessibilityElement(children: .contain)
+                    .accessibilityIdentifier("home-cash-row")
+            } else {
+                MonacoCard(style: .tight) { row }
+                    .accessibilityElement(children: .contain)
+                    .accessibilityIdentifier("home-cash-row")
+            }
             if let retry {
                 MonacoErrorRow(
                     thing: "your balance", identifier: "home-balance-error", inset: false, retry: retry)
             }
             arriving
         }
-        .padding(.horizontal, MonacoTheme.Space.gutter)
+        .padding(.horizontal, embedded ? 0 : MonacoTheme.Space.gutter)
         .frame(maxWidth: .infinity, alignment: .leading)
         .sheet(isPresented: $showsInfo) { HomeApyInfoSheet() }
     }
@@ -51,7 +59,9 @@ struct HomeCashRow: View {
     }
 
     @ViewBuilder private var summary: some View {
-        if dynamicTypeSize.isAccessibilitySize {
+        if embedded {
+            partSummary
+        } else if dynamicTypeSize.isAccessibilitySize {
             VStack(alignment: .leading, spacing: MonacoTheme.Space.s) {
                 HStack(alignment: .top, spacing: MonacoTheme.Space.sm) {
                     cardTile
@@ -62,6 +72,28 @@ struct HomeCashRow: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         } else {
             inlineSummary
+        }
+    }
+
+    private var partSummary: some View {
+        HStack(spacing: MonacoTheme.Space.sm) {
+            cardTile.frame(width: max(HomeCashRowMetrics.partColumn, tileSize))
+            VStack(alignment: .leading, spacing: 0) {
+                figure
+                    .lineLimit(1)
+                    .minimumScaleFactor(MoneyStyle.row.minimumScaleFactor)
+                Text(HomeFigureCopy.cashLine)
+                    .font(MonacoTheme.Typo.subhead)
+                    .foregroundStyle(MonacoTheme.secondaryText)
+                    .accessibilityIdentifier("home-cash-label")
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(minHeight: MonacoButtonMetrics.hitTarget)
+            .contentShape(.accessibility, Rectangle())
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Cash")
+            .accessibilityValue(spoken)
+            .accessibilityIdentifier(valueIdentifier)
         }
     }
 
@@ -208,6 +240,8 @@ private struct HomeApyInfoSheet: View {
 }
 
 struct HomeCashRowSection: View {
+    var embedded = false
+
     @Environment(AppEnvironment.self) private var environment
     @Environment(ScreenRefresh.self) private var refresh: ScreenRefresh?
     @Environment(PortfolioModel.self) private var portfolio: PortfolioModel?
@@ -223,25 +257,35 @@ struct HomeCashRowSection: View {
             status: PlatformBalanceCard.statusLine(
                 cardProcessing: environment.cardDeposit.isProcessing, pendingMicros: inFlight(state)),
             arrivingMicros: arriving(state),
+            embedded: embedded,
             retry: HomeBalanceRowSection.showsRetryRow(state) && reads.showsOwnRow(.balance)
                 ? { Task { await environment.balance.load() } } : nil
         )
-        .homeSlotHidden(!gate.shows { $0.showsMoneyStrip })
+        .homeSlotHidden(!embedded && (!gate.shows { $0.showsMoneyStrip } || partsCardShows))
         .onChange(of: HomeReadStatus(state), initial: true) { _, status in
             reads?.report(.balance, status)
         }
-        .task {
+        .task(id: ownsReads) {
+            guard ownsReads else { return }
             refresh?.register("balance") { await environment.balance.load() }
             await environment.balance.loadIfNeeded()
         }
-        .task {
+        .task(id: ownsReads) {
+            guard ownsReads else { return }
             await environment.cardDeposit.observe()
         }
         .onChange(of: scenePhase) { _, phase in
-            guard phase == .active else { return }
+            guard phase == .active, ownsReads else { return }
             Task { await environment.cardDeposit.foregrounded() }
         }
     }
+
+    private var partsCardShows: Bool {
+        HomeTotalPartsSlot.shows(
+            summary: portfolio?.summary, sharedFailure: reads?.plan.showsSharedRow == true)
+    }
+
+    private var ownsReads: Bool { embedded == partsCardShows }
 
     private func inFlight(_ state: LoadState<AccountBalance>) -> Int64 {
         if case .loaded(let balance) = state { return balance.inFlightMicros }

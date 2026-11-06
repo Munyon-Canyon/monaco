@@ -175,6 +175,8 @@ home-f-ready-light            -MonacoHomeSample fReadyLight -AppleInterfaceStyle
 home-f-scrolled               -MonacoHomeSample fScrolled -AppleInterfaceStyle Dark -MonacoSampleScroll 0.35
 home-f-unfunded               -MonacoHomeSample fUnfunded -AppleInterfaceStyle Dark
 home-f-first-use              -MonacoHomeSample fFirstUse -AppleInterfaceStyle Dark
+home-f-arriving               -MonacoHomeSample fArriving -AppleInterfaceStyle Dark
+home-f-balance-fails          -MonacoHomeSample fBalanceFails -AppleInterfaceStyle Dark
 
 balances-ready                -balancesHarness ready
 balances-ready-dark           -balancesHarness ready -AppleInterfaceStyle Dark
@@ -828,6 +830,7 @@ f__02-home-dark                     -MonacoHomeSample fReady
 f__02-home-light                    -MonacoHomeSample fReadyLight
 f__02-home-scrolled                 -MonacoHomeSample fScrolled -MonacoSampleScroll 0.7
 f__02-home-empty                    -MonacoHomeSample fFirstUse
+f__3B-home                          -MonacoHomeSample fReady
 f__04b-hold-1-pick                  -MonacoHomeSample fVotePick
 f__04b-hold-2-holding               -MonacoHomeSample fVoteHolding
 f__04b-hold-3-committed             -MonacoHomeSample fVoteCommitted

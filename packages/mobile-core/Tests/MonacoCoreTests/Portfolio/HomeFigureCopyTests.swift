@@ -102,4 +102,30 @@ final class HomeFigureCopyTests: XCTestCase {
         XCTAssertEqual(LeaderboardRange.threeMonths.scrubLabelRange, .threeMonths)
         XCTAssertEqual(LeaderboardRange.threeMonths.generated, .all)
     }
+
+    func testTheSharesLineIsSingularForOneCabalAndPluralOtherwise() {
+        XCTAssertEqual(HomeFigureCopy.inCabals(count: 1), "Your share in 1 cabal")
+        XCTAssertEqual(HomeFigureCopy.inCabals(count: 3), "Your share in 3 cabals")
+        XCTAssertEqual(HomeFigureCopy.cashLine, "Cash \u{00B7} USDC")
+    }
+
+    func testTheSpokenLabelsReadEachRowAsOneFigure() {
+        XCTAssertEqual(
+            HomeFigureCopy.sharesSpoken(count: 3, micros: 11_582_000_000), "Your share in 3 cabals, $11,582.00")
+        XCTAssertEqual(HomeFigureCopy.cashSpoken(micros: 500_000_000), "Cash, $500.00")
+        XCTAssertEqual(HomeFigureCopy.sharesHint, "Opens your balances")
+    }
+
+    func testTheTwoPartsAddUpToTheTotalToTheCent() {
+        let shares: Int64 = 11_582_000_000
+        let cash: Int64 = 500_000_000
+        XCTAssertEqual(HomeFigureCopy.partFigure(micros: shares), "$11,582.00")
+        XCTAssertEqual(HomeFigureCopy.partFigure(micros: cash), "$500.00")
+        let total = HomeFigureCopy.netWorth(micros: shares + cash)
+        XCTAssertEqual(total.whole + total.cents, "$12,082.00")
+    }
+
+    func testAPartFigureFloorsToTheCent() {
+        XCTAssertEqual(HomeFigureCopy.partFigure(micros: 500_129_999), "$500.12")
+    }
 }

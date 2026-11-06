@@ -49,6 +49,25 @@ public enum HomeFigureCopy {
         return "Net worth, \(worth) dollars, \(move), \(range.returnPeriodPhrase)"
     }
 
+    public static let cashLine = MoneyCopy.cashLabel
+    public static let sharesHint = "Opens your balances"
+
+    public static func inCabals(count: Int) -> String {
+        "Your share in \(count) \(count == 1 ? "cabal" : "cabals")"
+    }
+
+    public static func partFigure(micros: Int64) -> String {
+        UsdAmountFormatter.format(flooredMicros: micros)
+    }
+
+    public static func sharesSpoken(count: Int, micros: Int64) -> String {
+        "\(inCabals(count: count)), \(partFigure(micros: micros))"
+    }
+
+    public static func cashSpoken(micros: Int64) -> String {
+        "Cash, \(partFigure(micros: micros))"
+    }
+
     private static func dollarsAndCents(_ micros: Int64) -> String {
         let totalCents = (micros + 5_000) / 10_000
         let dollars = totalCents / 100

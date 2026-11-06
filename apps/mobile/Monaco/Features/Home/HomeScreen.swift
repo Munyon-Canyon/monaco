@@ -8,6 +8,7 @@ enum HomeScreenMetrics {
 struct HomeScreen: View {
     static let sections: [any HomeSection.Type] = [
         HomeFigureSlot.self,
+        HomeTotalPartsSlot.self,
         HomePendingVotesSlot.self,
         HomeChartSlot.self,
         HomeBalanceSlot.self,
