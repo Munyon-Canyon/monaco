@@ -24,6 +24,7 @@ struct MonacoSectionHeader: View {
     private var actionIdentifier: String?
     private var countIsSecondary = false
     private var titleSuffix: String?
+    private var titleSuffixSpoken: String?
     private var infoAction: (() -> Void)?
     private var infoIdentifier: String?
 
@@ -44,9 +45,10 @@ struct MonacoSectionHeader: View {
         return copy
     }
 
-    func countText(_ text: String?) -> Self {
+    func countText(_ text: String?, spoken: String? = nil) -> Self {
         var copy = self
         copy.titleSuffix = text
+        copy.titleSuffixSpoken = spoken
         return copy
     }
 
@@ -62,6 +64,41 @@ struct MonacoSectionHeader: View {
 
     private var stacks: Bool { dynamicTypeSize.isAccessibilitySize }
 
+    @ViewBuilder private var titleGroup: some View {
+        let group = HStack(spacing: MonacoTheme.Space.s) {
+            Text(title)
+                .font(MonacoTheme.Typo.section)
+                .foregroundStyle(MonacoTheme.primaryText)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityAddTraits(.isHeader)
+            if let titleSuffix {
+                Text(titleSuffix)
+                    .font(MonacoTheme.Typo.section.monospacedDigit())
+                    .foregroundStyle(MonacoTheme.secondaryText)
+                    .accessibilityLabel(titleSuffixSpoken ?? titleSuffix)
+            } else if let count, count > 0 {
+                if countIsSecondary {
+                    Text("\(count)")
+                        .font(MonacoTheme.Typo.section.monospacedDigit())
+                        .foregroundStyle(MonacoTheme.secondaryText)
+                } else {
+                    Text("\(count)")
+                        .font(MonacoTheme.Typo.captionStrong.monospacedDigit())
+                        .foregroundStyle(MonacoTheme.brand)
+                        .padding(.horizontal, count > 9 ? MonacoTheme.Space.xs : 0)
+                        .frame(minWidth: countSize, minHeight: countSize)
+                        .background(Capsule().fill(MonacoTheme.brandSoft))
+                        .accessibilityLabel("\(count)")
+                }
+            }
+        }
+        if titleSuffixSpoken == nil {
+            group
+        } else {
+            group.accessibilityElement(children: .combine)
+        }
+    }
+
     var body: some View {
         let layout =
             stacks
@@ -69,30 +106,7 @@ struct MonacoSectionHeader: View {
             : AnyLayout(HStackLayout(spacing: 0))
         layout {
             HStack(spacing: MonacoTheme.Space.s) {
-                Text(title)
-                    .font(MonacoTheme.Typo.section)
-                    .foregroundStyle(MonacoTheme.primaryText)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .accessibilityAddTraits(.isHeader)
-                if let titleSuffix {
-                    Text(titleSuffix)
-                        .font(MonacoTheme.Typo.section.monospacedDigit())
-                        .foregroundStyle(MonacoTheme.secondaryText)
-                } else if let count, count > 0 {
-                    if countIsSecondary {
-                        Text("\(count)")
-                            .font(MonacoTheme.Typo.section.monospacedDigit())
-                            .foregroundStyle(MonacoTheme.secondaryText)
-                    } else {
-                        Text("\(count)")
-                            .font(MonacoTheme.Typo.captionStrong.monospacedDigit())
-                            .foregroundStyle(MonacoTheme.brand)
-                            .padding(.horizontal, count > 9 ? MonacoTheme.Space.xs : 0)
-                            .frame(minWidth: countSize, minHeight: countSize)
-                            .background(Capsule().fill(MonacoTheme.brandSoft))
-                            .accessibilityLabel("\(count)")
-                    }
-                }
+                titleGroup
                 if let infoAction {
                     Button(action: infoAction) {
                         Image(systemName: "info.circle")

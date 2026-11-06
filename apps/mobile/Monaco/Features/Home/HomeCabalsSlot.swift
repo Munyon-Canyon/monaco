@@ -83,7 +83,7 @@ private struct HomeCabals: View {
         ) {
             environment.navigator.selectedTab = .cabals
         }
-        .countText(content.countText)
+        .countText(content.headerText, spoken: content.headerSpoken)
         .padding(.horizontal, MonacoTheme.Space.gutter)
     }
 }

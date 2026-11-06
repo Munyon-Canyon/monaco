@@ -831,6 +831,7 @@ f__02-home-light                    -MonacoHomeSample fReadyLight
 f__02-home-scrolled                 -MonacoHomeSample fScrolled -MonacoSampleScroll 0.7
 f__02-home-empty                    -MonacoHomeSample fFirstUse
 f__3B-home                          -MonacoHomeSample fReady
+f__3B-home-scrolled                  -MonacoHomeSample fScrolled -MonacoSampleScroll 0.7
 f__04b-hold-1-pick                  -MonacoHomeSample fVotePick
 f__04b-hold-2-holding               -MonacoHomeSample fVoteHolding
 f__04b-hold-3-committed             -MonacoHomeSample fVoteCommitted

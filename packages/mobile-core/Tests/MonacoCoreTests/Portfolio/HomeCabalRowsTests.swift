@@ -25,11 +25,14 @@ final class HomeCabalRowsTests: XCTestCase {
             openVoteCount: 0)
     }
 
-    private func portfolio(_ cabals: [Components.Schemas.PortfolioCabal]) -> PortfolioSummary {
-        PortfolioSummary(
+    private func portfolio(
+        _ cabals: [Components.Schemas.PortfolioCabal], totalValueMicros: Int64? = nil
+    ) -> PortfolioSummary {
+        let total: Int64 = totalValueMicros ?? cabals.reduce(0) { $0 + $1.valueMicros }
+        return PortfolioSummary(
             Components.Schemas.MyPortfolio(
-                cashMicros: 0, netWorthMicros: 0, totalValueMicros: 0, pnlMicros: 0, returnBps: nil, computedAt: nil,
-                pricesAsOf: nil, cabals: cabals))
+                cashMicros: 0, netWorthMicros: 0, totalValueMicros: total, pnlMicros: 0, returnBps: nil,
+                computedAt: nil, pricesAsOf: nil, cabals: cabals))
     }
 
     private var threeCabals: [Components.Schemas.PortfolioCabal] {
@@ -111,6 +114,42 @@ final class HomeCabalRowsTests: XCTestCase {
         XCTAssertEqual(withInvite.countText, "3 · 1 invited")
         let without = try content(HomeCabalList.state(portfolio: portfolio(threeCabals), invites: []))
         XCTAssertEqual(without.countText, "3")
+    }
+
+    func testTheHeaderShowsTheSumOfTheCabalsAsTheSharesRowDoes() async throws {
+        let summary = portfolio(threeCabals)
+        let shown = try content(HomeCabalList.state(portfolio: summary, invites: []))
+        XCTAssertEqual(shown.totalText, "$11,582.00")
+        XCTAssertEqual(shown.totalText, HomeFigureCopy.partFigure(micros: summary.totalMicros))
+        XCTAssertEqual(shown.headerText, "$11,582.00")
+        XCTAssertEqual(shown.headerSpoken, "11,582 dollars")
+    }
+
+    func testTheHeaderTotalFloorsToTheCentAndSpeaksTheCents() async throws {
+        let shown = try content(
+            HomeCabalList.state(portfolio: portfolio(threeCabals, totalValueMicros: 11_582_459_999), invites: []))
+        XCTAssertEqual(shown.totalText, "$11,582.45")
+        XCTAssertEqual(shown.headerSpoken, "11,582 dollars 45 cents")
+    }
+
+    func testTheHeaderTotalIgnoresInvites() async throws {
+        let shown = try content(HomeCabalList.state(portfolio: portfolio(threeCabals), invites: [invite()]))
+        XCTAssertEqual(shown.totalText, "$11,582.00")
+        XCTAssertEqual(shown.headerText, "$11,582.00")
+        XCTAssertEqual(shown.countText, "3 · 1 invited")
+    }
+
+    func testAnUnfundedMemberKeepsTheCountInTheHeader() async throws {
+        let rows = [stake(unfunded, "Quiet", value: 0, pnl: 0, ownership: 0, members: 3)]
+        let alone = try content(HomeCabalList.state(portfolio: portfolio(rows), invites: []))
+        XCTAssertNil(alone.totalText)
+        XCTAssertEqual(alone.headerText, "1")
+        XCTAssertEqual(alone.headerSpoken, "1")
+        let invited = try content(HomeCabalList.state(portfolio: portfolio(rows), invites: [invite()]))
+        XCTAssertNil(invited.totalText)
+        XCTAssertEqual(invited.headerText, "1 · 1 invited")
+        let inviteOnly = try content(HomeCabalList.state(portfolio: portfolio([]), invites: [invite()]))
+        XCTAssertEqual(inviteOnly.headerText, "0 · 1 invited")
     }
 
     func testHomeShowsAtMostThreeCabalsPlusEveryInvite() async throws {
