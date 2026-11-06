@@ -4,14 +4,14 @@ public enum MarketsInfoCopy {
     public static let preIpoTitle = "Pre-IPO"
 
     public static let preIpo =
-        "Pre-IPO companies are private. Their price is a secondary estimate between funding rounds, not a live quote. You can propose to buy the ones marked Can buy; the ones marked Watch only can't be bought here yet."
+        "Pre-IPO companies are private. Their price is the last price paid between investors, not a live price. You can propose to buy the ones marked Can buy; the ones marked Watch only can't be bought here yet."
 }
 
 public enum PreIpoRowCopy {
     private static let months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 
     public static func estimateLine(asOf: String) -> String {
-        "Secondary estimate · \(day(asOf))"
+        "Pre-IPO estimate · \(day(asOf))"
     }
 
     private static let monthNames = [

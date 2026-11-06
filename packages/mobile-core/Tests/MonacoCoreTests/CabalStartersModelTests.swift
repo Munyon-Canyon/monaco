@@ -19,20 +19,20 @@ final class CabalStartersModelTests: XCTestCase {
         XCTAssertEqual(paths, ["/v1/assets?filter=in_cabals&limit=5"])
     }
 
-    func testAPreIpoRowReadsSecondaryEstimateAndEligible() async throws {
+    func testAPreIpoRowReadsPreIpoEstimateAndEligible() async throws {
         let (model, _) = try make(.json(.ok, Self.list(.inCabalsSample)))
 
         await model.load()
 
         let spaceX = try XCTUnwrap(model.rows.first { $0.asset.symbol == "tSpaceX" })
-        XCTAssertEqual(spaceX.subline, "Secondary estimate \u{00B7} in 29 cabals")
+        XCTAssertEqual(spaceX.subline, "Pre-IPO estimate \u{00B7} in 29 cabals")
         XCTAssertTrue(spaceX.isEligible)
         XCTAssertEqual(CabalStartersModel.eligible, "Can buy")
     }
 
     func testARowWithNoCountFallsBackToTheTickerOrTheEstimate() {
         XCTAssertEqual(CabalStarter.subline(kind: .stock, ticker: "AAPL", cabalCount: nil), "AAPL")
-        XCTAssertEqual(CabalStarter.subline(kind: .preIpo, ticker: "SpaceX", cabalCount: nil), "Secondary estimate")
+        XCTAssertEqual(CabalStarter.subline(kind: .preIpo, ticker: "SpaceX", cabalCount: nil), "Pre-IPO estimate")
     }
 
     func testAFailedReadKeepsTheRows() async throws {
