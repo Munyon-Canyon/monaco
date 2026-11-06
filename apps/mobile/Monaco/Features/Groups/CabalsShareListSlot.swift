@@ -19,6 +19,7 @@ struct CabalsShareListSection: View {
         VStack(alignment: .leading, spacing: 0) {
             if !tiles.isEmpty {
                 MonacoSectionHeader("Your share in each")
+                    .countText(store.shareTotalText, spoken: store.shareTotalSpoken)
                     .padding(.horizontal, MonacoTheme.Space.gutter)
                     .padding(.top, MonacoTheme.Space.l)
                 ForEach(tiles) { tile in

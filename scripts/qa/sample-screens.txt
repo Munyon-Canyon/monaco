@@ -838,6 +838,7 @@ f__04b-hold-3-committed             -MonacoHomeSample fVoteCommitted
 f__03-cabals-tab                    -MonacoCabalsTabSample -MonacoCabalsTabSampleScenario fReady
 f__03-cabals-tab-few                -MonacoCabalsTabSample -MonacoCabalsTabSampleScenario fFew
 f__03-cabals-tab-menu               -MonacoCabalsTabSample -MonacoCabalsTabSampleScenario fMenu
+f__3-cabals-tab-share              -MonacoCabalsTabSample -MonacoCabalsTabSampleScenario fReady -MonacoSampleScroll bottom
 f__03-cabal-treasury                -MonacoGroupDetailSample fTreasury
 f__03-cabal-treasury-light          -MonacoGroupDetailSample fTreasuryLight
 f__03-cabal-treasury-scrolled       -MonacoGroupDetailSample fTreasuryScrolled -MonacoSampleScroll 1
