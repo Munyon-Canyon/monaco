@@ -200,6 +200,20 @@ func (q *Queries) GetChatMessageByID(ctx context.Context, id uuid.UUID) (GetChat
 	return i, err
 }
 
+const getProposalCardAuthor = `-- name: GetProposalCardAuthor :one
+SELECT author_id::uuid AS author_id
+FROM cabal_messages
+WHERE kind = 'proposal' AND proposal_id = $1::uuid AND author_id IS NOT NULL
+LIMIT 1
+`
+
+func (q *Queries) GetProposalCardAuthor(ctx context.Context, proposalID uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, getProposalCardAuthor, proposalID)
+	var author_id uuid.UUID
+	err := row.Scan(&author_id)
+	return author_id, err
+}
+
 const getProposalCardOfComment = `-- name: GetProposalCardOfComment :one
 SELECT m.id AS card_id, m.cabal_id, o.ref_id AS proposal_id, c.author_kind, live.reply_count, live.last_reply_at
 FROM feed_comments c

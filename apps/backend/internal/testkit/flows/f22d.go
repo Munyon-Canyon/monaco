@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -166,6 +167,166 @@ func F22dWriteTradeFilledMomentOK(s *scenario.Scenario) {
 		Then(func(s *scenario.Scenario) {
 			if got := keyedRows(s, "fill:%"); got != 2 {
 				s.Fatalf("flows: the cabal holds %d trade_filled rows, want 2", got)
+			}
+		})
+}
+
+func SettledProposal(name string) uuid.UUID {
+	return uuid.NewSHA1(uuid.Nil, []byte("f22d-settled-"+name))
+}
+
+func settledSeed(s *scenario.Scenario, proposal uuid.UUID, withCard bool) {
+	s.Helper()
+	_, err := s.DB().Exec(s.Context(), `INSERT INTO feed_objects
+		(id, kind, ref_type, ref_id, cabal_id, cabal_name, actor_id, symbol, title, payload, status, created_at, updated_at)
+		SELECT $1, 'proposal', 'proposals', $2, c.id, c.name, c.creator_id, 'NVDA', 'seeded',
+			'{"status":"open","action":"buy","symbol":"NVDA","usdc_micros":"300000000"}', 'open', now(), now()
+		FROM cabals c WHERE c.id = $3::uuid`, ids.Real{}.NewV7(), proposal, s.Recall("cabal"))
+	if err != nil {
+		s.Fatalf("flows: seed the proposal feed item: %v", err)
+	}
+	if !withCard {
+		return
+	}
+	_, err = s.DB().Exec(s.Context(), `INSERT INTO cabal_messages
+		(id, cabal_id, author_id, kind, proposal_id, dedupe_key, created_at)
+		VALUES ($1, $2::uuid, $3, 'proposal', $4, $5, now())`,
+		ids.Real{}.NewV7(), s.Recall("cabal"), s.ActorID().UUID(), proposal, "proposal:"+proposal.String())
+	if err != nil {
+		s.Fatalf("flows: seed the proposal card: %v", err)
+	}
+}
+
+func settledKey(proposal uuid.UUID) string { return "settled:" + proposal.String() }
+
+func expectSettledMoment(outcome string, yes, no int, proposer func(*scenario.Scenario) string) scenario.Step {
+	return scenario.ExpectField("messages", func(s *scenario.Scenario, raw json.RawMessage) {
+		var rows []struct {
+			Moment struct {
+				Kind     string `json:"kind"`
+				Outcome  string `json:"outcome"`
+				Symbol   string `json:"symbol"`
+				Micros   int64  `json:"usdc_micros"`
+				Yes      int    `json:"yes"`
+				No       int    `json:"no"`
+				Voters   int    `json:"voters"`
+				Proposer struct {
+					ID string `json:"id"`
+				} `json:"proposer"`
+			} `json:"moment"`
+		}
+		if err := json.Unmarshal(raw, &rows); err != nil {
+			s.Fatalf("flows: decode the moments read: %v", err)
+		}
+		for _, row := range rows {
+			m := row.Moment
+			if m.Kind != "proposal_settled" {
+				continue
+			}
+			if m.Outcome != outcome || m.Symbol != "NVDA" || m.Micros != 300_000_000 || m.Yes != yes || m.No != no ||
+				m.Voters != 6 || m.Proposer.ID != proposer(s) {
+				s.Fatalf(
+					"flows: the settled moment reads %+v, want %s %d to %d by %s",
+					m,
+					outcome,
+					yes,
+					no,
+					proposer(s),
+				)
+			}
+			return
+		}
+		s.Fatalf("flows: the moments read %s holds no proposal_settled row", raw)
+	})
+}
+
+func settledRun(
+	script, name string, event func(cabal, proposal uuid.UUID) events.Event, withCard bool, outcome string,
+	proposer func(*scenario.Scenario) string,
+) func(*scenario.Scenario) {
+	proposal := SettledProposal(name)
+	return func(s *scenario.Scenario) {
+		s.Given(chatCabal(script)...).
+			When(
+				func(s *scenario.Scenario) {
+					settledSeed(s, proposal, withCard)
+					for range 2 {
+						publishEvent(s, event(uuid.MustParse(s.Recall("cabal")), proposal))
+					}
+				},
+				scenario.Eventually("the proposal_settled row", func(s *scenario.Scenario) bool {
+					return keyedRows(s, settledKey(proposal)) == 1
+				}),
+				scenario.Get(chatPath),
+				scenario.ExpectStatus(http.StatusOK),
+				scenario.ExpectField("messages", func(s *scenario.Scenario, raw json.RawMessage) {
+					if strings.Contains(string(raw), `"kind":"system"`) {
+						s.Fatalf("flows: the default read returned %s, want no system rows", raw)
+					}
+				}),
+				scenario.Get(chatPath+"?moments=true"),
+				scenario.ExpectStatus(http.StatusOK),
+				expectSettledMoment(outcome, 2, 4, proposer),
+			).
+			Then(
+				func(s *scenario.Scenario) {
+					if got := keyedRows(s, settledKey(proposal)); got != 1 {
+						s.Fatalf("flows: the cabal holds %d rows for the settled key, want 1", got)
+					}
+				},
+				scenario.ExpectEvents(events.TypeChatMessagePosted, 0),
+			)
+	}
+}
+
+func cabalCreator(s *scenario.Scenario) string {
+	s.Helper()
+	var creator string
+	if err := s.DB().QueryRow(s.Context(), `SELECT creator_id::text FROM cabals WHERE id = $1::uuid`,
+		s.Recall("cabal")).Scan(&creator); err != nil {
+		s.Fatalf("flows: read the cabal creator: %v", err)
+	}
+	return creator
+}
+
+func F22dWriteProposalFailedMomentOK(s *scenario.Scenario) {
+	settledRun("moment-ok", "failed", func(cabal, proposal uuid.UUID) events.Event {
+		return events.ProposalFailed{V: 1, ProposalID: proposal, CabalID: cabal, Kind: "buy"}
+	}, true, "failed", func(s *scenario.Scenario) string { return s.ActorID().UUID().String() })(s)
+}
+
+func F22dWriteProposalExpiredMomentOK(s *scenario.Scenario) {
+	settledRun("moment-created", "expired", func(cabal, proposal uuid.UUID) events.Event {
+		return events.ProposalExpired{V: 1, ProposalID: proposal, CabalID: cabal, Kind: "buy"}
+	}, false, "expired", cabalCreator)(s)
+}
+
+func F22dWriteProposalFailedMomentSilent(s *scenario.Scenario) {
+	rule, voided, withdrawn, unknown, last := SettledProposal("rule"), SettledProposal("voided"),
+		SettledProposal("withdrawn"), SettledProposal("unknown"), SettledProposal("last")
+	s.Given(chatCabal("moment-invalid")...).
+		When(
+			func(s *scenario.Scenario) {
+				cabal := uuid.MustParse(s.Recall("cabal"))
+				for _, p := range []uuid.UUID{rule, voided, withdrawn, last} {
+					settledSeed(s, p, false)
+				}
+				publishEvent(s, events.ProposalFailed{V: 1, ProposalID: rule, CabalID: cabal, Kind: "rule"})
+				publishEvent(
+					s,
+					events.ProposalVoided{V: 1, ProposalID: voided, CabalID: cabal, ActorType: "admin", Reason: "x"},
+				)
+				publishEvent(s, events.ProposalWithdrawn{V: 1, ProposalID: withdrawn, CabalID: cabal})
+				publishEvent(s, events.ProposalFailed{V: 1, ProposalID: unknown, CabalID: cabal, Kind: "buy"})
+				publishEvent(s, events.ProposalExpired{V: 1, ProposalID: last, CabalID: cabal, Kind: "buy"})
+			},
+			scenario.Eventually("the last settled row", func(s *scenario.Scenario) bool {
+				return keyedRows(s, settledKey(last)) == 1
+			}),
+		).
+		Then(func(s *scenario.Scenario) {
+			if got := keyedRows(s, "settled:%"); got != 1 {
+				s.Fatalf("flows: the cabal holds %d settled rows, want only the last proposal's", got)
 			}
 		})
 }

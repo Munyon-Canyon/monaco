@@ -11,6 +11,7 @@ import (
 
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social"
+	"github.com/monaco/monaco/apps/backend/internal/modules/social/domain/feed"
 	"github.com/monaco/monaco/apps/backend/internal/platform/bus"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
 	"github.com/monaco/monaco/apps/backend/internal/platform/module"
@@ -32,6 +33,12 @@ func chatMomentEvent(_ *rand.Rand, i int) events.Event {
 		return events.CabalMemberJoined{V: 1, CabalID: cabal, UserID: chaosCreator(2), RequestID: resultProposal(0)}
 	case 6:
 		return events.CabalMemberJoined{V: 1, CabalID: cabal, UserID: chaosCreator(3)}
+	case 7:
+		return events.ProposalFailed{V: 1, ProposalID: resultProposal(0), CabalID: cabal, Kind: "buy"}
+	case 8:
+		return events.ProposalExpired{V: 1, ProposalID: resultProposal(2), CabalID: cabal, Kind: "buy"}
+	case 9:
+		return events.ProposalFailed{V: 1, ProposalID: resultProposal(0), CabalID: cabal, Kind: "rule"}
 	case 3:
 		return events.TradeConfirmed{
 			V: 1, SwapID: uuid.NewSHA1(uuid.Nil, []byte("fill-buy")), CabalID: cabal, Action: "buy",
@@ -53,6 +60,24 @@ func chatMomentEvent(_ *rand.Rand, i int) events.Event {
 	}
 }
 
+func seedMomentProposals(t *testing.T, h testkit.Harness) {
+	t.Helper()
+	for i := range resultProposals {
+		payload := feed.Payload{
+			CabalName: "Alpha", ActorName: "Old", Symbol: "AAPLx", AssetName: "Apple", Action: feed.ActionBuy,
+			USDCMicros: money.MicrosFromUint64(300_000_000), Status: "open", AssetKind: feed.AssetKindEquity,
+		}
+		_, err := h.Pool.Exec(t.Context(), `INSERT INTO feed_objects
+			(id, kind, ref_type, ref_id, cabal_id, cabal_name, actor_id, symbol, title, payload, status, created_at,
+			updated_at)
+			VALUES ($1, 'proposal', 'proposals', $2, $3, 'Alpha', $4, 'AAPLx', 't', $5, 'open', now(), now())`,
+			h.IDs.NewV7(), resultProposal(i), chaosCabal(1), chaosCreator(1), payload.JSON())
+		if err != nil {
+			t.Fatalf("seed proposal %d: %v", i, err)
+		}
+	}
+}
+
 func TestChatMomentsConsumer_Chaos_RedeliveryWritesEachMomentOnce(t *testing.T) {
 	t.Parallel()
 	testkit.ConsumerSuite(t, func(h testkit.Harness) bus.Consumer {
@@ -69,8 +94,10 @@ func TestChatMomentsConsumer_Chaos_RedeliveryWritesEachMomentOnce(t *testing.T) 
 		if err != nil {
 			t.Fatalf("seed cabal: %v", err)
 		}
+		seedMomentProposals(t, h)
 		deps := module.Deps{Pool: h.Pool, UoW: db.New(h.Pool, h.IDs, h.Clock), IDs: h.IDs, Clock: h.Clock, Bus: h.Bus}
-		mod := social.New(deps, social.WithAssets(marketfake.NewCatalog(marketfake.AAPLx())))
+		mod := social.New(deps, social.WithAssets(marketfake.NewCatalog(marketfake.AAPLx())),
+			social.WithTallies(chaosTallies()))
 		for _, c := range mod.Consumers() {
 			if c.Durable == "social_chat_moments" {
 				return c
