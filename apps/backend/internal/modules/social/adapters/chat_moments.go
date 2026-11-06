@@ -159,6 +159,19 @@ func (h ChatMoments) fetchSettled(
 	if !found {
 		proposer = ids.UserIDFrom(source.ActorID.Bytes)
 	}
+	settled := settledOf(source, payload, proposer, proposalID, kind, outcome, closed.Tally)
+	if _, err := domain.NewProposalSettledMoment(settled); err != nil {
+		observability.Debug(ctx, observability.SocialChatMomentSkipped, slog.String("reason", "unwritable_settled"),
+			slog.Any("cause", err))
+		return SettledFetch{Skip: true}, nil
+	}
+	return SettledFetch{Settled: settled}, nil
+}
+
+func settledOf(
+	source sqlc.GetProposalFeedSourceRow, payload feed.Payload, proposer ids.UserID, proposalID uuid.UUID,
+	kind string, outcome domain.SettledOutcome, tally app.Tally,
+) domain.ProposalSettled {
 	usdc := payload.USDCMicros
 	if usdc.IsZero() {
 		usdc = payload.QuoteMicros
@@ -168,11 +181,15 @@ func (h ChatMoments) fetchSettled(
 	if side != domain.TradeBuy && side != domain.TradeSell {
 		side = domain.TradeSide(payload.Action)
 	}
-	return SettledFetch{Settled: domain.ProposalSettled{
-		Outcome: outcome, ProposalID: proposalID, Side: side, Symbol: payload.Symbol,
+	symbol := payload.Symbol
+	if symbol == "" {
+		symbol = source.Symbol.String
+	}
+	return domain.ProposalSettled{
+		Outcome: outcome, ProposalID: proposalID, Side: side, Symbol: symbol,
 		USDCMicros: clampInt64(usdc.Uint64()), TokenAmount: tokens,
-		Yes: closed.Tally.Yes, No: closed.Tally.No, Voters: closed.Tally.Voters, ProposerID: proposer,
-	}}, nil
+		Yes: tally.Yes, No: tally.No, Voters: tally.Voters, ProposerID: proposer,
+	}
 }
 
 func clampInt64(v uint64) int64 {

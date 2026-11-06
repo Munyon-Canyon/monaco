@@ -384,3 +384,47 @@ func TestGetChatMessages_aPassedVoteFillCarriesItsTallyAndProposer(t *testing.T)
 		t.Fatalf("filled = %+v, %v, want 5 to 1 by Kai", filled, err)
 	}
 }
+
+func TestChatMoments_FetchFailed_ReadsTheSymbolFromTheFeedItemWhenThePayloadLacksIt(t *testing.T) {
+	t.Parallel()
+	f := newChatFixture(t)
+	seeded := f.deps.IDs.NewV7()
+	f.seedProposalFeed(t, seeded, f.member(0), feed.Payload{})
+	h := f.settledMoments(votesOf(seeded, app.Tally{Yes: 0, No: 1, Voters: 1, Needed: 1, Kind: "buy"}))
+	got, err := h.FetchFailed(t.Context(), events.ProposalFailed{V: 1, ProposalID: seeded, Kind: "buy"})
+	want := domain.ProposalSettled{
+		Outcome: domain.SettledFailed, ProposalID: seeded, Side: domain.TradeBuy, Symbol: "NVDA",
+		No: 1, Voters: 1, ProposerID: f.member(0),
+	}
+	if err != nil || got.Skip || got.Settled != want {
+		t.Fatalf("fetched (%+v, %v), want %+v", got, err, want)
+	}
+}
+
+func TestChatMoments_FetchSettled_SkipsAProposalThatMakesNoMoment(t *testing.T) {
+	t.Parallel()
+	f := newChatFixture(t)
+	nameless, sideless := f.deps.IDs.NewV7(), f.deps.IDs.NewV7()
+	f.seedProposalFeed(t, nameless, f.member(0), feed.Payload{})
+	f.seedProposalFeed(t, sideless, f.member(0), feed.Payload{Symbol: "NVDA"})
+	if _, err := f.pool.Exec(
+		t.Context(),
+		`UPDATE feed_objects SET symbol = NULL WHERE ref_id = $1`,
+		nameless,
+	); err != nil {
+		t.Fatalf("clear the feed item symbol: %v", err)
+	}
+	tally := app.Tally{No: 1, Voters: 1, Needed: 1, Kind: "buy"}
+	h := f.settledMoments(map[ids.ProposalID]app.Tally{
+		ids.ProposalIDFrom(nameless): tally, ids.ProposalIDFrom(sideless): tally,
+	})
+	for name, e := range map[string]events.ProposalFailed{
+		"no symbol anywhere": {V: 1, ProposalID: nameless, Kind: "buy"},
+		"no side anywhere":   {V: 1, ProposalID: sideless, Kind: "other"},
+	} {
+		got, err := h.FetchFailed(t.Context(), e)
+		if err != nil || !got.Skip {
+			t.Errorf("%s: fetched (%+v, %v), want a skip", name, got, err)
+		}
+	}
+}
