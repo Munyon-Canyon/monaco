@@ -443,10 +443,8 @@ func momentPeople(m *domain.ChatMoment) []ids.UserID {
 	case domain.MomentProposalSettled:
 		return []ids.UserID{m.Settled().ProposerID}
 	case domain.MomentCabalCreated:
-		return nil
-	default:
-		return nil
 	}
+	return nil
 }
 
 func wireChatAuthor(cards map[ids.UserID]app.UserCard, id ids.UserID) api.ChatAuthor {
