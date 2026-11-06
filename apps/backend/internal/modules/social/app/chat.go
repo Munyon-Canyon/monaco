@@ -45,6 +45,8 @@ type ChatMessage struct {
 	Poll          *PollView
 	PinnedAt      *time.Time
 	PinnedBy      ids.UserID
+	CommentID     uuid.UUID
+	ReplyTo       *CommentQuote
 }
 
 func requireMember(ctx context.Context, members Members, cabal ids.CabalID, user ids.UserID) error {

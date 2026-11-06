@@ -199,6 +199,56 @@ func (q *Queries) GetChatMessageByID(ctx context.Context, id uuid.UUID) (GetChat
 	return i, err
 }
 
+const getProposalCardOfComment = `-- name: GetProposalCardOfComment :one
+SELECT m.id AS card_id, m.cabal_id, o.ref_id AS proposal_id, c.author_kind
+FROM feed_comments c
+JOIN feed_objects o ON o.id = c.feed_object_id AND o.ref_type = 'proposals' AND o.kind = 'proposal'
+JOIN cabal_messages m ON m.proposal_id = o.ref_id AND m.kind = 'proposal'
+WHERE c.id = $1
+`
+
+type GetProposalCardOfCommentRow struct {
+	CardID     uuid.UUID
+	CabalID    uuid.UUID
+	ProposalID uuid.UUID
+	AuthorKind string
+}
+
+func (q *Queries) GetProposalCardOfComment(ctx context.Context, commentID uuid.UUID) (GetProposalCardOfCommentRow, error) {
+	row := q.db.QueryRow(ctx, getProposalCardOfComment, commentID)
+	var i GetProposalCardOfCommentRow
+	err := row.Scan(
+		&i.CardID,
+		&i.CabalID,
+		&i.ProposalID,
+		&i.AuthorKind,
+	)
+	return i, err
+}
+
+const getProposalCommentCursor = `-- name: GetProposalCommentCursor :one
+SELECT created_at, id
+FROM feed_comments
+WHERE id = $1 AND feed_object_id = $2
+`
+
+type GetProposalCommentCursorParams struct {
+	ID           uuid.UUID
+	FeedObjectID uuid.UUID
+}
+
+type GetProposalCommentCursorRow struct {
+	CreatedAt time.Time
+	ID        uuid.UUID
+}
+
+func (q *Queries) GetProposalCommentCursor(ctx context.Context, arg GetProposalCommentCursorParams) (GetProposalCommentCursorRow, error) {
+	row := q.db.QueryRow(ctx, getProposalCommentCursor, arg.ID, arg.FeedObjectID)
+	var i GetProposalCommentCursorRow
+	err := row.Scan(&i.CreatedAt, &i.ID)
+	return i, err
+}
+
 const insertChatMessage = `-- name: InsertChatMessage :one
 INSERT INTO cabal_messages (id, cabal_id, author_id, body, created_at, parent_id, also_in_channel)
 VALUES (
@@ -591,6 +641,107 @@ func (q *Queries) ListChatReplies(ctx context.Context, arg ListChatRepliesParams
 	return items, nil
 }
 
+const listProposalChatReplies = `-- name: ListProposalChatReplies :many
+SELECT c.id, c.feed_object_id, c.author_id, c.parent_comment_id, c.reply_to_user_id, c.reply_to_comment_id, c.body,
+  c.created_at,
+  r.id AS quote_id, r.author_id AS quote_author_id, r.parent_comment_id AS quote_parent_id, r.body AS quote_body,
+  (r.deleted_at IS NOT NULL)::bool AS quote_deleted,
+  EXISTS (SELECT 1 FROM comment_attachments qa WHERE qa.comment_id = r.id)::bool AS quote_has_attachment,
+  a.kind AS attachment_kind, a.payload AS attachment_payload,
+  EXISTS (
+    SELECT 1 FROM user_blocks b WHERE b.blocker_id = $1::uuid AND b.blocked_id = r.author_id
+  )::bool AS quote_blocked
+FROM feed_comments c
+LEFT JOIN feed_comments r ON r.feed_object_id = c.feed_object_id AND r.id = c.reply_to_comment_id
+LEFT JOIN comment_attachments a ON a.comment_id = c.id
+WHERE c.feed_object_id = $2
+  AND c.author_kind = 'user'
+  AND c.deleted_at IS NULL
+  AND NOT EXISTS (
+    SELECT 1 FROM user_blocks b WHERE b.blocker_id = $1::uuid AND b.blocked_id = c.author_id
+  )
+  AND (
+    NOT $3::bool
+    OR (c.created_at, c.id) < ($4::timestamptz, $5::uuid)
+  )
+ORDER BY c.created_at DESC, c.id DESC
+LIMIT $6::int
+`
+
+type ListProposalChatRepliesParams struct {
+	Viewer       uuid.UUID
+	FeedObjectID uuid.UUID
+	HasBefore    bool
+	BeforeAt     time.Time
+	BeforeID     uuid.UUID
+	RowLimit     int32
+}
+
+type ListProposalChatRepliesRow struct {
+	ID                 uuid.UUID
+	FeedObjectID       uuid.UUID
+	AuthorID           pgtype.UUID
+	ParentCommentID    pgtype.UUID
+	ReplyToUserID      pgtype.UUID
+	ReplyToCommentID   pgtype.UUID
+	Body               pgtype.Text
+	CreatedAt          time.Time
+	QuoteID            pgtype.UUID
+	QuoteAuthorID      pgtype.UUID
+	QuoteParentID      pgtype.UUID
+	QuoteBody          pgtype.Text
+	QuoteDeleted       bool
+	QuoteHasAttachment bool
+	AttachmentKind     pgtype.Text
+	AttachmentPayload  []byte
+	QuoteBlocked       bool
+}
+
+func (q *Queries) ListProposalChatReplies(ctx context.Context, arg ListProposalChatRepliesParams) ([]ListProposalChatRepliesRow, error) {
+	rows, err := q.db.Query(ctx, listProposalChatReplies,
+		arg.Viewer,
+		arg.FeedObjectID,
+		arg.HasBefore,
+		arg.BeforeAt,
+		arg.BeforeID,
+		arg.RowLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListProposalChatRepliesRow
+	for rows.Next() {
+		var i ListProposalChatRepliesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.FeedObjectID,
+			&i.AuthorID,
+			&i.ParentCommentID,
+			&i.ReplyToUserID,
+			&i.ReplyToCommentID,
+			&i.Body,
+			&i.CreatedAt,
+			&i.QuoteID,
+			&i.QuoteAuthorID,
+			&i.QuoteParentID,
+			&i.QuoteBody,
+			&i.QuoteDeleted,
+			&i.QuoteHasAttachment,
+			&i.AttachmentKind,
+			&i.AttachmentPayload,
+			&i.QuoteBlocked,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listSeenBy = `-- name: ListSeenBy :many
 SELECT user_id
 FROM chat_seen
@@ -712,6 +863,40 @@ func (q *Queries) NewestSeenCount(ctx context.Context, cabalID uuid.UUID) (Newes
 	var i NewestSeenCountRow
 	err := row.Scan(&i.MessageID, &i.SeenCount)
 	return i, err
+}
+
+const proposalChatReplyStats = `-- name: ProposalChatReplyStats :many
+SELECT o.ref_id AS proposal_id, count(c.id)::int AS reply_count, max(c.created_at)::timestamptz AS last_reply_at
+FROM feed_objects AS o
+JOIN feed_comments AS c ON c.feed_object_id = o.id AND c.deleted_at IS NULL AND c.author_kind = 'user'
+WHERE o.ref_type = 'proposals' AND o.kind = 'proposal' AND o.ref_id = ANY($1::uuid[])
+GROUP BY o.ref_id
+`
+
+type ProposalChatReplyStatsRow struct {
+	ProposalID  uuid.UUID
+	ReplyCount  int32
+	LastReplyAt time.Time
+}
+
+func (q *Queries) ProposalChatReplyStats(ctx context.Context, proposalIds []uuid.UUID) ([]ProposalChatReplyStatsRow, error) {
+	rows, err := q.db.Query(ctx, proposalChatReplyStats, proposalIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ProposalChatReplyStatsRow
+	for rows.Next() {
+		var i ProposalChatReplyStatsRow
+		if err := rows.Scan(&i.ProposalID, &i.ReplyCount, &i.LastReplyAt); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const seedChatSeen = `-- name: SeedChatSeen :exec

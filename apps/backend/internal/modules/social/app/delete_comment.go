@@ -63,6 +63,7 @@ func (h *DeleteCommentHandler) Handle(ctx context.Context, cmd DeleteComment) er
 			return errs.Wrap(err, errs.CodeInternal, op)
 		}
 		tx.AfterCommit(func(ctx context.Context) { h.d.Hints.PublishHint(ctx, FeedHint, nil) })
+		tx.AfterCommit(func(ctx context.Context) { h.d.Chat.commentDeleted(ctx, h.d.Reads, cmd.CommentID) })
 		return tx.Events.Append(ctx, events.CommentDeleted{
 			V: 1, CommentID: row.ID, FeedObjectID: row.FeedObjectID, DeletedBy: cmd.Caller.UUID(),
 			DeletedByKind: CommentDeletedByAuthor,

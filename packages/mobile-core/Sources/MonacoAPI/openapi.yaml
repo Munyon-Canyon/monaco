@@ -11422,6 +11422,17 @@ components:
             handle: {type: [string, "null"], description: Null until onboarding sets one., examples: [kai]}
             display_name: {type: string, description: Empty when the user has none., examples: [Kai]}
             photo_url: {type: [string, "null"], description: Null when the user has none., examples: [null]}
+        comment_id:
+          type: [string, "null"]
+          format: uuid
+          description: >-
+            The feed comment this row is, on a reply in a proposal card's thread. The app sends the row's
+            reactions, deletes and reports to `/v1/feed/comments/{comment_id}`; the chat routes refuse the
+            id as `chat_message_not_found`. Absent on an ordinary chat row.
+          examples: [null]
+        reply_to:
+          $ref: "#/components/schemas/CommentQuote"
+          description: The quote above a reply that answers another comment in a proposal card's thread. Absent otherwise.
     ChatMoment:
       description: What a system row says happened, keyed by `kind`.
       examples:

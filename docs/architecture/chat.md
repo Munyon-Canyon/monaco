@@ -52,7 +52,7 @@ Constraints:
   - `(cabal_id, created_at DESC, id DESC)`, which exists today on `group_messages`, for the channel list.
   - `(parent_id, created_at, id)` for threads.
 
-`parent_id` replaces the `thread_root_id` sketched in [proposals.md](proposals.md#future-referencing-a-proposal-from-cabal-chat). Because threads are one level deep, the parent is the root. A proposal card message is an ordinary top-level message with `proposal_id` set, so its thread uses the same column (default 2026-09-27). It reaches open screens through the same `message.created` event, whose payload carries `proposal_id`. Proposal comments and chat threads stay separate streams ([proposals.md](proposals.md)).
+`parent_id` replaces the `thread_root_id` sketched in [proposals.md](proposals.md#future-referencing-a-proposal-from-cabal-chat). Because threads are one level deep, the parent is the root. A proposal card message is an ordinary top-level message with `proposal_id` set, so its thread uses the same column (default 2026-09-27). It reaches open screens through the same `message.created` event, whose payload carries `proposal_id`. A proposal card's thread reads the proposal's own comments instead ([Proposal threads](#proposal-threads)).
 
 The seen watermark, owned by `social`:
 
@@ -241,6 +241,16 @@ A new proposal appears in the chat as its proposer's message (flow 22e).
 - **Realtime and events.** After the commit the row publishes `message.created` with the wired message. It appends no `chat.message_posted` event, because the proposal already pushes through its own notify path. A redelivery publishes nothing.
 - **Wire.** The row reads as `kind: proposal` with `proposal_id`, the proposer as `author` and the `body`. The card's tally, status and closing time are not in the message; the app loads them by proposal id.
 - **Rules that hold.** The row counts toward unread for the other members and not for the proposer. It takes reactions and replies like any message. A withdrawn or voided proposal keeps its row. Proposals created before this shipped have no row.
+
+### Proposal threads
+
+A proposal card's thread is the proposal's own replies, so a reply reads the same on the proposal page and in Chat (#8391). The store is `feed_comments` on the proposal's feed item, not `cabal_messages` rows with a `parent_id`. The chat only maps them.
+
+- **Read.** `GET /v1/cabals/{id}/messages/{card}/thread` on a `kind = proposal` card finds the proposal's feed item and lists its live user comments in one flat list, oldest first, ordered by `created_at, id`. Top-level comments and folded answers sit side by side, and `before` is a comment id meaning "older than it". A proposal with no feed item yet returns the card with no replies. Deleted and removed comments, Monaco's closing note and comments by authors the caller blocked are left out. Every other message reads as before.
+- **Mapping.** Each comment is a `ChatMessage` with `id` and `comment_id` both the comment id, `kind: user`, `parent_id` the card, `also_in_channel: false`, `reply_count: 0` and the comment's body, attachment (GIF, stock, poll, thesis quote), reactions and `created_at`. `reply_to` carries the quote above a reply that answers another comment. The app sends a comment-backed row's reactions, deletes and reports to `/v1/feed/comments/{comment_id}`; the chat routes still refuse that id as `chat_message_not_found`.
+- **Count.** A card's `reply_count` and `last_reply_at` are the proposal's live user comments and the newest one's time, read in one batched query for the page's proposal ids in the channel read, the pins list, the pin and unpin responses and the thread parent. `cabal_messages.reply_count` is no longer read for a proposal card.
+- **Realtime.** After a comment on a proposal's feed item commits, and the proposal has a card, the cabal's channel gets `message.created` (the mapped reply) and `thread.updated` (the card's new count) for a new comment, `message.deleted` and `thread.updated` for a delete or an admin removal, and `reaction.updated` with the comment id for a reaction change. Each publish runs from `tx.AfterCommit`, and a failure is logged as `social.chat_publish_failed` and never fails the write. A system note publishes nothing.
+- **Old builds** read the same list through the thread route.
 
 ## Alternatives considered
 

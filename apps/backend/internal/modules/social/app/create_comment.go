@@ -87,6 +87,7 @@ type CommentDeps struct {
 	Clock   clock.Clock
 	Hints   Hints
 	Stocks  StockCards
+	Chat    ChatPublisher
 }
 
 type Hints interface {
@@ -138,13 +139,20 @@ func (h *CreateCommentHandler) Handle(ctx context.Context, cmd CreateComment) (C
 	err = h.d.UoW.Do(ctx, func(ctx context.Context, tx db.Tx) error {
 		var err error
 		created, err = h.store(ctx, tx, postedOn{item: item, thread: thread, rule: rule}, cmd, reply)
-		return err
+		if err != nil {
+			return err
+		}
+		if stock.ID != uuid.Nil {
+			created.Stock = &stock
+		}
+		if feed.Kind(thread.Kind) == feed.KindProposal {
+			posted := created
+			tx.AfterCommit(func(ctx context.Context) { h.d.Chat.commentCreated(ctx, h.d.Reads, posted) })
+		}
+		return nil
 	})
 	if err != nil {
 		return Comment{}, err
-	}
-	if stock.ID != uuid.Nil {
-		created.Stock = &stock
 	}
 	observability.Info(ctx, observability.SocialCommentCreated,
 		slog.String("comment_id", created.ID.String()), slog.String("feed_object_id", created.FeedObjectID.String()))

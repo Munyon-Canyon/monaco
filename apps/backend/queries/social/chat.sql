@@ -232,3 +232,48 @@ VALUES (
 )
 ON CONFLICT (cabal_id, user_id) DO UPDATE
 SET last_seen_at = GREATEST(chat_seen.last_seen_at, EXCLUDED.last_seen_at);
+
+-- name: GetProposalCommentCursor :one
+SELECT created_at, id
+FROM feed_comments
+WHERE id = sqlc.arg(id) AND feed_object_id = sqlc.arg(feed_object_id);
+
+-- name: ListProposalChatReplies :many
+SELECT c.id, c.feed_object_id, c.author_id, c.parent_comment_id, c.reply_to_user_id, c.reply_to_comment_id, c.body,
+  c.created_at,
+  r.id AS quote_id, r.author_id AS quote_author_id, r.parent_comment_id AS quote_parent_id, r.body AS quote_body,
+  (r.deleted_at IS NOT NULL)::bool AS quote_deleted,
+  EXISTS (SELECT 1 FROM comment_attachments qa WHERE qa.comment_id = r.id)::bool AS quote_has_attachment,
+  a.kind AS attachment_kind, a.payload AS attachment_payload,
+  EXISTS (
+    SELECT 1 FROM user_blocks b WHERE b.blocker_id = sqlc.arg(viewer)::uuid AND b.blocked_id = r.author_id
+  )::bool AS quote_blocked
+FROM feed_comments c
+LEFT JOIN feed_comments r ON r.feed_object_id = c.feed_object_id AND r.id = c.reply_to_comment_id
+LEFT JOIN comment_attachments a ON a.comment_id = c.id
+WHERE c.feed_object_id = sqlc.arg(feed_object_id)
+  AND c.author_kind = 'user'
+  AND c.deleted_at IS NULL
+  AND NOT EXISTS (
+    SELECT 1 FROM user_blocks b WHERE b.blocker_id = sqlc.arg(viewer)::uuid AND b.blocked_id = c.author_id
+  )
+  AND (
+    NOT sqlc.arg(has_before)::bool
+    OR (c.created_at, c.id) < (sqlc.arg(before_at)::timestamptz, sqlc.arg(before_id)::uuid)
+  )
+ORDER BY c.created_at DESC, c.id DESC
+LIMIT sqlc.arg(row_limit)::int;
+
+-- name: ProposalChatReplyStats :many
+SELECT o.ref_id AS proposal_id, count(c.id)::int AS reply_count, max(c.created_at)::timestamptz AS last_reply_at
+FROM feed_objects AS o
+JOIN feed_comments AS c ON c.feed_object_id = o.id AND c.deleted_at IS NULL AND c.author_kind = 'user'
+WHERE o.ref_type = 'proposals' AND o.kind = 'proposal' AND o.ref_id = ANY(sqlc.arg(proposal_ids)::uuid[])
+GROUP BY o.ref_id;
+
+-- name: GetProposalCardOfComment :one
+SELECT m.id AS card_id, m.cabal_id, o.ref_id AS proposal_id, c.author_kind
+FROM feed_comments c
+JOIN feed_objects o ON o.id = c.feed_object_id AND o.ref_type = 'proposals' AND o.kind = 'proposal'
+JOIN cabal_messages m ON m.proposal_id = o.ref_id AND m.kind = 'proposal'
+WHERE c.id = sqlc.arg(comment_id);

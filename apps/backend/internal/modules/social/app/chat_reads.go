@@ -64,6 +64,9 @@ func ListChatChannel(ctx context.Context, db sqlc.DBTX, members Members, q ChatC
 		return nil, err
 	}
 	page := channelPage(rows)
+	if err := WithProposalReplies(ctx, db, page); err != nil {
+		return nil, err
+	}
 	if q.Before != nil {
 		return page, nil
 	}
@@ -135,16 +138,12 @@ func GetChatThread(ctx context.Context, db sqlc.DBTX, members Members, q ChatThr
 	case row.ParentID.Valid:
 		return ChatThread{}, errs.New(errs.CodeChatParentIsReply, op)
 	}
-	blocked, err := reads.IsBlocked(ctx, sqlc.IsBlockedParams{Blocker: q.Viewer.UUID(), Blocked: row.AuthorID.Bytes})
+	parent, err := threadParent(ctx, reads, q, row)
 	if err != nil {
-		return ChatThread{}, errs.Wrap(err, errs.CodeInternal, op)
+		return ChatThread{}, err
 	}
-	parent := storedMessage(row)
-	if momentHidden(parent, q.Moments) {
-		return ChatThread{}, errs.New(errs.CodeChatMessageNotFound, op, slog.String("kind", string(parent.Kind)))
-	}
-	if blocked {
-		parent.Deleted, parent.Body = true, ""
+	if isProposalCard(parent) {
+		return proposalThread(ctx, db, reads, q, parent, limit)
 	}
 	if parent.Deleted && row.ReplyCount == 0 {
 		return ChatThread{}, errs.New(errs.CodeChatMessageNotFound, op, slog.Bool("deleted", true))
@@ -159,6 +158,24 @@ func GetChatThread(ctx context.Context, db sqlc.DBTX, members Members, q ChatThr
 	}
 	slices.Reverse(replies)
 	return ChatThread{Parent: parent, Replies: storedMessages(replies)}, nil
+}
+
+func threadParent(
+	ctx context.Context, reads *sqlc.Queries, q ChatThreadQuery, row sqlc.CabalMessage,
+) (ChatMessage, error) {
+	const op = "social.GetChatThread"
+	blocked, err := reads.IsBlocked(ctx, sqlc.IsBlockedParams{Blocker: q.Viewer.UUID(), Blocked: row.AuthorID.Bytes})
+	if err != nil {
+		return ChatMessage{}, errs.Wrap(err, errs.CodeInternal, op)
+	}
+	parent := storedMessage(row)
+	if momentHidden(parent, q.Moments) {
+		return ChatMessage{}, errs.New(errs.CodeChatMessageNotFound, op, slog.String("kind", string(parent.Kind)))
+	}
+	if blocked {
+		parent.Deleted, parent.Body = true, ""
+	}
+	return parent, nil
 }
 
 func channelPage(rows []channelRow) []ChatMessage {
@@ -292,4 +309,184 @@ func storedMessage(row sqlc.CabalMessage) ChatMessage {
 		}
 	}
 	return m
+}
+
+func isProposalCard(m ChatMessage) bool {
+	return m.Kind == domain.ChatKindProposal && m.ProposalID != uuid.Nil
+}
+
+type ReplyStat struct {
+	Count int32
+	Last  *time.Time
+}
+
+func ProposalReplyStats(
+	ctx context.Context, db sqlc.DBTX, proposals []uuid.UUID,
+) (map[uuid.UUID]ReplyStat, error) {
+	out := make(map[uuid.UUID]ReplyStat, len(proposals))
+	if len(proposals) == 0 {
+		return out, nil
+	}
+	rows, err := sqlc.New(db).ProposalChatReplyStats(ctx, proposals)
+	if err != nil {
+		return nil, errs.Wrap(err, errs.CodeInternal, "social.ProposalReplyStats")
+	}
+	for _, row := range rows {
+		last := row.LastReplyAt.UTC()
+		out[row.ProposalID] = ReplyStat{Count: row.ReplyCount, Last: &last}
+	}
+	return out, nil
+}
+
+func WithProposalReplies(ctx context.Context, db sqlc.DBTX, messages []ChatMessage) error {
+	var proposals []uuid.UUID
+	for _, m := range messages {
+		if isProposalCard(m) {
+			proposals = append(proposals, m.ProposalID)
+		}
+	}
+	stats, err := ProposalReplyStats(ctx, db, proposals)
+	if err != nil || len(proposals) == 0 {
+		return err
+	}
+	for i, m := range messages {
+		if isProposalCard(m) {
+			stat := stats[m.ProposalID]
+			messages[i].ReplyCount, messages[i].LastReplyAt = stat.Count, stat.Last
+		}
+	}
+	return nil
+}
+
+func proposalThread(
+	ctx context.Context, db sqlc.DBTX, reads *sqlc.Queries, q ChatThreadQuery, parent ChatMessage, limit int32,
+) (ChatThread, error) {
+	const op = "social.GetChatThread"
+	cards := []ChatMessage{parent}
+	if err := WithProposalReplies(ctx, db, cards); err != nil {
+		return ChatThread{}, err
+	}
+	parent = cards[0]
+	if parent.Deleted && parent.ReplyCount == 0 {
+		return ChatThread{}, errs.New(errs.CodeChatMessageNotFound, op, slog.Bool("deleted", true))
+	}
+	item, err := reads.GetProposalFeedItem(ctx, parent.ProposalID)
+	switch {
+	case errors.Is(err, sql.ErrNoRows):
+		return ChatThread{Parent: parent}, nil
+	case err != nil:
+		return ChatThread{}, errs.Wrap(err, errs.CodeInternal, op)
+	}
+	params := sqlc.ListProposalChatRepliesParams{FeedObjectID: item, Viewer: q.Viewer.UUID(), RowLimit: limit}
+	if q.Before != nil {
+		at, err := reads.GetProposalCommentCursor(ctx, sqlc.GetProposalCommentCursorParams{
+			ID: *q.Before, FeedObjectID: item,
+		})
+		if err != nil {
+			return ChatThread{}, cursorError(err, *q.Before)
+		}
+		params.HasBefore, params.BeforeAt, params.BeforeID = true, at.CreatedAt, at.ID
+	}
+	rows, err := reads.ListProposalChatReplies(ctx, params)
+	if err != nil {
+		return ChatThread{}, errs.Wrap(err, errs.CodeInternal, op)
+	}
+	slices.Reverse(rows)
+	card := proposalCard{id: parent.ID, cabal: parent.CabalID, proposal: parent.ProposalID}
+	replies := make([]ChatMessage, len(rows))
+	for i, row := range rows {
+		replies[i] = chatMessageOfComment(card, proposalReplyComment(row))
+	}
+	return ChatThread{Parent: parent, Replies: replies}, nil
+}
+
+func proposalReplyComment(row sqlc.ListProposalChatRepliesRow) Comment {
+	c := commentOf(sqlc.FeedComment{
+		ID: row.ID, FeedObjectID: row.FeedObjectID, AuthorID: row.AuthorID, ParentCommentID: row.ParentCommentID,
+		ReplyToUserID: row.ReplyToUserID, ReplyToCommentID: row.ReplyToCommentID, Body: row.Body,
+		CreatedAt: row.CreatedAt,
+	})
+	c.Attachment = domain.DecodeAttachment(row.AttachmentKind.String, row.AttachmentPayload)
+	if row.QuoteID.Valid {
+		c.ReplyTo = quoteOf(
+			row.QuoteID.Bytes, row.QuoteAuthorID.Bytes, row.QuoteParentID.Bytes, row.QuoteBody.String,
+			row.QuoteHasAttachment, row.QuoteDeleted, row.QuoteBlocked,
+		)
+	}
+	return c
+}
+
+func ChatMessageReactions(
+	ctx context.Context, reads sqlc.DBTX, viewer ids.UserID, messages []ChatMessage,
+) (map[uuid.UUID]ReactionSummary, error) {
+	var chatIDs, commentIDs []uuid.UUID
+	for _, m := range messages {
+		if m.CommentID == uuid.Nil {
+			chatIDs = append(chatIDs, m.ID)
+		} else {
+			commentIDs = append(commentIDs, m.CommentID)
+		}
+	}
+	out, err := ChatReactions(ctx, reads, viewer, chatIDs)
+	if err != nil {
+		return nil, err
+	}
+	found, err := commentReactions(ctx, sqlc.New(reads), viewer, commentIDs)
+	if err != nil {
+		return nil, err
+	}
+	for id, summary := range found {
+		out[id] = summary
+	}
+	return out, nil
+}
+
+func LoadCommentViews(
+	ctx context.Context, reads sqlc.DBTX, stocks StockCards, viewer ids.UserID, messages []ChatMessage, now time.Time,
+) error {
+	var held []*Comment
+	var at []int
+	for i, m := range messages {
+		if m.CommentID != uuid.Nil && m.Attachment != nil {
+			held, at = append(held, &Comment{ID: m.CommentID, Attachment: m.Attachment}), append(at, i)
+		}
+	}
+	if len(held) == 0 {
+		return nil
+	}
+	if err := pollViews(ctx, reads, viewer, held, now); err != nil {
+		return err
+	}
+	cards, err := commentStocks(ctx, stocks, held)
+	if err != nil {
+		return err
+	}
+	for n, i := range at {
+		messages[i].Poll = held[n].Poll
+		if att := messages[i].Attachment; att.Stock != nil {
+			if card, ok := cards[att.Stock.AssetID]; ok {
+				messages[i].Stock = &card
+			}
+		}
+	}
+	return nil
+}
+
+func commentStocks(
+	ctx context.Context, stocks StockCards, held []*Comment,
+) (map[uuid.UUID]StockCard, error) {
+	var assetIDs []uuid.UUID
+	for _, c := range held {
+		if c.Attachment.Stock != nil {
+			assetIDs = append(assetIDs, c.Attachment.Stock.AssetID)
+		}
+	}
+	if len(assetIDs) == 0 {
+		return map[uuid.UUID]StockCard{}, nil
+	}
+	cards, err := stocks.StockCards(ctx, assetIDs)
+	if err != nil {
+		return nil, errs.Wrap(err, errs.CodeOf(err), "social.LoadCommentViews")
+	}
+	return cards, nil
 }
