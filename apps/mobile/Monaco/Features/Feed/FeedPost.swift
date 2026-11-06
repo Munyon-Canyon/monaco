@@ -26,7 +26,7 @@ struct FeedPost<Foot: View>: View {
             } else {
                 post(facts)
                     .accessibilityElement(children: .ignore)
-                    .accessibilityLabel(facts.spoken)
+                    .accessibilityLabel(FeedPostThesis.spoken(facts.spoken, thesis: tallyThesis(facts)))
                     .accessibilityIdentifier("feed-cell-\(item.id)")
                     .accessibilityActions { openActions(facts) }
             }
@@ -38,17 +38,31 @@ struct FeedPost<Foot: View>: View {
         .accessibilityElement(children: .contain)
     }
 
+    private var thesis: String? { FeedPostThesis.text(of: item) }
+
+    private func tallyThesis(_ facts: FeedPostFacts) -> String? {
+        guard case .tally = facts.attachment else { return nil }
+        return thesis
+    }
+
     private func votePost(_ facts: FeedPostFacts, card: HomeVoteCardModel) -> some View {
         HStack(alignment: .top, spacing: FeedPostMetrics.gap) {
             FeedPostLead(lead: facts.lead)
             VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
                 postLink {
-                    FeedPostHeader(name: facts.name, verb: facts.verb, age: facts.age)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .contentShape(Rectangle())
+                    VStack(alignment: .leading, spacing: MonacoTheme.Space.xs) {
+                        FeedPostHeader(name: facts.name, verb: facts.verb, age: facts.age)
+                        if let thesis {
+                            FeedPostThesis(text: thesis, itemID: item.id)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
                 }
                 .accessibilityElement(children: .ignore)
-                .accessibilityLabel("\(facts.name) \(facts.verb), \(facts.age)")
+                .accessibilityLabel(
+                    FeedPostThesis.spoken("\(facts.name) \(facts.verb), \(facts.age)", thesis: thesis, joint: ".")
+                )
                 .accessibilityIdentifier("feed-cell-\(item.id)")
                 .accessibilityActions { openActions(facts) }
                 FeedVoteCardSlot(card: card)
@@ -81,7 +95,7 @@ struct FeedPost<Foot: View>: View {
         let content = HStack(alignment: .top, spacing: FeedPostMetrics.gap) {
             FeedPostLead(lead: facts.lead)
             FeedPostBody(
-                facts: facts, itemID: item.id, style: style,
+                facts: facts, itemID: item.id, style: style, thesis: tallyThesis(facts),
                 readOnlyLine: FeedVoteCard.readOnlyLine(for: item, now: now))
         }
         .contentShape(Rectangle())
@@ -142,10 +156,41 @@ private struct FeedPostLead: View {
     }
 }
 
+struct FeedPostThesis: View {
+    let text: String
+    let itemID: String
+
+    static func text(of item: Components.Schemas.FeedItem) -> String? {
+        guard item.kind == "proposal" else { return nil }
+        let trimmed = item.body?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed?.isEmpty == false ? trimmed : nil
+    }
+
+    static func spoken(_ head: String, thesis: String?, joint: String = "") -> String {
+        guard let thesis else { return head }
+        return "\(head)\(joint) \(thesis)"
+    }
+
+    var body: some View {
+        Text(text)
+            .font(MonacoTheme.Typo.body)
+            .foregroundStyle(MonacoTheme.bodyText)
+            .lineLimit(3)
+            .truncationMode(.tail)
+            .multilineTextAlignment(.leading)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.bottom, MonacoTheme.Space.xs)
+            .monacoPrivateFigure()
+            .accessibilityIdentifier("feed-thesis-\(itemID)")
+    }
+}
+
 private struct FeedPostBody: View {
     let facts: FeedPostFacts
     let itemID: String
     let style: FeedPostStyle
+    let thesis: String?
     let readOnlyLine: String?
 
     var body: some View {
@@ -153,6 +198,9 @@ private struct FeedPostBody: View {
             FeedPostHeader(name: facts.name, verb: facts.verb, age: facts.age)
             if let object = facts.object {
                 FeedPostObjectLine(object: object)
+            }
+            if let thesis {
+                FeedPostThesis(text: thesis, itemID: itemID)
             }
             attachment
         }
