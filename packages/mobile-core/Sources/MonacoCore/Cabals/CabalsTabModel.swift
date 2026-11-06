@@ -96,6 +96,13 @@ public struct CabalsTabContent: Equatable, Sendable {
     public var countText: String {
         invites.isEmpty ? "\(tiles.count)" : "\(tiles.count) · \(invites.count) invited"
     }
+
+    public var shareTotalMicros: Int64 { tiles.reduce(0) { $0 + $1.valueMicros } }
+
+    public var shareTotalText: String? {
+        UsdAmountFormatter.flooredToCents(shareTotalMicros) > 0
+            ? UsdAmountFormatter.format(flooredMicros: shareTotalMicros) : nil
+    }
 }
 
 public enum CabalsTabCopy {
@@ -109,6 +116,15 @@ public enum CabalsTabCopy {
         case 1: "1 unread message"
         default: "\(count) unread messages"
         }
+    }
+
+    public static func spokenDollars(figure: String) -> String {
+        let parts: [Substring] = figure.dropFirst().split(separator: ".", omittingEmptySubsequences: false)
+        let whole = String(parts[0])
+        let cents = parts.count > 1 ? Int(parts[1]) ?? 0 : 0
+        var spoken = "\(whole) \(whole == "1" ? "dollar" : "dollars")"
+        if cents > 0 { spoken += " \(cents) \(cents == 1 ? "cent" : "cents")" }
+        return spoken
     }
 
     public static func wholeDollars(micros: Int64) -> String {
@@ -220,6 +236,10 @@ public final class CabalsTabStore {
         let ordered = order.order.compactMap { byID[$0] }
         return ordered.count == tiles.count ? ordered : tiles
     }
+
+    public var shareTotalText: String? { content?.shareTotalText }
+
+    public var shareTotalSpoken: String? { shareTotalText.map(CabalsTabCopy.spokenDollars(figure:)) }
 
     public var hasFailed: Bool {
         if case .failed = tab.state { return true }
