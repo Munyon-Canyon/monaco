@@ -59,7 +59,7 @@ These original orders are now enforced. The hooks are `scripts/agent-guard.py`, 
 
 | Order | Rule | Enforced by |
 | --- | --- | --- |
-| 3 | Graphite does all branching. No `git rebase` onto a local branch or interactively (`--continue`, `--abort` and a rebase onto a remote-tracking ref such as `origin/staging` are allowed), no `gh pr create`, no `gh pr edit --base`. | agent guard |
+| 3 | Graphite does all branching. No `git rebase` onto a local branch or interactively (`--continue`, `--abort` and a rebase onto a remote-tracking ref such as `origin/staging` are allowed). No `git merge` except catching your own branch up to the trunk with `git merge origin/staging` (only `--no-edit`, `--no-ff`, `-m` and `-q`; never on `staging`, `main` or a detached HEAD), then a plain `git push`, plus `--abort` and `--continue`. No `gh pr create`, no `gh pr edit --base`. | agent guard |
 | 4, 14, 17, 20 | Template sections, `Part of #N` or `Closes #N` under Why, the "Needs from Logan" section on the last PR, Conventional Commit subjects, a title with no issue number or type prefix, and no SHA that is not an ancestor of the head. | PR format check, agent guard |
 | 5, 21 | No build output is committed. | prose |
 | 6, 18 | Stage 0 passes on the current tree before a push. Owners and verifiers run no full suite, no `-race` and no local mutation testing. | agent guard |

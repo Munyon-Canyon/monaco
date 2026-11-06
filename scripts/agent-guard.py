@@ -690,6 +690,33 @@ def rebase_onto_remote_only(git: Git) -> bool:
     return all(remote_ref(r, remotes) for r in upstream + onto)
 
 
+MERGE_PLAIN_FLAGS = {"--no-edit", "--no-ff", "-q", "--quiet"}
+MERGE_MESSAGE_FLAGS = {"-m", "--message"}
+
+
+def merge_trunk_only(git: Git) -> bool:
+    refs: list[str] = []
+    args = iter(git.args)
+    for a in args:
+        if a in MERGE_MESSAGE_FLAGS:
+            if next(args, None) is None:
+                return False
+        elif a.startswith("--message="):
+            continue
+        elif a.startswith("-"):
+            if a not in MERGE_PLAIN_FLAGS:
+                return False
+        else:
+            refs.append(a)
+    if len(refs) != 1:
+        return False
+    remotes = remote_names(git.cwd)
+    if not remote_ref(refs[0], remotes) or refs[0].partition("/")[2] != TRUNK:
+        return False
+    branch = current_branch(git.cwd)
+    return bool(branch) and not is_protected(branch, git.cwd)
+
+
 def rule_raw_history(inv: Invocation) -> str | None:
     git = as_git(inv)
     if git is None or git.sub not in {"rebase", "merge"}:
@@ -698,16 +725,20 @@ def rule_raw_history(inv: Invocation) -> str | None:
         return None
     if git.sub == "rebase" and len(git.args) == 1 and git.args[0] in REBASE_CONTROL_FLAGS:
         return None
-    if git.sub == "merge" and git.args == ["--abort"]:
+    if git.sub == "merge" and git.args in (["--abort"], ["--continue"]):
+        return None
+    if git.sub == "merge" and merge_trunk_only(git):
         return None
     if git.sub == "rebase" and rebase_onto_remote_only(git):
         return None
-    return ("this git rebase or git merge is blocked in a checkout. Allowed: git rebase --continue, --abort, "
-            "--skip and --quit, git merge --abort, and a non-interactive git rebase [--onto <ref>] <upstream> where "
-            "every ref is a remote-tracking ref such as origin/staging (catch up to the trunk without gt sync). "
-            "Graphite owns stacking between local branches, so rebasing onto a local branch, interactive rebase, "
-            "--root and every other git merge stay blocked: update with gt sync --no-interactive --no-restack, "
-            "then gt restack.")
+    return (f"this git rebase or git merge is blocked in a checkout. To catch your branch up to the trunk, run "
+            f"`git fetch origin {TRUNK}`, `git merge origin/{TRUNK}`, then a plain `git push`. The merge must name "
+            f"one remote-tracking ref of {TRUNK}, run on your own branch (not {TRUNK}, main or a detached HEAD), and "
+            f"take only --no-edit, --no-ff, -m/--message and -q/--quiet. Also allowed: git merge --abort and "
+            f"--continue, git rebase --continue, --abort, --skip and --quit, and a non-interactive "
+            f"git rebase [--onto <ref>] <upstream> where every ref is a remote-tracking ref. Merging a local branch "
+            f"or another remote branch, --squash, --ff-only, -s/-X strategies, interactive rebase and --root stay "
+            f"blocked.")
 
 
 def rule_sync_restacks(inv: Invocation) -> str | None:
