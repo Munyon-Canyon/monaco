@@ -175,12 +175,11 @@ func limitOr(limit *int) int {
 }
 
 func (h HTTP) wireChat(ctx context.Context, viewer ids.UserID, messages []app.ChatMessage) ([]api.ChatMessage, error) {
-	messageIDs := make([]uuid.UUID, len(messages))
-	for i, m := range messages {
-		messageIDs[i] = m.ID
-	}
-	reactions, err := app.ChatReactions(ctx, h.Reads, viewer, messageIDs)
+	reactions, err := app.ChatMessageReactions(ctx, h.Reads, viewer, messages)
 	if err != nil {
+		return nil, err
+	}
+	if err := app.LoadCommentViews(ctx, h.Reads, h.Stocks, viewer, messages, h.Clock.Now()); err != nil {
 		return nil, err
 	}
 	if err := app.LoadChatAttachments(ctx, h.Reads, h.Stocks, messages); err != nil {
@@ -240,7 +239,11 @@ func (h HTTP) PinChatMessage(
 	if err != nil {
 		return nil, err
 	}
-	wire, err := h.wireChat(ctx, me, []app.ChatMessage{pinned})
+	card := []app.ChatMessage{pinned}
+	if err := app.WithProposalReplies(ctx, h.Reads, card); err != nil {
+		return nil, err
+	}
+	wire, err := h.wireChat(ctx, me, card)
 	if err != nil {
 		return nil, err
 	}
@@ -260,7 +263,11 @@ func (h HTTP) UnpinChatMessage(
 	if err != nil {
 		return nil, err
 	}
-	wire, err := h.wireChat(ctx, me, []app.ChatMessage{unpinned})
+	card := []app.ChatMessage{unpinned}
+	if err := app.WithProposalReplies(ctx, h.Reads, card); err != nil {
+		return nil, err
+	}
+	wire, err := h.wireChat(ctx, me, card)
 	if err != nil {
 		return nil, err
 	}
@@ -276,6 +283,9 @@ func (h HTTP) GetChatPins(
 	}
 	pins, err := app.ListChatPins(ctx, h.Reads, h.Members, ids.CabalIDFrom(req.Id), me)
 	if err != nil {
+		return nil, err
+	}
+	if err := app.WithProposalReplies(ctx, h.Reads, pins); err != nil {
 		return nil, err
 	}
 	wire, err := h.wireChat(ctx, me, pins)
@@ -364,6 +374,10 @@ func wireChatWith(
 			SeenCount:     m.SeenCount,
 			Reactions:     []baseapi.Reaction{},
 			PinnedAt:      m.PinnedAt,
+			CommentId:     optionalWireID(m.CommentID),
+		}
+		if m.ReplyTo != nil {
+			out[i].ReplyTo = wireQuote(m.ReplyTo, people{cards: cards})
 		}
 		if m.PinnedAt != nil {
 			pinner := wireChatAuthor(cards, m.PinnedBy)
@@ -399,6 +413,9 @@ func wireChatBody(m app.ChatMessage) (*string, *api.CommentAttachment) {
 
 func cardsNeeded(m app.ChatMessage) []ids.UserID {
 	need := []ids.UserID{m.AuthorID}
+	if m.ReplyTo != nil {
+		need = append(need, m.ReplyTo.AuthorID)
+	}
 	if m.PinnedAt != nil {
 		need = append(need, m.PinnedBy)
 	}

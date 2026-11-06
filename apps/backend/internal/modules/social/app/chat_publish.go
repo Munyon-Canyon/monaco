@@ -2,11 +2,15 @@ package app
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
 
+	"github.com/monaco/monaco/apps/backend/internal/modules/social/domain"
+	"github.com/monaco/monaco/apps/backend/internal/modules/social/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 )
@@ -27,7 +31,7 @@ type ChatWire func(ctx context.Context, m ChatMessage) (any, error)
 type ThreadUpdated struct {
 	MessageID   uuid.UUID `json:"message_id"`
 	ReplyCount  int32     `json:"reply_count"`
-	LastReplyAt time.Time `json:"last_reply_at"`
+	LastReplyAt time.Time `json:"last_reply_at,omitzero"`
 }
 
 type MessageDeleted struct {
@@ -139,4 +143,85 @@ func (p ChatPublisher) send(ctx context.Context, cabal ids.CabalID, id uuid.UUID
 func failedPublish(ctx context.Context, id uuid.UUID, event string, err error) {
 	observability.Degraded(ctx, observability.SocialChatPublishFailed,
 		slog.String("message_id", id.String()), slog.String("event", event), slog.String("cause", err.Error()))
+}
+
+type proposalCard struct {
+	id         uuid.UUID
+	cabal      ids.CabalID
+	proposal   uuid.UUID
+	replyCount int32
+	lastReply  time.Time
+}
+
+func (p ChatPublisher) enabled() bool { return p.realtime != nil && p.wire != nil }
+
+func (p ChatPublisher) cardOf(ctx context.Context, reads sqlc.DBTX, comment uuid.UUID) (proposalCard, bool) {
+	row, err := sqlc.New(reads).GetProposalCardOfComment(ctx, comment)
+	if err != nil {
+		if !errors.Is(err, sql.ErrNoRows) {
+			failedPublish(ctx, comment, EventMessageCreated, err)
+		}
+		return proposalCard{}, false
+	}
+	if row.AuthorKind != domain.AuthorKindUser {
+		return proposalCard{}, false
+	}
+	card := proposalCard{id: row.CardID, cabal: ids.CabalIDFrom(row.CabalID), proposal: row.ProposalID}
+	if row.ReplyCount > 0 {
+		card.replyCount, card.lastReply = row.ReplyCount, row.LastReplyAt.UTC()
+	}
+	return card, true
+}
+
+func (c proposalCard) thread() *ThreadUpdated {
+	return &ThreadUpdated{MessageID: c.id, ReplyCount: c.replyCount, LastReplyAt: c.lastReply}
+}
+
+func (p ChatPublisher) commentCreated(ctx context.Context, reads sqlc.DBTX, c Comment) {
+	if !p.enabled() {
+		return
+	}
+	ctx = context.WithoutCancel(ctx)
+	card, ok := p.cardOf(ctx, reads, c.ID)
+	if !ok {
+		return
+	}
+	p.created(ctx, chatMessageOfComment(card, c), card.thread())
+}
+
+func (p ChatPublisher) commentDeleted(ctx context.Context, reads sqlc.DBTX, comment uuid.UUID) {
+	if !p.enabled() {
+		return
+	}
+	ctx = context.WithoutCancel(ctx)
+	card, ok := p.cardOf(ctx, reads, comment)
+	if !ok {
+		return
+	}
+	p.deleted(ctx, card.cabal, comment, card.thread())
+}
+
+func (p ChatPublisher) commentReacted(ctx context.Context, reads sqlc.DBTX, viewer ids.UserID, comment uuid.UUID) {
+	if !p.enabled() {
+		return
+	}
+	ctx = context.WithoutCancel(ctx)
+	card, ok := p.cardOf(ctx, reads, comment)
+	if !ok {
+		return
+	}
+	summary, err := commentReactionSummary(ctx, reads, viewer, comment)
+	if err != nil {
+		failedPublish(ctx, comment, EventReactionUpdated, err)
+		return
+	}
+	p.reactionUpdated(ctx, card.cabal, comment, summary)
+}
+
+func chatMessageOfComment(card proposalCard, c Comment) ChatMessage {
+	return ChatMessage{
+		ID: c.ID, Kind: domain.ChatKindUser, CabalID: card.cabal, AuthorID: c.AuthorID, Body: c.Body,
+		CreatedAt: c.CreatedAt, ParentID: card.id, CommentID: c.ID, Attachment: c.Attachment, Stock: c.Stock,
+		Poll: c.Poll, ReplyTo: c.ReplyTo,
+	}
 }

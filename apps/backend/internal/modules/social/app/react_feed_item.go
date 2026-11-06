@@ -36,6 +36,7 @@ type ReactionDeps struct {
 	Members Members
 	Clock   clock.Clock
 	Hints   Hints
+	Chat    ChatPublisher
 }
 
 type ReactFeedItemHandler struct{ d ReactionDeps }

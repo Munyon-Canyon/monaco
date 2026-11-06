@@ -895,6 +895,11 @@ type ChatMessage struct {
 	// Examples: gm
 	Body *string `json:"body"`
 
+	// CommentId The feed comment this row is, on a reply in a proposal card's thread. The app sends the row's reactions, deletes and reports to `/v1/feed/comments/{comment_id}`; the chat routes refuse the id as `chat_message_not_found`. Absent on an ordinary chat row.
+	//
+	// Examples: null
+	CommentId *openapi_types.UUID `json:"comment_id,omitempty"`
+
 	// CreatedAt When the server stored it.
 	//
 	// Examples: 2026-10-03T12:00:00Z
@@ -959,6 +964,11 @@ type ChatMessage struct {
 	//
 	// Examples: 0
 	ReplyCount int `json:"reply_count"`
+
+	// ReplyTo The quote above a reply that answers another comment in a proposal card's thread. Absent otherwise.
+	//
+	// Examples: {"author_display_name":"Logan","comment_id":"01920000-0000-7000-8000-000000000006","excerpt":"Logan 44% NVDA after this.","has_attachment":false,"is_deleted":false,"is_folded":false,"root_comment_id":"01920000-0000-7000-8000-000000000006"}
+	ReplyTo *CommentQuote `json:"reply_to,omitempty"`
 
 	// SeenCount How many other members have seen the message. Set only on the newest channel message of a channel read without `before`, and null everywhere else.
 	//

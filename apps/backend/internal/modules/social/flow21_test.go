@@ -6,6 +6,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
+	"github.com/monaco/monaco/apps/backend/internal/modules/social/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/domain/feed"
 	api "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/socialapi"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/flows"
@@ -94,5 +95,18 @@ func TestCreateComment_aResultOrThresholdSharesItsProposalsThreadOnRead(t *testi
 	}
 	if stored, counted := f.count(t, proposal); stored != 2 || counted != 2 {
 		t.Fatalf("proposal thread: stored %d, comment_count %d, want 2 and 2", stored, counted)
+	}
+}
+
+func TestFlow21_CreateComment_OK_reachesAProposalCardsChat(t *testing.T) {
+	t.Parallel()
+	f := newProposalThread(t)
+	since := len(f.rt.Published())
+	posted := f.reply(t, f.member(0), "on the proposal page", nil)
+	got := f.wantEvents(t, since, app.EventMessageCreated, app.EventThreadUpdated)
+	var created api.ChatMessage
+	decode(t, got[0], &created)
+	if created.Id != posted.Id {
+		t.Fatalf("message.created = %+v, want comment %s", created, posted.Id)
 	}
 }
