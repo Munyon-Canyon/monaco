@@ -2,12 +2,14 @@ package social_test
 
 import (
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/app"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/domain"
 	api "github.com/monaco/monaco/apps/backend/internal/platform/httpx/api/socialapi"
@@ -291,5 +293,61 @@ func TestLastRepliers_aChannelPageReadsThemInOneQuery(t *testing.T) {
 	quiet := []app.ChatMessage{{ID: f.deps.IDs.NewV7()}}
 	if err := app.WithLastRepliers(t.Context(), counting, f.member(2), quiet); err != nil || counter.n.Load() != 1 {
 		t.Fatalf("a page without replies queried: %v, %d", err, counter.n.Load())
+	}
+}
+
+func dropFeedComments(t *testing.T, pool *pgxpool.Pool) {
+	t.Helper()
+	if _, err := pool.Exec(t.Context(), `DROP TABLE feed_comments CASCADE`); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestLastRepliers_aFailedReadFailsTheThreadRead(t *testing.T) {
+	t.Parallel()
+	f := newChatFixture(t)
+	top := f.mustSend(t, f.member(0), "top", nil)
+	f.mustSend(t, f.member(1), "reply", &domain.Reply{Parent: top.ID})
+	dropFeedComments(t, f.pool)
+	_, err := app.GetChatThread(t.Context(), f.pool, f.deps.Members,
+		app.ChatThreadQuery{CabalID: f.cabal.ID, Viewer: f.member(2), ParentID: top.ID, Limit: 50})
+	wantCode(t, err, errs.CodeInternal)
+}
+
+func TestLastRepliers_aThreadUpdateStillGoesOutWhenTheRepliersCannotBeRead(t *testing.T) {
+	t.Parallel()
+	cases := map[string]func(chatFixture) app.ChatPublisher{
+		"reads": func(f chatFixture) app.ChatPublisher {
+			dropFeedComments(t, f.pool)
+			return app.NewChatPublisher(f.rt, plainWire).WithRepliers(f.users, f.pool)
+		},
+		"users": func(f chatFixture) app.ChatPublisher {
+			return app.NewChatPublisher(f.rt, plainWire).WithRepliers(failingUsers{f.users}, f.pool)
+		},
+	}
+	for name, publisher := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			f := newChatFixture(t)
+			top := f.mustSend(t, f.member(0), "top", nil)
+			deps := f.deps
+			deps.Publish = publisher(f)
+			ctx, logs := f.loggedCtx(t, f.member(1))
+			body, err := domain.ParseChatBody("reply")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := app.NewPostChatMessageHandler(deps).Handle(ctx, app.PostChatMessage{
+				CabalID: f.cabal.ID, Author: f.member(1), Input: chatText(body), Reply: &domain.Reply{Parent: top.ID},
+			}); err != nil {
+				t.Fatal(err)
+			}
+			threads := f.threadUpdates(t)
+			if len(threads) != 1 || len(lastRepliersOf(t, threads[0])) != 0 ||
+				strings.Count(string(logs.Bytes()), publishFailedLog) != 1 {
+				t.Fatalf("thread updates = %+v, logs = %s, want one update with no repliers and one %s",
+					threads, logs.Bytes(), publishFailedLog)
+			}
+		})
 	}
 }
