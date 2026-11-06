@@ -14,7 +14,8 @@ public struct ChatReactionCount: Sendable, Equatable, Decodable {
 public enum ChatRealtimeEvent: Sendable, Equatable {
     case messageCreated(Components.Schemas.ChatMessage)
     case momentCreated(Components.Schemas.ChatMessage)
-    case threadUpdated(id: String, replyCount: Int, lastReplyAt: Date)
+    case threadUpdated(
+        id: String, replyCount: Int, lastReplyAt: Date, lastRepliers: [Components.Schemas.ChatAuthor]? = nil)
     case seenUpdated(messageId: String, count: Int)
     case messageDeleted(id: String)
     case reactionUpdated(messageId: String, reactions: [ChatReactionCount], total: Int32)
@@ -50,7 +51,9 @@ public enum ChatEventDecoder {
             return decoded(Components.Schemas.ChatMessage.self, from: data).map(ChatRealtimeEvent.momentCreated)
         case threadUpdated:
             return decoded(ThreadUpdated.self, from: data).map {
-                .threadUpdated(id: $0.messageId, replyCount: $0.replyCount, lastReplyAt: $0.lastReplyAt)
+                .threadUpdated(
+                    id: $0.messageId, replyCount: $0.replyCount, lastReplyAt: $0.lastReplyAt,
+                    lastRepliers: $0.lastRepliers)
             }
         case seenUpdated:
             return decoded(SeenUpdated.self, from: data).map {
@@ -102,11 +105,13 @@ private struct ThreadUpdated: Decodable {
     let messageId: String
     let replyCount: Int
     let lastReplyAt: Date
+    let lastRepliers: [Components.Schemas.ChatAuthor]?
 
     enum CodingKeys: String, CodingKey {
         case messageId = "message_id"
         case replyCount = "reply_count"
         case lastReplyAt = "last_reply_at"
+        case lastRepliers = "last_repliers"
     }
 }
 

@@ -14,6 +14,7 @@ public struct ChatRow: Identifiable, Equatable, Sendable {
     public let moment: ChatMoment?
     public let pendingAttachment: ChatAttachmentDraft?
     public let parentBody: String?
+    public var parentProposalID: String?
     public let delivery: Delivery
     public let isMine: Bool
     public let startsDay: Bool
@@ -114,7 +115,7 @@ public struct ChatTimeline: Equatable, Sendable {
     }
 
     public func message(id: String) -> ChatMessage? {
-        messages.first { $0.id == id }
+        messages.first { $0.id == id } ?? messages.first { $0.commentID == id }
     }
 
     public mutating func restore(_ message: ChatMessage) {
@@ -172,27 +173,8 @@ public struct ChatTimeline: Equatable, Sendable {
         rebuildRows()
     }
 
-    public mutating func markDeleted(id: String) {
-        guard let index = messages.firstIndex(where: { $0.id == id }) else { return }
-        if messages[index].replyCount > 0 {
-            messages[index].deleted = true
-            messages[index].body = nil
-        } else {
-            messages.remove(at: index)
-        }
-        rebuildRows()
-    }
-
     public func reactions(for id: String) -> [Components.Schemas.Reaction] {
         message(id: id)?.reactions ?? []
-    }
-
-    @discardableResult
-    public mutating func applyReactions(id: String, counts: [ChatReactionCount], total: Int32) -> Bool {
-        guard let index = messages.firstIndex(where: { $0.id == id }) else { return false }
-        messages[index].applyReactions(counts: counts, total: total)
-        rebuildRows()
-        return true
     }
 
     @discardableResult
@@ -200,28 +182,6 @@ public struct ChatTimeline: Equatable, Sendable {
         guard let index = messages.firstIndex(where: { $0.id == id }), change(&messages[index]) else { return false }
         rebuildRows()
         return true
-    }
-
-    @discardableResult
-    public mutating func settleReactions(
-        id: String, reactions: [Components.Schemas.Reaction], total: Int32
-    ) -> Bool {
-        guard let index = messages.firstIndex(where: { $0.id == id }) else { return false }
-        messages[index].reactions = reactions
-        messages[index].reactionCount = total
-        rebuildRows()
-        return true
-    }
-
-    public mutating func applyThread(id: String, replyCount: Int, lastReplyAt: Date?) {
-        guard let index = messages.firstIndex(where: { $0.id == id }) else { return }
-        if messages[index].deleted && replyCount == 0 {
-            messages.remove(at: index)
-        } else {
-            messages[index].replyCount = replyCount
-            messages[index].lastReplyAt = lastReplyAt
-        }
-        rebuildRows()
     }
 
     mutating func addUnsent(
@@ -303,6 +263,7 @@ public struct ChatTimeline: Equatable, Sendable {
             let next = index + 1 < all.count ? all[index + 1] : nil
             let startsDay = previous.map { !calendar.isDate($0.createdAt, inSameDayAs: message.createdAt) } ?? true
             let nextStartsDay = next.map { !calendar.isDate(message.createdAt, inSameDayAs: $0.createdAt) } ?? false
+            let parent = message.parentId.flatMap { id in messages.first { $0.id == id } }
             let moment = ChatMoment(message: message, viewerID: viewerID)
             let isolated = moment != nil
             let previousIsolated = previous.map { ChatMoment(message: $0, viewerID: viewerID) != nil } ?? false
@@ -311,7 +272,8 @@ public struct ChatTimeline: Equatable, Sendable {
                 message: message,
                 moment: moment,
                 pendingAttachment: unsent.first { $0.key == message.id }?.attachment,
-                parentBody: message.parentId.flatMap { id in messages.first { $0.id == id }?.body },
+                parentBody: parent?.body,
+                parentProposalID: parent.flatMap { $0.kind == .proposal ? $0.proposalId : nil },
                 delivery: delivery(of: message),
                 isMine: message.author.id == viewerID,
                 startsDay: startsDay,
@@ -345,5 +307,64 @@ public struct ChatTimeline: Equatable, Sendable {
     static func chronological(_ lhs: ChatMessage, _ rhs: ChatMessage) -> Bool {
         if lhs.createdAt != rhs.createdAt { return lhs.createdAt < rhs.createdAt }
         return lhs.id < rhs.id
+    }
+}
+
+extension ChatTimeline {
+    func messages(matching id: String) -> [ChatMessage] {
+        messages.filter { $0.matches(id: id) }
+    }
+
+    public mutating func markDeleted(id: String) {
+        var changed = false
+        messages = messages.compactMap { message in
+            guard message.matches(id: id) else { return message }
+            changed = true
+            guard message.replyCount > 0 else { return nil }
+            var placeholder = message
+            placeholder.deleted = true
+            placeholder.body = nil
+            return placeholder
+        }
+        if changed { rebuildRows() }
+    }
+
+    @discardableResult
+    public mutating func applyReactions(id: String, counts: [ChatReactionCount], total: Int32) -> Bool {
+        var found = false
+        for index in messages.indices where messages[index].matches(id: id) {
+            messages[index].applyReactions(counts: counts, total: total)
+            found = true
+        }
+        if found { rebuildRows() }
+        return found
+    }
+
+    @discardableResult
+    public mutating func settleReactions(
+        id: String, reactions: [Components.Schemas.Reaction], total: Int32
+    ) -> Bool {
+        var found = false
+        for index in messages.indices where messages[index].matches(id: id) {
+            messages[index].reactions = reactions
+            messages[index].reactionCount = total
+            found = true
+        }
+        if found { rebuildRows() }
+        return found
+    }
+
+    public mutating func applyThread(
+        id: String, replyCount: Int, lastReplyAt: Date?, lastRepliers: [Components.Schemas.ChatAuthor]? = nil
+    ) {
+        guard let index = messages.firstIndex(where: { $0.id == id }) else { return }
+        if messages[index].deleted && replyCount == 0 {
+            messages.remove(at: index)
+        } else {
+            messages[index].replyCount = replyCount
+            messages[index].lastReplyAt = lastReplyAt
+            if let lastRepliers { messages[index].lastRepliers = lastRepliers }
+        }
+        rebuildRows()
     }
 }
