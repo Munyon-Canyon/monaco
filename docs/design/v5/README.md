@@ -4,6 +4,8 @@
 
 Lanes build a PR's frame | before | after sheet with `python3 scripts/qa/parity.py sheet --design v5 <frame> --before <png> --after <png>`; `parity.py frames --design v5` lists the frames.
 
+Round 13 added 33 screens in [r13/](r13/README.md); where one of them and a screen here disagree, the r13 screen wins for the part it changes. Use `--design r13` for those frames.
+
 ## Screens
 
 | Frame | What it shows | Base |
