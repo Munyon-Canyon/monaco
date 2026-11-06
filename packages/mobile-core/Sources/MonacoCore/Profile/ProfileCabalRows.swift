@@ -13,6 +13,7 @@ public enum ProfileCabalRow: Equatable, Sendable, Identifiable {
         public let pictureURL: String?
         public let role: String
         public var ownership: String?
+        public var shareText: String?
         public var value: String?
         public var valueMicros: Int64?
         public var returnText: String?
@@ -20,8 +21,8 @@ public enum ProfileCabalRow: Equatable, Sendable, Identifiable {
         public var note: StakeValueNote?
 
         public var subtitle: String {
-            guard let ownership else { return role }
-            return role == "voter" ? ownership : "\(ownership) · \(role)"
+            guard let shareText else { return role }
+            return role == "voter" ? shareText : "\(shareText) · \(role)"
         }
     }
 
@@ -100,6 +101,7 @@ public enum ProfileCabalRows {
         }
         let worth = max(0, stake.valueMicros + arriving)
         row.ownership = ownership(bps: stake.ownershipBps)
+        row.shareText = row.ownership.map { "Your \($0)" }
         row.value = UsdAmountFormatter.format(flooredMicros: worth)
         row.valueMicros = worth
         if let bps = stake.returnBps {

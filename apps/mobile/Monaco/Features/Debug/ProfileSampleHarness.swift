@@ -267,8 +267,9 @@ private func apiScript(for scenario: ProfileSampleScenario) -> SampleAPIScript {
     default: break
     }
     if scenario == .ready {
+        script.balance.availableMicros = "500000000"
+        script.balance.onChainMicros = "500000000"
         script.balance.inFlightMicros = "0"
-        script.balance.onChainMicros = script.balance.availableMicros
         script.homeCabals = [
             ProfileTabsSampleScreen.cabal(.sampleACCapital, role: "creator"),
             ProfileTabsSampleScreen.cabal(.sampleTechTitans),

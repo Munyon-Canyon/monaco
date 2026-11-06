@@ -21,9 +21,7 @@ enum ProfileCardSlot: ProfileSection {
 enum ProfileCardMetrics {
     static let photo: CGFloat = 56
     static let nameMinHeight: CGFloat = 44
-    static let infoGlyph: CGFloat = 17
     static let skeletonWidth: CGFloat = 120
-    static let infoTarget: CGFloat = 44
 }
 
 private struct ProfileCard: View {
@@ -109,7 +107,6 @@ private struct ProfileCardFigures: View {
     let pnl: OwnProfilePnL
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    @State private var showsInfo = false
 
     var body: some View {
         let layout =
@@ -120,38 +117,21 @@ private struct ProfileCardFigures: View {
             positionsColumn
             pnlColumn
         }
-        .sheet(isPresented: $showsInfo) { ProfilePositionsInfoSheet() }
     }
 
     private var positionsColumn: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 0) {
-                Text(ProfileCopy.positionsLabel)
-                    .font(MonacoTheme.Typo.subhead)
-                    .foregroundStyle(MonacoTheme.secondaryText)
-                    .fixedSize(horizontal: false, vertical: true)
-                Button {
-                    showsInfo = true
-                } label: {
-                    Image(systemName: MonacoIcon.info.symbol)
-                        .font(MonacoTheme.Typo.subhead)
-                        .foregroundStyle(MonacoTheme.tint)
-                        .frame(width: ProfileCardMetrics.infoTarget, height: ProfileCardMetrics.infoTarget)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .padding(.vertical, -(ProfileCardMetrics.infoTarget - ProfileCardMetrics.infoGlyph) / 2)
-                .padding(.leading, MonacoTheme.Space.xs)
-                .accessibilityLabel("About \(ProfileCopy.positionsLabel)")
-                .accessibilityIdentifier("profile-positions-info")
-            }
+            Text(ProfileCopy.inCabalsLabel)
+                .font(MonacoTheme.Typo.subhead)
+                .foregroundStyle(MonacoTheme.secondaryText)
+                .fixedSize(horizontal: false, vertical: true)
             positionsFigure
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel(ProfileCopy.positionsLabel)
-                .accessibilityValue(spokenPositions)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .accessibilityElement(children: .contain)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(ProfileCopy.inCabalsLabel)
+        .accessibilityValue(spokenPositions)
+        .accessibilityHint(ProfileCopy.privacyHint)
         .accessibilityIdentifier("profile-positions")
     }
 
@@ -228,18 +208,5 @@ private struct ProfileCardFigures: View {
         case .loss: MonacoTheme.loss
         case .flat: MonacoTheme.primaryText
         }
-    }
-}
-
-private struct ProfilePositionsInfoSheet: View {
-    var body: some View {
-        Text(ProfileCopy.positionsInfo)
-            .font(MonacoTheme.Typo.subhead)
-            .foregroundStyle(MonacoTheme.secondaryText)
-            .padding(.horizontal, MonacoTheme.Space.gutter)
-            .padding(.bottom, MonacoTheme.Space.m)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .monacoFittedSheet(title: ProfileCopy.positionsInfoTitle, showsClose: true)
-            .accessibilityIdentifier("profile-positions-info-sheet")
     }
 }
