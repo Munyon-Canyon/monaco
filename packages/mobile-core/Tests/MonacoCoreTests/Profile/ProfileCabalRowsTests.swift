@@ -24,10 +24,32 @@ final class ProfileCabalRowsTests: XCTestCase {
         ]
         let rows = members(ProfileCabalRows.make(cabals: cabals, portfolio: portfolio, invites: []))
         XCTAssertEqual(rows.map(\.name), ["AC Capital", "Tech Titans", "Degens"])
-        XCTAssertEqual(rows.map(\.subtitle), ["35% · admin", "12% · member", "8%"])
+        XCTAssertEqual(rows.map(\.subtitle), ["Your 35% · admin", "Your 12% · member", "Your 8%"])
         XCTAssertEqual(rows.map(\.value), ["$7,000.00", "$2,710.00", "$1,872.00"])
         XCTAssertEqual(rows.map(\.returnText), ["+4.7%", "\u{2212}1.7%", "+11.2%"])
         XCTAssertEqual(rows.map(\.returnTone), [.gain, .loss, .gain])
+    }
+
+    func testSubLinesForAnAdminAVoterAndAnUnknownShare() {
+        let portfolio = Components.Schemas.MyPortfolio.sampleWithUnfunded
+        let noSnapshot = Components.Schemas.CabalRef(id: "no-snapshot", name: "Fresh", pictureUrl: nil)
+        let cabals: [Components.Schemas.MyCabal] = [
+            cabal(.sampleACCapital, role: "creator"), cabal(.sampleQuantKids), cabal(noSnapshot, canVote: false),
+        ]
+        let rows = members(ProfileCabalRows.make(cabals: cabals, portfolio: portfolio, invites: []))
+        let byName = Dictionary(uniqueKeysWithValues: rows.map { ($0.name, $0) })
+        XCTAssertEqual(byName["AC Capital"]?.subtitle, "Your 35% · admin")
+        XCTAssertEqual(byName["AC Capital"]?.shareText, "Your 35%")
+        XCTAssertEqual(byName["Quant Kids"]?.subtitle, "voter")
+        XCTAssertNil(byName["Quant Kids"]?.shareText)
+        XCTAssertEqual(byName["Fresh"]?.subtitle, "member")
+    }
+
+    func testAVoterReadsOnlyTheShare() {
+        let portfolio = Components.Schemas.MyPortfolio.sampleOwnProfile
+        let rows = members(
+            ProfileCabalRows.make(cabals: [cabal(.sampleTechTitans)], portfolio: portfolio, invites: []))
+        XCTAssertEqual(rows.first?.subtitle, "Your 12%")
     }
 
     func testOwnershipRounding() {

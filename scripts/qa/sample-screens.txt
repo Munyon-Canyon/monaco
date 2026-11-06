@@ -902,6 +902,7 @@ f__09-withdraw-empty                -MonacoWithdrawSample empty
 f__09-withdraw                      -MonacoWithdrawSample typed
 f__09-withdraw-invalid              -MonacoWithdrawSample invalid
 f__09-withdraw-settled              -MonacoWithdrawSample settled
+f__3-profile-own                    -MonacoProfileSample ready
 f__10-profile-own                   -MonacoProfileSample ready
 f__10-profile-own-scrolled          -MonacoProfileSample ready -MonacoSampleScroll bottom
 f__10-profile-other                 -MonacoProfileSample personChristelleActivity

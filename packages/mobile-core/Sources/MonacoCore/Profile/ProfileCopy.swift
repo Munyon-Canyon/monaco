@@ -21,12 +21,11 @@ public struct ProfileLine: Equatable, Sendable {
 }
 
 public enum ProfileCopy {
-    public static let positionsLabel = "Positions"
+    public static let inCabalsLabel = "In cabals"
     public static let monthLabel = "This month"
     public static let rightMonthLabel = "Right this month"
     public static let pnlLabel = monthLabel
-    public static let positionsInfoTitle = "Positions"
-    public static let positionsInfo = "Only you see your positions and cash. Others see your P&L as a percent."
+    public static let privacyHint = "Only you see these numbers. Others see your P&L as a percent."
     public static let cashLabel = MoneyCopy.cashLabel
     public static let apyLabel = CabalYield.apy
     public static let apyInfoTitle = CabalYield.apy

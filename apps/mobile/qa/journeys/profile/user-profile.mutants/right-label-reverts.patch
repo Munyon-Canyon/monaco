@@ -9,10 +9,10 @@ diff --git a/packages/mobile-core/Sources/MonacoCore/Profile/ProfileCopy.swift b
 +++ b/packages/mobile-core/Sources/MonacoCore/Profile/ProfileCopy.swift
 @@ -23,7 +23,7 @@
  public enum ProfileCopy {
-     public static let positionsLabel = "Positions"
+     public static let inCabalsLabel = "In cabals"
      public static let monthLabel = "This month"
 -    public static let rightMonthLabel = "Right this month"
 +    public static let rightMonthLabel = "Right calls · 1M"
      public static let pnlLabel = monthLabel
-     public static let positionsInfoTitle = "Positions"
-     public static let positionsInfo = "Only you see your positions and cash. Others see your P&L as a percent."
+     public static let privacyHint = "Only you see these numbers. Others see your P&L as a percent."
+     public static let cashLabel = MoneyCopy.cashLabel

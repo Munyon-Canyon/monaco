@@ -7,6 +7,18 @@ enum ProfileCabalRowTrailing: Equatable {
     case none
 }
 
+private struct SpokenLabel: ViewModifier {
+    let text: String?
+
+    @ViewBuilder func body(content: Content) -> some View {
+        if let text {
+            content.accessibilityLabel(text)
+        } else {
+            content
+        }
+    }
+}
+
 struct ProfileCabalRowView: View {
     let cabalID: String
     let name: String
@@ -15,6 +27,7 @@ struct ProfileCabalRowView: View {
     let trailing: ProfileCabalRowTrailing
     let identifier: String
     let isLast: Bool
+    var spoken: String?
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
@@ -28,6 +41,7 @@ struct ProfileCabalRowView: View {
             ?? .none
         identifier = "profile-cabal-row-\(row.id)"
         self.isLast = isLast
+        spoken = Self.spoken(row)
     }
 
     init(userCabal row: UserCabalRow, isLast: Bool) {
@@ -86,7 +100,17 @@ struct ProfileCabalRowView: View {
         }
         .buttonStyle(.monacoRow)
         .accessibilityElement(children: .combine)
+        .modifier(SpokenLabel(text: spoken))
         .accessibilityIdentifier(identifier)
+    }
+
+    private static func spoken(_ row: ProfileCabalRow.Member) -> String? {
+        guard let ownership = row.ownership, let value = row.value else { return nil }
+        var parts = [row.name, "your \(ownership.replacingOccurrences(of: "%", with: " percent"))", row.role]
+        parts.append(SignedUsdFormatter.parse(value).map { PnLSpeech.spokenAmount($0) } ?? value)
+        if let returnText = row.returnText, returnText != "\u{2014}" { parts.append(PnLSpeech.percent(returnText)) }
+        if let note = row.note { parts.append(note.text(now: .now)) }
+        return parts.joined(separator: ", ")
     }
 
     @ViewBuilder private var trailingView: some View {
