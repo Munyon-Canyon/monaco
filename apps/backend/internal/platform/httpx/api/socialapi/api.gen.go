@@ -966,6 +966,8 @@ type ChatMessage struct {
 	ReplyCount int `json:"reply_count"`
 
 	// ReplyTo The quote above a reply that answers another comment in a proposal card's thread. Absent otherwise.
+	//
+	// Examples: {"author_display_name":"Logan","comment_id":"01920000-0000-7000-8000-000000000006","excerpt":"Logan 44% NVDA after this.","has_attachment":false,"is_deleted":false,"is_folded":false,"root_comment_id":"01920000-0000-7000-8000-000000000006"}
 	ReplyTo *CommentQuote `json:"reply_to,omitempty"`
 
 	// SeenCount How many other members have seen the message. Set only on the newest channel message of a channel read without `before`, and null everywhere else.

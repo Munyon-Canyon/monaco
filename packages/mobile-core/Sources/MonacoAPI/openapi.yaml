@@ -11433,6 +11433,7 @@ components:
         reply_to:
           $ref: "#/components/schemas/CommentQuote"
           description: The quote above a reply that answers another comment in a proposal card's thread. Absent otherwise.
+          examples: [{comment_id: "01920000-0000-7000-8000-000000000006", root_comment_id: "01920000-0000-7000-8000-000000000006", author_display_name: Logan, excerpt: Logan 44% NVDA after this., is_deleted: false, is_folded: false, has_attachment: false}]
     ChatMoment:
       description: What a system row says happened, keyed by `kind`.
       examples:
