@@ -53,6 +53,51 @@ struct ChatMomentRowTests {
                 proposer: .init(id: "u-mia", handle: nil, displayName: "Mia", photoUrl: nil)))
     }
 
+    private static let mia = Components.Schemas.ChatAuthor(
+        id: "u-mia", handle: nil, displayName: "Mia", photoUrl: nil)
+
+    private static func passed() -> Components.Schemas.ChatMoment {
+        .tradeFilled(
+            .init(
+                kind: .tradeFilled, side: .buy, symbol: "NVDAx", assetId: "asset-1", priceMicros: 219_400_000,
+                usdcMicros: 400_000_000, filledAt: filledAt, swapId: "swap-1", proposalId: "proposal-7", yes: 5,
+                no: 1, proposer: mia))
+    }
+
+    @Test func aPassedVotesFillIsAPillWithTheTallyAndNoChange() throws {
+        let moment = try Self.moment(Self.passed())
+        let lines = Self.lines(moment, price: 250_000_000)
+        #expect(!ChatMomentRow.isEventLine(moment))
+        #expect(lines.title == "Passed 5 to 1 \u{00B7} bought 1.82 NVDA")
+        #expect(lines.detail == "at $219.40 \u{00B7} Mia called it")
+        #expect(lines.change == nil)
+        #expect(lines.direction == nil)
+        #expect(ChatMomentRow.destination(of: moment) == .proposal("proposal-7"))
+        #expect(
+            Self.spoken(moment, price: 250_000_000)
+                == "Vote passed, 5 to 1. Bought 1.82 NVDA at 219 dollars 40. Mia called it. Opens the vote.")
+    }
+
+    @Test func aFailedVotesPillSaysNothingWasBoughtOverTheProposal() throws {
+        let moment = try Self.moment(Self.settled())
+        let lines = Self.lines(moment, price: nil)
+        #expect(lines.title == "Failed 2 to 4 \u{00B7} nothing bought")
+        #expect(lines.detail == "Buy NVDA \u{00B7} $400")
+        #expect(lines.change == nil)
+    }
+
+    @Test func aFailedSellSaysNothingSold() throws {
+        let moment = try Self.moment(
+            .proposalSettled(
+                .init(
+                    kind: .proposalSettled, outcome: .failed, proposalId: "proposal-8", side: .sell, symbol: "AAPLx",
+                    usdcMicros: 1_200_000_000, tokenAmount: nil, yes: 1, no: 5, voters: 6, proposer: Self.mia)))
+        let lines = Self.lines(moment, price: nil)
+        #expect(lines.title == "Failed 1 to 5 \u{00B7} nothing sold")
+        #expect(lines.detail == "Sell AAPL \u{00B7} $1,200")
+        #expect(ChatMomentRow.destination(of: moment) == .proposal("proposal-8"))
+    }
+
     @Test func aClosedVoteIsAPillThatOpensItsProposal() throws {
         let moment = try Self.moment(Self.settled())
         #expect(!ChatMomentRow.isEventLine(moment))
