@@ -98,7 +98,7 @@ func TestCreateComment_aResultOrThresholdSharesItsProposalsThreadOnRead(t *testi
 	}
 }
 
-func TestCreateComment_flowReachesAProposalCardsChat(t *testing.T) {
+func TestCreateComment_aProposalCommentReachesTheProposalCardsChat(t *testing.T) {
 	t.Parallel()
 	f := newProposalThread(t)
 	since := len(f.rt.Published())
