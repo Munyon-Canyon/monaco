@@ -52,6 +52,12 @@ VALUES (
 ON CONFLICT (cabal_id, dedupe_key) WHERE dedupe_key IS NOT NULL DO UPDATE SET dedupe_key = cabal_messages.dedupe_key
 RETURNING id, cabal_id, created_at;
 
+-- name: GetProposalCardAuthor :one
+SELECT author_id::uuid AS author_id
+FROM cabal_messages
+WHERE kind = 'proposal' AND proposal_id = sqlc.arg(proposal_id)::uuid AND author_id IS NOT NULL
+LIMIT 1;
+
 -- name: BumpChatReplies :one
 UPDATE cabal_messages
 SET reply_count = reply_count + 1, last_reply_at = sqlc.arg(at)::timestamptz

@@ -428,10 +428,23 @@ func cardsNeeded(m app.ChatMessage) []ids.UserID {
 	if m.PinnedAt != nil {
 		need = append(need, m.PinnedBy)
 	}
-	if m.Moment != nil && m.Moment.Kind() == domain.MomentMemberJoined {
-		need = append(need, m.Moment.Member())
+	if m.Moment != nil {
+		need = append(need, momentPeople(m.Moment)...)
 	}
 	return need
+}
+
+func momentPeople(m *domain.ChatMoment) []ids.UserID {
+	switch m.Kind() {
+	case domain.MomentMemberJoined:
+		return []ids.UserID{m.Member()}
+	case domain.MomentTradeFilled:
+		return []ids.UserID{m.Trade().ProposerID}
+	case domain.MomentProposalSettled:
+		return []ids.UserID{m.Settled().ProposerID}
+	case domain.MomentCabalCreated:
+	}
+	return nil
 }
 
 func wireChatAuthor(cards map[ids.UserID]app.UserCard, id ids.UserID) api.ChatAuthor {
@@ -459,7 +472,25 @@ func wireMoment(cards map[ids.UserID]app.UserCard, m *domain.ChatMoment) *api.Ch
 			AssetId: t.AssetID, PriceMicros: t.PriceMicros, UsdcMicros: t.USDCMicros, FilledAt: t.FilledAt,
 			SwapId: t.SwapID, ProposalId: optionalWireID(t.ProposalID),
 		}
+		if t.Tallied {
+			trade.Yes, trade.No = &t.Yes, &t.No
+		}
+		if t.ProposerID.UUID() != uuid.Nil {
+			proposer := wireChatAuthor(cards, t.ProposerID)
+			trade.Proposer = &proposer
+		}
 		_ = out.FromTradeFilledMoment(trade)
+	case domain.MomentProposalSettled:
+		p := m.Settled()
+		settled := api.ProposalSettledMoment{
+			Kind: api.ProposalSettled, Outcome: api.ProposalSettledMomentOutcome(p.Outcome), ProposalId: p.ProposalID,
+			Side: api.ProposalSettledMomentSide(p.Side), Symbol: p.Symbol, UsdcMicros: p.USDCMicros,
+			Yes: p.Yes, No: p.No, Voters: p.Voters, Proposer: wireChatAuthor(cards, p.ProposerID),
+		}
+		if p.TokenAmount > 0 {
+			settled.TokenAmount = &p.TokenAmount
+		}
+		_ = out.FromProposalSettledMoment(settled)
 	}
 	return &out
 }

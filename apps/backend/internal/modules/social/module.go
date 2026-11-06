@@ -425,13 +425,17 @@ func (m *Module) http() adapters.HTTP {
 const reportMeter = "github.com/monaco/monaco/apps/backend/internal/modules/social"
 
 func (m *Module) chatMomentsConsumer() bus.Consumer {
-	moments := adapters.ChatMoments{Assets: m.assets, Write: m.WriteChatMoment()}
+	moments := adapters.ChatMoments{
+		Assets: m.assets, Tallies: m.tallies, Reads: m.deps.Pool, Write: m.WriteChatMoment(),
+	}
 	return bus.Consumer{
 		Durable: "social_chat_moments",
 		Handlers: []bus.HandlerSpec{
 			bus.Handle("social.chat_moment.cabal_created", moments.Created),
 			bus.Handle("social.chat_moment.member_joined", moments.Joined),
 			bus.HandleFetched("social.chat_moment.trade_filled", moments.FetchFilled, moments.ApplyFilled),
+			bus.HandleFetched("social.chat_moment.proposal_failed", moments.FetchFailed, moments.ApplyFailed),
+			bus.HandleFetched("social.chat_moment.proposal_expired", moments.FetchExpired, moments.ApplyExpired),
 		},
 	}
 }

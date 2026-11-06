@@ -4,7 +4,7 @@ public enum Flow22dOutcome: Sendable, Hashable, CaseIterable {
     case ok, interrupted
 
     public static let flowID = "22d"
-    public static let commands: [String] = ["WriteCabalCreatedMoment", "WriteMemberJoinedMoment", "WriteTradeFilledMoment"]
+    public static let commands: [String] = ["WriteCabalCreatedMoment", "WriteMemberJoinedMoment", "WriteTradeFilledMoment", "WriteProposalFailedMoment", "WriteProposalExpiredMoment"]
 
     public var code: String? {
         switch self {

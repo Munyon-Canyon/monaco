@@ -11692,12 +11692,14 @@ components:
         - $ref: "#/components/schemas/CabalCreatedMoment"
         - $ref: "#/components/schemas/MemberJoinedMoment"
         - $ref: "#/components/schemas/TradeFilledMoment"
+        - $ref: "#/components/schemas/ProposalSettledMoment"
       discriminator:
         propertyName: kind
         mapping:
           cabal_created: "#/components/schemas/CabalCreatedMoment"
           member_joined: "#/components/schemas/MemberJoinedMoment"
           trade_filled: "#/components/schemas/TradeFilledMoment"
+          proposal_settled: "#/components/schemas/ProposalSettledMoment"
     ChatPins:
       type: object
       description: The messages pinned in a cabal's chat.
@@ -12461,6 +12463,31 @@ components:
           type: [string, "null"]
           description: The cursor for the next page. Null on the last page.
           examples: [null]
+    ProposalSettledMoment:
+      type: object
+      description: A vote closed without a trade, because it failed or ran out of time. A passed vote is the `trade_filled` row of its fill.
+      additionalProperties: false
+      required: [kind, outcome, proposal_id, side, symbol, usdc_micros, token_amount, yes, no, voters, proposer]
+      examples:
+        - {kind: proposal_settled, outcome: failed, proposal_id: 01890a5d-ac96-774b-bcce-b302099a8072, side: buy, symbol: NVDA, usdc_micros: 300000000, token_amount: null, yes: 2, no: 4, voters: 6, proposer: {id: 01890a5d-ac96-774b-bcce-b302099a8058, handle: mia, display_name: Mia, photo_url: null}}
+      properties:
+        kind: {type: string, enum: [proposal_settled], description: The moment kind., examples: [proposal_settled]}
+        outcome: {type: string, enum: [failed, expired], description: Whether the vote was voted down or closed before it could pass., examples: [failed]}
+        proposal_id: {type: string, format: uuid, description: The proposal that closed., examples: ["01890a5d-ac96-774b-bcce-b302099a8072"]}
+        side: {type: string, enum: [buy, sell], description: Whether the proposal was to buy or to sell., examples: [buy]}
+        symbol: {type: string, description: The stock's ticker., examples: [NVDA]}
+        usdc_micros: {type: integer, format: int64, description: "The USDC the proposal would have spent, or for a sell its quoted value, in micros. 0 when none was recorded.", examples: [300000000]}
+        token_amount:
+          type: [integer, "null"]
+          format: int64
+          description: The token amount of a sell proposal in the token's base units. Null for a buy.
+          examples: [null]
+        yes: {type: integer, description: Yes ballots when the vote closed., examples: [2]}
+        no: {type: integer, description: No ballots when the vote closed., examples: [4]}
+        voters: {type: integer, description: Members in the voter set frozen when the proposal opened., examples: [6]}
+        proposer:
+          $ref: "#/components/schemas/ChatAuthor"
+          description: Who proposed it, with their current name and photo.
     ReactionSummary:
       type: object
       description: A feed item's reactions after a change.
@@ -12561,7 +12588,7 @@ components:
       additionalProperties: false
       required: [kind, side, symbol, asset_id, price_micros, usdc_micros, filled_at, swap_id, proposal_id]
       examples:
-        - {kind: trade_filled, side: buy, symbol: NVDA, asset_id: 01890a5d-ac96-774b-bcce-b302099a8070, price_micros: 196750000, usdc_micros: 300000000, filled_at: "2026-09-30T14:30:00Z", swap_id: 01890a5d-ac96-774b-bcce-b302099a8071, proposal_id: null}
+        - {kind: trade_filled, side: buy, symbol: NVDA, asset_id: 01890a5d-ac96-774b-bcce-b302099a8070, price_micros: 196750000, usdc_micros: 300000000, filled_at: "2026-09-30T14:30:00Z", swap_id: 01890a5d-ac96-774b-bcce-b302099a8071, proposal_id: 01890a5d-ac96-774b-bcce-b302099a8072, yes: 5, no: 1, proposer: {id: 01890a5d-ac96-774b-bcce-b302099a8058, handle: mia, display_name: Mia, photo_url: null}}
       properties:
         kind: {type: string, enum: [trade_filled], description: The moment kind., examples: [trade_filled]}
         side: {type: string, enum: [buy, sell], description: Whether the cabal bought or sold., examples: [buy]}
@@ -12576,6 +12603,11 @@ components:
           format: uuid
           description: The proposal the trade came from. Null when none.
           examples: [null]
+        yes: {type: integer, description: Yes ballots on the proposal when it closed. Absent for a fill with no proposal and for a row written before the tally was kept., examples: [5]}
+        no: {type: integer, description: No ballots on the proposal when it closed. Absent when `yes` is., examples: [1]}
+        proposer:
+          $ref: "#/components/schemas/ChatAuthor"
+          description: Who proposed the trade, with their current name and photo. Absent for a fill with no proposal and for a row written before the proposer was kept.
     UserActivity:
       description: >-
         One thing the member did, told apart by `kind`: `voted`, `proposed`, `replied` or `topped_board`.

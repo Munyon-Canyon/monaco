@@ -25,6 +25,9 @@ type (
 	WriteCabalCreatedMoment = WriteChatMoment
 	WriteMemberJoinedMoment = WriteChatMoment
 	WriteTradeFilledMoment  = WriteChatMoment
+
+	WriteProposalFailedMoment  = WriteChatMoment
+	WriteProposalExpiredMoment = WriteChatMoment
 )
 
 type WriteChatMomentHandler struct {

@@ -8,5 +8,8 @@ func (defined) ScriptsF22d() map[string]Script {
 		"F22dWriteMemberJoinedMomentCrashBeforeCommit": F22dWriteMemberJoinedMomentCrashBeforeCommit,
 		"F22dWriteCabalCreatedMomentOK":                F22dWriteCabalCreatedMomentOK,
 		"F22dWriteTradeFilledMomentOK":                 F22dWriteTradeFilledMomentOK,
+		"F22dWriteProposalFailedMomentOK":              F22dWriteProposalFailedMomentOK,
+		"F22dWriteProposalExpiredMomentOK":             F22dWriteProposalExpiredMomentOK,
+		"F22dWriteProposalFailedMomentSilent":          F22dWriteProposalFailedMomentSilent,
 	}
 }

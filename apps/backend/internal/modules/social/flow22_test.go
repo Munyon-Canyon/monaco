@@ -23,6 +23,11 @@ const (
 
 func chatScenario(t *testing.T, extra ...scenario.Option) *scenario.Scenario {
 	t.Helper()
+	return chatScenarioWith(t, nil, extra...)
+}
+
+func chatScenarioWith(t *testing.T, opts []social.Option, extra ...scenario.Option) *scenario.Scenario {
+	t.Helper()
 	upstreams := fakes.New()
 	srv := httptest.NewServer(upstreams)
 	t.Cleanup(srv.Close)
@@ -47,7 +52,7 @@ func chatScenario(t *testing.T, extra ...scenario.Option) *scenario.Scenario {
 		scenario.WithModules(
 			withCfg(func(d module.Deps) module.Module { return identity.New(d) }),
 			withCfg(func(d module.Deps) module.Module { return cabal.New(d) }),
-			withCfg(func(d module.Deps) module.Module { return social.New(d) }),
+			withCfg(func(d module.Deps) module.Module { return social.New(d, opts...) }),
 		),
 		scenario.WithPrivy(upstreams, chatPrivyAppID),
 	}, extra...)...)

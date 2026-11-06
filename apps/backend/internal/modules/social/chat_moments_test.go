@@ -39,7 +39,7 @@ func TestChatMoments_FetchFilled_AcknowledgesUnlistedMintsAndSurfacesOtherErrors
 	buy := events.TradeConfirmed{V: 1, Action: "buy", OutMint: marketfake.AAPLx().Mint.Address()}
 	notFound := adapters.ChatMoments{Assets: failingAssets{err: errs.New(errs.CodeAssetNotFound, "test")}}
 	asset, err := notFound.FetchFilled(t.Context(), buy)
-	if err != nil || asset.ID != uuid.Nil {
+	if err != nil || asset.Asset.ID != uuid.Nil {
 		t.Fatalf("unlisted mint fetched (%+v, %v), want a zero card and no error", asset, err)
 	}
 	down := adapters.ChatMoments{Assets: failingAssets{err: errs.New(errs.CodeInternal, "test")}}
@@ -54,7 +54,7 @@ func TestChatMoments_FetchFilled_AcknowledgesUnlistedMintsAndSurfacesOtherErrors
 func TestChatMoments_ApplyFilled_AcknowledgesAnUnlistedMint(t *testing.T) {
 	t.Parallel()
 	e := events.TradeConfirmed{V: 1, Action: "buy"}
-	err := adapters.ChatMoments{}.ApplyFilled(t.Context(), db.Tx{}, e, app.AssetCard{}, e.ConfirmedAt)
+	err := adapters.ChatMoments{}.ApplyFilled(t.Context(), db.Tx{}, e, adapters.FilledFetch{}, e.ConfirmedAt)
 	if err != nil {
 		t.Fatalf("a fill with no asset returned %v, want nil", err)
 	}
@@ -78,7 +78,13 @@ func TestChatMoments_ApplyFilled_RejectsUnwritableFills(t *testing.T) {
 	for name, e := range cases {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			err := adapters.ChatMoments{}.ApplyFilled(t.Context(), db.Tx{}, e, asset, e.ConfirmedAt)
+			err := adapters.ChatMoments{}.ApplyFilled(
+				t.Context(),
+				db.Tx{},
+				e,
+				adapters.FilledFetch{Asset: asset},
+				e.ConfirmedAt,
+			)
 			if errs.CodeOf(err) != errs.CodeInvalidInput {
 				t.Fatalf("returned %v, want invalid_input", err)
 			}

@@ -31,6 +31,15 @@ const (
 	MomentCabalCreated MomentKind = "cabal_created"
 	MomentMemberJoined MomentKind = "member_joined"
 	MomentTradeFilled  MomentKind = "trade_filled"
+
+	MomentProposalSettled MomentKind = "proposal_settled"
+)
+
+type SettledOutcome string
+
+const (
+	SettledFailed  SettledOutcome = "failed"
+	SettledExpired SettledOutcome = "expired"
 )
 
 type TradeSide string
@@ -49,12 +58,29 @@ type TradeFilled struct {
 	FilledAt    time.Time
 	SwapID      uuid.UUID
 	ProposalID  uuid.UUID
+
+	Tallied    bool
+	Yes, No    int
+	ProposerID ids.UserID
+}
+
+type ProposalSettled struct {
+	Outcome     SettledOutcome
+	ProposalID  uuid.UUID
+	Side        TradeSide
+	Symbol      string
+	USDCMicros  int64
+	TokenAmount int64
+	Yes, No     int
+	Voters      int
+	ProposerID  ids.UserID
 }
 
 type ChatMoment struct {
-	kind   MomentKind
-	member ids.UserID
-	trade  TradeFilled
+	kind    MomentKind
+	member  ids.UserID
+	trade   TradeFilled
+	settled ProposalSettled
 }
 
 type momentJSON struct {
@@ -68,6 +94,13 @@ type momentJSON struct {
 	FilledAt    *time.Time `json:"filled_at,omitempty"`
 	SwapID      *uuid.UUID `json:"swap_id,omitempty"`
 	ProposalID  *uuid.UUID `json:"proposal_id,omitempty"`
+
+	Outcome     SettledOutcome `json:"outcome,omitempty"`
+	TokenAmount int64          `json:"token_amount,omitempty"`
+	Yes         *int           `json:"yes,omitempty"`
+	No          *int           `json:"no,omitempty"`
+	Voters      *int           `json:"voters,omitempty"`
+	Proposer    *uuid.UUID     `json:"proposer,omitempty"`
 }
 
 func NewCabalCreatedMoment() ChatMoment {
@@ -95,8 +128,37 @@ func NewTradeFilledMoment(t TradeFilled) (ChatMoment, error) {
 	case t.FilledAt.IsZero():
 		return ChatMoment{}, invalidMoment(op, "filled_at")
 	}
+	if t.Tallied && (t.Yes < 0 || t.No < 0) {
+		return ChatMoment{}, invalidMoment(op, "tally")
+	}
 	t.FilledAt = t.FilledAt.UTC()
 	return ChatMoment{kind: MomentTradeFilled, trade: t}, nil
+}
+
+func NewProposalSettledMoment(p ProposalSettled) (ChatMoment, error) {
+	const op = "social.NewProposalSettledMoment"
+	if reason := p.invalid(); reason != "" {
+		return ChatMoment{}, invalidMoment(op, reason)
+	}
+	return ChatMoment{kind: MomentProposalSettled, settled: p}, nil
+}
+
+func (p ProposalSettled) invalid() string {
+	switch {
+	case p.Outcome != SettledFailed && p.Outcome != SettledExpired:
+		return "outcome"
+	case p.ProposalID == uuid.Nil:
+		return "proposal"
+	case p.Side != TradeBuy && p.Side != TradeSell, strings.TrimSpace(p.Symbol) == "":
+		return "side_or_symbol"
+	case p.USDCMicros < 0 || p.TokenAmount < 0:
+		return "amounts"
+	case p.ProposerID.UUID() == uuid.Nil:
+		return "proposer"
+	case p.Yes < 0 || p.No < 0 || p.Voters < 0:
+		return "tally"
+	}
+	return ""
 }
 
 func ParseChatMoment(raw []byte) (ChatMoment, error) {
@@ -114,20 +176,43 @@ func ParseChatMoment(raw []byte) (ChatMoment, error) {
 		}
 		return NewMemberJoinedMoment(ids.UserIDFrom(*j.UserID))
 	case MomentTradeFilled:
-		if j.AssetID == nil || j.SwapID == nil || j.FilledAt == nil {
-			return ChatMoment{}, invalidMoment(op, "incomplete")
-		}
-		t := TradeFilled{
-			Side: j.Side, Symbol: j.Symbol, AssetID: *j.AssetID, PriceMicros: j.PriceMicros,
-			USDCMicros: j.USDCMicros, FilledAt: *j.FilledAt, SwapID: *j.SwapID,
-		}
-		if j.ProposalID != nil {
-			t.ProposalID = *j.ProposalID
-		}
-		return NewTradeFilledMoment(t)
+		return j.tradeFilled(op)
+	case MomentProposalSettled:
+		return j.proposalSettled(op)
 	default:
 		return ChatMoment{}, invalidMoment(op, "unknown_kind")
 	}
+}
+
+func (j momentJSON) tradeFilled(op string) (ChatMoment, error) {
+	if j.AssetID == nil || j.SwapID == nil || j.FilledAt == nil {
+		return ChatMoment{}, invalidMoment(op, "incomplete")
+	}
+	t := TradeFilled{
+		Side: j.Side, Symbol: j.Symbol, AssetID: *j.AssetID, PriceMicros: j.PriceMicros,
+		USDCMicros: j.USDCMicros, FilledAt: *j.FilledAt, SwapID: *j.SwapID,
+	}
+	if j.ProposalID != nil {
+		t.ProposalID = *j.ProposalID
+	}
+	if j.Yes != nil && j.No != nil {
+		t.Tallied, t.Yes, t.No = true, *j.Yes, *j.No
+	}
+	if j.Proposer != nil {
+		t.ProposerID = ids.UserIDFrom(*j.Proposer)
+	}
+	return NewTradeFilledMoment(t)
+}
+
+func (j momentJSON) proposalSettled(op string) (ChatMoment, error) {
+	if j.ProposalID == nil || j.Yes == nil || j.No == nil || j.Voters == nil || j.Proposer == nil {
+		return ChatMoment{}, invalidMoment(op, "incomplete")
+	}
+	return NewProposalSettledMoment(ProposalSettled{
+		Outcome: j.Outcome, ProposalID: *j.ProposalID, Side: j.Side, Symbol: j.Symbol,
+		USDCMicros: j.USDCMicros, TokenAmount: j.TokenAmount, Yes: *j.Yes, No: *j.No, Voters: *j.Voters,
+		ProposerID: ids.UserIDFrom(*j.Proposer),
+	})
 }
 
 func (m ChatMoment) Kind() MomentKind { return m.kind }
@@ -135,6 +220,8 @@ func (m ChatMoment) Kind() MomentKind { return m.kind }
 func (m ChatMoment) Member() ids.UserID { return m.member }
 
 func (m ChatMoment) Trade() TradeFilled { return m.trade }
+
+func (m ChatMoment) Settled() ProposalSettled { return m.settled }
 
 func (m ChatMoment) JSON() ([]byte, error) {
 	j := momentJSON{Kind: m.kind}
@@ -150,6 +237,17 @@ func (m ChatMoment) JSON() ([]byte, error) {
 		if t.ProposalID != uuid.Nil {
 			j.ProposalID = &t.ProposalID
 		}
+		if t.Tallied {
+			j.Yes, j.No = &t.Yes, &t.No
+		}
+		if proposer := t.ProposerID.UUID(); proposer != uuid.Nil {
+			j.Proposer = &proposer
+		}
+	case MomentProposalSettled:
+		p := m.settled
+		proposer := p.ProposerID.UUID()
+		j.Outcome, j.ProposalID, j.Side, j.Symbol = p.Outcome, &p.ProposalID, p.Side, p.Symbol
+		j.USDCMicros, j.TokenAmount, j.Yes, j.No, j.Voters, j.Proposer = p.USDCMicros, p.TokenAmount, &p.Yes, &p.No, &p.Voters, &proposer
 	default:
 		return nil, invalidMoment("social.ChatMoment.JSON", "unknown_kind")
 	}

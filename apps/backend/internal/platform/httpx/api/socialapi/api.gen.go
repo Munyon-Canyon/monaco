@@ -401,6 +401,57 @@ func (e PollAttachmentInputKind) Valid() bool {
 	}
 }
 
+// Defines values for ProposalSettledMomentKind.
+const (
+	ProposalSettled ProposalSettledMomentKind = "proposal_settled"
+)
+
+// Valid indicates whether the value is a known member of the ProposalSettledMomentKind enum.
+func (e ProposalSettledMomentKind) Valid() bool {
+	switch e {
+	case ProposalSettled:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ProposalSettledMomentOutcome.
+const (
+	ProposalSettledMomentOutcomeExpired ProposalSettledMomentOutcome = "expired"
+	ProposalSettledMomentOutcomeFailed  ProposalSettledMomentOutcome = "failed"
+)
+
+// Valid indicates whether the value is a known member of the ProposalSettledMomentOutcome enum.
+func (e ProposalSettledMomentOutcome) Valid() bool {
+	switch e {
+	case ProposalSettledMomentOutcomeExpired:
+		return true
+	case ProposalSettledMomentOutcomeFailed:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ProposalSettledMomentSide.
+const (
+	ProposalSettledMomentSideBuy  ProposalSettledMomentSide = "buy"
+	ProposalSettledMomentSideSell ProposalSettledMomentSide = "sell"
+)
+
+// Valid indicates whether the value is a known member of the ProposalSettledMomentSide enum.
+func (e ProposalSettledMomentSide) Valid() bool {
+	switch e {
+	case ProposalSettledMomentSideBuy:
+		return true
+	case ProposalSettledMomentSideSell:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ReportRequestKind.
 const (
 	ReportRequestKindCabal   ReportRequestKind = "cabal"
@@ -2111,6 +2162,79 @@ type ProposalCommentPage struct {
 	NextCursor *string `json:"next_cursor"`
 }
 
+// ProposalSettledMoment A vote closed without a trade, because it failed or ran out of time. A passed vote is the `trade_filled` row of its fill.
+//
+// Examples: {"kind":"proposal_settled","no":4,"outcome":"failed","proposal_id":"01890a5d-ac96-774b-bcce-b302099a8072","proposer":{"display_name":"Mia","handle":"mia","id":"01890a5d-ac96-774b-bcce-b302099a8058","photo_url":null},"side":"buy","symbol":"NVDA","token_amount":null,"usdc_micros":300000000,"voters":6,"yes":2}
+type ProposalSettledMoment struct {
+	// Kind The moment kind.
+	//
+	// Examples: proposal_settled
+	Kind ProposalSettledMomentKind `json:"kind"`
+
+	// No No ballots when the vote closed.
+	//
+	// Examples: 4
+	No int `json:"no"`
+
+	// Outcome Whether the vote was voted down or closed before it could pass.
+	//
+	// Examples: failed
+	Outcome ProposalSettledMomentOutcome `json:"outcome"`
+
+	// ProposalId The proposal that closed.
+	//
+	// Examples: 01890a5d-ac96-774b-bcce-b302099a8072
+	ProposalId openapi_types.UUID `json:"proposal_id"`
+
+	// Proposer Who proposed it, with their current name and photo.
+	Proposer ChatAuthor `json:"proposer"`
+
+	// Side Whether the proposal was to buy or to sell.
+	//
+	// Examples: buy
+	Side ProposalSettledMomentSide `json:"side"`
+
+	// Symbol The stock's ticker.
+	//
+	// Examples: NVDA
+	Symbol string `json:"symbol"`
+
+	// TokenAmount The token amount of a sell proposal in the token's base units. Null for a buy.
+	//
+	// Examples: null
+	TokenAmount *int64 `json:"token_amount"`
+
+	// UsdcMicros The USDC the proposal would have spent, or for a sell its quoted value, in micros. 0 when none was recorded.
+	//
+	// Examples: 300000000
+	UsdcMicros int64 `json:"usdc_micros"`
+
+	// Voters Members in the voter set frozen when the proposal opened.
+	//
+	// Examples: 6
+	Voters int `json:"voters"`
+
+	// Yes Yes ballots when the vote closed.
+	//
+	// Examples: 2
+	Yes int `json:"yes"`
+}
+
+// ProposalSettledMomentKind The moment kind.
+//
+// Examples: proposal_settled
+type ProposalSettledMomentKind string
+
+// ProposalSettledMomentOutcome Whether the vote was voted down or closed before it could pass.
+//
+// Examples: failed
+type ProposalSettledMomentOutcome string
+
+// ProposalSettledMomentSide Whether the proposal was to buy or to sell.
+//
+// Examples: buy
+type ProposalSettledMomentSide string
+
 // ReactionSummary A feed item's reactions after a change.
 type ReactionSummary struct {
 	// Reactions One entry per emoji, most used first, then the emoji first used earliest. At most the top 20; `total` still counts every reaction.
@@ -2310,7 +2434,7 @@ type ThesisQuoteAttachmentInputKind string
 
 // TradeFilledMoment A trade filled for the cabal.
 //
-// Examples: {"asset_id":"01890a5d-ac96-774b-bcce-b302099a8070","filled_at":"2026-09-30T14:30:00Z","kind":"trade_filled","price_micros":196750000,"proposal_id":null,"side":"buy","swap_id":"01890a5d-ac96-774b-bcce-b302099a8071","symbol":"NVDA","usdc_micros":300000000}
+// Examples: {"asset_id":"01890a5d-ac96-774b-bcce-b302099a8070","filled_at":"2026-09-30T14:30:00Z","kind":"trade_filled","no":1,"price_micros":196750000,"proposal_id":"01890a5d-ac96-774b-bcce-b302099a8072","proposer":{"display_name":"Mia","handle":"mia","id":"01890a5d-ac96-774b-bcce-b302099a8058","photo_url":null},"side":"buy","swap_id":"01890a5d-ac96-774b-bcce-b302099a8071","symbol":"NVDA","usdc_micros":300000000,"yes":5}
 type TradeFilledMoment struct {
 	// AssetId The traded asset.
 	//
@@ -2327,6 +2451,11 @@ type TradeFilledMoment struct {
 	// Examples: trade_filled
 	Kind TradeFilledMomentKind `json:"kind"`
 
+	// No No ballots on the proposal when it closed. Absent when `yes` is.
+	//
+	// Examples: 1
+	No *int `json:"no,omitempty"`
+
 	// PriceMicros The fill price per share in USD micros.
 	//
 	// Examples: 196750000
@@ -2336,6 +2465,9 @@ type TradeFilledMoment struct {
 	//
 	// Examples: null
 	ProposalId *openapi_types.UUID `json:"proposal_id"`
+
+	// Proposer Who proposed the trade, with their current name and photo. Absent for a fill with no proposal and for a row written before the proposer was kept.
+	Proposer *ChatAuthor `json:"proposer,omitempty"`
 
 	// Side Whether the cabal bought or sold.
 	//
@@ -2356,6 +2488,11 @@ type TradeFilledMoment struct {
 	//
 	// Examples: 300000000
 	UsdcMicros int64 `json:"usdc_micros"`
+
+	// Yes Yes ballots on the proposal when it closed. Absent for a fill with no proposal and for a row written before the tally was kept.
+	//
+	// Examples: 5
+	Yes *int `json:"yes,omitempty"`
 }
 
 // TradeFilledMomentKind The moment kind.
@@ -3253,6 +3390,40 @@ func (t *ChatMoment) MergeTradeFilledMoment(v TradeFilledMoment) error {
 	return err
 }
 
+// AsProposalSettledMoment returns the union data inside the ChatMoment as a ProposalSettledMoment
+func (t ChatMoment) AsProposalSettledMoment() (ProposalSettledMoment, error) {
+	var body ProposalSettledMoment
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromProposalSettledMoment overwrites any union data inside the ChatMoment as the provided ProposalSettledMoment
+func (t *ChatMoment) FromProposalSettledMoment(v ProposalSettledMoment) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"kind":"proposal_settled"}`))
+	t.union = b
+	return err
+}
+
+// MergeProposalSettledMoment performs a merge with any union data inside the ChatMoment, using the provided ProposalSettledMoment
+func (t *ChatMoment) MergeProposalSettledMoment(v ProposalSettledMoment) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	b, err = runtime.JSONMerge(b, []byte(`{"kind":"proposal_settled"}`))
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
 func (t ChatMoment) Discriminator() (string, error) {
 	var discriminator struct {
 		Discriminator string `json:"kind"`
@@ -3271,6 +3442,8 @@ func (t ChatMoment) ValueByDiscriminator() (interface{}, error) {
 		return t.AsCabalCreatedMoment()
 	case "member_joined":
 		return t.AsMemberJoinedMoment()
+	case "proposal_settled":
+		return t.AsProposalSettledMoment()
 	case "trade_filled":
 		return t.AsTradeFilledMoment()
 	default:
