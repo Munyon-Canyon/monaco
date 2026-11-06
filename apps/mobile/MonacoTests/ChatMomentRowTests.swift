@@ -45,6 +45,23 @@ struct ChatMomentRowTests {
             for: moment, lines: lines(moment, price: price), now: now, calendar: calendar, locale: locale)
     }
 
+    private static func settled() -> Components.Schemas.ChatMoment {
+        .proposalSettled(
+            .init(
+                kind: .proposalSettled, outcome: .failed, proposalId: "proposal-9", side: .buy, symbol: "NVDAx",
+                usdcMicros: 400_000_000, tokenAmount: nil, yes: 2, no: 4, voters: 6,
+                proposer: .init(id: "u-mia", handle: nil, displayName: "Mia", photoUrl: nil)))
+    }
+
+    @Test func aClosedVoteIsAPillThatOpensItsProposal() throws {
+        let moment = try Self.moment(Self.settled())
+        #expect(!ChatMomentRow.isEventLine(moment))
+        #expect(ChatMomentRow.destination(of: moment) == .proposal("proposal-9"))
+        #expect(
+            Self.spoken(moment, price: nil)
+                == "Vote failed, 2 to 4. Nothing bought. Buy NVDA, $400. Opens the vote.")
+    }
+
     @Test func aFillReadsTheWholeSentenceAndSaysItOpensTheTrade() throws {
         let moment = try Self.moment(Self.fill())
         #expect(
