@@ -23,7 +23,7 @@ struct GalleryTypePage: View {
             use: "Moments", sample: .text("You're in.", MonacoTheme.Typo.title)),
         Role(
             name: "Title 2", spec: "22 / 28 bold", use: "Name on a pushed screen (cabal, stock, proposal)",
-            sample: .text("AC Capital Management", MonacoTheme.Typo.title2)),
+            sample: .text("Long Lunch Investment Club", MonacoTheme.Typo.title2)),
         Role(
             name: "Display figure", spec: "28 / 34 heavy, \u{2212}0.5",
             use: "The one hero number a screen: net worth, treasury, price",

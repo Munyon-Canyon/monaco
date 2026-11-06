@@ -171,7 +171,7 @@ enum GroupDetailSampleData {
     static var fTreasury: SampleAPIScript {
         var script = SampleAPIScript(role: "admin", pictureURL: pictureURL, pot: .sampleACCapital)
         script.cabalEdit = { cabal in
-            cabal.name = "AC Capital Management"
+            cabal.name = Components.Schemas.CabalRef.sampleACCapital.name
             cabal.memberCount = 8
             cabal.voterCount = 8
             cabal.openProposalCount = 1
@@ -190,7 +190,7 @@ enum GroupDetailSampleData {
         }
         var proposal = Components.Schemas.Proposal.sample()
         proposal.id = "proposal-nvda"
-        proposal.cabalName = "AC Capital Management"
+        proposal.cabalName = Components.Schemas.CabalRef.sampleACCapital.name
         proposal.symbol = "NVDAx"
         proposal.usdcMicros = 400_000_000
         proposal.expiresAt = .now.addingTimeInterval(4 * 3_600 + 600)
@@ -295,7 +295,7 @@ enum GroupDetailSampleData {
         var script = fTreasury
         var proposal = Components.Schemas.Proposal.ruleSample(now: .now)
         proposal.id = "proposal-rule"
-        proposal.cabalName = "AC Capital Management"
+        proposal.cabalName = Components.Schemas.CabalRef.sampleACCapital.name
         script.openProposal = proposal
         return script
     }
