@@ -8,6 +8,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
 	"github.com/monaco/monaco/apps/backend/internal/modules/social/app"
+	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/fakes"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/scenario"
@@ -18,10 +19,6 @@ const (
 	chatParentPath = chatPath + "/{parent}"
 	missingChat    = missingCabal + "/messages"
 	missingMessage = "01890a5d-ac96-774b-bcce-000000000005"
-
-	proposalCardID = "01890a5d-ac96-774b-bcce-000000000a01"
-	proposalRefID  = "01890a5d-ac96-774b-bcce-000000000a02"
-	proposalFeedID = "01890a5d-ac96-774b-bcce-000000000a03"
 )
 
 func chatCreatorOf(script string) string { return "did:privy:qa-f22-" + script + "-creator" }
@@ -95,10 +92,11 @@ func seedProposalCard(withFeedItem bool) scenario.Step {
 		if err != nil {
 			s.Fatalf("seed the proposal card: read the proposer: %v", err)
 		}
+		card, ref := ids.Real{}.NewV7().String(), ids.Real{}.NewV7().String()
 		_, err = s.DB().Exec(s.Context(), `INSERT INTO cabal_messages
 			(id, cabal_id, author_id, kind, proposal_id, dedupe_key, created_at)
 			VALUES ($1::uuid, $2::uuid, $3::uuid, 'proposal', $4::uuid, $5::text, now())`,
-			proposalCardID, s.Recall("cabal"), proposer, proposalRefID, "proposal:"+proposalRefID)
+			card, s.Recall("cabal"), proposer, ref, "proposal:"+ref)
 		if err != nil {
 			s.Fatalf("seed the proposal card: %v", err)
 		}
@@ -108,29 +106,52 @@ func seedProposalCard(withFeedItem bool) scenario.Step {
 		_, err = s.DB().Exec(s.Context(), `INSERT INTO feed_objects
 			(id, kind, ref_type, ref_id, cabal_id, actor_id, title, payload, created_at, updated_at)
 			VALUES ($1::uuid, 'proposal', 'proposals', $2::uuid, $3::uuid, $4::uuid, 'seeded', '{}', now(), now())`,
-			proposalFeedID, proposalRefID, s.Recall("cabal"), proposer)
+			ids.Real{}.NewV7().String(), ref, s.Recall("cabal"), proposer)
 		if err != nil {
 			s.Fatalf("seed the proposal's feed item: %v", err)
 		}
 	}
 }
 
+func proposalCard(s *scenario.Scenario) (card, ref string) {
+	s.Helper()
+	err := s.DB().QueryRow(s.Context(), `SELECT id::text, proposal_id::text FROM cabal_messages
+		WHERE cabal_id = $1::uuid AND kind = 'proposal'`, s.Recall("cabal")).Scan(&card, &ref)
+	if err != nil {
+		s.Fatalf("read the seeded proposal card: %v", err)
+	}
+	return card, ref
+}
+
 func replyToCard(body string, alsoInChannel bool) scenario.Step {
 	return func(s *scenario.Scenario) {
-		scenario.Post(chatPath, `{"body":"`+body+`","parent_id":"`+proposalCardID+
+		card, _ := proposalCard(s)
+		scenario.Post(chatPath, `{"body":"`+body+`","parent_id":"`+card+
 			`","also_in_channel":`+strconv.FormatBool(alsoInChannel)+`}`)(s)
 	}
+}
+
+func repliedToCard(s *scenario.Scenario) {
+	card, _ := proposalCard(s)
+	scenario.ExpectJSON("parent_id", card)(s)
+}
+
+func getCardComments(s *scenario.Scenario) {
+	_, ref := proposalCard(s)
+	scenario.Get("/v1/proposals/" + ref + "/comments")(s)
 }
 
 func proposalReplyHolds(comments, copies int) scenario.Step {
 	return func(s *scenario.Scenario) {
 		s.Helper()
+		card, ref := proposalCard(s)
 		var gotComments, gotCopies, gotChatReplies int
 		err := s.DB().QueryRow(s.Context(), `SELECT
-			(SELECT count(*) FROM feed_comments WHERE feed_object_id = $1::uuid),
+			(SELECT count(*) FROM feed_comments c JOIN feed_objects f ON f.id = c.feed_object_id
+				WHERE f.ref_type = 'proposals' AND f.ref_id = $1::uuid),
 			(SELECT count(*) FROM cabal_messages WHERE parent_id = $2::uuid AND comment_id IS NOT NULL),
 			(SELECT count(*) FROM cabal_messages WHERE parent_id = $2::uuid AND comment_id IS NULL)`,
-			proposalFeedID, proposalCardID).Scan(&gotComments, &gotCopies, &gotChatReplies)
+			ref, card).Scan(&gotComments, &gotCopies, &gotChatReplies)
 		if err != nil {
 			s.Fatalf("count the proposal replies: %v", err)
 		}
@@ -155,7 +176,7 @@ func F22PostChatMessageOK(s *scenario.Scenario) {
 			scenario.ExpectStatus(http.StatusOK),
 			replyToCard("quiet", false),
 			scenario.ExpectStatus(http.StatusCreated),
-			scenario.ExpectJSON("parent_id", proposalCardID),
+			repliedToCard,
 			scenario.ExpectJSON("also_in_channel", false),
 			scenario.Remember("comment_id", "quiet"),
 			scenario.ExpectRemembered("id", "quiet"),
@@ -163,7 +184,7 @@ func F22PostChatMessageOK(s *scenario.Scenario) {
 			scenario.ExpectStatus(http.StatusCreated),
 			scenario.Remember("comment_id", "loud"),
 			scenario.ExpectRemembered("id", "loud"),
-			scenario.Get("/v1/proposals/"+proposalRefID+"/comments"),
+			getCardComments,
 			scenario.ExpectStatus(http.StatusOK),
 		).
 		Then(
@@ -180,7 +201,8 @@ func F22PostChatMessageOK(s *scenario.Scenario) {
 }
 
 func F22PostChatMessageFeedItemPending(s *scenario.Scenario) {
-	s.Given(append(chatCabal("post-no-parent"), seedProposalCard(false), scenario.SignIn(chatMemberOf("post-no-parent")))...).
+	s.Given(append(chatCabal("post-feed-pending"), seedProposalCard(false),
+		scenario.SignIn(chatMemberOf("post-feed-pending")))...).
 		When(replyToCard("too early", true)).
 		Then(scenario.ExpectProblem(errs.CodeFeedItemPending), proposalReplyHolds(0, 0), chatRows(1),
 			scenario.ExpectEvents(events.TypeChatMessagePosted, 0))
