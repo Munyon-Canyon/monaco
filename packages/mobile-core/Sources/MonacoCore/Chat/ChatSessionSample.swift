@@ -20,6 +20,7 @@ public struct ChatSampleScenario: Sendable, Equatable {
     public var moments = false
     public var poll = false
     public var pins = false
+    public var proposalThread = false
 
     public init(
         startEmpty: Bool = false,
@@ -34,7 +35,8 @@ public struct ChatSampleScenario: Sendable, Equatable {
         proposalCard: Bool = false,
         moments: Bool = false,
         poll: Bool = false,
-        pins: Bool = false
+        pins: Bool = false,
+        proposalThread: Bool = false
     ) {
         self.startEmpty = startEmpty
         self.failSends = failSends
@@ -49,6 +51,7 @@ public struct ChatSampleScenario: Sendable, Equatable {
         self.moments = moments
         self.poll = poll
         self.pins = pins
+        self.proposalThread = proposalThread
     }
 }
 
@@ -56,6 +59,7 @@ extension ChatSession {
     public static let sampleCabalID = "00000000-0000-4000-8000-000000000166"
     public static let sampleViewerID = "u-me"
     public static let sampleProposalID = "00000000-0000-4000-8000-000000000501"
+    public static let sampleThreadRootID = "root-1"
 
     public static func sample(_ scenario: ChatSampleScenario, now: @escaping @Sendable () -> Date) -> ChatSession {
         let store = SampleChatStore(scenario: scenario)
@@ -89,11 +93,13 @@ private actor SampleChatStore {
     private var postCalls = 0
     private var arrivals = 0
     private var listeners: [UUID: AsyncStream<ChatRealtimeEvent>.Continuation] = [:]
-    static let threadRootID = "root-1"
+    static let threadRootID = ChatSession.sampleThreadRootID
 
     init(scenario: ChatSampleScenario) {
         self.scenario = scenario
-        if scenario.threaded {
+        if scenario.proposalThread {
+            messages = Self.proposalThread()
+        } else if scenario.threaded {
             messages = [Self.message(Self.threadRootID, "u-ana", "Ana", "Apple reports Thursday.", minutesAgo: 10)]
         } else {
             messages =
@@ -325,6 +331,55 @@ private actor SampleChatStore {
             reactions: reactions,
             reactionCount: reactions.reduce(0) { $0 + $1.count }
         )
+    }
+}
+
+extension SampleChatStore {
+    private static func proposalThread() -> [ChatMessage] {
+        var parent = message(
+            threadRootID, "u-mia", "Mia",
+            "Small add to the position. Earnings next week; I want more before, and we can add on a dip.",
+            minutesAgo: 120)
+        parent.kind = .proposal
+        parent.proposalId = ChatSession.sampleProposalID
+        parent.replyCount = 6
+        parent.lastReplyAt = Date(timeIntervalSinceNow: -60)
+        parent.lastRepliers = [
+            .init(id: "u-jordan", handle: nil, displayName: "Jordan", photoUrl: nil),
+            .init(id: "u-kai", handle: nil, displayName: "Kai", photoUrl: nil),
+            .init(id: "u-sam", handle: nil, displayName: "Sam", photoUrl: nil),
+        ]
+        var logan = message(
+            "pr1", "u-logan", "Logan", "44% NVDA after this. fine by me under 45", minutesAgo: 60)
+        logan.commentId = "pc1"
+        var sam = message(
+            "pr2", "u-sam", "Sam", "Size is fine. Yes from me.", minutesAgo: 45,
+            reactions: [.init(emoji: "❤️", count: 1, mine: false)])
+        sam.commentId = "pc2"
+        sam.replyTo = Components.Schemas.CommentQuote(
+            commentId: "pc1", rootCommentId: "pc1", authorDisplayName: "Logan",
+            excerpt: "44% NVDA after this.", isDeleted: false, hasAttachment: false, isFolded: false)
+        var kai = message("pr3", "u-kai", "Kai", "No for now, I would wait for the print.", minutesAgo: 30)
+        kai.commentId = "pc3"
+        var jordan = message("pr4", "u-jordan", "Jordan", GroupChatCopy.gifBody, minutesAgo: 1)
+        jordan.commentId = "pc4"
+        let base = "https://\(SampleGifProvider.host)/sample-gif-4"
+        jordan.attachment = .gif(
+            Components.Schemas.GifAttachment(
+                kind: .gif, id: "sample-gif-4", title: "Sample GIF 4",
+                still: .init(url: "\(base)/still.png", width: 200, height: 150),
+                preview: .init(url: "\(base)/preview.gif", width: 200, height: 150),
+                original: .init(url: "\(base)/original.gif", width: 200, height: 150)))
+        var ana = message("pr5", "u-ana", "Ana", "Yes. The cash buffer stays above ten percent.", minutesAgo: 1)
+        ana.commentId = "pc5"
+        var leo = message("pr6", "u-leo", "Leo", "In for the print too.", minutesAgo: 0)
+        leo.commentId = "pc6"
+        let replies = [logan, sam, kai, jordan, ana, leo].map { reply -> ChatMessage in
+            var reply = reply
+            reply.parentId = threadRootID
+            return reply
+        }
+        return [parent] + replies
     }
 }
 

@@ -84,4 +84,18 @@ final class ChatThreadCopyTests: XCTestCase {
         XCTAssertTrue(strings.allSatisfy { !$0.lowercased().contains("group") })
         XCTAssertEqual(ChatThreadCopy.deleteMessage, "It's removed for everyone in the cabal.")
     }
+
+    func testAProposalThreadRepliesToTheProposersFirstName() {
+        XCTAssertEqual(ChatThreadCopy.composerPlaceholder(proposer: "Mia Chen"), "Reply to Mia")
+        XCTAssertEqual(ChatThreadCopy.composerPlaceholder(proposer: "Mia"), "Reply to Mia")
+        XCTAssertEqual(ChatThreadCopy.composerPlaceholder(proposer: ""), "Reply in thread")
+        XCTAssertEqual(ChatThreadCopy.composerPlaceholder(proposer: nil), "Reply in thread")
+    }
+
+    func testTheQuoteAndProposalButtonCopy() {
+        XCTAssertEqual(ChatThreadCopy.proposalButton, "Proposal")
+        XCTAssertEqual(ChatThreadCopy.quoteDeleted, "Reply deleted")
+        XCTAssertEqual(
+            ChatThreadCopy.quoteSpoken(name: "Logan", excerpt: "44% NVDA"), "Replying to Logan: 44% NVDA")
+    }
 }

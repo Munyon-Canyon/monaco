@@ -473,6 +473,7 @@ withdraw-submitting           -MonacoWithdrawSample submitting
 chat-loading                      -MonacoChatSampleQA -MonacoChatSampleLoading
 
 chat-thread-toggle            -MonacoChatThreadSampleQA
+chat-thread-proposal          -MonacoChatThreadSampleQA -MonacoChatThreadSampleProposal
 propose-chooser                -MonacoProposeSample chooser
 propose-chooser-no-holdings    -MonacoProposeSample chooserNoHoldings
 propose-chooser-not-member     -MonacoProposeSample chooserNotMember
