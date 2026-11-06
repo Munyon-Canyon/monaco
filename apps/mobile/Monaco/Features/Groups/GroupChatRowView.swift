@@ -310,7 +310,7 @@ extension GroupChatRowView {
             } label: {
                 HStack(spacing: MonacoTheme.Space.xs) {
                     Image(systemName: "arrowshape.turn.up.left")
-                    Text(ChatThreadCopy.header(parentBody: row.parentBody)).lineLimit(1)
+                    Text(threadHeaderText).lineLimit(1)
                 }
                 .font(MonacoTheme.Typo.caption)
                 .foregroundStyle(MonacoTheme.secondaryText)
@@ -319,33 +319,25 @@ extension GroupChatRowView {
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("chat-thread-header-\(row.id)")
+            .task(id: row.parentProposalID) {
+                if let id = row.parentProposalID { await proposals?.load(id) }
+            }
         }
     }
 
-    @ViewBuilder private var repliesRow: some View {
-        let summary = ChatThreadCopy.summary(
-            replyCount: message.replyCount, lastReplyAt: message.lastReplyAt, now: now)
-        if let openThread {
-            Button {
-                openThread(message.id)
-            } label: {
-                HStack(spacing: MonacoTheme.Space.xs) {
-                    Text(summary)
-                    Image(systemName: "chevron.right").accessibilityHidden(true)
-                }
-                .font(MonacoTheme.Typo.captionStrong)
-                .foregroundStyle(MonacoTheme.brand)
-                .frame(minHeight: MonacoButtonMetrics.hitTarget)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier("chat-replies-\(row.id)")
-        } else {
-            Text(summary)
-                .font(MonacoTheme.Typo.captionStrong)
-                .foregroundStyle(MonacoTheme.brand)
-                .accessibilityIdentifier("chat-replies-\(row.id)")
-        }
+    private var threadHeaderText: String {
+        guard let id = row.parentProposalID else { return ChatThreadCopy.header(parentBody: row.parentBody) }
+        return Self.proposalHeaderText(proposals?.state(for: id))
+    }
+
+    static func proposalHeaderText(_ state: ChatProposalState?) -> String {
+        guard case .loaded(let facts) = state else { return ChatThreadCopy.proposalHeader(headline: nil) }
+        let vote = CabalProposals.pendingVote(facts.summary, asset: facts.asset)
+        return ChatThreadCopy.proposalHeader(headline: HomeVoteCardModel.headline(of: vote))
+    }
+
+    private var repliesRow: some View {
+        ChatThreadLine(message: message, now: now, open: openThread.map { open in { open(message.id) } })
     }
 
     private var accessibilityText: String {
@@ -363,7 +355,7 @@ extension GroupChatRowView {
 }
 
 extension GroupChatRowView {
-    private var target: ReactionTarget { .chatMessage(cabalID: cabalID, id: message.id) }
+    private var target: ReactionTarget { message.reactionTarget(cabalID: cabalID) }
 
     private var liveReactions: [Components.Schemas.Reaction] {
         reactions?.reactions(for: target, fallback: message.reactions) ?? message.reactions

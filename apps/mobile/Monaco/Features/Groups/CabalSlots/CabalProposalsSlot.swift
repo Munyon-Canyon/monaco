@@ -136,7 +136,7 @@ struct CabalProposals: View {
 final class CabalVoteCards {
     private var models: [String: HomeVoteCardModel] = [:]
     func card(
-        for row: HomePendingVote, ballot: ProposalBallot?, environment: AppEnvironment,
+        for row: HomePendingVote, ballot: ProposalBallot?, environment: AppEnvironment, showsReplies: Bool = true,
         onCommitted: @escaping @MainActor (HomeVoteCardModel, CastOutcome) -> Void
     ) -> HomeVoteCardModel {
         if let existing = models[row.id] {
@@ -144,7 +144,7 @@ final class CabalVoteCards {
             return existing
         }
         let created = HomeVoteCardModel(
-            api: environment.api, hints: environment.hints, row: row, myBallot: ballot)
+            api: environment.api, hints: environment.hints, row: row, myBallot: ballot, showsReplies: showsReplies)
         created.onCommitted = { [weak created] outcome in
             if let created { onCommitted(created, outcome) }
         }
