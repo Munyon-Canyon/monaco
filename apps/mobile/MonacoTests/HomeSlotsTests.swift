@@ -24,6 +24,7 @@ struct HomeSlotsTests {
         let order = HomeScreen.sections.map { ObjectIdentifier($0) }
         let expected: [any HomeSection.Type] = [
             HomeFigureSlot.self,
+            HomeTotalPartsSlot.self,
             HomePendingVotesSlot.self,
             HomeChartSlot.self,
             HomeBalanceSlot.self,
@@ -34,6 +35,18 @@ struct HomeSlotsTests {
             HomeFeedPreviewSlot.self,
         ]
         #expect(order == expected.map { ObjectIdentifier($0) })
+    }
+
+    @Test func thePartsCardShowsWhileLoadingFailedOrWithCabalsAndHidesForFirstUse() async {
+        let empty = PortfolioModel.preview(.sampleEmpty)
+        let funded = PortfolioModel.preview(.sample)
+        await empty.load()
+        await funded.load()
+        #expect(HomeTotalPartsSlot.isLive)
+        #expect(HomeTotalPartsSlot.shows(summary: funded.summary, sharedFailure: false))
+        #expect(HomeTotalPartsSlot.shows(summary: nil, sharedFailure: false))
+        #expect(!HomeTotalPartsSlot.shows(summary: empty.summary, sharedFailure: false))
+        #expect(!HomeTotalPartsSlot.shows(summary: funded.summary, sharedFailure: true))
     }
 
     @Test func firstUseDrawsItsEmptyStateAndTheEveryoneFeed() {

@@ -25,6 +25,8 @@ enum HomeSampleScenario: String, CaseIterable {
     case feedPreviewEveryone
     case fUnfunded
     case fFirstUse
+    case fArriving
+    case fBalanceFails
 
     static func matching(_ arguments: [String]) -> HomeSampleScenario? {
         guard let flag = arguments.firstIndex(of: "-MonacoHomeSample"),
@@ -57,6 +59,8 @@ extension HomeSampleScenario {
         case .fVoteRule: HomeSampleData.script(.loss, proposals: [.fRule])
         case .fUnfunded: HomeSampleData.script(.fUnfunded, proposals: [.fVote])
         case .fFirstUse: HomeSampleData.firstUseScript()
+        case .fArriving: HomeSampleData.arriving(HomeSampleData.script(.fAccount, proposals: [.fVote]))
+        case .fBalanceFails: HomeSampleData.balanceFails(HomeSampleData.script(.fAccount, proposals: [.fVote]))
         }
     }
 
@@ -102,6 +106,18 @@ enum HomeSampleData {
         var script = script
         script.portfolio?.cabals[1].stale = true
         script.portfolio?.cabals[1].valuedAt = Date.now.addingTimeInterval(-3 * 86_400)
+        return script
+    }
+
+    static func arriving(_ script: SampleAPIScript) -> SampleAPIScript {
+        var script = script
+        script.balance.arrivingMicros = "250000000"
+        return script
+    }
+
+    static func balanceFails(_ script: SampleAPIScript) -> SampleAPIScript {
+        var script = script
+        script.mode = .balanceFails
         return script
     }
 
