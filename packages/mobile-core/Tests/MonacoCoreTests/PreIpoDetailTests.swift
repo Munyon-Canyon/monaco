@@ -30,7 +30,7 @@ final class PreIpoDetailTests: XCTestCase {
             page.ledger,
             [
                 PreIpoCopy.LedgerLine(label: "Last round · Jun ’26", value: "$165.00"),
-                PreIpoCopy.LedgerLine(label: "Secondary estimate · Oct 20", value: "$185.00"),
+                PreIpoCopy.LedgerLine(label: "Pre-IPO estimate · Oct 20", value: "$185.00"),
             ])
         XCTAssertEqual(page.countLine, "3 rounds · 1 estimate")
         XCTAssertEqual(
@@ -41,7 +41,11 @@ final class PreIpoDetailTests: XCTestCase {
             ["Sell window Tender · quarterly", "Next tender Jan 2027"])
         XCTAssertNil(page.imageURL)
         XCTAssertEqual(PreIpoCopy.privateLine, "Private · priced per round, not live")
-        XCTAssertEqual(PreIpoCopy.roundStatsFootnote, "Secondary estimates update between rounds.")
+        XCTAssertEqual(PreIpoCopy.roundStatsFootnote, "Pre-IPO estimates update between rounds.")
+        XCTAssertEqual(PreIpoCopy.estimateTitle, "Pre-IPO estimate")
+        XCTAssertEqual(PreIpoCopy.estimateInfoLabel, "About the Pre-IPO estimate")
+        XCTAssertEqual(PreIpoCopy.estimateInfo, "Last price paid between investors. Not a live price.")
+        XCTAssertEqual(PreIpoCopy.proposalSubtitle, "Pre-IPO · priced at the Pre-IPO estimate")
     }
 
     func testTheStepsRunOldestFirstAndTheEstimateIsLastAndFlagged() throws {
@@ -52,7 +56,7 @@ final class PreIpoDetailTests: XCTestCase {
             ["Feb ’25 $120", "Oct ’25 $150", "Jun ’26 $165", "Oct 20 est. $185"])
         XCTAssertEqual(page.steps.map(\.isEstimate), [false, false, false, true])
         XCTAssertEqual(page.steps.first?.spokenLabel, "February 2025 round, 120 dollars")
-        XCTAssertEqual(page.steps.last?.spokenLabel, "October 20 secondary estimate, 185 dollars")
+        XCTAssertEqual(page.steps.last?.spokenLabel, "October 20 Pre-IPO estimate, 185 dollars")
     }
 
     func testTheRangesFilterTheRoundsByDateAndTheEstimateAlwaysShows() throws {
@@ -144,7 +148,7 @@ final class PreIpoDetailTests: XCTestCase {
             PreIpoCopy.LedgerLine(label: "Last round · Jun ’26", value: "$165.00"))
         XCTAssertEqual(
             PreIpoCopy.ledgerEstimate(asOf: "Oct 20", price: "$185.00"),
-            PreIpoCopy.LedgerLine(label: "Secondary estimate · Oct 20", value: "$185.00"))
+            PreIpoCopy.LedgerLine(label: "Pre-IPO estimate · Oct 20", value: "$185.00"))
     }
 
     func testAHeldPreIpoRowReadsAtEstimateWithNoReturnWhileAListedRowKeepsItsReturn() throws {

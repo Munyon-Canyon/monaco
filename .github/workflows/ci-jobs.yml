@@ -430,8 +430,9 @@ jobs:
           fetch-depth: 2
 
       # The checkout is the PR's merge commit: its first parent is the base tip, so HEAD^1..HEAD is exactly what the PR changes.
+      # Paused on 2026-11-06 by mrrobot while journeys are paused (#8459). Removing `false && ` from the `if:` turns the gate back on.
       - name: Journey evidence in the PR body
-        if: github.event.pull_request
+        if: false && github.event.pull_request
         env:
           PR_BODY: ${{ github.event.pull_request.body }}
         run: |
