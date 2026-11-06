@@ -36,4 +36,17 @@ public enum ProposalDraft: Equatable, Sendable {
         if case .buy(_, let micros, _) = self { return micros }
         return 0
     }
+
+    public var thesis: String {
+        switch self {
+        case .buy(_, _, let thesis), .sell(_, _, let thesis): thesis
+        }
+    }
+
+    public func with(thesis: String) -> ProposalDraft {
+        switch self {
+        case .buy(let symbol, let micros, _): .buy(symbol: symbol, usdcMicros: micros, thesis: thesis)
+        case .sell(let symbol, let tokens, _): .sell(symbol: symbol, tokenAmount: tokens, thesis: thesis)
+        }
+    }
 }

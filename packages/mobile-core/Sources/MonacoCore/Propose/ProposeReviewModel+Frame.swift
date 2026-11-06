@@ -2,7 +2,16 @@ import Foundation
 
 extension ProposeReviewModel {
     public var isPreIpoBuy: Bool { !isSell && assetKind == .preIpo }
-    public var showsThesis: Bool { !isPreIpoBuy }
+    public var showsThesis: Bool { true }
+
+    public var thesisPrompt: String { "Why \(assetName)?" }
+    public var thesisOptionalLabel: String { "Optional" }
+
+    public var thesisCounter: String? {
+        ProposeReasonRules.showsCounter(for: thesis) ? "\(thesis.count) / \(ProposeReasonRules.thesisLimit)" : nil
+    }
+
+    public var foldedTradeLine: String { "\(operation) \(assetName) · \(amountLabel)" }
 
     public var amountLabel: String {
         isSell ? heroAmount : PreIpoDates.wholeDollars(draft.micros)
