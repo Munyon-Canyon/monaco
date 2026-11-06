@@ -84,7 +84,7 @@ final class CabalsTabModelTests: XCTestCase {
         let own = CabalsTabModel(api: api(try Self.transport()))
         await own.load()
 
-        XCTAssertEqual(few.content?.upNext.map(\.name), ["Big Ballers", "Ac Capital Management"])
+        XCTAssertEqual(few.content?.upNext.map(\.name), ["Big Ballers", "AC Capital"])
         XCTAssertEqual(own.content?.upNext.map(\.shortName), ["Tech Titans", "Degens"])
     }
 

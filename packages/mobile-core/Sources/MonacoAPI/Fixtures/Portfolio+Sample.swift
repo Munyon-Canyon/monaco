@@ -8,8 +8,6 @@ extension Components.Schemas.CabalRef {
         id: "01890a5d-ac96-774b-bcce-b302099a8059", name: "Sunday Investors", pictureUrl: nil)
     public static let sampleACCapital = Self(
         id: "01890a5d-ac96-774b-bcce-b302099a805a", name: "AC Capital", pictureUrl: nil)
-    public static let sampleAcCapitalManagement = Self(
-        id: "01890a5d-ac96-774b-bcce-b302099a8060", name: "Ac Capital Management", pictureUrl: nil)
     public static let sampleTechTitans = Self(
         id: "01890a5d-ac96-774b-bcce-b302099a805b", name: "Tech Titans", pictureUrl: nil)
     public static let sampleDegens = Self(
@@ -97,7 +95,7 @@ extension Components.Schemas.MyPortfolio {
                 ownershipBps: 6200, role: .member, canVote: true, potValueMicros: 12_380_000, memberCount: 3,
                 openVoteCount: 0),
             Components.Schemas.PortfolioCabal(
-                cabal: .sampleAcCapitalManagement, valueMicros: 1_000_000, shareUnits: 1_000_000,
+                cabal: .sampleACCapital, valueMicros: 1_000_000, shareUnits: 1_000_000,
                 netContributedMicros: 1_000_000, pnlMicros: 0, returnBps: 0, sliceBps: 1160,
                 ownershipBps: 10000, role: .admin, canVote: true, potValueMicros: 1_000_000, memberCount: 1,
                 openVoteCount: 0),
