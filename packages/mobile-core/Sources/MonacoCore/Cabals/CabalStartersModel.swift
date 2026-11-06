@@ -11,8 +11,8 @@ public struct CabalStarter: Equatable, Sendable, Identifiable {
 
     public static func subline(kind: AssetKind, ticker: String, cabalCount: Int?) -> String {
         switch (kind, cabalCount) {
-        case (.preIpo, let count?): "Secondary estimate \u{00B7} in \(count) cabals"
-        case (.preIpo, nil): "Secondary estimate"
+        case (.preIpo, let count?): "Pre-IPO estimate \u{00B7} in \(count) cabals"
+        case (.preIpo, nil): "Pre-IPO estimate"
         case (_, let count?): "In \(count) cabals"
         case (_, nil): ticker
         }

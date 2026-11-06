@@ -103,7 +103,7 @@ final class StocksTabMarketsTests: XCTestCase {
         XCTAssertEqual(model.rows.map(\.symbol), ["tSpaceX"])
     }
 
-    func testAPreIpoRowReadsTheSecondaryEstimateNotThePriceOrAPercent() async throws {
+    func testAPreIpoRowReadsThePreIpoEstimateNotThePriceOrAPercent() async throws {
         let transport = PrefixTransport([
             ("/v1/assets?filter=pre_ipo", try Self.preIpoPage()), ("/v1/me/market-facts", Self.factsBody),
         ])
@@ -113,7 +113,7 @@ final class StocksTabMarketsTests: XCTestCase {
 
         let row = try XCTUnwrap(model.preIpoPreview.first)
         XCTAssertEqual(row.estimate, MarketEstimate(priceMicros: 185_000_000, asOf: "2026-10-20"))
-        XCTAssertEqual(PreIpoRowCopy.estimateLine(asOf: "2026-10-20"), "Secondary estimate · Oct 20")
+        XCTAssertEqual(PreIpoRowCopy.estimateLine(asOf: "2026-10-20"), "Pre-IPO estimate · Oct 20")
         XCTAssertFalse(PreIpoRowCopy.estimateLine(asOf: "2026-10-20").contains("%"))
         XCTAssertEqual(PreIpoRowCopy.eligibility(tradable: true), "Can buy")
         XCTAssertEqual(PreIpoRowCopy.eligibility(tradable: false), "Watch only")
@@ -126,8 +126,8 @@ final class StocksTabMarketsTests: XCTestCase {
         XCTAssertNil(PreIpoRowCopy.footer(asOfDates: []))
         XCTAssertEqual(
             MarketsInfoCopy.preIpo,
-            "Pre-IPO companies are private. Their price is a secondary estimate between funding rounds, "
-                + "not a live quote. You can propose to buy the ones marked Can buy; "
+            "Pre-IPO companies are private. Their price is the last price paid between investors, "
+                + "not a live price. You can propose to buy the ones marked Can buy; "
                 + "the ones marked Watch only can't be bought here yet.")
     }
 
@@ -320,8 +320,8 @@ extension StocksTabMarketsTests {
         XCTAssertEqual(line("500000000000000", "2026-03-01"), "Valued at $500M in March")
         XCTAssertEqual(line("350000000000000000", nil), "Valued at $350B")
         XCTAssertEqual(line("350000000000000000", "soon"), "Valued at $350B")
-        XCTAssertEqual(line(nil, "2026-06-01", "2026-10-20"), "Secondary estimate · Oct 20")
-        XCTAssertEqual(line("", nil, "2026-10-20"), "Secondary estimate · Oct 20")
+        XCTAssertEqual(line(nil, "2026-06-01", "2026-10-20"), "Pre-IPO estimate · Oct 20")
+        XCTAssertEqual(line("", nil, "2026-10-20"), "Pre-IPO estimate · Oct 20")
         XCTAssertEqual(line(nil, nil), "SPACEX")
     }
 
