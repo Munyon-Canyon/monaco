@@ -90,7 +90,7 @@ func listAfter(ctx context.Context, reads *sqlc.Queries, q ChatChannelQuery, lim
 			ID: r.ID, CabalID: r.CabalID, AuthorID: r.AuthorID, Body: r.Body, CreatedAt: r.CreatedAt,
 			ParentID: r.ParentID, AlsoInChannel: r.AlsoInChannel, ReplyCount: r.ReplyCount,
 			LastReplyAt: r.LastReplyAt, ProposalID: r.ProposalID, DeletedAt: r.DeletedAt, Kind: r.Kind,
-			Moment: r.Moment, PinnedAt: r.PinnedAt, PinnedBy: r.PinnedBy,
+			Moment: r.Moment, PinnedAt: r.PinnedAt, PinnedBy: r.PinnedBy, CommentID: r.CommentID,
 		}, r.Blocked}
 	}), nil
 }
@@ -117,7 +117,7 @@ func listBefore(ctx context.Context, reads *sqlc.Queries, q ChatChannelQuery, li
 			ID: r.ID, CabalID: r.CabalID, AuthorID: r.AuthorID, Body: r.Body, CreatedAt: r.CreatedAt,
 			ParentID: r.ParentID, AlsoInChannel: r.AlsoInChannel, ReplyCount: r.ReplyCount,
 			LastReplyAt: r.LastReplyAt, ProposalID: r.ProposalID, DeletedAt: r.DeletedAt, Kind: r.Kind,
-			Moment: r.Moment, PinnedAt: r.PinnedAt, PinnedBy: r.PinnedBy,
+			Moment: r.Moment, PinnedAt: r.PinnedAt, PinnedBy: r.PinnedBy, CommentID: r.CommentID,
 		}, r.Blocked}
 	}), nil
 }
@@ -291,6 +291,7 @@ func storedMessage(row sqlc.CabalMessage) ChatMessage {
 		ReplyCount:    row.ReplyCount,
 		ProposalID:    row.ProposalID.Bytes,
 		Deleted:       row.DeletedAt.Valid,
+		CommentID:     row.CommentID.Bytes,
 	}
 	if row.LastReplyAt.Valid {
 		at := row.LastReplyAt.Time.UTC()
@@ -438,8 +439,10 @@ func ChatMessageReactions(
 	if err != nil {
 		return nil, err
 	}
-	for id, summary := range found {
-		out[id] = summary
+	for _, m := range messages {
+		if summary, ok := found[m.CommentID]; ok && m.CommentID != uuid.Nil {
+			out[m.ID] = summary
+		}
 	}
 	return out, nil
 }

@@ -53,14 +53,8 @@ func (h *DeleteCommentHandler) Handle(ctx context.Context, cmd DeleteComment) er
 		}); err != nil {
 			return errs.Wrap(err, errs.CodeInternal, op)
 		}
-		if _, err := q.BumpCommentCount(ctx, sqlc.BumpCommentCountParams{Delta: -1, ID: row.FeedObjectID}); err != nil {
-			return errs.Wrap(err, errs.CodeInternal, op)
-		}
-		if _, err := q.DeleteCommentReactions(ctx, row.ID); err != nil {
-			return errs.Wrap(err, errs.CodeInternal, op)
-		}
-		if _, err := q.DeleteFeedCommentItem(ctx, row.ID); err != nil {
-			return errs.Wrap(err, errs.CodeInternal, op)
+		if err := dropCommentRows(ctx, tx, h.d, row); err != nil {
+			return err
 		}
 		tx.AfterCommit(func(ctx context.Context) { h.d.Hints.PublishHint(ctx, FeedHint, nil) })
 		tx.AfterCommit(func(ctx context.Context) { h.d.Chat.commentDeleted(ctx, h.d.Reads, cmd.CommentID) })
@@ -69,4 +63,32 @@ func (h *DeleteCommentHandler) Handle(ctx context.Context, cmd DeleteComment) er
 			DeletedByKind: CommentDeletedByAuthor,
 		})
 	})
+}
+
+func dropCommentRows(ctx context.Context, tx db.Tx, d CommentDeps, row sqlc.LockCommentRow) error {
+	const op = "social.dropCommentRows"
+	q := sqlc.New(tx.Queries())
+	if _, err := q.BumpCommentCount(ctx, sqlc.BumpCommentCountParams{Delta: -1, ID: row.FeedObjectID}); err != nil {
+		return errs.Wrap(err, errs.CodeInternal, op)
+	}
+	if _, err := q.DeleteCommentReactions(ctx, row.ID); err != nil {
+		return errs.Wrap(err, errs.CodeInternal, op)
+	}
+	if _, err := q.DeleteFeedCommentItem(ctx, row.ID); err != nil {
+		return errs.Wrap(err, errs.CodeInternal, op)
+	}
+	copies, err := q.SoftDeleteChatCopyOfComment(ctx, sqlc.SoftDeleteChatCopyOfCommentParams{
+		At: d.Clock.Now().UTC(), CommentID: row.ID,
+	})
+	if err != nil {
+		return errs.Wrap(err, errs.CodeInternal, op)
+	}
+	for _, gone := range copies {
+		tx.AfterCommit(func(ctx context.Context) {
+			if d.Chat.enabled() {
+				d.Chat.deleted(ctx, ids.CabalIDFrom(gone.CabalID), gone.ID, nil)
+			}
+		})
+	}
+	return nil
 }

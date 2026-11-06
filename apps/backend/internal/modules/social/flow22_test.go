@@ -83,6 +83,11 @@ func TestFlow22_PostChatMessage_ChatParentIsReply(t *testing.T) {
 	flows.F22PostChatMessageChatParentIsReply(chatScenario(t))
 }
 
+func TestFlow22_PostChatMessage_FeedItemPending(t *testing.T) {
+	t.Parallel()
+	flows.F22PostChatMessageFeedItemPending(chatScenario(t))
+}
+
 func TestFlow22_PostChatMessage_ChatBodyInvalid(t *testing.T) {
 	t.Parallel()
 	flows.F22PostChatMessageChatBodyInvalid(chatScenario(t))

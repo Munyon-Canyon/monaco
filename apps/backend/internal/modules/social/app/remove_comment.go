@@ -52,14 +52,8 @@ func (h *RemoveCommentHandler) Handle(ctx context.Context, cmd RemoveComment) er
 		}); err != nil {
 			return errs.Wrap(err, errs.CodeInternal, op)
 		}
-		if _, err := q.BumpCommentCount(ctx, sqlc.BumpCommentCountParams{Delta: -1, ID: row.FeedObjectID}); err != nil {
-			return errs.Wrap(err, errs.CodeInternal, op)
-		}
-		if _, err := q.DeleteCommentReactions(ctx, row.ID); err != nil {
-			return errs.Wrap(err, errs.CodeInternal, op)
-		}
-		if _, err := q.DeleteFeedCommentItem(ctx, row.ID); err != nil {
-			return errs.Wrap(err, errs.CodeInternal, op)
+		if err := dropCommentRows(ctx, tx, h.d, row); err != nil {
+			return err
 		}
 		err = tx.Events.Append(ctx, events.CommentDeleted{
 			V: 1, CommentID: row.ID, FeedObjectID: row.FeedObjectID, DeletedBy: admin.UUID(),

@@ -254,28 +254,25 @@ func TestProposalThread_theCardCountsTheProposalsLiveComments(t *testing.T) {
 	kai := f.member(0)
 	f.reply(t, kai, "one", nil)
 	gone := f.reply(t, kai, "two", nil)
-	last := f.reply(t, f.member(2), "three", nil)
+	f.reply(t, f.member(2), "three", nil)
 	if _, err := f.routes.DeleteFeedComment(asUser(t.Context(), kai), api.DeleteFeedCommentRequestObject{
 		CommentId: gone.Id,
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := f.postAs(
-		t,
-		f.member(0),
-		api.PostChatMessageRequest{ParentId: &f.card, Body: ptr("chat reply")},
-	); err != nil {
+	chatReply, err := f.postAs(t, f.member(0), api.PostChatMessageRequest{ParentId: &f.card, Body: ptr("chat reply")})
+	if err != nil {
 		t.Fatal(err)
 	}
 
 	cards := f.proposalRows(t)
-	if len(cards) != 1 || cards[0].ReplyCount != 2 || cards[0].LastReplyAt == nil ||
-		!cards[0].LastReplyAt.Equal(last.CreatedAt) {
-		t.Fatalf("card = %+v, want 2 replies and the newest comment's time %s", cards, last.CreatedAt)
+	if len(cards) != 1 || cards[0].ReplyCount != 3 || cards[0].LastReplyAt == nil ||
+		!cards[0].LastReplyAt.Equal(chatReply.CreatedAt) {
+		t.Fatalf("card = %+v, want 3 replies and the chat reply's time %s", cards, chatReply.CreatedAt)
 	}
-	if got := f.read(t, kai, api.GetChatThreadParams{Limit: ptr(50)}); got.Parent.ReplyCount != 2 ||
-		len(got.Replies) != 2 {
-		t.Fatalf("thread = %+v, want the same two", got)
+	if got := f.read(t, kai, api.GetChatThreadParams{Limit: ptr(50)}); got.Parent.ReplyCount != 3 ||
+		len(got.Replies) != 3 {
+		t.Fatalf("thread = %+v, want the same three", got)
 	}
 }
 

@@ -28,6 +28,7 @@ type CabalMessage struct {
 	DedupeKey     pgtype.Text
 	PinnedAt      pgtype.Timestamptz
 	PinnedBy      pgtype.UUID
+	CommentID     pgtype.UUID
 }
 
 type FeedComment struct {

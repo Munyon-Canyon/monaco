@@ -4,6 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"log/slog"
+	"slices"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 
@@ -33,6 +36,8 @@ type ChatDeps struct {
 	Publish ChatPublisher
 	Reads   sqlc.DBTX
 	Stocks  StockCards
+
+	Comments *CreateCommentHandler
 }
 
 type PostChatMessageHandler struct {
@@ -51,6 +56,13 @@ func (h *PostChatMessageHandler) Handle(ctx context.Context, cmd PostChatMessage
 	aud, err := h.audienceOf(ctx, cmd)
 	if err != nil {
 		return ChatMessage{}, err
+	}
+	card, onCard, err := h.proposalCardOf(ctx, cmd)
+	if err != nil {
+		return ChatMessage{}, err
+	}
+	if onCard {
+		return h.replyToProposal(ctx, cmd, card, aud)
 	}
 	stock, err := h.resolveAttachment(ctx, cmd)
 	if err != nil {
@@ -97,6 +109,127 @@ func (h *PostChatMessageHandler) Handle(ctx context.Context, cmd PostChatMessage
 		return ChatMessage{}, err
 	}
 	h.d.Publish.created(ctx, posted, thread)
+	return posted, nil
+}
+
+func (h *PostChatMessageHandler) proposalCardOf(
+	ctx context.Context, cmd PostChatMessage,
+) (sqlc.CabalMessage, bool, error) {
+	const op = "social.PostChatMessage"
+	if cmd.Reply == nil {
+		return sqlc.CabalMessage{}, false, nil
+	}
+	card, err := sqlc.New(h.d.Reads).GetChatMessage(ctx, sqlc.GetChatMessageParams{
+		ID: cmd.Reply.Parent, CabalID: cmd.CabalID.UUID(),
+	})
+	switch {
+	case errors.Is(err, sql.ErrNoRows):
+		return sqlc.CabalMessage{}, false, nil
+	case err != nil:
+		return sqlc.CabalMessage{}, false, errs.Wrap(err, errs.CodeInternal, op)
+	case card.Kind != string(domain.ChatKindProposal) || !card.ProposalID.Valid:
+		return sqlc.CabalMessage{}, false, nil
+	}
+	err = domain.ValidateReply(cmd.CabalID, domain.ChatParent{
+		CabalID: ids.CabalIDFrom(card.CabalID), ParentID: card.ParentID.Bytes, Deleted: card.DeletedAt.Valid,
+	})
+	return card, err == nil, err
+}
+
+func (h *PostChatMessageHandler) replyToProposal(
+	ctx context.Context, cmd PostChatMessage, card sqlc.CabalMessage, aud audience,
+) (ChatMessage, error) {
+	feedItem, err := ProposalFeedItem(ctx, h.d.Reads, card.ProposalID.Bytes)
+	if err != nil {
+		return ChatMessage{}, err
+	}
+	input, err := proposalReplyInput(cmd.Input)
+	if err != nil {
+		return ChatMessage{}, err
+	}
+	var copied *ChatMessage
+	created, err := h.d.Comments.HandleWith(
+		ctx, CreateComment{FeedObjectID: feedItem, Author: cmd.Author, Input: input},
+		func(ctx context.Context, tx db.Tx, stored CommentStored) error {
+			if !cmd.Reply.AlsoInChannel {
+				return nil
+			}
+			posted, err := h.storeCopy(ctx, tx, cmd, card, stored, aud)
+			copied = &posted
+			return err
+		},
+	)
+	if err != nil {
+		return ChatMessage{}, err
+	}
+	if copied != nil {
+		h.d.Publish.created(ctx, *copied, nil)
+	}
+	return chatMessageOfComment(
+		proposalCard{id: card.ID, cabal: cmd.CabalID, proposal: card.ProposalID.Bytes}, created,
+	), nil
+}
+
+func proposalReplyInput(in domain.ChatInput) (domain.CommentInput, error) {
+	out := domain.CommentInput{Attachment: in.Attachment}
+	if in.Body == nil {
+		return out, nil
+	}
+	if utf8.RuneCountInString(in.Body.String()) > domain.CommentBodyMax {
+		return domain.CommentInput{}, errs.New(
+			errs.CodeInvalidInput, "social.PostChatMessage", slog.String("reason", "comment_too_long"),
+		)
+	}
+	body := domain.CommentBody(in.Body.String())
+	out.Body = &body
+	return out, nil
+}
+
+func (h *PostChatMessageHandler) storeCopy(
+	ctx context.Context, tx db.Tx, cmd PostChatMessage, card sqlc.CabalMessage, stored CommentStored, aud audience,
+) (ChatMessage, error) {
+	const op = "social.PostChatMessage.copy"
+	q := sqlc.New(tx.Queries())
+	row, err := q.InsertChatCommentCopy(ctx, sqlc.InsertChatCommentCopyParams{
+		ID: h.d.IDs.NewV7(), CabalID: cmd.CabalID.UUID(), AuthorID: cmd.Author.UUID(), Body: cmd.Input.Text().String(),
+		CreatedAt: stored.Comment.CreatedAt, ParentID: card.ID, CommentID: stored.Comment.ID,
+	})
+	if err != nil {
+		return ChatMessage{}, errs.Wrap(err, errs.CodeInternal, op)
+	}
+	authors, err := q.ProposalThreadParticipants(ctx, sqlc.ProposalThreadParticipantsParams{
+		CardID: card.ID, FeedObjectID: stored.Comment.FeedObjectID,
+	})
+	if err != nil {
+		return ChatMessage{}, errs.Wrap(err, errs.CodeInternal, op)
+	}
+	participants := []uuid.UUID{}
+	for _, author := range authors {
+		if aud.current[author.Bytes] && !slices.Contains(stored.Reached, author.Bytes) &&
+			len(participants) < maxThreadParticipants {
+			participants = append(participants, author.Bytes)
+		}
+	}
+	err = tx.Events.Append(ctx, events.ChatMessagePosted{
+		V:             1,
+		MessageID:     row.ID,
+		CabalID:       row.CabalID,
+		AuthorID:      row.AuthorID.Bytes,
+		ParentID:      parentOf(row.ParentID.Bytes),
+		AlsoInChannel: true,
+		CreatedAt:     row.CreatedAt.UTC(),
+
+		MentionedUserIDs:     []uuid.UUID{},
+		ThreadParticipantIDs: participants,
+	})
+	if err != nil {
+		return ChatMessage{}, err
+	}
+	posted := postedMessage(sqlc.InsertChatMessageRow{
+		ID: row.ID, CabalID: row.CabalID, AuthorID: row.AuthorID, Body: row.Body, CreatedAt: row.CreatedAt,
+		ParentID: row.ParentID, AlsoInChannel: row.AlsoInChannel,
+	})
+	posted.CommentID = row.CommentID.Bytes
 	return posted, nil
 }
 

@@ -530,7 +530,10 @@ func TestChatCommands_failWithInternalWhenTheStoreFails(t *testing.T) {
 		},
 		{
 			"reply when the parent lock fails",
-			`DROP TABLE cabal_messages CASCADE`,
+			`ALTER TABLE cabal_messages ENABLE ROW LEVEL SECURITY;
+			 ALTER TABLE cabal_messages FORCE ROW LEVEL SECURITY;
+			 CREATE POLICY open ON cabal_messages USING (true) WITH CHECK (true);
+			 CREATE POLICY no_locks ON cabal_messages AS RESTRICTIVE FOR UPDATE USING (1 / (CASE WHEN true THEN 0 ELSE 1 END) = 1)`,
 			func(t *testing.T, f chatFixture, parent app.ChatMessage) error {
 				t.Helper()
 				_, err := f.send(t, f.member(1), "reply", &domain.Reply{Parent: parent.ID})
