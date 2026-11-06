@@ -8,9 +8,11 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/monaco/monaco/apps/backend/internal/errs"
 	"github.com/monaco/monaco/apps/backend/internal/events"
+	govsqlc "github.com/monaco/monaco/apps/backend/internal/modules/governance/sqlc"
 	"github.com/monaco/monaco/apps/backend/internal/platform/chain"
 	"github.com/monaco/monaco/apps/backend/internal/platform/clock"
 	"github.com/monaco/monaco/apps/backend/internal/platform/db"
@@ -18,6 +20,7 @@ import (
 	"github.com/monaco/monaco/apps/backend/internal/platform/ids"
 	"github.com/monaco/monaco/apps/backend/internal/platform/money"
 	"github.com/monaco/monaco/apps/backend/internal/platform/observability"
+	"github.com/monaco/monaco/apps/backend/internal/testkit"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/marketfake"
 	"github.com/monaco/monaco/apps/backend/internal/testkit/scenario"
 )
@@ -175,8 +178,36 @@ func SettledProposal(name string) uuid.UUID {
 	return uuid.NewSHA1(uuid.Nil, []byte("f22d-settled-"+name))
 }
 
+func settledTally(s *scenario.Scenario, proposal uuid.UUID) {
+	s.Helper()
+	c := testkit.NewCabal(seedT{s}, s.DB(), testkit.WithMembers(6))
+	now := time.Now().UTC()
+	params := govsqlc.InsertProposalParams{
+		ID: proposal, CabalID: c.ID.UUID(), ProposerID: c.Creator.ID.UUID(), Kind: "buy", Symbol: "NVDA",
+		Mint: aaplxMint, UsdcMicros: pgtype.Int8{Int64: 300_000_000, Valid: true}, QuoteOutAmount: "21000000",
+		CreatedAt: now.Add(-2 * time.Hour), ExpiresAt: now.Add(4 * time.Hour), Threshold: "majority",
+	}
+	for _, m := range c.Members {
+		params.VoterIds = append(params.VoterIds, m.ID.UUID())
+	}
+	if _, err := govsqlc.New(s.DB()).InsertProposal(s.Context(), params); err != nil {
+		s.Fatalf("flows: insert the settled proposal: %v", err)
+	}
+	for i, m := range c.Members[:6] {
+		choice := "no"
+		if i < 2 {
+			choice = "yes"
+		}
+		if _, err := s.DB().Exec(s.Context(), `INSERT INTO votes (proposal_id, voter_id, choice, cast_at, first_cast_at)
+			VALUES ($1, $2, $3, $4, $4)`, proposal, m.ID.UUID(), choice, now.Add(-time.Hour)); err != nil {
+			s.Fatalf("flows: insert a settled vote: %v", err)
+		}
+	}
+}
+
 func settledSeed(s *scenario.Scenario, proposal uuid.UUID, withCard bool) {
 	s.Helper()
+	settledTally(s, proposal)
 	_, err := s.DB().Exec(s.Context(), `INSERT INTO feed_objects
 		(id, kind, ref_type, ref_id, cabal_id, cabal_name, actor_id, symbol, title, payload, status, created_at, updated_at)
 		SELECT $1, 'proposal', 'proposals', $2, c.id, c.name, c.creator_id, 'NVDA', 'seeded',
@@ -290,13 +321,13 @@ func cabalCreator(s *scenario.Scenario) string {
 }
 
 func F22dWriteProposalFailedMomentOK(s *scenario.Scenario) {
-	settledRun("moment-ok", "failed", func(cabal, proposal uuid.UUID) events.Event {
+	settledRun("moment-failed", "failed", func(cabal, proposal uuid.UUID) events.Event {
 		return events.ProposalFailed{V: 1, ProposalID: proposal, CabalID: cabal, Kind: "buy"}
 	}, true, "failed", func(s *scenario.Scenario) string { return s.ActorID().UUID().String() })(s)
 }
 
 func F22dWriteProposalExpiredMomentOK(s *scenario.Scenario) {
-	settledRun("moment-created", "expired", func(cabal, proposal uuid.UUID) events.Event {
+	settledRun("moment-expired", "expired", func(cabal, proposal uuid.UUID) events.Event {
 		return events.ProposalExpired{V: 1, ProposalID: proposal, CabalID: cabal, Kind: "buy"}
 	}, false, "expired", cabalCreator)(s)
 }
