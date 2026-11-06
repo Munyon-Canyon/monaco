@@ -275,7 +275,7 @@ extension FeedPostFacts {
         let count = "\(voted) of \(voters) voted"
         guard let outcome = closedOutcome(item.status) else {
             guard let expiresAt = item.expiresAt else { return (count, count) }
-            let left = Countdown(expiresAt.timeIntervalSince(now))
+            let left = CountdownText(expiresAt.timeIntervalSince(now))
             return ("\(count) · \(left.short)", "\(count), \(left.spoken)")
         }
         let tally = item.tally.map { "\($0.yes)–\($0.no)" }
@@ -291,24 +291,6 @@ extension FeedPostFacts {
         case "withdrawn": "Withdrawn"
         case "voided": "Voided"
         default: nil
-        }
-    }
-
-    fileprivate struct Countdown {
-        let short: String
-        let spoken: String
-
-        init(_ remaining: TimeInterval) {
-            guard remaining > 0 else {
-                (short, spoken) = ("ending now", "ending now")
-                return
-            }
-            let minutes = Int((remaining / 60).rounded(.up))
-            let hours = Int((remaining / 3600).rounded(.up))
-            let days = Int((remaining / 86_400).rounded(.up))
-            let (count, abbreviation, word) =
-                minutes < 60 ? (minutes, "m", "minute") : hours < 24 ? (hours, "h", "hour") : (days, "d", "day")
-            (short, spoken) = ("ends in \(count)\(abbreviation)", "ends in \(count) \(word)\(count == 1 ? "" : "s")")
         }
     }
 
