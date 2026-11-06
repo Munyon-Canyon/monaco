@@ -57,6 +57,8 @@ public enum ChatMoment: Equatable, Sendable {
                     filledAt: fill.filledAt,
                     proposalID: fill.proposalId
                 ))
+        case .proposalSettled:
+            return nil
         }
     }
 
