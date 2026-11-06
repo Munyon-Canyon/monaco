@@ -583,3 +583,85 @@ func TestProposalThread_aPublishThatCannotFindTheCardIsLoggedAndTheCommentStands
 		t.Fatalf("logs = %s, want %s", out, publishFailedLog)
 	}
 }
+
+func TestProposalThread_aBlockedProposerWithNoRepliesLeavesNothingToOpen(t *testing.T) {
+	t.Parallel()
+	f := newProposalThread(t)
+	f.blocks(t, f.member(1), f.member(0))
+	_, err := f.thread(t, f.member(1), f.card, api.GetChatThreadParams{Limit: ptr(50)})
+	wantCode(t, err, errs.CodeChatMessageNotFound)
+}
+
+func TestProposalThread_channelAndPinReadsFailWithInternalWhenTheCountsFail(t *testing.T) {
+	t.Parallel()
+	f := newProposalThread(t)
+	f.reply(t, f.member(0), "one", nil)
+	if _, err := f.routes.PinChatMessage(asUser(t.Context(), f.cabal.Creator.ID), api.PinChatMessageRequestObject{
+		Id: f.cabal.ID.UUID(), MessageId: f.card,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.pool.Exec(t.Context(), `ALTER TABLE feed_comments RENAME COLUMN deleted_at TO gone_at`); err != nil {
+		t.Fatal(err)
+	}
+	_, err := f.channel(t, f.member(0), api.GetChatMessagesParams{Limit: ptr(10)})
+	wantCode(t, err, errs.CodeInternal)
+	_, err = f.routes.GetChatPins(asUser(t.Context(), f.member(0)), api.GetChatPinsRequestObject{
+		Id: f.cabal.ID.UUID(),
+	})
+	wantCode(t, err, errs.CodeInternal)
+}
+
+func TestLoadCommentViews_failsWhenThePollsCannotBeRead(t *testing.T) {
+	t.Parallel()
+	f := newProposalThread(t)
+	poll := &domain.Attachment{Kind: domain.AttachmentPoll, Poll: &domain.Poll{Question: "q"}}
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	err := app.LoadCommentViews(ctx, f.pool, stockStub{}, f.member(0), []app.ChatMessage{
+		{ID: f.deps.IDs.NewV7(), CommentID: f.deps.IDs.NewV7(), Attachment: poll},
+	}, f.now)
+	wantCode(t, err, errs.CodeInternal)
+}
+
+func TestProposalThread_removingMonacosNotePublishesNothing(t *testing.T) {
+	t.Parallel()
+	f := newProposalThread(t)
+	note := f.deps.IDs.NewV7()
+	if _, err := f.pool.Exec(t.Context(), `INSERT INTO feed_comments
+		(id, feed_object_id, author_kind, system_outcome, body, created_at)
+		VALUES ($1, $2, 'system', 'closed', 'Closed.', $3)`, note, f.item, f.clock.Now()); err != nil {
+		t.Fatal(err)
+	}
+	since := len(f.rt.Published())
+	if _, err := f.routes.RemoveComment(asAdmin(t), api.RemoveCommentRequestObject{
+		Id: note, Body: &apibase.ReasonBody{Reason: "spam"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	f.wantEvents(t, since)
+}
+
+func TestProposalThread_aReactionSummaryFailureIsLoggedAfterTheCommit(t *testing.T) {
+	t.Parallel()
+	f := newProposalThread(t)
+	c := f.reply(t, f.member(0), "react to me", nil)
+	if _, err := f.routes.PutCommentReaction(asUser(t.Context(), f.member(1)), api.PutCommentReactionRequestObject{
+		CommentId: c.Id, Emoji: laugh,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.pool.Exec(t.Context(), `ALTER TABLE comment_reactions RENAME COLUMN created_at TO at`); err != nil {
+		t.Fatal(err)
+	}
+	logs := &testkit.Logs{}
+	ctx := observability.WithLogger(
+		asUser(t.Context(), f.member(1)), observability.NewLogger(config.Config{Env: config.EnvTest}, logs),
+	)
+	_, err := f.routes.DeleteCommentReaction(ctx, api.DeleteCommentReactionRequestObject{CommentId: c.Id, Emoji: laugh})
+	wantCode(t, err, errs.CodeInternal)
+	if out := string(logs.Bytes()); !strings.Contains(out, publishFailedLog) ||
+		!strings.Contains(out, app.EventReactionUpdated) {
+		t.Fatalf("logs = %s, want %s naming %s", out, publishFailedLog, app.EventReactionUpdated)
+	}
+}

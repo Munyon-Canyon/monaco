@@ -200,18 +200,25 @@ func (q *Queries) GetChatMessageByID(ctx context.Context, id uuid.UUID) (GetChat
 }
 
 const getProposalCardOfComment = `-- name: GetProposalCardOfComment :one
-SELECT m.id AS card_id, m.cabal_id, o.ref_id AS proposal_id, c.author_kind
+SELECT m.id AS card_id, m.cabal_id, o.ref_id AS proposal_id, c.author_kind, live.reply_count, live.last_reply_at
 FROM feed_comments c
 JOIN feed_objects o ON o.id = c.feed_object_id AND o.ref_type = 'proposals' AND o.kind = 'proposal'
 JOIN cabal_messages m ON m.proposal_id = o.ref_id AND m.kind = 'proposal'
+CROSS JOIN LATERAL (
+  SELECT count(*)::int AS reply_count, coalesce(max(l.created_at), 'epoch'::timestamptz)::timestamptz AS last_reply_at
+  FROM feed_comments l
+  WHERE l.feed_object_id = o.id AND l.deleted_at IS NULL AND l.author_kind = 'user'
+) AS live
 WHERE c.id = $1
 `
 
 type GetProposalCardOfCommentRow struct {
-	CardID     uuid.UUID
-	CabalID    uuid.UUID
-	ProposalID uuid.UUID
-	AuthorKind string
+	CardID      uuid.UUID
+	CabalID     uuid.UUID
+	ProposalID  uuid.UUID
+	AuthorKind  string
+	ReplyCount  int32
+	LastReplyAt time.Time
 }
 
 func (q *Queries) GetProposalCardOfComment(ctx context.Context, commentID uuid.UUID) (GetProposalCardOfCommentRow, error) {
@@ -222,6 +229,8 @@ func (q *Queries) GetProposalCardOfComment(ctx context.Context, commentID uuid.U
 		&i.CabalID,
 		&i.ProposalID,
 		&i.AuthorKind,
+		&i.ReplyCount,
+		&i.LastReplyAt,
 	)
 	return i, err
 }

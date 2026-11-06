@@ -362,20 +362,23 @@ func proposalThread(
 	ctx context.Context, db sqlc.DBTX, reads *sqlc.Queries, q ChatThreadQuery, parent ChatMessage, limit int32,
 ) (ChatThread, error) {
 	const op = "social.GetChatThread"
-	cards := []ChatMessage{parent}
-	if err := WithProposalReplies(ctx, db, cards); err != nil {
-		return ChatThread{}, err
+	item, err := reads.GetProposalFeedItem(ctx, parent.ProposalID)
+	noItem := errors.Is(err, sql.ErrNoRows)
+	if err != nil && !noItem {
+		return ChatThread{}, errs.Wrap(err, errs.CodeInternal, op)
 	}
-	parent = cards[0]
+	if !noItem {
+		cards := []ChatMessage{parent}
+		if err := WithProposalReplies(ctx, db, cards); err != nil {
+			return ChatThread{}, err
+		}
+		parent = cards[0]
+	}
 	if parent.Deleted && parent.ReplyCount == 0 {
 		return ChatThread{}, errs.New(errs.CodeChatMessageNotFound, op, slog.Bool("deleted", true))
 	}
-	item, err := reads.GetProposalFeedItem(ctx, parent.ProposalID)
-	switch {
-	case errors.Is(err, sql.ErrNoRows):
+	if noItem {
 		return ChatThread{Parent: parent}, nil
-	case err != nil:
-		return ChatThread{}, errs.Wrap(err, errs.CodeInternal, op)
 	}
 	params := sqlc.ListProposalChatRepliesParams{FeedObjectID: item, Viewer: q.Viewer.UUID(), RowLimit: limit}
 	if q.Before != nil {

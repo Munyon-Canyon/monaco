@@ -146,9 +146,11 @@ func failedPublish(ctx context.Context, id uuid.UUID, event string, err error) {
 }
 
 type proposalCard struct {
-	id       uuid.UUID
-	cabal    ids.CabalID
-	proposal uuid.UUID
+	id         uuid.UUID
+	cabal      ids.CabalID
+	proposal   uuid.UUID
+	replyCount int32
+	lastReply  time.Time
 }
 
 func (p ChatPublisher) enabled() bool { return p.realtime != nil && p.wire != nil }
@@ -164,21 +166,15 @@ func (p ChatPublisher) cardOf(ctx context.Context, reads sqlc.DBTX, comment uuid
 	if row.AuthorKind != domain.AuthorKindUser {
 		return proposalCard{}, false
 	}
-	return proposalCard{id: row.CardID, cabal: ids.CabalIDFrom(row.CabalID), proposal: row.ProposalID}, true
+	card := proposalCard{id: row.CardID, cabal: ids.CabalIDFrom(row.CabalID), proposal: row.ProposalID}
+	if row.ReplyCount > 0 {
+		card.replyCount, card.lastReply = row.ReplyCount, row.LastReplyAt.UTC()
+	}
+	return card, true
 }
 
-func (p ChatPublisher) cardThread(ctx context.Context, reads sqlc.DBTX, card proposalCard) *ThreadUpdated {
-	stats, err := ProposalReplyStats(ctx, reads, []uuid.UUID{card.proposal})
-	if err != nil {
-		failedPublish(ctx, card.id, EventThreadUpdated, err)
-		return nil
-	}
-	stat := stats[card.proposal]
-	thread := &ThreadUpdated{MessageID: card.id, ReplyCount: stat.Count}
-	if stat.Last != nil {
-		thread.LastReplyAt = *stat.Last
-	}
-	return thread
+func (c proposalCard) thread() *ThreadUpdated {
+	return &ThreadUpdated{MessageID: c.id, ReplyCount: c.replyCount, LastReplyAt: c.lastReply}
 }
 
 func (p ChatPublisher) commentCreated(ctx context.Context, reads sqlc.DBTX, c Comment) {
@@ -190,7 +186,7 @@ func (p ChatPublisher) commentCreated(ctx context.Context, reads sqlc.DBTX, c Co
 	if !ok {
 		return
 	}
-	p.created(ctx, chatMessageOfComment(card, c), p.cardThread(ctx, reads, card))
+	p.created(ctx, chatMessageOfComment(card, c), card.thread())
 }
 
 func (p ChatPublisher) commentDeleted(ctx context.Context, reads sqlc.DBTX, comment uuid.UUID) {
@@ -202,7 +198,7 @@ func (p ChatPublisher) commentDeleted(ctx context.Context, reads sqlc.DBTX, comm
 	if !ok {
 		return
 	}
-	p.deleted(ctx, card.cabal, comment, p.cardThread(ctx, reads, card))
+	p.deleted(ctx, card.cabal, comment, card.thread())
 }
 
 func (p ChatPublisher) commentReacted(ctx context.Context, reads sqlc.DBTX, viewer ids.UserID, comment uuid.UUID) {

@@ -272,8 +272,13 @@ WHERE o.ref_type = 'proposals' AND o.kind = 'proposal' AND o.ref_id = ANY(sqlc.a
 GROUP BY o.ref_id;
 
 -- name: GetProposalCardOfComment :one
-SELECT m.id AS card_id, m.cabal_id, o.ref_id AS proposal_id, c.author_kind
+SELECT m.id AS card_id, m.cabal_id, o.ref_id AS proposal_id, c.author_kind, live.reply_count, live.last_reply_at
 FROM feed_comments c
 JOIN feed_objects o ON o.id = c.feed_object_id AND o.ref_type = 'proposals' AND o.kind = 'proposal'
 JOIN cabal_messages m ON m.proposal_id = o.ref_id AND m.kind = 'proposal'
+CROSS JOIN LATERAL (
+  SELECT count(*)::int AS reply_count, coalesce(max(l.created_at), 'epoch'::timestamptz)::timestamptz AS last_reply_at
+  FROM feed_comments l
+  WHERE l.feed_object_id = o.id AND l.deleted_at IS NULL AND l.author_kind = 'user'
+) AS live
 WHERE c.id = sqlc.arg(comment_id);
