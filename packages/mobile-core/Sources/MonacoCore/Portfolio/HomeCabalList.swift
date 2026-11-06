@@ -47,11 +47,28 @@ public struct HomeCabalsContent: Equatable, Sendable {
 
     public let cabals: [HomeCabalRow]
     public let invites: [HomeInviteRow]
+    public let totalMicros: Int64
 
     public var shown: [HomeCabalRow] { Array(cabals.prefix(Self.shownCabals)) }
 
     public var countText: String {
         invites.isEmpty ? "\(cabals.count)" : "\(cabals.count) · \(invites.count) invited"
+    }
+
+    public var totalText: String? {
+        UsdAmountFormatter.flooredToCents(totalMicros) > 0 ? HomeFigureCopy.partFigure(micros: totalMicros) : nil
+    }
+
+    public var headerText: String { totalText ?? countText }
+
+    public var headerSpoken: String {
+        guard let totalText else { return countText }
+        let parts: [Substring] = totalText.dropFirst().split(separator: ".", omittingEmptySubsequences: false)
+        let whole = String(parts[0])
+        let cents = parts.count > 1 ? Int(parts[1]) ?? 0 : 0
+        var spoken = "\(whole) \(whole == "1" ? "dollar" : "dollars")"
+        if cents > 0 { spoken += " \(cents) \(cents == 1 ? "cent" : "cents")" }
+        return spoken
     }
 }
 
@@ -63,7 +80,8 @@ public enum HomeCabalsState: Equatable, Sendable {
 
 public enum HomeCabalList {
     public static func state(portfolio: PortfolioSummary, invites: [HomeInviteRow]?) -> HomeCabalsState {
-        let content = HomeCabalsContent(cabals: portfolio.rows.map(HomeCabalRow.init), invites: invites ?? [])
+        let content = HomeCabalsContent(
+            cabals: portfolio.rows.map(HomeCabalRow.init), invites: invites ?? [], totalMicros: portfolio.totalMicros)
         if !content.cabals.isEmpty || !content.invites.isEmpty { return .cabals(content) }
         return invites == nil ? .loading : .empty
     }
