@@ -1,26 +1,27 @@
 #!/usr/bin/env python3
 """Pair the app's screenshots with F's launch frames and lay them side by side.
 
-  parity.py frames [--design f|v5] [--appearance dark|light] [--kind screen|board|system] [--regex]
+  parity.py frames [--design f|v5|r13] [--appearance dark|light] [--kind screen|board|system] [--regex]
       The f__<frame> names of the launch frames, one per line, or one anchored alternation for
       MONACO_QA_SCREEN_ONLY.
-  parity.py lines [--design f|v5] [--manifest FILE] [--strict]
+  parity.py lines [--design f|v5|r13] [--manifest FILE] [--strict]
       Read the f__ lines of scripts/qa/sample-screens.txt (the  block) and print each
       screen or board frame that has no line, with its owner. Exits 1 on an f__ line whose frame
       is not a launch frame, or on a line for a system frame; with --strict also when any screen
       or board frame has no line.
-  parity.py sheet [--design f|v5] --shots DIR --out DIR [--refs DIR] [--png] [--allow-missing FRAME ...]
+  parity.py sheet [--design f|v5|r13] --shots DIR --out DIR [--refs DIR] [--png] [--allow-missing FRAME ...]
       Write index.html, one <group>.html per two-digit frame prefix and missing.txt. With --png
       also write <group>.png sheets (needs Pillow). Exits 1 when a screen or board frame has no
       shot (unless it is passed to --allow-missing) or when a reference PNG is in neither FRAMES
       nor LATER ("unlisted"). A system frame with no shot is listed but does not fail.
-  parity.py sheet [--design v5] FRAME --before PNG --after PNG [--out FILE] [--refs DIR]
+  parity.py sheet [--design v5|r13] FRAME --before PNG --after PNG [--out FILE] [--refs DIR]
       Write one PNG of three columns, frame | before | after, at one common height
       (default FILE: <FRAME>-sheet.png). Needs Pillow. FRAME must be in the design's table.
 
---design picks the table: f (default, docs/design/f/screens, shots f__<frame>) or v5
-(docs/design/v5/screens, every frame dark). Both share the f__<frame> harness lines of the manifest,
-so lines accepts an f__ line for a frame of either table.
+--design picks the table: f (default, docs/design/f/screens, shots f__<frame>), v5
+(docs/design/v5/screens, every frame dark) or r13 (docs/design/v5/r13, the 33 round-13 screens in
+the order of its README, every frame dark). All share the f__<frame> harness lines of the manifest,
+so lines accepts an f__ line for a frame of any table.
 
 FRAMES are the 104 launch frames of docs/design/f/screens, in the order of #6583's Reference
 table. A shot is named f__<frame>, the manifest line name, and lives at
@@ -42,6 +43,7 @@ APPEARANCES = ("light", "dark")
 KINDS = ("screen", "board", "system")
 PREFIX = "f__"
 V5_REFS = ROOT / "docs" / "design" / "v5" / "screens"
+R13_REFS = ROOT / "docs" / "design" / "v5" / "r13"
 
 FRAMES = [
     ("01-tokens", "board", "#6432, #6440"),
@@ -195,7 +197,44 @@ V5_FRAMES = [
     ("16-catch-up", "screen", "f__16-catch-up"),
 ]
 
+R13_FRAMES = [
+    ("r13-2a-A1-pinned", "screen", "r13"),
+    ("r13-2a-A2-pins-sheet", "screen", "r13"),
+    ("r13-2a-A3-closed", "screen", "r13"),
+    ("r13-2b-1-chat", "screen", "r13"),
+    ("r13-2b-2-thread", "screen", "r13"),
+    ("r13-2c-B1-sheet", "screen", "r13"),
+    ("r13-2c-B2-typing", "screen", "r13"),
+    ("r13-2c-feed", "screen", "r13"),
+    ("r13-2c-proposal", "screen", "r13"),
+    ("3B-home", "screen", "r13"),
+    ("3B-home-scrolled", "screen", "r13"),
+    ("3-profile-own", "screen", "r13"),
+    ("3-cabals-tab-share", "screen", "r13"),
+    ("5-home-empty", "screen", "r13"),
+    ("5-feed-empty", "screen", "r13"),
+    ("5-cabals-empty", "screen", "r13"),
+    ("5-public-cabals", "screen", "r13"),
+    ("5-find-people", "screen", "r13"),
+    ("6-stock", "screen", "r13"),
+    ("6-price-sheet", "screen", "r13"),
+    ("6-pre-ipo", "screen", "r13"),
+    ("6-propose-sheet", "screen", "r13"),
+    ("8-invite-landing", "screen", "r13"),
+    ("8-invite-landing-loading", "screen", "r13"),
+    ("ob-A1-cabal", "screen", "r13"),
+    ("ob-A2-vote", "screen", "r13"),
+    ("ob-A2-vote-holding", "screen", "r13"),
+    ("ob-A2-vote-passed", "screen", "r13"),
+    ("ob-A2-vote-open", "screen", "r13"),
+    ("ob-A3-share", "screen", "r13"),
+    ("ob-A3-cashout", "screen", "r13"),
+    ("ob-A4-start", "screen", "r13"),
+    ("ob-A4-invited", "screen", "r13"),
+]
+
 HARNESS_VARIANTS = {
+    "03-cabal-treasury-scrolled-long-name",
     "12-info-sheet-content",
 }
 
@@ -240,14 +279,32 @@ GROUP_TITLES = {
 }
 GROUPS = tuple(GROUP_TITLES)
 
+R13_GROUP_TITLES = {
+    "r13": "Chat, thread and proposal",
+    "3B": "Home",
+    "3": "Profile and Cabals tab",
+    "5": "Empty states and public cabals",
+    "6": "Stock and price",
+    "8": "Invite landing",
+    "ob": "Onboarding",
+}
+
 TILE_WIDTH = 300
 LABEL_STRIP = 22
 SHEET_HEIGHT = 852
 PILLOW_MESSAGE = "parity.py: --png needs Pillow; install it with `python3 -m pip install pillow`"
 
 
+def group_of(frame):
+    return frame[:2]
+
+
+def r13_group_of(frame):
+    return frame.split("-")[0]
+
+
 class Design:
-    def __init__(self, name, label, frames, refs, prefix, light, titles):
+    def __init__(self, name, label, frames, refs, prefix, light, titles, grouper=None):
         self.name = name
         self.label = label
         self.frames = frames
@@ -255,6 +312,10 @@ class Design:
         self.prefix = prefix
         self.light = light
         self.titles = titles
+        self.grouper = grouper or group_of
+
+    def group_of(self, frame):
+        return self.grouper(frame)
 
     @property
     def groups(self):
@@ -264,15 +325,12 @@ class Design:
 DESIGNS = {
     "f": Design("f", "F", FRAMES, DEFAULT_REFS, PREFIX, LIGHT, GROUP_TITLES),
     "v5": Design("v5", "v5", V5_FRAMES, V5_REFS, PREFIX, set(), {"00": "Kit", **GROUP_TITLES}),
+    "r13": Design("r13", "r13", R13_FRAMES, R13_REFS, PREFIX, set(), R13_GROUP_TITLES, r13_group_of),
 }
 
 
 def appearance_of(frame, design=DESIGNS["f"]):
     return "light" if frame in design.light else "dark"
-
-
-def group_of(frame):
-    return frame[:2]
 
 
 class Pair:
@@ -282,7 +340,7 @@ class Pair:
         self.kind = kind
         self.owner = owner
         self.appearance = appearance_of(frame, design)
-        self.group = group_of(frame)
+        self.group = design.group_of(frame)
         self.ref = ref
         self.shot = shot
         self.allowed = False
@@ -559,7 +617,7 @@ def command_sheet(args):
 
 
 def add_design(parser):
-    parser.add_argument("--design", choices=tuple(DESIGNS), default="f", help="frame table: f (default) or v5")
+    parser.add_argument("--design", choices=tuple(DESIGNS), default="f", help="frame table: f (default), v5 or r13")
 
 
 def main(argv=None):

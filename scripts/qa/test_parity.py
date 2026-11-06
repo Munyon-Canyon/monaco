@@ -300,6 +300,56 @@ class V5Tests(unittest.TestCase):
         self.assertTrue(all(n.startswith("f__") for n in out.splitlines()))
 
 
+R13_SCREENS = parity.ROOT / "docs" / "design" / "v5" / "r13"
+
+
+class R13Tests(unittest.TestCase):
+    def test_frames_design_r13_lists_33_prefixed_names_in_readme_order(self):
+        code, out, _ = run_main("frames", "--design", "r13")
+        names = out.splitlines()
+        self.assertEqual(code, 0)
+        self.assertEqual(len(names), 33)
+        self.assertTrue(all(n.startswith("f__") for n in names))
+        table = (R13_SCREENS / "README.md").read_text().split("## Screens")[1]
+        listed = [line.split("|")[1].strip() for line in table.splitlines() if line.startswith("| ") and "---" not in line]
+        self.assertEqual([n[len("f__"):] for n in names], listed[1:])
+
+    def test_r13_frames_are_exactly_the_r13_folder(self):
+        self.assertEqual({f for f, _, _ in parity.R13_FRAMES}, {p.stem for p in R13_SCREENS.glob("*.png")})
+
+    def test_r13_is_dark_only_screens(self):
+        _, out, _ = run_main("frames", "--design", "r13", "--appearance", "light")
+        self.assertEqual(out.strip(), "")
+        self.assertEqual({k for _, k, _ in parity.R13_FRAMES}, {"screen"})
+
+    def test_r13_frame_names_are_unique_and_grouped(self):
+        names = [f for f, _, _ in parity.R13_FRAMES]
+        self.assertEqual(len(names), len(set(names)))
+        design = parity.DESIGNS["r13"]
+        for name in names:
+            self.assertIn(design.group_of(name), design.titles, name)
+
+    def test_r13_sheet_pages_write_one_page_per_group(self):
+        shots = tempfile.TemporaryDirectory()
+        out = tempfile.TemporaryDirectory()
+        self.addCleanup(shots.cleanup)
+        self.addCleanup(out.cleanup)
+        code, _, _ = run_main("sheet", "--design", "r13", "--shots", shots.name, "--out", out.name)
+        self.assertEqual(code, 1)
+        for group in parity.DESIGNS["r13"].titles:
+            self.assertTrue((Path(out.name) / f"{group}.html").is_file(), group)
+
+    def test_r13_frame_sheet_rejects_a_v5_frame(self):
+        code, _, err = run_main("sheet", "--design", "r13", "02-home-dark", "--before", "a", "--after", "b")
+        self.assertEqual(code, 2)
+        self.assertIn("parity: 02-home-dark is not a r13 frame", err)
+
+    def test_r13_lines_lists_every_frame_without_a_line(self):
+        code, out, _ = run_main("lines", "--design", "r13")
+        self.assertEqual(code, 0)
+        self.assertEqual(len(out.splitlines()), 33)
+
+
 class FrameSheetTests(unittest.TestCase):
     def setUp(self):
         d = tempfile.TemporaryDirectory()
