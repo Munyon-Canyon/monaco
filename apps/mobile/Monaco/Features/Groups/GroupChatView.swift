@@ -12,6 +12,7 @@ struct GroupChatView: View {
     @State private var cabal: CabalModel?
     @State private var reporter: ChatSeenReporter?
     @State private var proposals: ChatProposalStore?
+    @State private var openVotes: ChatOpenVotesModel?
     @State private var network = NetworkPathModel()
 
     var body: some View {
@@ -23,6 +24,7 @@ struct GroupChatView: View {
             reporter: reporter,
             viewerID: environment.viewer?.userID ?? "",
             proposals: proposals,
+            openVotes: openVotes,
             network: network,
             openProfile: { userID in
                 environment.navigator.open(UserProfileRoute(userID: userID), in: environment.navigator.selectedTab)
@@ -43,6 +45,7 @@ struct GroupChatView: View {
             await model.load()
         }
         .task {
+            _ = preparedOpenVotes()
             let store = preparedProposals()
             await store.observe(cabalID: cabalID, hints: environment.hints)
         }
@@ -52,6 +55,13 @@ struct GroupChatView: View {
         if let proposals { return proposals }
         let created = ChatProposalStore(api: environment.api)
         proposals = created
+        return created
+    }
+
+    private func preparedOpenVotes() -> ChatOpenVotesModel {
+        if let openVotes { return openVotes }
+        let created = ChatOpenVotesModel(cabalID: cabalID, api: environment.api)
+        openVotes = created
         return created
     }
 
