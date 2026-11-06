@@ -40,7 +40,7 @@ final class ChatPinsModelTests: XCTestCase {
             id: "s1", kind: .system,
             author: .init(id: "00000000-0000-0000-0000-000000000000", handle: nil, displayName: "", photoUrl: nil),
             moment: moment, body: nil, createdAt: ChatFixtures.epoch,
-            alsoInChannel: false, replyCount: 0, deleted: false, reactions: [], reactionCount: 0)
+            alsoInChannel: false, replyCount: 0, lastRepliers: [], deleted: false, reactions: [], reactionCount: 0)
     }
 
     private func problem(_ status: Int, _ code: String) -> StubTransport.Reply {

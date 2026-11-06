@@ -64,7 +64,7 @@ func ListChatChannel(ctx context.Context, db sqlc.DBTX, members Members, q ChatC
 		return nil, err
 	}
 	page := channelPage(rows)
-	if err := WithProposalReplies(ctx, db, page); err != nil {
+	if err := WithReplies(ctx, db, q.Viewer, page); err != nil {
 		return nil, err
 	}
 	if q.Before != nil {
@@ -147,6 +147,9 @@ func GetChatThread(ctx context.Context, db sqlc.DBTX, members Members, q ChatThr
 	}
 	if parent.Deleted && row.ReplyCount == 0 {
 		return ChatThread{}, errs.New(errs.CodeChatMessageNotFound, op, slog.Bool("deleted", true))
+	}
+	if err := withParentRepliers(ctx, db, q.Viewer, &parent); err != nil {
+		return ChatThread{}, err
 	}
 	params, err := replyParams(ctx, reads, q, limit)
 	if err != nil {
@@ -359,6 +362,58 @@ func WithProposalReplies(ctx context.Context, db sqlc.DBTX, messages []ChatMessa
 	return nil
 }
 
+const MaxLastRepliers = 3
+
+func lastRepliers(
+	ctx context.Context, q *sqlc.Queries, viewer ids.UserID, messages []uuid.UUID,
+) (map[uuid.UUID][]ids.UserID, error) {
+	out := make(map[uuid.UUID][]ids.UserID, len(messages))
+	if len(messages) == 0 {
+		return out, nil
+	}
+	rows, err := q.ListLastRepliers(ctx, sqlc.ListLastRepliersParams{MessageIds: messages, Viewer: viewer.UUID()})
+	if err != nil {
+		return nil, errs.Wrap(err, errs.CodeInternal, "social.lastRepliers")
+	}
+	for _, row := range rows {
+		out[row.MessageID] = append(out[row.MessageID], ids.UserIDFrom(row.AuthorID))
+	}
+	return out, nil
+}
+
+func WithReplies(ctx context.Context, db sqlc.DBTX, viewer ids.UserID, messages []ChatMessage) error {
+	if err := WithProposalReplies(ctx, db, messages); err != nil {
+		return err
+	}
+	return WithLastRepliers(ctx, db, viewer, messages)
+}
+
+func WithLastRepliers(ctx context.Context, db sqlc.DBTX, viewer ids.UserID, messages []ChatMessage) error {
+	var targets []uuid.UUID
+	for _, m := range messages {
+		if m.ReplyCount > 0 && !m.Deleted && m.ParentID == uuid.Nil && m.Kind != domain.ChatKindSystem {
+			targets = append(targets, m.ID)
+		}
+	}
+	found, err := lastRepliers(ctx, sqlc.New(db), viewer, targets)
+	if err != nil || len(targets) == 0 {
+		return err
+	}
+	for i, m := range messages {
+		messages[i].LastRepliers = found[m.ID]
+	}
+	return nil
+}
+
+func withParentRepliers(ctx context.Context, db sqlc.DBTX, viewer ids.UserID, parent *ChatMessage) error {
+	one := []ChatMessage{*parent}
+	if err := WithLastRepliers(ctx, db, viewer, one); err != nil {
+		return err
+	}
+	*parent = one[0]
+	return nil
+}
+
 func proposalThread(
 	ctx context.Context, db sqlc.DBTX, reads *sqlc.Queries, q ChatThreadQuery, parent ChatMessage, limit int32,
 ) (ChatThread, error) {
@@ -370,7 +425,7 @@ func proposalThread(
 	}
 	if !noItem {
 		cards := []ChatMessage{parent}
-		if err := WithProposalReplies(ctx, db, cards); err != nil {
+		if err := WithReplies(ctx, db, q.Viewer, cards); err != nil {
 			return ChatThread{}, err
 		}
 		parent = cards[0]

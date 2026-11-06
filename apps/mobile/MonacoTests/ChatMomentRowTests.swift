@@ -24,7 +24,7 @@ struct ChatMomentRowTests {
             id: "m1", kind: .system,
             author: .init(id: nilID, handle: nil, displayName: "", photoUrl: nil),
             moment: payload, body: nil, createdAt: filledAt,
-            alsoInChannel: false, replyCount: 0, deleted: false, reactions: [], reactionCount: 0)
+            alsoInChannel: false, replyCount: 0, lastRepliers: [], deleted: false, reactions: [], reactionCount: 0)
         return try #require(ChatMoment(message: message, viewerID: viewerID))
     }
 

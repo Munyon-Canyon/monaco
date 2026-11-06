@@ -27,7 +27,7 @@ enum ChatFixtures {
             parentId: parentID,
             alsoInChannel: alsoInChannel,
             replyCount: replyCount,
-            deleted: false,
+            lastRepliers: [], deleted: false,
             seenCount: seenCount,
             reactions: reactions,
             reactionCount: Int32(reactions.reduce(0) { $0 + Int($1.count) })

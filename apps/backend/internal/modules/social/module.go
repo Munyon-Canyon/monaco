@@ -337,8 +337,15 @@ func (m *Module) WriteChatMoment() *app.WriteChatMomentHandler {
 
 func (m *Module) chatDeps() app.ChatDeps {
 	return app.ChatDeps{
-		UoW: m.deps.UoW, Members: m.members, Users: m.users, IDs: m.deps.IDs, Clock: m.deps.Clock,
-		Publish: app.NewChatPublisher(m.realtime, adapters.ChatWire(m.users)), Reads: m.deps.Pool, Stocks: m.stocks,
+		UoW:     m.deps.UoW,
+		Members: m.members,
+		Users:   m.users,
+		IDs:     m.deps.IDs,
+		Clock:   m.deps.Clock,
+		Publish: app.NewChatPublisher(m.realtime, adapters.ChatWire(m.users)).
+			WithRepliers(m.users, m.deps.Pool),
+		Reads:  m.deps.Pool,
+		Stocks: m.stocks,
 	}
 }
 

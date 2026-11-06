@@ -17,7 +17,7 @@ struct ChatPinCapsuleTests {
             id: id, kind: .user,
             author: .init(id: author, handle: nil, displayName: name, photoUrl: nil),
             body: body, createdAt: Date(timeIntervalSince1970: 1_790_000_000),
-            alsoInChannel: false, replyCount: 0, deleted: false, reactions: [], reactionCount: 0)
+            alsoInChannel: false, replyCount: 0, lastRepliers: [], deleted: false, reactions: [], reactionCount: 0)
         guard let pinnedBy else { return base }
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601

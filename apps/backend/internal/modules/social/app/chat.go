@@ -47,6 +47,7 @@ type ChatMessage struct {
 	PinnedBy      ids.UserID
 	CommentID     uuid.UUID
 	ReplyTo       *CommentQuote
+	LastRepliers  []ids.UserID
 }
 
 func requireMember(ctx context.Context, members Members, cabal ids.CabalID, user ids.UserID) error {

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -63,7 +64,10 @@ func TestPostChatMessage_aReplyAlsoPublishesTheParentsThreadUpdate(t *testing.T)
 	if len(published) != 3 {
 		t.Fatalf("published = %+v, want the top message, then the reply and the thread update", published)
 	}
-	thread := app.ThreadUpdated{MessageID: top.ID, ReplyCount: 1, LastReplyAt: reply.CreatedAt}
+	thread := app.ThreadUpdated{
+		MessageID: top.ID, ReplyCount: 1, LastReplyAt: reply.CreatedAt,
+		LastRepliers: []app.ThreadReplier{f.replier(1)},
+	}
 	wantReply := testkit.RealtimePublish{
 		Channel: f.channel(), Name: app.EventMessageCreated,
 		Data: jsonOf(t, map[string]any{"id": reply.ID, "body": "reply"}),
@@ -223,7 +227,10 @@ func TestDeleteChatMessage_aReplyPublishesTheParentsThreadUpdateOnceAfterTheDele
 			t.Fatal(err)
 		}
 	}
-	thread := app.ThreadUpdated{MessageID: top.ID, ReplyCount: 1, LastReplyAt: second.CreatedAt}
+	thread := app.ThreadUpdated{
+		MessageID: top.ID, ReplyCount: 1, LastReplyAt: second.CreatedAt,
+		LastRepliers: []app.ThreadReplier{f.replier(2)},
+	}
 	want := []testkit.RealtimePublish{
 		{Channel: f.channel(), Name: app.EventMessageDeleted, Data: jsonOf(t, map[string]any{"id": first.ID})},
 		{Channel: f.channel(), Name: app.EventThreadUpdated, Data: jsonOf(t, thread)},
@@ -315,9 +322,17 @@ func TestPostChatMessage_aReplyStillPublishesTheThreadUpdateWhenTheMessageCannot
 	if err != nil {
 		t.Fatal(err)
 	}
-	thread := app.ThreadUpdated{MessageID: top.ID, ReplyCount: 1, LastReplyAt: reply.CreatedAt}
+	thread := app.ThreadUpdated{
+		MessageID: top.ID, ReplyCount: 1, LastReplyAt: reply.CreatedAt,
+		LastRepliers: []app.ThreadReplier{},
+	}
 	want := []testkit.RealtimePublish{{Channel: f.channel(), Name: app.EventThreadUpdated, Data: jsonOf(t, thread)}}
 	if got := f.rt.Published()[before:]; !reflect.DeepEqual(got, want) {
 		t.Fatalf("published after the reply = %+v, want only %+v", got, want)
 	}
+}
+
+func (f chatFixture) replier(i int) app.ThreadReplier {
+	name := fmt.Sprintf("member%d", i)
+	return app.ThreadReplier{ID: f.member(i).UUID(), Handle: &name, DisplayName: name}
 }

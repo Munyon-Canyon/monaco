@@ -296,7 +296,7 @@ private actor SampleChatStore {
             author: .init(id: "00000000-0000-0000-0000-000000000000", handle: nil, displayName: "", photoUrl: nil),
             moment: moment, body: nil,
             createdAt: Date(timeIntervalSinceNow: -TimeInterval(minutesAgo * 60)),
-            alsoInChannel: false, replyCount: 0, deleted: false, reactions: [], reactionCount: 0)
+            alsoInChannel: false, replyCount: 0, lastRepliers: [], deleted: false, reactions: [], reactionCount: 0)
     }
 
     private static func message(
@@ -310,7 +310,7 @@ private actor SampleChatStore {
             createdAt: Date(timeIntervalSinceNow: -TimeInterval(minutesAgo * 60)),
             alsoInChannel: false,
             replyCount: 0,
-            deleted: false,
+            lastRepliers: [], deleted: false,
             reactions: reactions,
             reactionCount: reactions.reduce(0) { $0 + $1.count }
         )

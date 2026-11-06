@@ -781,8 +781,8 @@ nonisolated extension SampleAPIProtocol {
             id: "sample-pinned-rules", kind: .user,
             author: .init(id: "sample-christelle", handle: "christelle", displayName: "Christelle", photoUrl: nil),
             body: "5 of 8 to pass, 6 hour votes, max 2 open proposals at once",
-            createdAt: Date(timeIntervalSinceNow: -86_400), alsoInChannel: false, replyCount: 0, deleted: false,
-            reactions: [], reactionCount: 0)
+            createdAt: Date(timeIntervalSinceNow: -86_400), alsoInChannel: false, replyCount: 0, lastRepliers: [],
+            deleted: false, reactions: [], reactionCount: 0)
     }
 
     private static var sampleChatMessage: Components.Schemas.ChatMessage {
@@ -790,8 +790,8 @@ nonisolated extension SampleAPIProtocol {
             id: "sample-message", kind: .user,
             author: .init(id: "sample-author", handle: "alex", displayName: "Alex", photoUrl: nil),
             body: "What\u{2019}s everyone watching this week?",
-            createdAt: Date(timeIntervalSinceNow: -720), alsoInChannel: false, replyCount: 0, deleted: false,
-            reactions: [], reactionCount: 0)
+            createdAt: Date(timeIntervalSinceNow: -720), alsoInChannel: false, replyCount: 0, lastRepliers: [],
+            deleted: false, reactions: [], reactionCount: 0)
     }
 }
 #endif

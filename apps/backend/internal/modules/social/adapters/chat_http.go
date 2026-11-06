@@ -240,7 +240,7 @@ func (h HTTP) PinChatMessage(
 		return nil, err
 	}
 	card := []app.ChatMessage{pinned}
-	if err := app.WithProposalReplies(ctx, h.Reads, card); err != nil {
+	if err := app.WithReplies(ctx, h.Reads, me, card); err != nil {
 		return nil, err
 	}
 	wire, err := h.wireChat(ctx, me, card)
@@ -264,7 +264,7 @@ func (h HTTP) UnpinChatMessage(
 		return nil, err
 	}
 	card := []app.ChatMessage{unpinned}
-	if err := app.WithProposalReplies(ctx, h.Reads, card); err != nil {
+	if err := app.WithReplies(ctx, h.Reads, me, card); err != nil {
 		return nil, err
 	}
 	wire, err := h.wireChat(ctx, me, card)
@@ -285,7 +285,7 @@ func (h HTTP) GetChatPins(
 	if err != nil {
 		return nil, err
 	}
-	if err := app.WithProposalReplies(ctx, h.Reads, pins); err != nil {
+	if err := app.WithReplies(ctx, h.Reads, me, pins); err != nil {
 		return nil, err
 	}
 	wire, err := h.wireChat(ctx, me, pins)
@@ -373,6 +373,7 @@ func wireChatWith(
 			Deleted:       m.Deleted,
 			SeenCount:     m.SeenCount,
 			Reactions:     []baseapi.Reaction{},
+			LastRepliers:  wireLastRepliers(cards, m.LastRepliers),
 			PinnedAt:      m.PinnedAt,
 			CommentId:     optionalWireID(m.CommentID),
 		}
@@ -397,6 +398,14 @@ func wireChatWith(
 	return out
 }
 
+func wireLastRepliers(cards map[ids.UserID]app.UserCard, repliers []ids.UserID) []api.ChatAuthor {
+	out := make([]api.ChatAuthor, len(repliers))
+	for i, id := range repliers {
+		out[i] = wireChatAuthor(cards, id)
+	}
+	return out
+}
+
 func wireChatBody(m app.ChatMessage) (*string, *api.CommentAttachment) {
 	body := m.Body
 	if m.Kind == domain.ChatKindProposal && body == "" && m.Attachment == nil {
@@ -412,7 +421,7 @@ func wireChatBody(m app.ChatMessage) (*string, *api.CommentAttachment) {
 }
 
 func cardsNeeded(m app.ChatMessage) []ids.UserID {
-	need := []ids.UserID{m.AuthorID}
+	need := append([]ids.UserID{m.AuthorID}, m.LastRepliers...)
 	if m.ReplyTo != nil {
 		need = append(need, m.ReplyTo.AuthorID)
 	}
