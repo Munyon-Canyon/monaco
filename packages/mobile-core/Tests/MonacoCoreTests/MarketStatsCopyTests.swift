@@ -67,12 +67,13 @@ final class MarketStatsCopyTests: XCTestCase {
     func testTheEstimateSheetReusesTheLedgerRows() throws {
         let preIpo = try XCTUnwrap(PreIpoDetail(.spaceX))
         let sheet = MarketStatsCopy.estimateSheet(preIpo)
-        XCTAssertEqual(sheet.title, "Secondary estimate")
+        XCTAssertEqual(sheet.title, "Pre-IPO estimate")
         XCTAssertEqual(sheet.message, MarketStatsCopy.estimateMessage)
+        XCTAssertEqual(sheet.message, "Last price paid between investors. Not a live price.")
         XCTAssertEqual(sheet.rows.count, 2)
         XCTAssertEqual(sheet.rows.map(\.label), try XCTUnwrap(preIpo.profile).ledger.map(\.label))
         XCTAssertTrue(sheet.rows[0].label.hasPrefix("Last round"))
-        XCTAssertTrue(sheet.rows[1].label.hasPrefix("Secondary estimate"))
+        XCTAssertTrue(sheet.rows[1].label.hasPrefix("Pre-IPO estimate"))
     }
 
     func testTheFactsComeFromTheAssetDetail() {

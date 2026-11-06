@@ -65,8 +65,8 @@ public enum PreIpoCopy {
     }
 
     public static let privateLine = "Private · priced per round, not live"
-    public static let estimateTitle = "Secondary estimate"
-    public static let estimateInfoLabel = "About the secondary estimate"
+    public static let estimateTitle = "Pre-IPO estimate"
+    public static let estimateInfoLabel = "About the Pre-IPO estimate"
     public static let eligible = "Can buy"
     public static let eligibleDetail = "your cabals can vote to buy"
     public static let researchOnly = "Watch only"
@@ -83,9 +83,9 @@ public enum PreIpoCopy {
     public static let nextTenderLabel = "Next tender"
     public static let sellWindowTender = "Tender · quarterly"
     public static let sellWindowAnyTime = "Any time"
-    public static let roundStatsFootnote = "Secondary estimates update between rounds."
+    public static let roundStatsFootnote = "Pre-IPO estimates update between rounds."
     public static let estimateInfo =
-        "A secondary estimate is what shares traded for between funding rounds. It is not a live price."
+        "Last price paid between investors. Not a live price."
     public static let roundStatsInfo =
         "Round stats come from the company’s latest funding round. The sell window says when you can sell."
     public static let heldAtEstimate = "at estimate"
@@ -103,7 +103,7 @@ public enum PreIpoCopy {
         LedgerLine(label: "\(estimateTitle) · \(date)", value: price)
     }
 
-    public static let proposalSubtitle = "Pre-IPO · priced at the secondary estimate"
+    public static let proposalSubtitle = "Pre-IPO · priced at the Pre-IPO estimate"
     public static let proposalFillLine = "fills when it passes"
 
     public static func proposalTenderFillLine(_ month: String) -> String { "fills at the next tender, \(month)" }

@@ -73,7 +73,7 @@ final class ProposeReviewFrameTests: XCTestCase {
             model.preIpoLedger,
             [
                 PreIpoCopy.LedgerLine(label: "Last round · Jun ’26", value: "$165.00"),
-                PreIpoCopy.LedgerLine(label: "Secondary estimate · Oct 20", value: "$185.00"),
+                PreIpoCopy.LedgerLine(label: "Pre-IPO estimate · Oct 20", value: "$185.00"),
             ])
     }
 

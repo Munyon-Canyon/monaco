@@ -19,9 +19,9 @@ public enum MarketStatsCopy {
     }
 
     public static let title = "Market stats"
-    public static let estimateTitle = "Secondary estimate"
+    public static let estimateTitle = "Pre-IPO estimate"
     public static let estimateMessage =
-        "Pre-IPO companies don't trade on an exchange. The estimate is what secondary buyers paid recently."
+        "Last price paid between investors. Not a live price."
     public static let sourceLabel = "Source"
     public static let updatedLabel = "Updated"
     public static let delayLabel = "Delay"
