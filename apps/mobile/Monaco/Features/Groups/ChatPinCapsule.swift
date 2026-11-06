@@ -17,6 +17,7 @@ enum ChatPinMetrics {
 
 enum ChatPinCopy {
     static let sheetTitle = "Pinned"
+    static let messagesTitle = "Messages"
     static let pin = "Pin"
     static let unpin = "Unpin"
     static let unpinned = "Unpinned"
@@ -375,7 +376,7 @@ struct ChatPinHost: ViewModifier {
     var goToVote: (String) -> Void = { _ in }
     let scrollTo: (String) -> Void
 
-    @State private var showsList = false
+    @State private var showsList = Self.opensListOnLaunch
     @State private var cards = CabalVoteCards()
     @Environment(ToastCenter.self) private var toasts
     @Environment(AppEnvironment.self) private var environment
@@ -383,6 +384,16 @@ struct ChatPinHost: ViewModifier {
     private var lead: ProposalSummary? { openVotes?.lead(hiding: visibleCards) }
 
     private var itemCount: Int { (openVotes?.count ?? 0) + pins.pins.count }
+
+    private static var opensListOnLaunch: Bool {
+        #if DEBUG
+        ProcessInfo.processInfo.arguments.contains("-MonacoChatSamplePinsSheet")
+        #else
+        false
+        #endif
+    }
+
+    private var hasItems: Bool { itemCount > 0 }
 
     private var visible: Bool { isShown && (lead != nil || !pins.pins.isEmpty) }
 
@@ -394,11 +405,18 @@ struct ChatPinHost: ViewModifier {
             .onChange(of: pins.toast) { _, toast in
                 if let toast { toasts.current = MonacoToast(message: toast.message) }
             }
-            .onChange(of: pins.pins.isEmpty) { _, empty in
-                if empty { showsList = false }
+            .onChange(of: hasItems) { _, has in
+                if !has { showsList = false }
             }
             .sheet(isPresented: $showsList) {
-                ChatPinListSheet(pins: pins, cabalName: cabalName, viewerID: viewerID, controls: controls) { id in
+                ChatPinListSheet(
+                    pins: pins, cabalName: cabalName, viewerID: viewerID, controls: controls, openVotes: openVotes,
+                    proposals: proposals,
+                    goToVote: { id in
+                        showsList = false
+                        goToVote(id)
+                    }
+                ) { id in
                     showsList = false
                     scrollTo(id)
                 }
