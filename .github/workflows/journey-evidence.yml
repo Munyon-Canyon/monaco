@@ -1,0 +1,34 @@
+name: Journey evidence
+
+# The Journeys job in ci-jobs.yml runs `journey.py gate`, but stage 1 is skipped on a head whose stage 0 pass is
+# attested, and stage 0 runs before a lane writes its PR body. This job reads only the body, so it runs on every
+# body edit and is never skipped by the attest. docs/journeys/README.md#evidence
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize, ready_for_review]
+
+concurrency:
+  group: journey-evidence-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  gate:
+    name: Journey evidence (journey.py gate)
+    if: ${{ !github.event.pull_request.draft && !startsWith(github.head_ref, 'gtmq_') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      # The checkout is the PR's merge commit: its first parent is the base tip, so HEAD^1..HEAD is what the PR changes.
+      - name: Journey evidence in the PR body
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          printf '%s' "$PR_BODY" > "$RUNNER_TEMP/body.md"
+          python3 scripts/qa/journey.py gate --base "$(git rev-parse HEAD^1)" --head "$(git rev-parse HEAD)" --body-file "$RUNNER_TEMP/body.md"
